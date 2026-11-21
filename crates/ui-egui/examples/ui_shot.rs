@@ -309,7 +309,7 @@ impl Host {
                     reason: EwsConsentReason::Redirect,
                 });
             }
-            "works" => EwsSetupEvent::Finished(EwsSetupEnd::Works { url: URL.into(), signed_in_with: "basic".into() }),
+            "works" => EwsSetupEvent::Finished(EwsSetupEnd::Works { url: URL.into(), signed_in_with: "basic".into(), cloud_archive: false }),
             "online" => EwsSetupEvent::Finished(EwsSetupEnd::ExchangeOnline),
             "certificate" => EwsSetupEvent::Finished(certificate(false)),
             "changed" => EwsSetupEvent::Finished(certificate(true)),

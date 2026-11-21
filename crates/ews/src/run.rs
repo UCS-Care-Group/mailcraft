@@ -43,8 +43,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    ArchiveSeen, EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult,
+    GraphFetched, GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -506,11 +506,12 @@ pub async fn sync_mail<E: HttpExchange>(
     wait: &mut dyn FnMut(u32) -> bool,
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
-    sync_store(Store::Primary, client, exchange, request, cancel, wait, emit).await;
+    // (The request says whether it is a run of the mailbox or of its online archive, #1818.)
+    let store = if request.archive { Store::Archive } else { Store::Primary };
+    sync_store(store, client, exchange, request, cancel, wait, emit).await;
 }
 
-/// [`sync_mail`] of the folders of `store` (#1818). (The request names its store once the model
-/// carries one; until then the archive is run from here alone.)
+/// [`sync_mail`] of the folders of `store` (#1818).
 pub(crate) async fn sync_store<E: HttpExchange>(
     store: Store,
     client: &Client,
@@ -544,7 +545,19 @@ pub(crate) async fn sync_store<E: HttpExchange>(
         log::warn!("ews mail: {} folders hold a change that can't be taken in; they are left where they were", out.blocked.len());
     }
     log::debug!("ews mail: the run is over (clean: {}, stopped: {}, busy: {})", out.clean(), out.stopped, out.busy_for.is_some());
+    // Whether the mailbox has an online archive (#1818): asked of the mailbox only, and not after
+    // a run that was stopped, turned down or told to wait. Never worth failing the run for.
+    let ask = request.probe_archive && store == Store::Primary && !out.stopped && !out.auth_refused && out.busy_for.is_none();
+    let archive = match ask {
+        true => Some(match run.probe().await {
+            ArchiveProbe::Present => ArchiveSeen::Present,
+            ArchiveProbe::Absent => ArchiveSeen::Absent,
+            ArchiveProbe::Unknown => ArchiveSeen::Unknown,
+        }),
+        false => None,
+    };
     emit(EwsMailResult {
+        archive,
         errors: out.errors.clone(),
         busy_for: out.busy_for,
         // (Only a run of every folder is the end of a read that may take away what the server lacks.)
@@ -904,20 +917,26 @@ fn passing(code: &ResponseCode) -> bool {
 /// [`ArchiveProbe::Unknown`]. Nothing the server wrote is read into it. `cancel` and `wait` are as
 /// for [`sync_mail`].
 pub async fn probe_archive<E: HttpExchange>(client: &Client, exchange: &E, cancel: &AtomicBool, wait: &mut dyn FnMut(u32) -> bool) -> ArchiveProbe {
-    let mut run = Run::new(client, exchange, cancel, wait);
-    let get = GetFolder::new(&[Store::Archive.message_root()]);
-    let probe = match run.ask(&get.element(), &|reply| get.answer(reply)).await {
-        Ok(answers) => match answers.into_iter().next() {
-            Some(Ok(_)) => ArchiveProbe::Present,
-            Some(Err(Error::Server(code))) if passing(&code) => ArchiveProbe::Unknown,
-            Some(Err(Error::Server(_))) => ArchiveProbe::Absent,
-            Some(Err(_)) | None => ArchiveProbe::Unknown,
-        },
-        Err(Asked::Code(code)) if passing(&code) => ArchiveProbe::Unknown,
-        // (A fault that names the schema, the version or the request: this server has no archive.)
-        Err(Asked::Code(_)) => ArchiveProbe::Absent,
-        Err(Asked::Stop(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => ArchiveProbe::Unknown,
-    };
-    log::info!("ews: online archive probe: {probe:?}");
-    probe
+    Run::new(client, exchange, cancel, wait).probe().await
+}
+
+impl<E: HttpExchange> Run<'_, E> {
+    /// [`probe_archive`] within a run.
+    async fn probe(&mut self) -> ArchiveProbe {
+        let get = GetFolder::new(&[Store::Archive.message_root()]);
+        let probe = match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+            Ok(answers) => match answers.into_iter().next() {
+                Some(Ok(_)) => ArchiveProbe::Present,
+                Some(Err(Error::Server(code))) if passing(&code) => ArchiveProbe::Unknown,
+                Some(Err(Error::Server(_))) => ArchiveProbe::Absent,
+                Some(Err(_)) | None => ArchiveProbe::Unknown,
+            },
+            Err(Asked::Code(code)) if passing(&code) => ArchiveProbe::Unknown,
+            // (A fault that names the schema, the version or the request: this server has no archive.)
+            Err(Asked::Code(_)) => ArchiveProbe::Absent,
+            Err(Asked::Stop(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => ArchiveProbe::Unknown,
+        };
+        log::info!("ews: online archive probe: {probe:?}");
+        probe
+    }
 }

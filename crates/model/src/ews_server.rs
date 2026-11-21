@@ -40,6 +40,25 @@ pub struct EwsServer {
     /// list that goes on from where it was would never bring them.) Not a setting.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub parents: bool,
+    /// The owner hid the mailbox's online archive (#1818): it isn't shown, and the server isn't
+    /// asked about it. The owner's choice: kept until they show it again.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub archive_hidden: bool,
+    /// How many runs in a row the server said the mailbox has no online archive: the archive goes
+    /// only after two, so that one odd answer doesn't take it away. Not a setting.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub archive_absent: u8,
+    /// The automatic setup said the mailbox's online archive is kept in Exchange Online (a hybrid
+    /// setup): it would need a Microsoft sign-in, so it isn't shown, and nothing is sent there.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cloud_archive: bool,
+    /// The owner was told once why that archive isn't shown.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cloud_archive_told: bool,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
 }
 
 /// The address, the name and the fingerprint stay out of debug output, which may reach a log.
@@ -51,6 +70,9 @@ impl std::fmt::Debug for EwsServer {
             .field("trusted", &!self.trusted.is_empty())
             .field("hierarchy", &!self.hierarchy.is_empty())
             .field("parents", &self.parents)
+            .field("archive_hidden", &self.archive_hidden)
+            .field("archive_absent", &self.archive_absent)
+            .field("cloud_archive", &self.cloud_archive)
             .finish()
     }
 }

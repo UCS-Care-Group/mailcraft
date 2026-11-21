@@ -64,15 +64,23 @@ impl MailApp {
     /// the one typed this session, or else the one the operating system was asked to remember (what
     /// the background read of the store brought, never the store itself, #613).
     pub(crate) fn ews_secret(&self, account: Id) -> Option<String> {
+        let account = self.ews_credential_account(account);
         if let Some(typed) = self.passwords.get(&account) {
             return Some(typed.clone());
         }
         self.remembered("password", account)
     }
 
+    /// The account whose password a job of `account` goes with: an online archive's owner's
+    /// (#1818: it has none of its own), else its own.
+    pub(crate) fn ews_credential_account(&self, account: Id) -> Id {
+        self.session.mailbox.archive_owner(account).map_or(account, |owner| owner.id)
+    }
+
     /// The server of `account` turned its password down: the next Send/Receive asks for it again,
     /// and no round by itself goes back until then. What the system remembered is no good either.
     pub(crate) fn ews_password_refused(&mut self, account: Id) {
+        let account = self.ews_credential_account(account);
         self.passwords.remove(&account);
         self.jmap_refused.insert(account);
         if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
@@ -94,15 +102,17 @@ impl MailApp {
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
+        // (An online archive signs in as its owner, #1818: the password asked for is the owner's.)
+        let holder = self.ews_credential_account(account);
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
-            self.passwords.insert(account, typed.to_string());
+            self.passwords.insert(holder, typed.to_string());
         }
         // The owner asked: a password turned down before is tried again.
         if !quiet {
             self.jmap_refused.remove(&account);
         }
         let Some(secret) = self.ews_secret(account) else {
-            let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": holder}));
             self.set_dialog(dialog);
             return Ok(json!({"pending": "password"}));
         };
@@ -170,7 +180,7 @@ impl MailApp {
             let untrusted = !piece.untrusted.is_empty();
             // The server answered with its folders or its mail: it took the password (#802).
             if piece.server_answered() {
-                self.keep_accepted_password(account);
+                self.keep_accepted_password(self.ews_credential_account(account));
             }
             // What File › Info says: how this run signed in, and a certificate that needs a say.
             if !piece.signed_in_with.is_empty() {

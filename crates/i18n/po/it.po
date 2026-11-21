@@ -23242,6 +23242,11 @@ msgid "only a message you sent can be sent again"
 msgstr "si può reinviare solo un messaggio che hai inviato tu"
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "only an Exchange server account has an online archive here"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -23563,6 +23568,11 @@ msgid "subject or body contains {words}"
 msgstr "l'oggetto o il corpo contiene {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "that account isn't an online archive"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -23746,6 +23756,11 @@ msgstr "l'account non ha un nome utente né un indirizzo e-mail per accedere"
 #, fuzzy
 msgid "the account is gone"
 msgstr "l'account non c'è più"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the account {name} is the online archive of is gone"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs

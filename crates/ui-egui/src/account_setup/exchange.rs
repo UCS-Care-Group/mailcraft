@@ -518,7 +518,7 @@ impl AccountSetup {
 
     fn exchange_finished(&mut self, app: &mut MailApp, end: EwsSetupEnd) {
         match end {
-            EwsSetupEnd::Works { url, signed_in_with } => self.add_exchange(app, &url, &signed_in_with),
+            EwsSetupEnd::Works { url, signed_in_with, cloud_archive } => self.add_exchange(app, &url, &signed_in_with, cloud_archive),
             EwsSetupEnd::ExchangeOnline => {
                 // Nothing was sent to Microsoft; nothing typed stays either.
                 self.forget_password();
@@ -561,7 +561,7 @@ impl AccountSetup {
 
     /// The account works: add it, keep its password for this session and, where the owner lets it
     /// be, with the operating system; then its first Send/Receive.
-    fn add_exchange(&mut self, app: &mut MailApp, url: &str, signed_in_with: &str) {
+    fn add_exchange(&mut self, app: &mut MailApp, url: &str, signed_in_with: &str, cloud_archive: bool) {
         let Some((email, _)) = address(&self.email) else {
             self.error = self.not_an_address();
             return self.go_keeping_error(Page::Exchange);
@@ -573,6 +573,9 @@ impl AccountSetup {
         }
         if !self.exchange.trusted.is_empty() {
             ews.insert("trusted".into(), json!(self.exchange.trusted));
+        }
+        if cloud_archive {
+            ews.insert("cloudArchive".into(), json!(true));
         }
         let added = app.execute("account.add", json!({"email": email, "displayName": self.name.trim(), "kind": "exchange", "ews": ews}));
         match added.map(|v| v.get("id").and_then(Value::as_u64)) {

@@ -9,6 +9,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod address;
+mod archive;
 pub mod auth_results;
 pub mod auto_replies;
 pub mod brands;
@@ -184,6 +185,8 @@ mod account_categories_tests;
 mod account_color_tests;
 #[cfg(test)]
 mod account_order_tests;
+#[cfg(test)]
+mod archive_tests;
 #[cfg(test)]
 mod auth_results_tests;
 #[cfg(test)]

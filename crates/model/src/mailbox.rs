@@ -524,6 +524,14 @@ pub struct Account {
     /// in). `None` for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub shared_of: Option<Id>,
+    /// For the **online archive** of an Exchange server account (#1818): the account whose
+    /// mailbox it is the personal archive of. It is reached with that account's server address and
+    /// sign-in, never its own (it has none: its [`Account::ews`] keeps only where its folder list
+    /// goes on from), and it is read from the server while connected: nothing of its folders or
+    /// mail is written to the mailbox file ([`Mailbox::for_disk`]). `None` for every other account,
+    /// and in a file from before there were any.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub archive_of: Option<Id>,
     /// For a Microsoft account: the calendars its owner opened by their owner's address (Open
     /// Shared Calendar), kept here only, at most [`crate::MAX_OPENED_CALENDARS`]. Empty for every
     /// other account, and in a file from before there were any.
@@ -852,6 +860,11 @@ impl Account {
     /// Whether it is a shared mailbox opened through another account ([`Account::shared_of`]).
     pub fn is_shared(&self) -> bool {
         self.shared_of.is_some()
+    }
+
+    /// Whether it is the online archive of another account ([`Account::archive_of`]).
+    pub fn is_archive(&self) -> bool {
+        self.archive_of.is_some()
     }
 
     /// Whether Microsoft keeps its to-dos: it signs in with Microsoft and is not a shared mailbox.
@@ -1611,13 +1624,14 @@ impl Mailbox {
     }
 
     /// Remove an account with its folders and messages, and the shared mailboxes opened through
-    /// it with theirs. Its server isn't told anything: what was still waiting to be pushed there
+    /// it and its online archive with theirs. Its server isn't told anything: what was still waiting to be pushed there
     /// is dropped.
     pub fn remove_account(&mut self, id: Id) -> Result<(), ModelError> {
         if self.account(id).is_none() {
             return Err(not_found("account", id));
         }
-        let going: HashSet<Id> = self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+        let going: HashSet<Id> =
+            self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id) || a.archive_of == Some(id)).map(|a| a.id).collect();
         // Its to-dos stay, and use the shared list from now on: what they carry comes across.
         let carried: Vec<Category> = self
             .tasks
@@ -4800,6 +4814,10 @@ impl Mailbox {
     /// loop, every message is in a folder, every event in a calendar. Returns what was fixed.
     pub fn repair(&mut self) -> Vec<String> {
         let mut fixed = Vec::new();
+        // Nothing of an online archive is kept between runs of the program (#1818).
+        if self.forget_archive_mail() {
+            fixed.push("what was held of an online archive taken away; it is read from the server again".to_string());
+        }
         if self.rules.len() > MAX_RULES {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
@@ -5076,7 +5094,9 @@ impl Mailbox {
                 f.kind = FolderKind::Custom;
             }
         }
-        for account in accounts {
+        // (An online archive has the folders its server gives, and none of its own, #1818.)
+        let archives: HashSet<Id> = self.accounts.iter().filter(|a| a.is_archive()).map(|a| a.id).collect();
+        for account in accounts.into_iter().filter(|a| !archives.contains(a)) {
             for kind in FolderKind::STANDARD {
                 if !has.contains(&(account, kind)) {
                     let id = self.alloc_id();

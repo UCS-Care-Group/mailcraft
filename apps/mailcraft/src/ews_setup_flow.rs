@@ -156,7 +156,7 @@ fn the_server_is_found_from_the_address_and_the_account_is_tried_at_it() {
     let (job, _) = standin_job("");
     let told = run(&world, &job);
     // The external address is tried first (Outlook Anywhere's, which any network reaches).
-    assert_eq!(ended(&told), EwsSetupEnd::Works { url: EWS.into(), signed_in_with: "basic".into() });
+    assert_eq!(ended(&told), EwsSetupEnd::Works { url: EWS.into(), signed_in_with: "basic".into(), cloud_archive: false });
     assert_eq!(told.len(), 1, "no question was asked");
     assert_eq!(world.lookups.lock().unwrap().as_slice(), ["example.org"], "only the domain goes to the DNS");
     // The sign-in went to the owner's own domain only.

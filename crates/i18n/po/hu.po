@@ -23262,6 +23262,11 @@ msgid "only a message you sent can be sent again"
 msgstr "Csak egy üzenet küldhető újra"
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "only an Exchange server account has an online archive here"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -23583,6 +23588,11 @@ msgid "subject or body contains {words}"
 msgstr "a tárgy vagy a szöveg tartalmazza: {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "that account isn't an online archive"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -23766,6 +23776,11 @@ msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e
 #, fuzzy
 msgid "the account is gone"
 msgstr "a fiók már nincs meg"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the account {name} is the online archive of is gone"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs

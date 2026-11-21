@@ -729,3 +729,83 @@ fn a_folder_that_could_not_be_read_in_a_place_not_here_keeps_what_is_at_the_top(
     assert!(s.mailbox.folder_by_server(account, "F6").is_some(), "at the top: it may be that folder");
     assert!(s.mailbox.folder_by_server(account, "F3").is_none(), "in Projects, which was read: gone");
 }
+
+// ---- the online archive (#1818) ----
+
+fn probed(account: Id, seen: ArchiveSeen) -> EwsMailResult {
+    EwsMailResult { archive: Some(seen), partial: false, ..piece(account) }
+}
+
+#[test]
+fn a_run_that_lists_the_folders_asks_about_the_archive_and_a_light_one_doesnt() {
+    let (mut s, account) = session();
+    let full = ews_mail_request(&s, account, false).unwrap();
+    assert!(full.probe_archive && !full.archive);
+    list(&mut s, account);
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive);
+}
+
+#[test]
+fn an_archive_the_server_says_is_there_is_added_once_and_read_with_the_owners_server() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).map(|a| a.id).expect("added");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert_eq!(s.mailbox.accounts.iter().filter(|a| a.is_archive()).count(), 1);
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    assert!(request.archive && !request.probe_archive, "an archive has no archive to ask about");
+    assert_eq!((request.account, request.url.as_str(), request.email.as_str()), (archive, URL, ME));
+    assert!(request.hierarchy.is_empty(), "its own folder list, read from its start");
+    // What its run brings is taken in by it, at its owner's server.
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    assert!(s.mailbox.folders.iter().any(|f| f.account == archive && f.name == "2019"));
+    assert!(!s.mailbox.folders.iter().any(|f| f.account == account && f.name == "2019"), "not the owner's");
+}
+
+#[test]
+fn one_absent_answer_keeps_the_archive_and_two_take_it_away() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "one odd answer");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "an answer that says nothing changes nothing");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "a Present in between starts the count again");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+}
+
+#[test]
+fn a_hidden_or_cloud_archive_is_not_added() {
+    for (hidden, cloud) in [(true, false), (false, true)] {
+        let (mut s, account) = session();
+        let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+        (server.archive_hidden, server.cloud_archive) = (hidden, cloud);
+        apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+        assert!(s.mailbox.archive_of(account).is_none(), "{hidden} {cloud}");
+    }
+}
+
+#[test]
+fn an_archive_whose_owner_is_gone_has_no_request() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    s.mailbox.account_mut(archive).unwrap().archive_of = Some(9_999);
+    assert!(ews_mail_request(&s, archive, false).is_err());
+}
+
+#[test]
+fn a_saved_file_holds_nothing_of_the_archive() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "Taxes 2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let written = String::from_utf8(crate::io::write_mailbox(&s.mailbox).unwrap()).unwrap();
+    assert!(!written.contains("Taxes 2019") && !written.contains("AH-1"));
+    assert!(written.contains("archiveOf"));
+}

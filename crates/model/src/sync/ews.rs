@@ -177,6 +177,29 @@ pub struct EwsMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// The run is of an online archive (#1818): its folders are those under the archive's top of
+    /// the mail, and `account` is the archive's; the address, the user name and the certificate
+    /// are its owner's ([`crate::Account::archive_of`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub archive: bool,
+    /// Ask the server, after the rest of the run, whether the mailbox has an online archive
+    /// ([`EwsMailResult::archive`]). Only in a run of the mailbox itself.
+    #[serde(skip_serializing_if = "is_false")]
+    pub probe_archive: bool,
+}
+
+/// What asking the server about an online archive found (#1818).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ArchiveSeen {
+    /// Nothing could be said (the server couldn't be reached, was busy, answered with nothing
+    /// that is an answer): what was known before stays.
+    #[default]
+    Unknown,
+    /// The mailbox has an online archive.
+    Present,
+    /// The server says it has none.
+    Absent,
 }
 
 /// Messages of an Exchange server account to fetch whole (their MIME content), by server id, in
@@ -363,6 +386,10 @@ pub struct EwsMailResult {
     /// measured by the host, which makes the requests.
     #[serde(skip_serializing_if = "Timings::is_empty")]
     pub timings: Timings,
+    /// What the server said of an online archive, when the request asked
+    /// ([`EwsMailRequest::probe_archive`]): in the last piece.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archive: Option<ArchiveSeen>,
 }
 
 /// Whether `id` may be a server id of a folder or an item: not empty, at most [`MAX_EWS_ID`] bytes,
@@ -533,6 +560,9 @@ impl EwsMailResult {
         if !piece.untrusted.is_empty() {
             self.untrusted = piece.untrusted;
         }
+        if piece.archive.is_some() {
+            self.archive = piece.archive;
+        }
     }
 }
 
@@ -574,6 +604,8 @@ impl std::fmt::Debug for EwsMailRequest {
             .field("inbox_pass", &self.inbox_pass)
             .field("full", &self.full)
             .field("background", &self.background)
+            .field("archive", &self.archive)
+            .field("probe_archive", &self.probe_archive)
             .finish()
     }
 }
@@ -615,6 +647,7 @@ impl std::fmt::Debug for EwsMailResult {
             .field("untrusted", &!self.untrusted.is_empty())
             .field("signed_in_with", &self.signed_in_with)
             .field("timings", &self.timings)
+            .field("archive", &self.archive)
             .finish()
     }
 }

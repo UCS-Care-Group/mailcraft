@@ -32,9 +32,9 @@
 //! changed here since the server last said. No server id and no sync state is logged.
 
 use mailcraft_model::sync::{
-    ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsScope, FolderChange, FolderChangeDone,
-    GraphFetchResult, MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MAX_RESOLVE_TEXT, MAX_RESOLVE_TEXTS,
-    MessageOutcome, SendOutcome, SyncPhase, one_line,
+    ArchiveSeen, ChangeOutcome, EwsFetchRequest, EwsFolderState, EwsMailRequest, EwsMailResult, EwsResolveRequest, EwsScope, FolderChange,
+    FolderChangeDone, GraphFetchResult, MAX_DRAFTS, MAX_EWS_STATE_BYTES, MAX_EWS_STATES, MAX_FOLDER_CHANGES, MAX_MESSAGE_CHANGES, MAX_RESOLVE_TEXT,
+    MAX_RESOLVE_TEXTS, MessageOutcome, SendOutcome, SyncPhase, one_line,
 };
 use mailcraft_model::{Account, AccountKind, EwsServer, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -92,14 +92,20 @@ pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
     ews_account(mb, account).is_ok()
 }
 
-/// The account `account` and its server, when it is an Exchange server account whose server
-/// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
+/// The account `account` and the server it is reached at, when it is an Exchange server account
+/// whose server settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
+/// An online archive is reached at its owner's server, with its owner's sign-in (#1818).
 fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Exchange {
         return Err(failed!("{name} isn't an Exchange server account", name = a.name));
     }
-    let server = a.ews.as_ref().filter(|server| server.problem().is_none());
+    let holder = if a.is_archive() {
+        mb.archive_owner(account).ok_or_else(|| failed!("the account {name} is the online archive of is gone", name = a.name))?
+    } else {
+        a
+    };
+    let server = holder.ews.as_ref().filter(|server| server.problem().is_none());
     let server = server.ok_or_else(|| failed!("{name} has no Exchange server address that can be used", name = a.name))?;
     Ok((a, server))
 }
@@ -113,6 +119,7 @@ fn base(s: &Session, account: Id) -> Result<EwsMailRequest, CmdError> {
         url: server.url.clone(),
         username: server.username.clone(),
         trusted: server.trusted.clone(),
+        archive: a.is_archive(),
         ..Default::default()
     })
 }
@@ -131,12 +138,15 @@ fn base(s: &Session, account: Id) -> Result<EwsMailRequest, CmdError> {
 ///   ([`ews_inbox_request`]) sends and changes nothing.
 pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMailRequest, CmdError> {
     let mut request = base(s, account)?;
-    let (_, server) = ews_account(&s.mailbox, account)?;
     let mb = &s.mailbox;
+    // (Where the account's own folder list goes on from: an archive's is its own, #1818.)
+    let own = mb.account(account).and_then(|a| a.ews.clone()).unwrap_or_default();
     let listed = mb.folders.iter().any(|f| f.account == account && f.server.is_some());
     let server_id = |folder: Id| mb.folder(folder).filter(|f| f.account == account).and_then(|f| f.server.as_ref()).map(|server| server.id.clone());
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox).and_then(server_id);
-    request.scope = if light {
+    // An online archive is read the way Outlook reads it (#1818): its folder list, and the mail of
+    // the folder on screen when that is one of its folders (and of its Inbox); never all of it.
+    request.scope = if light || request.archive {
         // (The Inbox is read anyway.)
         let on_screen = server_id(s.view.folder).filter(|id| Some(id) != inbox.as_ref());
         EwsScope::Light { also: on_screen.into_iter().collect() }
@@ -149,7 +159,9 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     request.sends = super::graph_send::sends(s, account);
     request.list_folders = !light || !listed;
     // (A folder list read before the folder above each was asked for is read afresh, once.)
-    request.hierarchy = if server.parents { server.hierarchy.clone() } else { String::new() };
+    request.hierarchy = if own.parents { own.hierarchy.clone() } else { String::new() };
+    // Whether the mailbox has an online archive is asked in a run that lists the folders (#1818).
+    request.probe_archive = request.list_folders && !request.archive;
     let wanted = |id: &str| match &request.scope {
         EwsScope::All => true,
         EwsScope::Light { also } => inbox.as_deref() == Some(id) || also.iter().any(|a| a == id),
@@ -334,6 +346,38 @@ fn apply_ews_news(s: &mut Session, result: EwsMailResult) -> CmdResult {
     taken
 }
 
+/// What a run said of `owner`'s online archive (#1818): one that is there is added (unless the
+/// owner hid it); one the server said twice in a row is not there goes, with what was held of it
+/// (nothing of it is kept on the computer anyway). Whether the mailbox changed.
+fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
+    let Some(server) = s.mailbox.account(owner).filter(|a| !a.is_archive()).and_then(|a| a.ews.clone()) else { return false };
+    let have = s.mailbox.archive_of(owner).map(|a| a.id);
+    let absent = match seen {
+        ArchiveSeen::Unknown => return false,
+        ArchiveSeen::Present => 0,
+        ArchiveSeen::Absent => server.archive_absent.saturating_add(1).min(2),
+    };
+    let mut changed = false;
+    if absent != server.archive_absent
+        && let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut())
+    {
+        server.archive_absent = absent;
+        changed = true;
+    }
+    match (seen, have) {
+        (ArchiveSeen::Present, None) if !server.archive_hidden && !server.cloud_archive => {
+            changed |= s.mailbox.add_archive(owner).is_ok();
+            log::info!("ews: the mailbox has an online archive; it is shown");
+        }
+        (ArchiveSeen::Absent, Some(archive)) if absent >= 2 => {
+            changed |= s.mailbox.remove_archive(archive).is_ok();
+            log::info!("ews: the server says the mailbox has no online archive; it is no longer shown");
+        }
+        _ => {}
+    }
+    changed
+}
+
 fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
@@ -447,7 +491,9 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
+    // What the server said of an online archive (#1818).
+    let archived = result.archive.is_some_and(|seen| take_archive(s, account, seen));
+    if archived || taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

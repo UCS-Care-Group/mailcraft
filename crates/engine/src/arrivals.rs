@@ -77,10 +77,10 @@ pub fn mark(mailbox: &Mailbox) -> InboxMark {
 }
 
 /// An account of the owner's own that a server keeps mail for, and a run here keeps in step:
-/// there, not a shared mailbox, not one that lives in this mailbox only, and not one a newer
-/// MailCraft added.
+/// there, not a shared mailbox, not an online archive (#1818: it only holds mail moved there), not
+/// one that lives in this mailbox only, and not one a newer MailCraft added.
 fn own(mailbox: &Mailbox, account: Id) -> bool {
-    mailbox.account(account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
+    mailbox.account(account).is_some_and(|a| !a.is_shared() && a.kind.has_server()) && mailbox.counts_as_new_mail(account)
 }
 
 /// What arrived in the Inboxes since `before` was marked, oldest first; at most [`MOST`], the

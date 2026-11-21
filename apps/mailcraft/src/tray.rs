@@ -32,6 +32,7 @@ fn has_unread(session: &mut mailcraft_engine::Session) -> bool {
         f.kind == FolderKind::Inbox
             && counts.unread(f.id) > 0
             && session.mailbox.account(f.account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
+            && session.mailbox.counts_as_new_mail(f.account)
     })
 }
 

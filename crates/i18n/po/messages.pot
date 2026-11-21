@@ -19317,6 +19317,11 @@ msgid "only a message you sent can be sent again"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "only an Exchange server account has an online archive here"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 msgid "only an IMAP account sends from other addresses"
 msgstr ""
@@ -19586,6 +19591,11 @@ msgid "subject or body contains {words}"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "that account isn't an online archive"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "that event doesn't repeat"
 msgstr ""
@@ -19738,6 +19748,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 msgid "the account is gone"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the account {name} is the online archive of is gone"
 msgstr ""
 
 #. why a mail server couldn't be used

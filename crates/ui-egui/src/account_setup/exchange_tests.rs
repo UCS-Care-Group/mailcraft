@@ -181,7 +181,7 @@ fn to_the_form(app: MailApp) -> Harness<'static, MailApp> {
 }
 
 fn works(url: &str, with: &str) -> EwsSetupEnd {
-    EwsSetupEnd::Works { url: url.into(), signed_in_with: with.into() }
+    EwsSetupEnd::Works { url: url.into(), signed_in_with: with.into(), cloud_archive: false }
 }
 
 fn certificate(changed: bool) -> EwsCertificate {

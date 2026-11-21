@@ -153,6 +153,8 @@ pub enum EwsSetupEnd {
         url: String,
         /// How the sign-in went: `basic` or `ntlm`.
         signed_in_with: String,
+        /// The automatic setup found the mailbox's online archive kept in Exchange Online (#1818).
+        cloud_archive: bool,
     },
     /// The mailbox is in Microsoft 365. Nothing was sent there; it is a Microsoft account.
     ExchangeOnline,
