@@ -215,6 +215,9 @@ impl SyncHost {
         for dropped in look.dropped.iter().filter(|d| !d.message.is_empty()).take(20) {
             self.job_error(inner, session, dropped.message.clone());
         }
+        for (_, line) in look.said.iter().take(20) {
+            self.job_error(inner, session, line.clone());
+        }
         for plan in &look.plans {
             // (Only an account of the owner's own: a shared mailbox's calendars take a permission of their own.)
             if !inner.sr.eligible(session, plan.account) || session.mailbox.account(plan.account).is_none_or(|a| a.is_shared()) {

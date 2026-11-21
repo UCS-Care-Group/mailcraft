@@ -1530,6 +1530,7 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
                 s.undo_sends_items(redo)
                     || !s.undo_sends_categories(redo).is_empty()
                     || !s.undo_makes_categories(redo).is_empty()
+                    || !s.undo_renames_on_server(redo).is_empty()
                     || !s.undo_rules_make_categories(redo).is_empty()
             };
             if class == Class::Accounts && sends() {
@@ -2025,13 +2026,22 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("delete the category {}{whose}{there}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "category.rename" if shared_category(s, id, params) || renames_in_outlook(s, params) => {
-            // In Outlook too (#661): the new name is made there, the items there take it, and the
-            // old one is deleted there.
+            // In Outlook too (#661): the new name is made there, the items there take it (those
+            // that aren't kept on this computer too, #851), and the old one is deleted there.
             // Whose Outlook, as `category.remove` says: two accounts may both have the name.
             let outlook = renames_in_outlook(s, params);
             let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
             let whose = owner.filter(|_| outlook).and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
-            let there = if outlook { " in Outlook too: the new name is made there and the old one deleted there" } else { "" };
+            // (Other letters alone: the mail and events that aren't kept here keep the old spelling.)
+            // (Compared as the rename itself compares them: the new name cleaned and cut to size.)
+            let letters = mailcraft_model::clean_name(st("to")).is_some_and(|to| mailcraft_model::sync::same_category(st("from").trim(), &to));
+            let there = if outlook && letters {
+                " in Outlook too: the new spelling is made there, and the old one is deleted there"
+            } else if outlook {
+                " in Outlook too: the new name is made there, the mail and events there that have the old one get it, and the old one is deleted there"
+            } else {
+                ""
+            };
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
             format!("rename the category {}{whose} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
         }
@@ -2114,6 +2124,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 [] => {}
                 [one] => does.push(format!("makes the category {one} in Outlook")),
                 many => does.push(format!("makes the categories {} in Outlook", some(many, 3))),
+            }
+            // A rename taken back after it reached Outlook: the mail and events there that were
+            // given the one name get the other again (#851).
+            for (owner, from, to) in s.undo_renames_on_server(redo).iter().take(3) {
+                // (Whose Outlook, as the question for the rename says: two accounts may have the name.)
+                let whose = s.mailbox.account(*owner).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+                does.push(format!("gives the mail and events in Outlook{whose} that have the category {} the name {}", quoted(from), quoted(to)));
             }
             let colored: Vec<String> = colored.iter().map(|(n, _)| quoted(n)).collect();
             match colored.as_slice() {
