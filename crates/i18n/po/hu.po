@@ -11808,8 +11808,9 @@ msgstr "Kép beillesztése"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Csak a szöveg beillesztése"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

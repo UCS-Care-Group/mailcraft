@@ -11846,8 +11846,9 @@ msgstr "Lipire imagine"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Lipire doar text"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

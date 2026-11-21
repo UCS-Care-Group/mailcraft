@@ -11765,8 +11765,9 @@ msgstr "Coller une image"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Coller le texte seul"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
