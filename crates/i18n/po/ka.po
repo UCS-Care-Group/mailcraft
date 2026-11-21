@@ -160,7 +160,7 @@ msgid "(no name)"
 msgstr "(უსახელო)"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "(no recipients)"
 msgstr "(მიმღების გარეშე)"
@@ -9184,12 +9184,6 @@ msgid "Microsoft's page said so."
 msgstr "ასე თქვა Microsoft-ის გვერდმა."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Microsoft's server couldn't be reached. Click to try again."
-msgstr "Microsoft-ის სერვერთან დაკავშირება ვერ მოხერხდა. ხელახლა საცდელად დაწკაპეთ."
-
-#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Middle name"
@@ -10738,12 +10732,6 @@ msgid "Nothing matches."
 msgstr "შესაბამისი არაფერია."
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Nothing more was found on the server"
-msgstr "სერვერზე მეტი არაფერი მოიძებნა"
-
-#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Nothing new imported: {already}"
@@ -10906,16 +10894,10 @@ msgid "On the"
 msgstr "რიგით"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the server"
 msgstr "სერვერზე"
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "On the server · Searching…"
-msgstr "სერვერზე · ძიება…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13850,7 +13832,7 @@ msgid "Searching the server…"
 msgstr "სერვერზე ძიება…"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "Searching…"
 msgstr "ძიება…"
@@ -14281,9 +14263,8 @@ msgstr "გაგზავნა/მიღების პრობლემე�
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Send/Receive signs in to Microsoft; then the server can be searched."
-msgstr "გაგზავნა/მიღება Microsoft-ში შედის; შემდეგ სერვერზე ძიება შესაძლებელი გახდება."
+msgid "Send/Receive signs in; then the server can be searched."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
@@ -15330,12 +15311,6 @@ msgstr "ნაწილი ჯერ კიდევ იქ არის, რო
 #, fuzzy
 msgid "Some of the files were not attached: the message cannot carry any more."
 msgstr "ზოგიერთი ფაილი არ მიმაგრდა: წერილი მეტს ვეღარ დაიტევს."
-
-#. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
-#, fuzzy
-msgid "Some of the search was checked on this computer"
-msgstr "ძიების ნაწილი ამ კომპიუტერზე შემოწმდა"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -17393,6 +17368,11 @@ msgstr "სერვერმა უპასუხა Exchange Web Services-ი
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "სერვერმა უპასუხა, მაგრამ არა ისე, როგორც Exchange სერვერი პასუხობს. შეამოწმეთ მისი მისამართი სერვერის პარამეტრებში."
 
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server couldn't be reached. Click to try again."
+msgstr ""
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
@@ -17464,6 +17444,11 @@ msgstr "სერვერი დაკავებულია. სცადე
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "სერვერმა ან ორგანიზაციამ თავისი პარამეტრები არ გასცა. სთხოვეთ ადმინისტრატორს სერვერის მისამართი და შეიყვანეთ ის სერვერის პარამეტრებში."
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+msgid "The server search stopped before it finished. There may be more."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22676,6 +22661,11 @@ msgstr "წერილს მიმღებები არ ჰყავს"
 msgid "the message has too many recipients"
 msgstr "წერილს ზედმეტად ბევრი მიმღები ჰყავს"
 
+#. why a mail server couldn't be used
+#: crates/net/src/imap_search.rs
+msgid "the message is no longer on the server"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22768,9 +22758,8 @@ msgstr "ძიება ამ გამგზავნის მისამა
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
-#, fuzzy
-msgid "the search involves no mailbox of a Microsoft account"
-msgstr "ძიება Microsoft-ის ანგარიშის არცერთ საფოსტო ყუთს არ მოიცავს"
+msgid "the search involves no mailbox that can be searched on its server"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23481,6 +23470,11 @@ msgstr "ეს წერილი უკვე გადადებულებ
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "ეს წერილი არ ჩამოტვირთულა: გახსენით, როცა ონლაინ იქნებით, შემდეგ ხელახლა გაგზავნეთ"
+
+#. what a command says
+#: crates/engine/src/cmd/search_server.rs
+msgid "this message was deleted"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -25568,6 +25562,30 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Microsoft's server couldn't be reached. Click to try again."
+#~ msgstr "Microsoft-ის სერვერთან დაკავშირება ვერ მოხერხდა. ხელახლა საცდელად დაწკაპეთ."
+
+#, fuzzy
+#~ msgid "Nothing more was found on the server"
+#~ msgstr "სერვერზე მეტი არაფერი მოიძებნა"
+
+#, fuzzy
+#~ msgid "On the server · Searching…"
+#~ msgstr "სერვერზე · ძიება…"
+
+#, fuzzy
+#~ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
+#~ msgstr "გაგზავნა/მიღება Microsoft-ში შედის; შემდეგ სერვერზე ძიება შესაძლებელი გახდება."
+
+#, fuzzy
+#~ msgid "Some of the search was checked on this computer"
+#~ msgstr "ძიების ნაწილი ამ კომპიუტერზე შემოწმდა"
+
+#, fuzzy
+#~ msgid "the search involves no mailbox of a Microsoft account"
+#~ msgstr "ძიება Microsoft-ის ანგარიშის არცერთ საფოსტო ყუთს არ მოიცავს"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
