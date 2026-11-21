@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::MailApp;
 use crate::compose::editor;
 
-const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
+pub(crate) const REVIEW_PARAGRAPHS_PER_FRAME: usize = 8;
 /// How long the word under the caret stays unmarked after a character is typed, in the body and
 /// the Subject.
 pub(crate) const TYPING_PAUSE: f64 = 0.6;
@@ -30,13 +30,13 @@ pub(crate) struct Checked {
     pub rev: u64,
     pub issues: Vec<Issue>,
     pub(crate) available: bool,
-    partial: bool,
+    pub(crate) partial: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Issue {
     pub span: Range<usize>,
-    word: String,
+    pub(crate) word: String,
 }
 
 #[derive(Clone)]
@@ -234,6 +234,10 @@ impl Suggestions {
         (self.issue.span.start, self.issue.span.end)
     }
 
+    pub(crate) fn words(&self) -> &[String] {
+        &self.words
+    }
+
     pub(crate) fn show(&self, ui: &mut Ui, chosen: &mut Option<Choice>) -> bool {
         let mut keyboard = false;
         if self.words.is_empty() {
@@ -275,6 +279,15 @@ impl Suggestions {
 // The menu is also the way to find a spelling error with the keyboard. The next mark is selected
 // in the editor. The menu's replacements are for the currently selected word, if it is marked.
 pub(crate) fn review(ui: &mut Ui, app: &mut MailApp) {
+    // The key and this item open the walkthrough. A script's `review.spelling` does not: it runs
+    // the engine command (`MailApp::execute` never asks `input_dialog`).
+    crate::widgets::mi(ui, app, "Check Spelling…", "review.spelling", json!({}));
+    if ui.add(egui::Button::new(tl!("Custom Dictionary…")).min_size(egui::vec2(190.0, 0.0))).clicked() {
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("backstage-show-spelling"), true));
+        let _ = app.run("ui.backstage", json!({"value": true, "page": "options"}));
+        ui.close();
+    }
+    ui.separator();
     let Some(host) = app.services.spelling.as_deref() else {
         ui.label(tl!("Spelling is unavailable on this platform"));
         return;

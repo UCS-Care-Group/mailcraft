@@ -290,6 +290,7 @@ mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
 pub mod spelling;
+mod spelling_dialog;
 #[cfg(test)]
 mod spelling_prefs_tests;
 mod spelling_subject;

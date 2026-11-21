@@ -723,6 +723,11 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 /// File › Options › Spelling: as-you-type, the default language, the two ignore switches, and the
 /// custom dictionary. Every change is a command.
 fn spelling_options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let show_spelling = egui::Id::unique("backstage-show-spelling");
+    if ui.ctx().data(|d| d.get_temp::<bool>(show_spelling).unwrap_or(false)) {
+        ui.scroll_to_rect(egui::Rect::from_min_size(ui.cursor().min, egui::vec2(1.0, 1.0)), Some(egui::Align::TOP));
+        ui.ctx().data_mut(|d| d.remove::<bool>(show_spelling));
+    }
     let languages = {
         let Some(host) = app.services.spelling.as_deref() else {
             ui.label(tl!("Spelling is unavailable on this platform"));

@@ -177,6 +177,9 @@ pub enum Dialog {
     Security(Box<crate::security::SecurityDialog>),
     /// Find and Replace in the message being written ([`crate::find_replace`]).
     FindReplace(crate::find_replace::FindReplace),
+    /// Review › Spelling & Grammar (F7): walks the Subject, then the body. It only collects the
+    /// replacement. Change and Change All run commands ([`crate::spelling_dialog`]).
+    Spelling(crate::spelling_dialog::SpellingDialog),
     /// Insert › Symbol ([`crate::symbol`]).
     Symbol(crate::symbol::Symbol),
 }
@@ -330,6 +333,7 @@ impl Dialog {
                     "find"
                 }
             }
+            Dialog::Spelling(_) => "spelling",
         }
     }
 
@@ -472,6 +476,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if matches!(name, "find" | "replace") {
         return crate::find_replace::FindReplace::open(app, name == "replace").map(Dialog::FindReplace);
+    }
+    if name == "spelling" {
+        return crate::spelling_dialog::SpellingDialog::open(app).map(Dialog::Spelling);
     }
     if matches!(name, "attachItem" | "businessCard") {
         app.session.compose.as_ref()?;
@@ -2103,6 +2110,9 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "edit.replace" if !has("text") => Some("replace"),
         // (What it answers is counts to look at.)
         "review.wordCount" => Some("wordCount"),
+        // The key and the menu open the walkthrough. `MailApp::execute` never comes here, so a
+        // script's `review.spelling` runs the engine command and does not open a dialog.
+        "review.spelling" => Some("spelling"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "calendar.subscribe" if !has("address") => Some("subscribe"),
@@ -3109,6 +3119,29 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, title, crate::find_replace::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
             // The keyboard goes back to the text.
+            if close {
+                app.want_body_focus();
+            }
+        }
+        Dialog::Spelling(dialog) => {
+            // Gone with the message it was walking, or with nothing to check. Said here, before
+            // the window, so an unavailable check never flashes an empty dialog.
+            let gone = dialog.tied_to_compose() && app.session.compose.is_none();
+            let unavailable = app.services.spelling.is_none();
+            let off = !unavailable && crate::spelling::locale(app, ctx).is_none();
+            if gone || app.session.doc().is_none() {
+                close = true;
+            } else if unavailable {
+                app.status(tl!("Spelling is unavailable on this platform"));
+                close = true;
+            } else if off {
+                app.status(tl!("Spelling is off for this message"));
+                close = true;
+            } else {
+                let mut done = false;
+                let open = window(ctx, tl!("Spelling"), crate::spelling_dialog::WIDTH, |ui| done = dialog.show(app, ui));
+                close |= !open || done;
+            }
             if close {
                 app.want_body_focus();
             }
