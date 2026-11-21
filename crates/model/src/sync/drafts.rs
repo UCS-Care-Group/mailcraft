@@ -256,6 +256,14 @@ pub struct DraftUp {
     pub read_receipt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<AttachmentsUp>,
+    /// For a draft that is made by itself (not with create-reply): the `Message-ID` it answers
+    /// and the `References` chain, oldest first, without angle brackets, as the draft has them
+    /// here (#1814). Empty for one the server has already, and for an answer made with
+    /// create-reply, which has its own.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub in_reply_to: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<String>,
 }
 
 impl DraftUp {

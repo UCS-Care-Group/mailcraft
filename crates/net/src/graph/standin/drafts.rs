@@ -6,7 +6,8 @@
 //!
 //! - `POST /v1.0/me/messages` makes a draft in Drafts, from JSON (`subject`, `body`, the three
 //!   lists of recipients, `importance`, `categories`, `singleValueExtendedProperties` and
-//!   `internetMessageHeaders`, whose names have to begin with `x-`: anything else is 400) or from
+//!   `internetMessageHeaders`, whose names have to begin with `x-`: anything else is 400; the
+//!   properties `String 0x1042` and `String 0x1039` become its `In-Reply-To` and `References`) or from
 //!   MIME (`Content-Type: text/plain`, the message in base64). Answered 201 with the draft.
 //! - `POST /v1.0/me/messages/{id}/createReply`, `/createReplyAll` and `/createForward` make a
 //!   draft answering (or forwarding) the message: in its conversation, `RE:` or `FW:` and its
@@ -215,8 +216,15 @@ pub(super) fn mime_of(m: &Message) -> String {
         head.push_str(&format!("Reply-To: {}\r\n", m.reply_to.join(", ")));
     }
     head.push_str(&format!("Subject: {}\r\nDate: {}\r\nMessage-ID: {}\r\n", m.subject, date.iso(), m.internet_id));
-    if !m.in_reply_to.is_empty() {
-        head.push_str(&format!("In-Reply-To: {}\r\n", m.in_reply_to));
+    // What it answers: as create-reply set it, else as the extended properties behind the two
+    // headers say (`PidTagInReplyToId`, `PidTagInternetReferences`), as Graph writes them (#1814).
+    let property = |id: &str| m.extended.iter().find(|(have, _)| have.eq_ignore_ascii_case(id)).map(|(_, v)| v.as_str());
+    let answers = Some(m.in_reply_to.as_str()).filter(|v| !v.is_empty()).or_else(|| property("String 0x1042"));
+    if let Some(answers) = answers {
+        head.push_str(&format!("In-Reply-To: {answers}\r\n"));
+    }
+    if let Some(chain) = property("String 0x1039") {
+        head.push_str(&format!("References: {chain}\r\n"));
     }
     head.push_str("MIME-Version: 1.0\r\n");
     let kind = if m.html { "text/html" } else { "text/plain" };

@@ -71,6 +71,10 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
     Some(DraftUp {
         message: m.id,
         of: if id.is_empty() { sd.of.clone() } else { None },
+        // What it answers, for a draft the server hasn't got yet (#1814): written when it is made
+        // by itself, so that an answer to mail of another account or of this computer threads.
+        in_reply_to: if id.is_empty() { m.in_reply_to.clone() } else { String::new() },
+        references: if id.is_empty() { m.references.clone() } else { Vec::new() },
         id,
         marker: sd.marker.clone(),
         change_key: m.server.as_ref().filter(|s| !s.gone).map(|s| s.change_key.clone()).unwrap_or_default(),

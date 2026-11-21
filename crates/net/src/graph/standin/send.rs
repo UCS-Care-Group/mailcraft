@@ -42,7 +42,11 @@ impl State {
     /// File `m` in Sent Items as sent, under an id of its own, and keep a word of it.
     fn file_sent(&mut self, mut m: Message, how: &str, save: bool) {
         let mailbox = self.whose().to_string();
-        self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to: m.in_reply_to.clone(), mailbox });
+        // As create-reply set it, or as a draft made by itself wrote it (`PidTagInReplyToId`, #1814).
+        let in_reply_to = Some(m.in_reply_to.clone()).filter(|v| !v.is_empty()).unwrap_or_else(|| {
+            m.extended.iter().find(|(id, _)| id.eq_ignore_ascii_case("String 0x1042")).map(|(_, v)| v.clone()).unwrap_or_default()
+        });
+        self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to, mailbox });
         if m.to.is_empty() && m.cc.is_empty() && m.bcc.is_empty() {
             return;
         }
