@@ -382,7 +382,7 @@ pub fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_
     }
     // What was made, moved, changed or deleted in the calendar here goes up before the calendar
     // comes down: what comes down then is what the server has after it.
-    if let Some(changes) = request.changes.as_ref().filter(|changes| !changes.ops.is_empty() && !refused) {
+    if let Some(changes) = request.changes.as_ref().filter(|changes| (!changes.ops.is_empty() || changes.rename.is_some()) && !refused) {
         log::info!("calendar: {} changes go to the server", changes.ops.len());
         let uploaded =
             graph::push_events(&access, changes, &graph::EventOptions { zone: zone.to_string(), shared: shared_address.clone().unwrap_or_default() });

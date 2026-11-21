@@ -983,7 +983,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
                 // a picture alone), else as that text; into a signature, a picture on the
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
-                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
+                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`);
+                // its Paste Text Only read no HTML, and the text comes alone.
                 Event::Paste(text) => {
                     let menu = crate::text_menu::taken_paste(&ctx, id);
                     // Files copied in a file manager are attached, not their names pasted as text (#807).

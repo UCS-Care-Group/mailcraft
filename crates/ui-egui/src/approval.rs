@@ -426,7 +426,7 @@ impl MailApp {
                 }
                 match Dialog::open("account", self, &json!({"id": account, "page": "approval"})) {
                     Some(dialog) => {
-                        self.dialog = Some(dialog);
+                        self.set_dialog(Some(dialog));
                         Ok(json!({"dialog": "account", "page": "approval", "account": account}))
                     }
                     None => Err(tl!("This account doesn't sign in with Microsoft").to_string()),

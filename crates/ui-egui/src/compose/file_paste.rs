@@ -213,7 +213,7 @@ pub(super) fn offer(app: &mut MailApp, paths: Vec<String>, os: Os) {
     if os == Os::Windows {
         attach(app, compose, &paths);
     } else if app.dialog.is_none() {
-        app.dialog = Some(crate::dialogs::Dialog::PasteAttachments { compose, paths });
+        app.set_dialog(Some(crate::dialogs::Dialog::PasteAttachments { compose, paths }));
     }
 }
 
