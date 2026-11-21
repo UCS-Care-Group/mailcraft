@@ -41,6 +41,8 @@ mod czech_tests;
 #[cfg(test)]
 mod polish_tests;
 #[cfg(test)]
+mod russian_tests;
+#[cfg(test)]
 mod said_tests;
 
 use std::collections::HashMap;
@@ -72,6 +74,7 @@ pub enum Lang {
     Hungarian,
     Polish,
     Czech,
+    Russian,
     ChineseSimplified,
     Georgian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
@@ -81,7 +84,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 13] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -92,6 +95,7 @@ impl Lang {
         Lang::Hungarian,
         Lang::Polish,
         Lang::Czech,
+        Lang::Russian,
         Lang::ChineseSimplified,
         Lang::Georgian,
         Lang::Pseudo,
@@ -110,6 +114,7 @@ impl Lang {
             Lang::Hungarian => "hu",
             Lang::Polish => "pl",
             Lang::Czech => "cs",
+            Lang::Russian => "ru",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
             Lang::Pseudo => "pseudo",
@@ -152,6 +157,7 @@ impl Lang {
             "hu" => Some(Lang::Hungarian),
             "pl" => Some(Lang::Polish),
             "cs" => Some(Lang::Czech),
+            "ru" => Some(Lang::Russian),
             "ka" => Some(Lang::Georgian),
             _ => None,
         }
@@ -170,6 +176,7 @@ impl Lang {
             Lang::Hungarian => "Magyar",
             Lang::Polish => "Polski",
             Lang::Czech => "Čeština",
+            Lang::Russian => "Русский",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
             Lang::Pseudo => "Pseudo",
@@ -189,6 +196,7 @@ impl Lang {
                 | Lang::Hungarian
                 | Lang::Polish
                 | Lang::Czech
+                | Lang::Russian
                 | Lang::ChineseSimplified
                 | Lang::Georgian
         )
@@ -457,11 +465,20 @@ mod tests {
     /// "Archive" the command, and a text said with a folder's name names the folder.
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
-        let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        let said: Vec<(&str, &str)> = [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Russian]
+            .iter()
+            .map(|l| (l.t("Archive"), l.folder("Archive")))
+            .collect();
         assert_eq!(
             said,
-            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+            [
+                ("Archiver", "Archives"),
+                ("Archivieren", "Archiv"),
+                ("Archivar", "Archivo"),
+                ("Archivia", "Archivio"),
+                ("Archiveren", "Archief"),
+                ("Архивировать", "Архив")
+            ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.
@@ -487,6 +504,7 @@ mod tests {
             "Magyar (előzetes)",
             "Polski (wersja zapoznawcza)",
             "Čeština (náhled)",
+            "Русский (предварительная версия)",
         ];
         if !cfg!(target_arch = "wasm32") {
             expected.push("简体中文（预览）");

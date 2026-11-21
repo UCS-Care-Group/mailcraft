@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-16 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
+Italian, Dutch, Romanian, Hungarian, Polish, Czech, Russian, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
 Simplified Chinese is offered on desktop only until the browser build has a CJK font.
 File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.
@@ -12,7 +12,7 @@ one, or adding another, needs no Rust.
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `zh_CN.po`, `ka.po`), in
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `ru.po`, `zh_CN.po`, `ka.po`), in
   the gettext format any `.po` editor opens. The catalogues are compiled into the program.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
@@ -58,12 +58,19 @@ has reviewed a whole language, its entry in `crates/i18n/src/lib.rs` stops being
 - What goes to recipients (the lines above a quoted original, a meeting answer) should be what
   people writing in that language expect to read.
 - Translate from the English yourself; don't copy another program's translation files.
-- A plural has one `msgstr[n]` per form of the language's rule.
+- A plural has one `msgstr[n]` per form of the language's rule. The rules known are one form, two forms
+  (`n != 1`, English; `n > 1`, French) and three forms, each its own: Romanian's, Polish's, Czech's
+  and Russian's (1, 21… / 2–4, 22–24… / the rest, 11–14 among them), named in `Plural-Forms`.
 - A ribbon label with a line break (`"New\nEmail"`) is a large button's two lines: put the `\n`
   where the translation reads best, or leave it out for one short word.
 - Some English words mean two things. Such an entry has a `msgctxt` that says which: `msgctxt
   "folder"` with `msgid "Archive"` is the folder, the same `msgid` without a context is the
   command. Translate each as its meaning needs.
+- A month's name has two entries: the plain one is the month inside a date (`{day} {month}`),
+  the one with `msgctxt "month alone"` is the month with a year and nothing else
+  (`{month} {year}`, a calendar's heading). Most languages give both the same word and need
+  translate the plain one only; a language whose names change with their place (Russian: `11
+  октября`, `Октябрь 2026`) gives each its own. An empty one is the plain name.
 - A message that says what didn't happen and why is two entries and a pattern: the heading
   ("Your automatic replies weren't changed"), each reason by itself (`msgctxt "why automatic
   replies weren't changed"`, `msgid "you are working offline."`), and `msgid "{heading}:
