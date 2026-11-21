@@ -9577,7 +9577,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr "Mój serwer wychodzący nie wymaga logowania"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nazwa"
@@ -12857,8 +12857,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Usuń z kalendarza"
 
-#. interface
-#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Usuń z ulubionych"
@@ -13598,6 +13598,11 @@ msgstr "Zapisz plik wiadomości jako"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Zapisz podpis"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14585,6 +14590,11 @@ msgstr "Serwer: {address}"
 #, fuzzy
 msgid "Set Sender Addresses"
 msgstr "Ustaw adresy nadawcy"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -21955,6 +21965,11 @@ msgstr "brak obrazu {id} w tym podpisie"
 msgid "no rule with id {id}"
 msgstr "brak reguły o identyfikatorze {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -22425,6 +22440,11 @@ msgstr "tej wiadomości tu nie ma"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ta wiadomość nie czeka w Skrzynce nadawczej"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
@@ -23348,6 +23368,11 @@ msgstr "nazwa użytkownika lub hasło zawiera znak, którego nie można wysłać
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "nazwa użytkownika lub hasło są zbyt długie"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

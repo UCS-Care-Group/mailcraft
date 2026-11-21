@@ -9561,7 +9561,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr "Můj odchozí server nevyžaduje přihlášení"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "Name"
 msgstr "Název"
@@ -12835,8 +12835,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Odebrat z kalendáře"
 
-#. interface
-#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Remove from Favorites"
 msgstr "Odebrat z oblíbených"
@@ -13576,6 +13576,11 @@ msgstr "Uložit soubor zprávy jako"
 #, fuzzy
 msgid "Save Signature"
 msgstr "Uložit podpis"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -14559,6 +14564,11 @@ msgstr "Server: {address}"
 #, fuzzy
 msgid "Set Sender Addresses"
 msgstr "Nastavit adresy odesílatele"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -21923,6 +21933,11 @@ msgstr "v tomto podpisu není obrázek {id}"
 msgid "no rule with id {id}"
 msgstr "žádné pravidlo s id {id}"
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
@@ -22393,6 +22408,11 @@ msgstr "ta zpráva tu není"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ta zpráva nečeká ve složce Pošta k odeslání"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/edit.rs
@@ -23316,6 +23336,11 @@ msgstr "uživatelské jméno nebo heslo obsahuje znak, který nelze odeslat"
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "uživatelské jméno nebo heslo je příliš dlouhé"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

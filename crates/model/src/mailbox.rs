@@ -48,6 +48,10 @@ pub const MAX_CATEGORIES: usize = 1_000;
 pub const MAX_SHARED: usize = 20;
 /// Most folders one account's Favorites from its server hold ([`Mailbox::server_favorites`]).
 const MAX_SERVER_FAVORITES: usize = crate::remote::MAX_FAVORITES;
+/// Most searches kept at the top of Favorites ([`SearchFavorite`]).
+pub const MAX_SEARCH_FAVORITES: usize = 50;
+/// Longest query a saved search keeps.
+pub const MAX_SEARCH_QUERY: usize = 2_000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -190,6 +194,27 @@ pub fn leads(f: &Folder) -> bool {
 pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
     // The id last: two folders of one name keep their places from frame to frame.
     list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.place.unwrap_or(u32::MAX), f.name.to_lowercase(), f.id));
+}
+
+/// A search kept at the top of Favorites: the name the owner gave it, the query Advanced Search
+/// wrote, where that search looks (`folder`, `subfolders`, `mailbox` or `everywhere`), and the
+/// folder it was saved in. A file from before the folder was kept has `folder` 0: opening it
+/// searches wherever is open.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SearchFavorite {
+    pub id: Id,
+    pub name: String,
+    pub query: String,
+    pub scope: String,
+    /// The folder open when the search was saved. 0 when a file didn't say, or that folder is gone.
+    pub folder: Id,
+}
+
+impl Default for SearchFavorite {
+    fn default() -> Self {
+        SearchFavorite { id: 0, name: String::new(), query: String::new(), scope: "folder".into(), folder: 0 }
+    }
 }
 
 /// Whether a list of category names has `name`.
@@ -1304,6 +1329,9 @@ pub struct Mailbox {
     /// ([`crate::remote::EventCheck`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub event_checks: Vec<crate::remote::EventCheck>,
+    /// Searches saved from Advanced Search, newest first, shown at the top of Favorites.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub search_favorites: Vec<SearchFavorite>,
     /// The Favorites of the accounts whose server has a list of them ([`ServerFavorites`]), one
     /// entry an account at most ([`Mailbox::server_favorites`]). Nothing is written of it until
     /// a server's list has been taken in.
@@ -1432,6 +1460,7 @@ impl Default for Mailbox {
             task_place: None,
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
+            search_favorites: Vec::new(),
             queued: Vec::new(),
             account_categories: BTreeMap::new(),
             server_categories: BTreeMap::new(),
@@ -1633,7 +1662,13 @@ impl Mailbox {
         }
         self.accounts.retain(|a| !going.contains(&a.id));
         self.account_order.retain(|a| !going.contains(a));
+        let gone_folders: HashSet<Id> = self.folders.iter().filter(|f| going.contains(&f.account)).map(|f| f.id).collect();
         self.folders.retain(|f| !going.contains(&f.account));
+        for saved in &mut self.search_favorites {
+            if gone_folders.contains(&saved.folder) {
+                saved.folder = 0;
+            }
+        }
         self.messages.retain(|_, m| !going.contains(&m.account));
         self.pending.retain(|p| !going.contains(&p.account()));
         self.event_changes.retain(|change| !going.contains(&change.account));
@@ -2100,6 +2135,11 @@ impl Mailbox {
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
+        for saved in &mut self.search_favorites {
+            if gone.contains(&saved.folder) {
+                saved.folder = 0;
+            }
+        }
         for list in &mut self.favorites_from_server {
             list.folders.retain(|folder| !gone.contains(folder));
         }
@@ -2311,6 +2351,11 @@ impl Mailbox {
                 }
                 self.folders.retain(|f| !gone.contains(&f.id));
                 self.messages.retain(|_, m| !gone.contains(&m.folder));
+                for saved in &mut self.search_favorites {
+                    if gone.contains(&saved.folder) {
+                        saved.folder = 0;
+                    }
+                }
                 for list in &mut self.favorites_from_server {
                     list.folders.retain(|folder| !gone.contains(folder));
                 }
@@ -4407,6 +4452,53 @@ impl Mailbox {
         told
     }
 
+    /// Drop saved searches a file shouldn't hold: too many, no name, a repeated or impossible
+    /// id, a query or a scope this version doesn't keep. Returns whether any went or changed.
+    fn repair_search_favorites(&mut self) -> bool {
+        let scopes = ["folder", "subfolders", "mailbox", "everywhere"];
+        let folders: HashSet<Id> = self.folders.iter().map(|f| f.id).collect();
+        let mut changed = false;
+        let mut seen = HashSet::new();
+        self.search_favorites.retain(|f| {
+            let keep = (1..=MAX_ID).contains(&f.id) && seen.insert(f.id);
+            changed |= !keep;
+            keep
+        });
+        for f in &mut self.search_favorites {
+            match crate::clean_name(&f.name) {
+                Some(name) if name != f.name => {
+                    f.name = name;
+                    changed = true;
+                }
+                Some(_) => {}
+                None => {
+                    f.name.clear();
+                    changed = true;
+                }
+            }
+            let query: String = f.query.chars().filter(|c| !c.is_control()).take(MAX_SEARCH_QUERY).collect();
+            if query != f.query {
+                f.query = query;
+                changed = true;
+            }
+            if !scopes.contains(&f.scope.as_str()) {
+                f.scope = "folder".into();
+                changed = true;
+            }
+            if f.folder != 0 && !folders.contains(&f.folder) {
+                f.folder = 0;
+                changed = true;
+            }
+        }
+        let before = self.search_favorites.len();
+        self.search_favorites.retain(|f| !f.name.is_empty() && !f.query.trim().is_empty());
+        changed |= self.search_favorites.len() != before;
+        // After the bad ones are gone, so a damaged entry cannot take a slot a real search needs.
+        let over = self.search_favorites.len() > MAX_SEARCH_FAVORITES;
+        self.search_favorites.truncate(MAX_SEARCH_FAVORITES);
+        changed || over
+    }
+
     /// Make a mailbox read from a file consistent, whatever the file held: ids are unique and
     /// below `next_id`, every account has its standard folders, folder parents exist and don't
     /// loop, every message is in a folder, every event in a calendar. Returns what was fixed.
@@ -4416,6 +4508,7 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        let mut saved_searches = self.repair_search_favorites();
         if self.repair_follow_ups_pending() {
             fixed.push("reminders waiting for a sent copy cut".to_string());
         }
@@ -4457,6 +4550,7 @@ impl Mailbox {
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
             .chain(self.rules.iter().map(|r| r.id))
+            .chain(self.search_favorites.iter().map(|f| f.id))
             .filter(sane)
             .max()
             .unwrap_or(0);
@@ -4653,6 +4747,12 @@ impl Mailbox {
                 Some(clean) => f.name = clean,
                 None => f.name = f.kind.default_name().into(),
             }
+        }
+        // Again, now that folders of unknown accounts are gone and folder ids are corrected:
+        // a favorite that named one of those is the current folder (`0`), as `delete_folder` does.
+        saved_searches |= self.repair_search_favorites();
+        if saved_searches {
+            fixed.push("saved searches tidied".to_string());
         }
         // Parents must exist, be in the same account and not loop.
         let mut snapshot: HashMap<Id, (Id, Option<Id>)> = HashMap::with_capacity(self.folders.len());

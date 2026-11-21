@@ -311,6 +311,8 @@ pub mod window_geometry;
 pub mod window_places;
 pub mod windows;
 #[cfg(test)]
+mod words_of_tests;
+#[cfg(test)]
 mod writing_tools_tests;
 mod zones;
 
@@ -1607,6 +1609,8 @@ pub struct MailApp {
     pub(crate) search_focus: bool,
     /// Advanced Search, while its panel is open under the search box (#329).
     pub(crate) advanced_search: Option<advanced_search::Panel>,
+    /// The panel put aside while Save as a favorite asks for a name. Cancel puts it back.
+    pub(crate) advanced_search_held: Option<advanced_search::Panel>,
     /// Whether the title bar had room for the search box when it was last drawn.
     pub(crate) search_box_shown: bool,
     /// The messages being written whose Bcc line is shown, by their ids (#286).
@@ -1994,6 +1998,7 @@ impl MailApp {
             search_text: String::new(),
             search_focus: false,
             advanced_search: None,
+            advanced_search_held: None,
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
@@ -2274,6 +2279,9 @@ impl MailApp {
     /// input the user hasn't given yet opens its dialog; one that writes a file asks where (or, in
     /// the browser, downloads it); a failure shows in the status bar.
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        // Cleared again in `execute`. A refusal said before that (another window's mailbox, a
+        // message that can't be left) must not repeat an earlier command's words.
+        self.last_error = None;
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
         }
@@ -2468,14 +2476,22 @@ impl MailApp {
         self.session.compose_id().is_some_and(|id| self.compose_bcc.contains(&id))
     }
 
+    /// The refusal `e` in the interface language: the engine's last error, its template filled,
+    /// or the text looked up whole. An error from another command is left where it is, so this
+    /// one is not said in that command's words.
+    pub(crate) fn words_of(&mut self, e: &str) -> String {
+        if self.last_error.as_ref().is_some_and(|err| err.to_string() == e) {
+            self.last_error.take().map(|err| err.in_lang(i18n::current())).unwrap_or_else(|| tl!(e).to_string())
+        } else {
+            tl!(e).to_string()
+        }
+    }
+
     /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.words_of(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }
@@ -2485,6 +2501,9 @@ impl MailApp {
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
     /// UI-level commands (`ui.*`) are handled here, the rest by the engine.
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        // A refusal belongs to the command running now. One left by an earlier command must not
+        // be shown for this one, in a dialog or in the status bar.
+        self.last_error = None;
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
         }
@@ -3967,7 +3986,7 @@ impl MailApp {
             self.secrets_opening = opening;
             // A question about the mailbox that was open goes with it: it names messages and
             // accounts by ids, which the other mailbox may have too (#503).
-            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. } | dialogs::Dialog::SearchFavorite { .. })) {
                 self.set_dialog(None);
             }
             // An agent's too.

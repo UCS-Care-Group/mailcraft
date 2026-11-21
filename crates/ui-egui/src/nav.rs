@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
 use mailcraft_engine::cmd::folder::sort_as_listed;
-use mailcraft_model::{Account, Folder, FolderKind, GmailCategory, Id, Mailbox};
+use mailcraft_model::{Account, Folder, FolderKind, GmailCategory, Id, Mailbox, SearchFavorite};
 use serde_json::json;
 
 use crate::favorites_sync::Note;
@@ -783,6 +783,70 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     });
 }
 
+/// A saved search names the folder in view, and its folder is still there.
+fn saved_search_exact(fav: &SearchFavorite, query: &str, scope: &str, folder: Id) -> bool {
+    !query.is_empty() && fav.query == query && fav.scope == scope && fav.folder != 0 && fav.folder == folder
+}
+
+/// Whether this saved search is the row that is on. The one for the folder in view wins. A search
+/// whose folder is gone (`folder` 0) is on only when none names that folder, so the two are not
+/// both marked.
+fn saved_search_on(fav: &SearchFavorite, query: &str, scope: &str, folder: Id, exact: bool) -> bool {
+    if query.is_empty() || fav.query != query || fav.scope != scope {
+        return false;
+    }
+    if exact { fav.folder == folder } else { fav.folder == 0 || fav.folder == folder }
+}
+
+/// A search saved from Advanced Search, at the top of Favorites. Clicking it runs that search.
+fn search_favorite_row(app: &mut MailApp, ui: &mut Ui, fav: &SearchFavorite, selected: bool) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+    let resp = ui.interact(r, ui.scope_id().with(("search_favorite", fav.id)), Sense::click());
+    app.hit.add("searchFavorite", fav.id, r);
+    let row = highlight(r);
+    if selected {
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
+    }
+    let icon = Rect::from_center_size(pos2(r.min.x + CHEVRON_X, r.center().y), vec2(14.0, 14.0));
+    let ink = if selected { t.accent_soft_text } else { t.text };
+    icons::paint(ui.painter(), icon, "search", if selected { ink } else { t.text_dim }, t.accent);
+    let y = r.center().y;
+    paint_clipped(
+        ui.painter(),
+        pos2(r.min.x + NAME_LEFT, y),
+        (r.max.x - COUNT_RIGHT - r.min.x - NAME_LEFT).max(0.0),
+        &fav.name,
+        if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) },
+        ink,
+    );
+    let said = fav.name.clone();
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, true, selected, &said));
+    if resp.clicked() {
+        app.search_text = fav.query.clone();
+        if fav.folder != 0 && app.session.mailbox.folder(fav.folder).is_some() {
+            let _ = app.run("folder.select", json!({"id": fav.folder}));
+        }
+        if let Err(e) = app.run("view.search", json!({"query": fav.query, "scope": fav.scope})) {
+            app.say_refused("view.search", &e);
+        }
+        if let Some(ctx) = &app.ctx {
+            crate::chrome::caret_at_end(ctx, &app.search_text);
+        }
+    }
+    let id = fav.id;
+    resp.context_menu(|ui| {
+        ui.set_min_width(190.0);
+        if ui.add(egui::Button::new(tl!("Remove from Favorites")).min_size(vec2(180.0, 0.0))).clicked() {
+            let _ = app.run("search.unfavorite", json!({"id": id}));
+            ui.close();
+        }
+    });
+}
+
 /// What the window calls one of Gmail's categories (#911).
 pub(crate) fn gmail_name(category: GmailCategory) -> &'static str {
     match category {
@@ -1052,6 +1116,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // account whose server has them; else the ones that are marked here.
             let favorites: Vec<Folder> =
                 mailcraft_engine::cmd::folder::favorites(&app.session).into_iter().filter_map(|id| app.session.mailbox.folder(id).cloned()).collect();
+            let saved: Vec<SearchFavorite> = app.session.mailbox.search_favorites.clone();
+            let view_query = app.session.view.search.clone();
+            let view_scope = crate::chrome::scope_code(app.session.view.scope);
             // And what there is to say of Outlook's, in one quiet line under the heading.
             let note = app.favorites_note();
             // (A shared mailbox right after the account it is opened through, #70.)
@@ -1077,7 +1144,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
-            let favorite_selected = among_favorites && !(in_a_list && picked_in_list(ui));
+            // A saved search is the row that is on when the query, the scope and the folder are
+            // its own. One whose folder was removed is folder 0 and matches only when no saved
+            // search names the folder in view, so the two are not both marked. The account's list
+            // still marks that folder. The copy under Favorites does not, so the same folder is
+            // not marked twice.
+            let view_folder = app.session.view.folder;
+            let exact = saved.iter().any(|fav| saved_search_exact(fav, &view_query, view_scope, view_folder));
+            let search_on = saved.iter().any(|fav| saved_search_on(fav, &view_query, view_scope, view_folder, exact));
+            let favorite_selected = !search_on && among_favorites && !(in_a_list && picked_in_list(ui));
             // The owner's own accounts are dragged up or down by their headings (#702), when there
             // are two at least; a shared mailbox goes with its account.
             let own = owners(&app.session.mailbox);
@@ -1093,9 +1168,13 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true, movable.contains(&id))
                 }
             };
-            if (!favorites.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
+            if (!favorites.is_empty() || !saved.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
                 if let Some((account, note)) = &note {
                     favorites_note(app, ui, *account, note);
+                }
+                for fav in &saved {
+                    let on = saved_search_on(fav, &view_query, view_scope, view_folder, exact);
+                    search_favorite_row(app, ui, fav, on);
                 }
                 for f in &favorites {
                     folder_row(app, ui, f, 0, false, "fav", count(f), favorite_selected && f.id == current);
@@ -1244,6 +1323,10 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 #[cfg(test)]
 #[path = "nav_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "nav_saved_on_tests.rs"]
+mod saved_on_tests;
 
 #[cfg(test)]
 #[path = "nav_drop_tests.rs"]

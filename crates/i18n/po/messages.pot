@@ -7919,7 +7919,7 @@ msgid "My outgoing server needs no sign-in"
 msgstr ""
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "Name"
 msgstr ""
 
@@ -10629,8 +10629,8 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 msgid "Remove from Favorites"
 msgstr ""
 
@@ -11232,6 +11232,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Save Signature"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/dialogs.rs
+msgid "Save as a favorite"
 msgstr ""
 
 #. interface
@@ -12048,6 +12053,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/senders.rs
 msgid "Set Sender Addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Set a filter first"
 msgstr ""
 
 #. name
@@ -18153,6 +18163,11 @@ msgstr ""
 msgid "no rule with id {id}"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no saved search has that id"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 msgid "no shared mailbox is open"
@@ -18546,6 +18561,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
 msgid "that message isn't waiting in the Outbox"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "that search is already in Favorites"
 msgstr ""
 
 #. what a command says
@@ -19316,6 +19336,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/password.rs
 msgid "the user name or password is too long"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "there are already 50 saved searches"
 msgstr ""
 
 #. what a command says
