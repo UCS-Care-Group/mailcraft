@@ -1,0 +1,1 @@
+- A selected picture in a message, or in a signature in File › Signatures, can be resized from any of its four corners, not just the bottom-right one; pressing Escape while dragging puts it back as it was ([#1310](https://github.com/GITHUB_REPOSITORY/issues/1310)).

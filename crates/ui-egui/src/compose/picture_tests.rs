@@ -404,3 +404,126 @@ fn a_picture_is_drawn_in_the_body() {
     // (The test PNG has no pixels to decode: it is drawn as a frame, and laying it out did not fail.)
     assert_eq!(pictures(&h), 1);
 }
+
+/// The corner `name` of the selected (first) picture, where it is drawn.
+fn corner(h: &Window, name: &str) -> egui::Pos2 {
+    h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID)).expect("a selected picture has four corners").center()
+}
+
+#[test]
+fn every_corner_sizes_the_picture_from_the_one_opposite() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    // (Without pixels to read, the test picture is shown 120 wide.) A left corner makes it wider
+    // going left, a right one going right.
+    let at = corner(&h, "pictureCornerTopLeft");
+    drag(&mut h, at, egui::vec2(-30.0, -10.0));
+    assert_eq!(width(&h), Some(150));
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(170));
+    let at = corner(&h, "pictureCornerBottomLeft");
+    drag(&mut h, at, egui::vec2(20.0, 5.0));
+    assert_eq!(width(&h), Some(150));
+    assert_eq!(plain(&h), OBJECT.to_string(), "dragging a corner selects no text and moves nothing");
+    // One step of the message's undo for each drag.
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), Some(170));
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), Some(150));
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
+fn a_picture_not_selected_has_no_corners() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    for name in ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"] {
+        assert!(h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID)).is_none(), "{name}");
+    }
+}
+
+#[test]
+fn escape_while_a_corner_is_held_puts_the_picture_back_and_does_nothing_else() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    key(&mut h, Key::Escape);
+    // The button is still down and the pointer goes on moving: the drag stays given up.
+    let to = from + egui::vec2(60.0, 0.0);
+    h.event(Event::PointerMoved(to));
+    h.step();
+    h.event(button(to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None, "nothing is set");
+    assert!(h.state().session.compose.is_some(), "the message is still open");
+    assert!(super::editor::has_focus(&h.ctx), "the keys are still the body's");
+    assert_eq!(plain(&h), OBJECT.to_string());
+    let s = sel(&h);
+    assert_eq!((s.start(), s.end()), (0, 1), "the picture is still what is selected");
+    // The next drag sizes it as ever.
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(140));
+    // And Escape once the button is up is the body's as before: it lets go of the keyboard.
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!super::editor::has_focus(&h.ctx), "Escape after the drag lets the body go");
+    assert_eq!(width(&h), Some(140));
+}
+
+/// A PNG `w` by `h` pixels that can be read.
+fn real_png(w: u32, h: u32) -> Vec<u8> {
+    use image::ImageEncoder as _;
+    let rgb: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 90, 160]).collect();
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    out
+}
+
+#[test]
+fn a_signature_s_picture_in_file_signatures_has_four_corners_and_escape_is_the_drag_s() {
+    let mut a = app();
+    a.execute("signature.set", json!({"name": "Standard", "text": "Avery"})).unwrap();
+    a.execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    a.execute("signature.open", json!({"name": "Standard"})).unwrap();
+    a.execute("compose.select", json!({"from": 0})).unwrap();
+    a.execute("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&real_png(200, 100)), "file": "logo.png"})).unwrap();
+    a.execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    let mut h = window(a);
+    h.run_steps(6);
+    let picture = |h: &Window| h.state().session.signature_edit.as_ref().unwrap().signature.pictures().first().map(|p| (p.id, p.width)).unwrap();
+    let (id, before) = picture(&h);
+    assert_eq!(before, None);
+    let at = |h: &Window, name: &str| h.state().hit.rect(name, u64::from(id)).expect("the signature's picture has four corners").center();
+    // The top left corner, 20 to the left: 20 wider.
+    let from = at(&h, "pictureCornerTopLeft");
+    drag(&mut h, from, egui::vec2(-20.0, 0.0));
+    assert_eq!(picture(&h).1, Some(220));
+    // Escape while the bottom left corner is held: nothing set, and File is still open.
+    let from = at(&h, "pictureCornerBottomLeft");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    h.event(Event::PointerMoved(from + egui::vec2(30.0, 0.0)));
+    h.step();
+    key(&mut h, Key::Escape);
+    h.event(button(from + egui::vec2(30.0, 0.0), false));
+    h.run_steps(3);
+    assert_eq!(picture(&h).1, Some(220));
+    assert!(h.state().ui.backstage, "File is still open");
+}
