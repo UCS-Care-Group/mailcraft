@@ -1672,6 +1672,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "应用下载的待办事项"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "应用 IMAP 获取"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2681,6 +2687,12 @@ msgstr "拨打"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "无法在此打开。请保存以保留它。"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "无法完整导出“{folder}”。尚待下载的邮件：{n} 封。请在联网后打开这些邮件（或在账户设置中将所有邮件保留为离线邮件），然后重新导出。"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3825,7 +3837,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "无法从“{name}”中删除邮件"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "无法从“{name}”下载邮件"
@@ -3835,6 +3847,12 @@ msgstr "无法从“{name}”下载邮件"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "无法再次从“{name}”下载邮件"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "无法下载邮件"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3891,7 +3909,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "无法将邮件移至“{name}”：该文件夹不再位于服务器上"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "无法打开“{name}”"
@@ -3945,10 +3963,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "无法读取 Gmail 的“{name}”类别"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "无法读取文件夹列表"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "无法读取“{name}”中的邮件大小"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3967,6 +3991,12 @@ msgstr "无法在服务器上保存草稿“{subject}”：服务器显示 {why}
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "无法保存邮箱：{error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "无法发送“{subject}”：它尚未下载"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6822,6 +6852,12 @@ msgstr "我是管理员：为我的组织批准 MailCraft"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "我是管理员：为我的组织批准"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "IMAP 获取请求"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14038,7 +14074,7 @@ msgid "Send & Receive"
 msgstr "发送和接收"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "发送/接收"
@@ -17347,6 +17383,13 @@ msgstr "报告服务暂时不可用。请稍后重试，或在 GitHub 上提交�
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达。请稍后重试，或在 GitHub 上提交。"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "规则“{rule}”无法移动 {n} 封邮件。原因：{why}"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -21668,17 +21711,17 @@ msgstr "需要 Gmail 账户"
 msgid "never"
 msgstr "从不"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "没有 ID 为 {id} 的 IMAP 账户"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "没有 Microsoft 账户通过 IMAP 同步"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "没有 Microsoft 或 Exchange 服务器账户离线保存邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -21716,6 +21759,12 @@ msgstr "没有账户连接到邮件服务器"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "没有账户连接到邮件服务器（文件 › 添加账户）"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "没有账户连接到 IMAP 服务器"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -21728,6 +21777,12 @@ msgstr "没有账户通过 JMAP 同步"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "没有账户通过 Microsoft Graph 同步"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "没有账户在此计算机上保留一段时间范围内的邮件"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -21735,7 +21790,7 @@ msgid "no account with id {account}"
 msgstr "没有 ID 为 {account} 的账户"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "没有 ID 为 {id} 的账户"
@@ -21837,7 +21892,7 @@ msgid "no message with id {id}"
 msgstr "没有 ID 为 {id} 的邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name} 中没有 ID 为 {id} 的邮件"
@@ -23351,7 +23406,7 @@ msgid "there is nothing to take in"
 msgstr "没有可接收的内容"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "这些邮件属于另一个账户，不属于 {name}"
@@ -23547,6 +23602,18 @@ msgstr "此邮件没有可查找的主题"
 #, fuzzy
 msgid "this message is in the Snoozed folder already"
 msgstr "此邮件已在“已暂缓”文件夹中"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "此邮件尚未下载：请联网后打开，再回复或转发"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "此邮件尚未下载：请联网后打开，再保存"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24263,12 +24330,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} 不是通过 IMAP 同步的 Microsoft 账户"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} 不是 Microsoft 或 Exchange 服务器账户"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24311,6 +24372,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} 未连接到邮件服务器"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} 未连接到 IMAP 服务器"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -24327,6 +24394,12 @@ msgstr "{name} 未通过 Microsoft Graph 保持同步"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} 不在发送/接收队列中"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} 将其所有邮件保存在此计算机上：只有 Microsoft、Exchange 服务器或 IMAP 账户才会保留一段时间范围内的邮件"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -25501,6 +25574,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "“{subject}”尚未下载：请先打开，然后再次发送"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -25528,6 +25607,18 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "“{folder}”中有 {n} 封邮件尚未下载，因此无法完整导出：请联网后打开它们（或在账户设置中将所有邮件保留为离线），然后重新导出"
+
+#, fuzzy
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "没有 Microsoft 或 Exchange 服务器账户离线保存邮件"
+
+#, fuzzy
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "{name} 不是 Microsoft 或 Exchange 服务器账户"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

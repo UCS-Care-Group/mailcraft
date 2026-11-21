@@ -1671,6 +1671,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "ჩამოტვირთული დავალებების გამოყენება"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "IMAP-იდან მიღებული მონაცემების გამოყენება"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2673,6 +2679,12 @@ msgstr "დარეკვა"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "აქ ვერ გაიხსნება. შეინახეთ, რომ დაიტოვოთ."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "„{folder}“-ის სრულად ექსპორტი ვერ მოხერხდა. ჩამოსატვირთი შეტყობინებები: {n}. გახსენით ისინი ინტერნეტთან დაკავშირების შემდეგ (ან ანგარიშის პარამეტრებში აირჩიეთ მთელი ფოსტის ხაზგარეშე შენახვა) და კვლავ გაიტანეთ ექსპორტზე."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3814,7 +3826,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "საქაღალდიდან „{name}“ წერილები ვერ წაიშალა"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "საქაღალდიდან „{name}“ წერილი ვერ ჩამოიტვირთა"
@@ -3824,6 +3836,12 @@ msgstr "საქაღალდიდან „{name}“ წერილი ვ
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "საქაღალდიდან „{name}“ წერილი ხელახლა ვერ ჩამოიტვირთა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "შეტყობინების ჩამოტვირთვა ვერ მოხერხდა"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3880,7 +3898,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "წერილები საქაღალდეში „{name}“ ვერ გადავიდა: საქაღალდე სერვერზე აღარ არის"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}“ ვერ გაიხსნა"
@@ -3934,10 +3952,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Gmail-ის კატეგორიები ვერ წაიკითხა: „{name}“"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "საქაღალდეების სია ვერ წაიკითხა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "„{name}“-ში შეტყობინებების ზომების წაკითხვა ვერ მოხერხდა"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3955,6 +3979,12 @@ msgstr "მონახაზი „{subject}“ სერვერზე ვე
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "საფოსტო ყუთი ვერ შეინახა: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "„{subject}“ ვერ გაიგზავნა, რადგან წერილი ჯერ არ ჩამოტვირთულა."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6815,6 +6845,12 @@ msgstr "ადმინისტრატორი ვარ: MailCraft-ის �
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "ადმინისტრატორი ვარ: დამტკიცება ჩემი ორგანიზაციისთვის"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "IMAP-იდან ჩამოტვირთვის მოთხოვნა"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13988,7 +14024,7 @@ msgid "Send & Receive"
 msgstr "გაგზავნა და მიღება"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "გაგზავნა / მიღება"
@@ -17286,6 +17322,14 @@ msgstr "მოხსენებების სერვისი ახლა 
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "მოხსენებების სერვისის პასუხი MailCraft-ისთვის გაუგებარია, ამიტომ მოხსენება შესაძლოა მივიდა. მოგვიანებით სცადეთ ან გახსენით GitHub-ზე."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "წესმა „{rule}“ ვერ გადაიტანა {n} შეტყობინება: {why}"
+msgstr[1] "წესმა „{rule}“ ვერ გადაიტანა {n} შეტყობინება. პირველი მიზეზი: {why}"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -21601,17 +21645,17 @@ msgstr "საჭიროა Gmail ანგარიში"
 msgid "never"
 msgstr "არასდროს"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "IMAP-ის ანგარიში იდენტიფიკატორით {id} ვერ მოიძებნა"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "IMAP-ით არცერთი Microsoft-ის ანგარიში არ სინქრონიზდება"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "არცერთი Microsoft ან Exchange სერვერის ანგარიში ფოსტას ოფლაინ არ ინახავს"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -21649,6 +21693,12 @@ msgstr "არცერთი ანგარიში არ არის დ�
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "არცერთი ანგარიში არ არის დაკავშირებული საფოსტო სერვერთან (ფაილი › ანგარიშის დამატება)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "არცერთი ანგარიში არ არის დაკავშირებული IMAP-ის სერვერთან"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -21661,6 +21711,12 @@ msgstr "JMAP-ით არცერთი ანგარიში არ სი
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "Microsoft Graph-ით არცერთი ანგარიში არ სინქრონიზდება"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "არცერთი ანგარიში არ ინახავს ამ კომპიუტერზე მხოლოდ განსაზღვრული პერიოდის წერილებს"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -21668,7 +21724,7 @@ msgid "no account with id {account}"
 msgstr "ანგარიში id-ით {account} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "ანგარიში id-ით {id} არ არსებობს"
@@ -21770,7 +21826,7 @@ msgid "no message with id {id}"
 msgstr "წერილი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "{name}: წერილი id-ით {id} არ არსებობს"
@@ -23282,7 +23338,7 @@ msgid "there is nothing to take in"
 msgstr "ჩასაწერი არაფერია"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "ეს წერილები სხვა ანგარიშისთვის იყო და არა ანგარიშისთვის {name}"
@@ -23475,6 +23531,18 @@ msgstr "ამ წერილს საძიებელი თემა ა�
 #, fuzzy
 msgid "this message is in the Snoozed folder already"
 msgstr "ეს წერილი უკვე გადადებულების საქაღალდეშია"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "ეს წერილი ჯერ არ ჩამოტვირთულა. როცა ინტერნეტს დაუკავშირდებით, გახსენით და შემდეგ უპასუხეთ ან გადააგზავნეთ."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "ეს წერილი ჯერ არ ჩამოტვირთულა. როცა ინტერნეტს დაუკავშირდებით, გახსენით და შემდეგ შეინახეთ."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24191,12 +24259,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} არ არის IMAP-ით სინქრონიზებული Microsoft-ის ანგარიში"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} არ არის Microsoft ან Exchange სერვერის ანგარიში"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24239,6 +24301,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} საფოსტო სერვერთან დაკავშირებული არ არის"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} არ არის დაკავშირებული IMAP-ის სერვერთან"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -24255,6 +24323,12 @@ msgstr "{name} Microsoft Graph-ით არ სინქრონიზდე�
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} „გაგზავნა/მიღებაში“ თავის რიგს არ ელოდება"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} მთელ ფოსტას ამ კომპიუტერზე ინახავს. შენახვის პერიოდის შეზღუდვა მხოლოდ Microsoft-ის, Exchange-ის სერვერის ან IMAP-ის ანგარიშისთვის შეიძლება."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -25543,6 +25617,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "„{subject}“ ჯერ არ ჩამოტვირთულა. გახსენით წერილი და შემდეგ ხელახლა გაგზავნეთ."
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -25568,6 +25648,18 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "„{folder}“ საქაღალდიდან {n} წერილი ჯერ არ ჩამოტვირთულა, ამიტომ საქაღალდის სრულად გატანა შეუძლებელია. გახსენით ისინი ინტერნეტთან დაკავშირების შემდეგ ან ანგარიშის პარამეტრებში აირჩიეთ მთელი ფოსტის კავშირის გარეშე შენახვა. შემდეგ კვლავ გაიტანეთ საქაღალდე."
+
+#, fuzzy
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "არცერთი Microsoft ან Exchange სერვერის ანგარიში ფოსტას ოფლაინ არ ინახავს"
+
+#, fuzzy
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "{name} არ არის Microsoft ან Exchange სერვერის ანგარიში"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

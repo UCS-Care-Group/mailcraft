@@ -588,6 +588,12 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// Whether only part of this message is here: headers and a preview, or a message cut
+    /// short. An Outbox must send the whole message (#653).
+    pub fn only_a_part_here(&self) -> bool {
+        self.unfetched || self.incomplete || self.not_downloaded > 0
+    }
+
     /// Whether the message waits for its Send time (#950) at the clock's `now`: it has one and it
     /// has not come. The one test every run asks before it sends from an Outbox, so that nothing
     /// delayed goes early, whatever the account; a clock set back only makes it wait longer.

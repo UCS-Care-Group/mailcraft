@@ -150,6 +150,12 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// An IMAP account's folder whose mailbox (`remote`) the server's last complete listing
+    /// didn't name: deleted or renamed there by another program (#653). Its mail is not taken
+    /// for the server's, and keeps its text here, which may be all there is of it. `false` again
+    /// once a listing names it.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub unlisted: bool,
     /// Its place among the folders that share its parent, where the owner put it (#1514): kept
     /// on this computer alone, never sent to a server. `None` until the owner first moves it or
     /// one beside it, and in a file from before there was an order; such a folder comes after
@@ -445,6 +451,14 @@ impl AccountKind {
     /// (#966), which both bring every message's headers and fetch the whole messages afterwards.
     pub fn has_offline_window(self) -> bool {
         matches!(self, AccountKind::Microsoft | AccountKind::Exchange)
+    }
+
+    /// Whether the account keeps a window of its mail in full ([`AccountKind::has_offline_window`]),
+    /// or is an IMAP account (#653), whose server gives a message whole again when it is opened
+    /// by its UID: the setting and the thinning are for these. (Fetching whole in the background,
+    /// "Download messages in full", is for the first only.)
+    pub fn keeps_offline_window(self) -> bool {
+        self.has_offline_window() || self == AccountKind::Imap
     }
 
     /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP,
@@ -1388,6 +1402,12 @@ pub struct Mailbox {
     /// is empty isn't fetched at every start.
     #[serde(skip_serializing_if = "is_false")]
     pub unhollowed: bool,
+    /// The IMAP accounts were looked at once when their mail first kept to a window (#653): those
+    /// from before keep all of it ([`Mailbox::keep_imap_mail_as_it_was`]), done the first time a
+    /// mailbox is opened by a version that holds them to it. A new mailbox
+    /// ([`Mailbox::with_local_account`]) has it from the start; a file from before has none.
+    #[serde(skip_serializing_if = "is_false")]
+    pub imap_windowed: bool,
     /// The Public keys of the people mail came from, by address (#30 R9): certificates
     /// collected from Digitally signed mail, contact or not.
     #[serde(skip_serializing_if = "crate::public_keys::PublicKeys::is_empty")]
@@ -1446,6 +1466,7 @@ impl Default for Mailbox {
             zone: String::new(),
             redecoded: false,
             unhollowed: false,
+            imap_windowed: false,
             public_keys: Default::default(),
             device_limits: None,
             next_id: 1,
@@ -1542,7 +1563,8 @@ fn not_downloaded_yet(subject: &str) -> String {
 impl Mailbox {
     /// An empty mailbox with one local account, its standard folders and a calendar.
     pub fn with_local_account(display_name: &str, email: &str) -> Mailbox {
-        let mut mb = Mailbox::default();
+        // A new mailbox: its IMAP accounts keep the window they are given from the start (#653).
+        let mut mb = Mailbox { imap_windowed: true, ..Mailbox::default() };
         mb.add_account(Account { name: email.to_string(), email: email.to_string(), display_name: display_name.to_string(), ..Default::default() });
         mb
     }
@@ -2565,6 +2587,11 @@ impl Mailbox {
         {
             return Err(invalid(INTO_OUTBOX));
         }
+        // Of an IMAP account's Outbox what is sent is the message there: a preview put in it
+        // would go out as the message (#653). Fetched first, by opening it.
+        if self.is_imap_outbox(folder) && m.only_a_part_here() {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         if m.snooze.is_some_and(|z| z.returning) {
             // Moved by someone: the return the server was to make isn't in flight any more (#949).
             if let Some(z) = self.message_mut(id)?.snooze.as_mut() {
@@ -2604,7 +2631,7 @@ impl Mailbox {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (from_account, was_in, uid, synced) = (m.account, m.folder, m.uid, m.synced);
         // Of one that isn't whole here, the server's is all there is.
-        let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0;
+        let whole = !m.only_a_part_here();
         let awaiting = awaits_its_copy(m, synced);
         let waiting = self.waiting(id, fresh);
         let owner = waiting.and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -2897,6 +2924,13 @@ impl Mailbox {
         if self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
+        // Of an IMAP account's message that is only its headers and preview here (#653), what
+        // would go is not the message: it is downloaded when it is opened.
+        // (Not of a Microsoft account's message that waits there to be fetched by the IMAP run, which
+        // moved into this one: `moving_out` says so, and it goes back where it came from.)
+        if m.unfetched && m.server.is_none() && m.moving_out.is_none() && self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap) {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         // Back into the IMAP account whose server still has the original: the move out of it
         // that waits goes on there, or is called off.
         let owner = self.waiting(id, fresh).and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -3040,6 +3074,11 @@ impl Mailbox {
         if self.sends_from(folder) && (jmap || self.keeps_changes_for_server(to_account)) {
             return Err(invalid(COPY_INTO_OUTBOX));
         }
+        // Nor a preview into an IMAP account's Outbox, where Send Again would send it as the
+        // message (#653).
+        if self.is_imap_outbox(folder) && m.only_a_part_here() {
+            return Err(invalid(not_downloaded_yet(&subject_said(m))));
+        }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).
             if let Some(why) = Mailbox::not_whole(m, "copied", false) {
@@ -3062,7 +3101,10 @@ impl Mailbox {
         if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
-        if from_account != to_account && self.keeps_changes_for_server(from_account) && m.unfetched {
+        // Nor of an IMAP account's message that is only its headers and preview here, anywhere
+        // (#653): the copy, which its server isn't told of, would be that for good.
+        let imap = self.account(from_account).is_some_and(|a| a.kind == AccountKind::Imap);
+        if m.unfetched && (imap || (from_account != to_account && self.keeps_changes_for_server(from_account))) {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
         }
         let server = m.server.clone().filter(|s| from_account == to_account && !s.gone && self.keeps_changes_for_server(from_account));
@@ -3302,8 +3344,19 @@ impl Mailbox {
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
     /// the server has here too, as Outlook does).
     pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
-        let mut ran = Vec::new();
-        let Some(account) = self.message(id).map(|m| m.account) else { return ran };
+        self.run_rules_told(id, now).0
+    }
+
+    /// [`Mailbox::apply_rules`], and what the owner is to be told of: each rule that couldn't move
+    /// the message where it says, by its name and why (one of which only the headers and a
+    /// preview are here can't go to another account or a local folder, #653).
+    pub fn apply_rules_told(&mut self, id: Id) -> (Vec<String>, Vec<(String, String)>) {
+        self.run_rules_told(id, false)
+    }
+
+    fn run_rules_told(&mut self, id: Id, now: bool) -> (Vec<String>, Vec<(String, String)>) {
+        let (mut ran, mut problems) = (Vec::new(), Vec::new());
+        let Some(account) = self.message(id).map(|m| m.account) else { return (ran, problems) };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
@@ -3316,14 +3369,16 @@ impl Mailbox {
                 continue;
             }
             if now || !rule.on_server() {
-                self.act(id, &rule.actions);
+                if let Some(why) = self.act(id, &rule.actions) {
+                    problems.push((rule.name.clone(), why));
+                }
                 ran.push(rule.name.clone());
             }
             if rule.stop {
                 break;
             }
         }
-        ran
+        (ran, problems)
     }
 
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
@@ -3334,19 +3389,25 @@ impl Mailbox {
         if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
             return false;
         }
-        self.act(id, &rule.actions);
+        // Run by hand: a message that can't go where the rule says stays where it is.
+        let _ = self.act(id, &rule.actions);
         true
     }
 
-    /// Do what a rule says to a message.
-    fn act(&mut self, id: Id, actions: &[Action]) {
+    /// Do what a rule says to a message: why it couldn't be moved where the rule says, when it
+    /// couldn't.
+    fn act(&mut self, id: Id, actions: &[Action]) -> Option<String> {
+        let mut problem = None;
         for action in actions {
             match action {
                 Action::MoveTo(folder) => {
                     // A rule pointing at a folder that is gone does nothing, and none puts
                     // mail into a send queue (the next Send/Receive would send it).
-                    if !self.is_send_queue(*folder) {
-                        let _ = self.move_message(id, *folder);
+                    if !self.is_send_queue(*folder)
+                        && let Err(e) = self.move_message(id, *folder)
+                        && self.folder(*folder).is_some()
+                    {
+                        problem = Some(e.to_string());
                     }
                 }
                 Action::Delete => {
@@ -3368,6 +3429,7 @@ impl Mailbox {
                 }
             }
         }
+        problem
     }
 
     // ---- contacts, events, tasks ----

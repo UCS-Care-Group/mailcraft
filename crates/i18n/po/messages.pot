@@ -1391,6 +1391,11 @@ msgid "Apply Downloaded To-dos"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "Apply IMAP Fetch"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Apply Results from the Server"
 msgstr ""
@@ -2229,6 +2234,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 msgid "Can't be opened here. Save it to keep it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
 msgstr ""
 
 #. interface
@@ -3177,13 +3187,18 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't download a message from \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 msgid "Couldn't download a message from \"{name}\" again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+msgid "Couldn't download the message"
 msgstr ""
 
 #. interface
@@ -3232,7 +3247,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't open \"{name}\""
 msgstr ""
 
@@ -3277,8 +3292,13 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 msgid "Couldn't read the list of folders"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+msgid "Couldn't read the sizes of the messages in \"{name}\""
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -3294,6 +3314,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Couldn't save the mailbox: {error}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -5658,6 +5683,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "I'm an administrator: approve it for my organisation"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "IMAP Fetch Request"
 msgstr ""
 
 #. ribbon
@@ -11638,7 +11668,7 @@ msgid "Send & Receive"
 msgstr ""
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr ""
 
@@ -14391,6 +14421,13 @@ msgstr ""
 #: crates/ui-egui/src/report_problem.rs
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17988,14 +18025,14 @@ msgstr ""
 msgid "never"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "no IMAP account with id {id}"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "no Microsoft account is kept in step by IMAP"
-msgstr ""
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-msgid "no Microsoft or Exchange server account keeps mail offline"
 msgstr ""
 
 #. what a command says
@@ -18028,6 +18065,11 @@ msgstr ""
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "no account is connected to an IMAP server"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "no account is kept in step over JMAP"
@@ -18038,13 +18080,18 @@ msgstr ""
 msgid "no account is kept in step through Microsoft Graph"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+msgid "no account keeps a window of mail on this computer"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -18129,7 +18176,7 @@ msgid "no message with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "no message with id {id} in {name}"
 msgstr ""
 
@@ -19394,7 +19441,7 @@ msgid "there is nothing to take in"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 msgid "these messages were for another account, not for {name}"
 msgstr ""
 
@@ -19556,6 +19603,16 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "this message is in the Snoozed folder already"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
 msgstr ""
 
 #. what a command says
@@ -20158,11 +20215,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 msgid "{name} isn't a mailbox; bring it in with File › Import"
 msgstr ""
@@ -20198,6 +20250,11 @@ msgid "{name} isn't connected to a mail server"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+msgid "{name} isn't connected to an IMAP server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} isn't kept in step over JMAP"
 msgstr ""
@@ -20210,6 +20267,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{name} isn't waiting its turn in a Send/Receive"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
 msgstr ""
 
 #. interface
@@ -21324,6 +21386,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
 msgstr ""
 
 #. what a command says

@@ -1667,6 +1667,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Použít stažené úkoly"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "Použít stažení IMAP"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2678,6 +2684,12 @@ msgstr "Zavolat"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Zde ho nelze otevřít. Chcete-li si ho ponechat, uložte ho."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "Složku „{folder}“ nelze exportovat celou. Zprávy ke stažení: {n}. Otevřete je po připojení k internetu (nebo v nastavení účtu ponechte veškerou poštu offline) a export zopakujte."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3821,7 +3833,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Ze složky „{name}“ se nepodařilo odstranit zprávy"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Ze složky „{name}“ se nepodařilo stáhnout zprávu"
@@ -3831,6 +3843,12 @@ msgstr "Ze složky „{name}“ se nepodařilo stáhnout zprávu"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Ze složky „{name}“ se nepodařilo znovu stáhnout zprávu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Zprávu se nepodařilo stáhnout"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3887,7 +3905,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Zprávy se nepodařilo přesunout do složky „{name}“: složka už na serveru není"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}“ se nepodařilo otevřít"
@@ -3941,10 +3959,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Kategorie Gmailu pro „{name}“ se nepodařilo načíst"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Seznam složek se nepodařilo načíst"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Nepodařilo se zjistit velikosti zpráv ve složce „{name}“"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3963,6 +3987,12 @@ msgstr "Koncept ‚{subject}‘ se nepodařilo uložit na serveru: server hlás�
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Poštovní schránku se nepodařilo uložit: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "Nepodařilo se odeslat „{subject}“: ještě není stažená"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6842,6 +6872,12 @@ msgstr "Jsem správce: schválit MailCraft pro mou organizaci"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Jsem správce: schválit ho pro mou organizaci"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "Požadavek na stažení IMAP"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14061,7 +14097,7 @@ msgid "Send & Receive"
 msgstr "Odeslat a přijmout"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Odeslat / přijmout"
@@ -17382,6 +17418,15 @@ msgstr "Služba hlášení právě nefunguje. Zkuste to později znovu, nebo ho 
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Odpověď služby hlášení nebyla taková, jakou MailCraft rozumí, takže hlášení možná dorazilo. Zkuste to později znovu, nebo ho otevřete na GitHubu."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "Pravidlo „{rule}“ nemohlo přesunout {n} zprávu: {why}"
+msgstr[1] "Pravidlo „{rule}“ nemohlo přesunout {n} zprávy. První důvod: {why}"
+msgstr[2] "Pravidlo „{rule}“ nemohlo přesunout {n} zpráv. První důvod: {why}"
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -21725,17 +21770,17 @@ msgstr "vyžaduje účet Gmail"
 msgid "never"
 msgstr "nikdy"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "neexistuje žádný účet IMAP s ID {id}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "žádný účet Microsoft se nesynchronizuje přes IMAP"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "žádný účet Microsoft ani účet serveru Exchange neuchovává poštu offline"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -21773,6 +21818,12 @@ msgstr "žádný účet není připojen k poštovnímu serveru"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "žádný účet není připojen k poštovnímu serveru (Soubor › Přidat účet)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "žádný účet není připojen k serveru IMAP"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -21785,6 +21836,12 @@ msgstr "žádný účet se nesynchronizuje přes JMAP"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "žádný účet se nesynchronizuje přes Microsoft Graph"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "žádný účet v tomto počítači neuchovává okno pošty"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -21792,7 +21849,7 @@ msgid "no account with id {account}"
 msgstr "žádný účet s id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "žádný účet s id {id}"
@@ -21894,7 +21951,7 @@ msgid "no message with id {id}"
 msgstr "žádná zpráva s id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "žádná zpráva s id {id} ve složce {name}"
@@ -23408,7 +23465,7 @@ msgid "there is nothing to take in"
 msgstr "není co převzít"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "tyto zprávy byly pro jiný účet, ne pro {name}"
@@ -23604,6 +23661,18 @@ msgstr "tato zpráva nemá předmět k hledání"
 #, fuzzy
 msgid "this message is in the Snoozed folder already"
 msgstr "tato zpráva už je ve složce Odložené"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "tato zpráva ještě není stažená: otevřete ji, až budete online, a pak na ni odpovězte nebo ji přepošlete"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "tato zpráva ještě není stažená: otevřete ji, až budete online, a pak ji uložte"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24324,12 +24393,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} není účet Microsoft synchronizovaný přes IMAP"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} není účet Microsoft ani účet serveru Exchange"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24372,6 +24435,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} není připojen k poštovnímu serveru"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} není připojen k serveru IMAP"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -24388,6 +24457,12 @@ msgstr "{name} se nesynchronizuje přes Microsoft Graph"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} nečeká na řadu v Odeslat/přijmout"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} uchovává všechnu poštu v tomto počítači: okno pošty uchovává jen účet Microsoft, serveru Exchange nebo IMAP"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -25793,6 +25868,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "„{subject}“ ještě není stažená: otevřete ji a pak ji odešlete znovu"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -25820,6 +25901,18 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "Ve složce „{folder}“ ještě nejsou stažené zprávy (počet: {n}), takže ji nelze exportovat celou: otevřete je, až budete online (nebo v nastavení účtu ponechte všechnu poštu offline), a pak exportujte znovu"
+
+#, fuzzy
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "žádný účet Microsoft ani účet serveru Exchange neuchovává poštu offline"
+
+#, fuzzy
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "{name} není účet Microsoft ani účet serveru Exchange"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

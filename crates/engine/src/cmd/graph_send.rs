@@ -382,6 +382,10 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     if m.draft {
         return Err(fail("that message is a draft: open it and send it"));
     }
+    // Sent as it is here: a preview of an IMAP account's mail would go out as the message (#653).
+    if m.only_a_part_here() {
+        return Err(failed!("“{subject}” isn't downloaded yet: open it, then send it again", subject = super::compose::subject_of(m)));
+    }
     let m = s.mailbox.message_mut(id)?;
     m.held.clear();
     m.sending = false;

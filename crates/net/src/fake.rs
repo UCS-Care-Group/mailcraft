@@ -999,7 +999,10 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             "UID" => {
                 let mut parts = args.splitn(3, ' ');
                 let (fetch, set, items) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
-                let (whole, header) = (items.contains("BODY.PEEK[]"), items.contains("BODY.PEEK[HEADER]"));
+                // The first bytes only (`BODY.PEEK[]<0.n>`), as a server answers it: `BODY[]<0>`.
+                let start: Option<usize> =
+                    items.split_once("BODY.PEEK[]<0.").and_then(|(_, rest)| rest.split_once('>')).and_then(|(n, _)| n.parse().ok());
+                let (whole, header) = (items.contains("BODY.PEEK[]") && start.is_none(), items.contains("BODY.PEEK[HEADER]"));
                 let mut refused = !fetch.eq_ignore_ascii_case("FETCH");
                 let messages = open.and_then(|i| world.mailboxes.get(i)).map_or(&[][..], |m| &m.messages[..]);
                 let open_raw = open.and_then(|i| world.mailboxes.get(i)).map_or("", |m| m.raw.as_str());
@@ -1023,6 +1026,14 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         );
                         reply.extend(&message.body);
                         reply.extend(b")\r\n");
+                    } else if let Some(n) = start {
+                        let part = &message.body[..n.min(message.body.len())];
+                        let date = &message.internal_date;
+                        reply.extend(
+                            format!("* {seq} FETCH (UID {uid} FLAGS ({flags}) INTERNALDATE \"{date}\" BODY[]<0> {{{}}}\r\n", part.len()).bytes(),
+                        );
+                        reply.extend(part);
+                        reply.extend(b")\r\n");
                     } else if header {
                         // Up to and with the empty line that ends it.
                         let end = message.body.windows(4).position(|w| w == b"\r\n\r\n").map_or(message.body.len(), |at| at + 4);
@@ -1032,7 +1043,12 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         reply.extend(b")\r\n");
                     } else if items.contains("RFC822.SIZE") {
                         let size = message.claimed_size.unwrap_or(message.body.len() as u64);
-                        reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
+                        if items.contains("INTERNALDATE") {
+                            let date = &message.internal_date;
+                            reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size} INTERNALDATE \"{date}\")\r\n").bytes());
+                        } else {
+                            reply.extend(format!("* {seq} FETCH (UID {uid} RFC822.SIZE {size})\r\n").bytes());
+                        }
                     } else if world.gmail && (items.contains("X-GM-MSGID") || items.contains("X-GM-LABELS")) {
                         let id = if items.contains("X-GM-MSGID") { format!(" X-GM-MSGID {}", GMAIL_IDS + u64::from(uid)) } else { String::new() };
                         let labels = if items.contains("X-GM-LABELS") {

@@ -59,7 +59,7 @@ impl Session {
             return Thinned::Idle;
         }
         self.driver.thinning.started(opening, now);
-        if !self.mailbox.accounts.iter().any(|a| a.kind.has_offline_window()) {
+        if !self.mailbox.accounts.iter().any(|a| a.kind.keeps_offline_window()) {
             return Thinned::Idle;
         }
         match self.run("account.thinOffline", &json!({"most": THIN_BATCH})) {

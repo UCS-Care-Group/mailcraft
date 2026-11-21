@@ -634,6 +634,8 @@ const NEVER: &[&str] = &[
     "sync.applyEws",
     "sync.ewsFetchRequest",
     "sync.applyEwsFetch",
+    "sync.imapFetchRequest",
+    "sync.applyImapFetch",
     // Calendars and contacts on a server (#209), likewise.
     "sync.davRequest",
     "sync.applyDav",
