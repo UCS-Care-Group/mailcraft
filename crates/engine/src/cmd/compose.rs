@@ -15,6 +15,7 @@ use mailcraft_model::{
 use serde_json::{Value, json};
 
 use super::followup::FollowUpPlan;
+use super::zimbra_mail::SENDING_NOT_BUILT;
 use super::{bad, base64_decode, done, fail, needs_compose, needs_message, source};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, InsertedSignature, Quote, Session, p};
 
@@ -1625,6 +1626,14 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
         return Err(super::account::added_by_newer(
             &account,
             "which sends its mail: send this message from another account, or save it as a draft to send it from that version",
+        ));
+    }
+    // Nor does a Zimbra account yet: its sending is not built, and the message would be filed as
+    // sent without having gone anywhere.
+    if account.kind == AccountKind::Zimbra {
+        return Err(failed!(
+            "{why}: send this message from another account, or save it as a draft",
+            why = mailcraft_i18n::Arg::words(SENDING_NOT_BUILT)
         ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one

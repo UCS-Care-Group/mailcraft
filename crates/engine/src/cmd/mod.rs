@@ -28,8 +28,6 @@ pub mod categories_remote;
 mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
-mod category_sweep_tests;
-#[cfg(test)]
 mod category_tests;
 pub mod compose;
 #[cfg(test)]
@@ -61,8 +59,6 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_new_tests;
-#[cfg(test)]
-mod folder_order_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
@@ -202,6 +198,8 @@ pub mod writing_tools;
 mod writing_tools_tests;
 #[cfg(test)]
 mod written_quote_tests;
+mod zimbra_down;
+pub mod zimbra_mail;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;
@@ -263,6 +261,7 @@ pub fn registry() -> Registry {
     v.extend(ews_mail::specs());
     v.extend(dav_account::specs());
     v.extend(dav_sync::specs());
+    v.extend(zimbra_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

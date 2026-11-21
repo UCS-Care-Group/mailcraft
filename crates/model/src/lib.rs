@@ -63,6 +63,7 @@ pub mod thread_index;
 pub mod unsubscribe;
 pub mod update;
 pub mod words;
+mod zimbra_server;
 pub mod zoned;
 
 use serde::{Deserialize, Serialize};
@@ -106,6 +107,7 @@ pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_send
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 pub use thread_index::{ThreadIndex, ThreadKey};
+pub use zimbra_server::ZimbraServer;
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;

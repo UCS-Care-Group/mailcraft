@@ -68,6 +68,9 @@ USAGE:
                                                 or changing is asked about in the app every time
                                                 (with input, the agent clicks as the owner does)
   mailcraft-cli --version
+
+  Experimental Zimbra: MAILCRAFT_ZIMBRA=1 enables account setup and pure
+  request/apply commands for testing. CLI Send/Receive is not wired up yet.
 ";
 
 /// A session on the mailbox file at `path`: one self-contained file, or a mailbox as the app
@@ -105,7 +108,14 @@ fn sample() -> Session {
 /// has them: a Digital signature is checked here as there.
 fn trusting(mut s: Session) -> Session {
     s.set_trust_anchors(mailcraft_net::system_trust_anchors());
+    s.zimbra = zimbra_switch();
     s
+}
+
+/// Zimbra account setup and pure request/apply commands: `MAILCRAFT_ZIMBRA=1`, for testing.
+/// Read here by the host, never from a command's params; CLI Send/Receive needs a host runner.
+fn zimbra_switch() -> bool {
+    std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1")
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -480,7 +490,13 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     accounts
                         .iter()
                         .find(|a| {
-                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                            a.kind.has_server()
+                                && !matches!(
+                                    a.kind,
+                                    mailcraft_model::AccountKind::Jmap
+                                        | mailcraft_model::AccountKind::Exchange
+                                        | mailcraft_model::AccountKind::Zimbra
+                                )
                         })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)

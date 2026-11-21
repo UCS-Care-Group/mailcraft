@@ -1667,6 +1667,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Použít stažené úkoly"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "Použít stažené zprávy Zimbra"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1695,6 +1701,12 @@ msgstr "Použít Odeslat/přijmout přes JMAP"
 #, fuzzy
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Použít Odeslat/přijmout přes Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Použít Odeslat/přijmout pro Zimbru"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4746,6 +4758,12 @@ msgstr "Stahovat obrázky ve veškeré poště"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Stahovat obrázky v poště automaticky"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Stáhnout zprávy Zimbry v plné velikosti"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9388,7 +9406,6 @@ msgstr "Přesunout událost"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Move Favorite Up or Down"
 msgstr "Přesunout oblíbenou položku nahoru nebo dolů"
 
@@ -9400,7 +9417,6 @@ msgstr "Přesunout složku"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Move Folder Up or Down"
 msgstr "Přesunout složku nahoru nebo dolů"
 
@@ -12961,13 +12977,11 @@ msgstr "Přejmenovat podpis"
 
 #. name
 #: crates/model/src/sync/progress.rs
-#, fuzzy
 msgid "Renaming a category on the server"
 msgstr "Přejmenování kategorie na serveru"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Renaming a category on the server: {done} of {total} messages"
 msgstr "Přejmenování kategorie na serveru: {done} z {total} zpráv"
 
@@ -14061,7 +14075,7 @@ msgid "Send & Receive"
 msgstr "Odeslat a přijmout"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Odeslat / přijmout"
@@ -14382,6 +14396,12 @@ msgstr "Odeslat/přijmout přes JMAP"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Odeslat/přijmout přes Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Odeslat/přijmout pro Zimbru"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -15655,7 +15675,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Zastaveno před koncem. Opětovným importem souboru přinesete zbytek."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Zastaveno; příště bude pokračovat odsud"
@@ -16662,21 +16682,19 @@ msgstr "Kategorii „{name}“ se nepodařilo vrátit: seznam kategorií je pln�
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
-#, fuzzy
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
 msgstr[0] "Kategorie přejmenována u událostí na serveru: {n}"
-msgstr[1] "Kategorie přejmenována u událostí na serveru: {n}"
-msgstr[2] "Kategorie přejmenována u událostí na serveru: {n}"
+msgstr[1] ""
+msgstr[2] ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
 msgstr[0] "Kategorie přejmenována u zpráv na serveru: {n}"
-msgstr[1] "Kategorie přejmenována u zpráv na serveru: {n}"
-msgstr[2] "Kategorie přejmenována u zpráv na serveru: {n}"
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -17582,7 +17600,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Server odmítl přihlášení tohoto účtu. Znovu se přihlaste pomocí Odeslat/přijmout."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Server odmítl přihlášení účtu {name}: přihlaste se znovu"
@@ -19598,7 +19616,7 @@ msgid "Up to 50 MB"
 msgstr "Do 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Aktuální"
@@ -20755,6 +20773,40 @@ msgstr "Vaše vlastní jméno."
 msgid "Z on top"
 msgstr "Z nahoře"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Účty Zimbra se testují: spusťte MailCraft s MAILCRAFT_ZIMBRA=1 a vyzkoušejte je"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · dosud není synchronizováno: tato část ještě není hotová"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · není synchronizováno: účty Zimbra jsou vypnuté (spusťte MailCraft s MAILCRAFT_ZIMBRA=1 a vyzkoušejte je)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · žádná použitelná adresa serveru"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -20882,6 +20934,12 @@ msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this 
 msgstr "přihlášení Microsoft se používá jen s vlastními poštovními servery Microsoftu: tento účet uvádí jiný server"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "server, adresu a uživatelské jméno účtu Zimbra nelze změnit, jakmile je zde jeho pošta: odeberte jej a přidejte ten druhý"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "a calendar named \"{name}\" already exists"
@@ -20919,13 +20977,11 @@ msgstr "koncept nemůže mít připomenutí: nejprve ho odešlete, nebo použijt
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "a favourite can't be put before itself"
 msgstr "oblíbenou položku nelze umístit před sebe samu"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "a folder can't be put before itself"
 msgstr "složku nelze umístit před sebe samu"
 
@@ -20943,7 +20999,6 @@ msgstr "složku nelze přesunout do jiného účtu"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "a folder is put among the folders beside it: name one with the same parent"
 msgstr "složka se řadí mezi složky vedle ní: uveďte jednu se stejnou nadřazenou složkou"
 
@@ -21189,6 +21244,12 @@ msgstr "účet se stane účtem JMAP, nebo jím přestane být, jen odebráním 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "účet se stane účtem Zimbra nebo jím přestane být pouze jeho odebráním a novým přidáním"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "účet se stane účtem serveru Exchange, nebo jím přestane být, jen odebráním a novým přidáním"
 
@@ -21356,7 +21417,7 @@ msgstr "hledaný i náhradní text musí být na jednom řádku"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiv"
+msgstr "Archivovat"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -21756,6 +21817,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "žádný účet zde neuchovává pravidla na svém serveru"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "žádný účet není účet Zimbra"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21792,7 +21859,7 @@ msgid "no account with id {account}"
 msgstr "žádný účet s id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "žádný účet s id {id}"
@@ -21894,7 +21961,7 @@ msgid "no message with id {id}"
 msgstr "žádná zpráva s id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "žádná zpráva s id {id} ve složce {name}"
@@ -22881,7 +22948,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "výsledek by vedl k tomu, že tento účet uchovává víc stavu synchronizace, než se přijímá"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "výsledek {why}"
@@ -23444,16 +23511,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "tento účet serveru Exchange nemá nastavení serveru"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "toto Odeslat/přijmout bylo pro jiný účet, ne pro {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "toto Odeslat/přijmout bylo pro server, který {name} uváděl dříve"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -24258,6 +24330,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} nemá použitelnou adresu serveru JMAP"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} nemá žádnou použitelnou adresu serveru Zimbra"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24330,6 +24408,12 @@ msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} není účet Microsoft ani účet serveru Exchange"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} není účet Zimbra"
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24349,7 +24433,6 @@ msgstr "{name} není sdílená poštovní schránka: odeberte ji pomocí account
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "{name} isn't among the Favorites"
 msgstr "{name} není mezi oblíbenými"
 
@@ -24427,7 +24510,6 @@ msgstr "{name} s vámi sdílí kalendář. Je ve vašem seznamu kalendářů."
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "{name} stays at the top of its account's folders"
 msgstr "{name} zůstává nahoře ve složkách účtu"
 
@@ -25769,6 +25851,11 @@ msgstr "{why}, takže se přihlášení nepamatují: MailCraft se při každém 
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. Změny, které v něm byly provedeny zde ({n}), čekají v tomto počítači."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -25820,6 +25907,14 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Účty Zimbra zatím nemohou odesílat a přijímat: tato část ještě není hotová"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "výsledek je pro jiný účet"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

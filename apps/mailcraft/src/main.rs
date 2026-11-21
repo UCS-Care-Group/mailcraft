@@ -347,6 +347,18 @@ fn log_dir() -> Option<PathBuf> {
     Some(prefs_path()?.parent()?.join("logs"))
 }
 
+/// The switch for testing Zimbra accounts: `MAILCRAFT_ZIMBRA=1`. Off, Add Account doesn't offer
+/// them, `account.add` and every `sync.zimbra*` command refuse, and a Zimbra account already in a
+/// mailbox opens, shows its mail and isn't kept in step.
+fn zimbra_switch() -> bool {
+    let on = std::env::var("MAILCRAFT_ZIMBRA").is_ok_and(|value| value.trim() == "1");
+    static SAID: std::sync::Once = std::sync::Once::new();
+    if on {
+        SAID.call_once(|| log::info!("Zimbra account setup is enabled for testing only; Send/Receive sync is not available (MAILCRAFT_ZIMBRA=1)"));
+    }
+    on
+}
+
 /// Runs without preferences (`MAILCRAFT_NO_PREFS`, agents' test runs) neither read nor write them,
 /// and keep their mailbox in memory only.
 fn prefs_enabled() -> bool {
@@ -1706,6 +1718,7 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
+                session.zimbra = zimbra_switch();
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the

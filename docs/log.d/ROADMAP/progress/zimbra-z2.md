@@ -1,0 +1,1 @@
+| 2026-11-16 | Zimbra Z2: `crates/zimbra`, the requests and answers of a Zimbra server's web service without I/O (sign-in, folders, changes since a token, headers and previews, messages whole) and a run of mail down over any HTTP exchange, tested against a strict stand-in; nothing drives it yet |

@@ -1676,6 +1676,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Zastosuj pobrane zadania do wykonania"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "Zastosuj pobrane wiadomości Zimbra"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1704,6 +1710,12 @@ msgstr "Zastosuj wynik Wyślij/Odbierz przez JMAP"
 #, fuzzy
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Zastosuj wynik Wyślij/Odbierz przez Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Zastosuj Wyślij/Odbierz z Zimbrą"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -4757,6 +4769,12 @@ msgstr "Pobieraj obrazy we wszystkich wiadomościach"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Pobieraj obrazy w wiadomościach automatycznie"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Pobierz wiadomości Zimbra w całości"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9404,7 +9422,6 @@ msgstr "Przenieś wydarzenie"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Move Favorite Up or Down"
 msgstr "Przenieś ulubiony w górę lub w dół"
 
@@ -9416,7 +9433,6 @@ msgstr "Przenieś folder"
 
 #. command label
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "Move Folder Up or Down"
 msgstr "Przenieś folder w górę lub w dół"
 
@@ -12983,13 +12999,11 @@ msgstr "Zmień nazwę podpisu"
 
 #. name
 #: crates/model/src/sync/progress.rs
-#, fuzzy
 msgid "Renaming a category on the server"
 msgstr "Zmiana nazwy kategorii na serwerze"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "Renaming a category on the server: {done} of {total} messages"
 msgstr "Zmiana nazwy kategorii na serwerze: {done} z {total} wiadomości"
 
@@ -14087,7 +14101,7 @@ msgid "Send & Receive"
 msgstr "Wyślij/Odbierz"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Wyślij/Odbierz"
@@ -14408,6 +14422,12 @@ msgstr "Wyślij/Odbierz przez JMAP"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Wyślij/Odbierz przez Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Wyślij/Odbierz z Zimbrą"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -15681,7 +15701,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Zatrzymano przed końcem. Zaimportuj plik ponownie, aby wczytać resztę."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Zatrzymano; następnym razem będzie kontynuowane od tego miejsca"
@@ -16690,21 +16710,19 @@ msgstr "Nie udało się przywrócić kategorii „{name}”: lista kategorii jes
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
-#, fuzzy
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
 msgstr[0] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
-msgstr[1] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
-msgstr[2] "Kategoria zmieniona w wydarzeniach na serwerze: {n}"
+msgstr[1] ""
+msgstr[2] ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
-#, fuzzy
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
 msgstr[0] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
-msgstr[1] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
-msgstr[2] "Kategoria zmieniona w wiadomościach na serwerze: {n}"
+msgstr[1] ""
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -17610,7 +17628,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Serwer odrzucił logowanie do tego konta. Użyj opcji Wyślij/Odbierz, aby zalogować się ponownie."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Serwer odrzucił logowanie do {name}: zaloguj się ponownie"
@@ -19628,7 +19646,7 @@ msgid "Up to 50 MB"
 msgstr "Do 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Aktualne"
@@ -20786,6 +20804,40 @@ msgstr "Twoje własne imię i nazwisko."
 msgid "Z on top"
 msgstr "Z na górze"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Konta Zimbra są testowane: uruchom MailCraft z MAILCRAFT_ZIMBRA=1, aby je wypróbować"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · jeszcze nie synchronizowano: ta część nie jest jeszcze zbudowana"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · nie synchronizowano: konta Zimbra są wyłączone (uruchom MailCraft z MAILCRAFT_ZIMBRA=1, aby je wypróbować)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · brak użytecznego adresu serwera"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -20913,6 +20965,12 @@ msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this 
 msgstr "logowanie Microsoft jest używane tylko z własnymi serwerami poczty Microsoft: to konto wskazuje inny serwer"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "serwera, adresu i nazwy użytkownika konta Zimbra nie można zmienić, gdy jego poczta jest już tutaj: usuń je i dodaj drugie"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "a calendar named \"{name}\" already exists"
@@ -20950,13 +21008,11 @@ msgstr "wersja robocza nie może mieć przypomnienia: najpierw ją wyślij lub u
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "a favourite can't be put before itself"
 msgstr "ulubionego nie można umieścić przed nim samym"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "a folder can't be put before itself"
 msgstr "folderu nie można umieścić przed nim samym"
 
@@ -20974,7 +21030,6 @@ msgstr "folderu nie można przenieść do innego konta"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-#, fuzzy
 msgid "a folder is put among the folders beside it: name one with the same parent"
 msgstr "folder umieszcza się wśród folderów obok niego: wskaż jeden z tym samym folderem nadrzędnym"
 
@@ -21221,6 +21276,12 @@ msgstr "konto staje się kontem JMAP lub przestaje nim być tylko przez usunięc
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "konto staje się kontem Zimbra lub przestaje nim być tylko przez usunięcie i ponowne dodanie"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr "konto staje się kontem serwera Exchange lub przestaje nim być tylko przez usunięcie i ponowne dodanie"
 
@@ -21388,7 +21449,7 @@ msgstr "szukany i zastępujący tekst muszą być w jednym wierszu"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiwum"
+msgstr "Archiwizuj"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -21788,6 +21849,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "żadne konto nie przechowuje tu swoich reguł na serwerze"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "żadne konto nie jest kontem Zimbra"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -21824,7 +21891,7 @@ msgid "no account with id {account}"
 msgstr "brak konta o identyfikatorze {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "brak konta o identyfikatorze {id}"
@@ -21926,7 +21993,7 @@ msgid "no message with id {id}"
 msgstr "brak wiadomości o identyfikatorze {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "brak wiadomości o identyfikatorze {id} w {name}"
@@ -22913,7 +22980,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "w wyniku to konto przechowywałoby więcej stanu synchronizacji, niż można przyjąć"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "wynik {why}"
@@ -23476,16 +23543,21 @@ msgid "this Exchange server account has no server settings"
 msgstr "to konto serwera Exchange nie ma ustawień serwera"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "to Wyślij/Odbierz dotyczyło innego konta, a nie konta {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "to Wyślij/Odbierz dotyczyło serwera {name} podanego wcześniej"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -24290,6 +24362,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} nie ma adresu serwera JMAP, którego można użyć"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} nie ma żadnego adresu serwera Zimbra, którego można użyć"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -24362,6 +24440,12 @@ msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} nie jest kontem Microsoft ani kontem serwera Exchange"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} nie jest kontem Zimbra"
+
+#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24381,7 +24465,6 @@ msgstr "{name} nie jest udostępnioną skrzynką pocztową: usuń go za pomocą 
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "{name} isn't among the Favorites"
 msgstr "{name} nie należy do ulubionych"
 
@@ -24459,7 +24542,6 @@ msgstr "{name} udostępnił(a) Ci kalendarz. Znajduje się on na Twojej liście 
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
-#, fuzzy
 msgid "{name} stays at the top of its account's folders"
 msgstr "{name} zostaje na górze folderów konta"
 
@@ -25804,6 +25886,11 @@ msgstr "{why}, więc logowania nie są zapamiętywane: MailCraft pyta ponownie p
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. Zmiany wprowadzone w nim tutaj ({n}) czekają na tym komputerze."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -25855,6 +25942,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Kont Zimbra nie można jeszcze wysyłać ani odbierać: ta część nie jest jeszcze zbudowana"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "wynik dotyczy innego konta"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
