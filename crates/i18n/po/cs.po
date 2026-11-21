@@ -16684,7 +16684,7 @@ msgstr "Kategorii „{name}“ se nepodařilo vrátit: seznam kategorií je pln�
 #: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
-msgstr[0] ""
+msgstr[0] "Kategorie přejmenována u událostí na serveru: {n}"
 msgstr[1] ""
 msgstr[2] ""
 
@@ -16692,7 +16692,7 @@ msgstr[2] ""
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
-msgstr[0] ""
+msgstr[0] "Kategorie přejmenována u zpráv na serveru: {n}"
 msgstr[1] ""
 msgstr[2] ""
 
@@ -21417,7 +21417,7 @@ msgstr "hledaný i náhradní text musí být na jednom řádku"
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archiv"
+msgstr "Archivovat"
 
 #. folder name
 #: crates/model/src/mailbox.rs

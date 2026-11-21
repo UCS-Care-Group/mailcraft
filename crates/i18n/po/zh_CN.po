@@ -16655,13 +16655,13 @@ msgstr "无法还原类别“{name}”：类别列表已满。"
 #: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
-msgstr[0] ""
+msgstr[0] "已在服务器上为 {n} 个日历项重命名类别"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
-msgstr[0] ""
+msgstr[0] "已在服务器上为 {n} 封邮件重命名类别"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs

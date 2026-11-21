@@ -16580,14 +16580,14 @@ msgstr "La catégorie « {name} » n'a pas pu être rétablie : la liste d
 #: crates/engine/src/sync_driver/calendar_plan.rs
 msgid "The category was renamed on {n} event on the server"
 msgid_plural "The category was renamed on {n} events on the server"
-msgstr[0] ""
+msgstr[0] "Catégorie renommée sur des événements sur le serveur : {n}"
 msgstr[1] ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "The category was renamed on {n} message on the server"
 msgid_plural "The category was renamed on {n} messages on the server"
-msgstr[0] ""
+msgstr[0] "Catégorie renommée sur des messages sur le serveur : {n}"
 msgstr[1] ""
 
 #. interface
@@ -21278,7 +21278,7 @@ msgstr "le texte recherché et son remplacement doivent tenir sur une seule lign
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "Archives"
+msgstr "Archiver"
 
 #. folder name
 #: crates/model/src/mailbox.rs
