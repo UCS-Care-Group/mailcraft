@@ -848,17 +848,27 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
             // (A right corner widens the picture going right, a left one going left.)
             let outward = if i % 2 == 1 { 1.0 } else { -1.0 };
-            // (The primary button's, as a click's: Escape's hold on a drag ends when it comes up.)
+            // (The primary button's, as a click's: Escape's hold on a drag ends when it comes up.
+            // The resize is a drag the primary button started by its press on the corner: one
+            // another button started is nothing, though the primary button was down already or
+            // is pressed as well. A corner senses drags alone, so egui starts one as it is pressed.)
             let primary = egui::PointerButton::Primary;
-            if handle.dragged_by(primary) && !st.resizing.is_some_and(|z| z.cancelled) {
-                let w = st.resizing.filter(|z| z.id == pid && z.corner == i).map_or(r.width(), |z| z.width) + outward * handle.drag_delta().x;
-                st.resizing = Some(Resizing { id: pid, corner: i, width: w.clamp(8.0, most), cancelled: false });
+            if handle.drag_started() && ui.input(|i| i.pointer.button_pressed(primary)) && st.resizing.is_none() {
+                st.resizing = Some(Resizing { id: pid, corner: i, width: r.width(), cancelled: false });
+            }
+            if handle.dragged_by(primary)
+                && let Some(z) = st.resizing.as_mut()
+                && !z.cancelled
+                && z.id == pid
+                && z.corner == i
+            {
+                z.width = (z.width + outward * handle.drag_delta().x).clamp(8.0, most);
             }
             // (A drag given up stays until the button comes up, below.)
             // A drag that ends however it ends (egui ends one on Escape with Shift, too) is let go
             // of; only the primary button coming up sets the width.
             if handle.drag_stopped()
-                && st.resizing.is_some_and(|z| !z.cancelled && z.corner == i)
+                && st.resizing.is_some_and(|z| !z.cancelled && z.id == pid && z.corner == i)
                 && let Some(z) = st.resizing.take()
                 && handle.drag_stopped_by(primary)
                 && (z.width.round() - r.width().round()).abs() >= 1.0

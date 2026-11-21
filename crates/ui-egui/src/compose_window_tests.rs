@@ -819,3 +819,57 @@ fn an_agents_pop_out_opens_behind() {
     assert_ne!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(w));
     assert_eq!(h.state().session.compose_id(), Some(mine));
 }
+
+/// A PNG `w` by `h` pixels that can be read.
+fn real_png(w: u32, h: u32) -> Vec<u8> {
+    use image::ImageEncoder as _;
+    let rgb: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 90, 160]).collect();
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    out
+}
+
+#[test]
+fn escape_while_a_pictures_corner_is_held_in_a_messages_window_is_the_drags() {
+    let mut h = window(app());
+    let compose = new_window(&mut h);
+    let w = window_of(&h, compose);
+    script(&mut h, "compose.formatHtml", json!({"compose": compose}));
+    let data = crate::files::base64_lite::encode(&real_png(200, 100));
+    let id = script(&mut h, "insert.picture", json!({"compose": compose, "data": data, "file": "logo.png"}))["id"].as_u64().unwrap();
+    script(&mut h, "compose.select", json!({"compose": compose, "from": 0, "to": 1}));
+    // Nothing has the keyboard (a new message's window gives it to To): Escape would be the
+    // window's, and close it.
+    h.ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
+    h.run_steps(2);
+    assert_eq!(h.ctx.memory(|m| m.focused()), None);
+    let picture = |h: &Harness| h.state().session.composing_by_id(compose).and_then(|c| c.pictures.first().map(|p| p.width)).unwrap();
+    let from = h.state().hit.rect_in(w, "pictureCornerTopRight", id).expect("the picture's corner in the message's window").center();
+    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    h.event(egui::Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    h.event(egui::Event::PointerMoved(from + egui::vec2(30.0, 0.0)));
+    h.step();
+    // Escape, and again, with the button still down: the drag's, not the window's.
+    for _ in 0..2 {
+        h.key_press(Key::Escape);
+        h.step();
+        assert_ne!(windows(&mut h)[0]["asking"], true, "the window asks nothing while the button is down");
+    }
+    h.event(button(from + egui::vec2(30.0, 0.0), false));
+    h.step();
+    assert_eq!(picture(&h), None, "nothing is set");
+    assert!(h.state().windows.of_compose(compose).is_some(), "the message's window is still open");
+    assert_ne!(windows(&mut h)[0]["asking"], true, "and asks nothing");
+    // With the button up, Escape is the window's as ever, even in the very next frame: it asks
+    // about the picture put in.
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    assert_eq!(windows(&mut h)[0]["asking"], true, "Escape after the drag closes the window");
+}

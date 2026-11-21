@@ -601,6 +601,73 @@ fn a_corner_dragged_with_the_secondary_button_sizes_nothing() {
 }
 
 #[test]
+fn a_corner_dragged_with_the_secondary_button_and_then_the_primary_too_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let press = |button, pos, pressed| Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE };
+    let (primary, secondary) = (egui::PointerButton::Primary, egui::PointerButton::Secondary);
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(press(secondary, from, true));
+    h.step();
+    h.event(Event::PointerMoved(from + egui::vec2(10.0, 0.0)));
+    h.step();
+    // The primary button pressed as well, away from the corner, and both moved on.
+    h.event(press(primary, from + egui::vec2(10.0, 0.0), true));
+    h.step();
+    for n in 2..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    // The primary button let go first (that ends the drag), then the other: the drag was never
+    // the primary button's, so nothing is set.
+    let to = from + egui::vec2(40.0, 0.0);
+    h.event(press(primary, to, false));
+    h.event(press(secondary, to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
+    // (The primary button pressed off the corner was the text's: it selected from there.) The
+    // picture selected again, the next drag, the primary button's alone, sizes it as ever.
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    h.run_steps(2);
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(140));
+}
+
+#[test]
+fn a_corner_dragged_with_the_secondary_button_while_the_primary_is_held_from_elsewhere_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let press = |button, pos, pressed| Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE };
+    let (primary, secondary) = (egui::PointerButton::Primary, egui::PointerButton::Secondary);
+    // The primary button pressed where nothing is dragged, and carried down onto the corner.
+    let away = egui::pos2(1.0, 1.0);
+    h.event(Event::PointerMoved(away));
+    h.step();
+    h.event(press(primary, away, true));
+    h.step();
+    assert_eq!(h.ctx.dragged_id(), None, "the primary button drags nothing out there");
+    h.event(Event::PointerMoved(from));
+    h.step();
+    // The secondary button pressed on it starts a drag of the corner, with the primary down.
+    h.event(press(secondary, from, true));
+    h.step();
+    assert!(h.ctx.dragged_id().is_some(), "the corner is dragged");
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    let to = from + egui::vec2(40.0, 0.0);
+    h.event(press(primary, to, false));
+    h.event(press(secondary, to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
 fn a_drag_ended_by_shift_escape_is_let_go_of() {
     let board = PictureBoard::default();
     let mut h = writing_with(&board);
