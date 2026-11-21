@@ -142,6 +142,34 @@ fn the_file_comes_with_its_marks_and_the_request_says_nothing_of_its_sender() {
 }
 
 #[test]
+fn webcal_and_webcals_fetch_and_refresh_over_https() {
+    for scheme in ["webcals", "webcal"] {
+        with_server(
+            |n, _| {
+                if n == 2 {
+                    reply("304 Not Modified", "ETag: \"v7\"\r\n", "")
+                } else {
+                    reply("200 OK", "Content-Type: text/calendar\r\nETag: \"v7\"\r\n", CALENDAR)
+                }
+            },
+            |server, look| {
+                let address = format!("{scheme}://calendar.example/fixtures.ics?view=team");
+                let file = changed(CALENDAR, "\"v7\"", "");
+                assert_eq!(look(&address, "", "", &quick()), file);
+                assert_eq!(look(&address, "\"v7\"", "", &quick()), file);
+                assert_eq!(look(&address, "\"v7\"", "", &quick()), Ok(Fetched::NotModified));
+                assert_eq!(server.asked(), 3);
+                for i in 0..3 {
+                    assert!(server.request(i).starts_with("GET /fixtures.ics?view=team HTTP/1.1\r\n"));
+                }
+                assert!(server.request(1).contains("If-None-Match: \"v7\""));
+                assert!(server.request(2).contains("If-None-Match: \"v7\""));
+            },
+        );
+    }
+}
+
+#[test]
 fn a_copy_that_is_current_is_asked_about_and_a_304_is_taken() {
     with_server(
         |_, request| {

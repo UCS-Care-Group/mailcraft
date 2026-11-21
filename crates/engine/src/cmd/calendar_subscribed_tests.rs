@@ -172,6 +172,27 @@ fn a_refresh_replaces_wholesale_and_an_event_that_is_the_same_keeps_its_id() {
 }
 
 #[test]
+fn refreshing_an_unchanged_webcals_calendar_keeps_its_two_events() {
+    let mut s = session();
+    let subscribed = s.run("calendar.subscribe", &json!({"address": "webcals://calendar.example/fixtures.ics"})).unwrap();
+    let id = subscribed["id"].as_u64().unwrap();
+    let file = ics(&[("practice@example.org", "Practice", "20261122T100000Z"), ("meeting@example.org", "Club meeting", "20261123T180000Z")]);
+    assert_eq!(came(&mut s, id, &file, "\"v7\"")["added"], 2);
+    let ids = (id_of(&s, id, "Practice"), id_of(&s, id, "Club meeting"));
+
+    s.run("calendar.refreshSubscribed", &json!({})).unwrap();
+    let same_file = came(&mut s, id, &file, "\"v7\"");
+    assert_eq!((same_file["added"].as_u64(), same_file["updated"].as_u64(), same_file["removed"].as_u64()), (Some(0), Some(0), Some(0)));
+    assert_eq!(titles(&s, id), ["Club meeting", "Practice"]);
+    assert_eq!((id_of(&s, id, "Practice"), id_of(&s, id, "Club meeting")), ids);
+
+    s.run("calendar.refreshSubscribed", &json!({})).unwrap();
+    s.run("sync.applySubscription", &json!({"calendar": id, "outcome": {"kind": "notModified"}})).unwrap();
+    assert_eq!(titles(&s, id), ["Club meeting", "Practice"]);
+    assert_eq!((id_of(&s, id, "Practice"), id_of(&s, id, "Club meeting")), ids);
+}
+
+#[test]
 fn a_changed_instance_of_a_series_is_its_own_event_keyed_apart() {
     let mut s = session();
     let id = subscribe(&mut s);
