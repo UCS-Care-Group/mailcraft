@@ -313,3 +313,44 @@ fn a_copy_doesnt_go_into_a_microsoft_accounts_outbox() {
     s.run("mail.move", &json!({"ids": [m], "folder": outbox})).unwrap();
     assert!(graph_sends(&s, ms).is_empty());
 }
+
+/// An IMAP account's draft to `to`, saved and closed, then moved into the Outbox: the session,
+/// the account and the draft. Lin at Harbor Works is a contact.
+fn draft_in_outbox(to: &str) -> (Session, Id, Id) {
+    let (mut s, a, _) = imap();
+    s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();
+    s.run("mail.new", &json!({"account": a, "to": to, "subject": "Plans"})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    let drafts = s.mailbox.folder_of_kind(a, FolderKind::Drafts).unwrap();
+    let id = s.mailbox.messages_in(drafts).find(|m| m.subject == "Plans").unwrap().id;
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": outbox})).unwrap();
+    (s, a, id)
+}
+
+/// #1747: a draft moved into the Outbox isn't let go by Send Again, which asks nothing of its
+/// recipients; it says to send it with Send, which does.
+#[test]
+fn send_again_leaves_a_draft_moved_into_the_outbox_to_send() {
+    let (mut s, a, id) = draft_in_outbox("lin.zhao@harborwork.example");
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.draft);
+    assert_eq!(m.held, mailcraft_model::DRAFT_MOVED_INTO_OUTBOX, "it says how it is sent");
+    let e = s.run("mail.sendAgain", &json!({"id": id})).unwrap_err().to_string();
+    assert!(e.contains("draft: open it and send it"), "{e}");
+    assert!(to_send(&s, a).is_empty(), "nothing goes");
+    // Opened and sent, Send asks about the lookalike address.
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    let e = s.run("compose.send", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("lookalikeRecipient lin.zhao@harborwork.example"), "{e}");
+}
+
+/// Moved out of the Outbox again, a draft is no longer held for having been put there.
+#[test]
+fn a_draft_moved_out_of_the_outbox_again_is_no_longer_held() {
+    let (mut s, a, id) = draft_in_outbox("lin.zhao@harborworks.example");
+    let drafts = s.mailbox.folder_of_kind(a, FolderKind::Drafts).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": drafts})).unwrap();
+    assert!(s.mailbox.message(id).unwrap().held.is_empty());
+}

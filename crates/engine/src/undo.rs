@@ -579,19 +579,21 @@ fn events_stay(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
 
 /// Whether an undo (or redo) to `then` of a change that did `touched` has the event `id` as `then`
 /// has it, or leaves it out when `then` has none, rather than as it is in `now` (#1674): what
-/// [`events_stay`] and [`subscribed_stay`] do with it. An event a download brought, changed or
-/// took away since the change is as now; one the change touched, or one in a calendar that `then`
-/// has not (or had subscribed, when `now` has not), or any when the clock moved since, as `then`
-/// has it. For the question asked of an agent's undo (#494): what it would take away.
+/// [`events_stay`] and [`subscribed_stay`] do with it. An event of a calendar subscribed in `now`
+/// is never taken away nor put back as another, whatever else (its calendar subscribed since the
+/// change, the clock moved since): [`subscribed_stay`] runs after [`events_stay`] and puts every
+/// one back from `now`. This says nothing of its times: after a move of the clock, the settle that
+/// follows the undo moves them again (#1709). Of the others, an event a download brought, changed
+/// or took away since the change is as now; one the change touched, or one in a calendar that
+/// `then` has not (or had subscribed), or any when the clock moved since, as `then` has it. For
+/// the question asked of an agent's undo (#494): what it would take away.
 pub(crate) fn event_as_then(then: &Mailbox, touched: &Touched, now: &Mailbox, id: Id) -> bool {
     let Some(e) = now.event(id) else { return true };
     let subscribed = |m: &Mailbox| m.calendar(e.calendar).map(Calendar::is_subscribed);
-    then.zone != now.zone
-        || touched.changed_events.contains(&id)
-        || match (subscribed(then), subscribed(now)) {
-            (None, _) => true,
-            (Some(was), is) => was && is != Some(true),
-        }
+    if subscribed(now) == Some(true) {
+        return false;
+    }
+    then.zone != now.zone || touched.changed_events.contains(&id) || subscribed(then).is_none_or(|was| was)
 }
 
 /// `list` by the event each is about, in its order.
@@ -659,6 +661,12 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
     out.categories_found.retain(|id, _| !readdressed.contains(id));
     out.categories_found.extend(found);
     out.category_stamp = now.category_stamp;
+    // What items on a server still wait for of a rename is as now too (#851): a rename the undo
+    // takes back is noted the other way round below ([`in_step`]), so that what the server gave
+    // the new name gets the old one again.
+    let waited_then = out.category_sweeps.clone();
+    out.category_sweeps.retain(|account, _| !g.contains(account));
+    out.category_sweeps.extend(now.category_sweeps.iter().filter(|(account, _)| g.contains(account)).map(|(account, s)| (*account, s.clone())));
     let then = out.server_categories.clone();
     out.server_categories.retain(|account, _| !g.contains(account));
     out.server_categories
@@ -731,6 +739,17 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
     let renamed: Vec<Id> = out.category_renames.keys().copied().filter(|account| g.contains(account)).collect();
     for account in renamed {
         out.tidy_renames(account);
+    }
+    let swept: Vec<Id> = out.category_sweeps.keys().copied().filter(|account| g.contains(account)).collect();
+    for account in swept {
+        out.tidy_sweeps(account);
+    }
+    // A rename that waited before a later one took its place (Holiday to Holiday 2026, then
+    // Holiday 2026 to Trips) waits again once the later one is taken back: the list has its
+    // name again, and the server's items still carry its old one.
+    for (account, then) in waited_then.iter().filter(|(account, _)| g.contains(account)) {
+        let replaced = now.category_sweeps.get(account).map(Vec::as_slice).unwrap_or_default();
+        out.resume_sweeps(*account, then, replaced);
     }
 }
 
@@ -848,6 +867,23 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
     if let ([made], [gone]) = (made.as_slice(), gone.as_slice()) {
         out.category_renames.entry(account).or_default().insert((*made).clone(), gone.name.clone());
     }
+    // A rename taken back (#851): one name the server has leaves the list for one that comes back
+    // to it. What the server's items were given of the one gets the other again, and the one's
+    // deletion there waits for that.
+    let stays = |now: bool| -> Vec<&Category> {
+        own.iter().filter(|(k, _)| touched(k) && was_now.contains(k) == now && !local_keys.contains(k)).map(|(_, c)| c).collect()
+    };
+    // (The one that comes back may be on the list already: put back there because some of the
+    // server's items kept it. The others, which were given the new name, get it again all the
+    // same. Only a name the step itself took off the list: never one it made with the other.)
+    let took_off = |c: &&Category| step.is_some_and(|s| s.left.get(&category_key(&c.name)).is_some_and(Option::is_none));
+    let back = Some(stays(false)).filter(|back| !back.is_empty()).unwrap_or_else(|| stays(true).into_iter().filter(took_off).collect());
+    let off: Vec<&Category> =
+        synced.iter().filter(|(k, _)| touched(k) && was_now.contains(k) && !own_keys.contains(k.as_str())).map(|(_, c)| c).collect();
+    let reversed = match (back.as_slice(), off.as_slice()) {
+        ([back], [off]) => Some((off.name.clone(), back.name.clone())),
+        _ => None,
+    };
     out.account_categories.insert(account, own.into_iter().map(|(_, c)| c).collect());
     if local.is_empty() {
         out.local_categories.remove(&account);
@@ -855,6 +891,9 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
         out.local_categories.insert(account, local.into_iter().map(|(_, n)| n).collect());
     }
     out.synced_categories.insert(account, synced.into_iter().map(|(_, c)| c).collect());
+    if let Some((from, to)) = reversed {
+        out.note_category_sweep(account, &from, &to);
+    }
 }
 
 /// A message the undo puts back into the IMAP account it was being moved out of, while the run

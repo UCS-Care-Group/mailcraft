@@ -717,6 +717,11 @@ msgstr "აქცენტი"
 msgid "Accent Colour"
 msgstr "აქცენტის ფერი"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Accent colour as hex"
+msgstr ""
+
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4040,6 +4045,11 @@ msgstr "მიმდინარე საფოსტო ყუთი"
 #, fuzzy
 msgid "Current View"
 msgstr "მიმდინარე ხედი"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+msgid "Custom color"
+msgstr ""
 
 #. command label, name
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
@@ -11766,6 +11776,11 @@ msgid "Paste Picture"
 msgstr "სურათის ჩასმა"
 
 #. interface
+#: crates/ui-egui/src/text_menu.rs
+msgid "Paste Text Only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Paste or write the signature's HTML"
@@ -12876,6 +12891,18 @@ msgstr ""
 #, fuzzy
 msgid "Rename Signature"
 msgstr "ხელმოწერის სახელის შეცვლა"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Renaming a category on the server"
+msgstr "კატეგორიის გადარქმევა სერვერზე"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Renaming a category on the server: {done} of {total} messages"
+msgstr "კატეგორიის გადარქმევა სერვერზე: {done} / {total} შეტყობინება"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16543,6 +16570,22 @@ msgstr "გაგზავნილი კატეგორიები ვე�
 msgid "The category '{name}' couldn't be put back: the list of categories is full."
 msgstr "კატეგორია „{name}“ ვერ აღდგა: კატეგორიების სია სავსეა."
 
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "კატეგორია გადაერქვა სერვერის ღონისძიებებზე: {n}"
+msgstr[1] "კატეგორია გადაერქვა სერვერის ღონისძიებებზე: {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "კატეგორია გადაერქვა სერვერის შეტყობინებებზე: {n}"
+msgstr[1] "კატეგორია გადაერქვა სერვერის შეტყობინებებზე: {n}"
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -17619,6 +17662,11 @@ msgstr "შესვლა გაუქმდა."
 #, fuzzy
 msgid "The sign-in was declined."
 msgstr "შესვლა უარყოფილია."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -22180,6 +22228,11 @@ msgstr "ეს ამ .pst ფაილის პაროლი არ არ�
 #, fuzzy
 msgid "that mailbox is open in another MailCraft window; close it there first"
 msgstr "ეს საფოსტო ყუთი MailCraft-ის სხვა ფანჯარაშია გახსნილი; ჯერ იქ დახურეთ"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+msgid "that message is a draft: open it and send it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
