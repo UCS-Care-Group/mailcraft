@@ -17,6 +17,7 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
         max_properties: 512,
         max_values: 200_000,
         max_kept_bytes: 1 << 20,
+        keep_first: None,
     };
     let (len, window) = match data {
         [a, b, c, ..] => (usize::from(u16::from_le_bytes([*a, *b])), 17 + u32::from(*c % 9)),
@@ -33,5 +34,6 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
         let crc = crc32(&fixed[12..]);
         fixed[4..8].copy_from_slice(&crc.to_le_bytes());
         let _ = read_details(&fixed, &limits);
+        let _ = read_details(&fixed, &Limits { keep_first: Some(1000), ..limits });
     }
 });

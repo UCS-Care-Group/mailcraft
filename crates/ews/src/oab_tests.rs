@@ -7,7 +7,9 @@ use std::sync::atomic::AtomicBool;
 use mailcraft_model::sync::DirectoryKind;
 
 use crate::http::HttpResponse;
-use crate::oab::{FullFile, MAX_UNPACKED, OabError, address_list, fetch, full_file, judged, oab_url, origin};
+use crate::oab::{
+    FullFile, MAX_KEPT_BYTES, MAX_UNPACKED, MAX_VALUES, OabError, address_list, address_list_within, fetch, full_file, judged, oab_url, origin,
+};
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::standin_directory::Person;
 use crate::standin_oab::{FILE, PATH};
@@ -189,4 +191,26 @@ fn certificates_come_with_whoever_has_them() {
     assert!(list.people.iter().filter(|p| p.email != ada.email).all(|p| p.certificates.is_empty()));
     // A log line says how many, never what.
     assert!(format!("{ada:?}").contains("certificates: 1"));
+}
+
+/// A list longer than the people kept, or whose values pass the cap on what is kept, is cut there
+/// and says it goes on: the people before are shown, and the file is not refused for it.
+#[test]
+fn a_list_past_its_caps_is_cut_and_says_so() {
+    let file = organisation().state().oab_file();
+    let whole = address_list(&file).unwrap();
+    assert_eq!(whole.people.len(), 4);
+    assert!(!whole.more);
+    // The first two entries of the file: Ada Lovelace and All Staff.
+    let two = address_list_within(&file, 2, MAX_VALUES, MAX_KEPT_BYTES).unwrap();
+    assert!(two.more);
+    let names: Vec<&str> = two.people.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["Ada Lovelace", "All Staff"]);
+    // So few values that only Ada's fit: the header's four and her eleven (two proxy addresses),
+    // where All Staff's five more would make twenty.
+    let one = address_list_within(&file, 100, 16, MAX_KEPT_BYTES).unwrap();
+    assert!(one.more);
+    assert_eq!(one.people.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["Ada Lovelace"]);
+    // A header past the cap still refuses the file: it is not an entry to stop before.
+    assert_eq!(address_list_within(&file, 100, MAX_VALUES, 1).err(), Some(mailcraft_oab::Error::Cap(mailcraft_oab::Cap::KeptBytes)));
 }

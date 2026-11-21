@@ -19,6 +19,7 @@ fn small() -> Limits {
         max_properties: 256,
         max_values: 100_000,
         max_kept_bytes: 1 << 20,
+        keep_first: None,
     }
 }
 
@@ -123,7 +124,9 @@ proptest! {
         let _ = read(&bytes, &small());
         let _ = read_details(&bytes, &small());
         if bytes.len() >= 12 {
-            let _ = read_details(&with_crc(bytes.clone()), &small());
+            let fixed = with_crc(bytes.clone());
+            let _ = read_details(&fixed, &small());
+            let _ = read_details(&fixed, &Limits { keep_first: Some(1000), ..small() });
         }
     }
 

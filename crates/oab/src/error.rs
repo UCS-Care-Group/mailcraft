@@ -78,6 +78,13 @@ pub struct Limits {
     /// entries' together, with [`VALUE_SLOT`](crate::VALUE_SLOT) more for each value: a file of
     /// few values can still hold large ones, and one of many tiny values still costs memory.
     pub max_kept_bytes: usize,
+    /// When set, the reader keeps no more than this many entries, and stops without an error at
+    /// the first entry that would take it past [`Limits::max_values`] or
+    /// [`Limits::max_kept_bytes`]. The entries read before that are kept, and
+    /// [`Details::cut`](crate::Details::cut) says the file has more. The file's count of entries is
+    /// then not held to [`Limits::max_records`], since no more than this many are read. When it is
+    /// unset, as by default, a file past a cap is refused.
+    pub keep_first: Option<usize>,
 }
 
 impl Default for Limits {
@@ -90,6 +97,7 @@ impl Default for Limits {
             max_properties: 4096,
             max_values: 16_000_000,
             max_kept_bytes: 1 << 29,
+            keep_first: None,
         }
     }
 }

@@ -381,7 +381,9 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB, unpacked to at most 256 MB with at most 128 MB of its values kept while it is read
   (each value counting 48 bytes more for what it costs in memory, so that millions of empty ones
   are held too; at most 6.4 million values, 32 for each person of the 200,000 kept; a schema that
-  lists a property twice is refused; `crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
+  lists a property twice is refused; a list that reaches one of these caps, or has more than
+  200,000 entries, is read up to there and no further, and the Address Book says that the list
+  goes on (`Limits::keep_first`); `crates/ews/src/oab.rs`; each answer is held to its cap there too, whatever the transport
   read, and a download nobody waits for any more asks nothing after the request on its way). The
   file is unpacked and read by `mailcraft-oab`, written from
   [MS-OXOAB] and [MS-PATCH]: no panics, no indexing or unchecked arithmetic, every block's CRC

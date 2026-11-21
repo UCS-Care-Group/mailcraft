@@ -125,3 +125,31 @@ fn the_output_is_never_given_more_room_than_the_file_unpacks_to() {
     assert_eq!(out, data);
     assert_eq!(out.capacity(), out.len());
 }
+
+/// With `keep_first`, a file that reaches a cap on what is kept is read up to there and no
+/// further: the entries before it stay and `cut` says the file has more, where without it the
+/// file is refused. A file of more entries than `keep_first` is read to that many, whatever
+/// `max_records` says.
+#[test]
+fn keep_first_stops_at_a_cap_rather_than_refusing_the_file() {
+    let name = PropDef { tag: (u32::from(tag::DISPLAY_NAME) << 16) | 0x001F, primary_key: false, anr: false };
+    let entries: Vec<Record> = (0..10).map(|i| Record { values: vec![(name.tag, Value::Text(format!("Person {i:02}")))] }).collect();
+    let file = details(&[], &[name], &Record::default(), &entries);
+    let each = Value::Text("Person 00".into()).bytes() + VALUE_SLOT;
+    let limits = Limits { max_kept_bytes: each * 4 + each / 2, ..Limits::default() };
+    assert_eq!(read_details(&file, &limits), Err(Error::Cap(Cap::KeptBytes)));
+    let read = read_details(&file, &Limits { keep_first: Some(100), ..limits }).unwrap();
+    assert!(read.cut);
+    assert_eq!(read.records, entries[..4]);
+    let read = read_details(&file, &Limits { max_values: 3, keep_first: Some(100), ..Limits::default() }).unwrap();
+    assert!(read.cut);
+    assert_eq!(read.records, entries[..3]);
+    let read = read_details(&file, &Limits { max_records: 2, keep_first: Some(6), ..Limits::default() }).unwrap();
+    assert!(read.cut);
+    assert_eq!(read.records, entries[..6]);
+    let read = read_details(&file, &Limits { keep_first: Some(10), ..Limits::default() }).unwrap();
+    assert!(!read.cut);
+    assert_eq!(read.records, entries);
+    // A cap of another kind still refuses the file.
+    assert_eq!(read_details(&file, &Limits { max_record: 4, keep_first: Some(100), ..Limits::default() }), Err(Error::Cap(Cap::RecordSize)));
+}

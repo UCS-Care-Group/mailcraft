@@ -137,6 +137,9 @@ pub struct Details {
     /// ([`crate::tag::OAB_NAME`] and the others).
     pub header: Record,
     pub records: Vec<Record>,
+    /// The file has entries after [`Details::records`] that were not read: it holds more than
+    /// [`Limits::keep_first`], or the next entry would have passed a cap on what is kept.
+    pub cut: bool,
 }
 
 impl Details {
@@ -172,9 +175,10 @@ pub fn read_details_keeping(file: &[u8], limits: &Limits, keep: impl Fn(u32) -> 
     }
     let serial = u32_at(file, 4, "OAB_HDR")?;
     let total = u32_at(file, 8, "OAB_HDR")? as usize;
-    if total > limits.max_records {
+    if limits.keep_first.is_none() && total > limits.max_records {
         return Err(Error::Cap(Cap::Records));
     }
+    let read = limits.keep_first.map_or(total, |first| total.min(first));
     let rest = file.get(12..).ok_or(Error::Truncated("OAB_HDR"))?;
     if crc32(rest) != serial {
         return Err(Error::BadChecksum("OAB_HDR"));
@@ -188,11 +192,20 @@ pub fn read_details_keeping(file: &[u8], limits: &Limits, keep: impl Fn(u32) -> 
     let header = record(rest, &mut at, &header_schema, limits, &|_| true, &mut kept)?;
     // Each record is at least its size and its presence bits.
     let smallest = 4usize.saturating_add(schema.len().div_ceil(8));
-    let mut records = Vec::with_capacity(total.min(rest.len().checked_div(smallest).unwrap_or(0)));
-    for _ in 0..total {
-        records.push(record(rest, &mut at, &schema, limits, &keep, &mut kept)?);
+    let mut records = Vec::with_capacity(read.min(rest.len().checked_div(smallest).unwrap_or(0)));
+    let mut cut = read < total;
+    for _ in 0..read {
+        match record(rest, &mut at, &schema, limits, &keep, &mut kept) {
+            Ok(entry) => records.push(entry),
+            // (The whole file's CRC was checked above, so stopping here leaves nothing unchecked.)
+            Err(Error::Cap(Cap::Values | Cap::KeptBytes)) if limits.keep_first.is_some() => {
+                cut = true;
+                break;
+            }
+            Err(error) => return Err(error),
+        }
     }
-    Ok(Details { header_schema, schema, header, records })
+    Ok(Details { header_schema, schema, header, records, cut })
 }
 
 /// An `OAB_PROP_TABLE` at `at`, and where it ends.

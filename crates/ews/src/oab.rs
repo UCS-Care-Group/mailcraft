@@ -229,19 +229,21 @@ fn wanted(property: u32) -> bool {
     .contains(&id)
 }
 
-/// The address list of a compressed full file: its people, by name.
+/// The address list of a compressed full file: its people, by name. A list longer than
+/// [`MAX_ADDRESS_LIST`], or one whose values pass [`MAX_VALUES`] or [`MAX_KEPT_BYTES`], is
+/// cut where it reaches the cap: the people of the file before that are kept, and `more` says
+/// there are others.
 pub fn address_list(file: &[u8]) -> Result<EwsAddressList, mailcraft_oab::Error> {
-    let limits = Limits {
-        max_records: MAX_ADDRESS_LIST.saturating_mul(4),
-        max_output: MAX_UNPACKED,
-        max_values: MAX_VALUES,
-        max_kept_bytes: MAX_KEPT_BYTES,
-        ..Limits::default()
-    };
+    address_list_within(file, MAX_ADDRESS_LIST, MAX_VALUES, MAX_KEPT_BYTES)
+}
+
+/// [`address_list`] with its caps given.
+pub(crate) fn address_list_within(file: &[u8], first: usize, values: usize, kept_bytes: usize) -> Result<EwsAddressList, mailcraft_oab::Error> {
+    let limits = Limits { max_output: MAX_UNPACKED, max_values: values, max_kept_bytes: kept_bytes, keep_first: Some(first), ..Limits::default() };
     let details = mailcraft_oab::read_details_keeping(&mailcraft_oab::decompress(file, &limits)?, &limits, wanted)?;
     let mut people: Vec<DirectoryPerson> = details.records.iter().filter_map(person).collect();
-    let more = people.len() > MAX_ADDRESS_LIST;
-    people.truncate(MAX_ADDRESS_LIST);
+    let more = details.cut || people.len() > first;
+    people.truncate(first);
     // The certificates held, in all: past it, the people after have none.
     let mut room = MAX_CERTIFICATE_BYTES;
     for p in &mut people {
