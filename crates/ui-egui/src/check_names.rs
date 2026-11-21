@@ -375,7 +375,7 @@ fn first_line(person: &Value, rtl: bool) -> String {
 /// What tells them apart: the job title, department and company, what kind of recipient it is
 /// when it isn't a person, and where it was found.
 fn second_line(person: &Value, rtl: bool) -> String {
-    let mut parts: Vec<String> = ["title", "department", "company"].iter().filter_map(|key| person[*key].as_str()).map(str::to_string).collect();
+    let mut parts: Vec<String> = ["title", "department", "company"].iter().filter_map(|key| person[*key].as_str()).filter(|s| !rtl || !s.trim().is_empty()).map(str::to_string).collect();
     match person["kind"].as_str() {
         Some("list") => parts.push(tl!("Distribution list").to_string()),
         Some("group") => parts.push(tl!("Group").to_string()),
@@ -458,5 +458,22 @@ mod hebrew_email_bidi_tests {
         assert_eq!(first_line(&missing_email, true), "דנה");
         assert_eq!(first_line(&missing_email, false), "דנה <>");
         assert_eq!(first_line(&empty, false), "דנה <>");
+    }
+
+    #[test]
+    fn check_names_hebrew_secondary_omits_blank_fields_without_changing_english() {
+        let empty = json!({"title": "", "department": " \t ", "company": "", "from": "contacts"});
+        let before = empty.clone();
+        let hebrew = second_line(&empty, true);
+        assert_eq!(hebrew.matches(" · ").count(), 0, "no empty Hebrew bullet separators");
+        assert_eq!(hebrew.matches('\u{2068}').count(), 1);
+        assert_eq!(hebrew.matches('\u{2069}').count(), 1);
+        assert_eq!(second_line(&empty, false).matches(" · ").count(), 3, "English byte path preserved");
+        let partial = json!({"title": "", "department": "", "company": "Acme GmbH", "from": "contacts"});
+        let summary = second_line(&partial, true);
+        assert!(summary.starts_with("\u{2068}Acme GmbH\u{2069} · "));
+        assert_eq!(summary.matches(" · ").count(), 1);
+        assert_eq!(second_line(&partial, false).matches(" · ").count(), 3);
+        assert_eq!(empty, before, "presentation must not mutate directory data");
     }
 }
