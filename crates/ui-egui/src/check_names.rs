@@ -268,10 +268,7 @@ fn paint_candidate_line(painter: &egui::Painter, rect: egui::Rect, y: f32, text:
 /// Right-anchor descriptive dialog text in Hebrew; leave English label layout unchanged.
 pub(crate) fn choice_description(ui: &mut Ui, text: impl Into<egui::WidgetText>, rtl: bool) -> egui::Response {
     if rtl {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add(egui::Label::new(text).wrap())
-        })
-        .inner
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(egui::Label::new(text).wrap())).inner
     } else {
         ui.label(text)
     }
@@ -384,11 +381,7 @@ fn second_line(person: &Value, rtl: bool) -> String {
     // departments and company names can contain punctuation and parentheses: without
     // isolation, those marks may attach to neighboring Hebrew fields or separators.
     // Preserve the previous English/LTR output byte-for-byte.
-    if rtl {
-        parts.into_iter().map(|part| format!("\u{2068}{part}\u{2069}")).collect::<Vec<_>>().join(" · ")
-    } else {
-        parts.join(" · ")
-    }
+    if rtl { parts.into_iter().map(|part| format!("\u{2068}{part}\u{2069}")).collect::<Vec<_>>().join(" · ") } else { parts.join(" · ") }
 }
 
 /// What the status line says while names are looked up.
@@ -404,7 +397,6 @@ fn key(text: &str) -> String {
 fn strings(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect()
 }
-
 
 #[cfg(test)]
 mod hebrew_email_bidi_tests {
