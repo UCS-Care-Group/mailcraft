@@ -136,11 +136,11 @@ use Row::{Cmd, Own as O, Sep, Sub};
 /// View › Tasks and Calendar Bar (#831): each part on or off for the module in front, and Off, as the
 /// ribbon's dropdown has them.
 const TASKS_CALENDAR_BAR: &[Row] = &[
-    Row::With { label: "Calendar", id: "view.tasksCalendarBar", params: r#"{"part": "calendar"}"# },
-    Row::With { label: "People", id: "view.tasksCalendarBar", params: r#"{"part": "people"}"# },
-    Row::With { label: "Tasks", id: "view.tasksCalendarBar", params: r#"{"part": "tasks"}"# },
+    Row::With { label: tl_later!("Calendar"), id: "view.tasksCalendarBar", params: r#"{"part": "calendar"}"# },
+    Row::With { label: tl_later!("People"), id: "view.tasksCalendarBar", params: r#"{"part": "people"}"# },
+    Row::With { label: tl_later!("Tasks"), id: "view.tasksCalendarBar", params: r#"{"part": "tasks"}"# },
     Sep,
-    Row::With { label: "Off", id: "view.tasksCalendarBar", params: r#"{"part": "off"}"# },
+    Row::With { label: tl_later!("Off"), id: "view.tasksCalendarBar", params: r#"{"part": "off"}"# },
 ];
 
 const FILE: &[Row] = &[
@@ -187,7 +187,7 @@ const VIEW: &[Row] = &[
     Sep,
     Cmd("view.readingPane"),
     Cmd("view.folderPane"),
-    Sub("Tasks and Calendar Bar", TASKS_CALENDAR_BAR),
+    Sub(tl_later!("Tasks and Calendar Bar"), TASKS_CALENDAR_BAR),
     Cmd("view.conversations"),
     Cmd("view.reverseSort"),
     Sep,

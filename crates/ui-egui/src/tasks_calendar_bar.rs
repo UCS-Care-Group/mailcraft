@@ -446,7 +446,7 @@ fn navigator(app: &mut MailApp, ui: &mut Ui, months: u8) {
         // The month's name, and the arrows: back over the first month, on over the last.
         let (r, _) = ui.allocate_exact_size(vec2(width, MONTH_TITLE_H), Sense::hover());
         app.hit.add("todoMonth", u64::from(k), r);
-        for (slot, (icon, tip, by)) in [("next", "Next Month", 1), ("previous", "Previous Month", -1)].into_iter().enumerate() {
+        for (slot, (icon, tip, by)) in [("next", tl_later!("Next Month"), 1), ("previous", tl_later!("Previous Month"), -1)].into_iter().enumerate() {
             if (by > 0 && k + 1 != months) || (by < 0 && k != 0) {
                 continue;
             }
