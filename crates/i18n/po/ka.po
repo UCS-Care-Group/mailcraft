@@ -3147,7 +3147,7 @@ msgstr "ახალი ვერსიების შემოწმება"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Check spelling with a local dictionary"
-msgstr "მართლწერის შემოწმება ადგილობრივი ლექსიკონით"
+msgstr "მართლწერის შემოწმება ამ კომპიუტერზე არსებული ლექსიკონით"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
