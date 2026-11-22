@@ -3337,6 +3337,7 @@ dependencies = [
  "mailcraft-names",
  "proptest",
  "serde_json",
+ "unicode-general-category",
 ]
 
 [[package]]

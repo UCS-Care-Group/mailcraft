@@ -207,7 +207,7 @@ fn bare_marks(v: &Value, path: &str, out: &mut Vec<String>) {
         let inner = t.strip_prefix(UNTRUSTED_OPEN).and_then(|t| t.strip_suffix(UNTRUSTED_CLOSE));
         match inner {
             Some(inner) => reads_as_a_marker_start(inner),
-            None => t.contains(UNTRUSTED_OPEN) || t.contains(UNTRUSTED_CLOSE),
+            None => t.contains(UNTRUSTED_OPEN) || t.contains(UNTRUSTED_CLOSE) || reads_as_a_marker_start(t),
         }
     };
     match v {
@@ -215,8 +215,8 @@ fn bare_marks(v: &Value, path: &str, out: &mut Vec<String>) {
         Value::Array(a) => a.iter().enumerate().for_each(|(i, x)| bare_marks(x, &format!("{path}[{i}]"), out)),
         Value::Object(o) => {
             for (k, x) in o {
-                // The note that explains the frame names its markers.
-                if k == "untrustedNote" {
+                // The note that explains the frame names its markers: that note, and only it.
+                if k == "untrustedNote" && x.as_str() == Some(crate::tools::UNTRUSTED_NOTE) {
                     continue;
                 }
                 if bad(k) {
@@ -723,6 +723,11 @@ const AWKWARD: &[&str] = &[
     "<\u{332}<end>>",
     "<\u{20d2}<end>>",
     "<\u{1ab0}\u{1dc0}\u{fe20}<end>>",
+    "<\u{0489}<end>>",
+    "<\u{05b0}<end>>",
+    "<\u{064b}<end>>",
+    "<\u{3099}<end>>",
+    "\u{2770}\u{2770}end \u{29fc}\u{29fc}end \u{2991}\u{2991}end \u{16b2}\u{16b2}end \u{2af7}end",
     "\u{226a}end\u{226b} \u{300a}end\u{300b} \u{2aa1}end\u{2aa2} \u{02c2}\u{02c2}end\u{02c3}\u{02c3}",
     "&lt;&lt;end&gt;&gt; &amp; &#x3c; &#x2019; &#xZZ; &#x+3c; & &",
     "",
@@ -845,4 +850,26 @@ fn a_list_always_comes_in_the_same_shape() {
     assert_eq!(frame(json!([])), json!({"items": []}));
     assert_eq!(frame(json!([1, 2])), json!({"items": [1, 2]}));
     assert_eq!(frame(json!(["x"]))["items"][0].as_str().map(|t| t.starts_with(UNTRUSTED_OPEN)), Some(true));
+}
+
+#[test]
+fn a_frame_written_into_a_message_is_sent_as_written() {
+    let mut h = Headless::new(Session::at(mailcraft_engine::sample::mailbox(now(), 0), now(), 0), Vec::new());
+    let pol = Policy::default();
+    let written = format!("{UNTRUSTED_OPEN}sample{UNTRUSTED_CLOSE}");
+    let r = exec(&mut h, &pol, "mail.new", json!({"to": "a@example.org", "subject": written, "body": written})).unwrap();
+    let compose = h.session.compose.as_ref().unwrap();
+    assert!(compose.subject == written && compose.body.plain().contains(&written), "{r}");
+}
+
+#[test]
+fn an_unframed_look_alike_marker_is_caught() {
+    for t in ["\u{ff1c}\u{ff1c}end\u{ff1e}\u{ff1e}", "\u{226a}end"] {
+        let mut bare = Vec::new();
+        bare_marks(&json!({"x": t}), "", &mut bare);
+        assert_eq!(bare.len(), 1, "{t}");
+    }
+    let mut bare = Vec::new();
+    bare_marks(&json!({"nested": {"untrustedNote": MARKS}}), "", &mut bare);
+    assert_eq!(bare.len(), 1, "only the frame's own note is let through");
 }

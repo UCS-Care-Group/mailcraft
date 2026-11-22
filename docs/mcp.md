@@ -179,9 +179,12 @@ server, a file), not which command gave it, and a command or a field added later
 same way. A base64 `data` payload (an attachment, an export) can't be framed without breaking its
 bytes: the answer says `"untrusted": true`, and once decoded it is just as untrusted. A name
 copied back from an answer, frame and all (a folder's, a category's), names the same thing: a
-param that is one whole frame is read as the text inside it. Inside a frame, a character that reads as `<` beside another (an
+param that names something (`folder`, `category`, `account`, `calendar`, `rule`, `list`, `name`,
+`path`, `id`, `ids` and the recipients and addresses) is read as the text inside it when it is one
+whole frame. Text the agent writes (a body, a subject, a search) is taken as written, frame and
+all. Inside a frame, a character that reads as `<` beside another (an
 ASCII `<`, its fullwidth and small forms, the angle brackets of other scripts, `‹`, `«`, with
-nothing but invisible characters between them) and one that reads as `<<` on its own (`≪`, `《`,
+nothing but invisible characters or combining marks between them) and one that reads as `<<` on its own (`≪`, `《`,
 `⟪`…) are written as `&lt;` or `&#x…;`, and an `&` that would read as one of those escapes as
 `&amp;`, so nothing inside reads as the start of a marker; everything else, `>` included, stands
 as written. A whole value passed back comes back exactly; text quoted out of a frame turns
