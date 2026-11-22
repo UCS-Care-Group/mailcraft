@@ -1,1 +1,0 @@
-- Windows: NVIDIA's overlay no longer takes a maximized MailCraft for a game, so its "Alt+Z" notice no longer comes up when MailCraft opens, and MailCraft is no longer offered for recording as a game.
