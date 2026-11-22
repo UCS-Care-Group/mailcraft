@@ -102,6 +102,8 @@ pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest
         .resume
         .iter()
         .filter(|e| mailcraft_model::sync::zimbra_id_ok(&e.folder) && (e.cursor.is_empty() || mailcraft_model::sync::zimbra_id_ok(&e.cursor)))
+        // (No more of them than a listing holds folders: the list comes from the mailbox's file.)
+        .take(mailcraft_model::sync::MAX_LISTED_FOLDERS)
         .cloned()
         .collect();
     Ok(ZimbraMailRequest {
@@ -212,8 +214,10 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str, username: Option
 pub fn apply_zimbra_mail(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     let account = result.account;
     let taken = take_in(s, result);
-    // A piece that was refused is a piece lost: the end of its run removes nothing.
-    if taken.is_err() {
+    // A piece that was refused is a piece lost: the end of its run removes nothing. (A Zimbra
+    // account's run only: the set is the Exchange server accounts' too, and a piece sent to one
+    // of those, or to no account, cuts nothing of theirs.)
+    if taken.is_err() && s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Zimbra) {
         s.ews_run_cut.insert(account);
     }
     taken

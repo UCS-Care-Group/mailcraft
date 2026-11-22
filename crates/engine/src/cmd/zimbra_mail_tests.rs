@@ -289,6 +289,31 @@ fn an_incomplete_listing_prevents_a_later_piece_advancing_the_token() {
     assert!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token.is_empty());
 }
 
+#[test]
+fn a_piece_for_what_is_no_zimbra_account_cuts_no_other_run() {
+    // The set of cut runs is shared with Exchange server accounts: a piece sent to the wrong
+    // account, or to none, is refused and leaves that account's own run as it was.
+    let (mut s, zimbra) = session();
+    let other = s.run("account.add", &json!({"email":"bob@example.org","incoming":{"host":"imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    for id in [other, 4242] {
+        assert!(s.run("sync.applyZimbra", &json!({"result": result(id, "")})).is_err());
+        assert!(!s.ews_run_cut.contains(&id), "{id}");
+    }
+    // The Zimbra account's own refused piece still cuts its run.
+    assert!(s.run("sync.applyZimbra", &json!({"result": result(zimbra, "not-its-token")})).is_err());
+    assert!(s.ews_run_cut.contains(&zimbra));
+}
+
+#[test]
+fn the_request_goes_on_from_no_more_folders_than_a_listing_holds() {
+    let (mut s, id) = session();
+    let most = mailcraft_model::sync::MAX_LISTED_FOLDERS;
+    s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap().resume =
+        (0..most + 50).map(|i| ZimbraResume { folder: format!("{}", i + 10), ..Default::default() }).collect();
+    let request = s.run("sync.zimbraRequest", &json!({"account": id})).unwrap();
+    assert_eq!(request["resume"].as_array().map(Vec::len), Some(most));
+}
+
 fn subjects(s: &Session, account: Id, kind_or_name: &str) -> Vec<String> {
     let folder = s.mailbox.folders.iter().find(|f| f.account == account && f.name == kind_or_name).map(|f| f.id).unwrap();
     let mut out: Vec<String> = s.mailbox.messages.values().filter(|m| m.folder == folder).map(|m| m.subject.clone()).collect();
