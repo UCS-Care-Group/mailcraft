@@ -14505,15 +14505,19 @@ msgstr "Meerdere teksten: scheid ze met een puntkomma (;). Eén ervan is genoeg.
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"Rijen\n"
+"schaduwen"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "Elke tweede rij schaduwen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
