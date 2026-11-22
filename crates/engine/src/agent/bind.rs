@@ -104,7 +104,7 @@ pub fn object(id: &str) -> Option<Object> {
         // (The clean-up of #1401 reaches every folder when it names none: its question counts
         // what goes, and is described again on the yes.)
         "file.import" | "calendar.deleteAnsweredRequests" | "mail.removeImportedDuplicates" => Folder,
-        "people.delete" | "people.merge" | "people.categorize" => Contact,
+        "people.delete" | "people.merge" | "people.categorize" | "people.deleteFolder" => Contact,
         "tasks.delete" | "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.new" | "tasks.fromMessage" => Task,
         // A calendar command that writes to people is asked about whatever it is (`classify`).
         "calendar.forward" | "calendar.propose" | "calendar.delete" | "people.meeting" | "ui.joinMeeting" => Event,
@@ -146,7 +146,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.add"
         | "junk.remove"
         | "junk.list" => Account,
-        "rules.add" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
+        "rules.add" | "rules.edit" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move" | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,
         "compose.send" | "compose.sendLater" | "compose.discard" | "compose.close" => Compose,
         "ui.closeWindow" | "ui.eventWindow" | "ui.dialog" | "ui.closeDialog" => Window,
