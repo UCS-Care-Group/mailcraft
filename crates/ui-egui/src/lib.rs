@@ -1844,6 +1844,9 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The account whose access token a server refused during a run, renewed and tried once more
+    /// in the same Send/Receive: a second refusal waits for the next one, never a third try.
+    token_retried: Option<Id>,
     /// The password the run in flight went with, until the system is asked to remember it: once
     /// a run (#802).
     sync_password: Option<String>,
@@ -2136,6 +2139,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            token_retried: None,
             sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
@@ -4799,6 +4803,9 @@ impl MailApp {
                 self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
                 if let Err(e) = self.start_sync(&json!({"account": account})) {
+                    if self.token_retried == Some(account) {
+                        self.token_retried = None;
+                    }
                     self.session.sync_status.clear();
                     self.status(e);
                 }
@@ -4818,10 +4825,36 @@ impl MailApp {
                     // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
                 }
+                // A renewal after a refused token that came to nothing: the next run may try again.
+                if self.token_retried == Some(account) {
+                    self.token_retried = None;
+                }
                 self.session.sync_status.clear();
                 self.note_sync_problems(account, std::slice::from_ref(&e), false);
                 self.sign_in_came_to_nothing(account, &e, asked_for);
             }
+        }
+    }
+
+    /// A server refused an account's access token during a run (it ran out early, or the provider
+    /// revoked it): the token is renewed with the refresh token at once and the run goes again,
+    /// once, rather than leaving the mail for the next Send/Receive. Only for an account that
+    /// signs in on a provider's page and has a refresh token to renew with; a run nobody asked
+    /// for never opens the browser for it (a renewal refused then waits for the owner).
+    fn retry_refused_token(&mut self, account: Id, quiet: bool) {
+        let Some(a) = self.session.mailbox.account(account) else { return };
+        let Some(oauth) = a.oauth.clone() else { return };
+        let address = a.email.clone();
+        let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let Some(refresh) = kept.or_else(|| self.remembered("refresh", account)) else { return };
+        if self.sync_rx.is_some() || self.graph_rx.is_some() || self.offline() {
+            return;
+        }
+        log::info!("send/receive, account {account}: the server refused the access token; renewing it and trying once more");
+        self.token_retried = Some(account);
+        if let Err(e) = self.begin_sign_in(account, oauth, &address, refresh, quiet, false) {
+            log::warn!("send/receive, account {account}: the renewal after a refused token didn't start ({e})");
+            self.token_retried = None;
         }
     }
 
@@ -5117,11 +5150,16 @@ impl MailApp {
             self.session.send_run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
-            if let Some((whose, _, true, quiet)) = self.sync_run.take() {
+            let run = self.sync_run.take();
+            let called_off = matches!(run, Some((_, _, true, _)));
+            if let Some((whose, _, true, quiet)) = run {
                 self.session.driver.round.queue.push_front((whose, quiet));
             }
+            let quiet = run.is_none_or(|(_, _, _, quiet)| quiet);
+            let retried = self.token_retried.take() == Some(account);
             let totals = std::mem::take(&mut self.sync_totals);
-            if std::mem::take(&mut self.sync_refused) {
+            let refused = std::mem::take(&mut self.sync_refused);
+            if refused {
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
@@ -5147,6 +5185,9 @@ impl MailApp {
             self.status(summary);
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
+            if refused && !retried && !called_off {
+                self.retry_refused_token(account, quiet);
+            }
             return;
         }
     }

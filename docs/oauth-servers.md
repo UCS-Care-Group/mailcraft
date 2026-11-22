@@ -43,7 +43,9 @@ real mailbox.
 MailCraft asks the provider for `openid email offline_access`, and for any **Extra scopes** you
 add (`mail`, say, if your mail servers look for one). `offline_access` brings a refresh token, so
 that you aren't asked to sign in again each time a token runs out; a provider that won't give one
-is said to when you press Discover.
+is said to when you press Discover. When a mail server turns a token down in the middle of a
+Send/Receive (it ran out early, or the provider withdrew it), MailCraft renews it with the refresh
+token and goes on with the same Send/Receive, once: a second refusal waits for the next one.
 
 When the provider's page sends you back to MailCraft it may say which provider it is (`iss`,
 RFC 9207; Keycloak does). MailCraft then checks it is the issuer in the settings, and uses nothing
