@@ -1492,8 +1492,10 @@ fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResul
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
-    let told =
-        !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    // A move within the account is undone from where the server has the message now
+    // (`undo::imap_back`); one out of it, a deletion for good or a sending is not.
+    let out_of_account = result.moved.iter().any(|m| s.mailbox.folder(m.to_folder).is_none_or(|f| f.account != account));
+    let told = out_of_account || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
     let clock = s.rule_clock();
     // What the account had before the run's new mail, as an earlier piece of it found it.

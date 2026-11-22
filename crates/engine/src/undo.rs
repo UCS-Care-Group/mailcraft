@@ -457,6 +457,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
+    imap_back(&mut out, touched, now, &g);
     if g.is_empty() {
         // A message on its way onto another account's server now still is (a rule's move of mail
         // that came since the change, #566).
@@ -487,6 +488,42 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     out.favorites_from_server = now.favorites_from_server.clone();
     waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it, else of its
+/// folder; `None` when the server's UID there isn't known.
+fn server_place(mb: &Mailbox, m: &Message) -> Option<(String, u32)> {
+    let waiting = mb.pending.iter().find_map(|p| match p {
+        Pending::Move { message, from, uid, .. } if *message == m.id => Some((from.clone(), *uid)),
+        _ => None,
+    });
+    waiting.or_else(|| (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)))
+}
+
+/// An IMAP account's message the change touched that its server has somewhere else now than
+/// where `out` puts it (the server took the change since: a move into Deleted Items, say). The
+/// UID it had then is the server's no more: it is put where the server has it now and moved
+/// back from there, as the owner would move it, so that the next run sends the move back.
+/// (Moves out of the account and deletions for good still end the history: `sync.apply`.)
+fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
+    for id in &touched.changed_messages {
+        let (Some(o), Some(c)) = (out.message(*id), now.message(*id)) else { continue };
+        let imap = now.account(c.account).is_some_and(|a| a.kind == AccountKind::Imap);
+        if !imap || relevant(c, g) || relevant(o, g) || o.account != c.account || server_place(out, o) == server_place(now, c) {
+            continue;
+        }
+        let target = o.folder;
+        let mine = |p: &Pending| matches!(p, Pending::Move { message, .. } if message == id);
+        out.pending.retain(|p| !mine(p));
+        out.pending.extend(now.pending.iter().filter(|p| mine(p)).cloned());
+        if let Ok(m) = out.message_mut(*id) {
+            (m.folder, m.uid, m.synced) = (c.folder, c.uid, c.synced);
+        }
+        // (Refused, it stays where the server has it, which is never wrong.)
+        if target != c.folder {
+            let _ = out.move_message(*id, target);
+        }
+    }
 }
 
 /// The rules waiting for the messages the change touched to be here whole are as they are now

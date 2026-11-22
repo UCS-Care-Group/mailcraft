@@ -1400,8 +1400,9 @@ mod two_way {
         assert_eq!((s.mailbox.count(inbox), s.mailbox.count(archive), unpushed(&s, a)), (2, 2, 0));
         let req = request(&s, a);
         assert_eq!((known(&req, archive), req.ops.len()), (vec![1, 2], 0));
-        // What went to the server can't be taken back by an undo here.
-        assert!(!s.can_undo() && !s.can_redo());
+        // A move within the account the server made can still be undone: from where the server
+        // has it now (`a_deletion_the_server_took_is_undone_there_too`).
+        assert!(s.can_undo() && !s.can_redo());
 
         // Should a run bring the message down as well (it didn't know the UID was known): still once.
         let again = SyncResult {
@@ -1550,6 +1551,58 @@ mod two_way {
         };
         apply(&mut s, taken);
         assert_eq!((s.mailbox.folder(projects).unwrap().remote.as_str(), s.mailbox.folder(inbox).unwrap().remote.as_str()), ("", "INBOX"));
+    }
+
+    /// Undo of a deletion (a move into Deleted Items) the server has made already: the message
+    /// is back in its Inbox here, and the next run moves it back from where the server has it
+    /// now, under its new UID, never the old one; the server's answer puts it in place.
+    #[test]
+    fn a_deletion_the_server_took_is_undone_there_too() {
+        let (mut s, a, inbox, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "One");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 1, deleted, 5, 10)], ..Default::default() });
+        assert_eq!(state(&s, one).0, deleted);
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox), "back in the Inbox here");
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "Trash".into(), uid: 5, to: "INBOX".into(), to_folder: inbox, create: vec![] }],
+            "and moved back on the server from where it is now"
+        );
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "Trash", 5, inbox, 7, 7)], ..Default::default() });
+        assert_eq!(state(&s, one).0, inbox);
+        assert_eq!(state(&s, one).1, 7, "under the UID the server gave it back");
+        assert!(request(&s, a).ops.is_empty(), "nothing more to do");
+        // Redo deletes it again, from where it is now.
+        run(&mut s, "edit.redo", json!({}));
+        assert_eq!(state(&s, one).0, deleted);
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "INBOX".into(), uid: 7, to: "Trash".into(), to_folder: deleted, create: vec![] }]
+        );
+    }
+
+    /// Undone before the server heard of it, a deletion is simply called off.
+    #[test]
+    fn a_deletion_undone_before_the_run_sends_nothing() {
+        let (mut s, a, inbox, _) = synced();
+        let one = titled(&s, a, "One");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(state(&s, one), (inbox, 1, state(&s, one).2, state(&s, one).3));
+        assert!(request(&s, a).ops.is_empty());
+    }
+
+    /// A deletion for good the server made still ends the history: what it took can't come back.
+    #[test]
+    fn a_deletion_for_good_the_server_made_still_ends_the_history() {
+        let (mut s, a, _, _) = synced();
+        let one = titled(&s, a, "One");
+        run(&mut s, "mail.deletePermanently", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, deleted: vec![Deleted { from: "INBOX".into(), uid: 1 }], ..Default::default() });
+        assert!(!s.can_undo());
     }
 
     #[test]
