@@ -102,6 +102,9 @@ pub fn id(app: &MailApp) -> egui::Id {
 /// What marks the id of a body drawn (of any message being written, or of a signature).
 const BODY: &str = "mailcraft-body";
 
+/// What marks the id of a body drawn whose text is plain ([`owns_chord`]).
+const PLAIN: &str = "mailcraft-body-plain";
+
 /// Whether `id` is the body of a message being written, or of a signature being edited.
 pub fn is_body(ctx: &egui::Context, id: egui::Id) -> bool {
     ctx.data(|d| d.get_temp::<bool>(id.with(BODY))).unwrap_or(false)
@@ -137,14 +140,21 @@ pub(crate) fn key_in(command: &str, browser: bool) -> Option<&'static str> {
 }
 
 /// The keys that, with Mod and `modifiers`, are the body's while it has the keyboard. L, E and R
-/// are its own with Mod alone: with Shift or Alt as well they are the window's, from the body as
-/// from anywhere else (Ctrl+Shift+R replies to all, Ctrl+Shift+E makes a folder).
-pub fn owns_chord(key: Key, modifiers: Modifiers) -> bool {
+/// are its own with Mod alone, and only where its text can be aligned: with Shift or Alt as well
+/// they are the window's, from the body as from anywhere else (Ctrl+Shift+R replies to all,
+/// Ctrl+Shift+E makes a folder), and so they are in a plain-text message (Ctrl+R replies,
+/// Ctrl+E goes to the search).
+pub fn owns_chord(ctx: &egui::Context, key: Key, modifiers: Modifiers) -> bool {
     match key {
         Key::B | Key::I | Key::U | Key::K | Key::Z | Key::Y | Key::A => true,
-        Key::L | Key::E | Key::R => !modifiers.shift && !modifiers.alt,
+        Key::L | Key::E | Key::R => !modifiers.shift && !modifiers.alt && !focused_is_plain(ctx),
         _ => false,
     }
+}
+
+/// Whether the body that has the keyboard is a plain-text message's.
+fn focused_is_plain(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.focused()).is_some_and(|id| ctx.data(|d| d.get_temp::<bool>(id.with(PLAIN))).unwrap_or(false))
 }
 
 /// A size in points as the screen draws it (as the reading pane draws `font-size: Npt`).
@@ -931,6 +941,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
     let width = ui.available_width().max(40.0);
     let Some((_, plain)) = now(app, which) else { return };
+    ctx.data_mut(|d| d.insert_temp(id.with(PLAIN), plain));
     let editable = which == Which::Signature || app.session.signature_edit.is_none();
     let shown = pictures(app, which);
     let key = LayoutKey {

@@ -323,6 +323,34 @@ fn the_formatting_keys_are_the_bodys_only_while_it_has_the_keyboard() {
     );
 }
 
+/// In a plain-text message, which can't be aligned, Ctrl+R and Ctrl+E stay the mailbox's even
+/// from the body: Ctrl+R replies and Ctrl+E goes to the search, as before alignment had keys.
+#[test]
+fn in_a_plain_text_message_ctrl_r_and_ctrl_e_are_the_mailboxs_even_from_the_body() {
+    let writing_plain = || {
+        let mut a = app();
+        let id = a.session.rows().first().map(|r| r.id).unwrap();
+        a.run("mail.select", json!({"id": id})).unwrap();
+        a.run("mail.reply", json!({"id": id})).unwrap();
+        a.run("compose.formatPlain", json!({})).unwrap();
+        a.want_body_focus();
+        let mut h = window(a);
+        h.run_steps(2);
+        assert!(editor::has_focus(&h.ctx));
+        assert_eq!(h.state().session.compose.as_ref().unwrap().format, mailcraft_engine::BodyFormat::Plain);
+        h
+    };
+    let writing = |h: &Window| h.state().session.composing_count();
+    let mut h = writing_plain();
+    let (one, first) = (writing(&h), h.state().session.compose_id().unwrap());
+    key_with(&mut h, Modifiers::COMMAND, Key::R);
+    assert_eq!(writing(&h), one + 1, "Ctrl+R started a reply beside the message");
+    assert_ne!(h.state().session.compose_id().unwrap(), first);
+    let mut h = writing_plain();
+    key_with(&mut h, Modifiers::COMMAND, Key::E);
+    assert!(h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())), "Ctrl+E gave the search box the keyboard");
+}
+
 /// Ctrl+Shift+R and Ctrl+Shift+E are not the body's: they reply to all and make a folder from it
 /// as from anywhere else, and leave the line as it was. (Ctrl+Alt+R replies with a meeting from
 /// the Calendar only, and is nothing in the body either.)
