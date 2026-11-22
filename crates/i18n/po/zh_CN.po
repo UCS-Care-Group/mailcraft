@@ -208,6 +208,12 @@ msgid "+ condition"
 msgstr "+ 条件"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ 例外"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "+Bin"
@@ -396,6 +402,12 @@ msgstr "使用工作或学校账户，通过同事的地址打开其日历。仅
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "一个条件（或同类的所有例外合计）最多可查找 20 个词或地址。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "联系人卡片最多保留 32 个证书和密钥"
 
@@ -422,6 +434,12 @@ msgstr "和往常一样，会先在原位置旁边保存整个邮箱的副本。
 #, fuzzy
 msgid "A date"
 msgstr "某个日期"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "当 MailCraft 不在最前面时，对此规则在邮件到达时处理的邮件显示桌面通知，即使“文件 › 选项”中已关闭新邮件通知"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -609,6 +627,12 @@ msgstr "报告保存在邮箱文件旁边。"
 msgid "A rule needs a name, and something to look for."
 msgstr "规则需要一个名称和要查找的内容。"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "规则需要执行某项操作：一个动作或一条桌面通知。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -668,6 +692,12 @@ msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天�
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "网址、电子邮件地址、电话号码（tel:）或其他地址，如 ms-settings:network-vpn。未选中文本时，直接插入该地址。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "要查找的词最多 200 个字符。"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1141,6 +1171,12 @@ msgstr "地址列表 · {account}"
 #, fuzzy
 msgid "Address:"
 msgstr "地址："
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "地址"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3342,6 +3378,12 @@ msgstr "清除格式"
 msgid "Clear Recent Searches"
 msgstr "清除最近的搜索"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "清除类别"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3365,6 +3407,12 @@ msgstr "清除搜索"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "清除搜索 (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "清除标记"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3786,6 +3834,12 @@ msgstr "复制 MailCraft 的版本、平台及其日志末尾内容，以便粘�
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "复制到文件夹"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "复制到文件夹"
 
 #. interface
@@ -5005,6 +5059,12 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr "每个账户的签名会添加在其新邮件、回复和转发的末尾。留空表示不使用签名。"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "每个条件和例外都需要有要查找的内容。"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -5422,6 +5482,12 @@ msgstr "此手机上保存的所有内容都已移除。"
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "界面中的每项操作都是一条命令：共 {commands} 条，覆盖功能目录的 {percent}%。命令行、控制通道和 MCP 服务器使用相同的命令。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "除非"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6130,7 +6196,7 @@ msgid "Friday"
 msgstr "周五"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "发件人"
@@ -6152,6 +6218,12 @@ msgstr "来自发件人"
 #, fuzzy
 msgid "From a mailing list."
 msgstr "来自邮件列表。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "“发件人”和“发送至”需要完整地址，例如 someone@example.org。"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6624,6 +6696,12 @@ msgstr "有附件"
 #, fuzzy
 msgid "Has attachments"
 msgstr "有附件"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "具有类别"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7436,6 +7514,24 @@ msgstr "邀请与会者"
 msgid "Invite attendees"
 msgstr "邀请与会者"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "是会议邀请或更新"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "是自动回复"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "已标记"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -7617,6 +7713,13 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "其邮件、附件、设置和记住的登录信息也会一并删除；来自服务器的日历、联系人、任务和工作时间亦然。"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "其 {n} 条本地规则也会一并删除；服务器上的规则仍保留。"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
@@ -7627,13 +7730,6 @@ msgstr "主题：“{subject}”。正文：“{body}”。"
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "其文本被替换"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "其 {n} 条本地规则也会一并删除；服务器上的规则仍保留。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7742,6 +7838,12 @@ msgstr "垃圾邮件"
 #, fuzzy
 msgid "Just This One"
 msgstr "仅此日程"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -8420,6 +8522,12 @@ msgstr "手机上的邮件"
 #, fuzzy
 msgid "Mail only"
 msgstr "仅限邮件"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "符合任一例外的邮件不受影响"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -9523,6 +9631,12 @@ msgstr "移至您账户的日历"
 msgid "Move to folder"
 msgstr "移至文件夹"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "“移至文件夹”和“复制到文件夹”需要一个文件夹；“分类”需要一个类别。"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -9564,6 +9678,30 @@ msgstr "我的日历"
 #, fuzzy
 msgid "My Tasks"
 msgstr "我的任务"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "我的地址在“抄送”中"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "我的地址在“收件人”中"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "我的地址在“收件人”或“抄送”中"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "我的地址不在“收件人”中"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9882,8 +10020,8 @@ msgstr "新邮件"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒。"
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒，除非您的某条规则为其显示提醒。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -9971,8 +10109,8 @@ msgstr "下个月"
 msgid "Next Page"
 msgstr "下一页"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "下周"
@@ -10008,7 +10146,7 @@ msgid "No Color"
 msgstr "无颜色"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "无日期"
@@ -12534,6 +12672,18 @@ msgstr "正在读取服务器上的自动回复…"
 msgid "Real name"
 msgstr "真实姓名"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "接收时间介于"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "“接收时间介于”需要一个或两个日期（YYYY-MM-DD），较早的在前。"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -12585,6 +12735,12 @@ msgstr "最近的邮件"
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
 msgstr "最近的邮件保存在这部手机上，较早的邮件保留在邮件服务器上。不会从服务器删除任何内容。"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "收件人包含"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -12949,6 +13105,12 @@ msgstr "移除此地址"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "移除此条件"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "移除此例外"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -14533,6 +14695,12 @@ msgstr "正在发送…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr "按此窗口显示的内容向 MailCraft 团队发送报告。"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "敏感度为"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -14550,6 +14718,12 @@ msgstr "已发送邮件"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "按原样发送，不包含可运行内容或跟踪内容。图片来自其网络地址，由收件人的程序决定是否加载。您撰写的邮件显示此签名的简化副本；如果您在邮件中编辑该副本，发送时将使用编辑后的版本。"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "仅发送给我"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14652,6 +14826,18 @@ msgstr "设置"
 #, fuzzy
 msgid "Settings…"
 msgstr "设置…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "多个地址：请用分号（;）分隔。符合其中任意一个即可。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "多个文本：请用分号（;）分隔。符合其中任意一个即可。"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14866,6 +15052,12 @@ msgstr "显示以下账户的任务"
 #, fuzzy
 msgid "Show Training"
 msgstr "显示培训内容"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "显示桌面通知"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -15407,6 +15599,18 @@ msgstr "单行"
 msgid "Size"
 msgstr "大小"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "大小介于"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "“大小介于”需要两个以 KB 为单位的大小，较小的在前。"
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -15790,6 +15994,12 @@ msgstr "主题"
 #, fuzzy
 msgid "Subject contains"
 msgstr "主题包含"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "主题或正文包含"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -17456,6 +17666,12 @@ msgstr "报告服务暂时不可用。请稍后重试，或在 GitHub 上提交�
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "MailCraft 无法理解报告服务的回应，报告可能已经送达。请稍后重试，或在 GitHub 上提交。"
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "规则不会处理共享邮箱的邮件：共享邮箱有自己的规则。"
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -18145,8 +18361,8 @@ msgstr "它们将保存到您选择的文件中，您可以将该文件附加到
 msgid "They share {what}."
 msgstr "它们共享 {what}。"
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "本周"
@@ -21127,8 +21343,8 @@ msgstr "回复最多可包含 {most} 个字符"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "规则无法将邮件移至发件箱：这会发送邮件"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "规则无法将邮件移至或复制到发件箱：这会发送邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21415,6 +21631,12 @@ msgstr "无法连接到 {host}：{reason}"
 msgid "day"
 msgstr "日"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "到期"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
 #, fuzzy
@@ -21639,6 +21861,12 @@ msgstr "它会更改选项、签名或规则"
 msgid "it clicks or types in the window"
 msgstr "它会在窗口中点击或键入"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "它会将邮件复制到多个文件夹"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -21662,6 +21890,12 @@ msgstr "下次连接时会发送到服务器"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "它包含两个同类条件，而服务器只会满足其中任意一个，不会同时要求两者"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "它有两个查找不同内容的同类例外，而服务器只接受一个"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -22249,6 +22483,12 @@ msgstr "邮件中只能插入您自己的日历"
 msgid "optional"
 msgstr "可选"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "或"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22344,6 +22584,34 @@ msgstr "首先选择一个任务"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "请先选择一项约会"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "机密"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "普通"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "个人"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "私人"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -22755,6 +23023,24 @@ msgstr "该文件夹已经是空的"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "邮件要复制到的文件夹属于另一个账户"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "邮件要复制到的文件夹位于此计算机上"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "邮件要复制到的文件夹不在服务器上"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it moves mail to is in another account"
 msgstr "邮件要移入的文件夹属于另一个账户"
 
@@ -23011,6 +23297,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "发件人没有可用的电子邮件地址"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "发件人地址超过规则可查找的长度（{n} 个字符）"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
@@ -23067,14 +23359,50 @@ msgstr "服务器要求的内容超出命令所含的内容"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "服务器无法清除标记"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "服务器无法清除类别"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "服务器无法标记邮件"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "服务器无法按此顺序保存规则：一条不允许更改的规则使它们没有可放置的位置"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "服务器无法查看邮件到达的日期"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "服务器无法查看您是否标记了邮件"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "服务器无法删除单封邮件（不支持 UIDPLUS）"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "服务器无法显示桌面通知"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -24951,7 +25279,7 @@ msgid_plural "{n} messages archived"
 msgstr[0] "已归档 {n} 封邮件"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -25005,13 +25333,6 @@ msgstr[0] "此对话中的 {n} 封邮件："
 msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} 封邮件已存在，已跳过"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "匹配到 {n} 封邮件"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
@@ -25726,6 +26047,24 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "其 {n} 条本地规则也会一并删除；服务器上的规则仍保留。"
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒。"
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "规则无法将邮件移至发件箱：这会发送邮件"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "匹配到 {n} 封邮件"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
