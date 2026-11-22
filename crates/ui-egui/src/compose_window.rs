@@ -510,7 +510,7 @@ fn run_keys(app: &mut MailApp, ctx: &egui::Context) {
         let Some(name) = crate::keys::key_name(key) else { continue };
         let function = name.len() > 1 && name.starts_with('F') && name[1..].chars().all(|c| c.is_ascii_digit());
         if !(modifiers.command || modifiers.alt || function)
-            || (in_body && modifiers.command && crate::compose::editor::owns_chord(ctx, key, modifiers))
+            || (in_body && modifiers.command && crate::compose::editor::owns_chord(app, ctx, key, modifiers))
         {
             continue;
         }

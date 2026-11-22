@@ -349,6 +349,14 @@ fn in_a_plain_text_message_ctrl_r_and_ctrl_e_are_the_mailboxs_even_from_the_body
     let mut h = writing_plain();
     key_with(&mut h, Modifiers::COMMAND, Key::E);
     assert!(h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())), "Ctrl+E gave the search box the keyboard");
+    // Made HTML between two frames, the body aligns with them at once, before it is drawn again.
+    let mut h = writing_plain();
+    let one = writing(&h);
+    h.state_mut().run("compose.formatHtml", json!({})).unwrap();
+    key_with(&mut h, Modifiers::COMMAND, Key::R);
+    let body = &h.state().session.compose.as_ref().unwrap().body;
+    assert_eq!(body.text().align_at(body.selection().head), mailcraft_model::rich::Align::Right);
+    assert_eq!(writing(&h), one, "no reply was started");
 }
 
 /// Ctrl+Shift+R and Ctrl+Shift+E are not the body's: they reply to all and make a folder from it
