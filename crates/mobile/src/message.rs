@@ -76,6 +76,8 @@ impl Core {
         let (env, width) = pane(width, dark);
         self.call(move |s| {
             let m = load(s, id)?;
+            // A reply or forward of it quotes it as it is read here.
+            s.read_at(m.id, env);
             let (blocks, dark_design) = read(&m, &env);
             let has_part = |src: &str| attachment_of(&m, src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });

@@ -4,7 +4,7 @@
 //! what is left out starts and ends, however the elements that leave it out nest.
 
 use super::*;
-use crate::{blocks_to_text, parse};
+use crate::{blocks_to_text, parse, parse_in, quote_to_text};
 
 /// The capital letters of `text`, in order. The words these tests write are capitals; a list's
 /// markers, a table's bars and the white space the two readers lay out differently are not.
@@ -16,12 +16,23 @@ fn shown(html: &str) -> String {
     caps(&blocks_to_text(&parse(html)))
 }
 
+/// What a pane of the width and theme `env` shows.
+fn shown_in(html: &str, env: &Env) -> String {
+    caps(&blocks_to_text(&parse_in(html, env).blocks))
+}
+
 /// What each form of the quote reads: its HTML as the compose window and a recipient read it,
 /// and its plain text, without and with the pictures written into the message carried.
 fn quoted(html: &str) -> [String; 4] {
     let plain = quotable(html);
-    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()));
-    [shown(&plain), caps(&crate::to_text(&plain)), shown(&carried), caps(&crate::to_text(&carried))]
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), &Env::default());
+    [shown(&plain), caps(&quote_to_text(&plain)), shown(&carried), caps(&quote_to_text(&carried))]
+}
+
+/// The quote of a message read in a pane of the width and theme `env`, as HTML and as text.
+fn quoted_in(html: &str, env: &Env) -> [String; 2] {
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), env);
+    [shown(&carried), caps(&quote_to_text(&carried))]
 }
 
 /// Whether `small` is `big` with letters left out.
@@ -169,20 +180,102 @@ fn a_written_out_marker_is_quoted_only_as_it_is_shown() {
         assert!(out.contains("mso-list:Ignore") && out.contains("ITEM"), "{out}");
         assert_eq!(quotable(&out), out);
     }
-    assert!(quotable(&item("1.", "ITEM")).contains(">1.</span>"));
-    for html in [
-        item("PAY ACCOUNT NOW.", "ITEM"),
-        item(&format!("{}SECRET", "&#0000000000032;".repeat(17)), "ITEM"),
-        item("AB.", ""),
-        format!("{}<p>C</p>", item("AB.", "")),
-        format!("<span style=\"mso-list:Ignore\">AB.</span>{}", item("", "ITEM")),
-    ] {
+    assert!(quotable(&item("1.", "ITEM")).contains(">1.\u{a0}</span>"));
+    // A marker the pane makes again (a bullet of its own words, one cut short) is quoted as the
+    // pane shows it, so the recipient sees the list as the owner did.
+    for (marker, shown) in [("PAY ACCOUNT NOW.", "\u{2022}"), (&format!("{}SECRET", "&#0000000000032;".repeat(17)), "\u{2022}"), ("12.", "12.")] {
+        let html = item(marker, "ITEM");
+        assert_never_more(&html);
+        let out = quotable(&html);
+        assert!(out.contains(&format!("<span style=\"mso-list:Ignore\">{shown}\u{a0}</span>ITEM")), "{out}");
+        assert_eq!(quotable(&out), out);
+        assert_eq!(crate::to_text(&out), crate::to_text(&html));
+    }
+    for html in [item("AB.", ""), format!("{}<p>C</p>", item("AB.", "")), format!("<span style=\"mso-list:Ignore\">AB.</span>{}", item("", "ITEM"))] {
         assert_never_more(&html);
     }
 }
 
+/// The widths a pane is read at around the ones messages test, in both themes.
+fn envs() -> Vec<Env> {
+    [400.0, 600.0, 601.0, 800.0, 1279.0, 1280.0, 1920.0].into_iter().flat_map(|w| [Env::for_pane(w, false), Env::for_pane(w, true)]).collect()
+}
+
+/// What a message's `@media` hides in the pane it was read in is not quoted: the quote reads
+/// it at that pane's width and in its theme.
+#[test]
+fn what_media_hid_in_the_pane_read_in_is_not_quoted() {
+    for rule in [
+        "@media (max-width:1279px){.x{display:none}}",
+        "@media (min-width:1280px){.x{display:none}}",
+        "@media (max-width:600px){.x{display:none}}",
+        "@media screen and (min-width:601px){.x{visibility:hidden}}",
+        "@media (prefers-color-scheme:dark){.x{display:none}}",
+        "@media (prefers-color-scheme:light){.x{display:none}}",
+        "@media (prefers-color-scheme:dark) and (max-width:800px){.x{display:none}}",
+    ] {
+        let html = format!("<style>{rule}</style><p>A</p><p class=x>BBB</p><template class=x></template><p>C</p>");
+        for env in envs() {
+            let seen = shown_in(&html, &env);
+            for q in quoted_in(&html, &env) {
+                assert!(within(&q, &seen), "{html:?} {env:?}: shown {seen:?}, quoted {q:?}");
+                assert_eq!(q.contains("BBB"), seen.contains("BBB"), "{html:?} {env:?}: shown {seen:?}, quoted {q:?}");
+            }
+        }
+    }
+}
+
+/// A `<template>` inside SVG or MathML is no template, and one inside what is hidden ends with
+/// it: what comes after is shown, and quoted.
+#[test]
+fn a_template_in_svg_or_in_what_is_hidden_hides_nothing_after_it() {
+    for middle in ["<svg><template></svg>", "<math><template></math>", "<p hidden><template></p>", "<div style=\"display:none\"><template></div>"] {
+        let html = format!("<p>HELLO</p>{middle}<p>APPROVED</p>");
+        assert_eq!(shown(&html), "HELLOAPPROVED", "{html}");
+        assert!(quoted(&html).iter().all(|q| q == "HELLOAPPROVED"), "{html}");
+    }
+    // A template outside them still hides what is in it, and a stray end changes nothing.
+    assert_eq!(shown("A<template>B</template>C</template>D"), "ACD");
+    assert_eq!(shown("A<svg></svg><template>B</template>C"), "AC");
+}
+
+/// A picture's tooltip (`title`) is not carried, nor the alt text of a picture the pane draws
+/// (one in the message) in the plain text; a picture on the web, which the pane shows as its
+/// alt text until it is downloaded, keeps it there.
+#[test]
+fn tooltips_and_the_alt_text_of_drawn_pictures_are_not_quoted() {
+    let html =
+        "<p title=\"TIP\">A</p><img src=\"cid:logo@example.org\" alt=\"LOGO\" title=\"TIP\"><img src=\"https://example.org/a.png\" alt=\"WEB\">";
+    let out = quotable(html);
+    assert!(!out.contains("title") && !out.contains("TIP"), "{out}");
+    assert!(out.contains("alt=\"LOGO\""), "{out}");
+    assert_eq!(caps(&quote_to_text(&out)), "AWEB");
+    let carried = quotable_with_pictures(
+        &format!("<img src=\"data:image/png;base64,{}\" alt=\"CHART\">", crate::data_tests::b64(&crate::data_tests::PNG)),
+        &mut |_, _| Some("p@example.org".into()),
+        &Env::default(),
+    );
+    assert!(carried.contains("CHART") && !quote_to_text(&carried).contains("CHART"), "{carried}");
+}
+
 proptest::proptest! {
     #![proptest_config(proptest::prelude::ProptestConfig::with_cases(512))]
+
+    /// Whatever the pane's width and theme, the quote of a message read there says nothing the
+    /// pane doesn't show.
+    #[test]
+    fn at_any_width_and_theme_the_quote_says_nothing_the_pane_hides(
+        parts in proptest::collection::vec(proptest::sample::select(soup()), 0..32),
+        width in 1.0f32..2400.0,
+        dark in proptest::prelude::any::<bool>(),
+    ) {
+        let html: String = parts.concat();
+        let env = Env::for_pane(width, dark);
+        let seen = shown_in(&html, &env);
+        for q in quoted_in(&html, &env) {
+            proptest::prop_assert!(within(&q, &seen), "{:?} {:?}: shown {:?}, quoted {:?}", html, env, seen, q);
+        }
+    }
 
     /// Whatever the HTML, the quote and its plain text say nothing the reading pane doesn't show.
     #[test]
@@ -216,6 +309,24 @@ fn soup() -> Vec<String> {
         parts.push(format!("<{tag}>"));
         parts.push(format!("</{tag}>"));
     }
-    parts.extend(["A", "B", "C", "D", " ", "<style>.h{display:none}</style>", "<p class=h>", "<br>"].map(String::from));
+    parts.extend(
+        [
+            "A",
+            "B",
+            "C",
+            "D",
+            " ",
+            "<style>.h{display:none}</style>",
+            "<p class=h>",
+            "<br>",
+            "<style>@media (max-width:800px){.n{display:none}}@media (prefers-color-scheme:dark){.d{display:none}}</style>",
+            "<div class=n>",
+            "<span class=d>",
+            "<p class=MsoListParagraph style=\"mso-list:l0 level1 lfo1\">",
+            "<span style=\"mso-list:Ignore\">",
+            "1.",
+        ]
+        .map(String::from),
+    );
     parts
 }

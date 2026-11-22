@@ -392,7 +392,7 @@ fn quoted(s: &Session, m: &Message) -> String {
 /// its HTML reads as, under the opening line. Never the text alternative its sender wrote beside
 /// it (the owner never saw that one, and it can say something else).
 fn quote_text(marker: &str, quoted_html: &str) -> String {
-    let text = mailcraft_html::to_text(quoted_html);
+    let text = mailcraft_html::quote_to_text(quoted_html);
     // (The rule above the header lines is for the eye.)
     let text = text.trim_start_matches('-').trim();
     format!("\n\n{marker}\n{text}\n")
@@ -422,7 +422,7 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
-    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture), &s.read_env(m.id)));
     out.push_str("\r\n</div>");
     // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
     // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
@@ -503,6 +503,27 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
 /// `<img>` asks for by `cid:` and is a picture by its bytes.
+/// The original's HTML when the reading pane shows it (at the width and theme `env`); `None` when
+/// the pane shows its text instead: HTML that reads to no text and no picture it can show (only
+/// scripts, only pictures it hasn't got), beside a text part that says something
+/// (`reading::view`).
+fn shown_html<'m>(m: &'m Message, env: &mailcraft_html::Env) -> Option<&'m str> {
+    let html = m.body.html.as_deref()?;
+    if m.body.text.trim().is_empty() {
+        return Some(html);
+    }
+    let blocks = mailcraft_html::parse_in(html, env).blocks;
+    let picture = mailcraft_html::images(&blocks).iter().any(|b| match &b.kind {
+        mailcraft_html::BlockKind::Image { data: Some(_), .. } => true,
+        mailcraft_html::BlockKind::Image { src, .. } => match src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and(src.get(4..)) {
+            Some(id) => m.attachments.iter().any(|a| a.content_id.trim_matches(['<', '>']).eq_ignore_ascii_case(id.trim())),
+            None => true,
+        },
+        _ => false,
+    });
+    (mailcraft_html::has_text(&blocks) || picture).then_some(html)
+}
+
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     let ids = mailcraft_model::shown::shown_ids(html);
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
@@ -568,8 +589,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
-    // An original in HTML is carried below with its look; one in plain text is quoted in the body.
-    let quote = match &m.body.html {
+    // An original in HTML is carried below with its look; one in plain text is quoted in the body,
+    // and so is one whose HTML the reading pane shows its text for.
+    let shown = shown_html(&m, &s.read_env(m.id));
+    let quote = match shown {
         Some(html) if quoting => {
             let (html, written) = quoted_html(s, &m, html);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
@@ -597,8 +620,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
         body: RichBody::from_plain(&body),
-        // A reply is written the way the original was: HTML to HTML, plain text to plain text.
-        format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
+        // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
+        format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },

@@ -15,6 +15,7 @@
 use crate::blocks::{self, css_of, left_out, picture_url};
 use crate::data::{self, Budget, Picture};
 use crate::entities::{escape, unescape};
+use crate::media::Env;
 use crate::sheet::Sheet;
 use crate::style::{self, Css};
 use crate::tokenizer::{Tag, Token, Tokenizer};
@@ -152,7 +153,7 @@ const BLOCKS: [&str; 33] = [
 ];
 
 /// Attributes carried on any kept element (`href` and `src` have rules of their own).
-const ATTRIBUTES: [&str; 37] = [
+const ATTRIBUTES: [&str; 36] = [
     "abbr",
     "align",
     "alt",
@@ -184,7 +185,6 @@ const ATTRIBUTES: [&str; 37] = [
     "start",
     "style",
     "summary",
-    "title",
     "type",
     "valign",
     "value",
@@ -205,7 +205,8 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// whatever it is in, everything the reading pane leaves out ([`parse`](crate::parse): what is
 /// hidden, by a style sheet too, in a template, too small to read, or past what it reads), ended
 /// where the pane ends it. Left out alone: every other element not on the list, every attribute
-/// not on the list (`on…` handlers, `srcset`, `background`, `ping`, `formaction` among them), a
+/// not on the list (`on…` handlers, `srcset`, `background`, `ping`, `formaction`, and `title`,
+/// a tooltip the pane never shows, among them), a
 /// link to anything but `http`, `https`, `mailto`, `tel` or `cid`, a picture from anywhere but
 /// the message itself or the web, a picture on the web 2 pixels or less across or high, and a
 /// `style` that loads or runs something. Text is escaped again, tags left open are closed at the end, and nesting deeper
@@ -213,7 +214,7 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// reading pane reads (at most [`MAX_INPUT`](crate::MAX_INPUT) bytes besides the pictures written
 /// into the message) and is linear in it.
 pub fn quotable(html: &str) -> String {
-    quote(html, None)
+    quote(html, None, &Env::default())
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -226,20 +227,24 @@ pub fn quotable(html: &str) -> String {
 /// them. A picture given to `written` may still be left out of what is written (one before a
 /// `<body>` that comes later, which counts against the caps all the same, as in the reading
 /// pane): the caller keeps only those the result refers to.
-pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>) -> String {
-    quote(html, Some(written))
+///
+/// The message is read as the pane read it, at its width and in its theme (`env`, as for
+/// [`parse_in`](crate::parse_in)): what its `@media` hid there is left out.
+pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, env: &Env) -> String {
+    quote(html, Some(written), env)
 }
 
-fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, env: &Env) -> String {
     let html = truncate(html, MAX_INPUT_WITH_PICTURES);
     // What the reading pane shows, token by token: nothing it leaves out is carried, and it is
     // read as far as the pane reads it.
-    let seen = blocks::seen(html);
+    let seen = blocks::seen(html, env);
     let last = seen.shown.len().checked_sub(1);
+    let mut after = seen.after.iter().peekable();
     let mut q = Quoter { written, ..Quoter::default() };
     // The message's style sheets are read to see what the sender hid with them; they are not
     // carried.
-    let mut sheet = Sheet::read(html);
+    let mut sheet = Sheet::read_in(html, env);
     let mut opened = 0usize;
     for (at, mut token) in Tokenizer::new(html).enumerate() {
         if let Token::Open(tag) = &mut token {
@@ -258,6 +263,9 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
             break;
         }
         q.token(token);
+        while let Some((_, text)) = after.next_if(|(i, _)| *i == at) {
+            q.token(Token::Text(text));
+        }
     }
     q.finish()
 }

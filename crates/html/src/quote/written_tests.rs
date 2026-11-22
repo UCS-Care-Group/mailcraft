@@ -23,10 +23,14 @@ fn png_of(len: usize) -> String {
 /// `html` quoted, each picture handed over named `p<n>`; the pictures as they were handed over.
 fn quoted(html: &str) -> (String, Vec<(String, Picture)>) {
     let mut handed = Vec::new();
-    let out = quotable_with_pictures(html, &mut |mime: &str, picture: &Picture| {
-        handed.push((mime.to_string(), picture.clone()));
-        Some(format!("p{}@mailcraft.invalid", handed.len()))
-    });
+    let out = quotable_with_pictures(
+        html,
+        &mut |mime: &str, picture: &Picture| {
+            handed.push((mime.to_string(), picture.clone()));
+            Some(format!("p{}@mailcraft.invalid", handed.len()))
+        },
+        &Env::default(),
+    );
     (out, handed)
 }
 
@@ -98,7 +102,7 @@ fn a_picture_too_small_to_see_is_left_out_and_takes_nothing_of_the_caps() {
 
 #[test]
 fn a_picture_refused_by_the_caller_is_left_out() {
-    let out = quotable_with_pictures(&format!("<p>a</p><img src=\"{}\" alt=\"Chart\">", png()), &mut |_: &str, _: &Picture| None);
+    let out = quotable_with_pictures(&format!("<p>a</p><img src=\"{}\" alt=\"Chart\">", png()), &mut |_: &str, _: &Picture| None, &Env::default());
     assert_eq!(out, "<p>a</p>");
 }
 

@@ -4831,3 +4831,24 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
     assert!(harness.state().dialog.is_none());
 }
+
+/// A reply to a message read in the dark theme quotes it as the pane read it: what its style sheet
+/// hides in a dark window is not in the quote.
+#[test]
+fn a_reply_quotes_the_message_as_the_pane_read_it() {
+    let html = "<style>@media (prefers-color-scheme:dark){.d{display:none}}</style><p>Shown words</p><p class=d>Light only words</p>";
+    let (app, ids) = app_with(vec![message(0, ("Rui Sousa", "rui@example.org"), "Minutes", Some(html.into()), String::new())]);
+    let mut harness = window(app, (1280.0, 800.0));
+    for (theme, light_only) in [("dark", false), ("light", true)] {
+        harness.state_mut().execute("ui.theme", json!({"value": theme})).unwrap();
+        harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+        harness.run_steps(4);
+        harness.state_mut().execute("mail.reply", json!({"id": ids[0]})).unwrap();
+        let q = harness.state().session.compose.as_ref().and_then(|c| c.quote.clone()).unwrap();
+        assert!(q.html.contains("Shown words"), "{theme}: {}", q.html);
+        assert_eq!(q.html.contains("Light only words"), light_only, "{theme}: {}", q.html);
+        assert_eq!(q.text.contains("Light only words"), light_only, "{theme}: {}", q.text);
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+        harness.run_steps(2);
+    }
+}

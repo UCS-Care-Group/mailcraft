@@ -40,7 +40,7 @@ fn layout_and_pictures_keep_their_look() {
     let html = "<table width=\"600\" cellpadding=\"0\" style=\"border-collapse:collapse\" bgcolor=\"#ffffff\"><tr>\
                 <td align=\"center\" valign=\"top\" style=\"color:#336;font-family:Calibri\" colspan=\"2\"><img src=\"cid:logo@news.example\" alt=\"Logo\" width=\"120\" height=\"40\"></td></tr>\
                 <tr><td><p class=\"MsoNormal\"><b>Five</b> <font color=\"#c00\" face=\"Arial\" size=\"2\">new</font> arrivals<br></p></td>\
-                <td><ul><li>one</li><li>two</li></ul><a href=\"https://shop.example/a?b=1&amp;c=2\" title=\"Shop\">Shop</a></td></tr></table>";
+                <td><ul><li>one</li><li>two</li></ul><a href=\"https://shop.example/a?b=1&amp;c=2\" id=\"Shop\">Shop</a></td></tr></table>";
     assert_eq!(quotable(html), html);
     // Unquoted values are quoted, names are lower case, and a remote picture of a size stays.
     assert_eq!(
@@ -119,7 +119,7 @@ fn attributes_go_by_list() {
     // The first of a name counts.
     assert_eq!(quotable("<p align=left align=right>t</p>"), "<p align=\"left\">t</p>");
     // Values are escaped again.
-    assert_eq!(quotable("<p title='say \"hi\" &amp; <go>'>t</p>"), "<p title=\"say &quot;hi&quot; &amp; &lt;go&gt;\">t</p>");
+    assert_eq!(quotable("<p lang='say \"hi\" &amp; <go>'>t</p>"), "<p lang=\"say &quot;hi&quot; &amp; &lt;go&gt;\">t</p>");
 }
 
 #[test]
