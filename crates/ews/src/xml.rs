@@ -92,6 +92,9 @@ pub struct Node {
     /// The text directly inside it; empty when there is none, or it is longer than is kept, or
     /// it holds a reference to who knows what.
     pub text: String,
+    /// Its text was left out for being longer than is kept, or for a reference in it: `text` is
+    /// empty then, and a reader that must not take that for an empty value can tell (#566).
+    pub text_cut: bool,
     /// The elements inside it.
     pub children: Vec<Node>,
 }
@@ -272,6 +275,7 @@ impl Walk {
         let Some(mut done) = self.stack.pop() else { return Err(Malformed) };
         if done.spoiled {
             done.node.text.clear();
+            done.node.text_cut = true;
         }
         // (The room a vector grew by is not kept: a node is what it holds.)
         done.node.children.shrink_to_fit();

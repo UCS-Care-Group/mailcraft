@@ -48,9 +48,13 @@ pub const WORKING: &[&str] = &[
     "DKIM-Signature",
     // A request for a read receipt, which an answer never makes.
     "Disposition-Notification-To",
-    // What a .pst file's item said of who sent it and how sensitive it is.
+    // What a .pst file's item said of who sent it and how sensitive it is (a rule's condition
+    // too, #566).
     "Sender",
     "Sensitivity",
+    // An automatic reply, an out-of-office one say (a rule's condition, #566; one in a block kept
+    // before is read there too, `Message::is_automatic_reply`).
+    "Auto-Submitted",
     // The id a message had before Microsoft Graph moved it to another account.
     "X-Microsoft-Original-Message-ID",
     // A sharing invitation for a calendar ([MS-OXSHARE]).

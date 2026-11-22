@@ -160,17 +160,36 @@ fn switching_to_the_list_asks_nothing_about_the_day_that_was_selected() {
 }
 
 #[test]
+fn deleting_from_list_takes_only_the_focused_row_even_with_a_typed_set() {
+    let mut rig = listed();
+    let other = rig.event("Design review: homepage").id;
+    let standup = rig.event("Team stand-up").id;
+    let day = mailcraft_time::Date::new(2026, 10, 13).unwrap();
+    rig.run("calendar.select", json!({"items": [{"id": other}, {"id": standup, "day": day.iso()}]}));
+    assert_eq!(rig.app.session.sel.events.len(), 2);
+    rig.key(Key::Delete);
+    assert!(rig.app.dialog.is_none());
+    assert!(rig.app.session.mailbox.event(standup).is_none());
+    assert!(rig.app.session.mailbox.event(other).is_some());
+}
+
+#[test]
 fn deleting_a_series_back_in_week_asks_which_part_to_delete() {
     let mut rig = Rig::sample();
     let standup = rig.event("Team stand-up").id;
     let day = mailcraft_time::Date::new(2026, 10, 13).unwrap();
     rig.run("view.week", json!({}));
     rig.run("view.goToDate", json!({"date": day.iso()}));
-    rig.run("calendar.select", json!({"id": standup, "day": day.iso()}));
+    let other = rig.event("Design review: homepage").id;
+    rig.run("calendar.select", json!({"items": [{"id": other}, {"id": standup, "day": day.iso()}]}));
     assert_eq!(rig.selected(), (Some(standup), Some(day)));
+    assert_eq!(rig.app.session.sel.events.len(), 2);
 
     rig.chord(views_key(), Key::Num5);
     assert_eq!(rig.selected(), (Some(standup), None));
+    assert!(rig.app.session.sel.events.is_empty());
+    assert!(rig.app.session.run("calendar.selectAll", &json!({})).is_err());
+    assert!(rig.app.session.sel.events.is_empty());
     // The selected series day was cancelled while the List was open.
     rig.app.session.mailbox.event_mut(standup).unwrap().exceptions.push(day);
     rig.chord(views_key(), Key::Num3);
