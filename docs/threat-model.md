@@ -449,12 +449,15 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   the bytes alone. The desktop has five seconds to answer; with no answer, or neither program
   installed, nothing is opened. Inside a Flatpak sandbox the portal types the file again with the
   computer's own database, so a kind whose name has several types there (`opening::SEVERAL`, a
-  `.png` among them) is not opened at all, and the owner is told why and to save it; a computer
-  whose database knows more types for a name than the sandbox's remains a limit of the portal.
-- Markdown (whose viewers can show the web content in it) and keys, certificates and signatures
-  (`.asc`, `.p7m`, `.p7s`, `.pem`, `.sig`, which their programs can take in when opened) are asked
-  about first on every system, as web pages and Office files with macros are
-  (`opening::ACTIVE`).
+  `.png` among them) is not opened at all, nor is a kind the database has known only a few years
+  (`opening::RECENT`: AVIF, HEIC, JPEG XL), which an older computer would type by its bytes; the
+  owner is told why and to save it. A computer whose database knows more types for a name than
+  the sandbox's remains a limit of the portal.
+- Markdown (whose viewers can show the web content in it) and keys, certificates, signatures and
+  requests (`.asc`, `.gpg`, `.pem`, `.p7m`, `.p12`, `.pfx`, `.key`, `.csr`, `.crl` and the like,
+  which their programs can take in when opened) are asked about first on every system, as web
+  pages and Office files with macros are (`opening::ACTIVE`); the window refuses to open one
+  without that yes by any route (`"confirmed": true` from the control channel).
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).

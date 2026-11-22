@@ -94,6 +94,28 @@ fn macros_and_web_pages_are_asked_about_first() {
     assert_eq!(opened.lock().unwrap().len(), 1);
 }
 
+/// Every way a command reaches the window (`execute`: the control channel and tests;
+/// `ui_command`; `run` without its question's yes) refuses a kind that asks first until the yes is
+/// said, before the host is asked to open anything; with it, the file opens.
+#[test]
+fn a_kind_that_asks_first_never_opens_without_the_yes_by_any_route() {
+    let names = ["budget.xlsm", "page.html", "notes.md", "key.asc", "mail.p7s"];
+    let (mut a, id, opened) = app(&names);
+    for index in 0..names.len() {
+        let p = json!({"id": id, "index": index});
+        let e = a.execute("mail.openAttachment", p.clone()).unwrap_err();
+        assert!(e.contains("asked about first"), "{e}");
+        assert!(super::ui_command(&mut a, "mail.openAttachment", &p).unwrap().is_err());
+        let p = json!({"id": id, "index": index, "confirmed": false});
+        assert!(a.execute("mail.openAttachment", p).is_err());
+        assert!(opened.lock().unwrap().is_empty(), "{index}: nothing reaches the host before the yes");
+    }
+    for index in 0..names.len() {
+        a.execute("mail.openAttachment", json!({"id": id, "index": index, "confirmed": true})).unwrap();
+    }
+    assert_eq!(opened.lock().unwrap().len(), names.len());
+}
+
 #[test]
 fn the_browser_downloads_instead_and_nothing_breaks_without_a_host() {
     let (mut a, id, _) = app(&["photo.jpg"]);

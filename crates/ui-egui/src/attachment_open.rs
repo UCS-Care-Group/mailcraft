@@ -77,8 +77,13 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 
 fn open(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let (message, index, name) = target(app, p)?;
-    if opening::verdict(&name) == Verdict::Blocked {
+    let verdict = opening::verdict(&name);
+    if verdict == Verdict::Blocked {
         return Err(opening::blocked_message(&name));
+    }
+    // The window asks first ([`question`]) and its yes says so; any other caller says so itself.
+    if verdict.asks() && p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+        return Err("bad parameters: this kind of file is asked about first; `\"confirmed\": true` says the owner said yes".into());
     }
     let file = opening::file_name(&name);
     let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;

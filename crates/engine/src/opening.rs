@@ -298,7 +298,11 @@ pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", 
 
 /// Files the program that opens them acts on ([`Verdict::Active`]): Markdown, and keys,
 /// certificates and signatures.
-pub const ACTIVE: &[&str] = &["md", "markdown", "asc", "p7m", "p7s", "pem", "sig"];
+pub const ACTIVE: &[&str] = &[
+    // Markdown.
+    "md", "markdown", "mkd", "mdown", "mdwn", "mkdn", "mmd", "mdx", // Keys, certificates, signatures and requests.
+    "asc", "p7m", "p7s", "pem", "sig", "p12", "pfx", "p7b", "p7c", "gpg", "pgp", "key", "csr", "crl",
+];
 
 /// Whether a file of this kind (the part after the last dot, in lower case) is one the opener
 /// refuses or asks about first ([`BLOCKED`], [`MACROS`], [`SCRIPTS`] and [`ACTIVE`] together): the one list
@@ -633,6 +637,11 @@ pub const KNOWN: &[(&str, &[&str])] = &[
 /// tells apart by what is in the file. Inside a Flatpak sandbox the file is typed again outside it,
 /// by the computer's own database, which can tell them apart otherwise: there they are not opened.
 pub const SEVERAL: &[&str] = &["png", "json", "ogg", "oga", "opus", "md", "htm", "html", "djvu", "dot", "pot", "pub", "asc", "pem"];
+
+/// The kinds of [`KNOWN`] the shared MIME database has known by name only a few years (since about
+/// 2020): a computer with an older one types such a file by what is in it. Inside a Flatpak sandbox,
+/// whose database is newer than many computers', they are not opened.
+pub const RECENT: &[&str] = &["avif", "heic", "heif", "jxl"];
 
 /// The types the desktop may give a file of kind `ext` ([`KNOWN`]); none for a kind not there.
 pub fn desktop_types(ext: &str) -> &'static [&'static str] {

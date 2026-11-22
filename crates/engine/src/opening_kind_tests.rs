@@ -69,17 +69,49 @@ fn the_known_kinds_are_kinds_that_open_as_documents() {
 #[test]
 fn markdown_keys_certificates_and_signatures_ask_first_everywhere() {
     for kind in ACTIVE {
-        for chooser in [Chooser::Name, Chooser::NameOrContent] {
-            assert_eq!(verdict_for(&format!("x.{kind}"), chooser), Verdict::Active, "{kind}");
-            assert_eq!(verdict_for(&format!("X.{}", kind.to_uppercase()), chooser), Verdict::Active, "{kind}");
+        // Where the computer goes by the name alone, every one asks; on Linux and the BSDs one the
+        // desktop knows by name asks, any other is refused there as every unknown kind is.
+        let on_linux = if desktop_types(kind).is_empty() { Verdict::Blocked } else { Verdict::Active };
+        for (chooser, want) in [(Chooser::Name, Verdict::Active), (Chooser::NameOrContent, on_linux)] {
+            assert_eq!(verdict_for(&format!("x.{kind}"), chooser), want, "{kind}");
+            assert_eq!(verdict_for(&format!("X.{}", kind.to_uppercase()), chooser), want, "{kind}");
         }
-        assert!(!desktop_types(kind).is_empty(), "{kind}");
         assert!(crate::opening::is_risky(kind), "{kind}");
         assert!(!BLOCKED.contains(kind) && !MACROS.contains(kind) && !SCRIPTS.contains(kind), "{kind}");
     }
     assert!(Verdict::Active.asks());
     assert_eq!(verdict_for("notes.md", Chooser::Name), Verdict::Active);
     assert_eq!(verdict_for("key.asc", Chooser::Name), Verdict::Active);
+    for name in [
+        "notes.mkd",
+        "a.mdown",
+        "a.mdwn",
+        "a.mkdn",
+        "a.mmd",
+        "a.mdx",
+        "id.p12",
+        "id.pfx",
+        "a.p7b",
+        "a.p7c",
+        "a.gpg",
+        "a.pgp",
+        "a.key",
+        "a.csr",
+        "a.crl",
+    ] {
+        assert_eq!(verdict_for(name, Chooser::Name), Verdict::Active, "{name}");
+    }
+    // Certificates Windows installs from a double-click stay refused.
+    for name in ["a.crt", "a.cer", "a.der"] {
+        assert_eq!(verdict_for(name, Chooser::Name), Verdict::Blocked, "{name}");
+    }
+}
+
+#[test]
+fn recent_kinds_are_known_kinds_of_one_type() {
+    for kind in crate::opening::RECENT {
+        assert!(!desktop_types(kind).is_empty() && !SEVERAL.contains(kind), "{kind}");
+    }
 }
 
 #[test]

@@ -61,14 +61,17 @@ pub fn base() -> Option<PathBuf> {
 
 /// What the owner is told when the attachment `name` couldn't be opened, by why
 /// (`file_launcher::open_detached`'s error).
-pub(crate) fn refusal(name: &str, why: std::io::ErrorKind) -> String {
+pub(crate) fn refusal(name: &str, e: &std::io::Error) -> String {
+    if crate::file_launcher::sandbox_refused(e) {
+        // A kind the Flatpak sandbox can't make sure of.
+        return mailcraft_ui_egui::sandbox_kind_text();
+    }
+    let why = e.kind();
     match why {
         // The desktop takes it for a kind other than its name says (Linux and the BSDs).
         std::io::ErrorKind::InvalidData => opening::blocked_message(name),
         // Nothing to ask what kind it is (Linux and the BSDs).
         std::io::ErrorKind::Unsupported => mailcraft_ui_egui::no_kind_teller_text(),
-        // A kind of several types, from the Flatpak sandbox.
-        std::io::ErrorKind::PermissionDenied => mailcraft_ui_egui::sandbox_kind_text(),
         _ => {
             log::warn!("couldn't open an attachment with the system's program ({why:?})");
             "No program could be started to open the attachment: save it with Save As instead.".to_string()
@@ -91,7 +94,7 @@ impl Opened {
     /// Write `bytes` as an attachment called `name` and open it with the system's program.
     pub fn open(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.write(name, bytes)?;
-        crate::file_launcher::open_detached(&path).map_err(|e| refusal(name, e.kind()))
+        crate::file_launcher::open_detached(&path).map_err(|e| refusal(name, &e))
     }
 
     /// Write the file where it is opened from (the work of [`open`](Self::open) before the

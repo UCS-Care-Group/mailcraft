@@ -126,6 +126,21 @@ fn a_file_over_the_cap_is_not_read() {
 }
 
 #[test]
+fn markdown_and_keys_open_on_the_phone_only_after_a_yes() {
+    let platform = FakePlatform::new();
+    let names = ["notes.md", "key.asc", "mail.p7s"];
+    let (core, id) = core_with(names.iter().map(|n| Attachment::new(*n, "application/octet-stream", b"x".to_vec())).collect(), platform.clone());
+    for index in 0..3 {
+        assert!(matches!(block_on(core.open_attachment(id, index, false)), Err(CoreError::BadRequest { .. })), "{index}");
+    }
+    assert!(platform.files.lock().unwrap().is_empty(), "nothing reaches the other app before the yes");
+    for index in 0..3 {
+        block_on(core.open_attachment(id, index, true)).unwrap();
+    }
+    assert_eq!(platform.files.lock().unwrap().len(), 3);
+}
+
+#[test]
 fn opening_follows_the_verdict() {
     let platform = FakePlatform::new();
     let (core, id) = core_with(files(), platform.clone());

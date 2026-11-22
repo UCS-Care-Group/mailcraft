@@ -18417,7 +18417,7 @@ msgstr "A MailCraft másolata nem frissül magától."
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
-msgstr "A MailCraft e példánya Flatpak homokozóban fut, ahol nem tudja biztosítani, hogy az ilyen fájl a megfelelő programmal nyíljon meg. Mentse a Mentés paranccsal, és nyissa meg saját maga."
+msgstr "A MailCraft e példánya Flatpak homokozóban fut, ahol nem tudja biztosítani, hogy az ilyen fájl a megfelelő programmal nyíljon meg. Mentse a Mentés másként paranccsal, és nyissa meg saját maga."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19241,7 +19241,7 @@ msgstr "Nekem"
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
-msgstr "A melléklet megnyitása előtt a MailCraft megkérdezi az asztali környezettől, milyen fájlról van szó, de sem a gio (a GLib része), sem a kmimetypefinder (a KDE része) nincs telepítve. Telepítse valamelyiket, vagy mentse a mellékletet a Mentés paranccsal."
+msgstr "A melléklet megnyitása előtt a MailCraft megkérdezi az asztali környezettől, milyen fájlról van szó, de sem a gio (a GLib része), sem a kmimetypefinder (a KDE része) nincs telepítve. Telepítse valamelyiket, vagy mentse a mellékletet a Mentés másként paranccsal."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

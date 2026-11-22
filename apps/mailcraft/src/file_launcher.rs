@@ -220,14 +220,35 @@ fn in_flatpak() -> bool {
     std::env::var_os("FLATPAK_ID").is_some() || Path::new("/.flatpak-info").exists()
 }
 
+/// The mark of a file refused because MailCraft runs in a Flatpak sandbox ([`kinds_for`]), told
+/// apart from any other failure ([`sandbox_refused`]).
+#[derive(Debug)]
+struct SandboxRefused;
+
+impl std::fmt::Display for SandboxRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("not opened from the Flatpak sandbox")
+    }
+}
+
+impl std::error::Error for SandboxRefused {}
+
+/// Whether `e` is [`kinds_for`]'s refusal from the Flatpak sandbox (and not, say, a program the
+/// system's policy wouldn't start).
+pub(crate) fn sandbox_refused(e: &std::io::Error) -> bool {
+    e.get_ref().is_some_and(|inner| inner.is::<SandboxRefused>())
+}
+
 /// The types the desktop may give the file `name` for it to be opened ([`opening::desktop_types`]).
-/// Inside a Flatpak sandbox a kind whose name has several types ([`opening::SEVERAL`]) is refused
-/// (`PermissionDenied`): the computer outside types it again and may tell them apart by what is
-/// in the file.
+/// Inside a Flatpak sandbox the computer outside types the file again, by its own database, so a
+/// kind is refused there ([`sandbox_refused`]) when its name has several types
+/// ([`opening::SEVERAL`]), which that computer may tell apart by what is in the file, or when the
+/// database has known it only a few years ([`opening::RECENT`]), which an older computer may not
+/// know at all and would type by what is in the file.
 fn kinds_for(name: &str, sandboxed: bool) -> std::io::Result<&'static [&'static str]> {
     let ext = opening::extension(name);
-    if sandboxed && opening::SEVERAL.contains(&ext.as_str()) {
-        return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "not opened from the sandbox"));
+    if sandboxed && (opening::SEVERAL.contains(&ext.as_str()) || opening::RECENT.contains(&ext.as_str())) {
+        return Err(std::io::Error::other(SandboxRefused));
     }
     Ok(opening::desktop_types(&ext))
 }
@@ -235,7 +256,7 @@ fn kinds_for(name: &str, sandboxed: bool) -> std::io::Result<&'static [&'static 
 /// Open the file at `path` with the system's program and leave it running on its own. On Linux
 /// and the BSDs only when the desktop takes it for a kind of its name ([`open_typed`]); a file
 /// it takes for another kind is refused with `InvalidData`, and with no program to say what kind
-/// it is, `Unsupported`; inside Flatpak, a kind of several types, `PermissionDenied`.
+/// it is, `Unsupported`; inside Flatpak a kind it can't make sure of, [`sandbox_refused`].
 pub(crate) fn open_detached(path: &Path) -> std::io::Result<()> {
     if Opener::this_platform() != Opener::XdgOpen {
         return start_detached(Target::File, path);

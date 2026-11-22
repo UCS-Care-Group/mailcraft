@@ -117,8 +117,9 @@ fn a_file_the_desktop_takes_for_its_kind_is_opened_by_the_same_desktop() {
 #[test]
 fn inside_flatpak_a_kind_of_several_types_is_not_opened() {
     // The portal types the file again outside, by the computer's own database.
-    for name in ["x.png", "x.json", "x.ogg", "x.html", "x.md"] {
-        assert_eq!(kinds_for(name, true).unwrap_err().kind(), std::io::ErrorKind::PermissionDenied, "{name}");
+    // Kinds of several types, and kinds an older computer's database doesn't know.
+    for name in ["x.png", "x.json", "x.ogg", "x.html", "x.md", "x.jxl", "x.avif", "x.heic", "x.heif"] {
+        assert!(sandbox_refused(&kinds_for(name, true).unwrap_err()), "{name}");
         assert!(!kinds_for(name, false).unwrap().is_empty(), "{name}");
     }
     assert_eq!(kinds_for("x.pdf", true).unwrap(), kinds_for("x.pdf", false).unwrap());
@@ -131,17 +132,19 @@ fn each_refusal_says_why_it_is() {
     use crate::opened_files::refusal;
     use std::io::ErrorKind;
     // Another kind than the name says: the kind's refusal.
-    let e = refusal("x.png", ErrorKind::InvalidData);
+    let e = refusal("x.png", &ErrorKind::InvalidData.into());
     assert!(e.contains("doesn't open x.png") && e.contains("Save As"), "{e}");
     // From the Flatpak sandbox: no word of harm, only what it can't make sure of.
-    let e = refusal("x.png", ErrorKind::PermissionDenied);
+    let e = refusal("x.png", &kinds_for("x.png", true).unwrap_err());
     assert_eq!(e, mailcraft_ui_egui::sandbox_kind_text());
     assert!(e.contains("Flatpak") && e.contains("Save As") && !e.contains("harm"), "{e}");
     // Nothing to ask what kind it is.
-    assert_eq!(refusal("x.png", ErrorKind::Unsupported), mailcraft_ui_egui::no_kind_teller_text());
-    // Anything else: no program could be started.
-    for why in [ErrorKind::NotFound, ErrorKind::TimedOut, ErrorKind::Other] {
-        assert!(refusal("x.png", why).starts_with("No program could be started"), "{why:?}");
+    assert_eq!(refusal("x.png", &ErrorKind::Unsupported.into()), mailcraft_ui_egui::no_kind_teller_text());
+    // Anything else, a program the system's policy won't start among them: no program could be started.
+    for why in [ErrorKind::PermissionDenied, ErrorKind::NotFound, ErrorKind::TimedOut, ErrorKind::Other] {
+        let e = std::io::Error::new(why, "denied");
+        assert!(!sandbox_refused(&e), "{why:?}");
+        assert!(refusal("x.png", &e).starts_with("No program could be started"), "{why:?}");
     }
 }
 
