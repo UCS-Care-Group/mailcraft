@@ -25,7 +25,7 @@ use crate::{CmdResult, CommandSpec, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("sync.progress", "Show Progress", "Send / Receive", progress).pure().params(
-        r#"{} — answers {"running": bool, "accounts": [{"id", "name", "state": "waiting"|"running"|"done"|"stopped"|"skipped", "phase": "inbox"|"sending"|"folders"|"newMail"|"calendarAndContacts"|null, "folder", "done", "total", "new", "sent", "problems": [string], "kept": bool, "timings": {"millis", "requests", "skipped", "phases": [{"phase", "millis", "requests"}]}, "fullMessages": {"done", "total", "paused"}|null}]}; opens nothing"#,
+        r#"{} — answers {"running": bool, "accounts": [{"id", "name", "state": "waiting"|"running"|"done"|"stopped"|"skipped", "phase": "inbox"|"sending"|"folders"|"newMail"|"renaming"|"calendarAndContacts"|null, "folder", "done", "total", "new", "sent", "problems": [string], "kept": bool, "timings": {"millis", "requests", "skipped", "phases": [{"phase", "millis", "requests"}]}, "fullMessages": {"done", "total", "paused"}|null}]}; opens nothing"#,
     )]
 }
 
@@ -116,6 +116,7 @@ impl AccountRun {
                     };
                     0.15 + 0.75 * folders
                 }
+                Some(SyncPhase::Renaming) => 0.9 + 0.02 * part(self.done, self.total),
                 Some(SyncPhase::CalendarAndContacts) => 0.92,
             },
         }
@@ -475,6 +476,7 @@ fn phase_id(phase: SyncPhase) -> &'static str {
         SyncPhase::Folders => "folders",
         SyncPhase::NewMail => "newMail",
         SyncPhase::CalendarAndContacts => "calendarAndContacts",
+        SyncPhase::Renaming => "renaming",
     }
 }
 

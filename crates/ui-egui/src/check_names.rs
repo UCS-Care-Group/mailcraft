@@ -236,7 +236,13 @@ impl MailApp {
         if let (false, Some(compose)) = (names.is_empty(), self.session.compose_id())
             && self.dialog.is_none()
         {
-            self.dialog = Some(Dialog::NameChoice(Box::new(NameChoice { compose, names, selected: 0, more: more.to_vec(), error: String::new() })));
+            self.set_dialog(Some(Dialog::NameChoice(Box::new(NameChoice {
+                compose,
+                names,
+                selected: 0,
+                more: more.to_vec(),
+                error: String::new(),
+            }))));
         }
     }
 }
