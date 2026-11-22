@@ -253,6 +253,25 @@ fn what_is_looked_for_is_one_line_and_short() {
 }
 
 #[test]
+fn spans_replace_inside_a_word_when_whole_word_is_set() {
+    let mut s = writing("catapult");
+    let r = run(
+        &mut s,
+        "edit.replace",
+        json!({
+            "text": "cat",
+            "with": "dog",
+            "wholeWord": true,
+            "matchCase": true,
+            "all": true,
+            "spans": [{"from": 0, "to": 3}]
+        }),
+    );
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "dogapult");
+}
+
+#[test]
 fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
     let mut s = writing("see teh and teh@example.org");
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "spans": [{"from": 4, "to": 7}]}));

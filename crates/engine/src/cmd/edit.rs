@@ -49,7 +49,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). Answers {"replaced", "found", "from", "to"}"#)
+            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). spans takes precedence over wholeWord, matchCase and all, so a caller can replace the exact places it found. Answers {"replaced", "found", "from", "to"}"#)
             .when_writing(needs_doc),
     ]
 }
