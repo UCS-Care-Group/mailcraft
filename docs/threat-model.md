@@ -444,6 +444,26 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - A `.mailcraft` attachment is never opened from a message: it can only be saved
   (`crates/engine/src/opening.rs`), so a sender cannot put a mailbox with accounts of their
   choosing in front of the owner with one click.
+- On Linux and the BSDs an attachment is opened only when its kind is one the desktop knows by
+  name (`KNOWN` in `crates/engine/src/opening.rs`) and the same desktop, asked first (`gio info`,
+  `kmimetypefinder`), takes the written file for that kind; anything else can only be saved
+  (`apps/mailcraft/src/file_launcher.rs`). The desktop types a file by its first bytes when it
+  doesn't know the name, or knows two kinds for it, so what is in the file never chooses the
+  program. The types accepted for a kind include those of the doubled kinds ending in it
+  (`.tar.gz`), less some refused on purpose (a disk image `.img.xz`, compressed PostScript or
+  drawings). A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
+  the bytes alone. The desktop has five seconds to answer; with no answer, or neither program
+  installed, nothing is opened. Inside a Flatpak sandbox the portal types the file again with the
+  computer's own database, so a kind whose name has several types there (`opening::SEVERAL`, a
+  `.png` among them) is not opened at all, nor is a kind the database has known only a few years
+  (`opening::RECENT`: AVIF, HEIC, JPEG XL), which an older computer would type by its bytes; the
+  owner is told why and to save it. A computer whose database knows more types for a name than
+  the sandbox's remains a limit of the portal.
+- Markdown (whose viewers can show the web content in it) and keys, certificates, signatures and
+  requests (`.asc`, `.gpg`, `.pem`, `.p7m`, `.p12`, `.pfx`, `.key`, `.csr`, `.crl` and the like,
+  which their programs can take in when opened) are asked about first on every system, as web
+  pages and Office files with macros are (`opening::ACTIVE`); the window refuses to open one
+  without that yes by any route (`"confirmed": true` from the control channel).
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).

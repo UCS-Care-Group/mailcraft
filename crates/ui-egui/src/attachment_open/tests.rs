@@ -59,9 +59,29 @@ fn programs_and_scripts_are_refused_and_nothing_is_opened() {
 }
 
 #[test]
+fn a_kind_of_no_known_name_is_refused_where_the_desktop_types_by_content() {
+    use mailcraft_engine::opening::Chooser;
+    let (mut a, id, opened) = app(&["invoice.qzx"]);
+    let r = a.run("mail.openAttachment", json!({"id": id, "index": 0}));
+    if Chooser::THIS == Chooser::NameOrContent {
+        let e = r.unwrap_err();
+        assert!(e.contains("doesn't open invoice.qzx") && e.contains("Save As"), "{e}");
+        assert!(opened.lock().unwrap().is_empty());
+        assert!(a.execute("mail.saveAttachment", json!({"id": id, "index": 0})).is_ok());
+    } else {
+        assert_eq!(r.unwrap()["opened"], true);
+    }
+}
+
+#[test]
 fn macros_and_web_pages_are_asked_about_first() {
-    let (mut a, id, opened) = app(&["budget.xlsm", "page.html"]);
-    for index in 0..2 {
+    let (mut a, id, opened) = app(&["budget.xlsm", "page.html", "notes.md", "key.asc", "mail.p7m"]);
+    // Markdown, keys, certificates and signatures: the program that opens them acts on them.
+    for index in 2..5 {
+        let (_, text, _) = super::question(&a, &json!({"id": id, "index": index})).unwrap();
+        assert!(text.contains("act on what is in them"), "{text}");
+    }
+    for index in 0..5 {
         let r = a.run("mail.openAttachment", json!({"id": id, "index": index})).unwrap();
         assert_eq!(r["pending"], "confirm");
         let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
@@ -72,6 +92,28 @@ fn macros_and_web_pages_are_asked_about_first() {
     // Once the owner said yes, it opens.
     a.run("mail.openAttachment", json!({"id": id, "index": 0, "confirmed": true})).unwrap();
     assert_eq!(opened.lock().unwrap().len(), 1);
+}
+
+/// Every way a command reaches the window (`execute`: the control channel and tests;
+/// `ui_command`; `run` without its question's yes) refuses a kind that asks first until the yes is
+/// said, before the host is asked to open anything; with it, the file opens.
+#[test]
+fn a_kind_that_asks_first_never_opens_without_the_yes_by_any_route() {
+    let names = ["budget.xlsm", "page.html", "notes.md", "key.asc", "mail.p7s"];
+    let (mut a, id, opened) = app(&names);
+    for index in 0..names.len() {
+        let p = json!({"id": id, "index": index});
+        let e = a.execute("mail.openAttachment", p.clone()).unwrap_err();
+        assert!(e.contains("asked about first"), "{e}");
+        assert!(super::ui_command(&mut a, "mail.openAttachment", &p).unwrap().is_err());
+        let p = json!({"id": id, "index": index, "confirmed": false});
+        assert!(a.execute("mail.openAttachment", p).is_err());
+        assert!(opened.lock().unwrap().is_empty(), "{index}: nothing reaches the host before the yes");
+    }
+    for index in 0..names.len() {
+        a.execute("mail.openAttachment", json!({"id": id, "index": index, "confirmed": true})).unwrap();
+    }
+    assert_eq!(opened.lock().unwrap().len(), names.len());
 }
 
 #[test]

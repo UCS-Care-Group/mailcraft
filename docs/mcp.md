@@ -52,7 +52,8 @@ it); `..` is refused; a link that leads out of DIR is not followed; files are wr
 only (never over an existing file, never through a link), never hidden, with the extension the
 command writes (`.eml`, `.mbox`, `.ics`, `.vcf`; for an attachment, any but the kinds the
 attachment opener refuses or asks about first: programs and scripts, web pages (`.html`, `.svg`,
-`.xml`), and Office files that can carry macros, `.docm` and legacy `.doc`, `.xls`, `.ppt`). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
+`.xml`), Office files that can carry macros, `.docm` and legacy `.doc`, `.xls`, `.ppt`, Markdown
+(`.md`), and keys, certificates and signatures (`.asc`, `.pem`, `.p7m`, `.p12` and the like)). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
 (class `mailbox`). `screenshot` comes back in the answer; nothing is written.
 
 **`--allow`.** `--allow send`, `delete`, `accounts`, `mailbox`, `settings` or `input`, repeated
