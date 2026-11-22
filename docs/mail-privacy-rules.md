@@ -1,6 +1,6 @@
 # Mail privacy and hostile-input rules (full detail)
 
-> **Last reviewed:** 2026-11-17 · **Last updated:** 2026-11-17 · **Change:** major
+> **Last reviewed:** 2026-11-17 · **Last updated:** 2026-11-22 · **Change:** patch
 
 The detailed rules behind `AGENTS.md` › Mail is private and mail is hostile. Read this before touching HTML rendering, picture or sender-image fetching, sign-in/OAuth scopes, secrets, Favorites, provider lookup, Exchange/EWS setup, TLS or header writing.
 
@@ -19,4 +19,5 @@ The detailed rules behind `AGENTS.md` › Mail is private and mail is hostile. R
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-22 | patch | A reply's or forward's quoted original leaves out everything the reading pane leaves out, ended where the pane ends it, at the width and in the theme of the pane or window it was read in, as the other places that read it for one not read there, else only what every look shows (none of its body when its looks can't all be told), however a template, a hidden element or an element left out whole nest; only the pictures the pane drew, no tooltips, no descriptions of drawn pictures in the message; items made from a message start with the same text; an original shown as its text part is quoted as that text, one not read there as HTML unless the HTML holds nothing |
 | 2026-11-17 | major | First version: the detailed mail privacy rules, moved word for word from `AGENTS.md` to keep the agent instructions short |

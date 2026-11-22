@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-22 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -794,12 +794,22 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-22 | patch | The quote of a reply or forward follows the reading pane's own reading of where hidden content starts and ends, whatever it is nested in, at the width and in the theme of the pane or window it was read in, as the other places that read it for one not read there, else only what every look shows |
+| 2026-11-22 | minor | SEC-2: on Linux and the BSDs an attachment opens only when its kind is one the desktop knows by name and the desktop, asked first (within five seconds), takes the file for that kind or a doubled kind ending in it; files are never handed to `xdg-open`; in a Flatpak sandbox a kind whose name has several types is not opened, and the owner is told why; Markdown, keys, certificates and signatures ask first everywhere |
+| 2026-11-20 | patch | #1776: autocomplete skips Junk and Drafts, ranks by sends from Sent Items and the Outbox without trusting an incoming From, and a new message includes the owner's own addresses while search still offers them last |
+| 2026-11-18 | patch | #1674: the agent's classing of Undo and Redo: they put back what the step changed, no longer the whole mailbox |
+| 2026-11-17 | patch | #1568: a failed check gives way to Exchange Online's `compauth=none reason=905`, its word that it didn't enforce DMARC because the mail came through another service first (a filtering gateway), for a sender outside the account's own domain; no other `compauth=none` code does, such mail is still not vouched for, and the limit (a spoof of an outside domain sent past the gateway) is said |
+| 2026-11-17 | patch | #566 part 2: a rule by a category reads a sender's `Keywords` on IMAP mail, as Outlook does |
 | 2026-11-16 | minor | #1544: a reaction sent by one click: six fixed emoji, one recipient (the sender, never the Reply-To, shown beside the emoji), nothing quoted, refused for a message with a sender warning, for drafts, own mail, Junk E-mail and automated mail, held back by Undo Send, asked about for an agent |
 | 2026-11-15 | patch | Known limits: S/MIME and OpenPGP signatures are checked; encrypting and signing sent mail are not built |
 | 2026-11-14 | patch | #1262: Check Names and People's Address Book ask an Exchange server account's address list only on the owner's press or search, and read its answer within caps, keeping a name, an address, four short lines and two numbers of each person, in the window alone |
 | 2026-11-13 | minor | #834: mail in Junk E-mail is shown by names only, no attachment there is decoded for a picture; the choice between names and pictures is a checkbox in File › Options too |
+| 2026-11-12 | patch | #566 part 2: mail moved into the Inbox on another device is copied again when it has no Message-ID or its folder was read without it first |
+| 2026-11-12 | patch | #566 part 2: a rule moving new mail into another account waits too behind one that can't tell yet, and nothing is moved or copied into another account after one that still can't tell, or at Run Rules Now; a rule never deletes mail permanently: its Delete puts mail in Deleted Items, and mail there already, or of an account with none, stays |
 | 2026-11-12 | patch | #661: an agent is asked `send` before it writes a category to Outlook (sent there, renamed there, new to the list, another colour, or put back so by an undo or redo), and `delete` for an undo or redo that has one deleted there |
 | 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
+| 2026-11-11 | patch | #566 part 2: a rule copying new mail into another account waits for it whole; nothing is copied of mail the server had before |
+| 2026-11-11 | patch | #566 part 2: a rule that can't tell yet waits for new mail whole; no rule for a shared mailbox's mail at Run Rules Now; an undo that sends mail or a rule onto another server asks `send` |
 | 2026-11-11 | patch | #661: the window's background jobs that are called off for another mailbox include the categories' |
 | 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
 | 2026-11-08 | minor | #836: an outgoing relay the owner marked as needing no sign-in is never shown the password, even when it offers a way to sign in; not for an account that signs in on its provider's page |
@@ -818,6 +828,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
 | 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
+| 2026-10-31 | minor | #566 part 2: a rule copies mail into no Outbox either |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
 | 2026-10-29 | patch | #599 review: `@media` is tested against the width the body is laid out at, to the pixel; a picture shown only under a dark or narrow `@media` is fetched when that look is shown, which tells its server the theme or width |

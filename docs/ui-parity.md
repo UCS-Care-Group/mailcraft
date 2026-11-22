@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-11-22 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (MailCraft's own colours,
 a cool grey window and a blue accent, one set of tokens for every pane); the *arrangement* is the one
@@ -118,11 +118,19 @@ people use Outlook's to be told of some mail alone, and for a Gmail account set 
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-22 | patch | SEC-2: on Linux and the BSDs, an attachment of a kind the desktop doesn't know by name, or that it takes for another kind, is refused and can be saved; Markdown, keys, certificates and signatures are asked about first |
+| 2026-11-20 | minor | #1739: Reading pane: after a click in the message the keyboard scrolls it |
+| 2026-11-19 | minor | File › Options › General › Accent: a fifth swatch, Custom color, with a picker and a hex field; a custom colour is fitted to the theme so the contrast rules hold in the light and both greys of the dark theme, and in high contrast (#1737) |
+| 2026-11-19 | minor | #1657: Message list: a darker line between rows, unread senders in the accent color, a row with nothing to preview centred, and View › Shade Alternate Rows |
+| 2026-11-19 | minor | #1514: Folder pane: folders and the Favorites kept in MailCraft are dragged into the owner's order, or moved with Move Up and Move Down |
+| 2026-11-19 | minor | #1310: Composer: a selected picture is sized by its corner or by its width or height in the Picture size strip |
+| 2026-11-18 | minor | #954: local composer spelling on Windows and macOS. Grammar and other platforms remain pending |
 | 2026-11-16 | minor | #544: The tray’s top-left red badge follows unread Inbox mail in the owner’s own server accounts, clears after the last unread Inbox message is read or removed, and works independently of desktop alerts |
 | 2026-11-16 | minor | Move Items, Copy Items and the Move to Folder and Copy to Folder menus: the folders of every account, the one in view's first and the others' under their names, not only that account's |
 | 2026-11-16 | minor | #1544: a React button beside Forward in the reading pane opens six emoji; one click sends it to the sender as a short mail (greyed for automated mail too) |
 | 2026-11-16 | patch | #1511: changing the message list's arrangement scrolls the list to the selected message and centres it |
 | 2026-11-16 | minor | Czech as a preview language (Čeština (náhled)). |
+| 2026-11-15 | minor | #1493: Composer: the font menu lists every family installed on this computer, searchable, after the six MailCraft has fallbacks for |
 | 2026-11-15 | minor | Selecting an attachment opens the Attachments ribbon. Available previews keep the message header above them, and other files leave the message visible. Show Message is enabled only while a preview or its confirmation hides the body. |
 | 2026-11-15 | minor | #1357: Polish as a preview language (Polski (wersja zapoznawcza)). |
 | 2026-11-14 | minor | Hungarian preview in File › Options, with a Monday-first calendar, a 24-hour clock and year-first dates. |
@@ -138,11 +146,13 @@ people use Outlook's to be told of some mail alone, and for a Gmail account set 
 | 2026-11-13 | minor | #1174: Module bar: a row at the foot of the pane on the left as well as the bar down the window's edge (View › Layout › Navigation Bar) |
 | 2026-11-13 | minor | #969: Composer: Courier New in the font list, fixed width for text art and columns lined up with spaces |
 | 2026-11-13 | minor | #544: Optional Close to system tray, an icon only while enabled, Show, Send/Receive and Quit, first-close guidance, Dock restoration and recovery when the tray disappears; Linux/FreeBSD use X11/XWayland only when enabled and reachable |
+| 2026-11-12 | patch | #566 part 2: a rule's desktop alert with the switch for new mail off: as people use Outlook's, not a claim about Outlook |
 | 2026-11-12 | minor | #1176: Folder pane: Move to Folder and Copy to Folder without a folder ask which in Move Items or Copy Items |
 | 2026-11-12 | patch | #1158: Title bar: the row is 36 points high everywhere but in macOS' integrated title bar, was 48 |
 | 2026-11-12 | minor | #1135: Romanian as a preview language: Română (previzualizare) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-11-12 | minor | #1031: Simplified Chinese preview, with a 24-hour clock and Monday first |
 | 2026-11-12 | minor | #1017: Folder pane: an account's heading is the name given in Account Settings › Account name, its address while none is |
+| 2026-11-11 | patch | #566 part 2: a rule's desktop alert comes with the switch for new mail off, and in any Gmail category |
 | 2026-11-11 | minor | #661: File › Info has one line per Microsoft account for keeping it in step with Outlook, with Ask again; a Microsoft account's categories in the Categories window take Outlook's 25 colours, are read-only with Allow until MailCraft may change them in Outlook, and one kept on this computer only has Add to Outlook; the Backstage row no longer says there are no automatic replies |
 | 2026-11-11 | minor | #956 part 3: Report a Problem › Send report (to the MailCraft team privately, the reference or why not said, Try again), with an optional GitHub username; Open on GitHub stays |
 | 2026-11-11 | minor | #30 part 4b: File › Options › Security; Verify… on the reading pane's bar; Certificates on a contact's card |
@@ -152,12 +162,14 @@ people use Outlook's to be told of some mail alone, and for a Gmail account set 
 | 2026-11-08 | minor | #797: the composer's From lists, under each IMAP account, the other addresses it sends from (Account Settings › Other addresses you send from); a reply, Reply All or forward is from the address the original was sent to |
 | 2026-11-08 | minor | #893: each account can have a colour (Account Settings › Colour; a new account gets one of the palette's that no other has): a dot after its name in the folder pane, and a stripe down the left edge of its mail's rows in a search of All Mailboxes |
 | 2026-11-07 | minor | #873: Module bar: a message dropped on Calendar, Tasks or People opens a new appointment, task or contact filled in from it |
+| 2026-11-05 | minor | #580: paragraphs aligned left, centred or right in a message and a signature (`format.align`); list items stay left; a blank line's alignment is not kept; not in the Commands list |
 | 2026-11-05 | patch | #727: Composer: a click on another message saves the reading pane's message to Drafts and shows the one clicked; the list's keys move no hidden selection |
 | 2026-11-05 | minor | #601: Reading pane: a picture behind a table, a cell or a block is shown when it is in the message itself, never from the web |
 | 2026-11-05 | minor | #761: Add Account: an address at a domain nobody here knows says its servers are only a guess from its domain, and offers the Microsoft 365 and Exchange server choices on the same page |
 | 2026-11-05 | minor | #600: Reading pane: a message is drawn in the first of its fonts installed on this computer |
 | 2026-11-04 | minor | #785: Reading pane and a message's window: a ▾ at each attachment chip's right end opens the chip's right-click menu (Open, Save As, Save All Attachments, Remove), by a click or by Enter or Space |
 | 2026-11-04 | patch | #795: Message list: a conversation is one thread, not every message with its subject |
+| 2026-11-03 | patch | #566 part 2: the Rules dialog's actions named, as more of Outlook's rather than all but forwarding |
 | 2026-11-03 | minor | #702 (point 2): the accounts put in the owner's order by dragging their headings in the folder pane |
 | 2026-11-03 | minor | #702: Move Up and Move Down on an account's right-click menu; the folder pane scrolls while an account is dragged near its edge; To Do jobs start in the pane's order |
 | 2026-11-03 | minor | #631: People: a contact made or picked clears a search that would hide it; "No contacts from this account yet" |
@@ -167,6 +179,7 @@ people use Outlook's to be told of some mail alone, and for a Gmail account set 
 | 2026-11-01 | minor | #286: windows of their own open where the last of their kind was, cascaded and kept on a connected monitor; every message being written with changes is saved to Drafts every five minutes, for every kind of account; closing one only those saves put in Drafts asks first |
 | 2026-11-01 | minor | #286: several messages being written at once; starting another no longer asks about the one being written |
 | 2026-11-01 | minor | #709: the Classic ribbon fits the window: groups shrink, fold into one button and go behind `…` |
+| 2026-10-31 | minor | #566 part 2: a new rule's conditions, exceptions (Except if), actions and desktop alert in the Rules dialog |
 | 2026-10-31 | minor | Parity B2: View › Change View (Compact, Single Line, Preview), Tighter Spacing, Zoom of the message being read, and Recent Searches (under the empty search box and in the View tab) |
 | 2026-10-31 | minor | Parity B1: Send / Receive › Cancel All and Work Offline (Working Offline in the status bar); Help › Help, Get Support, Feedback, What's New |
 | 2026-10-31 | minor | Parity B6: Message › Tags › Request a Read Receipt; Help › Show Training |
