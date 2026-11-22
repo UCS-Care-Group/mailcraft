@@ -258,9 +258,20 @@ impl Dictionary {
 
     fn consider(&self, typo: &[char], word: String, cost: u32, first_changed: bool, extras: &Extras<'_>, cands: &mut Vec<Ranked>) {
         let phrase = word.contains(' ');
-        if word.is_empty() || (!phrase && !self.suggestable(&word) && !extras.has(&word)) {
+        if word.is_empty() {
             return;
         }
+        // An edit that exists only in the owner's list is stored under its own spelling.
+        // The generated candidate is lowercase (`mailcraft`); offering that and then the
+        // stored `MailCraft` drops the second as a duplicate.
+        let word = if phrase || self.suggestable(&word) {
+            word
+        } else {
+            match extras.display(&word) {
+                Some(shown) => shown.to_string(),
+                None => return,
+            }
+        };
         let letters: Vec<char> = word.chars().filter(|c| *c != ' ').collect();
         let overlap = shared_grams(typo, &letters);
         let capital = u8::from(word.chars().any(|c| c.is_uppercase()));
@@ -489,11 +500,16 @@ impl<'a> Extras<'a> {
     }
 
     fn has(&self, word: &str) -> bool {
+        self.display(word).is_some()
+    }
+
+    /// The spelling the owner saved, when `word` is the same word in any case.
+    fn display(&self, word: &str) -> Option<&'a str> {
         if self.by_key.is_empty() {
-            return false;
+            return None;
         }
         let key = fold::to_lower(&fold::fold_accents(word));
-        self.by_key.contains_key(&key)
+        self.by_key.get(&key).copied()
     }
 }
 

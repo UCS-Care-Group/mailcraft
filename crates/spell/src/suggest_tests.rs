@@ -125,6 +125,14 @@ fn nosuggest_words_are_never_offered() {
 }
 
 #[test]
+fn an_extra_word_keeps_its_stored_spelling() {
+    let dict = Dictionary::parse("SET UTF-8\nTRY t\n", "0\n").expect("parse");
+    let got = dict.suggest("mailcraf", &["MailCraft"]);
+    assert!(got.iter().any(|word| word == "MailCraft"), "{got:?}");
+    assert!(got.iter().all(|word| word != "mailcraft"), "{got:?}");
+}
+
+#[test]
 fn custom_words_are_candidates() {
     let got = dict().suggest("mailcraf", &["MailCraft"]);
     assert!(got.iter().any(|word| word.eq_ignore_ascii_case("MailCraft")), "{got:?}");
