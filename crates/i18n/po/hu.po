@@ -211,6 +211,12 @@ msgid "+ condition"
 msgstr "+ Feltétel"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ kivétel"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "+Bin"
@@ -399,6 +405,12 @@ msgstr "A kollégák naptára, a címük szerint, a munka vagy az iskolai fiókk
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "Egy feltétel, illetve az azonos fajtájú kivételek együtt legfeljebb 20 szót vagy címet kereshetnek."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "A kapcsolati kártya legfeljebb 32 tanúsítványt és kulcsot tartalmaz"
 
@@ -425,6 +437,12 @@ msgstr "A MailCraft először biztonsági másolatot ment a teljes postafiók me
 #, fuzzy
 msgid "A date"
 msgstr "Egy dátum"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Asztali értesítés azokról az érkező levelekről, amelyekre ez a szabály hat, amíg nem a MailCraft az előtérben lévő ablak, akkor is, ha az új levelek értesítése ki van kapcsolva a Fájl › Beállítások menüben"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -612,6 +630,12 @@ msgstr "A postafiókád mellett van egy jelentés."
 msgid "A rule needs a name, and something to look for."
 msgstr "Egy szabálynak kell egy név, és valami, amit keresnünk kell."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "A szabálynak tennie kell valamit: egy műveletet vagy egy asztali értesítést."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -671,6 +695,12 @@ msgstr "Rövid üzenet az oldal hivatkozásával, e-mailbe vagy csevegésbe ille
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Webcím, e-mail cím, telefonszám (tel:) vagy más cím, mint például ms-beállítások:network-vpn. A semmi sem válogatott, a cím kerül be, mint van."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "A keresett szó legfeljebb 200 karakter lehet."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1144,6 +1174,12 @@ msgstr "Címlista · {account}"
 #, fuzzy
 msgid "Address:"
 msgstr "Cím:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "Címek"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3349,6 +3385,12 @@ msgstr "Formázás törlése"
 msgid "Clear Recent Searches"
 msgstr "A legutóbbi keresések törlése"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Kategóriák törlése"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3372,6 +3414,12 @@ msgstr "Keresés törlése"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Keresés törlése (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Jelölő törlése"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3803,6 +3851,12 @@ msgstr "Másold le a verziót, a platformot és a MailCraft saját rekordjának 
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "Másolás mappába"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "Másolás mappába"
 
 #. interface
@@ -4995,6 +5049,12 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr "Az egyes fiókok aláírása az új üzenetek, válaszok és továbbítások végére kerül. Hagyja üresen, ha nincs aláírás."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "Minden feltételnek és kivételnek kell valami, amit keres."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -5417,6 +5477,12 @@ msgstr "A telefonon tárolt minden adat el lett távolítva."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Minden, amit a felület csinál, parancs: {commands} közülük, amely lefedi a funkció katalógus {percent}%-át. A parancssor, a vezérlő csatorna és az MCP szerver ugyanazt a parancsot futtatja."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "Kivéve, ha"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6129,7 +6195,7 @@ msgid "Friday"
 msgstr "péntek"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "Feladó"
@@ -6151,6 +6217,12 @@ msgstr "Feladó szerint"
 #, fuzzy
 msgid "From a mailing list."
 msgstr "Levelezőlistáról."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "A Feladó és az Elküldve mezőbe teljes cím kell, például valaki@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6623,6 +6695,12 @@ msgstr "Van melléklete"
 #, fuzzy
 msgid "Has attachments"
 msgstr "Van melléklete"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "Kategóriája"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7436,6 +7514,24 @@ msgstr "Résztvevők meghívása"
 msgid "Invite attendees"
 msgstr "Meghívottak"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "Értekezlet-meghívás vagy annak frissítése"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "Automatikus válasz"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "Meg van jelölve"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -7617,6 +7713,14 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "Üzenetei, mellékletei, beállításai és emlékezetes bejelentkezése is vele együtt jár, és így a naptár, a kapcsolatok, a feladatok és a munkaidő, ami a szerveréről jött."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "A szabálya is törlődik; ha a kiszolgáló tárolja, ott megmarad."
+msgstr[1] "{n} szabálya is törlődik; azok, amelyeket a kiszolgáló tárol, ott megmaradnak."
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
@@ -7627,14 +7731,6 @@ msgstr "Tárgya: „{subject}”. Szövege: „{body}”."
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "A szövege lecserélődik"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "A hozzá tartozó {n} helyi szabály is törlődik. A kiszolgálón tárolt szabályok megmaradnak."
-msgstr[1] "A hozzá tartozó {n} helyi szabály is törlődik. A kiszolgálón tárolt szabályok megmaradnak."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7743,6 +7839,12 @@ msgstr "Levélszemét"
 #, fuzzy
 msgid "Just This One"
 msgstr "Csak ezt az egyet."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -8421,6 +8523,12 @@ msgstr "Levelek ezen a telefonon"
 #, fuzzy
 msgid "Mail only"
 msgstr "Csak levél"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "Azokat a leveleket, amelyekre bármelyik kivétel illik, érintetlenül hagyja"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -9524,6 +9632,12 @@ msgstr "Mozgás a fiók naptárába"
 msgid "Move to folder"
 msgstr "Áthelyezés mappába"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "Az Áthelyezés mappába és a Másolás mappába művelethez mappa kell, a Kategorizáláshoz kategória."
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -9565,6 +9679,30 @@ msgstr "Saját naptárak"
 #, fuzzy
 msgid "My Tasks"
 msgstr "Feladataim"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "A címem a Másolat mezőben van"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "A címem a Címzett mezőben van"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "A címem a Címzett vagy a Másolat mezőben van"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "A címem nincs a Címzett mezőben"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9881,8 +10019,8 @@ msgstr "Új levél"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Új posta A Gmail figyelmeztetés nélkül érkezik a Social, Promóciók, Frissítések vagy Fórumokba."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "A Gmail által a Közösségi, Promóciók, Frissítések vagy Fórumok kategóriába sorolt új levelek értesítés nélkül érkeznek, hacsak valamelyik szabálya nem jelenít meg értesítést róluk."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -9972,8 +10110,8 @@ msgstr "Jövő hónapban"
 msgid "Next Page"
 msgstr "Következő oldal"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "Következő hét"
@@ -10009,7 +10147,7 @@ msgid "No Color"
 msgstr "Szín nélkül"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "Dátum nélkül"
@@ -12529,6 +12667,18 @@ msgstr "Automatikus válaszolvasás a szerverről…"
 msgid "Real name"
 msgstr "Valódi név"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Érkezés ideje"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "Az Érkezés ideje egy vagy két napot vár (ÉÉÉÉ-HH-NN), a korábbit elöl."
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -12580,6 +12730,12 @@ msgstr "Legutóbbi levelek"
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
 msgstr "A friss levelek ezen a telefonon maradnak, a régebbiek a levelezőszerveren. A szerverről semmi sem törlődik."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "A címzett tartalmazza"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -12942,6 +13098,12 @@ msgstr "Cím eltávolítása"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Feltétel eltávolítása"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "A kivétel eltávolítása"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -14538,6 +14700,12 @@ msgstr "Küldés…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr "Elküldi a jelentést a MailCraft csapatnak, ahogy az ablak mutatja."
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "A bizalmasság értéke"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -14555,6 +14723,12 @@ msgstr "Elküldött elemek"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "A képek a webcímükről származnak, és a címzettek programjai döntik el, hogy betöltik-e őket. Az Ön által írt üzenet az aláírás egyszerűbb másolatát mutatja; ha ott szerkeszti, akkor azt helyette küldik el."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "Csak nekem küldték"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14657,6 +14831,18 @@ msgstr "Beállítások"
 #, fuzzy
 msgid "Settings…"
 msgstr "Beállítások…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Több cím: válassza el őket pontosvesszővel (;). Bármelyik elég."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Több szöveg: válassza el őket pontosvesszővel (;). Bármelyik elég."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14871,6 +15057,12 @@ msgstr "Feladatok megjelenítése"
 #, fuzzy
 msgid "Show Training"
 msgstr "Képzés megjelenítése"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "Asztali értesítés megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -15414,6 +15606,18 @@ msgstr "Egysoros"
 msgid "Size"
 msgstr "Méret"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "A méret a következők között van"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "A méret feltételhez két méret kell KB-ban, a kisebbet elöl."
+
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -15797,6 +16001,12 @@ msgstr "Tárgy"
 #, fuzzy
 msgid "Subject contains"
 msgstr "A tárgy tartalmazza"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "A tárgy vagy az üzenettörzs tartalmazza"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -17466,6 +17676,12 @@ msgstr "A riport nem működik, próbáld meg később, vagy nyisd ki GitHub-on.
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "A jelentés nem MailCraft által értett válasz volt, tehát a jelentés talán megérkezett. Próbálja meg később, vagy nyissa ki a GitHub."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "A szabályok nem nyúlnak a megosztott postafiók leveleihez: annak saját szabályai vannak."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -18155,8 +18371,8 @@ msgstr "A GitHub-on található fájlba mentjük őket, amit a GitHub-on lévő 
 msgid "They share {what}."
 msgstr "Ezt osztják meg: {what}."
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Ez a hét"
@@ -21134,8 +21350,8 @@ msgstr "a válasz lehet {most} karakterek hosszú legfeljebb"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "Egy szabály nem tudja átvinni a postát egy Outbox-ba: az elküldené."
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "szabály nem helyezhet át és nem másolhat levelet a Postázandó üzenetek mappába: azzal elküldené"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21425,6 +21641,12 @@ msgstr "nem érhető el ez a kiszolgáló: {host}. Ok: {reason}"
 msgid "day"
 msgstr "nap"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "esedékes"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
 #, fuzzy
@@ -21649,6 +21871,12 @@ msgstr "a lehetőségek, aláírások vagy szabályok megváltoztatása"
 msgid "it clicks or types in the window"
 msgstr "kattint vagy beírja az ablakba"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "egynél több mappába másol levelet"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -21672,6 +21900,12 @@ msgstr "a következő kapcsolatnál a kiszolgálóhoz kerül"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "kétféle feltétel van, és a szerver mindkettő helyett mindkettőt elvenné."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "két azonos fajtájú, de mást kereső kivétele van, a kiszolgáló pedig csak egyet fogad el"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -22259,6 +22493,12 @@ msgstr "csak a saját naptárakat lehet beletenni egy üzenetet"
 msgid "optional"
 msgstr "nem kötelező"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "vagy"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22354,6 +22594,34 @@ msgstr "először válasszon egy feladatot"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "először kijelöl egy időpontot"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "Bizalmas"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "Normál"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "Személyes"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Magánjellegű"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -22765,6 +23033,24 @@ msgstr "a mappa már üres"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "a mappa, ahová levelet másol, egy másik fiókban van"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "a mappa, ahová levelet másol, ezen a számítógépen van"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "a mappa, ahová levelet másol, nincs a kiszolgálón"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it moves mail to is in another account"
 msgstr "a mappába, ahová a leveleket mozgatja, egy másik fiókban van"
 
@@ -23021,6 +23307,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "a feladónak nincs használható e-mail-címe"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "a feladó címe hosszabb annál, amit egy szabály keres ({n} karakter)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
@@ -23077,14 +23369,50 @@ msgstr "a kiszolgáló többet kért, mint a parancs"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "a kiszolgáló nem tud jelölőt törölni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "a kiszolgáló nem tud kategóriákat törölni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "a szerver nem tudja megjelölni a postacímet"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "a kiszolgáló nem tudja ebben a sorrendben tárolni a szabályokat: egy általa nem módosítható szabály nem hagy nekik szabad helyet"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "a kiszolgáló nem tudja figyelni, melyik napon érkezett a levél"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "a kiszolgáló nem tudja figyelni, hogy megjelölte-e a levelet"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "a szerver nem távolíthat el egyetlen üzenetet sem (UIDPLUS-t nem kínál)"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "a kiszolgáló nem tud asztali értesítést megjeleníteni"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -25014,7 +25342,7 @@ msgstr[0] "{n} üzenet archiválva"
 msgstr[1] "{n} üzenet archiválva"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -25076,14 +25404,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} üzenet már itt van, ezért kimaradt"
 msgstr[1] "{n} üzenet már itt van, ezért kimaradt"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} üzenet felel meg a keresésnek"
-msgstr[1] "{n} üzenet felel meg a keresésnek"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
@@ -25860,6 +26180,26 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "A hozzá tartozó {n} helyi szabály is törlődik. A kiszolgálón tárolt szabályok megmaradnak."
+#~ msgstr[1] "A hozzá tartozó {n} helyi szabály is törlődik. A kiszolgálón tárolt szabályok megmaradnak."
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "Új posta A Gmail figyelmeztetés nélkül érkezik a Social, Promóciók, Frissítések vagy Fórumokba."
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "Egy szabály nem tudja átvinni a postát egy Outbox-ba: az elküldené."
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} üzenet felel meg a keresésnek"
+#~ msgstr[1] "{n} üzenet felel meg a keresésnek"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

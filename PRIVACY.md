@@ -130,8 +130,12 @@ computer, for you, and for nothing else:
   done go to your own Microsoft account and come back from it, and nowhere else. Once it is given, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
 - changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
   a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
-  phone: the rule's name, the words it looks for and what it does go to your own Microsoft account and
-  nowhere else;
+  phone: the rule's name, what it looks for (words, people's addresses, a size,
+  categories, an importance, a sensitivity, whether the mail has an attachment, is a meeting invitation
+  or an automatic reply, and whether it was sent to you, to you alone, with you in To or Cc, or
+  without you in To; and its
+  exceptions, of the same kinds) and what it does (with the folder it moves or copies mail to) go to
+  your own Microsoft account and nowhere else;
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
 - reading and changing the mail of shared mailboxes you have been given access to (`Mail.ReadWrite.Shared`);
   nothing of a shared mailbox is read until you open it;
