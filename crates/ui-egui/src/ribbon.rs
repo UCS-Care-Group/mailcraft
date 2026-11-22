@@ -718,6 +718,7 @@ fn home_people(app: &MailApp) -> Tab {
         "New",
         vec![
             Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
+            Item::big("folderNew", "New Contact\nFolder", "people.newFolder", no()).at(0, 3),
             Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
         ],
     );

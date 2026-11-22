@@ -341,7 +341,7 @@ impl std::ops::Deref for PeopleList {
 /// The layout kept between frames, with what it was made from.
 #[derive(Clone)]
 struct CachedLayout {
-    key: (u64, usize, String, PeopleSort, AccountChoice),
+    key: (u64, usize, String, PeopleSort, AccountChoice, Option<Id>),
     list: Arc<PeopleList>,
 }
 
@@ -352,7 +352,8 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
     let s = &app.session;
     let query = &s.view.people_search;
     let shown = people::shown_account(s);
-    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown);
+    let folder = people::shown_folder(s);
+    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown, folder);
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
         return cached.list;
     }
@@ -369,7 +370,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }
     };
-    let total = s.mailbox.contacts.values().filter(|c| shown.shows(&c.origin)).count();
+    let total = s.mailbox.contacts.values().filter(|c| shown.shows(&c.origin) && folder.is_none_or(|f| c.folder == f)).count();
     let list = Arc::new(PeopleList { layout, names, total });
     ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, list: list.clone() }));
     list
@@ -570,7 +571,16 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     };
     let header = Rect::from_min_size(ui.cursor().min, vec2(ui.available_width(), 34.0));
     crate::chrome::pane_title(ui, tl!("People"), &count);
-    // New Contact, at the right of the heading.
+    // New Contact Folder and New Contact, at the right of the heading.
+    let folder_btn = Rect::from_center_size(pos2(header.max.x - 48.0, header.center().y), vec2(26.0, 24.0));
+    let folder_resp = ui.interact(folder_btn, ui.scope_id().with("people_new_folder"), Sense::click());
+    if folder_resp.hovered() {
+        ui.painter().rect_filled(folder_btn, 4.0, if folder_resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+    }
+    icons::paint(ui.painter(), Rect::from_center_size(folder_btn.center(), vec2(16.0, 16.0)), "folderNew", t.icon, t.accent);
+    if folder_resp.on_hover_text(tl!("New Contact Folder")).clicked() {
+        let _ = app.run("people.newFolder", json!({}));
+    }
     let button = Rect::from_center_size(pos2(header.max.x - 20.0, header.center().y), vec2(26.0, 24.0));
     let resp = ui.interact(button, ui.scope_id().with("people_new"), Sense::click());
     if resp.hovered() {
@@ -720,6 +730,18 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         mi(ui, app, "Edit", "people.edit", json!({}));
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
+        let folders: Vec<(Id, String)> =
+            app.session.mailbox.contact_folders_sorted().into_iter().map(|f| (f.id, app.session.mailbox.contact_folder_path(f.id))).collect();
+        if !folders.is_empty() {
+            let current_folder = app.session.mailbox.contact(id).map_or(0, |c| c.folder);
+            ui.menu_button(tl!("Move to Folder"), |ui| {
+                widgets::mi_check(ui, app, tl!("Contacts (default)"), current_folder == 0, "people.move", json!({"id": id, "folder": 0}));
+                ui.separator();
+                for (fid, path) in &folders {
+                    widgets::mi_check(ui, app, path, current_folder == *fid, "people.move", json!({"id": id, "folder": fid}));
+                }
+            });
+        }
         ui.menu_button(tl!("Categorize"), |ui| {
             let contact = app.session.mailbox.contact(id);
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());

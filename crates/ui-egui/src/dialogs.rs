@@ -23,6 +23,12 @@ pub enum FolderMode {
     Rename { id: Id },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ContactFolderMode {
+    New { parent: Option<Id> },
+    Rename { id: Id },
+}
+
 pub enum Dialog {
     /// Search every command by name and run one.
     Commands {
@@ -31,6 +37,11 @@ pub enum Dialog {
     },
     Folder {
         mode: FolderMode,
+        name: String,
+        error: String,
+    },
+    ContactFolder {
+        mode: ContactFolderMode,
         name: String,
         error: String,
     },
@@ -287,6 +298,7 @@ impl Dialog {
         match self {
             Dialog::Commands { .. } => "commands",
             Dialog::Folder { .. } => "folder",
+            Dialog::ContactFolder { .. } => "contactFolder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::MoveItems(d) => d.name(),
             Dialog::AddReminder(d) => d.name(),
@@ -361,6 +373,20 @@ impl Dialog {
                         _ => id("parent").or(Some(app.session.view.folder)).filter(|p| app.session.mailbox.folder(*p).is_some()),
                     };
                     Dialog::Folder { mode: FolderMode::New { parent }, name: String::new(), error: String::new() }
+                }
+            }
+            "contactFolder" => {
+                let rename = params.get("mode").and_then(Value::as_str) == Some("rename");
+                if rename {
+                    let fid = id("id").or_else(|| mailcraft_engine::cmd::people::shown_folder(&app.session))?;
+                    let f = app.session.mailbox.contact_folder(fid)?;
+                    Dialog::ContactFolder { mode: ContactFolderMode::Rename { id: f.id }, name: f.name.clone(), error: String::new() }
+                } else {
+                    let parent = match params.get("parent") {
+                        Some(Value::Null) => None,
+                        _ => id("parent").filter(|p| app.session.mailbox.contact_folder(*p).is_some()),
+                    };
+                    Dialog::ContactFolder { mode: ContactFolderMode::New { parent }, name: String::new(), error: String::new() }
                 }
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
@@ -598,6 +624,13 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 crate::i18n::fmt(tl!("\"{name}\" will be permanently deleted."), &[("name", name)])
             };
             question(tl!("Delete Contact"), format!("{what} {}", tl!("Contacts don't go to Deleted Items.")), tl!("Delete"))
+        }
+        "people.deleteFolder" => {
+            let fid = mailcraft_engine::p::id_strict(params, "id").ok()?.or_else(|| mailcraft_engine::cmd::people::shown_folder(&app.session))?;
+            let f = mb.contact_folder(fid)?;
+            let text =
+                crate::i18n::fmt(tl!("The contact folder \"{name}\" will be deleted. Its contacts will stay in All contacts."), &[("name", &f.name)]);
+            question(tl!("Delete Contact Folder"), text, tl!("Delete"))
         }
         "folder.empty" => {
             let f = folder("id")?;
@@ -2078,6 +2111,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.search" if !has("query") => Some("searchCalendar"),
         "people.new" if empty => Some("contact"),
         "people.edit" if empty => Some("editContact"),
+        "people.newFolder" if !has("name") => Some("contactFolder"),
+        "people.renameFolder" if !has("name") => Some("contactFolder"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
         "people.merge" if !has("keep") => Some("mergeContacts"),
         "tasks.new" if !has("title") => Some("task"),
@@ -2430,6 +2465,38 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 let r = match mode {
                     FolderMode::New { parent } => app.execute("folder.new", json!({"name": name, "parent": parent})),
                     FolderMode::Rename { id } => app.execute("folder.rename", json!({"id": id, "name": name})),
+                };
+                match r {
+                    Ok(_) => close = true,
+                    Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::ContactFolder { mode, name, error } => {
+            let title = if matches!(mode, ContactFolderMode::New { .. }) { tl!("New Contact Folder") } else { tl!("Rename Contact Folder") };
+            let mut submit = false;
+            let open = window(ctx, title, 380.0, |ui| {
+                if let ContactFolderMode::New { parent: Some(p) } = mode {
+                    let place = app.session.mailbox.contact_folder_path(*p);
+                    ui.label(egui::RichText::new(crate::i18n::fmt(tl!("In {place}"), &[("place", &place)])).color(t.text_dim));
+                }
+                let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Contact folder name")).desired_width(f32::INFINITY));
+                let resp = crate::text_menu::field(resp);
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("OK"), !name.trim().is_empty());
+                submit = ok || (enter && !name.trim().is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                let r = match mode {
+                    ContactFolderMode::New { parent } => app.execute("people.newFolder", json!({"name": name, "parent": parent})),
+                    ContactFolderMode::Rename { id } => app.execute("people.renameFolder", json!({"id": id, "name": name})),
                 };
                 match r {
                     Ok(_) => close = true,

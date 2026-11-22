@@ -287,15 +287,23 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
     let mailbox = &app.session.mailbox;
     let accounts = people::contact_accounts(mailbox);
     let lists = people::address_lists(mailbox);
-    if accounts.is_empty() && lists.is_empty() {
+    let folders: Vec<(Id, String)> = mailbox.contact_folders_sorted().into_iter().map(|f| (f.id, mailbox.contact_folder_path(f.id))).collect();
+    if accounts.is_empty() && lists.is_empty() && folders.is_empty() {
         return;
     }
     #[derive(Clone, Copy, PartialEq)]
     enum Book {
         Contacts(AccountChoice),
         List(Id),
+        /// A first-class contact folder (`ContactFolder::id`).
+        Folder(Id),
     }
     let label = |book: Book| match book {
+        Book::Folder(id) => {
+            let path = folders.iter().find(|(fid, _)| *fid == id).map_or("", |(_, p)| p.as_str());
+            crate::i18n::fmt(tl!("Contact folder · {folder}"), &[("folder", path)])
+        }
+        Book::Contacts(_) if accounts.is_empty() && !folders.is_empty() => tl!("All contacts").to_string(),
         Book::Contacts(_) if accounts.is_empty() => tl!("Contacts").to_string(),
         Book::Contacts(AccountChoice::All) => tl!("All accounts").to_string(),
         Book::Contacts(AccountChoice::Here) => widgets::place_name(mailbox, 0),
@@ -304,7 +312,10 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
     };
     let current = match people::shown_book(&app.session) {
         Some(account) => Book::List(account),
-        None => Book::Contacts(people::shown_account(&app.session)),
+        None => match people::shown_folder(&app.session) {
+            Some(id) => Book::Folder(id),
+            None => Book::Contacts(people::shown_account(&app.session)),
+        },
     };
     let contacts: Vec<Book> = if accounts.is_empty() {
         vec![Book::Contacts(AccountChoice::All)]
@@ -316,25 +327,56 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
             .collect()
     };
     let mut picked = None;
+    let mut new_folder = false;
+    let mut rename_folder: Option<Id> = None;
+    let mut delete_folder: Option<Id> = None;
+    let active_folder = match current {
+        Book::Folder(id) => Some(id),
+        _ => None,
+    };
     ui.add_space(2.0);
     ui.horizontal(|ui| {
         ui.add_space(10.0);
-        let width = (ui.available_width() - 10.0).max(60.0);
+        let actions_w = if active_folder.is_some() { 52.0 } else { 0.0 };
+        let width = (ui.available_width() - 10.0 - actions_w).max(60.0);
         egui::ComboBox::from_id_salt("people_book").width(width).selected_text(label(current)).truncate().show_ui(ui, |ui| {
-            for book in contacts.iter().copied().chain(lists.iter().copied().map(Book::List)) {
+            for book in contacts.iter().copied().chain(folders.iter().map(|(id, _)| Book::Folder(*id))).chain(lists.iter().copied().map(Book::List)) {
                 if ui.selectable_label(book == current, label(book)).clicked() {
                     picked = Some(book);
                 }
             }
+            ui.separator();
+            if ui.selectable_label(false, tl!("New Contact Folder…")).clicked() {
+                new_folder = true;
+            }
         });
+        if let Some(id) = active_folder {
+            if widgets::icon_button(ui, "edit", tl!("Rename Contact Folder"), 14.0, true).clicked() {
+                rename_folder = Some(id);
+            }
+            if widgets::icon_button(ui, "delete", tl!("Delete Contact Folder"), 14.0, true).clicked() {
+                delete_folder = Some(id);
+            }
+        }
     });
     ui.add_space(8.0);
-    match picked.filter(|book| *book != current) {
-        Some(Book::Contacts(choice)) => {
-            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
+    if new_folder {
+        let _ = app.run("people.newFolder", json!({}));
+    } else if let Some(id) = rename_folder {
+        let _ = app.run("people.renameFolder", json!({"id": id}));
+    } else if let Some(id) = delete_folder {
+        let _ = app.run("people.deleteFolder", json!({"id": id}));
+    } else {
+        match picked.filter(|book| *book != current) {
+            Some(Book::Contacts(choice)) => {
+                let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
+            }
+            Some(Book::List(account)) => choose_address_list(app, account),
+            Some(Book::Folder(id)) => {
+                let _ = app.run("view.peopleFolder", json!({"value": id}));
+            }
+            None => {}
         }
-        Some(Book::List(account)) => choose_address_list(app, account),
-        None => {}
     }
 }
 

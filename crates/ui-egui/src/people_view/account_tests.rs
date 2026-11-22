@@ -100,7 +100,9 @@ fn without_an_account_that_keeps_contacts_nothing_changes() {
     w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
     w.state_mut().execute("people.select", json!({"id": ours})).unwrap();
     w.run();
-    assert_eq!(w.query_all_by_role(Role::ComboBox).count(), 0);
+    // No account to choose; the contact folders alone, when there are any.
+    let books = !w.state().session.mailbox.contact_folders.is_empty();
+    assert_eq!(w.query_all_by_role(Role::ComboBox).count(), usize::from(books));
     assert!(!labelled(w.state()));
     assert_eq!(kept_in(w.state(), w.state().session.mailbox.contact(ours).unwrap()), None);
 }

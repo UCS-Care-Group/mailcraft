@@ -674,6 +674,11 @@ msgstr "A postafiókád mellett van egy jelentés."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A rule kept on the server can't be changed here: delete it and make it again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs a name, and something to look for."
 msgstr "Egy szabálynak kell egy név, és valami, amit keresnünk kell."
@@ -1329,6 +1334,11 @@ msgstr "Minden postafiók"
 #, fuzzy
 msgid "All accounts"
 msgstr "Minden fiók"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "All contacts"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -3050,6 +3060,11 @@ msgstr "Automatikus válasz módosítása"
 msgid "Change Recurring Item"
 msgstr "A visszatérő elem módosítása"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+msgid "Change Rule"
+msgstr ""
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3087,6 +3102,11 @@ msgid "Change email address"
 msgstr "e-mail cím módosítása"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change rule"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3109,6 +3129,11 @@ msgstr "A fiók nevének, kiszolgálóinak és bejelentkezési adatainak módos�
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "A fiók nevének, bejelentkezési módjának és a kapcsolat nélkül elérhető levelek beállításainak módosítása"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change this rule"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3759,16 +3784,36 @@ msgid "Contact Card"
 msgstr "Kapcsolattartó kártya"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Contact folder name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "Contact folder · {folder}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "Névjegyek"
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "Contacts (default)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "A kontaktusok nem mennek a törölt tárgyakhoz."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Contacts on this computer"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
@@ -4450,6 +4495,11 @@ msgstr "Kategória törlése"
 #, fuzzy
 msgid "Delete Contact"
 msgstr "Kapcsolat törlése"
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Delete Contact Folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5974,7 +6024,7 @@ msgid "Fold the calendars of this group away"
 msgstr "A csoport naptárainak összecsukása"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Mappa"
@@ -6033,8 +6083,8 @@ msgstr "A mappa neve"
 msgid "Folder {folder} ({n} of {of})"
 msgstr "{folder} mappa ({of} {n})"
 
-#. name
-#: crates/model/src/sync/progress.rs
+#. name, ribbon location
+#: crates/engine/src/cmd/people.rs crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Folders"
 msgstr "Mappák"
@@ -8375,6 +8425,11 @@ msgstr "Listanaptár"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+msgid "List Contact Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "List Contacts"
 msgstr "Listakapcsolatok"
@@ -9145,6 +9200,11 @@ msgstr "Megjelölés olvasottként"
 msgid "Mark as Unread"
 msgstr "Megjelölés olvasatlanként"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Mark as junk"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -9637,6 +9697,11 @@ msgstr "Fiók áthelyezése"
 msgid "Move All and Send Invitations"
 msgstr "Mozgás és meghívók küldése"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Move Contact to Folder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -9758,7 +9823,7 @@ msgid "Move to Category"
 msgstr "Átköltözés a kategóriába"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "Áthelyezés mappába"
@@ -10104,6 +10169,23 @@ msgstr "Új kategória"
 #, fuzzy
 msgid "New Contact"
 msgstr "Új névjegy"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"New Contact\n"
+"Folder"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/people_view.rs
+msgid "New Contact Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "New Contact Folder…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -13359,6 +13441,11 @@ msgid "Rename Category"
 msgstr "Átnevezés kategória"
 
 #. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Rename Contact Folder"
+msgstr ""
+
+#. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Rename Folder"
@@ -13993,6 +14080,11 @@ msgstr "Üzenet mentése másként…"
 #, fuzzy
 msgid "Save Message File As"
 msgstr "Üzenetfájl mentése"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Save Rule"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -14831,6 +14923,16 @@ msgstr "Képek küldése"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+msgid "Sender is in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender isn't in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Sender's address contains"
 msgstr "A feladó címe tartalmazza"
@@ -15170,6 +15272,11 @@ msgstr "Megjelenítés állapota"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Naptár megjelenítése"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contact Folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -17246,6 +17353,11 @@ msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a szá
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
 msgstr "A kapcsolatteszt csak azt ellenőrzi, hogy a szerver válaszol-e. Ha mégis bejelentkezést kér, az első elküldött levélnél kiderül."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The contact folder \"{name}\" will be deleted. Its contacts will stay in All contacts."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -21593,6 +21705,11 @@ msgid "a colour is written #rrggbb"
 msgstr "A szín #rggbb"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a contact folder needs a name"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "a contact needs a name, a company or an e-mail address"
@@ -22031,6 +22148,11 @@ msgstr "nem sikerült biztonságos kapcsolatot létesíteni ezzel a kiszolgáló
 msgid "couldn't reach {host}: {reason}"
 msgstr "nem érhető el ez a kiszolgáló: {host}. Ok: {reason}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "create a contact folder first"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -22347,6 +22469,16 @@ msgstr "Keres egy nevet, és a szerver csak a címeket nézi."
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "it looks in the address book, which only this computer has"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it marks mail as junk, which the server's rules can't do"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
 msgstr "több mappába is áthelyezi a leveleket"
@@ -22554,6 +22686,11 @@ msgstr "cím szerint nem nyitottak meg naptárt"
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "nincs ilyen azonosítójú naptár: {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "no contact folder with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -24254,6 +24391,11 @@ msgid "there are too many categories"
 msgstr "Túl sok a kategória."
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "there are too many contact folders"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "there are too many rules"
@@ -24522,6 +24664,11 @@ msgstr "Ez az üzenet már a Snoozed mappában van."
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "Ez az üzenet nincs letöltve: nyissa meg, ha már online van, majd küldje el újra"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule is kept on the server: delete it and make it again to change it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

@@ -154,3 +154,10 @@ fn hostile_text_goes_through_without_harm() {
     assert!(s.mailbox.contact(id).unwrap().first.chars().count() <= 300);
     assert!(label_text(&junk).chars().count() <= 41);
 }
+
+#[test]
+fn new_contact_prefills_folder_when_given() {
+    let f = ContactForm::new(&json!({"folder": 42}));
+    assert_eq!(f.folder, 42);
+    assert_eq!(f.command(), ("people.new", json!({"folder": 42})));
+}

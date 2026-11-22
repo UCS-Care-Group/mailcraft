@@ -2368,11 +2368,11 @@ impl MailApp {
             // in view: the folder dialog opens as New Folder unless it is told to rename (the folder
             // pane's own Rename Folder… says so already).
             let asked = match (id, params.clone()) {
-                ("folder.rename", Value::Object(mut map)) => {
+                ("folder.rename" | "people.renameFolder", Value::Object(mut map)) => {
                     map.insert("mode".into(), json!("rename"));
                     Value::Object(map)
                 }
-                ("folder.rename", Value::Null) => json!({"mode": "rename"}),
+                ("folder.rename" | "people.renameFolder", Value::Null) => json!({"mode": "rename"}),
                 (_, asked) => asked,
             };
             let dialog = dialogs::open_dialog(self, name, &asked);

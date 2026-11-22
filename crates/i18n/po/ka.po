@@ -668,6 +668,11 @@ msgstr "მოხსენება თქვენი საფოსტო ყ
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A rule kept on the server can't be changed here: delete it and make it again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs a name, and something to look for."
 msgstr "წესს სჭირდება სახელი და საძიებელი რამ."
@@ -1324,6 +1329,11 @@ msgstr "ყველა საფოსტო ყუთი"
 #, fuzzy
 msgid "All accounts"
 msgstr "ყველა ანგარიში"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "All contacts"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -3040,6 +3050,11 @@ msgstr "ავტომატური პასუხების შეცვ�
 msgid "Change Recurring Item"
 msgstr "განმეორებადი ელემენტის შეცვლა"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+msgid "Change Rule"
+msgstr ""
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3077,6 +3092,11 @@ msgid "Change email address"
 msgstr "ელფოსტის მისამართის შეცვლა"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change rule"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3099,6 +3119,11 @@ msgstr "ამ ანგარიშის სახელის, სერვ�
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "ამ ანგარიშის სახელის, შესვლისა და ოფლაინ შესანახი ფოსტის შეცვლა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change this rule"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3749,16 +3774,36 @@ msgid "Contact Card"
 msgstr "საკონტაქტო ბარათი"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Contact folder name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "Contact folder · {folder}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "კონტაქტები"
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "Contacts (default)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "კონტაქტები წაშლილებში არ გადადის."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Contacts on this computer"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
@@ -4442,6 +4487,11 @@ msgstr "კატეგორიის წაშლა"
 #, fuzzy
 msgid "Delete Contact"
 msgstr "კონტაქტის წაშლა"
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Delete Contact Folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5967,7 +6017,7 @@ msgid "Fold the calendars of this group away"
 msgstr "ამ ჯგუფის კალენდრების აკეცვა"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "საქაღალდე"
@@ -6028,8 +6078,8 @@ msgstr "საქაღალდის სახელი"
 msgid "Folder {folder} ({n} of {of})"
 msgstr "საქაღალდე {folder} ({n} / {of})"
 
-#. name
-#: crates/model/src/sync/progress.rs
+#. name, ribbon location
+#: crates/engine/src/cmd/people.rs crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Folders"
 msgstr "საქაღალდეები"
@@ -8357,6 +8407,11 @@ msgstr "კალენდრების ჩამოთვლა"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+msgid "List Contact Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "List Contacts"
 msgstr "კონტაქტების ჩამოთვლა"
@@ -9125,6 +9180,11 @@ msgstr "წაკითხულად მონიშვნა"
 msgid "Mark as Unread"
 msgstr "წაუკითხავად მონიშვნა"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Mark as junk"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -9617,6 +9677,11 @@ msgstr "ანგარიშის გადატანა"
 msgid "Move All and Send Invitations"
 msgstr "ყველას გადატანა და მოწვევების გაგზავნა"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Move Contact to Folder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -9738,7 +9803,7 @@ msgid "Move to Category"
 msgstr "კატეგორიაში გადატანა"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "საქაღალდეში გადატანა"
@@ -10083,6 +10148,23 @@ msgstr "ახალი კატეგორია"
 #, fuzzy
 msgid "New Contact"
 msgstr "ახალი კონტაქტი"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"New Contact\n"
+"Folder"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/people_view.rs
+msgid "New Contact Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "New Contact Folder…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -13319,6 +13401,11 @@ msgid "Rename Category"
 msgstr "კატეგორიის სახელის შეცვლა"
 
 #. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Rename Contact Folder"
+msgstr ""
+
+#. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Rename Folder"
@@ -13945,6 +14032,11 @@ msgstr "წერილის შენახვა როგორც…"
 #, fuzzy
 msgid "Save Message File As"
 msgstr "წერილის ფაილის შენახვა როგორც"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Save Rule"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -14784,6 +14876,16 @@ msgstr "გამგზავნის სურათები"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+msgid "Sender is in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender isn't in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Sender's address contains"
 msgstr "გამგზავნის მისამართი შეიცავს"
@@ -15117,6 +15219,11 @@ msgstr "ჩვენება როგორც"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "კალენდრის ჩვენება"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contact Folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -17184,6 +17291,11 @@ msgstr "სერტიფიკატი ისეთმა სერტიფ�
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
 msgstr "კავშირის შემოწმება მხოლოდ იმას ამოწმებს, პასუხობს თუ არა ეს სერვერი. თუ მას მაინც სჭირდება შესვლა, ამას პირველი წერილის გაგზავნისას გაიგებთ."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The contact folder \"{name}\" will be deleted. Its contacts will stay in All contacts."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -21521,6 +21633,11 @@ msgid "a colour is written #rrggbb"
 msgstr "ფერი იწერება ასე: #rrggbb"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a contact folder needs a name"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "a contact needs a name, a company or an e-mail address"
@@ -21955,6 +22072,11 @@ msgstr "სერვერთან {host} უსაფრთხო კავშ
 msgid "couldn't reach {host}: {reason}"
 msgstr "სერვერთან {host} დაკავშირება ვერ მოხერხდა: {reason}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "create a contact folder first"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -22271,6 +22393,16 @@ msgstr "ეძებს სახელს, სერვერი კი მხ�
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "it looks in the address book, which only this computer has"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it marks mail as junk, which the server's rules can't do"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
 msgstr "ფოსტა ერთზე მეტ საქაღალდეში გადააქვს"
@@ -22478,6 +22610,11 @@ msgstr "მისამართით არცერთი კალენდ�
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "კალენდარი id-ით {id} არ არსებობს"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "no contact folder with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -24176,6 +24313,11 @@ msgid "there are too many categories"
 msgstr "ზედმეტად ბევრი კატეგორიაა"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "there are too many contact folders"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "there are too many rules"
@@ -24441,6 +24583,11 @@ msgstr "ეს წერილი უკვე გადადებულებ
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "ეს წერილი არ ჩამოტვირთულა: გახსენით, როცა ონლაინ იქნებით, შემდეგ ხელახლა გაგზავნეთ"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule is kept on the server: delete it and make it again to change it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
