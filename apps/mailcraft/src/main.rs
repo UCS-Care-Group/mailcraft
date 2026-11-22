@@ -722,7 +722,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     // and that is what is said.
     let no_browser = AtomicBool::new(false);
     let open = |url: &str| {
-        if !open_page(url) {
+        // (What the log is told: that the page was asked for and how that went; never its address,
+        // which names the client and the owner.)
+        log::info!("sign-in: asking the browser to open the provider's page");
+        if open_page(url) {
+            log::info!("sign-in: the browser took the page; waiting for it to come back to this computer");
+        } else {
+            log::warn!("sign-in: no browser could be started for the provider's page");
             no_browser.store(true, Ordering::Relaxed);
             request.cancel.store(true, Ordering::Relaxed);
         }
@@ -791,6 +797,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         return on_the_page(&Endpoints::for_resource(&request.oauth, resource));
     }
     if !request.refresh.is_empty() {
+        log::info!("sign-in: renewing with the refresh token");
         let refreshed = if request.oauth.provider == mailcraft_model::OAuthProvider::Google {
             mailcraft_net::oauth::refresh_google_at(&Endpoints::of(&request.oauth), &request.oauth, &request.client_secret, &request.refresh)
         } else if request.oauth.provider == mailcraft_model::OAuthProvider::Custom {
@@ -798,6 +805,12 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         } else {
             mailcraft_net::oauth::refresh(&request.oauth, &request.refresh)
         };
+        match &refreshed {
+            Ok(_) => log::info!("sign-in: renewed"),
+            Err(e) if e.is_refused_sign_in() => log::info!("sign-in: the provider refused the renewal; its page is next if the owner asked"),
+            Err(e) if e.is_unreachable() => log::info!("sign-in: the provider couldn't be reached for the renewal"),
+            Err(_) => log::info!("sign-in: the renewal failed"),
+        }
         match refreshed {
             Ok(tokens) => return Ok(tokens),
             // The machine-readable invalid_grant response confirms this Google refresh
