@@ -238,6 +238,7 @@ pub(crate) fn holds_a_field(menu: Menu) -> bool {
         | Menu::FilterTasks
         | Menu::Signature
         | Menu::ReadingPane
+        | Menu::TasksCalendarBar
         | Menu::GmailCategories
         | Menu::NavigationBar
         | Menu::Preview
