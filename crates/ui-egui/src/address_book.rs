@@ -60,6 +60,8 @@ pub(crate) struct HeldList {
     keys: Vec<String>,
     /// Why the last download failed.
     pub(crate) error: Option<String>,
+    /// What kept it from asking, said in `error`: once that has gone, it asks again at once.
+    blocked: Option<Blocked>,
     /// It failed for a reason the server's answer gives, which a minute doesn't change: it is
     /// tried again a day later.
     lasting: bool,
@@ -293,6 +295,10 @@ impl MailApp {
         let due = match self.address_lists.iter().find(|h| h.account == account) {
             None => true,
             Some(h) if h.pending.is_some() => false,
+            Some(h) if h.blocked.is_some() => match h.blocked {
+                Some(Blocked::Offline) => true,
+                _ => self.ews_secret(account).is_some(),
+            },
             Some(h) if h.list.is_some() && h.error.is_none() => now - h.at_ms >= REFRESH_MS,
             Some(h) if h.lasting => now - h.at_ms >= REFRESH_MS,
             Some(h) => now - h.at_ms >= RETRY_MS,
@@ -306,7 +312,8 @@ impl MailApp {
         let started = ews_address_list_request(&self.session, account)
             .map(|request| EwsResolveRequest { address_list_held: have, ..request })
             .map_err(|e| tl!(&e.to_string()).to_string())
-            .and_then(|r| self.start_job(r, "").map_err(|(error, _)| error));
+            .map_err(|error| (error, None))
+            .and_then(|r| self.start_job(r, ""));
         if !self.address_lists.iter().any(|h| h.account == account) {
             let server = server_of(&self.session, account);
             self.address_lists.push(HeldList {
@@ -316,6 +323,7 @@ impl MailApp {
                 list: None,
                 keys: Vec::new(),
                 error: None,
+                blocked: None,
                 lasting: false,
                 pending: None,
                 at_ms: now,
@@ -324,9 +332,15 @@ impl MailApp {
         }
         let Some(held) = self.address_lists.iter_mut().find(|h| h.account == account) else { return };
         held.at_ms = now;
+        held.blocked = None;
         match started {
             Ok(pending) => held.pending = Some(pending),
-            Err(error) => held.error = Some(error),
+            // What goes by itself (no password yet) is not a failure to wait a minute out: once
+            // it has gone, the list is asked for at once.
+            Err((error, blocked)) => {
+                held.error = Some(error);
+                held.blocked = blocked;
+            }
         }
     }
 

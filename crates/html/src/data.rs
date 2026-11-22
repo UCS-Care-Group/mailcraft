@@ -66,6 +66,29 @@ pub(crate) fn is_data(src: &str) -> bool {
 /// of the four, never its content), and its bytes when it is shown: decoded within `budget`
 /// when `decode`, and a PNG, JPEG, GIF or WebP by its own bytes.
 pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, Option<Picture>) {
+    let (kept, _, picture) = picture_taken(src, decode, budget);
+    (kept, picture)
+}
+
+/// [`picture`], and whether `budget` took it (as it does when it is decoded, and as it is
+/// counted when it isn't, `decode` false and `count` true): what a reading that decodes nothing
+/// and one that does agree on.
+pub(crate) fn picture_taken(src: &str, decode: bool, budget: &mut Budget) -> (String, bool, Option<Picture>) {
+    let (kept, taken) = admit(src, decode, budget);
+    let Some((text, size)) = taken.filter(|_| decode) else { return (kept, taken.is_some(), None) };
+    let data = base64(text, size).filter(|bytes| is_picture(bytes)).map(|bytes| Picture(Arc::new(bytes)));
+    (kept, true, data)
+}
+
+/// [`picture_taken`] counting what `budget` takes, decoding nothing.
+pub(crate) fn counted(src: &str, budget: &mut Budget) -> (String, bool) {
+    let (kept, taken) = admit(src, true, budget);
+    (kept, taken.is_some())
+}
+
+/// The address kept of a picture written into the message, and its base64 text and size when
+/// `budget` takes it (and is spent by it); never when not `decode`.
+fn admit<'s>(src: &'s str, decode: bool, budget: &mut Budget) -> (String, Option<(&'s str, usize)>) {
     let Some((head, text)) = src.trim_start().split_once(',') else { return ("data:".into(), None) };
     let head: String = head.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let head = head.trim();
@@ -89,8 +112,7 @@ pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, 
     }
     budget.pictures += 1;
     budget.bytes = budget.bytes.saturating_add(size);
-    let data = base64(text, size).filter(|bytes| is_picture(bytes)).map(|bytes| Picture(Arc::new(bytes)));
-    (kept, data)
+    (kept, Some((text, size)))
 }
 
 /// Base64 to bytes, the line breaks and spaces in it skipped and its padding optional; `None`

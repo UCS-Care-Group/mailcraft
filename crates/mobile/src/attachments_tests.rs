@@ -51,11 +51,19 @@ fn the_verdict_is_the_desktops() {
     assert_eq!(attachment_check("report.pdf".into()).verdict, OpenVerdict::Open);
     assert_eq!(attachment_check("budget.XLSM".into()).verdict, OpenVerdict::Macros);
     assert_eq!(attachment_check("page.html".into()).verdict, OpenVerdict::Scripts);
+    for active in ["notes.md", "key.asc", "mail.p7m", "mail.p7s", "cert.pem", "file.sig"] {
+        assert_eq!(attachment_check(active.into()).verdict, OpenVerdict::Active, "{active}");
+    }
+    assert!(crate::attachments::refuse_unless_openable(&attachment_check("notes.md".into()), false).is_err());
+    assert!(crate::attachments::refuse_unless_openable(&attachment_check("notes.md".into()), true).is_ok());
     for blocked in ["setup.apk", "a.apks", "a.xapk", "a.aab", "a.ipa", "a.mobileconfig", "run.exe", "noextension", ""] {
         let check = attachment_check(blocked.into());
         assert_eq!(check.verdict, OpenVerdict::Blocked, "{blocked}");
         assert!(!check.blocked.is_empty(), "{blocked}");
     }
+    // A kind of no known name, where the computer would type it by what is in it.
+    let by_content = mailcraft_engine::opening::Chooser::THIS == mailcraft_engine::opening::Chooser::NameOrContent;
+    assert_eq!(attachment_check("invoice.qzx".into()).verdict == OpenVerdict::Blocked, by_content);
     // A kind that is hidden behind another is judged by what the name is written as.
     assert_eq!(attachment_check("invoice.pdf.apk".into()).verdict, OpenVerdict::Blocked);
     assert_eq!(attachment_check("x.pdf\u{202e}kpa".into()).verdict, attachment_check("x.pdfkpa".into()).verdict);
@@ -115,6 +123,21 @@ fn a_file_over_the_cap_is_not_read() {
     assert_eq!(block_on(small.attachment(id, 0)).unwrap().bytes.len(), 8);
     let (roomy, id) = core_with(files(), FakePlatform::with_budget(2 << 30));
     assert_eq!(block_on(roomy.attachment(id, 8)).unwrap().bytes.len(), 9 << 20);
+}
+
+#[test]
+fn markdown_and_keys_open_on_the_phone_only_after_a_yes() {
+    let platform = FakePlatform::new();
+    let names = ["notes.md", "key.asc", "mail.p7s"];
+    let (core, id) = core_with(names.iter().map(|n| Attachment::new(*n, "application/octet-stream", b"x".to_vec())).collect(), platform.clone());
+    for index in 0..3 {
+        assert!(matches!(block_on(core.open_attachment(id, index, false)), Err(CoreError::BadRequest { .. })), "{index}");
+    }
+    assert!(platform.files.lock().unwrap().is_empty(), "nothing reaches the other app before the yes");
+    for index in 0..3 {
+        block_on(core.open_attachment(id, index, true)).unwrap();
+    }
+    assert_eq!(platform.files.lock().unwrap().len(), 3);
 }
 
 #[test]

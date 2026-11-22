@@ -11844,6 +11844,12 @@ msgstr "Datenschutz"
 msgid "Private"
 msgstr "Privat"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programme, die Dateien dieser Art öffnen, verarbeiten ihren Inhalt: Sie können darin enthaltene Webinhalte anzeigen oder die enthaltenen Schlüssel und Zertifikate übernehmen. Öffnen Sie sie nur, wenn Sie wissen, wer sie gesendet hat, und sie erwarten."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Promotions"
@@ -17881,6 +17887,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Diese Kopie von MailCraft aktualisiert sich nicht selbst."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Diese Kopie von MailCraft läuft in einer Flatpak-Sandbox, in der sie nicht sicherstellen kann, dass eine Datei dieser Art mit dem richtigen Programm geöffnet wird. Speichern Sie sie mit Speichern unter und öffnen Sie sie selbst."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -18696,6 +18708,12 @@ msgstr ""
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
 msgid "To me"
 msgstr "An mich"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Bevor MailCraft einen Anhang öffnet, fragt es die Arbeitsumgebung, welche Art von Datei er ist, und weder gio (aus GLib) noch kmimetypefinder (aus KDE) ist installiert. Installieren Sie eines davon oder speichern Sie den Anhang mit Speichern unter."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

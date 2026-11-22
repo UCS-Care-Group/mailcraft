@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d6eba43ebd4339895a0fa0b3b597db3fc5363dcb466a50d5715a642ea9e8d756 # shrinks to parts = ["<span style=\"visibility:hidden\">", "<li hidden>", "</span>", "A"]
+cc 0f64bc943943dcfbcfecfe9a02e64b2cea85846e40ad35fe8055e67a15dc293a # shrinks to parts = ["<img class=t src=\"https://p.example/f.png\" alt=\"F\">", "<style>img.t{width:1px}</style>"], width = 1.0, dark = false, read = 0

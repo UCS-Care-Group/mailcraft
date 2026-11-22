@@ -275,6 +275,26 @@ fn without_the_password_it_is_said_and_nothing_is_asked() {
     assert!(error.contains("password"), "{error}");
 }
 
+/// A list that can't be asked for yet, as no password is at hand, is asked for as soon as the
+/// password is typed, not a minute later.
+#[test]
+fn the_list_is_asked_for_at_once_when_the_password_arrives() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.passwords.remove(&account);
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 0);
+    assert!(app.address_lists[0].error.as_deref().is_some_and(|e| e.contains("password")));
+    app.passwords.insert(account, "an invented password".into());
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1, "no minute is waited out");
+    assert!(app.address_lists[0].error.is_none());
+    assert_eq!(names(&app).len(), 4);
+}
+
 #[test]
 fn the_owner_writes_to_somebody_found_or_makes_a_contact_of_them() {
     let (mut app, account, _) = window(false);
