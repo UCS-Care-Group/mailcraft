@@ -21,6 +21,8 @@ use mailcraft_model::{FolderKind, Id, Mailbox, Task};
 use serde_json::{Value, json};
 
 pub mod bind;
+#[cfg(test)]
+mod delete_form_tests;
 
 use crate::cmd::compose::{LEAVING, draft_gone};
 use crate::{Session, p};
@@ -243,6 +245,7 @@ const SAFE: &[&str] = &[
     "format.clear",
     "format.indent",
     "format.outdent",
+    "format.align",
     "edit.copy",
     "edit.cut",
     "edit.paste",
@@ -353,6 +356,9 @@ const SAFE: &[&str] = &[
     "calendar.proposals",
     "calendar.join",
     "calendar.copy",
+    // A paste is a copy unless its params cut items or put them onto another account's server.
+    "calendar.selectAll",
+    "calendar.paste",
     "calendar.calendars",
     // Makes the subscribed calendars due a look ahead of their time: they were chosen by the owner.
     "calendar.refreshSubscribed",
@@ -682,6 +688,14 @@ const NEVER: &[&str] = &[
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
     "ui.copySelection",
+    // The Calendar's Copy is the owner's own: it puts the set they selected on the window's own
+    // clipboard, which is theirs, and an agent's place is never taken there — asked or granted.
+    "ui.calendarCopy",
+    // Cut also writes the owner's clipboard; no agent grant permits it.
+    "ui.calendarCut",
+    // Paste puts that clipboard where the owner picked, moving what was cut: the window's
+    // clipboard is the owner's, so no agent grant reaches it either.
+    "ui.calendarPaste",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
     "ui.previewAttachment",
@@ -733,6 +747,11 @@ pub fn access(id: &str) -> Option<Access> {
     } else {
         return None;
     })
+}
+
+/// Every id an agent may run (with the owner's yes or without): the engine's and the window's.
+pub fn runnable() -> impl Iterator<Item = &'static str> {
+    [SAFE, SEND, DELETE, ACCOUNTS, MAILBOX, SETTINGS].into_iter().flatten().copied()
 }
 
 /// How a command uses a param that names a file on disk.
@@ -792,6 +811,9 @@ pub fn no_paths(id: &str, key: &str) -> String {
 /// `id` with these params: its class, now (`"send": true`, the Outbox, Deleted Items).
 pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     let Some(base) = access(id) else { return Access::Never };
+    if id == "calendar.paste" {
+        return paste_access(s, params);
+    }
     let sends = p::bool(params, "send") == Some(true);
     // An appointment's window with changes the owner hasn't saved closes with the appointment
     // (`unsaved`, from `agent_gate`): taking that away is asked about every time (#494).
@@ -2161,6 +2183,19 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     if let Some(text) = read_only_categories(s, id, params) {
         return Verdict::Refuse(format!("`{id}`: {text}"));
     }
+    // An explicit batch must never borrow the owner's selection after a malformed target.
+    if BATCH.contains(&id) {
+        if let Err(e) = batch(s, id, params) {
+            return Verdict::Refuse(e);
+        }
+        // (Its flags strictly too; the older one-event Delete reads them as its command does, a
+        // `null` as not said.)
+        if is_batch(s, id, params)
+            && let Err(e) = batch_flags(id, params)
+        {
+            return Verdict::Refuse(format!("`{id}`: {e}"));
+        }
+    }
     let access = classify(s, id, params);
     // What else the call needs besides its class (#473); a yes to the question about the class
     // covers it, since the question names it.
@@ -2270,6 +2305,122 @@ fn addresses(v: Option<&Value>) -> Vec<String> {
     text.split([';', ',']).map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()
 }
 
+/// Calendar commands that accept typed batches.
+pub(crate) const BATCH: &[&str] = &["calendar.delete", "calendar.paste"];
+
+/// Whether `id` with `params` is the batch form of the command: a paste is always a batch; a
+/// delete is one unless the command reads it as the older one event
+/// ([`crate::cmd::calendar::delete_form`], the command's own reading): `items`, or no `id` over
+/// the owner's typed selection (the implicit Delete). A payload the command refuses for naming its
+/// target two ways is taken as a batch too, whose reader refuses it, so it is never asked about
+/// as the one appointment in focus. The legacy single `id` (and the focus it stands for) keeps
+/// the question and binding about that one appointment.
+fn is_batch(s: &Session, id: &str, params: &Value) -> bool {
+    match id {
+        "calendar.paste" => true,
+        "calendar.delete" => crate::cmd::calendar::delete_form(&s.sel, params).ok() != Some(crate::cmd::calendar::DeleteForm::One),
+        _ => false,
+    }
+}
+
+/// A batch's targets as its command reads them: a paste's strict concrete `items`, a delete's
+/// deletion set (which also takes a whole series named with `"scope": "series"`). The gate, the
+/// description and the binding all read through here, so none can show or pin a set the command
+/// wouldn't act on.
+fn batch_items(s: &Session, id: &str, params: &Value) -> Result<Vec<crate::SelectedEvent>, String> {
+    if id == "calendar.delete" && is_batch(s, id, params) {
+        return crate::cmd::calendar::delete_items(s, params).map_err(|e| format!("`{id}`: {e}"));
+    }
+    crate::cmd::calendar::selected_items(s, params).map_err(|e| format!("`{id}`: {e}"))
+}
+
+fn batch(s: &Session, id: &str, params: &Value) -> Result<Vec<crate::SelectedEvent>, String> {
+    if id == "calendar.paste" && params.get("items").is_none() {
+        return Err(format!(
+            "`{id}` needs `items`: an agent names the appointments it pastes (1 to {}), and never takes them from what the owner has selected",
+            crate::MAX_SELECTED_EVENTS
+        ));
+    }
+    if id == "calendar.paste" && !p::datetime(params, "start").is_ok_and(|start| start.is_some()) {
+        return Err(format!("`{id}` needs `start` (\"YYYY-MM-DDTHH:MM\"): where the appointments are pasted"));
+    }
+    if let Err(e) = p::id_strict(params, "id") {
+        return Err(format!("`{id}`: {e}"));
+    }
+    // Where a paste would put them is read as `selection::paste` reads it, and must be a calendar
+    // this mailbox has: a malformed destination is refused by the gate exactly as the command
+    // would refuse it, for a copy and a cut alike, never asked about from each item's own.
+    if id == "calendar.paste" {
+        let target = p::id_strict(params, "calendar").map_err(|e| format!("`{id}`: {e}"))?;
+        if let Some(target) = target
+            && s.mailbox.calendar(target).is_none()
+        {
+            return Err(format!("`{id}`: no calendar with id {target}"));
+        }
+    }
+    if id == "calendar.delete" && !is_batch(s, id, params) {
+        return legacy_delete(s, params).map_err(|e| format!("`{id}`: {e}"));
+    }
+    batch_items(s, id, params)
+}
+
+/// The one event the older `calendar.delete` names, read as the command reads it
+/// ([`crate::cmd::calendar::resolve_target`]): the event `id` names, or the one in focus; with
+/// `"scope": "series"` the whole series whatever day `occurrence` names, and a day the series
+/// already skips as the step that does nothing it is. Only a batch is read item by item.
+fn legacy_delete(s: &Session, params: &Value) -> Result<Vec<crate::SelectedEvent>, String> {
+    let named = p::id_strict(params, "id").map_err(|e| e.to_string())?.or(s.sel.event).ok_or("select an appointment first")?;
+    let event = s.mailbox.event(named).ok_or_else(|| format!("no event with id {named}"))?;
+    let target = crate::cmd::calendar::resolve_target(s, event, params).map_err(|e| e.to_string())?;
+    let day = match target.part {
+        crate::cmd::calendar::Part::One(day) => Some(day),
+        crate::cmd::calendar::Part::Series => None,
+    };
+    Ok(vec![crate::SelectedEvent { id: named, day }])
+}
+
+/// The one item the older `calendar.delete` acts on, as [`legacy_delete`] reads it; `None` when the
+/// command would refuse the call.
+fn legacy_item(s: &Session, params: &Value) -> Option<crate::SelectedEvent> {
+    legacy_delete(s, params).ok().and_then(|items| items.first().copied())
+}
+
+fn batch_flags(id: &str, params: &Value) -> Result<(bool, bool), String> {
+    let (one, two) = if id == "calendar.paste" { ("cut", "send") } else { ("decline", "send") };
+    let flag = |key: &str| p::opt_bool(params, key).map_err(|e| e.to_string()).map(|value| value.unwrap_or(false));
+    Ok((flag(one)?, flag(two)?))
+}
+
+fn paste_access(s: &Session, params: &Value) -> Access {
+    let (Ok(items), Ok((cut, sends))) = (batch(s, "calendar.paste", params), batch_flags("calendar.paste", params)) else {
+        return Access::Never;
+    };
+    let access = if sends || pastes_onto_server(s, &items, params) {
+        Access::Owner(Class::Send)
+    } else if cut {
+        Access::Owner(Class::Delete)
+    } else {
+        Access::Safe
+    };
+    match access {
+        // Moving what is open with unsaved changes needs a fresh yes, whatever --allow says.
+        Access::Owner(class) if cut && unsaved(params) => Access::Asked(class),
+        other => other,
+    }
+}
+
+fn pastes_onto_server(s: &Session, items: &[crate::SelectedEvent], params: &Value) -> bool {
+    // (Read strictly, as `batch` and `selection::paste` read it: a destination that isn't an id
+    // never falls back to each item's own calendar.)
+    let target = p::id_strict(params, "calendar").ok().flatten();
+    items.iter().any(|item| {
+        let Some(event) = s.mailbox.event(item.id) else { return false };
+        let destination = target.unwrap_or(event.calendar);
+        let Some(calendar) = s.mailbox.calendar(destination) else { return false };
+        calendar.origin.account != event.origin.account && crate::cmd::calendar::served(s, destination)
+    })
+}
+
 /// The event a calendar call is about: the one `params` creates, or the one it names (or that is
 /// selected), and when it starts.
 fn event_title(s: &Session, id: &str, params: &Value) -> String {
@@ -2298,15 +2449,291 @@ fn named_event<'a>(s: &'a Session, params: &Value) -> Option<&'a mailcraft_model
     p::id_strict(params, "id").ok()?.or(s.sel.event).and_then(|e| s.mailbox.event(e))
 }
 
-/// The people a calendar call writes to: those it names and those the event already has.
+/// The people a calendar call writes to, read the older way: those its params name and those the
+/// event it is about already has. A delete's set, and what a cut would write, are read by
+/// [`reaches`], which knows which of them a server would actually write to.
 fn invitees(s: &Session, params: &Value) -> Vec<String> {
     let mut who = addresses(params.get("attendees"));
     who.extend(addresses(params.get("optional")));
     if let Some(e) = named_event(s, params) {
-        who.extend(e.attendees.iter().map(|a| a.address.email.clone()));
+        who.extend(attendee_addresses(e));
     }
-    who.dedup();
-    who
+    unique(who)
+}
+
+/// The addresses of the people an event invites, in the order it lists them.
+fn attendee_addresses(event: &mailcraft_model::Event) -> Vec<String> {
+    event.attendees.iter().map(|attendee| attendee.address.email.trim().to_string()).filter(|email| !email.is_empty()).collect()
+}
+
+/// The addresses as themselves, once, by address.
+fn unique(who: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    who.into_iter().filter(|address| seen.insert(address.trim().to_ascii_lowercase())).collect()
+}
+
+/// Who a calendar command's server mail actually reaches, and what it says to them.
+///
+/// The one reader of a calendar command's recipients: the owner's question ([`batch_text`],
+/// [`delete_text`], [`what_it_does`]) and the binding of their yes ([`bind::Shown`]) both read
+/// it, so a question naming one person and an answer reaching another can't be built.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Reaches {
+    /// People a cancellation reaches: those invited to a meeting the owner organizes that an
+    /// account's server keeps, when the delete is to be sent.
+    cancel: Vec<String>,
+    /// How many more it reaches who have no address here (each one on their own).
+    cancel_unnamed: usize,
+    /// People an invitation or an update reaches: a cut into a calendar a server keeps.
+    tell: Vec<String>,
+    /// How many more those reach who have no address here.
+    tell_unnamed: usize,
+    /// Organizers a decline answers: meetings somebody else organizes, when the answer is sent.
+    answer: Vec<String>,
+    /// Meetings whose answer reaches an organizer this mailbox has no address for, by title.
+    unknown: Vec<String>,
+    /// A command that isn't a delete or a paste: the people its own `send` reaches, read the
+    /// older way (kept for those commands).
+    other: Vec<String>,
+}
+
+impl Reaches {
+    /// Everybody the command writes to, in full: the question names the first few, and the yes
+    /// is held to all of them.
+    pub(crate) fn people(&self) -> Vec<String> {
+        let mut who: Vec<String> = Vec::new();
+        for group in [&self.cancel, &self.tell, &self.answer, &self.other] {
+            who.extend(group.iter().cloned());
+        }
+        for title in &self.unknown {
+            who.push(format!("the organizer of {title} (address unknown)"));
+        }
+        // (Somebody without an address is held to by how many there are: the yes is for them too.)
+        if self.cancel_unnamed > 0 {
+            who.push(format!("{} sent a cancellation", nameless_text(self.cancel_unnamed)));
+        }
+        if self.tell_unnamed > 0 {
+            who.push(format!("{} told of the meeting", nameless_text(self.tell_unnamed)));
+        }
+        unique(who)
+    }
+
+    /// What the question adds: who a cancellation or a move reaches, and that a decline answers
+    /// an organizer — named, or named as unknown, never invented and never hidden.
+    fn clauses(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if !self.cancel.is_empty() || self.cancel_unnamed > 0 {
+            out.push(format!("write to {}", people_text(&self.cancel, self.cancel_unnamed)));
+        }
+        if !self.tell.is_empty() || self.tell_unnamed > 0 {
+            out.push(format!("write to {}", people_text(&self.tell, self.tell_unnamed)));
+        }
+        if !self.answer.is_empty() {
+            let to = if self.answer.len() == 1 {
+                format!("its organizer ({})", some(&self.answer, 1))
+            } else {
+                format!("each organizer ({})", some(&self.answer, 8))
+            };
+            out.push(format!("send an answer (a decline) to {to}"));
+        }
+        for title in &self.unknown {
+            out.push(format!("send an answer (a decline) to the organizer of {title}, whose address this mailbox doesn't have"));
+        }
+        if !self.other.is_empty() {
+            out.push(format!("write to {}", people_text(&self.other, 0)));
+        }
+        out
+    }
+}
+
+/// `n people (a; b; …; k people without an address)`, the question naming the first few of
+/// them, and saying how many it can't name.
+fn people_text(who: &[String], unnamed: usize) -> String {
+    let named = match (who.is_empty(), unnamed) {
+        (_, 0) => some(who, 8),
+        (true, _) => nameless_text(unnamed),
+        (false, _) => format!("{}; {}", some(who, 8), nameless_text(unnamed)),
+    };
+    format!("{} ({named})", plural(who.len().saturating_add(unnamed), "{n} person", "{n} people"))
+}
+
+/// `n people without an address`.
+fn nameless_text(n: usize) -> String {
+    plural(n, "{n} person without an address", "{n} people without an address")
+}
+
+/// [`Reaches`] with each address group read once, in the order the mailbox lists it. A meeting
+/// whose organizer is unknown is kept one by one: two of them are two answers, never one.
+fn finished(mut out: Reaches) -> Reaches {
+    out.cancel = unique(out.cancel);
+    out.tell = unique(out.tell);
+    // (The people without an address are counted as they come: two of them are two people.)
+    out.answer = unique(out.answer);
+    out.other = unique(out.other);
+    out
+}
+
+/// What a calendar command would actually have a server send, read as the command reads its
+/// targets: a delete's own typed set or its one `id` (never the selection beside an explicit
+/// `id`), a paste's strict `items`, and the older reading for every other calendar command.
+pub(crate) fn reaches(s: &Session, id: &str, params: &Value) -> Reaches {
+    match id {
+        "calendar.delete" => delete_reaches(s, params),
+        "calendar.paste" => paste_reaches(s, params),
+        _ => finished(Reaches { other: invitees(s, params), ..Default::default() }),
+    }
+}
+
+/// What a `calendar.delete` would send, read as the command reads its targets: the typed set it
+/// deletes ([`batch`]), or the one event an explicit `id` names — the legacy focus is never taken
+/// for an explicit `id`.
+fn delete_reaches(s: &Session, params: &Value) -> Reaches {
+    let mut out = Reaches::default();
+    // Without `send` the command sends nothing, whatever `decline` says.
+    if p::opt_bool(params, "send").ok().flatten() != Some(true) {
+        return out;
+    }
+    let decline = p::opt_bool(params, "decline").ok().flatten().unwrap_or(false);
+    // (The command's own plan of who each item writes to: the set's, or the one event's.)
+    let plan = if is_batch(s, "calendar.delete", params) {
+        // (A set the command would refuse is none: nothing is described from the selection.)
+        if batch(s, "calendar.delete", params).is_err() {
+            return out;
+        }
+        crate::cmd::calendar::delete_notices(s, params).unwrap_or_default()
+    } else {
+        // (The one event as the command reads it: a day of a series it already skips is deleted as
+        // the step that does nothing, which writes to nobody.)
+        legacy_item(s, params)
+            .and_then(|item| {
+                let event = s.mailbox.event(item.id)?;
+                if item.day.is_some_and(|day| event.exceptions.contains(&day)) {
+                    return None;
+                }
+                crate::cmd::calendar::delete_notice(s, event, item, decline)
+            })
+            .into_iter()
+            .collect()
+    };
+    for notice in &plan {
+        reach(s, notice, &mut out);
+    }
+    finished(out)
+}
+
+/// Who one item's mail reaches, by what it says: a cancellation to the people invited to a
+/// meeting the owner organizes; an update or an invitation to those invited; a decline that is
+/// sent to the organizer of somebody else's meeting, or, with no address for them, the meeting's
+/// title, so that two such meetings are two answers.
+fn reach(s: &Session, notice: &crate::cmd::calendar::Notice, out: &mut Reaches) {
+    use crate::cmd::calendar::NoticeKind;
+    match notice.kind {
+        NoticeKind::Cancellation => {
+            out.cancel.extend(notice.to.iter().cloned());
+            out.cancel_unnamed = out.cancel_unnamed.saturating_add(notice.unnamed);
+        }
+        NoticeKind::Update | NoticeKind::Invitation => {
+            out.tell.extend(notice.to.iter().cloned());
+            out.tell_unnamed = out.tell_unnamed.saturating_add(notice.unnamed);
+        }
+        NoticeKind::Decline => match notice.to.first() {
+            Some(email) => out.answer.push(email.clone()),
+            None => out.unknown.push(quoted(s.mailbox.event(notice.item.id).map_or("", |event| event.title.as_str()))),
+        },
+    }
+}
+
+/// What a `calendar.paste` would send, read as `selection::paste` and its own mail summary read
+/// it: a copy is a new appointment with nobody invited, so it writes to nobody; a cut reaches the
+/// people invited to the items whose servers are told.
+fn paste_reaches(s: &Session, params: &Value) -> Reaches {
+    let mut out = Reaches::default();
+    if p::opt_bool(params, "cut").ok().flatten() != Some(true) {
+        return out;
+    }
+    if batch(s, "calendar.paste", params).is_err() {
+        return out;
+    }
+    // (The command's own plan of who each item's move writes to.)
+    for notice in crate::cmd::calendar::paste_notices(s, params).unwrap_or_default() {
+        reach(s, &notice, &mut out);
+    }
+    finished(out)
+}
+
+fn batch_text(s: &Session, id: &str, params: &Value, label: &str) -> String {
+    let Ok(items) = batch(s, id, params) else {
+        return format!(
+            "run \u{201c}{label}\u{201d} ({id}) on a list of calendar items that can't be read as asked: it names no appointment of this mailbox, so nothing of the owner's is meant"
+        );
+    };
+    let cut = id == "calendar.paste" && p::bool(params, "cut") == Some(true);
+    let each: Vec<String> = items.iter().map(|item| item_text(s, item)).collect();
+    let named = match each.as_slice() {
+        [one] => one.clone(),
+        _ => format!("{}: {}", plural(items.len(), "{n} appointment", "{n} appointments"), each.join(", ")),
+    };
+    let placement = if id == "calendar.paste" {
+        let mut destinations = Vec::new();
+        for item in &items {
+            let destination = p::id_strict(params, "calendar").ok().flatten().or_else(|| s.mailbox.event(item.id).map(|event| event.calendar));
+            if let Some(calendar) = destination.and_then(|id| s.mailbox.calendar(id)) {
+                let account = s.mailbox.account(calendar.origin.account).map(|account| account.address().email).filter(|email| !email.is_empty());
+                let where_kept = account.map_or_else(|| "on this computer".to_string(), |email| format!("in account {}", quoted(&email)));
+                let said = format!("calendar {} (id {}, {where_kept})", quoted(&calendar.name), calendar.id);
+                if !destinations.contains(&said) {
+                    destinations.push(said);
+                }
+            }
+        }
+        format!("at {} in {}", quoted(p::str(params, "start").unwrap_or_default()), destinations.join(", "))
+    } else {
+        String::new()
+    };
+    let mut what = match id {
+        "calendar.paste" if cut => format!("move {named} {placement}, out of their calendars"),
+        "calendar.paste" => format!("copy {named} {placement}"),
+        _ => format!("delete {named} from the calendar"),
+    };
+    append_reaches(&mut what, &reaches(s, id, params));
+    what
+}
+
+/// The owner's question about one `calendar.delete` (an explicit `id`, or the legacy focus): the
+/// event, and what the account's server would actually send about it — a cancellation to the
+/// people invited, a decline answered to the organizer, or nothing.
+fn delete_text(s: &Session, params: &Value) -> String {
+    // A series says which of it goes, one day or all of it; anything else is named as it was.
+    let named = match legacy_item(s, params) {
+        Some(item) if s.mailbox.event(item.id).is_some_and(|event| event.recurrence.is_some()) => item_text(s, &item),
+        _ => event_title(s, "calendar.delete", params),
+    };
+    let mut what = format!("delete {named} from the calendar");
+    append_reaches(&mut what, &reaches(s, "calendar.delete", params));
+    what
+}
+
+/// Add what the command would write to the people, as the one recipient reader reads it.
+fn append_reaches(what: &mut String, reaches: &Reaches) {
+    let clauses = reaches.clauses();
+    if !clauses.is_empty() {
+        what.push_str(", and ");
+        what.push_str(&clauses.join("; "));
+    }
+}
+
+/// One appointment of a batch as the owner's question names it. A recurring item that names no
+/// day is the whole series (a batch delete only takes that with `"scope": "series"`); one that
+/// names its own day is that day, whatever the batch-wide scope says.
+fn item_text(s: &Session, item: &crate::SelectedEvent) -> String {
+    let Some(event) = s.mailbox.event(item.id) else { return "an appointment that is gone".to_string() };
+    if event.recurrence.is_some() && item.day.is_none() {
+        return format!("{} (all of its occurrences)", quoted(&event.title));
+    }
+    match item.day {
+        Some(day) => format!("{} on {}", quoted(&event.title), day.iso()),
+        None => format!("{} on {}", quoted(&event.title), event.start.date.iso()),
+    }
 }
 
 /// What a call would do, in a sentence that follows "An agent wants to …" (for the owner's
@@ -2516,8 +2943,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 if id == "ui.unsubscribeMany" && !mails.is_empty() { format!(", and writing {}", some(&mails, mails.len())) } else { String::new() };
             format!("unsubscribe from the lists of {} by their servers{writes}", messages_text(s, &ids))
         }
+        _ if BATCH.contains(&id) && is_batch(s, id, params) => batch_text(s, id, params, label),
+        _ if id == "calendar.delete" => delete_text(s, params),
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
-            let who = invitees(s, params);
+            let who = reaches(s, id, params).people();
             let to = if who.is_empty() {
                 "the people it has invited".to_string()
             } else {
@@ -2534,7 +2963,6 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             };
             format!("{} the appointment or meeting in its window, which can make the account's server write to {to}", clip(st("do"), 20))
         }
-        "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
         "people.delete" => {
             let c = p::id_strict(params, "id").ok().and_then(|c| c.or(s.sel.contact)).and_then(|c| s.mailbox.contact(c));
             format!(

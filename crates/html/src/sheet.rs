@@ -1509,6 +1509,7 @@ fn selector_folds(sel: &Selector) -> bool {
 impl Sheet {
     /// The sheet of a message, when it has any rules. Reads `html` once to find its `<style>`
     /// blocks and to keep the shape of its elements.
+    #[cfg(test)]
     pub fn read(html: &str) -> Option<Sheet> {
         Sheet::read_in(html, &Env::default())
     }

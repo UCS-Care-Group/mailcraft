@@ -69,6 +69,37 @@ pub(crate) fn is_data(src: &str) -> bool {
 /// of the five, never its content), and its bytes when it is shown: decoded within `budget`
 /// when `decode`, and a PNG, JPEG, GIF or WebP by its own bytes, or an SVG drawing said to be one.
 pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, Option<Picture>) {
+    let (kept, _, picture) = picture_taken(src, decode, budget);
+    (kept, picture)
+}
+
+/// [`picture`], and whether `budget` took it (as it does when it is decoded, and as it is
+/// counted when it isn't, `decode` false and `count` true): what a reading that decodes nothing
+/// and one that does agree on.
+pub(crate) fn picture_taken(src: &str, decode: bool, budget: &mut Budget) -> (String, bool, Option<Picture>) {
+    let (kept, taken) = admit(src, decode, budget);
+    let Some(admitted) = taken else { return (kept, false, None) };
+    let bytes = if admitted.base64ed { base64(admitted.text, admitted.size) } else { Some(percent_decode(admitted.text)) };
+    let data = bytes.filter(|bytes| if admitted.svg { looks_like_svg(bytes) } else { is_picture(bytes) }).map(|bytes| Picture(Arc::new(bytes)));
+    (kept, true, data)
+}
+
+/// [`picture_taken`] counting what `budget` takes, decoding nothing.
+pub(crate) fn counted(src: &str, budget: &mut Budget) -> (String, bool) {
+    let (kept, taken) = admit(src, true, budget);
+    (kept, taken.is_some())
+}
+
+struct Admitted<'a> {
+    text: &'a str,
+    size: usize,
+    svg: bool,
+    base64ed: bool,
+}
+
+/// The address kept of a picture written into the message, and its encoded text and size when
+/// `budget` takes it (and is spent by it); never when not `decode`.
+fn admit<'s>(src: &'s str, decode: bool, budget: &mut Budget) -> (String, Option<Admitted<'s>>) {
     let Some((head, text)) = src.trim_start().split_once(',') else { return ("data:".into(), None) };
     let head: String = head.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let head = head.trim();
@@ -100,10 +131,7 @@ pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, 
     }
     budget.pictures += 1;
     budget.bytes = budget.bytes.saturating_add(size);
-    let bytes = if base64ed { base64(text, size) } else { Some(percent_decode(text)) };
-    let fits = |bytes: &Vec<u8>| if kind == SVG { looks_like_svg(bytes) } else { is_picture(bytes) };
-    let data = bytes.filter(fits).map(|bytes| Picture(Arc::new(bytes)));
-    (kept, data)
+    (kept, Some(Admitted { text, size, svg: kind == SVG, base64ed }))
 }
 
 /// The type an SVG drawing is written with.
