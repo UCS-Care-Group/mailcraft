@@ -20,8 +20,8 @@ mod snooze;
 mod sweep;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
-    Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
-    ThreadIndex, clean_name,
+    Action, Answers, Calendar, Contact, ContactFolder, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule,
+    Signature, Task, ThreadIndex, clean_name,
 };
 #[cfg(test)]
 pub(crate) use bulk::MOVE_EACH_CALLS;
@@ -39,6 +39,8 @@ const MAX_PENDING: usize = 100_000;
 /// The most rules a mailbox keeps; a file with more is cut to this when it is repaired.
 pub const MAX_RULES: usize = 500;
 
+/// Most contact folders (address books) a mailbox file is read with; more are dropped on load.
+pub const MAX_CONTACT_FOLDERS: usize = 200;
 /// Most accounts, folders and colour categories a mailbox file is read with; more are dropped on
 /// load ([`Mailbox::repair`]), so that a hostile file can't make the work on it grow without end.
 pub const MAX_ACCOUNTS: usize = 1_000;
@@ -1247,6 +1249,11 @@ pub struct Mailbox {
     pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// First-class contact folders (address books) in People, analogous to [`Mailbox::calendars`].
+    /// Each contact belongs to at most one folder via [`Contact::folder`] (`0` = default / unfiled),
+    /// completely separate from colour [`Contact::categories`].
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::load_limit::capped_vec")]
+    pub contact_folders: Vec<ContactFolder>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1413,6 +1420,7 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: Messages::new(),
             contacts: BTreeMap::new(),
+            contact_folders: Vec::new(),
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
@@ -3306,8 +3314,9 @@ impl Mailbox {
         if then.account != now.account || crate::Marks::of(then) != crate::Marks::of(now) {
             return false;
         }
+        let lookup = |book: &crate::ContactBook, address: &str| self.in_contacts(book, address);
         self.rules_in_order(then.account).into_iter().filter_map(|i| self.rules.get(i)).all(|r| {
-            let how = self.rule_matching(r, then.account, zone);
+            let how = self.rule_matching(r, then.account, zone, &lookup);
             r.conditions
                 .iter()
                 .chain(&r.exceptions)
@@ -3317,9 +3326,21 @@ impl Mailbox {
 
     /// How `rule` is matched against a message of `account`, by the clock of `zone`: "me" is that
     /// account's address (for a rule for every account, the account the message is in).
-    pub fn rule_matching(&self, rule: &Rule, account: Id, zone: crate::time::Zone) -> crate::Matching<'_> {
+    pub fn rule_matching<'a>(
+        &'a self,
+        rule: &Rule,
+        account: Id,
+        zone: crate::time::Zone,
+        contacts: &'a dyn Fn(&crate::ContactBook, &str) -> bool,
+    ) -> crate::Matching<'a> {
         let me = self.account(account).map_or("", |a| a.email.as_str());
-        crate::Matching { addresses_only: self.rule_reads_addresses(rule), me, zone }
+        crate::Matching { addresses_only: self.rule_reads_addresses(rule), me, zone, in_contacts: Some(contacts) }
+    }
+
+    /// Whether `address` is one of the e-mail addresses of a contact in `book` (a rule's
+    /// address-book condition).
+    pub fn in_contacts(&self, book: &crate::ContactBook, address: &str) -> bool {
+        book.has_address(self.contacts.values().map(Arc::as_ref), address)
     }
 
     /// Whether the rules act on the mail of `account` at all: not on a shared mailbox's, whose
@@ -3390,7 +3411,8 @@ impl Mailbox {
             if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
             }
-            let how = self.rule_matching(&rule, account, clock.zone);
+            let lookup = |book: &crate::ContactBook, address: &str| self.in_contacts(book, address);
+            let how = self.rule_matching(&rule, account, clock.zone, &lookup);
             if !rule.matches_in(m, &how) {
                 let undecided = rule.undecided_in(m, &how);
                 unsure |= undecided;
@@ -3492,7 +3514,8 @@ impl Mailbox {
             if let Some(server) = rule.server.as_ref().filter(|s| !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
             }
-            let how = self.rule_matching(&rule, account, clock.zone);
+            let lookup = |book: &crate::ContactBook, address: &str| self.in_contacts(book, address);
+            let how = self.rule_matching(&rule, account, clock.zone, &lookup);
             if !rule.matches_in(m, &how) {
                 cant_tell |= rule.undecided_in(m, &how);
                 continue;
@@ -3538,7 +3561,8 @@ impl Mailbox {
             return false;
         }
         let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(account)).cloned() else { return false };
-        if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
+        let lookup = |book: &crate::ContactBook, address: &str| self.in_contacts(book, address);
+        if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone, &lookup)) {
             return false;
         }
         self.act(id, &rule.actions, clock)
@@ -3583,6 +3607,14 @@ impl Mailbox {
                 break;
             }
             match action {
+                Action::MarkJunk => {
+                    // Into the account's Junk E-mail, as Home › Junk moves it; one already there,
+                    // or of an account without one, stays.
+                    let Some((account, folder)) = self.message(id).map(|m| (m.account, m.folder)) else { break };
+                    if let Some(junk) = self.folder_of_kind(account, FolderKind::Junk).filter(|j| *j != folder) {
+                        did |= self.move_message(id, junk).is_ok();
+                    }
+                }
                 // A rule pointing at a folder that is gone does nothing, and none puts mail into a
                 // send queue (the next Send/Receive would send it).
                 Action::MoveTo(folder) => {
@@ -3678,6 +3710,115 @@ impl Mailbox {
     /// The contact with this address, if any.
     pub fn contact_by_email(&self, email: &str) -> Option<&Contact> {
         self.contacts.values().map(Arc::as_ref).find(|c| c.has_email(email))
+    }
+
+    /// A contact folder by id.
+    pub fn contact_folder(&self, id: Id) -> Option<&ContactFolder> {
+        self.contact_folders.iter().find(|f| f.id == id)
+    }
+
+    /// A contact folder by name (case-insensitive), matching siblings under `parent`.
+    pub fn contact_folder_named(&self, name: &str, parent: Option<Id>) -> Option<&ContactFolder> {
+        let name = name.trim();
+        self.contact_folders.iter().find(|f| f.parent == parent && same_category(&f.name, name))
+    }
+
+    /// All contact folders sorted A to Z by path/name.
+    pub fn contact_folders_sorted(&self) -> Vec<&ContactFolder> {
+        let mut out: Vec<&ContactFolder> = self.contact_folders.iter().collect();
+        out.sort_by(|a, b| self.contact_folder_path(a.id).to_lowercase().cmp(&self.contact_folder_path(b.id).to_lowercase()).then(a.id.cmp(&b.id)));
+        out
+    }
+
+    /// Full path of contact folder `id` (`Parent/Child`), bounded by [`MAX_DEPTH`].
+    pub fn contact_folder_path(&self, id: Id) -> String {
+        let mut parts = Vec::new();
+        let mut cur = Some(id);
+        let mut steps = 0;
+        while let Some(fid) = cur {
+            if steps >= MAX_DEPTH {
+                break;
+            }
+            let Some(f) = self.contact_folder(fid) else { break };
+            parts.push(f.name.as_str());
+            cur = f.parent;
+            steps += 1;
+        }
+        parts.reverse();
+        parts.join("/")
+    }
+
+    /// Every contact folder id in the subtree rooted at `id` (including `id` itself).
+    pub fn contact_folder_subtree(&self, id: Id) -> HashSet<Id> {
+        let mut out = HashSet::new();
+        out.insert(id);
+        loop {
+            let before = out.len();
+            for f in &self.contact_folders {
+                if f.parent.is_some_and(|p| out.contains(&p)) {
+                    out.insert(f.id);
+                }
+            }
+            if out.len() == before {
+                break;
+            }
+        }
+        out
+    }
+
+    /// Create a local contact folder (address book), optionally nested under `parent`.
+    pub fn add_contact_folder(&mut self, name: &str, parent: Option<Id>) -> Result<Id, ModelError> {
+        let name = clean_name(name).ok_or_else(|| invalid("a contact folder needs a name"))?;
+        if let Some(p) = parent
+            && self.contact_folder(p).is_none()
+        {
+            return Err(not_found("contact folder", p));
+        }
+        if self.contact_folder_named(&name, parent).is_some() {
+            return Err(invalid(format!("a contact folder named \"{name}\" already exists")));
+        }
+        if self.contact_folders.len() >= MAX_CONTACT_FOLDERS {
+            return Err(invalid("there are too many contact folders"));
+        }
+        let id = self.alloc_id();
+        self.contact_folders.push(ContactFolder { id, name, parent, origin: crate::Origin::default() });
+        Ok(id)
+    }
+
+    /// Rename a local contact folder.
+    pub fn rename_contact_folder(&mut self, id: Id, to: &str) -> Result<String, ModelError> {
+        let to = clean_name(to).ok_or_else(|| invalid("a contact folder needs a name"))?;
+        let parent = self.contact_folder(id).ok_or(not_found("contact folder", id))?.parent;
+        if self.contact_folders.iter().any(|f| f.id != id && f.parent == parent && same_category(&f.name, &to)) {
+            return Err(invalid(format!("a contact folder named \"{to}\" already exists")));
+        }
+        if let Some(f) = self.contact_folders.iter_mut().find(|f| f.id == id) {
+            f.name = to.clone();
+        }
+        Ok(to)
+    }
+
+    /// Delete a local contact folder and any child folders under it. Contacts in the deleted
+    /// folder(s) are moved to the parent folder (or `0` = unfiled/All contacts); no contacts are lost.
+    pub fn remove_contact_folder(&mut self, id: Id) -> Result<usize, ModelError> {
+        let fallback = self.contact_folder(id).ok_or(not_found("contact folder", id))?.parent.unwrap_or(0);
+        let gone = self.contact_folder_subtree(id);
+        self.contact_folders.retain(|f| !gone.contains(&f.id));
+        let mut affected = 0usize;
+        for c in self.contacts.values_mut().filter(|c| gone.contains(&c.folder)) {
+            Arc::make_mut(c).folder = fallback;
+            affected += 1;
+        }
+        Ok(affected)
+    }
+
+    /// Move contact `contact_id` into contact folder `folder_id` (`0` = default / unfiled).
+    pub fn move_contact(&mut self, contact_id: Id, folder_id: Id) -> Result<(), ModelError> {
+        if folder_id != 0 && self.contact_folder(folder_id).is_none() {
+            return Err(not_found("contact folder", folder_id));
+        }
+        self.contact_mut(contact_id)?.folder = folder_id;
+        Ok(())
     }
 
     pub fn calendar(&self, id: Id) -> Option<&Calendar> {
@@ -4804,6 +4945,10 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
+        if self.contact_folders.len() > MAX_CONTACT_FOLDERS {
+            self.contact_folders.truncate(MAX_CONTACT_FOLDERS);
+            fixed.push(format!("contact folders cut to {MAX_CONTACT_FOLDERS}"));
+        }
         if self.repair_follow_ups_pending() {
             fixed.push("reminders waiting for a sent copy cut".to_string());
         }
@@ -4843,6 +4988,7 @@ impl Mailbox {
             .copied()
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))
+            .chain(self.contact_folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
             .chain(self.rules.iter().map(|r| r.id))
             .filter(sane)
@@ -5203,6 +5349,52 @@ impl Mailbox {
             let default = self.default_calendar_or_new();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
+            }
+        }
+        // Contact folders: valid unique ids, clean names, non-looping parents, and contacts only
+        // point to folders that exist (else 0 = default).
+        {
+            let mut cf_fixed = false;
+            for f in &mut self.contact_folders {
+                if f.id == 0 || !sane(&f.id) || !seen.insert(f.id) {
+                    f.id = self.next_id;
+                    self.next_id = self.next_id.saturating_add(1);
+                    seen.insert(f.id);
+                    cf_fixed = true;
+                }
+                match clean_name(&f.name) {
+                    Some(clean) => f.name = clean,
+                    None => {
+                        f.name = "Contacts".into();
+                        cf_fixed = true;
+                    }
+                }
+            }
+            let cf_map: HashMap<Id, Option<Id>> = self.contact_folders.iter().map(|f| (f.id, f.parent)).collect();
+            for f in &mut self.contact_folders {
+                let mut cur = f.parent;
+                let mut steps = 0;
+                let ok = loop {
+                    let Some(p) = cur else { break true };
+                    let Some(&grandparent) = cf_map.get(&p) else { break false };
+                    steps += 1;
+                    if p == f.id || steps > MAX_DEPTH {
+                        break false;
+                    }
+                    cur = grandparent;
+                };
+                if !ok {
+                    f.parent = None;
+                    cf_fixed = true;
+                }
+            }
+            let cf_known: HashSet<Id> = self.contact_folders.iter().map(|f| f.id).collect();
+            for c in self.contacts.values_mut().filter(|c| c.folder != 0 && !cf_known.contains(&c.folder)) {
+                Arc::make_mut(c).folder = 0;
+                cf_fixed = true;
+            }
+            if cf_fixed {
+                fixed.push("contact folders tidied".into());
             }
         }
         // The Favorites a server listed: one list an account, of folders that account has.

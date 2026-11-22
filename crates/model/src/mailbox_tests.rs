@@ -1312,3 +1312,85 @@ fn left_out_counts_the_messages_given_up_on_for_one_account() {
     mb.folders.push(Folder { id: 7, account: 2, failing: [(1, given_up)].into(), ..Default::default() });
     assert_eq!((mb.left_out(1), mb.left_out(2), mb.left_out(3)), (3, 1, 0));
 }
+
+/// Thunderbird's address-book filters: "From is (isn't) in my address book" over the contacts,
+/// all of them, those of this computer, or those of one category (an address book brought over),
+/// and "Mark as junk", which moves the mail to the account's Junk E-mail.
+#[test]
+fn rules_look_in_the_address_book_and_mark_junk() {
+    let (mut mb, account) = mailbox();
+    let inbox = mb.inbox().unwrap();
+    let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();
+    let spam = mb.add_folder(account, None, "Spam").unwrap();
+    mb.add_contact(Contact {
+        first: "Bob".into(),
+        emails: vec![Labeled::new("work", " BOB@example.org ")],
+        categories: vec!["Blocked".into()],
+        ..Default::default()
+    });
+    mb.add_contact(Contact { first: "Carol".into(), emails: vec![Labeled::new("home", "carol@example.org")], ..Default::default() });
+    let blocked = ContactBook { account: None, folder: None, category: "blocked".into() };
+    mb.rules = vec![
+        Rule {
+            id: 1,
+            name: "Blocked list".into(),
+            enabled: true,
+            conditions: vec![Condition::FromInContacts(blocked.clone())],
+            actions: vec![Action::MarkRead, Action::MoveTo(spam), Action::MarkJunk],
+            stop: true,
+            ..Default::default()
+        },
+        Rule {
+            id: 2,
+            name: "Strangers".into(),
+            enabled: true,
+            conditions: vec![Condition::FromNotInContacts(ContactBook::default())],
+            actions: vec![Action::MarkJunk],
+            ..Default::default()
+        },
+    ];
+    let clock = RuleClock { now: 0, zone: crate::time::Zone::fixed(0).unwrap(), due_hour: 17 };
+    // Bob is in "Blocked": read, then into Junk E-mail (the last move wins, as in Thunderbird).
+    let bob = mb.add_message(mail(inbox, "Hi", 1)).unwrap();
+    assert_eq!(mb.apply_rules(bob, &clock), ["Blocked list"]);
+    let m = mb.message(bob).unwrap();
+    assert_eq!((m.folder, m.read), (junk, true));
+    // Carol is a contact, not in "Blocked": neither rule.
+    let carol = mb.add_message(Message { from: Address::new("Carol", "Carol@Example.org"), ..mail(inbox, "x", 2) }).unwrap();
+    assert!(mb.apply_rules(carol, &clock).is_empty());
+    assert_eq!(mb.message(carol).unwrap().folder, inbox);
+    // A stranger is junk; a message with no sender address is nobody's and stays.
+    let eve = mb.add_message(Message { from: Address::new("Eve", "eve@example.net"), ..mail(inbox, "x", 3) }).unwrap();
+    assert_eq!(mb.apply_rules(eve, &clock), ["Strangers"]);
+    assert_eq!(mb.message(eve).unwrap().folder, junk);
+    let nobody = mb.add_message(Message { from: Address::new("", ""), ..mail(inbox, "x", 4) }).unwrap();
+    assert!(mb.apply_rules(nobody, &clock).is_empty());
+    // Contacts of this computer alone: Bob's is one; an account's server keeps none of them.
+    assert!(mb.in_contacts(&ContactBook { account: Some(0), folder: None, category: String::new() }, "bob@example.org"));
+    assert!(!mb.in_contacts(&ContactBook { account: Some(77), folder: None, category: String::new() }, "bob@example.org"));
+    assert!(!mb.in_contacts(&blocked, "carol@example.org"));
+    assert!(!mb.in_contacts(&ContactBook::default(), "  "));
+    // Without the address book at hand the conditions match nothing.
+    assert!(!mb.rules[1].matches(mb.message(eve).unwrap()));
+    assert_eq!(Condition::FromInContacts(blocked).describe(), "sender is in contacts in \"blocked\"");
+    assert_eq!(Action::MarkJunk.describe(), "mark it as junk");
+}
+
+#[test]
+fn address_book_rules_round_trip_as_json() {
+    let rule = Rule {
+        id: 4,
+        name: "Spam".into(),
+        enabled: true,
+        conditions: vec![
+            Condition::FromNotInContacts(ContactBook::default()),
+            Condition::FromInContacts(ContactBook { account: Some(0), folder: None, category: "Friends".into() }),
+        ],
+        actions: vec![Action::MarkJunk],
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&rule).unwrap();
+    assert!(json.contains(r#"{"type":"fromNotInContacts","value":{}}"#), "{json}");
+    assert!(json.contains(r#"{"type":"markJunk"}"#), "{json}");
+    assert_eq!(serde_json::from_str::<Rule>(&json).unwrap(), rule);
+}

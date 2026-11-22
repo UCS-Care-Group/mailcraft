@@ -17,7 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::time::{Date, DateTime, Timestamp, Zone};
-use crate::{Address, FlagStatus, Id, Importance, Message, ModelError, Sensitivity, contains_ci};
+use crate::{Address, Contact, FlagStatus, Id, Importance, Message, ModelError, Sensitivity, contains_ci};
 
 /// Most words one condition looks for, any of which is enough.
 pub const MAX_WORDS_EACH: usize = 20;
@@ -105,10 +105,66 @@ pub enum Condition {
         #[serde(skip_serializing_if = "Option::is_none")]
         to: Option<Date>,
     },
+    /// The sender's address is one of a contact's in the address book (Thunderbird's "From is in
+    /// my address book"). Only this computer knows the contacts: such a rule is kept here.
+    FromInContacts(ContactBook),
+    /// The sender's address is none of the address book's (Thunderbird's "From isn't in my
+    /// address book"): mail from strangers. A message with no sender address never matches.
+    FromNotInContacts(ContactBook),
+}
+
+/// Which contacts an address-book condition looks in: every contact, an account's contacts, a
+/// specific [`crate::ContactFolder`] (`folder`), or contacts carrying a category.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactBook {
+    /// Whose contacts: none for every contact; 0 for those kept on this computer alone; an
+    /// account's id for those its server keeps.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<Id>,
+    /// Only the contacts in this [`crate::ContactFolder`] (`id`); `None` for any folder.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<Id>,
+    /// Only the contacts in this category; empty for any.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub category: String,
+}
+
+impl ContactBook {
+    /// Whether `contact` is in this address book.
+    pub fn holds(&self, contact: &Contact) -> bool {
+        self.account.is_none_or(|a| contact.origin.account == a)
+            && self.folder.is_none_or(|f| contact.folder == f)
+            && (self.category.is_empty() || contact.categories.iter().any(|c| crate::sync::same_category(c, &self.category)))
+    }
+
+    /// Whether `address` is one of the e-mail addresses of a contact of this address book.
+    pub fn has_address<'a>(&self, contacts: impl IntoIterator<Item = &'a Contact>, address: &str) -> bool {
+        let address = address.trim();
+        !address.is_empty() && contacts.into_iter().any(|c| self.holds(c) && c.has_email(address))
+    }
+
+    /// The address book in words: `contacts`, `contacts in "Blocked"`.
+    pub fn describe(&self) -> String {
+        self.describe_with(&|id| format!("folder {id}"))
+    }
+
+    /// [`Self::describe`], resolving a contact folder's name via `folder_name`.
+    pub fn describe_with(&self, folder_name: &dyn Fn(Id) -> String) -> String {
+        if let Some(id) = self.folder {
+            return format!("contacts in \"{}\"", folder_name(id));
+        }
+        let whose = match self.account {
+            None => "contacts".to_string(),
+            Some(0) => "contacts on this computer".to_string(),
+            Some(a) => format!("contacts of account {a}"),
+        };
+        if self.category.is_empty() { whose } else { format!("{whose} in \"{}\"", self.category) }
+    }
 }
 
 /// What a rule is matched by besides the message.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Matching<'a> {
     /// Look for the words of a sender or a recipient in their addresses alone: a rule of an
     /// account whose server keeps rules does, as its server looks there alone (Exchange's
@@ -119,11 +175,25 @@ pub struct Matching<'a> {
     pub me: &'a str,
     /// The zone whose clock the days of [`Condition::ReceivedBetween`] are by.
     pub zone: Zone,
+    /// Lookup for [`Condition::FromInContacts`] / [`Condition::FromNotInContacts`]; `None` means
+    /// the address book isn't at hand and those conditions match nothing.
+    pub in_contacts: Option<&'a dyn Fn(&ContactBook, &str) -> bool>,
+}
+
+impl std::fmt::Debug for Matching<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Matching")
+            .field("addresses_only", &self.addresses_only)
+            .field("me", &self.me)
+            .field("zone", &self.zone)
+            .field("in_contacts", &self.in_contacts.is_some())
+            .finish()
+    }
 }
 
 impl Default for Matching<'_> {
     fn default() -> Self {
-        Matching { addresses_only: false, me: "", zone: Zone::fixed(0).unwrap_or_else(Zone::system) }
+        Matching { addresses_only: false, me: "", zone: Zone::fixed(0).unwrap_or_else(Zone::system), in_contacts: None }
     }
 }
 
@@ -172,6 +242,11 @@ impl Condition {
         self.matches_in(m, &Matching::default())
     }
 
+    /// Whether it looks in the address book, which only this computer has.
+    pub fn reads_contacts(&self) -> bool {
+        matches!(self, Condition::FromInContacts(_) | Condition::FromNotInContacts(_))
+    }
+
     /// [`Condition::matches`], by `how` ([`Matching`]).
     pub fn matches_in(&self, m: &Message, how: &Matching<'_>) -> bool {
         let person = |a: &Address, t: &str| contains_ci(&a.email, t) || (!how.addresses_only && contains_ci(&a.name, t));
@@ -204,6 +279,8 @@ impl Condition {
                 let day = how.zone.wall(at).date;
                 (from.is_some() || to.is_some()) && from.is_none_or(|f| day >= f) && to.is_none_or(|t| day <= t)
             }
+            Condition::FromInContacts(book) => how.in_contacts.is_some_and(|f| f(book, &m.from.email)),
+            Condition::FromNotInContacts(book) => !m.from.email.trim().is_empty() && how.in_contacts.is_some_and(|f| !f(book, &m.from.email)),
         }
     }
 
@@ -244,6 +321,8 @@ impl Condition {
                 (None, Some(t)) => format!("received on or before {}", t.iso()),
                 (None, None) => "received on any day".into(),
             },
+            Condition::FromInContacts(b) => format!("sender is in {}", b.describe()),
+            Condition::FromNotInContacts(b) => format!("sender isn't in {}", b.describe()),
         }
     }
 
@@ -465,6 +544,9 @@ pub enum Action {
     FlagFor(FlagDue),
     ClearFlag,
     ClearCategories,
+    /// Junk it, as Home › Junk does: move it to its account's Junk E-mail (Thunderbird's "Mark
+    /// as junk" with its move to the Junk folder). Where the account has no such folder, nothing.
+    MarkJunk,
 }
 
 /// A word or a name of a rule in its description, in double quotes, with a quote or a backslash in
@@ -492,6 +574,7 @@ impl Action {
             },
             Action::ClearFlag => "clear its flag".into(),
             Action::ClearCategories => "clear its categories".into(),
+            Action::MarkJunk => "mark it as junk".into(),
         }
     }
 
@@ -507,7 +590,7 @@ impl Action {
             | Action::ClearFlag
             | Action::ClearCategories => 0,
             Action::CopyTo(_) => 1,
-            Action::MoveTo(_) | Action::Delete => 2,
+            Action::MoveTo(_) | Action::Delete | Action::MarkJunk => 2,
         }
     }
 }

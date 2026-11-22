@@ -153,10 +153,27 @@ mod key_bytes {
     }
 }
 
+/// A contact folder (address book) in People, analogous to [`Calendar`] in Calendar: local folders
+/// live on this computer (`origin.is_local()`) and can be created, renamed, deleted, or nested
+/// under another folder; server folders (CardDAV / Microsoft 365) carry their server `origin`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContactFolder {
+    pub id: Id,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<Id>,
+    #[serde(skip_serializing_if = "Origin::is_local")]
+    pub origin: Origin,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Contact {
     pub id: Id,
+    /// The contact folder (address book) this contact belongs to (`0` = default / unfiled).
+    #[serde(skip_serializing_if = "is_zero_id")]
+    pub folder: Id,
     /// The name lists show; when empty, [`Contact::name`] builds one.
     pub display_name: String,
     pub first: String,
@@ -197,6 +214,10 @@ pub struct Contact {
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
     pub origin: Origin,
+}
+
+fn is_zero_id(id: &Id) -> bool {
+    *id == 0
 }
 
 impl Contact {
