@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::rich::{Align, Built, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{
+    Align, Built, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link,
+};
 use mailcraft_model::signature::{Layout, MAX_WIDTH, Signature};
 use proptest::prelude::*;
 
