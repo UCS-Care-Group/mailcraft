@@ -224,3 +224,27 @@ fn a_folder_made_at_the_top_of_the_archive_is_made_there() {
     let top = state.folder_id("archivemsgfolderroot").unwrap();
     assert!(state.folders.iter().any(|f| f.name == "Taxes" && f.parent == top), "under the archive's top, not the mailbox's");
 }
+
+#[test]
+fn only_a_definite_no_says_there_is_no_archive() {
+    use crate::error::ResponseCode;
+    // The server has no such folder, or its schema doesn't know the name or the version.
+    for code in [ResponseCode::FolderNotFound, ResponseCode::SchemaValidation, ResponseCode::InvalidRequest, ResponseCode::InvalidServerVersion] {
+        assert!(crate::run::says_no_archive(&code), "{code}");
+    }
+    // Access denied, a mailbox being moved, a server failing for now, anything else: nothing is
+    // said, and two of them don't take an archive that is there off the pane.
+    for code in [
+        ResponseCode::AccessDenied,
+        ResponseCode::MailboxUnavailable,
+        ResponseCode::ServerBusy,
+        ResponseCode::InternalServerError,
+        ResponseCode::TimeoutExpired,
+        ResponseCode::NonExistentMailbox,
+        ResponseCode::ItemNotFound,
+        ResponseCode::Other("ErrorMailboxMoveInProgress".into()),
+        ResponseCode::Other("ErrorMailboxStoreUnavailable".into()),
+    ] {
+        assert!(!crate::run::says_no_archive(&code), "{code}");
+    }
+}

@@ -8730,6 +8730,12 @@ msgstr "საფოსტო საქაღალდე: ანგარიშ
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "სხვა საფოსტო ყუთის ფოსტა „გასაგზავნებში“ ვერ მოხვდება: შემდეგი გაგზავნა/მიღება მას გაგზავნიდა"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "ფოსტა ონლაინ არქივში მხოლოდ საკუთარი საფოსტო ყუთიდან ხვდება: ჯერ გადაიტანეთ იგი ამ ყუთში"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8741,6 +8747,12 @@ msgstr "„არასასურველ ფოსტაში“ მოხ�
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "ამ საერთო საფოსტო ყუთის „გასაგზავნებში“ არსებული ფოსტა ელოდება: საერთო საფოსტო ყუთებიდან გაგზავნას თქვენი ნებართვა სჭირდება. გამოიყენეთ გაგზავნა/მიღება."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "ფოსტა სხვა ადგილიდან ონლაინ არქივში არ კოპირდება: გადაიტანეთ იგი იქ საკუთარი საფოსტო ყუთიდან"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14923,6 +14935,12 @@ msgstr "გაგზავნა/მიღება Microsoft-ში შედ�
 msgid "Send/Receive stopped unexpectedly"
 msgstr "გაგზავნა/მიღება მოულოდნელად შეწყდა"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "შეასრულეთ გაგზავნა/მიღება საფოსტო ყუთისთვის, რომ შეხვიდეთ და წაიკითხოთ მისი ონლაინ არქივი"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17902,6 +17920,12 @@ msgstr "ის, რაც ფაილი › პარამეტრებშ�
 #, fuzzy
 msgid "The one this build came with"
 msgstr "ის, რომელიც ამ ანაწყობს მოჰყვა"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "ონლაინ არქივის წაკითხვა ვერ მოხერხდა: ხელახლა საცდელად განაახლეთ"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

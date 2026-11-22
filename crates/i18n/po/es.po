@@ -8754,6 +8754,12 @@ msgstr "Carpeta de correo: {folder} de la cuenta"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "El correo de otro buzón no puede ir a una Bandeja de salida: el siguiente Enviar y recibir lo enviaría"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "El correo solo entra en un archivo en línea desde su propio buzón: muévalo primero a ese buzón"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8765,6 +8771,12 @@ msgstr "El correo en Correo no deseado sigue preguntando antes. Archivo › Opci
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "El correo de la Bandeja de salida de este buzón compartido está en espera: para enviar desde buzones compartidos se necesita su permiso. Use Enviar y recibir."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "El correo no se copia en un archivo en línea desde otro lugar: muévalo allí desde su propio buzón"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14981,6 +14993,12 @@ msgstr "Enviar y recibir inicia sesión en Microsoft; después se puede buscar e
 msgid "Send/Receive stopped unexpectedly"
 msgstr "El envío y recepción se detuvo de forma inesperada"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Envíe/reciba el buzón para iniciar sesión y leer su archivo en línea"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17971,6 +17989,12 @@ msgstr "El de Archivo › Opciones"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "El que incluye esta compilación"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "No se pudo leer el archivo en línea: actualice para volver a intentarlo"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

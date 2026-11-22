@@ -905,16 +905,18 @@ pub enum ArchiveProbe {
     Unknown,
 }
 
-/// Whether a code a server answers the archive's name with is one of the moment (the mailbox is
-/// being moved, the server is failing for now) rather than a "no".
-fn passing(code: &ResponseCode) -> bool {
-    matches!(code, ResponseCode::ServerBusy | ResponseCode::MailboxUnavailable | ResponseCode::InternalServerError | ResponseCode::TimeoutExpired)
+/// Whether a code a server answers the archive's name with says there is no archive: it has no
+/// such folder, or its schema (older than Exchange 2010 SP1's) doesn't know the name or the
+/// version. Any other code (access denied, the mailbox being moved, the server failing for now,
+/// one not known here) says nothing either way: two "no"s in a row take the archive off the pane.
+pub(crate) fn says_no_archive(code: &ResponseCode) -> bool {
+    matches!(code, ResponseCode::FolderNotFound | ResponseCode::SchemaValidation | ResponseCode::InvalidRequest | ResponseCode::InvalidServerVersion)
 }
 
 /// Asks whether the account's mailbox has a personal archive (#1818): one `GetFolder` of
 /// `archivemsgfolderroot`, sent to the account's own server like every other request. It never
-/// fails a run: a "no" of any kind is [`ArchiveProbe::Absent`], and what says nothing is
-/// [`ArchiveProbe::Unknown`]. Nothing the server wrote is read into it. `cancel` and `wait` are as
+/// fails a run: a "no" ([`says_no_archive`]) is [`ArchiveProbe::Absent`], and anything else that
+/// isn't the folder is [`ArchiveProbe::Unknown`]. Nothing the server wrote is read into it. `cancel` and `wait` are as
 /// for [`sync_mail`].
 pub async fn probe_archive<E: HttpExchange>(client: &Client, exchange: &E, cancel: &AtomicBool, wait: &mut dyn FnMut(u32) -> bool) -> ArchiveProbe {
     Run::new(client, exchange, cancel, wait).probe().await
@@ -927,13 +929,12 @@ impl<E: HttpExchange> Run<'_, E> {
         let probe = match self.ask(&get.element(), &|reply| get.answer(reply)).await {
             Ok(answers) => match answers.into_iter().next() {
                 Some(Ok(_)) => ArchiveProbe::Present,
-                Some(Err(Error::Server(code))) if passing(&code) => ArchiveProbe::Unknown,
-                Some(Err(Error::Server(_))) => ArchiveProbe::Absent,
+                Some(Err(Error::Server(code))) if says_no_archive(&code) => ArchiveProbe::Absent,
                 Some(Err(_)) | None => ArchiveProbe::Unknown,
             },
-            Err(Asked::Code(code)) if passing(&code) => ArchiveProbe::Unknown,
             // (A fault that names the schema, the version or the request: this server has no archive.)
-            Err(Asked::Code(_)) => ArchiveProbe::Absent,
+            Err(Asked::Code(code)) if says_no_archive(&code) => ArchiveProbe::Absent,
+            Err(Asked::Code(_)) => ArchiveProbe::Unknown,
             Err(Asked::Stop(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => ArchiveProbe::Unknown,
         };
         log::info!("ews: online archive probe: {probe:?}");

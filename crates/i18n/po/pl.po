@@ -8785,6 +8785,12 @@ msgstr "Folder poczty: {folder} konta"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Poczta z innej skrzynki pocztowej nie może trafić do Skrzynki nadawczej: następne Wyślij/Odbierz by ją wysłało"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Poczta trafia do archiwum online tylko z własnej skrzynki: najpierw przenieś ją do tej skrzynki"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8796,6 +8802,12 @@ msgstr "Poczta w folderze Wiadomości-śmieci nadal najpierw pyta. Plik › Opcj
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "Poczta w Skrzynce nadawczej tej skrzynki udostępnionej czeka: wysyłanie ze skrzynek udostępnionych wymaga Twojej zgody. Użyj Wyślij/Odbierz."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Poczta nie jest kopiowana do archiwum online z innych miejsc: przenieś ją tam z jej własnej skrzynki"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15023,6 +15035,12 @@ msgstr "Wyślij/Odbierz loguje do Microsoft; wtedy można przeszukać serwer."
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Wysyłanie/odbieranie zatrzymało się nieoczekiwanie"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Wyślij/odbierz skrzynkę, aby się zalogować i odczytać jej archiwum online"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -18023,6 +18041,12 @@ msgstr "Ten z Plik › Opcje"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Ten dołączony do tej wersji programu"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Nie udało się odczytać archiwum online: odśwież, aby spróbować ponownie"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

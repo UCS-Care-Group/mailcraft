@@ -23,7 +23,7 @@
 use std::collections::BTreeMap;
 
 use mailcraft_model::sync::{CategoriesUp, FlagUp, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, ServerMessage, same_category};
-use mailcraft_model::{FlagStatus, Folder, FolderKind, Id, Mailbox, Message, Queued};
+use mailcraft_model::{AccountKind, FlagStatus, Folder, FolderKind, Id, Mailbox, Message, Queued};
 use mailcraft_time::{DateTime, Timestamp};
 
 use crate::Session;
@@ -353,6 +353,8 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
         }
         MessageChange::Move { message, id, to, to_folder } => {
             let to_name = folder_name(mb, account, to, *to_folder);
+            let exchange = mb.account(account).is_some_and(|a| a.kind == AccountKind::Exchange);
+            let mut forget = false;
             let Some(m) = mine(mb, account, *message, id) else { return false };
             let Some(server) = m.server.as_mut() else { return false };
             match &done.outcome {
@@ -362,6 +364,12 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // (a Microsoft account's ids stay: it says none).
                     if !now.is_empty() {
                         server.id = now.clone();
+                    } else if exchange {
+                        // Moved into another mailbox (between the mailbox and its online archive,
+                        // #1818), an Exchange server doesn't say the new id: what is here has none
+                        // that holds, and the next read of the folder brings the message as the
+                        // server has it, once.
+                        forget = true;
                     }
                 }
                 MessageOutcome::Gone => {
@@ -381,6 +389,9 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                         refusals.note(Kind::Move, why, &subject, to_name);
                     }
                 }
+            }
+            if forget {
+                let _ = mb.forget_message(*message);
             }
             true
         }

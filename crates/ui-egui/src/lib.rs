@@ -1788,9 +1788,13 @@ pub struct MailApp {
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
     shared_refused: std::collections::HashMap<Id, mailcraft_model::sync::SharedRefusal>,
-    /// The online archives read this session, with the folder that was on screen (0: none of
-    /// theirs): each is read once when opened, and once for each of its folders opened (#1818).
-    archive_reads: std::collections::HashSet<(Id, Id)>,
+    /// The online archives read this session, each with the folder of its that was on screen at
+    /// the last read (0: none): an archive is read when it is first opened, and again each time
+    /// one of its folders comes on screen (#1818).
+    archive_reads: std::collections::HashMap<Id, Id>,
+    /// The online archives whose last read failed: not read again by themselves (no read at every
+    /// frame) until the owner asks (Refresh, Send/Receive), and the folder pane says so (#1818).
+    archive_failed: std::collections::HashSet<Id>,
     /// Shared mailboxes just added in Add Shared Mailbox whose Inbox hasn't been read yet: kept
     /// only once it has been, and removed again when it can't be (#70).
     shared_checking: std::collections::HashSet<Id>,
@@ -2097,6 +2101,7 @@ impl MailApp {
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             archive_reads: Default::default(),
+            archive_failed: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
             mail_only_next: false,
@@ -4095,6 +4100,9 @@ impl MailApp {
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
+            // (Another mailbox's accounts may have the same ids, #503.)
+            self.archive_reads.clear();
+            self.archive_failed.clear();
             // Work started for the old mailbox stays with it: every job is called off and its run
             // state forgotten, Send/Receive Progress included ([`jobs`]; what
             // still comes of one is let go of by its poll), the messages being fetched whole are

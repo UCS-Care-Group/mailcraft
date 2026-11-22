@@ -8770,6 +8770,12 @@ msgstr "Poštovní složka: {folder} účtu"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Pošta z jiné poštovní schránky nemůže jít do složky Pošta k odeslání: další Odeslat/přijmout by ji odeslalo"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Pošta se do online archivu dostane jen z vlastní poštovní schránky: nejprve ji přesuňte do této schránky"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8781,6 +8787,12 @@ msgstr "U pošty v Nevyžádané poště se stále nejdřív ptá. Soubor › Mo
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "Pošta ve složce Pošta k odeslání této sdílené poštovní schránky čeká: odesílání ze sdílených poštovních schránek vyžaduje vaše oprávnění. Použijte Odeslat/přijmout."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Pošta se do online archivu nekopíruje odjinud: přesuňte ji tam z její vlastní schránky"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14997,6 +15009,12 @@ msgstr "Odeslat/přijmout se přihlásí k Microsoftu; pak lze prohledávat serv
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Odeslat/přijmout se nečekaně zastavilo"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Spusťte Odeslat/přijmout pro schránku, abyste se přihlásili a načetli její online archiv"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17995,6 +18013,12 @@ msgstr "Ten v Soubor › Možnosti"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Ten, se kterým toto sestavení přišlo"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Online archiv se nepodařilo načíst: zkuste to znovu pomocí Aktualizovat"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

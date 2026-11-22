@@ -8748,6 +8748,12 @@ msgstr "邮件文件夹：账户的 {folder}"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "不能将其他邮箱的邮件放入发件箱：下次发送/接收时会将其发送"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "邮件只能从其所属邮箱进入在线存档：请先将其移到该邮箱"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8759,6 +8765,12 @@ msgstr "垃圾邮件中的邮件仍须逐封询问。可在“文件 › 选项�
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "此共享邮箱发件箱中的邮件正在等待发送：从共享邮箱发送邮件需要您的许可。请使用“发送/接收”。"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "不能从其他位置将邮件复制到在线存档：请从其所属邮箱将其移到那里"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14972,6 +14984,12 @@ msgstr "发送/接收会登录 Microsoft；之后即可搜索服务器。"
 msgid "Send/Receive stopped unexpectedly"
 msgstr "发送/接收意外中断"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "对该邮箱执行发送/接收以登录并读取其在线存档"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17960,6 +17978,12 @@ msgstr "“文件 › 选项”中的设置"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "此版本附带的设置"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "无法读取在线存档：请刷新以重试"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

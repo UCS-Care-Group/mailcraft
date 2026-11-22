@@ -8781,6 +8781,12 @@ msgstr "Dosar de e-mail: {folder} al contului"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "E-mailurile din altă cutie poștală nu pot intra în Mesaje de trimis: următoarea Trimitere/primire le-ar trimite"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Mesajele intră într-o arhivă online doar din propria cutie poștală: mutați-le mai întâi în acea cutie"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8792,6 +8798,12 @@ msgstr "E-mailurile din E-mail nedorit tot cer întâi confirmarea. Fișier › 
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "E-mailurile din Mesaje de trimis ale acestei cutii poștale partajate așteaptă: trimiterea din cutii poștale partajate are nevoie de permisiunea dvs. Folosiți Trimitere/primire."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Mesajele nu se copiază din altă parte într-o arhivă online: mutați-le acolo din propria cutie poștală"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -15019,6 +15031,12 @@ msgstr "Trimitere/primire se conectează la Microsoft; apoi se poate căuta pe s
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Trimitere/primire s-a oprit neașteptat"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Trimiteți/primiți cutia poștală pentru a vă conecta și a citi arhiva online"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -18019,6 +18037,12 @@ msgstr "Cel din Fișier › Opțiuni"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Cel cu care a venit această versiune"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Arhiva online nu a putut fi citită: reîmprospătați pentru a încerca din nou"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

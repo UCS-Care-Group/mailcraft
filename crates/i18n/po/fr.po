@@ -8715,6 +8715,12 @@ msgstr "Dossier de courrier : {folder} du compte"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Le courrier d'une autre boîte aux lettres ne peut pas aller dans une Boîte d'envoi : le prochain Envoyer/Recevoir l'enverrait"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Le courrier n'entre dans une archive en ligne que depuis sa propre boîte aux lettres : déplacez-le d'abord dans cette boîte"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8726,6 +8732,12 @@ msgstr "Le courrier dans Courrier indésirable demande toujours d'abord. Fichier
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "Le courrier de la Boîte d'envoi de cette boîte aux lettres partagée est en attente : l'envoi depuis les boîtes aux lettres partagées nécessite votre autorisation. Utilisez Envoyer/Recevoir."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Le courrier n'est pas copié d'ailleurs dans une archive en ligne : déplacez-le depuis sa propre boîte aux lettres"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14908,6 +14920,12 @@ msgstr "Envoyer/Recevoir se connecte à Microsoft ; la recherche sur le serveu
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Envoyer/Recevoir s'est arrêté de façon inattendue"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Envoyez/recevez la boîte aux lettres pour vous connecter et lire son archive en ligne"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17888,6 +17906,12 @@ msgstr "Celui de Fichier › Options"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Celui fourni avec cette version"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Impossible de lire l'archive en ligne : actualisez pour réessayer"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

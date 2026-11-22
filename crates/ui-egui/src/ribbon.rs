@@ -1373,7 +1373,7 @@ pub(crate) fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>,
     let mut accounts: Vec<&Account> = match scope {
         FolderScope::ThisAccount => in_view.and_then(|id| mb.account(id)).into_iter().collect(),
         FolderScope::EveryAccount => {
-            let mut all = mb.accounts_in_order();
+            let mut all = mb.pane_order();
             if let Some(at) = all.iter().position(|a| Some(a.id) == in_view) {
                 let a = all.remove(at);
                 all.insert(0, a);

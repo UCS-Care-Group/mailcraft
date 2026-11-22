@@ -440,7 +440,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
     let counts = s.folder_counts();
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts_in_order()
+        .pane_order()
         .into_iter()
         .map(|a| {
             let unread = counts.account(a.id).unread;

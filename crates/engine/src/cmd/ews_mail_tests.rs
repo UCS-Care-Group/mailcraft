@@ -4,7 +4,10 @@
 //! takes in what it brings back, with results made by hand. (Against `mailcraft-ews`'s stand-in:
 //! `apps/mailcraft/src/ews_mail_flow.rs`.)
 
-use mailcraft_model::sync::{EwsFolderDeltas, EwsMessagePage, GraphFetched, GraphFolder, GraphMessage, ReadState, ServerMessage};
+use mailcraft_model::sync::{
+    EwsFolderDeltas, EwsMessagePage, GraphFetched, GraphFolder, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, ReadState,
+    ServerMessage,
+};
 use mailcraft_model::{Address, FlagStatus, Message};
 use serde_json::json;
 
@@ -808,6 +811,17 @@ fn a_saved_file_holds_nothing_of_the_archive() {
     let written = String::from_utf8(crate::io::write_mailbox(&s.mailbox).unwrap()).unwrap();
     assert!(!written.contains("Taxes 2019") && !written.contains("AH-1"));
     assert!(written.contains("archiveOf"));
+    // Nor does a copy saved elsewhere (Save As, a backup), #1818 review.
+    let dir = std::env::temp_dir().join(format!("mailcraft-archive-copy-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("copy.mailcraft");
+    crate::store::save_single(&path, &s.mailbox).unwrap();
+    // (Read as written: opening it would take the archive's folders away by itself.)
+    let bytes = std::fs::read(&path).unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("archiveOf") && !text.contains("Taxes 2019") && !text.contains("AH-1"), "the archive's folders stay out of a copy");
+    assert!(crate::store::open(&path).is_ok());
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -821,9 +835,39 @@ fn a_hidden_archive_goes_and_stays_away_until_shown() {
     assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().archive_hidden);
     apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
     assert!(s.mailbox.archive_of(account).is_none(), "the server's yes doesn't bring a hidden one back");
+    // Nor is the server asked about it while it is hidden (#1818 review).
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
     assert_eq!(s.run("account.archive.show", &json!({"account": account})).unwrap()["shown"], account);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "asked again once shown");
     apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
     assert!(s.mailbox.archive_of(account).is_some());
+}
+
+/// Moved into another mailbox (between the mailbox and its archive), an Exchange server says no
+/// new id: the message here goes, and the next read of the folder brings it once, as the server
+/// has it, rather than a second copy beside one with an id that no longer holds (#1818 review).
+#[test]
+fn a_move_the_server_gives_no_new_id_for_leaves_no_stale_copy() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let other =
+        s.mailbox.folders.iter().find(|f| f.account == account && f.id != inbox && f.server.is_some() && f.kind == FolderKind::Custom).map(|f| f.id);
+    let to = other.unwrap_or_else(|| s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap());
+    s.run("mail.move", &json!({"ids": [m], "folder": to})).unwrap();
+    let request = ews_mail_request(&s, account, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "ELSEWHERE".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(account) }).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "no copy with the old id is kept");
+    assert!(here(&s, account, "M1").is_none());
 }
 
 #[test]

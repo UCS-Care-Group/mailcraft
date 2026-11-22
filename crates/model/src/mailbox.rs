@@ -689,7 +689,14 @@ struct Identity {
 fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<Account>, D::Error> {
     let written = crate::load_limit::capped_vec::<_, serde_json::Value>(deserializer)?;
     let mut accounts = Vec::with_capacity(written.len());
-    for value in written {
+    for mut value in written {
+        // (An online archive is written with a kind of its own, which versions without archives
+        // don't know and so keep whole: it is an Exchange server account's, #1818.)
+        if value.get("kind").and_then(serde_json::Value::as_str) == Some(crate::archive::ARCHIVE_KIND)
+            && let Some(fields) = value.as_object_mut()
+        {
+            fields.insert("kind".into(), serde_json::Value::String("exchange".into()));
+        }
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
         let unknown = value.get("kind").is_some_and(|kind| AccountKind::deserialize(kind).unwrap_or(AccountKind::Unknown) == AccountKind::Unknown);
         if !unknown {
@@ -727,6 +734,13 @@ fn write_accounts<S: serde::Serializer>(accounts: &[Account], serializer: S) -> 
                 let mut fields = fields.clone();
                 fields.insert("id".into(), account.id.into());
                 list.serialize_element(&fields)?;
+            }
+            None if account.is_archive() => {
+                let mut value = serde_json::to_value(account).map_err(serde::ser::Error::custom)?;
+                if let Some(fields) = value.as_object_mut() {
+                    fields.insert("kind".into(), serde_json::Value::String(crate::archive::ARCHIVE_KIND.into()));
+                }
+                list.serialize_element(&value)?;
             }
             None => list.serialize_element(account)?,
         }
@@ -1473,6 +1487,15 @@ impl Default for Mailbox {
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
 
+/// Why mail from elsewhere doesn't go into an online archive (#1818): only the server moves mail
+/// into it, from the mailbox it is the archive of, and nothing of it is kept on this computer, so
+/// mail that no server would put there would be lost when MailCraft closes.
+pub const INTO_ARCHIVE: &str = "Mail goes into an online archive only from its own mailbox: move it into that mailbox first";
+
+/// Why a copy doesn't go into an online archive from elsewhere (#1818): the server makes no copy
+/// there, and nothing of the archive is kept on this computer.
+pub const COPY_INTO_ARCHIVE: &str = "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox";
+
 /// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
@@ -1743,11 +1766,21 @@ impl Mailbox {
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
     }
 
+    /// The accounts in the order the folder pane lists them ([`Mailbox::pane_order`]) but for the
+    /// online archives: the accounts the owner sends from, sets up and picks from (the From list,
+    /// File › Info, Rules, Signatures, Junk E-mail Options…). An archive has no server or sign-in
+    /// of its own and no Drafts (#1818).
+    pub fn accounts_in_order(&self) -> Vec<&Account> {
+        let mut all = self.pane_order();
+        all.retain(|a| !a.is_archive());
+        all
+    }
+
     /// The accounts in the order the folder pane lists them: each account of its own, in the
     /// order the owner put them in ([`Mailbox::account_order`]; else as they were added),
-    /// followed by its online archive and the shared mailboxes opened through it. A shared mailbox whose owner is gone
-    /// comes last, as it is (it can't be read, and says so when it is).
-    pub fn accounts_in_order(&self) -> Vec<&Account> {
+    /// followed by its online archive and the shared mailboxes opened through it. A shared mailbox
+    /// whose owner is gone comes last, as it is (it can't be read, and says so when it is).
+    pub fn pane_order(&self) -> Vec<&Account> {
         let mut shared: HashMap<Id, Vec<&Account>> = HashMap::new();
         for a in self.accounts.iter().filter(|a| a.shared_of.is_some_and(|o| o != a.id)) {
             if let Some(owner) = a.shared_of {
@@ -2573,6 +2606,10 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        // Into an online archive only what its server moves there (#1818).
+        if !self.goes_into_archive(m, account) {
+            return Err(invalid(INTO_ARCHIVE));
+        }
         // Moved in from another mailbox and not made on this account's server yet, it is mail from
         // elsewhere still: not into an Outbox that would send it, as straight from there (#704).
         if m.account == account
@@ -3053,6 +3090,10 @@ impl Mailbox {
         let from_account = m.account;
         if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
+        }
+        // (A copy within an online archive is made there by its server; none comes in, #1818.)
+        if from_account != to_account && self.account(to_account).is_some_and(Account::is_archive) {
+            return Err(invalid(COPY_INTO_ARCHIVE));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
         // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's

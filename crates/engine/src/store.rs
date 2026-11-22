@@ -3256,9 +3256,11 @@ pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
 /// the source mailbox alive throughout the write; no fully loaded copy or whole-file buffer.
 pub(crate) fn save_single_with(path: &Path, mailbox: &Mailbox, load: impl Fn(Id) -> Result<Arc<Message>, String>) -> Result<u64, String> {
     let shared = shared(path);
+    // (A copy of the mailbox holds nothing of its online archives either, #1818.)
+    let on_disk = mailbox.for_disk();
     let mut st = lock(&shared.state);
     let mut file = AtomicFile::create(&resolve(path)).map_err(|e| format!("{}: {e}", path.display()))?;
-    let bytes = export::write(&mut file, mailbox, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
+    let bytes = export::write(&mut file, &on_disk, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
     file.commit().map_err(|e| format!("{}: {e}", path.display()))?;
     // The file is another one now: nothing known about the old one holds, and a state of it
     // still waiting to be written has had its turn.

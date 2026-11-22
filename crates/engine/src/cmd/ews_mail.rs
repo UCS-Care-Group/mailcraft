@@ -201,8 +201,9 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     request.list_folders = !light || !listed;
     // (A folder list read before the folder above each was asked for is read afresh, once.)
     request.hierarchy = if own.parents { own.hierarchy.clone() } else { String::new() };
-    // Whether the mailbox has an online archive is asked in a run that lists the folders (#1818).
-    request.probe_archive = request.list_folders && !request.archive;
+    // Whether the mailbox has an online archive is asked in a run that lists the folders (#1818),
+    // and not while its owner has it hidden (account.archive.hide).
+    request.probe_archive = request.list_folders && !request.archive && !own.archive_hidden;
     let wanted = |id: &str| match &request.scope {
         EwsScope::All => true,
         EwsScope::Light { also } => inbox.as_deref() == Some(id) || also.iter().any(|a| a == id),

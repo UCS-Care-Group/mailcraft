@@ -47,9 +47,12 @@ fn texts(app: &mut MailApp) -> Vec<String> {
 #[test]
 fn the_archive_is_named_as_outlook_names_it_right_after_its_owner() {
     let (mut app, owner, archive) = app();
-    let order: Vec<Id> = app.session.mailbox.accounts_in_order().iter().map(|a| a.id).collect();
+    app.passwords.insert(owner, "an invented password".into());
+    let order: Vec<Id> = app.session.mailbox.pane_order().iter().map(|a| a.id).collect();
     let at = |id: Id| order.iter().position(|a| *a == id).unwrap();
     assert_eq!(at(archive), at(owner) + 1);
+    // (Not among the accounts mail is sent from or set up: the From list, File › Info…)
+    assert!(!app.session.mailbox.accounts_in_order().iter().any(|a| a.id == archive));
     let shown = texts(&mut app);
     assert!(shown.iter().any(|t| t == "Online Archive – ada@corp.example"), "{shown:?}");
     assert!(shown.iter().any(|t| t == "Loading…"), "nothing of it here yet: {shown:?}");
@@ -72,4 +75,48 @@ fn with_its_folders_here_it_lists_them_and_says_nothing_more() {
     app.session.mailbox.add_folder(archive, None, "2019").unwrap();
     let shown = texts(&mut app);
     assert!(shown.iter().any(|t| t == "2019") && !shown.iter().any(|t| t == "Loading…"), "{shown:?}");
+}
+
+/// Without a password at hand nothing is read by itself, and it says what would read it rather
+/// than Loading… (#1818 review).
+#[test]
+fn without_a_password_it_says_how_to_read_it() {
+    let (mut app, _, _) = app();
+    let shown = texts(&mut app);
+    assert!(shown.iter().any(|t| t.contains("Send/Receive the mailbox")), "{shown:?}");
+    assert!(!shown.iter().any(|t| t == "Loading…"));
+}
+
+/// A read that failed isn't started again at every frame, nor forever shown as Loading…: the
+/// pane says so, and the owner's Refresh (a Send/Receive they ask for) tries again (#1818 review).
+#[test]
+fn a_failed_read_says_so_and_waits_for_the_owner() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    app.archive_failed.insert(archive);
+    let shown = texts(&mut app);
+    assert!(shown.iter().any(|t| t.contains("couldn't be read")), "{shown:?}");
+    assert!(!app.syncing(), "nothing started by itself");
+    assert!(app.archive_reads.is_empty());
+    // The owner asks: the failure is forgotten, and what comes of the run decides again.
+    let _ = app.start_ews_mail(archive, false, &serde_json::json!({}));
+    assert!(!app.archive_failed.contains(&archive));
+}
+
+/// Coming back to a folder of the archive reads it again; leaving it reads nothing (#1818 review).
+#[test]
+fn a_folder_of_the_archive_is_read_each_time_it_comes_on_screen() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    let year = app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.archive_reads.insert(archive, year);
+    let inbox = app.session.mailbox.folder_of_kind(owner, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.session.view.folder = inbox;
+    app.read_archive(archive);
+    assert_eq!(app.archive_reads.get(&archive), Some(&0), "leaving its folders reads nothing");
+    assert!(!app.archive_failed.contains(&archive), "no read was tried");
+    app.session.view.folder = year;
+    app.read_archive(archive);
+    // (No host here: the read can't start, which says so rather than trying at every frame.)
+    assert!(app.archive_failed.contains(&archive), "a read was tried");
 }

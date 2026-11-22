@@ -38,6 +38,7 @@ struct Asked {
     url: String,
     trusted: String,
     certificate_only: bool,
+    cloud_archive: bool,
     cancel: Arc<AtomicBool>,
     answers: Receiver<bool>,
 }
@@ -62,6 +63,7 @@ impl Host {
                 url: job.url,
                 trusted: job.trusted,
                 certificate_only: job.certificate_only,
+                cloud_archive: job.cloud_archive,
                 cancel: job.cancel,
                 answers: job.answers,
             });
@@ -193,6 +195,7 @@ fn certificate(changed: bool) -> EwsCertificate {
         not_before: 1_700_000_000,
         not_after: 1_900_000_000,
         changed,
+        cloud_archive: false,
     }
 }
 
@@ -427,7 +430,8 @@ fn a_certificate_the_system_does_not_trust_is_shown_and_trusted_only_by_the_owne
     host.install(&mut a);
     let mut h = to_the_form(a);
     click(&mut h, "Connect");
-    host.end(EwsSetupEnd::Certificate(certificate(false)));
+    // (The search that found the server found the archive in Exchange Online too, #1818.)
+    host.end(EwsSetupEnd::Certificate(EwsCertificate { cloud_archive: true, ..certificate(false) }));
     h.run_steps(5);
     assert_eq!(page(&h), Some(Page::ExchangeCertificate));
     for shown in ["Trust this server's certificate?", "mail.example.org, An Invented Organisation", "An Invented CA", "2023", "2030", "ab:ab:ab:ab"] {
@@ -447,6 +451,7 @@ fn a_certificate_the_system_does_not_trust_is_shown_and_trusted_only_by_the_owne
     assert_eq!((page(&h), host.jobs()), (Some(Page::ExchangeChecking), 2));
     host.last(|job| {
         assert_eq!((job.url.as_str(), job.trusted.as_str(), job.password.as_str()), (URL, "ab".repeat(32).as_str(), TYPED));
+        assert!(job.cloud_archive, "what the search found of the online archive holds");
     });
     host.end(works(URL, "basic"));
     h.run_steps(5);

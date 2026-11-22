@@ -7269,6 +7269,11 @@ msgstr ""
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
@@ -7277,6 +7282,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
 msgstr ""
 
 #. what a command says
@@ -12418,6 +12428,11 @@ msgstr ""
 msgid "Send/Receive stopped unexpectedly"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Send/Receive with Exchange Web Services"
@@ -14907,6 +14922,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "The one this build came with"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "The online archive couldn't be read: Refresh to try again"
 msgstr ""
 
 #. interface

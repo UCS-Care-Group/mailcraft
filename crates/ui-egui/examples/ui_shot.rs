@@ -298,6 +298,7 @@ impl Host {
                 not_before: 1_767_225_600,
                 not_after: 1_893_456_000,
                 changed,
+                cloud_archive: false,
             })
         };
         let mut words = self.ews.split_whitespace();

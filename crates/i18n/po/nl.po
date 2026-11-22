@@ -8439,6 +8439,12 @@ msgstr "E-mailmap: {folder} van het account"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "E-mail komt alleen vanuit het eigen postvak in een onlinearchief: verplaats het eerst naar dat postvak"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8450,6 +8456,12 @@ msgstr "E-mail in Ongewenste e-mail vraagt nog steeds eerst. Bestand › Opties 
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "E-mail in het Postvak UIT van dit gedeelde postvak wacht: verzenden vanuit gedeelde postvakken heeft uw toestemming nodig. Gebruik Verzenden/ontvangen."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "E-mail wordt niet van elders naar een onlinearchief gekopieerd: verplaats het daarheen vanuit het eigen postvak"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14461,6 +14473,12 @@ msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Verzenden/ontvangen is onverwacht gestopt"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Voer Verzenden/ontvangen uit voor het postvak om aan te melden en het onlinearchief te lezen"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Send/Receive with Exchange Web Services"
@@ -17401,6 +17419,12 @@ msgstr "Die in Bestand › Opties"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Die waarmee deze build is geleverd"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Het onlinearchief kon niet worden gelezen: vernieuw om het opnieuw te proberen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

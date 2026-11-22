@@ -139,3 +139,97 @@ fn archive_mail_is_no_new_mail() {
     let archive = mb.add_archive(owner).unwrap();
     assert!(mb.counts_as_new_mail(owner) && !mb.counts_as_new_mail(archive));
 }
+
+/// An archive is written with a kind of its own, so that a MailCraft without archives keeps it
+/// whole as an account of a kind it doesn't know, rather than reading it as a second Exchange
+/// server account and giving it folders; read back here, it is the archive it was.
+#[test]
+fn an_archive_is_written_as_a_kind_of_its_own_and_read_back_as_it_was() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let written = serde_json::to_value(&*mb.for_disk()).unwrap();
+    let accounts = written["accounts"].as_array().unwrap();
+    let kind_of = |id: Id| accounts.iter().find(|a| a["id"] == serde_json::json!(id)).unwrap()["kind"].clone();
+    assert_eq!(kind_of(archive), "exchangeArchive");
+    assert_eq!(kind_of(owner), "exchange", "its owner is written as it always was");
+    // A kind a MailCraft without archives doesn't know: kept whole there.
+    assert_eq!(serde_json::from_value::<AccountKind>(serde_json::json!("exchangeArchive")).unwrap(), AccountKind::Unknown);
+    let mut read: Mailbox = serde_json::from_value(written).unwrap();
+    assert!(read.repair().is_empty(), "{:?}", read.repair());
+    let a = read.account(archive).unwrap();
+    assert!(a.is_archive() && a.kind == AccountKind::Exchange && a.archive_of == Some(owner));
+    assert!(read.folders.iter().all(|f| f.account != archive));
+    assert_eq!(read.archive_of(owner).map(|a| a.id), Some(archive));
+}
+
+/// A message of the owner's mailbox as a run brings it: in its Inbox, by the server's id.
+fn on_owners_server(mb: &mut Mailbox, owner: Id) -> (Id, Id) {
+    let inbox = mb.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "INBOX-ID".into(), ..Default::default() });
+    let id = mb.alloc_id();
+    let server = crate::sync::ServerMessage { id: "ITEM-1".into(), folder: "INBOX-ID".into(), ..Default::default() };
+    mb.messages
+        .insert(id, Arc::new(Message { id, account: owner, folder: inbox, subject: "Kickoff".into(), server: Some(server), ..Default::default() }));
+    (id, inbox)
+}
+
+/// Mail no server would put in the archive doesn't go there: nothing of the archive is kept on
+/// this computer, so it would be lost when the program closes (#1818 review).
+#[test]
+fn mail_from_elsewhere_is_neither_moved_nor_copied_into_the_archive() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    let local_inbox = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Inbox).unwrap();
+    let id = mb.alloc_id();
+    mb.messages.insert(id, Arc::new(Message { id, account: mb.accounts[0].id, folder: local_inbox, subject: "Mine".into(), ..Default::default() }));
+    assert_eq!(mb.move_messages(&[id], year).unwrap_err().to_string(), ModelError::Invalid(INTO_ARCHIVE.into()).to_string());
+    assert_eq!(mb.message(id).unwrap().folder, local_inbox, "left where it was");
+    assert!(matches!(mb.copy_message(id, year), Err(ModelError::Invalid(why)) if why == COPY_INTO_ARCHIVE));
+    // Nor a message of the owner's that no server has (only here).
+    let inbox = mb.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    let draft = mb.alloc_id();
+    mb.messages.insert(draft, Arc::new(Message { id: draft, account: owner, folder: inbox, subject: "Here only".into(), ..Default::default() }));
+    assert!(mb.move_messages(&[draft], year).is_err());
+    // A copy from the owner's mailbox neither: its server makes none there.
+    let (kickoff, _) = on_owners_server(&mut mb, owner);
+    assert!(mb.copy_message(kickoff, year).is_err());
+    // What the owner's server has moves in; mail within the archive moves and copies as ever.
+    mb.move_messages(&[kickoff], year).unwrap();
+    assert_eq!(mb.message(kickoff).unwrap().account, archive);
+    let other = mb.add_folder(archive, None, "2020").unwrap();
+    let budget = mb.messages.values().find(|m| m.subject == "Budget 2019").unwrap().id;
+    mb.copy_message(budget, other).unwrap();
+    mb.move_messages(&[budget], other).unwrap();
+}
+
+/// Mail moved into the archive that its server hasn't moved yet goes back where the server still
+/// has it, when the archive is hidden or goes and in the mailbox file: never lost (#1818 review).
+#[test]
+fn a_move_into_the_archive_not_made_yet_is_put_back_not_lost() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    let (kickoff, inbox) = on_owners_server(&mut mb, owner);
+    mb.move_messages(&[kickoff], year).unwrap();
+    // Written to the file: where the server has it, in the owner's Inbox.
+    let written = mb.for_disk();
+    let m = written.message(kickoff).expect("written, not left out");
+    assert_eq!((m.account, m.folder), (owner, inbox));
+    assert!(written.messages.values().all(|m| m.subject != "Budget 2019"), "the archive's own mail stays out");
+    drop(written);
+    assert_eq!(mb.message(kickoff).unwrap().account, archive, "the mailbox in memory is as it was");
+    // Hidden (or gone from the server): put back the same way.
+    mb.remove_archive(archive).unwrap();
+    let m = mb.message(kickoff).expect("kept");
+    assert_eq!((m.account, m.folder), (owner, inbox));
+    // Once the server has moved it, it is the archive's own and goes with it.
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    mb.move_messages(&[kickoff], year).unwrap();
+    let folder_id = "YEAR-ID".to_string();
+    mb.folder_mut(year).unwrap().server = Some(ServerFolder { id: folder_id.clone(), ..Default::default() });
+    Arc::make_mut(mb.messages.get_mut(&kickoff).unwrap()).server.as_mut().unwrap().folder = folder_id;
+    mb.remove_archive(archive).unwrap();
+    assert!(mb.message(kickoff).is_none());
+}

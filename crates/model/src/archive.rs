@@ -19,7 +19,13 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use crate::{Account, AccountKind, EwsServer, Id, Mailbox, ModelError};
+use crate::{Account, AccountKind, EwsServer, Id, Mailbox, Message, ModelError};
+
+/// The kind an online archive is written with, so that a MailCraft without archives (which would
+/// read it as a second, broken Exchange server account and give it folders of its own) keeps it
+/// whole as an account of a kind it doesn't know ([`AccountKind::Unknown`]). Read back here, it is
+/// an Exchange server account's archive.
+pub(crate) const ARCHIVE_KIND: &str = "exchangeArchive";
 
 impl Mailbox {
     /// The online archive of `owner`, when it has one here.
@@ -64,12 +70,51 @@ impl Mailbox {
     }
 
     /// Takes away the archive `archive` and everything held of it. Its owner and the server are
-    /// untouched: it is added again when the server next says there is one.
+    /// untouched: it is added again when the server next says there is one. Mail moved into it
+    /// that its server hasn't moved yet goes back where the server still has it
+    /// ([`Mailbox::put_back_moves_into_archives`]).
     pub fn remove_archive(&mut self, archive: Id) -> Result<(), ModelError> {
         if !self.account(archive).is_some_and(Account::is_archive) {
             return Err(ModelError::Invalid("that account isn't an online archive".into()));
         }
+        self.put_back_moves_into_archives();
         self.remove_account(archive)
+    }
+
+    /// Whether the message `m` may go into a folder of the account `to` as far as online archives
+    /// go: anything into an account that isn't one; into an archive, mail already in it, and mail
+    /// its owner's server has (the server moves it there, the archive's own run asking it to). Not
+    /// mail from anywhere else, which no server would put there and which would be lost when the
+    /// program closes, as nothing of an archive is kept on this computer.
+    pub(crate) fn goes_into_archive(&self, m: &Message, to: Id) -> bool {
+        if m.account == to || !self.account(to).is_some_and(Account::is_archive) {
+            return true;
+        }
+        let on_owners_server = m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty() && !s.folder.is_empty());
+        self.archive_owner(to).is_some_and(|owner| owner.id == m.account) && on_owners_server
+    }
+
+    /// Puts each message moved into an online archive that its server hasn't moved there yet
+    /// back in the folder of the archive's owner where the server still has it: so that nothing
+    /// is lost when what is held of the archive goes (it is hidden, the server says it is gone,
+    /// or the mailbox is written to its file). The move is called off; the owner can move it
+    /// again. Whether any was put back.
+    pub fn put_back_moves_into_archives(&mut self) -> bool {
+        let back: Vec<(Id, Id, Id)> = self
+            .messages
+            .values()
+            .filter_map(|m| {
+                let owner = self.archive_owner(m.account)?.id;
+                let server = m.server.as_ref()?;
+                self.folder_by_server(owner, &server.folder).map(|folder| (m.id, owner, folder))
+            })
+            .collect();
+        for (id, owner, folder) in &back {
+            if let Ok(m) = self.message_mut(*id) {
+                m.lies_in(*folder, *owner, 0, None);
+            }
+        }
+        !back.is_empty()
     }
 
     /// The accounts that are online archives.
@@ -128,6 +173,9 @@ impl Mailbox {
             return Cow::Borrowed(self);
         }
         let mut copy = self.clone();
+        // (Mail moved into an archive and not moved there by the server yet is written where the
+        // server still has it.)
+        copy.put_back_moves_into_archives();
         copy.folders.retain(|f| !holds(&f.account));
         copy.messages.retain(|_, m| !holds(&m.account));
         copy.pending.retain(|p| !holds(&p.account()));

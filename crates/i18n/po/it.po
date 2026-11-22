@@ -8749,6 +8749,12 @@ msgstr "Cartella di posta: {folder} dell'account"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "La posta di un'altra casella non può andare in Posta in uscita: il prossimo Invia/Ricevi la invierebbe"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "La posta entra in un archivio online solo dalla propria cassetta postale: spostala prima in quella cassetta"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -8760,6 +8766,12 @@ msgstr "La posta in Posta indesiderata chiede sempre prima. File › Opzioni lo 
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "La posta in Posta in uscita di questa cassetta postale condivisa è in attesa: l'invio da cassette postali condivise richiede l'autorizzazione. Usare Invia/Ricevi."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "La posta non viene copiata in un archivio online da altrove: spostala lì dalla sua cassetta postale"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -14965,6 +14977,12 @@ msgstr "Invia/Ricevi accede a Microsoft; poi è possibile cercare sul server."
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Invia/Ricevi si è interrotto in modo imprevisto"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Esegui Invia/Ricevi della cassetta postale per accedere e leggere il suo archivio online"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -17950,6 +17968,12 @@ msgstr "Quello in File › Opzioni"
 #, fuzzy
 msgid "The one this build came with"
 msgstr "Quello fornito con questa build"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Impossibile leggere l'archivio online: aggiorna per riprovare"
 
 #. interface
 #: crates/ui-egui/src/nav.rs

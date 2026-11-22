@@ -444,7 +444,8 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
             // An online archive (#1818): read again from its server, or hidden.
             if app.session.mailbox.account(id).is_some_and(mailcraft_model::Account::is_archive) {
                 if ui.add(egui::Button::new(tl!("Refresh")).min_size(vec2(180.0, 0.0))).clicked() {
-                    let _ = app.execute("ui.sync", json!({"account": id}));
+                    // (Run as the owner asked: why it can't, offline say, goes to the status bar.)
+                    let _ = app.run("ui.sync", json!({"account": id}));
                     ui.close();
                 }
                 if ui.add(egui::Button::new(tl!("Hide Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
@@ -1092,7 +1093,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = app
                 .session
                 .mailbox
-                .accounts_in_order()
+                .pane_order()
                 .into_iter()
                 .map(|a| {
                     let rows = visible_in(trees.remove(&a.id).unwrap_or_default(), &folded);
@@ -1294,12 +1295,13 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
 }
 
 /// The line under an online archive's heading while it has no folders here (#1818): it is read
-/// from its server when it is opened, as Outlook reads it, and offline it can't be. Opening it
-/// starts that read, once until it brings something.
+/// from its server when it is opened, as Outlook reads it, and offline it can't be; a read that
+/// failed, or that has no password to go with, says so. Opening it starts that read.
 fn archive_note(app: &mut MailApp, ui: &mut Ui, archive: Id) {
     let t = Tokens::get(ui.ctx());
     let offline = app.offline();
-    let text = if offline { tl!("The online archive needs a connection to the server") } else { tl!("Loading…") };
+    let text =
+        if offline { tl!("The online archive needs a connection to the server") } else { app.archive_not_read(archive).unwrap_or(tl!("Loading…")) };
     ui.horizontal(|ui| {
         ui.add_space(NAME_LEFT);
         ui.label(egui::RichText::new(text).color(t.text_dim).size(12.0));

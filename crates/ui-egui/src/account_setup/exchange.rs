@@ -299,11 +299,11 @@ impl AccountSetup {
         }
         self.exchange.trusted.clear();
         let url = self.exchange.url.trim().to_string();
-        self.exchange_run(app, url, String::new(), false);
+        self.exchange_run(app, url, String::new(), false, false);
     }
 
     /// Give the host a job and wait for it on the checking page.
-    fn exchange_run(&mut self, app: &mut MailApp, url: String, trusted: String, certificate_only: bool) {
+    fn exchange_run(&mut self, app: &mut MailApp, url: String, trusted: String, certificate_only: bool, cloud_archive: bool) {
         if app.offline() {
             self.error = crate::send_receive::said();
             return;
@@ -322,6 +322,7 @@ impl AccountSetup {
             url,
             trusted,
             certificate_only,
+            cloud_archive,
             cancel: self.exchange.cancel.clone(),
             answers,
         };
@@ -358,7 +359,7 @@ impl AccountSetup {
             self.done = true;
             return;
         };
-        self.exchange_run(app, server.url, server.trusted, true);
+        self.exchange_run(app, server.url, server.trusted, true, false);
         if self.exchange.events.is_none() {
             // This build has no host to look: nothing to ask.
             self.go_keeping_error(Page::ExchangeCertificate);
@@ -466,7 +467,8 @@ impl AccountSetup {
             return self.done;
         }
         self.exchange.trusted = certificate.fingerprint.clone();
-        self.exchange_run(app, certificate.url, certificate.fingerprint, false);
+        // (What the search found of the online archive holds for the test made again, #1818.)
+        self.exchange_run(app, certificate.url, certificate.fingerprint, false, certificate.cloud_archive);
         false
     }
 
