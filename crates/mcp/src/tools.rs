@@ -76,13 +76,23 @@ const OPENS: &[char] =
 /// escaped. They are rare in prose; the guillemet `«`, common in it, is one of [`OPENS`].
 const DOUBLE_OPENS: &[char] = &['\u{226a}', '\u{22d8}', '\u{300a}', '\u{27ea}', '\u{2aa1}'];
 
-/// A character that shows nothing: a format character (a zero-width space, a bidirectional
-/// mark…), any other default-ignorable one, a variation selector, a control character but the
-/// line break and the tab.
+/// A character that shows nothing of its own: a format character (a zero-width space, a
+/// bidirectional mark…), any other default-ignorable one, a variation selector, a combining mark
+/// (it sits on the character before it), a control character but the line break and the tab.
 fn invisible(c: char) -> bool {
     mailcraft_names::is_format(c)
         || mailcraft_names::is_ignorable(c)
-        || matches!(c, '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}' | '\u{180b}'..='\u{180f}')
+        || matches!(
+            c,
+            '\u{fe00}'..='\u{fe0f}'
+                | '\u{e0100}'..='\u{e01ef}'
+                | '\u{180b}'..='\u{180f}'
+                | '\u{0300}'..='\u{036f}'
+                | '\u{1ab0}'..='\u{1aff}'
+                | '\u{1dc0}'..='\u{1dff}'
+                | '\u{20d0}'..='\u{20ff}'
+                | '\u{fe20}'..='\u{fe2f}'
+        )
         || c.is_control() && !matches!(c, '\n' | '\r' | '\t')
 }
 
@@ -96,9 +106,12 @@ fn entity(t: &str) -> Option<(char, &str)> {
     if let Some(r) = t.strip_prefix("&amp;") {
         return Some(('&', r));
     }
-    let (hex, r) = t.strip_prefix("&#x")?.split_once(';')?;
-    let digits = (1..=6).contains(&hex.len()) && hex.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'));
-    let c = if digits { u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)? } else { return None };
+    // Only the few bytes an escape can take are looked at: a long text without a `;` is never
+    // read again for each `&` in it.
+    let rest = t.strip_prefix("&#x")?;
+    let len = rest.bytes().take(7).take_while(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')).count();
+    let (hex, r) = (rest.get(..len)?, rest.get(len..)?.strip_prefix(';')?);
+    let c = if (1..=6).contains(&len) { u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)? } else { return None };
     Some((c, r))
 }
 
