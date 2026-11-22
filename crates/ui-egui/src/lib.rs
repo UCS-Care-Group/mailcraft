@@ -87,6 +87,8 @@ pub mod chrome;
 mod clicks;
 #[cfg(test)]
 mod clicks_tests;
+#[cfg(test)]
+mod client_secret_store_tests;
 pub mod close_to_tray;
 #[cfg(test)]
 mod close_to_tray_tests;
@@ -3496,7 +3498,14 @@ impl MailApp {
     /// Have the operating system remember a secret for the account `account`, when the owner
     /// wants that: under that account's own name.
     fn remember(&mut self, kind: &str, account: Id, secret: &str) {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
+        // (The client secret too: without it a confidential client's refresh fails after a
+        // restart, though the sign-in it renews worked.)
+        if !matches!(kind, "password" | "refresh" | mailcraft_host::secrets::OAUTH_CLIENT)
+            || !self.ui.remember_sign_in
+            || secret.is_empty()
+            || self.data_removed
+            || self.unconfirmed
+        {
             return;
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
