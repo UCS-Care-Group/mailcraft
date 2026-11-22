@@ -287,6 +287,28 @@ fn the_headers_it_was_sent_with_come_first() {
     assert!(m.all_headers().iter().any(|(k, _)| k == "Received"));
 }
 
+/// Headers longer than what is read of them (#566): the lines past the limit are lost, so the
+/// header as it came is said to be cut, and a rule with words in the header can't tell of the
+/// message ("except if the header contains X-Keep" leaves it alone).
+#[test]
+fn headers_past_the_limit_leave_a_header_rule_unable_to_tell() {
+    let mut m = note("Long header");
+    // Within the limit as the file keeps them (UTF-16), past it as text (UTF-8).
+    let pad = "日".repeat(1200);
+    let lines: String = (0..300).map(|i| format!("X-Pad-{i}: {pad}\r\n")).collect();
+    m.extra = vec![(0x007D, w::unicode(&format!("Subject: Long header\r\n{lines}X-Keep: yes\r\n")))];
+    let mut s = session();
+    s.run("rules.add", &json!({"name": "Keep", "conditions": [{"type": "headerContains", "value": "x-keep"}], "actions": [{"type": "markRead"}]}))
+        .unwrap();
+    s.mailbox.rules[0].account = 0;
+    let answer = import(&mut s, &w::build(&folder_list(vec![folder("Inbox", "IPF.Note", vec![m], vec![])])), json!({})).unwrap();
+    assert!(answer["notes"].to_string().contains("longer than the limit"), "{answer}");
+    let m = messages_in(&s, &["old-mail", "Inbox"])[0];
+    assert!(m.read_header.contains("Subject: Long header") && m.header_block.is_loaded(), "{}", m.read_header);
+    assert!(m.read_header_cut);
+    assert!(mailcraft_model::Condition::HeaderContains(vec!["x-keep".into()]).unread_in(m));
+}
+
 #[test]
 fn html_inline_pictures_ole_links_and_smime_are_kept_or_named() {
     let mut m = note("Pictures");

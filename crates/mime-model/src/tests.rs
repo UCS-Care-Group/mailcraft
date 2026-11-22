@@ -888,16 +888,17 @@ fn a_header_exception_on_a_line_not_kept_leaves_the_message_alone() {
 
 /// A header rule reads the header as it came, the lines MailCraft reads into the message too: a
 /// group with no members (`undisclosed-recipients:;`, the usual header rule against spam), an
-/// encoded-word as the sender wrote it, a comment by an address and the Message-ID's angle
-/// brackets are found (#566).
+/// encoded-word as the sender wrote it (in the subject, and in a field kept only decoded), a
+/// comment by an address and the Message-ID's angle brackets are found (#566).
 #[test]
 fn a_header_rule_reads_the_lines_read_into_the_message_as_they_came() {
-    let raw = b"From: ann@example.org (Ann Smith)\r\nTo: undisclosed-recipients:;\r\nSubject: =?UTF-8?Q?Gr=C3=BC=C3=9Fe?=\r\nMessage-ID: <abc@mail.example.org>\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
+    let raw = b"From: ann@example.org (Ann Smith)\r\nTo: undisclosed-recipients:;\r\nSubject: =?UTF-8?Q?Gr=C3=BC=C3=9Fe?=\r\nOrganization: =?UTF-8?Q?B=C3=BCro?=\r\nMessage-ID: <abc@mail.example.org>\r\nDate: Tue, 10 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n\r\nbody\r\n";
     let m = parse(raw);
     let header = |word: &str| mailcraft_model::Condition::HeaderContains(vec![word.into()]);
-    let words = ["undisclosed-recipients", "to: undisclosed", "=?utf-8?q?gr", "<abc@mail.example.org>", "(ann smith)"];
-    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) && !header(w).unread_in(&m)).collect();
-    assert!(missed.is_empty(), "a header rule decides these words aren't in the header as it came: {missed:?}");
+    let words =
+        ["undisclosed-recipients", "to: undisclosed", "=?utf-8?q?gr", "organization: =?utf-8?q?b=c3=bcro?=", "<abc@mail.example.org>", "(ann smith)"];
+    let missed: Vec<&str> = words.into_iter().filter(|w| !header(w).matches(&m) || header(w).unread_in(&m)).collect();
+    assert!(missed.is_empty(), "a header rule doesn't find these words in the header as it came: {missed:?}");
 }
 
 /// "Delete it, except if the header contains undisclosed-recipients" leaves alone a
