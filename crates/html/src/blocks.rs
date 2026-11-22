@@ -111,23 +111,41 @@ pub(crate) struct Built {
     pub dark_design: bool,
     /// The text of what the message hides, when it was asked for.
     pub hidden: String,
+    /// What of it is shown, token by token, when that was asked for.
+    pub seen: Option<Seen>,
 }
 
 pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
-    build_with(html, decode, env, keep_hidden, None, ComposeTables::Off)
+    build_with(html, decode, env, keep_hidden, None, ComposeTables::Off, false)
+}
+
+/// What the reading pane shows of the tokens of `html` (cut to [`crate::MAX_INPUT_WITH_PICTURES`]),
+/// in their order: the one account of what is left out (hidden, in a `<template>`, too small to
+/// read, past the caps), which the quote of a reply or forward follows (`quote.rs`), so that the
+/// two can't disagree on where it starts and ends.
+pub(crate) struct Seen {
+    /// For each token read: a text whether it is shown, a tag whether what follows it is. The
+    /// tokens past the end are not read.
+    pub shown: Vec<bool>,
+    /// The last text read was cut to this many bytes, at the end of what is read.
+    pub cut: Option<usize>,
+}
+
+pub(crate) fn seen(html: &str) -> Seen {
+    build_with(html, false, &Env::default(), false, None, ComposeTables::Off, true).seen.unwrap_or(Seen { shown: Vec::new(), cut: None })
 }
 
 /// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
 /// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
 /// reading rule ([`is_safe_url`]). Never for received mail.
 pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
-    build_with(html, false, &Env::default(), false, Some(accept), ComposeTables::Off).blocks
+    build_with(html, false, &Env::default(), false, Some(accept), ComposeTables::Off, false).blocks
 }
 
 /// Read spreadsheet geometry from the clipboard, or only from marked tables when reopening a draft.
 pub fn parse_text_with_tables(html: &str, own_link: Option<fn(&str) -> Option<String>>) -> Vec<Block> {
     let tables = if own_link.is_some() { ComposeTables::Marked } else { ComposeTables::All };
-    build_with(html, false, &Env::default(), false, own_link, tables).blocks
+    build_with(html, false, &Env::default(), false, own_link, tables, false).blocks
 }
 
 #[derive(Clone, Copy)]
@@ -144,8 +162,10 @@ fn build_with(
     keep_hidden: bool,
     own_link: Option<fn(&str) -> Option<String>>,
     compose_tables: ComposeTables,
+    record: bool,
 ) -> Built {
     let mut builder = Builder::new(decode);
+    builder.seen = record.then(|| Seen { shown: Vec::new(), cut: None });
     builder.own_link = own_link;
     builder.compose_tables = compose_tables;
     builder.unseen = keep_hidden.then(String::new);
@@ -177,7 +197,11 @@ fn build_with(
         if over > 0 {
             // The rest of the text that ends past the input read, as if the input ended there.
             if let Token::Text(text) = token {
-                builder.token(Token::Text(truncate(text, text.len().saturating_sub(over))));
+                let text = truncate(text, text.len().saturating_sub(over));
+                builder.token(Token::Text(text));
+                if let Some(seen) = builder.seen.as_mut() {
+                    seen.cut = Some(text.len());
+                }
             }
             break;
         }
@@ -196,7 +220,8 @@ fn build_with(
     }
     let dark_design = look.dark_design();
     let hidden = builder.unseen.take().unwrap_or_default();
-    Built { blocks: builder.finish(), dark_design, hidden }
+    let seen = builder.seen.take();
+    Built { blocks: builder.finish(), dark_design, hidden, seen }
 }
 
 /// The text of a picture written into the element (an `<img>`'s, or the `background` of a table,
@@ -752,6 +777,14 @@ struct Builder {
     /// What the spans and pictures still to be made may repeat of links and fonts
     /// ([`COPY_ALLOWANCE`]).
     copies: usize,
+    /// What is shown of each token read, when it is asked for ([`seen`]).
+    seen: Option<Seen>,
+    /// The tokens of the written-out marker being read, by their place in `seen`, and whether
+    /// one of them was cut; once read, those of a marker shown as written, until its item's
+    /// text shows it.
+    marker_tokens: Vec<usize>,
+    marker_cut: bool,
+    marker_due: Vec<usize>,
 }
 
 impl Builder {
@@ -799,10 +832,35 @@ impl Builder {
             decode,
             budget: Budget::default(),
             copies: COPY_FLOOR,
+            seen: None,
+            marker_tokens: Vec::new(),
+            marker_cut: false,
+            marker_due: Vec::new(),
         }
     }
 
     fn token(&mut self, token: Token<'_>) {
+        // (What is left out of the pane: everything while an element around it is hidden or a
+        // `<template>` is open, and text too small to read.)
+        let text = matches!(token, Token::Text(_));
+        let shown = text && self.hidden == 0 && self.template == 0 && !self.style().tiny;
+        let in_marker = |b: &Builder| b.template == 0 && b.capture > 0 && b.hidden == b.capture;
+        let text_in_marker = text && in_marker(self);
+        self.token_read(token);
+        let Some(seen) = self.seen.as_mut() else { return };
+        let at = seen.shown.len();
+        seen.shown.push(if text { shown } else { self.hidden == 0 && self.template == 0 });
+        // What is in a written-out marker and in nothing else hidden is shown if the marker is.
+        if text_in_marker || (!text && in_marker(self)) {
+            if self.marker_tokens.len() < MAX_MARKER {
+                self.marker_tokens.push(at);
+            } else {
+                self.marker_cut = true;
+            }
+        }
+    }
+
+    fn token_read(&mut self, token: Token<'_>) {
         match token {
             Token::Text(text) => {
                 if self.template == 0 {
@@ -926,9 +984,11 @@ impl Builder {
 
     fn text(&mut self, raw: &str) {
         if self.hidden > 0 {
-            if self.capture > 0 && self.marker.len() < MAX_MARKER {
-                let room = MAX_MARKER - self.marker.len();
-                self.marker.extend(unescape(truncate(raw, 256)).chars().take(room));
+            if self.capture > 0 {
+                let room = MAX_MARKER.saturating_sub(self.marker.len());
+                let text = unescape(truncate(raw, 256));
+                self.marker_cut |= raw.len() > 256 || text.chars().count() > room;
+                self.marker.extend(text.chars().take(room));
             }
             self.note_unseen(raw);
             return;
@@ -982,6 +1042,14 @@ impl Builder {
             self.kind = if self.pre > 0 {
                 BlockKind::Preformatted
             } else if let Some(item) = self.item.take() {
+                // (Its written-out marker is shown with it.)
+                if let Some(seen) = self.seen.as_mut() {
+                    for at in std::mem::take(&mut self.marker_due) {
+                        if let Some(shown) = seen.shown.get_mut(at) {
+                            *shown = true;
+                        }
+                    }
+                }
                 item
             } else if let Some(level) = self.heading {
                 BlockKind::Heading(level)
@@ -1584,18 +1652,27 @@ impl Builder {
             Kind::Marker => {
                 self.capture = self.capture.saturating_sub(1);
                 if self.capture == 0 {
+                    let mut as_written = false;
                     if self.mso_item
                         && let Some(BlockKind::ListItem { marker, .. }) = &mut self.item
                     {
                         *marker = written_marker(&self.marker);
+                        // Its text is shown when it is a number or a label, or the one character
+                        // of a bullet.
+                        as_written =
+                            !self.marker_cut && (!matches!(marker, Marker::Bullet) || self.marker.chars().filter(|c| !is_blank(*c)).count() <= 1);
                     }
+                    let texts = std::mem::take(&mut self.marker_tokens);
+                    self.marker_due = if as_written { texts } else { Vec::new() };
                     self.marker.clear();
+                    self.marker_cut = false;
                 }
             }
             Kind::Block(block) => {
                 self.flush();
                 if block.mso {
                     self.item = None;
+                    self.marker_due.clear();
                     self.mso_item = false;
                 }
                 if let Some(boxed) = block.boxed {
@@ -1628,6 +1705,7 @@ impl Builder {
             Kind::Item(_) => {
                 self.flush();
                 self.item = None;
+                self.marker_due.clear();
             }
             Kind::Quote { margin } => {
                 self.flush();
@@ -2617,6 +2695,7 @@ impl Builder {
         }
         if mso && let Some(MsoList::Level(level)) = css.mso_list {
             self.item = Some(BlockKind::ListItem { marker: Marker::Bullet, depth: level.saturating_sub(1) });
+            self.marker_due.clear();
             self.mso_item = true;
         }
         true
@@ -2694,6 +2773,7 @@ impl Builder {
         }
         if self.open_structure("li", Kind::Item(depth), tag) {
             self.item = Some(BlockKind::ListItem { marker, depth });
+            self.marker_due.clear();
         }
     }
 

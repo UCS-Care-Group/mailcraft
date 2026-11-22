@@ -1,0 +1,1 @@
+- A reply or forward of an HTML message quotes only what the reading pane shows of it, in HTML and in plain text, however the message nests a template, a hidden block or an element that is left out whole; Outlook's numbered and bulleted list markers are still quoted as the pane shows them.

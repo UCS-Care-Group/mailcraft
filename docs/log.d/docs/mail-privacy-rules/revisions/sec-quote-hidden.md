@@ -1,0 +1,1 @@
+| 2026-11-22 | patch | A reply's or forward's quoted original leaves out everything the reading pane leaves out, ended where the pane ends it, however a template, a hidden element or an element left out whole nest |

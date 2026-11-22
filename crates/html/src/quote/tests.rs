@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::*;
-use crate::corpus;
+use crate::{MAX_INPUT, corpus};
 
 /// Every attribute in `html`, read back with the tokenizer: name and value.
 fn attributes(html: &str) -> Vec<(String, String)> {
