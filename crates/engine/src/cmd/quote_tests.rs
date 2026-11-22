@@ -131,10 +131,7 @@ fn a_reply_carries_nothing_that_runs_tracks_or_was_hidden() {
     for gone in ["<script", "<style", "<iframe", "<form", "<input", "onload", "onclick", "javascript:", "pixel.gif", "evil.example", "hidden"] {
         assert!(!lower.contains(gone), "{gone}: {}", q.html);
     }
-    for kept in [
-        "<p style=\"color:#336\">Kept <a>link</a> <a href=\"https://shop.example/\">shop</a></p>",
-        "<img src=\"cid:logo@news.example\" alt=\"logo\">",
-    ] {
+    for kept in ["<p style=\"color:#336\">Kept <a>link</a> <a href=\"https://shop.example/\">shop</a></p>", "<img src=\"cid:logo@news.example\">"] {
         assert!(q.html.contains(kept), "{kept}: {}", q.html);
     }
     // Only the picture the quote still shows goes with the reply, not the hidden one.

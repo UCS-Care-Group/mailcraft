@@ -1373,7 +1373,10 @@ impl Session {
 
     /// How message `id` was last read in each place it is remembered in ([`Session::read_as`]).
     pub fn read_elsewhere(&self, id: Id) -> Vec<(mailcraft_html::Env, bool)> {
-        self.read_at.iter().filter(|((of, _), _)| *of == id).map(|(_, r)| (r.0, r.1)).collect()
+        let mut out: Vec<_> = self.read_at.iter().filter(|((of, _), _)| *of == id).map(|(_, r)| (r.0, r.1)).collect();
+        // In one order, whatever the map's.
+        out.sort_by_key(|(env, as_text)| (env.width(), env.dark(), *as_text));
+        out
     }
 
     /// The width and theme message `id` was last read at in `place`, and whether as its text part

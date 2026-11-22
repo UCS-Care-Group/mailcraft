@@ -38,7 +38,7 @@ fn assert_inert(out: &str, what: &str) {
 #[test]
 fn layout_and_pictures_keep_their_look() {
     let html = "<table width=\"600\" cellpadding=\"0\" style=\"border-collapse:collapse\" bgcolor=\"#ffffff\"><tr>\
-                <td align=\"center\" valign=\"top\" style=\"color:#336;font-family:Calibri\" colspan=\"2\"><img src=\"cid:logo@news.example\" alt=\"Logo\" width=\"120\" height=\"40\"></td></tr>\
+                <td align=\"center\" valign=\"top\" style=\"color:#336;font-family:Calibri\" colspan=\"2\"><img src=\"cid:logo@news.example\" width=\"120\" height=\"40\"></td></tr>\
                 <tr><td><p class=\"MsoNormal\"><b>Five</b> <font color=\"#c00\" face=\"Arial\" size=\"2\">new</font> arrivals<br></p></td>\
                 <td><ul><li>one</li><li>two</li></ul><a href=\"https://shop.example/a?b=1&amp;c=2\" id=\"Shop\">Shop</a></td></tr></table>";
     assert_eq!(quotable(html), html);
@@ -152,7 +152,8 @@ fn pictures_from_the_message_or_the_web_and_never_trackers() {
     ] {
         assert_eq!(quotable(gone), "", "{gone}");
     }
-    assert_eq!(quotable("<img src=\"cid:dot\" width=1>"), "<img src=\"cid:dot\" width=\"1\">");
+    // (One in the message too small to see isn't drawn either.)
+    assert_eq!(quotable("<img src=\"cid:dot\" width=1>"), "");
     assert_eq!(quotable("<img src=\"HTTPS://example.org/hero.jpg\" width=600>"), "<img src=\"HTTPS://example.org/hero.jpg\" width=\"600\">");
     // An address is read the way the reading pane reads it, and carried that way.
     assert_eq!(quotable("<img src=\"//example.org/a.png\">"), "<img src=\"https://example.org/a.png\">");
@@ -223,8 +224,8 @@ fn the_corpus_keeps_its_text_and_loses_its_trackers() {
     for (name, html) in corpus::messages() {
         let out = quotable(html);
         assert_inert(&out, name);
-        // What a reader sees of it is the same.
-        assert_eq!(crate::to_text(&out), crate::to_text(html), "{name}");
+        // What a reader sees of it is the same (the pictures in the message drawn, not described).
+        assert_eq!(crate::quote_to_text(&out), crate::quote_to_text(html), "{name}");
     }
     let remote = quotable(corpus::HOSTILE_REMOTE);
     assert!(!remote.contains("evil.example/pixel.gif") && !remote.contains("HIDDEN-ONE") && !remote.contains("phone home.</p><script"));

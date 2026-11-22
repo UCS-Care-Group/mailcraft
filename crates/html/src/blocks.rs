@@ -136,11 +136,17 @@ pub(crate) struct Seen {
     /// Text the pane shows in place of what a token holds, written after it: Outlook's
     /// written-out list marker, as the pane makes it again (a number, a label or a bullet).
     pub after: Vec<(usize, String)>,
+    /// The `<img>` tokens whose picture the pane drew, in order, each with the picture written
+    /// into the message it decoded (none for one it couldn't, or that isn't written in).
+    pub drawn: Vec<(usize, Option<data::Picture>)>,
 }
 
-/// [`Seen`] of `html` read for a pane of the width and theme `env`.
+/// [`Seen`] of `html` read for a pane of the width and theme `env`, as the pane reads it (its
+/// pictures decoded too, within the same budget).
 pub(crate) fn seen(html: &str, env: &Env) -> Seen {
-    build_with(html, false, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
+    // lean: decodes what the pane decodes (at most MAX_DATA_PICTURES_BYTES a look, MAX_MEDIA_ENVS
+    // looks for a message no pane said how it read).
+    build_with(html, true, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
 }
 
 /// [`Seen`] of `html` as each of the panes `envs` shows it: what is shown in every one of them.
@@ -173,9 +179,24 @@ pub(crate) fn seen_everywhere(html: &str, envs: &[Env]) -> Option<Seen> {
             *s &= *l;
         }
         let after = both(short.after, &long.after);
-        out = Seen { shown, cut, after };
+        let drawn = drawn_in_both(short.drawn, &long.drawn);
+        out = Seen { shown, cut, after, drawn };
     }
     Some(out)
+}
+
+/// The pictures drawn in both `a` and `b`, in token order, walked side by side once: with the
+/// picture decoded only when both decoded it.
+fn drawn_in_both(a: Vec<(usize, Option<data::Picture>)>, b: &[(usize, Option<data::Picture>)]) -> Vec<(usize, Option<data::Picture>)> {
+    let mut b = b.iter().peekable();
+    let mut out = Vec::new();
+    for (at, picture) in a {
+        while b.next_if(|other| other.0 < at).is_some() {}
+        if let Some(other) = b.next_if(|other| other.0 == at) {
+            out.push((at, picture.filter(|_| other.1.is_some())));
+        }
+    }
+    out
 }
 
 /// The markers in both `a` and `b`, each in token order: walked side by side, once.
@@ -835,6 +856,8 @@ struct Builder {
     copies: usize,
     /// What is shown of each token read, when it is asked for ([`seen`]).
     seen: Option<Seen>,
+    /// The picture of the `<img>` being read was drawn (with what it decoded), for `seen`.
+    drew: Option<Option<data::Picture>>,
     /// Where in `seen` the written-out marker being read starts; once read, there and the
     /// marker the pane makes of it, until its item's text shows it.
     marker_at: Option<usize>,
@@ -891,6 +914,7 @@ impl Builder {
             budget: Budget::default(),
             copies: COPY_FLOOR,
             seen: None,
+            drew: None,
             marker_at: None,
             marker_due: None,
             foreign: Vec::new(),
@@ -907,6 +931,9 @@ impl Builder {
         let Some(seen) = self.seen.as_mut() else { return };
         let at = seen.shown.len();
         seen.shown.push(if text { shown } else { self.hidden == 0 && self.template == 0 });
+        if let Some(picture) = self.drew.take() {
+            seen.drawn.push((at, picture));
+        }
         // A written-out marker in nothing else hidden starts here.
         if capture == 0 && self.capture > 0 && self.hidden == self.capture && self.template == 0 {
             self.marker_at = Some(at);
@@ -1462,6 +1489,7 @@ impl Builder {
                 } else {
                     None
                 };
+                let drew = self.seen.is_some().then(|| data.clone());
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
                 // A picture where the message says its text reads from the right stands where
@@ -1477,8 +1505,11 @@ impl Builder {
                     ..Block::new(kind, spans)
                 };
                 self.emit(block, false);
-                // (Only when it was added: past the cap there is no line to go on.)
+                // (Only when it was added: past the cap there is no line to go on, and no picture.)
                 self.after_picture = self.frame().blocks.len() > count;
+                if self.after_picture {
+                    self.drew = drew;
+                }
             }
             // No picture to load: its description is all there is, where text can be read.
             None if self.style().tiny => {}

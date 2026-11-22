@@ -511,6 +511,26 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 /// a text part that says something. (Never the text part when the HTML shows
 /// something a pane might show: that at worst quotes less than was shown, never words that
 /// weren't.)
+/// How message `m` was shown to the owner asking in `place`: its HTML (`None`: its text part),
+/// and the panes it was read in, as [`mailcraft_html::quotable_with_pictures`] takes them. As it
+/// was read there; else as every other place it was read in read it (the owner saw those); else
+/// as every pane would.
+pub(super) fn as_shown<'m>(s: &Session, m: &'m Message, place: crate::ReadIn) -> (Option<&'m str>, Vec<mailcraft_html::Env>) {
+    let read = match s.read_as(m.id, place) {
+        Some(read) => vec![read],
+        None => s.read_elsewhere(m.id),
+    };
+    let envs = read.iter().map(|r| r.0).collect();
+    let shown = if read.is_empty() {
+        shown_html(m)
+    } else if read.iter().all(|r| r.1) {
+        None
+    } else {
+        m.body.html.as_deref()
+    };
+    (shown, envs)
+}
+
 fn shown_html(m: &Message) -> Option<&str> {
     let html = m.body.html.as_deref()?;
     if m.body.text.trim().is_empty() {
@@ -612,20 +632,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body,
     // and so is one whose HTML the reading pane shows its text for.
-    // As it was read where this was asked for; else as every other place it was read in read it
-    // (the owner saw those); else as every pane would.
-    let read = match s.read_as(m.id, place) {
-        Some(read) => vec![read],
-        None => s.read_elsewhere(m.id),
-    };
-    let envs: Vec<mailcraft_html::Env> = read.iter().map(|r| r.0).collect();
-    let shown = if read.is_empty() {
-        shown_html(&m)
-    } else if read.iter().all(|r| r.1) {
-        None
-    } else {
-        m.body.html.as_deref()
-    };
+    let (shown, envs) = as_shown(s, &m, place);
     let quote = match shown {
         Some(html) if quoting => {
             let (html, written) = quoted_html(s, &m, html, &envs);

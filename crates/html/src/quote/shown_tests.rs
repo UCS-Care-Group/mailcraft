@@ -382,7 +382,7 @@ fn a_template_in_svg_or_in_what_is_hidden_hides_nothing_after_it() {
 }
 
 /// A picture's tooltip (`title`) is not carried, nor the alt text of a picture the pane draws
-/// (one in the message) in the plain text; a picture on the web, which the pane shows as its
+/// (one in the message), in the HTML or the plain text; a picture on the web, which the pane shows as its
 /// alt text until it is downloaded, keeps it there.
 #[test]
 fn tooltips_and_the_alt_text_of_drawn_pictures_are_not_quoted() {
@@ -390,18 +390,135 @@ fn tooltips_and_the_alt_text_of_drawn_pictures_are_not_quoted() {
         "<p title=\"TIP\">A</p><img src=\"cid:logo@example.org\" alt=\"LOGO\" title=\"TIP\"><img src=\"https://example.org/a.png\" alt=\"WEB\">";
     let out = quotable(html);
     assert!(!out.contains("title") && !out.contains("TIP"), "{out}");
-    assert!(out.contains("alt=\"LOGO\""), "{out}");
+    assert!(!out.contains("LOGO"), "{out}");
     assert_eq!(caps(&quote_to_text(&out)), "AWEB");
     let carried = quotable_with_pictures(
         &format!("<img src=\"data:image/png;base64,{}\" alt=\"CHART\">", crate::data_tests::b64(&crate::data_tests::PNG)),
         &mut |_, _| Some("p@example.org".into()),
         &[Env::default()],
     );
-    assert!(carried.contains("CHART") && !quote_to_text(&carried).contains("CHART"), "{carried}");
+    assert!(carried.contains("cid:") && !carried.contains("CHART"), "{carried}");
+}
+
+fn png() -> String {
+    format!("data:image/png;base64,{}", crate::data_tests::b64(&crate::data_tests::PNG))
+}
+
+/// The pictures of `blocks` the pane draws, in order: a web picture by its address, one written
+/// into the message (decoded) or attached to it as "in the message".
+fn drawn(blocks: &[crate::Block]) -> Vec<String> {
+    crate::images(blocks)
+        .into_iter()
+        .filter_map(|b| match &b.kind {
+            crate::BlockKind::Image { src, data, .. } if crate::is_embedded(src) => {
+                (!src.starts_with("data:") || data.is_some()).then(|| "in the message".to_string())
+            }
+            crate::BlockKind::Image { src, .. } => Some(src.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The pictures a quote carries are pictures the pane drew, in order, and its words (a picture's
+/// description too) are words the pane showed.
+fn assert_pictures_within(html: &str, envs: &[Env]) {
+    let views: Vec<Env> = if envs.is_empty() { crate::media_envs(&crate::media_lists(html)).0 } else { envs.to_vec() };
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), envs);
+    let quoted = drawn(&parse(&carried));
+    for env in views {
+        let read = parse_in(html, &env).blocks;
+        let pane = drawn(&read);
+        let mut left = pane.iter();
+        assert!(quoted.iter().all(|q| left.any(|p| p == q)), "{html:?} {env:?}: drawn {pane:?}, quoted {quoted:?}");
+        let seen = caps(&blocks_to_text(&read));
+        for q in [shown(&carried), caps(&quote_to_text(&carried))] {
+            assert!(within(&q, &seen), "{html:?} {env:?}: shown {seen:?}, quoted {q:?}");
+        }
+    }
+}
+
+/// A picture the pane doesn't draw is not carried, nor its description: one a style sheet makes
+/// too small to see, one past the pictures written into a message that are decoded (those inside
+/// a button count), one past the blocks the pane reads, one some look of the message hides.
+#[test]
+fn only_the_pictures_the_pane_drew_are_carried() {
+    for html in [
+        "<style>img.t{width:1px}</style><p>HELLO</p><img class=t src=\"https://img.example/x.png\" alt=\"SECRET\">",
+        "<style>img.t{height:0}</style><p>HELLO</p><img class=t src=\"https://img.example/x.png\" alt=\"SECRET\">",
+        "<style>img.t{width:2px;height:40px}</style><p>HELLO</p><img class=t src=\"https://img.example/x.png\" alt=\"SECRET\">",
+    ] {
+        let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), &[Env::default()]);
+        assert!(!carried.contains("img.example") && !carried.contains("SECRET"), "{carried}");
+        assert_eq!(caps(&quote_to_text(&carried)), "HELLO");
+        assert_pictures_within(html, &[Env::default()]);
+    }
+    // 32 decoded in buttons; the 33rd is past what is decoded, and drawn without its picture.
+    let buttons: String = (0..crate::MAX_DATA_PICTURES).map(|_| format!("<button><img src=\"{}\"></button>", png())).collect();
+    let html = format!("{buttons}<p>HELLO</p><img src=\"{}\" alt=\"ZED\">", png());
+    let mut handed = 0;
+    let carried = quotable_with_pictures(
+        &html,
+        &mut |_, _| {
+            handed += 1;
+            Some("p@example.org".into())
+        },
+        &[Env::default()],
+    );
+    assert_eq!(handed, 0, "{carried}");
+    assert!(!carried.contains("cid:") && !carried.contains("ZED"), "{carried}");
+    // Past the blocks the pane reads.
+    let html = format!("{}B<img src=\"https://img.example/x.png\" alt=\"SECRET\">", "<p>A</p>".repeat(crate::MAX_BLOCKS - 1));
+    let carried = quotable_with_pictures(&html, &mut |_, _| None, &[Env::default()]);
+    assert!(!carried.contains("img.example") && !carried.contains("SECRET"));
+    // Shown in some looks only: not in a quote of every look, whichever order they are in.
+    let html = "<style>@media (max-width:600px){img.n{display:none}} @media (prefers-color-scheme:dark){img.d{display:none}}</style>\
+                <p>HELLO</p><img class=n src=\"https://img.example/n.png\" alt=NARROW><img class=d src=\"https://img.example/d.png\" alt=DARK>";
+    let narrow_dark = Env::for_pane(400.0, true);
+    for envs in [&[][..], &[narrow_dark, Env::default()][..], &[Env::default(), narrow_dark][..]] {
+        let carried = quotable_with_pictures(html, &mut |_, _| None, envs);
+        assert!(!carried.contains("img.example") && !carried.contains("NARROW") && !carried.contains("DARK"), "{envs:?}: {carried}");
+        assert_pictures_within(html, envs);
+    }
+    // Drawn: carried, and the description of one in the message is not (it isn't shown).
+    let html = format!("<p>HELLO</p><img src=\"{}\" alt=\"ZED\"><img src=\"https://img.example/w.png\" alt=\"WEB\">", png());
+    let carried = quotable_with_pictures(&html, &mut |_, _| Some("p@example.org".into()), &[Env::default()]);
+    assert!(carried.contains("cid:p@example.org") && !carried.contains("ZED") && carried.contains("alt=\"WEB\""), "{carried}");
+    // No tooltips of any kind.
+    let carried = quotable("<table summary=SUMMARY><tr><td abbr=ABBR>A</td></tr></table>");
+    assert!(!carried.contains("SUMMARY") && !carried.contains("ABBR"), "{carried}");
+}
+
+/// Text of a size the reading pane shows (a percentage under a large parent) is quoted.
+#[test]
+fn text_the_pane_shows_at_its_largest_size_is_quoted() {
+    let html = "<p style=\"font-size:44px\">BIG <span style=\"font-size:5%\">SMALL</span></p>";
+    assert_eq!(shown(html), caps(&blocks_to_text(&parse(html))));
+    assert_eq!(quoted(html)[0], shown(html), "{:?}", quoted(html));
 }
 
 proptest::proptest! {
     #![proptest_config(proptest::prelude::ProptestConfig::with_cases(512))]
+
+    /// With pictures in it, on the web or written into the message, sized by a style sheet, in
+    /// buttons: the quote carries only pictures the pane drew, and no words it didn't show.
+    #[test]
+    fn a_quote_carries_only_pictures_the_pane_drew(
+        parts in proptest::collection::vec(
+            proptest::prop_oneof![2 => proptest::sample::select(pictures()), 1 => proptest::sample::select(soup())],
+            0..40,
+        ),
+        width in 1.0f32..2400.0,
+        dark in proptest::prelude::any::<bool>(),
+        read in 0usize..3,
+    ) {
+        let html: String = parts.concat();
+        let envs = match read {
+            0 => vec![],
+            1 => vec![Env::for_pane(width, dark)],
+            _ => vec![Env::for_pane(width, dark), Env::default()],
+        };
+        assert_pictures_within(&html, &envs);
+    }
 
     /// Whatever the pane's width and theme, the quote of a message read there says nothing the
     /// pane doesn't show.
@@ -470,5 +587,27 @@ fn soup() -> Vec<String> {
         ]
         .map(String::from),
     );
+    parts
+}
+
+/// Pictures for [`soup`]: on the web and written into the message, each with a description, a
+/// style sheet that sizes some to nothing, buttons around them, words.
+fn pictures() -> Vec<String> {
+    let mut parts = Vec::new();
+    parts.extend([
+        "A".to_string(),
+        "<p>".to_string(),
+        "<style>@media (max-width:800px){img.n{display:none}}</style>".to_string(),
+        "<img src=\"https://p.example/e.png\" alt=\"E\">".to_string(),
+        "<img class=t src=\"https://p.example/f.png\" alt=\"F\">".to_string(),
+        "<img class=z src=\"https://p.example/g.png\" alt=\"G\">".to_string(),
+        "<img class=n src=\"https://p.example/n.png\" alt=\"N\">".to_string(),
+        format!("<img src=\"{}\" alt=\"H\">", png()),
+        format!("<img class=t src=\"{}\" alt=\"J\">", png()),
+        "<style>img.t{width:1px}</style>".to_string(),
+        "<style>img.z{height:0}</style>".to_string(),
+        "<button>".to_string(),
+        "</button>".to_string(),
+    ]);
     parts
 }

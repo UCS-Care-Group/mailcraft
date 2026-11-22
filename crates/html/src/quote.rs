@@ -12,12 +12,11 @@
 //! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
 //! part of its own, and refers to it by the Content-ID the caller gives it (#602).
 
-use crate::blocks::{self, css_of, left_out, picture_url};
+use crate::blocks::{self, css_of, picture_url};
 use crate::data::{self, Budget, Picture};
 use crate::entities::{escape, unescape};
 use crate::media::Env;
 use crate::sheet::Sheet;
-use crate::style::{self, Css};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{MAX_INPUT_WITH_PICTURES, is_embedded, is_safe_url, truncate};
 
@@ -153,8 +152,7 @@ const BLOCKS: [&str; 33] = [
 ];
 
 /// Attributes carried on any kept element (`href` and `src` have rules of their own).
-const ATTRIBUTES: [&str; 36] = [
-    "abbr",
+const ATTRIBUTES: [&str; 34] = [
     "align",
     "alt",
     "bgcolor",
@@ -184,7 +182,6 @@ const ATTRIBUTES: [&str; 36] = [
     "span",
     "start",
     "style",
-    "summary",
     "type",
     "valign",
     "value",
@@ -253,6 +250,7 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> 
     let env = &env;
     let last = seen.shown.len().checked_sub(1);
     let mut after = seen.after.iter().peekable();
+    let mut drawn = seen.drawn.iter().peekable();
     let mut q = Quoter { written, ..Quoter::default() };
     // The message's style sheets are read to see what the sender hid with them; they are not
     // carried.
@@ -274,7 +272,10 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> 
             q.token(Token::Text(truncate(text, cut)));
             break;
         }
+        while drawn.next_if(|(i, _)| *i < at).is_some() {}
+        q.drawn = drawn.next_if(|(i, _)| *i == at).map(|(_, picture)| picture.clone());
         q.token(token);
+        q.drawn = None;
         while let Some((_, text)) = after.next_if(|(i, _)| *i == at) {
             q.token(Token::Text(text));
         }
@@ -286,8 +287,9 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> 
 struct Quoter<'a, 'w> {
     /// Where the pictures written into the message go, when they are carried.
     written: Option<&'a mut WrittenPicture<'w>>,
-    /// What those pictures have taken so far.
-    budget: Budget,
+    /// The `<img>` being written was drawn by the reading pane, with the picture written into the
+    /// message it decoded: the only pictures carried ([`blocks::Seen::drawn`]).
+    drawn: Option<Option<Picture>>,
     out: String,
     /// Kept elements open in what is written, outermost first.
     open: Vec<&'static str>,
@@ -312,9 +314,9 @@ impl Quoter<'_, '_> {
         {
             // What is before the body is the head, or out of place: only the body is carried.
             if !self.body {
-                // (Where the pictures go, and what they took, stay.)
-                let (written, budget) = (self.written.take(), std::mem::take(&mut self.budget));
-                *self = Quoter { body: true, written, budget, ..Quoter::default() };
+                // (Where the pictures go stays.)
+                let written = self.written.take();
+                *self = Quoter { body: true, written, ..Quoter::default() };
             }
             return;
         }
@@ -420,6 +422,8 @@ impl Quoter<'_, '_> {
             seen.push(attr.clone());
             let value = match (&picture, attr.as_str()) {
                 (Some(src), "src") => src.clone(),
+                // A picture in the message is drawn; its description is not shown.
+                (Some(src), "alt") if !web(src) => continue,
                 _ if attribute_kept(kept, &attr, &value) => value,
                 _ => continue,
             };
@@ -435,18 +439,16 @@ impl Quoter<'_, '_> {
         }
     }
 
-    /// A picture's address as it is carried, when it is carried at all: [`picture_kept`]'s, or for
-    /// a picture written into the message that the reading pane would show, the Content-ID it
-    /// goes out under, when there is somewhere for it to go. One too small to see is left out
-    /// before it is read, as in the reading pane, and takes nothing of the caps.
+    /// A picture's address as it is carried, when it is carried at all: only one the reading pane
+    /// drew ([`Quoter::drawn`]), with an address it may have; for a picture written into the
+    /// message, the Content-ID it goes out under (its bytes as the pane decoded them), when there
+    /// is somewhere for it to go.
     fn picture(&mut self, tag: &Tag<'_>) -> Option<String> {
-        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_kept(tag) };
+        let drawn = self.drawn.take()?;
+        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_src(tag.attr("src")) };
         let written = self.written.as_mut()?;
-        if left_out(tag, &css_of(tag)) {
-            return None;
-        }
-        let (kept, bytes) = data::picture(&src, true, &mut self.budget);
-        let bytes = bytes?;
+        let bytes = drawn?;
+        let (kept, _) = data::picture(&src, false, &mut Budget::default());
         let mime = kept.strip_prefix("data:").unwrap_or_default();
         let cid = written(mime, &bytes)?;
         Some(format!("cid:{cid}"))
@@ -547,19 +549,6 @@ fn picture_src(raw: Option<String>) -> Option<String> {
 
 fn web(url: &str) -> bool {
     ["http:", "https:"].iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)))
-}
-
-/// A picture's address, when the picture is carried at all: it has an address it may have, and
-/// is not on the web and too small to see (a tracking pixel).
-fn picture_kept(tag: &Tag<'_>) -> Option<String> {
-    let src = picture_src(tag.attr("src"))?;
-    if is_embedded(&src) {
-        return Some(src);
-    }
-    let css = tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default();
-    let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
-    let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
-    (!(tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height))).then_some(src)
 }
 
 fn attribute_kept(element: &str, attr: &str, value: &str) -> bool {
