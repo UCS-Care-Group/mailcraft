@@ -589,6 +589,42 @@ fn undo_is_bounded() {
 }
 
 #[test]
+fn a_marked_step_hands_its_width_to_undo_and_back_to_redo() {
+    let mut b = RichBody::default();
+    b.type_text("ab").unwrap();
+    // The picture was 300 wide; its holder made it 120.
+    let width = std::cell::Cell::new(Some(120));
+    b.push_mark(Mark { picture: 7, width: Some(300) });
+    // Typing after it is a step of its own, which puts no width back.
+    b.type_text("c").unwrap();
+    let swap = |m: Mark| {
+        assert_eq!(m.picture, 7);
+        Mark { picture: m.picture, width: width.replace(m.width) }
+    };
+    assert!(b.undo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(120)));
+    assert!(b.undo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(300)));
+    assert!(b.redo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(120)));
+    assert!(b.redo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("abc", Some(120)));
+    // Plain undo goes through a marked step, leaving its width alone.
+    assert!(b.undo() && b.undo());
+    assert!(b.redo() && b.redo());
+    assert_eq!(b.plain(), "abc");
+}
+
+#[test]
+fn a_mark_clears_redo() {
+    let mut b = RichBody::default();
+    b.type_text("ab").unwrap();
+    assert!(b.undo());
+    b.push_mark(Mark { picture: 1, width: None });
+    assert!(!b.can_redo() && b.can_undo());
+}
+
+#[test]
 fn inserting_at_keeps_the_selection_where_it_was() {
     let mut b = RichBody::from_plain("abc\nquote");
     b.select(1, 2).unwrap();

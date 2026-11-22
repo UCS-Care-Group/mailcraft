@@ -2032,6 +2032,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Legfeljebb {n} naptárra lehet előfizetni: előbb mondjon le egyről."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Egyszerre legfeljebb {n} levélben küldött kérés mehet el."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -6631,6 +6637,12 @@ msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Magasság"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -10513,6 +10525,12 @@ msgid "None"
 msgstr "Nincs"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Ezek közül egyik üzenetről sem lehet innen leiratkozni."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -11931,11 +11949,23 @@ msgstr "Válassza ki az utolsó napot"
 msgid "Picture"
 msgstr "Kép"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Képformátum"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Kép elrendezése"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Képméret"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11954,6 +11984,12 @@ msgstr "Kép a szöveg fölött"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Kép a szöveg mellett"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Képméret"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13143,6 +13179,12 @@ msgstr ""
 "Nézet\n"
 "alaphelyzetbe"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Méret visszaállítása"
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
@@ -14060,6 +14102,12 @@ msgstr "Válasszon ki valakit a részletek megtekintéséhez"
 msgid "Select the message before previewing its attachment."
 msgstr "Válassza ki az üzenetet, mielőtt megtekintené a csatolását."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Legfeljebb {n} üzenetet jelöljön ki a leiratkozáshoz."
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -14600,6 +14648,18 @@ msgstr "Beállítások…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Shapes"
 msgstr "Alakok"
@@ -14941,6 +15001,12 @@ msgstr "Mappaablak megjelenítése"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "A beszélgetés üzeneteinek megjelenítése"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "A kép megjelenítése a saját méretében"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15330,8 +15396,8 @@ msgstr "Egyszerűsített menüszalag"
 msgid "Single Line"
 msgstr "Egysoros"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Méret"
@@ -19561,6 +19627,26 @@ msgstr "Lemondás a naptárról"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Lemondás az internetes naptárról"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Leiratkozás a listáikról"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Leiratkozás a kijelölt üzenetekről"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Leiratkozás {n} listáról."
+msgstr[1] "Leiratkozás {n} listáról."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19572,6 +19658,12 @@ msgstr "Leiratkozás a lista oldalán a böngészőben."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Leiratkozott."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Leiratkozás: {click} egy kattintással, {mail} levélben, {pages} a saját oldalán végzendő, {left} kimaradt."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20146,7 +20238,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Ki írta alá ezt az üzenetet, és a tanúsítványt?"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Szélesség"
@@ -21119,6 +21211,12 @@ msgstr "a megosztott postafiók szabályai a sajátjai: ez a verzió nem teszi �
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "egy aláírás nyitva van: hozzáadja képeit aláírással.kép.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "egy aláírás nyitva van: képei méretét a signature.picture.set paranccsal állítsa be"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21924,6 +22022,12 @@ msgstr "nincs kimenő kiszolgáló"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nincs kép {id} ezen az aláíráson"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "ebbe az üzenetbe nem került {id} kép"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23517,6 +23621,12 @@ msgstr "a fiók kategóriái nincsenek szinkronban egy kiszolgálóval"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "a fiók kategóriái nincsenek szinkronban a kiszolgálójával"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "ez a változat nem tud egy kattintással leiratkozni"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24579,6 +24689,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "A postafiók tartalommappájában {n} üzenettörzs vagy melléklet hiányzik vagy sérült."
 msgstr[1] "A postafiók tartalommappájában {n} üzenettörzs vagy melléklet hiányzik vagy sérült."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül:"
+msgstr[1] "{n} egy-egy, a fiókjából küldött üzenettel, a Postázandó üzenetek mappán keresztül:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24816,6 +24934,14 @@ msgid "{n} hour before"
 msgid_plural "{n} hours before"
 msgstr[0] "{n} órával korábban"
 msgstr[1] "{n} órával korábban"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} egy kattintással: a kiszolgálója csak az általa megadott címet kapja meg."
+msgstr[1] "{n} egy kattintással: minden lista kiszolgálója csak az általa megadott címet kapja meg, egyenként."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -25119,6 +25245,14 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} perccel korábban"
 msgstr[1] "{n} perccel korábban"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "További {n} levélben küldött kérés most nem megy el: jelöljön ki kevesebb üzenetet, hogy lássa."
+msgstr[1] "További {n} levélben küldött kérés most nem megy el: jelöljön ki kevesebb üzenetet, hogy lássa őket."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -25368,6 +25502,14 @@ msgstr[0] "{n} kijelölve"
 msgstr[1] "{n} kijelölve"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} feladó kimarad: olyan levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, amelynek a feladójára figyelmeztetés vonatkozik, vagy amely nem mondja meg, hogyan."
+msgstr[1] "{n} feladó kimarad: olyan levél, amelyért a kiszolgálója nem kezeskedik, amely a Levélszemét mappában van, amelynek a feladójára figyelmeztetés vonatkozik, vagy amely nem mondja meg, hogyan."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25446,6 +25588,14 @@ msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
 msgstr[0] "{n} olvasatlan a kiszolgálón"
 msgstr[1] "{n} olvasatlan a kiszolgálón"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} a saját oldalán iratkoztat le: ehhez nyissa meg az üzenetét."
+msgstr[1] "{n} a saját oldalán iratkoztat le: ehhez nyissa meg egyenként ezeket az üzeneteket."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25724,6 +25874,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "~A {subject} ~ nem volt a szerveren, így nem lehet továbbítani, mint egy melléklet"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• címzett: {to}, tárgy: „{subject}”"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
