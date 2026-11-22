@@ -1,1 +1,0 @@
-- Moving a rule kept on a Microsoft account's server to a place the server's order can't take is refused, instead of putting the rule in the wrong place ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
