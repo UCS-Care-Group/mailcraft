@@ -6085,7 +6085,7 @@ msgid "Format Painter"
 msgstr "Opmaak kopiëren"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 msgid "Format Text"
 msgstr "Tekst opmaken"
 
@@ -11882,8 +11882,8 @@ msgstr "Pagina {page} van {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoerd. Open die alleen als u weet wie die heeft verzonden en u die verwacht."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 msgid "Paragraph"
 msgstr "Alinea"
 
@@ -15081,6 +15081,18 @@ msgstr "Gebruikersnamen, weergavenamen of echte namen weergeven"
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "Weeknummers weergeven in de maandweergave en de datumnavigator"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "Opmaakmarkeringen weergeven of verbergen"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "¶ weergeven/verbergen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

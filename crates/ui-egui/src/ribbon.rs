@@ -991,6 +991,10 @@ fn format_text(app: &MailApp) -> Tab {
                 Item::small("numbering", "Numbering", "Numbering", "format.numbering", no()).checked(look.numbering).at(3, 3).plain(),
                 Item::small("decreaseIndent", "Decrease Indent", "Decrease Indent", "format.outdent", no()).at(3, 4).plain(),
                 Item::small("increaseIndent", "Increase Indent", "Increase Indent", "format.indent", no()).at(3, 4).plain(),
+                Item::small("formattingMarks", "Show/Hide ¶", "Show/Hide formatting marks", "ui.showFormattingMarks", no())
+                    .checked(app.ui.show_formatting_marks)
+                    .at(3, 3)
+                    .plain(),
                 Item::pending("format.lineSpacing", "Line Spacing", 3),
             ],
         ),

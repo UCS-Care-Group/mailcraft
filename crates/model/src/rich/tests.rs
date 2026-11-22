@@ -21,7 +21,7 @@ pub(super) fn check(t: &RichText) {
         assert!(p.list == ListKind::None || p.align == Align::Left, "a list item is left: {t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
-            assert!(r.text.chars().all(|c| c == '\t' || !c.is_control()), "{t:?}");
+            assert!(r.text.chars().all(|c| c == '\t' || c == LINE_BREAK || !c.is_control()), "{t:?}");
             assert_eq!(r.style.clone().clean(), r.style);
         }
         for w in p.runs.windows(2) {
@@ -44,6 +44,20 @@ fn plain_text_is_one_paragraph_per_line() {
     check(&t);
     assert_eq!(RichText::from_plain("").paragraphs().len(), 1);
     assert!(RichText::new().is_empty());
+}
+
+#[test]
+fn a_manual_line_break_stays_inside_its_paragraph() {
+    let typed = RichText::from_plain(&format!("one{LINE_BREAK}two"));
+    assert_eq!(typed.paragraphs().len(), 1);
+    assert_eq!(typed.text(), format!("one{LINE_BREAK}two"));
+    assert_eq!(typed.to_plain(), "one\ntwo");
+    check(&typed);
+    let mut t = RichText::from_plain("one");
+    let n = t.insert(t.len(), &LINE_BREAK.to_string(), &Style::default()).unwrap();
+    t.insert(n, "two", &Style::default()).unwrap();
+    assert_eq!(t.text(), typed.text());
+    check(&t);
 }
 
 #[test]

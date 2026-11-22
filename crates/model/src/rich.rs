@@ -19,6 +19,8 @@
 //! one `\n` each. That is also the text a plain editor shows, so a position means the same in
 //! both. Every edit takes any positions and any text: positions past the end are an error, text
 //! loses its control characters, and sizes are capped ([`MAX_CHARS`], [`MAX_PARAGRAPHS`]).
+//! A manual line break ([`LINE_BREAK`]) is one character inside a paragraph. It goes out as
+//! `<br>` in HTML and as a new line in the plain part.
 //!
 //! [`RichBody`] adds what writing needs on top: the selection, the formatting the next typed
 //! character takes, and undo inside the message.
@@ -53,6 +55,12 @@ pub const MAX_LEVEL: u8 = 7;
 
 /// The character a picture stands as in the text (U+FFFC OBJECT REPLACEMENT CHARACTER).
 pub const OBJECT: char = '\u{fffc}';
+
+/// A line break inside a paragraph (Shift+Enter in the composer). It is not a new paragraph:
+/// the paragraph's list and indent continue. The HTML that goes out writes it as `<br>`, and the
+/// plain part as a new line. The editor may draw a return mark over it while editing; that mark
+/// is not this character and is not sent.
+pub const LINE_BREAK: char = '\u{2028}';
 
 /// The most families one font asks for, and the longest of their names: the same shape a
 /// message's `font-family` is kept in (`mailcraft_html::style::family`), so a list that goes out
@@ -482,9 +490,10 @@ pub fn safe_link(url: &str) -> Option<String> {
 }
 
 /// Text as a body may hold it: no control characters but the tab, no line breaks (they split
-/// paragraphs, see [`lines`]), and no [`OBJECT`] (only a picture run holds one).
+/// paragraphs, see [`lines`]), and no [`OBJECT`] (only a picture run holds one). A manual line
+/// break ([`LINE_BREAK`]) stays: it is one character of the paragraph, not a new paragraph.
 fn clean_line(s: &str) -> String {
-    s.chars().filter(|c| (*c == '\t' || !c.is_control()) && *c != OBJECT).collect()
+    s.chars().filter(|c| (*c == '\t' || *c == LINE_BREAK || !c.is_control()) && *c != OBJECT).collect()
 }
 
 /// The lines of `text`, whatever ends them (`\r\n`, `\r`, `\n`), each cleaned.
@@ -653,7 +662,12 @@ impl PastedTable {
 }
 
 fn append_plain_run(out: &mut String, text: &str, style: &Style) {
-    out.push_str(text);
+    // A manual line break is a new line in the plain part, never the separator character itself.
+    if text.contains(LINE_BREAK) {
+        out.push_str(&text.replace(LINE_BREAK, "\n"));
+    } else {
+        out.push_str(text);
+    }
     if let Some(url) = &style.link {
         let shown = text.trim();
         let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));

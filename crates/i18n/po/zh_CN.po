@@ -6320,7 +6320,7 @@ msgid "Format Painter"
 msgstr "格式刷"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Format Text"
 msgstr "设置文本格式"
@@ -12283,8 +12283,8 @@ msgstr "第 {page} 页，共 {pages} 页"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "此类页面会在浏览器中打开，页面中的脚本会运行。只有在确认发件人且预期会收到此页面时才打开。"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paragraph"
 msgstr "段落"
@@ -15612,6 +15612,18 @@ msgstr "显示用户名、显示名称或真实姓名"
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "在月视图和日期导航器中显示周数"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "显示或隐藏格式标记"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "显示/隐藏 ¶"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

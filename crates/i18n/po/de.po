@@ -5974,7 +5974,7 @@ msgid "Format Painter"
 msgstr "Format übertragen"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Format Text"
 msgstr "Text formatieren"
@@ -11542,8 +11542,8 @@ msgstr "Seite {page} von {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Seiten wie diese werden im Browser geöffnet, wo darin enthaltene Skripts ausgeführt werden. Öffnen Sie sie nur, wenn Sie den Absender kennen und die Datei erwarten."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 msgid "Paragraph"
 msgstr "Absatz"
 
@@ -14697,6 +14697,18 @@ msgstr "Benutzernamen, Anzeigenamen oder echte Namen anzeigen"
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "Kalenderwochen in der Monatsansicht und im Datumsnavigator anzeigen"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "Formatierungszeichen ein- oder ausblenden"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "¶ ein-/ausblenden"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

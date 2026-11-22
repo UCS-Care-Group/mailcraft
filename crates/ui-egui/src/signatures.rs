@@ -346,6 +346,14 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if ui.add(egui::Button::selectable(look.link, tl!("Link"))).clicked() {
             let _ = app.run("compose.link", json!({}));
         }
+        // The same switch as Format Text › Show/Hide ¶: marks while this signature is edited.
+        if ui
+            .add(egui::Button::selectable(app.ui.show_formatting_marks, tl!("Show/Hide ¶")))
+            .on_hover_text(tl!("Show/Hide formatting marks"))
+            .clicked()
+        {
+            let _ = app.run("ui.showFormattingMarks", json!({}));
+        }
         if ui.button(tl!("Insert Picture")).clicked() {
             app.signature_note = None;
             let _ = app.run("signature.picture.add", json!({}));

@@ -6313,7 +6313,7 @@ msgid "Format Painter"
 msgstr "ფორმატის ფუნჯი"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Format Text"
 msgstr "ტექსტის ფორმატირება"
@@ -12253,8 +12253,8 @@ msgstr "გვერდი {page} / {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "ასეთი გვერდები ბრაუზერში იხსნება, სადაც მათში არსებული სკრიპტები ეშვება. გახსენით მხოლოდ მაშინ, თუ იცით, ვინ გამოგზავნა, და ელოდებით."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paragraph"
 msgstr "აბზაცი"
@@ -15555,6 +15555,18 @@ msgstr "მომხმარებლის სახელების, სა
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "კვირის ნომრების ჩვენება თვის ხედში და თარიღის ნავიგატორში"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "ფორმატირების ნიშნების ჩვენება ან დამალვა"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "¶ ჩვენება/დამალვა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

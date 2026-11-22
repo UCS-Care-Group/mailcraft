@@ -24,8 +24,8 @@
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
 use mailcraft_model::rich::{
-    Align, CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE,
-    MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
+    Align, CellAlignment, CellText, Font, LINE_BREAK, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS,
+    MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
 };
 use mailcraft_model::signature::{Layout, Picture, Signature};
 
@@ -338,6 +338,8 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
                 ' ' if after_space || index == total => out.push_str("&nbsp;"),
                 ' ' => out.push(' '),
                 '\t' => out.push_str("&nbsp;&nbsp;&nbsp;&nbsp;"),
+                // A manual line break stays inside the paragraph (`<br>`), never a mark.
+                LINE_BREAK => out.push_str("<br>"),
                 '&' => out.push_str("&amp;"),
                 '<' => out.push_str("&lt;"),
                 '>' => out.push_str("&gt;"),
@@ -346,7 +348,7 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
                 c if c.is_control() => {}
                 c => out.push(c),
             }
-            after_space = c == ' ' || c == '\t';
+            after_space = c == ' ' || c == '\t' || c == LINE_BREAK;
         }
         for end in close.iter().rev() {
             out.push_str(end);
@@ -726,5 +728,7 @@ fn cut(text: &str, max: usize) -> &str {
     text.get(..end).unwrap_or("")
 }
 
+#[cfg(test)]
+mod line_break_tests;
 #[cfg(test)]
 mod tests;

@@ -430,6 +430,8 @@ const SAFE: &[&str] = &[
     "ui.backstage",
     "ui.collapseRibbon",
     "ui.ribbonMode",
+    // Marks drawn over a message or a signature while it is edited. They are not part of it (#1278).
+    "ui.showFormattingMarks",
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",

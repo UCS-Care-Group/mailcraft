@@ -898,6 +898,10 @@ pub struct UiState {
     pub ribbon_collapsed: bool,
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
+    /// Format Text › Show/Hide ¶ (#1278): paragraph marks, spaces, tabs and manual line breaks
+    /// while a message or a signature is edited. Off unless the owner turns it on. The marks
+    /// are painted over the text; they are not part of the message and are not sent.
+    pub show_formatting_marks: bool,
     /// Interface theme: light, dark, or follow the OS appearance.
     pub theme: theme::Appearance,
     /// High contrast: a stronger version of whichever theme is in use.
@@ -1053,6 +1057,7 @@ impl Default for UiState {
             backstage_page: "info".into(),
             ribbon_collapsed: false,
             ribbon_mode: ribbon::Mode::default(),
+            show_formatting_marks: false,
             theme: theme::Appearance::default(),
             high_contrast: false,
             animations: motion::Motion::default(),
@@ -1142,6 +1147,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.backstage", "File", "Ribbon", r#"{"value"?: bool, "page"?: "info"|"open"|"options"|"about"}"#),
     ("ui.collapseRibbon", "Collapse the Ribbon", "Ribbon", r#"{"value"?: bool}"#),
     ("ui.ribbonMode", "Ribbon Layout", "View › Layout", r#"{"value": "simplified"|"classic"}"#),
+    (
+        "ui.showFormattingMarks",
+        "Show/Hide formatting marks",
+        "Format Text › Paragraph",
+        r#"{"value"?: bool} — on draws paragraph marks, spaces, tabs and manual line breaks while a message or a signature is edited; off hides them. They are not part of the message"#,
+    ),
     (
         "ui.dialog",
         "Open Dialog",
@@ -2853,6 +2864,14 @@ impl MailApp {
             "ui.collapseRibbon" => {
                 self.ui.ribbon_collapsed = b("value").unwrap_or(!self.ui.ribbon_collapsed);
                 Ok(json!({"value": self.ui.ribbon_collapsed}))
+            }
+            "ui.showFormattingMarks" => {
+                let value = match switched(p, self.ui.show_formatting_marks) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
+                };
+                self.ui.show_formatting_marks = value;
+                Ok(json!({"value": value}))
             }
             "ui.ribbonMode" => match s("value").and_then(ribbon::Mode::from_code) {
                 Some(mode) => {
