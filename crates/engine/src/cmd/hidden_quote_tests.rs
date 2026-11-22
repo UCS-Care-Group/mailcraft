@@ -186,15 +186,20 @@ fn a_reply_quotes_the_message_as_the_place_it_was_asked_for_read_it() {
             let from_window = quoted_looks(&mut s, command, json!({"id": id, "window": 7}));
             assert_eq!(from_window, ["Hello Avery,", "Light only"], "{command} {pane_last}");
             let elsewhere = quoted_looks(&mut s, command, json!({"id": id, "window": 8}));
-            assert_eq!(elsewhere, ["Hello Avery,"], "{command} {pane_last}");
+            // Asked for where it wasn't read: only what both places that read it showed.
+            assert_eq!(elsewhere, ["Hello Avery,", "Light only"], "{command} {pane_last}");
         }
     }
     // A window that isn't a number is refused, not taken for the pane.
     let mut s = session();
     let id = message(&mut s, LOOKS, "");
-    for command in ["mail.reply", "mail.forward", "mail.replyAndDelete"] {
+    let other = message(&mut s, LOOKS, "");
+    for command in ["mail.reply", "mail.forward", "mail.replyAndDelete", "mail.forwardAsAttachment"] {
         for window in [json!("7"), json!(-1), json!(null), json!(1.5)] {
             assert!(s.run(command, &json!({"id": id, "window": window})).is_err(), "{command} {window}");
+            if command.starts_with("mail.forward") {
+                assert!(s.run(command, &json!({"ids": [id, other], "window": window})).is_err(), "{command} {window}");
+            }
         }
     }
 }
@@ -219,4 +224,53 @@ fn a_reply_after_many_messages_were_read_quotes_no_more_than_every_pane_shows() 
     assert_eq!(s.read_as(kept, ReadIn::Pane), Some((mailcraft_html::Env::default(), false)));
     assert_eq!(quoted_looks(&mut s, "mail.reply", json!({"id": kept})), ["Hello Avery,", "Light only", "Wide only"]);
     assert_eq!(quoted_looks(&mut s, "mail.reply", json!({"id": forgotten})), ["Hello Avery,"]);
+}
+
+/// Hidden at every real pane width, shown only at widths nobody reads at, with more narrow
+/// breakpoints in front than looks are told apart.
+fn padded() -> String {
+    let pads: String = (1..=20).map(|n| format!("@media (max-width:{}px){{.n{n}{{color:#00f}}}}", n * 10)).collect();
+    format!(
+        "<style>{pads}@media (min-width:200px) and (max-width:1279px){{.x{{display:none}}}}@media (min-width:1281px){{.x{{display:none}}}}</style>\
+         <p>Hello Avery,</p><p class=x>Padded words</p><p>Kind regards</p>"
+    )
+}
+
+/// A message with more looks than are told apart is quoted as a place that read it read it,
+/// whichever place the reply was asked for in (the reading pane off, read in a window of its
+/// own, closed, answered from the list); read nowhere, by an agent, or forgotten, none of its
+/// body is quoted, never its text part instead.
+#[test]
+fn a_message_with_more_looks_than_are_told_is_quoted_as_read_or_not_at_all() {
+    for text in ["", "SENDER ALTERNATIVE"] {
+        for command in ["mail.reply", "mail.forward"] {
+            // Read nowhere.
+            let mut s = session();
+            let id = message(&mut s, &padded(), text);
+            run(&mut s, command, json!({"id": id}));
+            let c = compose(&s).clone();
+            let q = c.quote.clone().unwrap();
+            for said in [&q.html, &q.text, &c.body.plain()] {
+                assert!(!said.contains("Padded") && !said.contains("SENDER") && !said.contains("Hello Avery"), "{command} {text}: {said}");
+            }
+            // Read in a window of its own only, answered from the list.
+            let mut s = session();
+            let id = message(&mut s, &padded(), text);
+            s.read_at(id, ReadIn::Window(3), mailcraft_html::Env::for_pane(1600.0, false), false);
+            run(&mut s, command, json!({"id": id}));
+            let q = compose(&s).quote.clone().unwrap();
+            assert!(q.html.contains("Hello Avery,") && q.html.contains("Kind regards") && !q.html.contains("Padded"), "{command}: {}", q.html);
+            assert!(q.text.contains("Kind regards") && !q.text.contains("Padded"), "{command}: {}", q.text);
+            // Read in the pane, then forgotten.
+            let mut s = session();
+            let id = message(&mut s, &padded(), text);
+            s.read_at(id, ReadIn::Pane, mailcraft_html::Env::for_pane(800.0, false), false);
+            for n in 0..1100u64 {
+                s.read_at(1_000_000 + n, ReadIn::Pane, mailcraft_html::Env::default(), false);
+            }
+            run(&mut s, command, json!({"id": id}));
+            let q = compose(&s).quote.clone().unwrap();
+            assert!(!q.html.contains("Padded") && !q.text.contains("Padded") && !q.html.contains("Hello Avery"), "{command}: {}", q.html);
+        }
+    }
 }

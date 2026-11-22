@@ -1371,6 +1371,11 @@ impl Session {
         self.read_at.insert((id, place), (env, as_text, self.read_count));
     }
 
+    /// How message `id` was last read in each place it is remembered in ([`Session::read_as`]).
+    pub fn read_elsewhere(&self, id: Id) -> Vec<(mailcraft_html::Env, bool)> {
+        self.read_at.iter().filter(|((of, _), _)| *of == id).map(|(_, r)| (r.0, r.1)).collect()
+    }
+
     /// The width and theme message `id` was last read at in `place`, and whether as its text part
     /// ([`Session::read_at`]); `None` when it wasn't read there (or was forgotten).
     pub fn read_as(&self, id: Id, place: ReadIn) -> Option<(mailcraft_html::Env, bool)> {

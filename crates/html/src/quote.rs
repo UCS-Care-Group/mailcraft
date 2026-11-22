@@ -214,7 +214,7 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// reading pane reads (at most [`MAX_INPUT`](crate::MAX_INPUT) bytes besides the pictures written
 /// into the message) and is linear in it.
 pub fn quotable(html: &str) -> String {
-    quote(html, None, Some(&Env::default()))
+    quote(html, None, &[Env::default()])
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -228,22 +228,28 @@ pub fn quotable(html: &str) -> String {
 /// `<body>` that comes later, which counts against the caps all the same, as in the reading
 /// pane): the caller keeps only those the result refers to.
 ///
-/// The message is read as the pane read it, at its width and in its theme (`env`, as for
-/// [`parse_in`](crate::parse_in)): what its `@media` hid there is left out. With no `env` (no
-/// pane said how it read it), only what every look its `@media` gives it shows is carried.
-pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, env: Option<&Env>) -> String {
-    quote(html, Some(written), env)
+/// The message is read as the panes it was read in read it, at their widths and in their themes
+/// (`envs`, as for [`parse_in`](crate::parse_in)): what its `@media` hid in any of them is left
+/// out. With none (no pane said how it read it), only what every look its `@media` gives it
+/// shows is carried, and nothing of it when it has more looks than are told apart
+/// ([`crate::MAX_MEDIA_ENVS`]).
+pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, envs: &[Env]) -> String {
+    quote(html, Some(written), envs)
 }
 
-fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, env: Option<&Env>) -> String {
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> String {
     let html = truncate(html, MAX_INPUT_WITH_PICTURES);
     // What the reading pane shows, token by token: nothing it leaves out is carried, and it is
     // read as far as the pane reads it.
-    let seen = match env {
-        Some(env) => blocks::seen(html, env),
-        None => blocks::seen_everywhere(html),
+    let seen = match envs {
+        [env] => blocks::seen(html, env),
+        // lean: a message whose looks can't all be told is not quoted at all.
+        _ => match blocks::seen_everywhere(html, envs) {
+            Some(seen) => seen,
+            None => return String::new(),
+        },
     };
-    let env = env.copied().unwrap_or_default();
+    let env = envs.first().copied().unwrap_or_default();
     let env = &env;
     let last = seen.shown.len().checked_sub(1);
     let mut after = seen.after.iter().peekable();
@@ -353,6 +359,11 @@ impl Quoter<'_, '_> {
                         None => self.skip = None,
                     }
                     return true;
+                }
+                if matches!(skip.name.as_str(), "svg" | "math") && matches!(name.as_str(), "p" | "br") {
+                    // `<svg></p>`: those end tags end the SVG too (as in the reading pane).
+                    self.skip = None;
+                    return false;
                 }
                 if skip.nested == 0 && (ends_itself || matches!(skip.name.as_str(), "svg" | "math")) && self.open.iter().any(|o| o == name) {
                     // `<tr><td hidden>x</tr>`: the row's end ends the cell; `<div><svg></div>`:

@@ -143,13 +143,24 @@ pub(crate) fn seen(html: &str, env: &Env) -> Seen {
     build_with(html, false, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
 }
 
-/// [`Seen`] of `html` as every pane shows it: what is shown in each look its `@media` gives it
-/// ([`crate::media_envs`]), for a message no pane has said how it read.
-pub(crate) fn seen_everywhere(html: &str) -> Seen {
-    // lean: at most MAX_MEDIA_ENVS looks; a message with more is read in those it has.
-    let (envs, _) = crate::media::envs(&crate::media_lists(html));
+/// [`Seen`] of `html` as each of the panes `envs` shows it: what is shown in every one of them.
+/// With none, in each look its `@media` gives it ([`crate::media_envs`]), for a message no pane
+/// has said how it read; `None` when it has more looks than are told apart (what one of the
+/// others shows can't be known).
+pub(crate) fn seen_everywhere(html: &str, envs: &[Env]) -> Option<Seen> {
+    let looks_of_media;
+    let envs = if envs.is_empty() {
+        let (looks, every) = crate::media::envs(&crate::media_lists(html));
+        if !every {
+            return None;
+        }
+        looks_of_media = looks;
+        &looks_of_media[..]
+    } else {
+        envs
+    };
     let mut looks = envs.iter().map(|env| seen(html, env));
-    let Some(mut out) = looks.next() else { return Seen::default() };
+    let Some(mut out) = looks.next() else { return Some(Seen::default()) };
     for other in looks {
         let (short, long) = if other.shown.len() < out.shown.len() { (other, out) } else { (out, other) };
         let cut = match (short.cut, long.cut) {
@@ -161,8 +172,21 @@ pub(crate) fn seen_everywhere(html: &str) -> Seen {
         for (s, l) in shown.iter_mut().zip(&long.shown) {
             *s &= *l;
         }
-        let after = short.after.into_iter().filter(|a| long.after.contains(a)).collect();
+        let after = both(short.after, &long.after);
         out = Seen { shown, cut, after };
+    }
+    Some(out)
+}
+
+/// The markers in both `a` and `b`, each in token order: walked side by side, once.
+pub(crate) fn both(a: Vec<(usize, String)>, b: &[(usize, String)]) -> Vec<(usize, String)> {
+    let mut b = b.iter().peekable();
+    let mut out = Vec::new();
+    for item in a {
+        while b.next_if(|other| (other.0, other.1.as_str()) < (item.0, item.1.as_str())).is_some() {}
+        if b.next_if(|other| **other == item).is_some() {
+            out.push(item);
+        }
     }
     out
 }
@@ -924,8 +948,13 @@ impl Builder {
                 if name == "template" && self.template > 0 {
                     self.template -= 1;
                 } else if self.template == 0 {
-                    // (`</svg>` ends the innermost SVG element and what is open inside it.)
-                    if matches!(name.as_str(), "svg" | "math")
+                    // (`</svg>` ends the innermost SVG element and what is open inside it; `</p>`
+                    // and `</br>` end them all, as in a browser. lean: inside `<foreignObject>`,
+                    // `<desc>` or `<title>` an HTML element ends them too, where a browser keeps
+                    // them open: the pane then takes a `<template>` after for one, and shows less.)
+                    if matches!(name.as_str(), "p" | "br") {
+                        self.foreign.clear();
+                    } else if matches!(name.as_str(), "svg" | "math")
                         && let Some(at) = self.foreign.iter().rposition(|(_, math)| *math == (name == "math"))
                     {
                         self.foreign.truncate(at);

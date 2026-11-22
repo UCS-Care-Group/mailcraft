@@ -113,7 +113,7 @@ const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a messag
 
 const REPLY: &str = r#"{"id"?: number, "window"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286; `window`: the number of the window of its own it is answered from, else the reading pane: the original is quoted as it was read there, and with only what every pane would show of it when it wasn't read there). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
 
-const FORWARD: &str = r#"{"id"?: number, "discard"?: bool, "window"?: number} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing; `window`: as for Reply). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool, "window"?: number} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing; `window`, in either form: as for Reply, and only a number). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written (#442). Those that start another (New
 /// Email, Reply, Forward, Open Draft, People's Email…: [`STARTING`]) open it beside this one,
@@ -409,7 +409,7 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
 /// would. With it, the pictures written into the original (`data:`) that it shows, each to go
 /// as a part of its own ([`Written`]).
-fn quoted_html(s: &Session, m: &Message, html: &str, env: Option<&mailcraft_html::Env>) -> (String, Vec<Attachment>) {
+fn quoted_html(s: &Session, m: &Message, html: &str, envs: &[mailcraft_html::Env]) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -424,7 +424,7 @@ fn quoted_html(s: &Session, m: &Message, html: &str, env: Option<&mailcraft_html
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
-    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture), env));
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture), envs));
     out.push_str("\r\n</div>");
     // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
     // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
@@ -506,8 +506,9 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
 /// `<img>` asks for by `cid:` and is a picture by its bytes.
 /// The original's HTML for a message no pane has said how it showed ([`Session::read_at`]): its
-/// text part only when the HTML reads to no text and no picture at all, in any pane its `@media`
-/// tells apart, beside a text part that says something. (Never the text part when the HTML shows
+/// text part only when the HTML reads to no text and no picture at all, in every pane its `@media`
+/// tells apart (when they can all be told: else the HTML, which is then quoted as nothing), beside
+/// a text part that says something. (Never the text part when the HTML shows
 /// something a pane might show: that at worst quotes less than was shown, never words that
 /// weren't.)
 fn shown_html(m: &Message) -> Option<&str> {
@@ -515,7 +516,10 @@ fn shown_html(m: &Message) -> Option<&str> {
     if m.body.text.trim().is_empty() {
         return Some(html);
     }
-    let (envs, _) = mailcraft_html::media_envs(&mailcraft_html::media_lists(html));
+    let (envs, every) = mailcraft_html::media_envs(&mailcraft_html::media_lists(html));
+    if !every {
+        return Some(html);
+    }
     let shows = |env: &mailcraft_html::Env| {
         let blocks = mailcraft_html::parse_in(html, env).blocks;
         mailcraft_html::has_text(&blocks) || !mailcraft_html::images(&blocks).is_empty()
@@ -608,15 +612,23 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body,
     // and so is one whose HTML the reading pane shows its text for.
-    let read = s.read_as(m.id, place);
-    let shown = match read {
-        Some((_, true)) => None,
-        Some((_, false)) => m.body.html.as_deref(),
-        None => shown_html(&m),
+    // As it was read where this was asked for; else as every other place it was read in read it
+    // (the owner saw those); else as every pane would.
+    let read = match s.read_as(m.id, place) {
+        Some(read) => vec![read],
+        None => s.read_elsewhere(m.id),
+    };
+    let envs: Vec<mailcraft_html::Env> = read.iter().map(|r| r.0).collect();
+    let shown = if read.is_empty() {
+        shown_html(&m)
+    } else if read.iter().all(|r| r.1) {
+        None
+    } else {
+        m.body.html.as_deref()
     };
     let quote = match shown {
         Some(html) if quoting => {
-            let (html, written) = quoted_html(s, &m, html, read.map(|r| r.0).as_ref());
+            let (html, written) = quoted_html(s, &m, html, &envs);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
             // The pictures the quote still shows: not those of what was left out of it. (A
             // forward carries the original's own as its attachments.) And those written into
@@ -718,6 +730,7 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
     p::only(v, &["id", "ids", "discard", "window"])?;
+    read_in(v)?;
     let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();

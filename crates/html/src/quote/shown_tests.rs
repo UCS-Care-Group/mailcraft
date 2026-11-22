@@ -25,13 +25,13 @@ fn shown_in(html: &str, env: &Env) -> String {
 /// and its plain text, without and with the pictures written into the message carried.
 fn quoted(html: &str) -> [String; 4] {
     let plain = quotable(html);
-    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), Some(&Env::default()));
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), &[Env::default()]);
     [shown(&plain), caps(&quote_to_text(&plain)), shown(&carried), caps(&quote_to_text(&carried))]
 }
 
 /// The quote of a message read in a pane of the width and theme `env`, as HTML and as text.
 fn quoted_in(html: &str, env: &Env) -> [String; 2] {
-    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), Some(env));
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), &[*env]);
     [shown(&carried), caps(&quote_to_text(&carried))]
 }
 
@@ -236,7 +236,7 @@ fn a_message_read_nowhere_is_quoted_as_every_pane_shows_it() {
         "@media (prefers-color-scheme:dark) and (max-width:800px){.x{display:none}}",
     ] {
         let html = format!("<style>{rule}</style><p>A</p><p class=x>BBB</p><p>C</p>");
-        let carried = quotable_with_pictures(&html, &mut |_, _| None, None);
+        let carried = quotable_with_pictures(&html, &mut |_, _| None, &[]);
         for q in [shown(&carried), caps(&quote_to_text(&carried))] {
             assert_eq!(q, "AC", "{html}");
             for env in envs() {
@@ -245,8 +245,55 @@ fn a_message_read_nowhere_is_quoted_as_every_pane_shows_it() {
         }
     }
     // Without `@media`, as any pane.
-    let carried = quotable_with_pictures("<p>A</p><p hidden>B</p><p>C</p>", &mut |_, _| None, None);
+    let carried = quotable_with_pictures("<p>A</p><p hidden>B</p><p>C</p>", &mut |_, _| None, &[]);
     assert_eq!(shown(&carried), "AC");
+}
+
+/// Hidden at every real pane width, shown only at widths nobody reads at, with more narrow
+/// breakpoints in front than looks are told apart.
+fn padded() -> String {
+    let pads: String = (1..=20).map(|n| format!("@media (max-width:{}px){{.n{n}{{color:#00f}}}}", n * 10)).collect();
+    format!(
+        "<style>{pads}@media (min-width:200px) and (max-width:1279px){{.x{{display:none}}}}@media (min-width:1281px){{.x{{display:none}}}}</style>\
+         <p>A</p><p class=x>XXX</p><p>C</p>"
+    )
+}
+
+/// A message with more looks than are told apart, read nowhere, is not quoted at all (what one
+/// of the others shows can't be known); read somewhere, as each place read it.
+#[test]
+fn a_message_with_more_looks_than_are_told_is_quoted_as_read_or_not_at_all() {
+    let html = padded();
+    assert!(!crate::media_envs(&crate::media_lists(&html)).1, "more looks than are told apart");
+    for width in [800.0, 1000.0, 1600.0, 1920.0] {
+        assert_eq!(shown_in(&html, &Env::for_pane(width, false)), "AC", "{width}");
+    }
+    let carried = quotable_with_pictures(&html, &mut |_, _| None, &[]);
+    assert_eq!(carried, "");
+    let wide = Env::for_pane(1600.0, false);
+    let carried = quotable_with_pictures(&html, &mut |_, _| None, &[wide]);
+    assert_eq!(shown(&carried), "AC");
+    // Two places: only what both showed.
+    let html2 = "<style>@media (max-width:999px){.w{display:none}}</style><p>A</p><p class=w>WIDE</p>";
+    let carried = quotable_with_pictures(html2, &mut |_, _| None, &[wide, Env::for_pane(800.0, false)]);
+    assert_eq!(shown(&carried), "A");
+    let carried = quotable_with_pictures(html2, &mut |_, _| None, &[wide, Env::for_pane(1200.0, true)]);
+    assert_eq!(shown(&carried), "AWIDE");
+}
+
+/// The markers two looks both show are found in one walk: many of them take no longer than a
+/// few, give or take.
+#[test]
+fn the_markers_every_look_shows_are_found_in_one_walk() {
+    let a: Vec<(usize, String)> = (0..20_000).map(|n| (n * 2, format!("{n}."))).collect();
+    let b: Vec<(usize, String)> = (0..20_000).map(|n| (n * 3, format!("{}.", n * 3 / 2))).collect();
+    let started = std::time::Instant::now();
+    let out = crate::blocks::both(a.clone(), &b);
+    assert!(started.elapsed() < std::time::Duration::from_millis(500), "{:?}", started.elapsed());
+    let slow: Vec<_> = a.into_iter().filter(|x| b.contains(x)).collect();
+    assert_eq!(out, slow);
+    assert_eq!(out.len(), 6_667);
+    assert_eq!(crate::blocks::both(vec![(1, "a".into()), (1, "b".into())], &[(1, "b".into())]), [(1, "b".to_string())]);
 }
 
 /// `<svg/>` and `<math/>` are written closed; a `/` at the end of an unquoted value is the
@@ -286,6 +333,8 @@ fn svg_and_math_end_where_a_browser_ends_them() {
         ("A<math><div>X</div><template>B</template>C", "AXC"),
         ("A<svg><font color=red>X<template>B</template>C", "AXC"),
         ("A<svg><svg><span>X</span><template>B</template>C", "AXC"),
+        ("A<svg></p><template>B</template>C", "AC"),
+        ("A<math></br><template>B</template>C", "AC"),
     ] {
         assert_eq!(shown(html), both, "{html}");
         assert!(quoted(html).iter().all(|q| q == both), "{html}: {:?}", quoted(html));
@@ -331,7 +380,7 @@ fn tooltips_and_the_alt_text_of_drawn_pictures_are_not_quoted() {
     let carried = quotable_with_pictures(
         &format!("<img src=\"data:image/png;base64,{}\" alt=\"CHART\">", crate::data_tests::b64(&crate::data_tests::PNG)),
         &mut |_, _| Some("p@example.org".into()),
-        Some(&Env::default()),
+        &[Env::default()],
     );
     assert!(carried.contains("CHART") && !quote_to_text(&carried).contains("CHART"), "{carried}");
 }

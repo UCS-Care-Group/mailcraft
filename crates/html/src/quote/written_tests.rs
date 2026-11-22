@@ -29,7 +29,7 @@ fn quoted(html: &str) -> (String, Vec<(String, Picture)>) {
             handed.push((mime.to_string(), picture.clone()));
             Some(format!("p{}@mailcraft.invalid", handed.len()))
         },
-        Some(&Env::default()),
+        &[Env::default()],
     );
     (out, handed)
 }
@@ -102,8 +102,7 @@ fn a_picture_too_small_to_see_is_left_out_and_takes_nothing_of_the_caps() {
 
 #[test]
 fn a_picture_refused_by_the_caller_is_left_out() {
-    let out =
-        quotable_with_pictures(&format!("<p>a</p><img src=\"{}\" alt=\"Chart\">", png()), &mut |_: &str, _: &Picture| None, Some(&Env::default()));
+    let out = quotable_with_pictures(&format!("<p>a</p><img src=\"{}\" alt=\"Chart\">", png()), &mut |_: &str, _: &Picture| None, &[Env::default()]);
     assert_eq!(out, "<p>a</p>");
 }
 

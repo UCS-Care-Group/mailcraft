@@ -45,7 +45,8 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   follows the reading pane's own reading of where that starts and ends, whatever it is nested in
   (a template, a hidden block, an element the quote leaves out whole), at the width and in the
   theme of the pane or window the reply was started from (what its `@media` hid there; a message
-  not read there carries only what every width and theme shows), so it never carries what the
+  not read there carries only what the other places that read it showed, or what every width
+  and theme shows, and none of its body when it has more looks than can be told apart), so it never carries what the
   pane didn't show; the words of it
   (`Message::hidden_text`, 16 KB at most, worked out when the message is read) are in the owner's
   search, rules and what an agent reads (`hiddenText` of `mail.get`), so that nothing a sender
