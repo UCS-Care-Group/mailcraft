@@ -235,7 +235,7 @@ fn google_desktop_requires_registration_and_keeps_password_as_default() {
     let seen: Log<(String, OAuthProvider, String, String, bool)> = Default::default();
     let written = seen.clone();
     app.services.sign_in = Some(Box::new(move |request: SignInRequest| {
-        written.lock().unwrap().push((request.email, request.oauth.provider, request.oauth.client_id, request.google_client_secret, request.graph));
+        written.lock().unwrap().push((request.email, request.oauth.provider, request.oauth.client_id, request.client_secret, request.graph));
         mpsc::channel().1
     }));
     let mut wizard = AccountSetup::open(&app, &json!({"email": "one@gmail.com"})).unwrap();

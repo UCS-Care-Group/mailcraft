@@ -112,6 +112,11 @@ pub fn dav_secret_keys(a: &mailcraft_model::Account) -> Vec<String> {
     a.dav.as_ref().into_iter().flat_map(|dav| dav.origins()).filter_map(|origin| dav_secret_key(a, &origin)).collect()
 }
 
+/// What the client secret of an account that signs in with an own identity provider is kept
+/// under in the credential store (`kind`). Only such an account has one; it is never written
+/// anywhere else ([`mailcraft_model::OAuth::has_secret`] says whether there is one).
+pub const OAUTH_CLIENT: &str = "oauth-client";
+
 /// The name secrets were kept under before they were bound to servers.
 pub fn legacy_secret_key(kind: &str, address: &str) -> String {
     format!("{kind}:{}", address.trim().to_ascii_lowercase())
@@ -145,6 +150,13 @@ pub fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
             None => format!("{kind}:{address}|ews={url}|user={user}"),
         }
     } else {
-        format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
+        let base = format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing));
+        // (An own identity provider's sign-in is also bound to the provider, its token address
+        // and the client: a changed setting, whoever made it, finds nothing remembered and needs
+        // a fresh sign-in on the provider's page, so that no remembered token goes anywhere new.)
+        match a.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom) {
+            Some(oauth) => format!("{base}|oauth={}", oauth.binding()),
+            None => base,
+        }
     }
 }

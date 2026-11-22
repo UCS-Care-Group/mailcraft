@@ -24468,6 +24468,16 @@ msgid "the server doesn't take a password on this connection"
 msgstr "el servidor no acepta una contraseña en esta conexión"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the command early"
@@ -24514,6 +24524,11 @@ msgstr "el servidor no ofrece ninguna forma de iniciar sesión con contraseña"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de acceso"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs

@@ -601,7 +601,7 @@ fn google_security_microsoft_command_skips_google_by_default() {
     assert_eq!(requests[0].account, microsoft);
     assert_eq!(requests[0].oauth.provider, mailcraft_model::OAuthProvider::Microsoft);
     assert!(requests[0].graph);
-    assert!(requests[0].google_client_secret.is_empty());
+    assert!(requests[0].client_secret.is_empty());
 }
 
 /// Reject Google's explicit id without asking the host or store, even while Google is signing in.
@@ -682,7 +682,7 @@ fn google_security_microsoft_command_accepts_explicit_microsoft_accounts() {
         assert_eq!(requests[0].mail_write, graph_mail);
         assert!(!requests[0].quiet);
         assert!(requests[0].refresh.is_empty());
-        assert!(requests[0].google_client_secret.is_empty());
+        assert!(requests[0].client_secret.is_empty());
         assert!(a.signing_in.as_ref().unwrap().browser);
     }
 }

@@ -753,11 +753,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
             mailcraft_net::oauth::sign_in_google_explained_at(
                 endpoints,
                 &request.oauth,
-                &request.google_client_secret,
+                &request.client_secret,
                 &request.email,
                 &open,
                 &request.cancel,
             )
+        } else if request.oauth.provider == mailcraft_model::OAuthProvider::Custom {
+            mailcraft_net::oauth::sign_in_custom_explained(&request.oauth, &request.client_secret, &request.email, &open, &request.cancel)
         } else {
             mailcraft_net::oauth::sign_in_explained(endpoints, &request.oauth, &request.email, &open, &request.cancel)
         };
@@ -790,7 +792,9 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     }
     if !request.refresh.is_empty() {
         let refreshed = if request.oauth.provider == mailcraft_model::OAuthProvider::Google {
-            mailcraft_net::oauth::refresh_google_at(&Endpoints::of(&request.oauth), &request.oauth, &request.google_client_secret, &request.refresh)
+            mailcraft_net::oauth::refresh_google_at(&Endpoints::of(&request.oauth), &request.oauth, &request.client_secret, &request.refresh)
+        } else if request.oauth.provider == mailcraft_model::OAuthProvider::Custom {
+            mailcraft_net::oauth::refresh_custom(&request.oauth, &request.client_secret, &request.refresh)
         } else {
             mailcraft_net::oauth::refresh(&request.oauth, &request.refresh)
         };

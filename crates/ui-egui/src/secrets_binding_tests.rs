@@ -353,7 +353,9 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
     let allowed: &[(&str, &str, usize)] = &[
         ("lib.rs", "legacy_secret_key(", 2),
         ("secret_read.rs", "legacy_secret_key(", 1),
-        ("lib.rs", "secret_cache.get(", 2),
+        // (And the client secret of an account with its own identity provider, read where a
+        // sign-in is handed to the host: `client_secret_of`.)
+        ("lib.rs", "secret_cache.get(", 3),
         ("secret_read.rs", "secret_cache.contains_key(", 2),
         // A subscribed calendar's address is kept like a password (#209): found again by the name
         // that holds its host (`subscribed_address`), and moved into memory for the session when

@@ -815,9 +815,11 @@ pub struct SignInRequest {
     pub email: String,
     /// A refresh token from earlier in this session to try first; empty when there is none.
     pub refresh: String,
-    /// Google Desktop registration's installed-app secret for this one sign-in. Never stored
-    /// in a mailbox or passed to an IMAP/SMTP server; not an owner credential.
-    pub google_client_secret: String,
+    /// The client secret for this one sign-in: Google Desktop registration's installed-app
+    /// secret, or the one registered at an own identity provider (from the system's credential
+    /// store, or typed this session); empty for none. Sent to the provider's token address alone;
+    /// never stored in a mailbox or passed to an IMAP/SMTP server.
+    pub client_secret: String,
     /// Set when the owner gives up waiting, for the host to stop too.
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Nobody asked for this (a Send/Receive that started by itself): renew with the refresh
@@ -1705,6 +1707,9 @@ pub struct MailApp {
     /// What the credential store gave back for each key this session, read in the background
     /// ([`secret_read`]); only what was found. The window asks this, never the store.
     secret_cache: std::collections::HashMap<String, String>,
+    /// The client secrets typed this session for accounts that sign in with an own identity
+    /// provider (0: the account being set up). Never saved; redacted from `Debug`.
+    pub(crate) client_secrets: std::collections::HashMap<Id, String>,
     /// The background read of the store under way, with the opening it was started for.
     secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
     /// The opening, and whether remembering was on, when the store was last read by itself.
@@ -2058,6 +2063,7 @@ impl MailApp {
             ews_certificate: Default::default(),
             secrets_opening: 0,
             secret_cache: Default::default(),
+            client_secrets: Default::default(),
             secret_read: None,
             secrets_asked: None,
             sync_after_secrets: Vec::new(),
@@ -3250,8 +3256,8 @@ impl MailApp {
             && Self::secret_key("refresh", before) == Self::secret_key("refresh", after)
             && before.incoming.as_ref().map(|s| s.security) == after.incoming.as_ref().map(|s| s.security)
             && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
-            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
-                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str(), o.binding()))
+                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str(), o.binding()))
     }
 
     /// Stop only this account's pending sign-in and remove its waiting text.
@@ -3454,7 +3460,7 @@ impl MailApp {
     /// account `account` of this mailbox, with the servers it has now: that account's own, never
     /// one found by its address (another may have it too, with other servers, AU3-03).
     fn remembered(&self, kind: &str, account: Id) -> Option<String> {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | mailcraft_host::secrets::OAUTH_CLIENT) || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
         let a = self.session.mailbox.account(account)?;
@@ -3501,7 +3507,7 @@ impl MailApp {
     pub(crate) fn forget_every_secret(&mut self) -> Vec<String> {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
-            for kind in ["password", "refresh"] {
+            for kind in ["password", "refresh", mailcraft_host::secrets::OAUTH_CLIENT] {
                 keys.extend(Self::secret_keys_of(kind, a));
             }
             keys.extend(Self::dav_secret_keys(a));
@@ -3558,7 +3564,8 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         let dav = if with_dav { Self::dav_secret_keys(a) } else { Vec::new() };
-        let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
+        let named =
+            ["password", "refresh", mailcraft_host::secrets::OAUTH_CLIENT].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
         for key in named {
             store.delete(&key);
             if store.get(&key).is_none() {
@@ -3609,6 +3616,42 @@ impl MailApp {
         )
     }
 
+    /// The client secret of `account` (0 for the one being set up), an account that signs in with
+    /// an own identity provider: typed this session, else what the credential store gave back;
+    /// empty for none.
+    pub(crate) fn client_secret_of(&self, account: Id) -> String {
+        if let Some(typed) = self.client_secrets.get(&account) {
+            return typed.clone();
+        }
+        let Some(a) = self.session.mailbox.account(account).filter(|a| a.oauth.as_ref().is_some_and(|o| o.has_secret)) else { return String::new() };
+        self.secret_cache.get(&Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a)).cloned().unwrap_or_default()
+    }
+
+    /// Keep the client secret the owner typed for `account` (0 for the one being set up): in
+    /// memory for the session, and in the credential store when sign-ins are remembered. An empty
+    /// one forgets it.
+    pub(crate) fn set_client_secret(&mut self, account: Id, secret: &str) {
+        if secret.is_empty() {
+            self.client_secrets.remove(&account);
+            if let Some(a) = self.session.mailbox.account(account).cloned() {
+                let keys = Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, &a);
+                for key in &keys {
+                    self.secret_cache.remove(key);
+                }
+                if let Some(store) = &self.services.secrets {
+                    for key in keys {
+                        store.delete(&key);
+                    }
+                }
+            }
+            return;
+        }
+        self.client_secrets.insert(account, secret.to_string());
+        if account != 0 {
+            self.remember(mailcraft_host::secrets::OAUTH_CLIENT, account, secret);
+        }
+    }
+
     /// The host's Desktop registration value. UI preferences never supply or retain it.
     pub(crate) fn google_client_secret(&self) -> &str {
         &self.services.google_client_secret
@@ -3652,14 +3695,17 @@ impl MailApp {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let browser = refresh.is_empty();
         let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
-        let google_client_secret =
-            if oauth.provider == mailcraft_model::OAuthProvider::Google { self.google_client_secret().to_string() } else { String::new() };
+        let client_secret = match oauth.provider {
+            mailcraft_model::OAuthProvider::Google => self.google_client_secret().to_string(),
+            mailcraft_model::OAuthProvider::Custom => self.client_secret_of(account),
+            mailcraft_model::OAuthProvider::Microsoft => String::new(),
+        };
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
             email: email.to_string(),
             refresh,
-            google_client_secret,
+            client_secret,
             cancel: cancel.clone(),
             quiet,
             graph,
@@ -3705,6 +3751,10 @@ impl MailApp {
         }
         if self.signed_in_as_other(account, &tokens) {
             return;
+        }
+        // The client secret typed while it was set up is the account's now.
+        if let Some(secret) = self.client_secrets.remove(&0) {
+            self.set_client_secret(account, &secret);
         }
         self.remember("refresh", account, &tokens.refresh);
         self.note_directory(account, &tokens.tenant);

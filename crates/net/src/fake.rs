@@ -295,6 +295,10 @@ pub(crate) struct ImapWorld {
     pub(crate) password: String,
     /// The access token that signs `user` in (XOAUTH2); empty for a server that takes none.
     pub(crate) token: String,
+    /// With `token`: take it with OAUTHBEARER (RFC 7628) too.
+    pub(crate) oauthbearer: bool,
+    /// With `token`: don't take it with XOAUTH2.
+    pub(crate) no_xoauth2: bool,
     /// Say the token may come with the command (SASL-IR).
     pub(crate) sasl_ir: bool,
     /// Offer the password-based PLAIN mechanism.
@@ -377,7 +381,12 @@ pub(crate) struct ImapWorld {
 impl ImapWorld {
     /// What the server says it can do.
     fn capabilities(&self, secured: bool) -> String {
-        let xoauth2 = if self.token.is_empty() { "" } else { " AUTH=XOAUTH2" };
+        let xoauth2 = match (self.token.is_empty(), self.oauthbearer, self.no_xoauth2) {
+            (true, ..) => "",
+            (false, true, true) => " AUTH=OAUTHBEARER",
+            (false, true, false) => " AUTH=OAUTHBEARER AUTH=XOAUTH2",
+            (false, false, _) => " AUTH=XOAUTH2",
+        };
         let sasl_ir = if self.sasl_ir { " SASL-IR" } else { "" };
         let plain = if self.plain && (!self.offer_starttls || secured) { " AUTH=PLAIN" } else { "" };
         let starttls = if self.offer_starttls { " STARTTLS" } else { "" };
@@ -418,6 +427,10 @@ pub(crate) struct SmtpWorld {
     pub(crate) auth_optional: bool,
     /// The access token that signs `user` in (XOAUTH2, insisted on likewise); empty for a server that takes none.
     pub(crate) token: String,
+    /// With `token`: take it with OAUTHBEARER (RFC 7628) too.
+    pub(crate) oauthbearer: bool,
+    /// With `token`: don't take it with XOAUTH2.
+    pub(crate) no_xoauth2: bool,
     /// Say STARTTLS is on offer (it isn't: what follows the go-ahead is no handshake).
     pub(crate) offer_starttls: bool,
     /// Recipients to answer 550 for.
@@ -503,6 +516,30 @@ fn pretend_tls(out: &mut TcpStream, reader: &mut BufReader<TcpStream>, go_ahead:
 
 /// What a server writes in place of its reasons for refusing a token: `{"status":"401"}`.
 const REASONS: &str = "eyJzdGF0dXMiOiI0MDEifQ==";
+
+/// What a server writes in place of its reasons for refusing an OAUTHBEARER token:
+/// `{"status":"invalid_token","openid-configuration":"https://id.example.org/.well-known/openid-configuration"}`.
+const BEARER_REASONS: &str = "eyJzdGF0dXMiOiJpbnZhbGlkX3Rva2VuIiwib3BlbmlkLWNvbmZpZ3VyYXRpb24iOiJodHRwczovL2lkLmV4YW1wbGUub3JnLy53ZWxsLWtub3duL29wZW5pZC1jb25maWd1cmF0aW9uIn0=";
+
+/// The user, host, port and token of an OAUTHBEARER message (`n,a=…,^Ahost=…^Aport=…^Aauth=Bearer …^A^A`
+/// in base64); empty when it isn't one.
+pub(crate) fn oauthbearer_parts(payload: &str) -> (String, String, String, String) {
+    let decoded = mailcraft_charset::base64::STANDARD.decode(payload).unwrap_or_default();
+    let decoded = String::from_utf8_lossy(&decoded).into_owned();
+    let mut fields = decoded.split('\u{1}');
+    let Some(user) = fields.next().and_then(|h| h.strip_prefix("n,a=")).and_then(|h| h.strip_suffix(',')) else { return Default::default() };
+    let (mut host, mut port, mut token) = (String::new(), String::new(), String::new());
+    for field in fields {
+        if let Some(v) = field.strip_prefix("host=") {
+            host = v.into();
+        } else if let Some(v) = field.strip_prefix("port=") {
+            port = v.into();
+        } else if let Some(v) = field.strip_prefix("auth=Bearer ") {
+            token = v.into();
+        }
+    }
+    (user.replace("=2C", ",").replace("=3D", "="), host, port, token)
+}
 
 /// The user and the token of an XOAUTH2 response (`user=…^Aauth=Bearer …^A^A` in base64); empty when it isn't one.
 fn bearer(payload: &str) -> (String, String) {
@@ -673,7 +710,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let _ = reader.get_mut().write_all(format!("{tag} {verdict}\r\n").as_bytes());
                     continue;
                 }
-                if world.token.is_empty() || !mechanism.eq_ignore_ascii_case("XOAUTH2") {
+                let bearer = mechanism.eq_ignore_ascii_case("OAUTHBEARER");
+                let takes = if bearer { world.oauthbearer } else { mechanism.eq_ignore_ascii_case("XOAUTH2") && !world.no_xoauth2 };
+                if world.token.is_empty() || !takes {
                     reply.extend(format!("{tag} NO [CANNOT] no such way to sign in\r\n").bytes());
                 } else {
                     let (user, token) = (world.user.clone(), world.token.clone());
@@ -688,14 +727,20 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     } else {
                         with_command.to_string()
                     };
-                    let (given_user, given_token) = bearer(&payload);
+                    let (given_user, given_token) = if bearer {
+                        let (u, _, _, t) = oauthbearer_parts(&payload);
+                        (u, t)
+                    } else {
+                        self::bearer(&payload)
+                    };
                     if (given_user, &given_token) == (user, &token) {
                         signed_in = true;
                         let _ = reader.get_mut().write_all(format!("{tag} OK [CAPABILITY {caps}] welcome\r\n").as_bytes());
                     } else {
-                        // The reasons, and after the client's empty line the verdict. A careless
+                        // The reasons, and after the client's answer the verdict. A careless
                         // server: it repeats the token it was sent.
-                        let _ = reader.get_mut().write_all(format!("+ {REASONS}\r\n").as_bytes());
+                        let reasons = if bearer { BEARER_REASONS } else { REASONS };
+                        let _ = reader.get_mut().write_all(format!("+ {reasons}\r\n").as_bytes());
                         let Some(line) = read_line(&mut reader) else { return };
                         shared.lock().unwrap().log.push(line);
                         let _ = reader
@@ -1095,12 +1140,17 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
         let mut world = shared.lock().unwrap();
         world.log.push(line.clone());
         let reply = if upper.starts_with("EHLO") {
-            let auth = match (world.auth, !world.token.is_empty()) {
-                (true, true) => "250-AUTH PLAIN LOGIN XOAUTH2\r\n",
-                (true, false) => "250-AUTH PLAIN LOGIN\r\n",
-                (false, true) => "250-AUTH XOAUTH2\r\n",
-                (false, false) => "",
-            };
+            let mut mechanisms: Vec<&str> = Vec::new();
+            if world.auth {
+                mechanisms.extend(["PLAIN", "LOGIN"]);
+            }
+            if !world.token.is_empty() && !world.no_xoauth2 {
+                mechanisms.push("XOAUTH2");
+            }
+            if !world.token.is_empty() && world.oauthbearer {
+                mechanisms.push("OAUTHBEARER");
+            }
+            let auth = if mechanisms.is_empty() { String::new() } else { format!("250-AUTH {}\r\n", mechanisms.join(" ")) };
             let starttls = if world.offer_starttls { "250-STARTTLS\r\n" } else { "" };
             format!("250-fake.example.org\r\n250-8BITMIME\r\n250-SIZE 10485760\r\n{auth}{starttls}250 HELP")
         } else if upper == "STARTTLS" && world.offer_starttls {
@@ -1119,8 +1169,36 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
                 // A careless server: it repeats the password it was sent.
                 format!("535 5.7.8 no user with the password {}", parts.get(2).copied().unwrap_or(""))
             }
+        } else if upper == "AUTH OAUTHBEARER" || upper.starts_with("AUTH OAUTHBEARER ") {
+            if world.token.is_empty() || !world.oauthbearer {
+                "504 5.5.4 no such way to sign in".to_string()
+            } else {
+                let (user, token) = (world.user.clone(), world.token.clone());
+                drop(world);
+                let with_command = line.get("AUTH OAUTHBEARER ".len()..).unwrap_or("");
+                let payload = if with_command.is_empty() {
+                    let _ = out.write_all(b"334 \r\n");
+                    let Some(line) = read_line(&mut reader) else { return };
+                    shared.lock().unwrap().log.push(line.clone());
+                    line
+                } else {
+                    with_command.to_string()
+                };
+                let (given_user, _, _, given_token) = oauthbearer_parts(&payload);
+                if (given_user, &given_token) == (user, &token) {
+                    signed_in = true;
+                    shared.lock().unwrap().sign_ins += 1;
+                    let _ = out.write_all(b"235 2.7.0 welcome\r\n");
+                } else {
+                    let _ = out.write_all(format!("334 {BEARER_REASONS}\r\n").as_bytes());
+                    let Some(line) = read_line(&mut reader) else { return };
+                    shared.lock().unwrap().log.push(line);
+                    let _ = out.write_all(b"535 5.7.8 refused\r\n");
+                }
+                continue;
+            }
         } else if upper == "AUTH XOAUTH2" || upper.starts_with("AUTH XOAUTH2 ") {
-            if world.token.is_empty() {
+            if world.token.is_empty() || world.no_xoauth2 {
                 "504 5.5.4 no such way to sign in".to_string()
             } else {
                 let (user, token) = (world.user.clone(), world.token.clone());

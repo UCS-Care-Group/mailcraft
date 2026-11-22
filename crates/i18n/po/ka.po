@@ -24385,6 +24385,16 @@ msgid "the server doesn't take a password on this connection"
 msgstr "სერვერი ამ კავშირზე პაროლს არ იღებს"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the command early"
@@ -24431,6 +24441,11 @@ msgstr "სერვერი პაროლით შესვლის სა
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "სერვერი წვდომის ტოკენით შესვლის საშუალებას არ გვთავაზობს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs

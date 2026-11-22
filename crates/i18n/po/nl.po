@@ -23843,6 +23843,16 @@ msgid "the server doesn't take a password on this connection"
 msgstr "de server accepteert geen wachtwoord via deze verbinding"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the command early"
@@ -23888,6 +23898,11 @@ msgstr "de server biedt geen manier om met een wachtwoord aan te melden"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "de server biedt geen manier om met een toegangstoken aan te melden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs

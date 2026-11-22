@@ -94,6 +94,14 @@ impl MailApp {
                 })
             })
             .collect();
+        // The client secret of an account that signs in with an own identity provider and has one.
+        let clients = self
+            .session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.oauth.as_ref().is_some_and(|o| o.has_secret && o.provider == mailcraft_model::OAuthProvider::Custom));
+        asks.extend(clients.map(|a| Ask { key: Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a), old: None }));
         // The addresses of the calendars subscribed to, which may hold a secret (#209): kept like a password.
         let subscribed = self
             .session

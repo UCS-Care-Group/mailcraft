@@ -22,7 +22,7 @@ use mailcraft_model::sync::{
     FolderDelta, FolderState, GmailLabels, GmailSorted, MAX_GMAIL_MOVES, MAX_TRIES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult,
     SyncStage, SyncStep,
 };
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, SaslChoice, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -542,12 +542,42 @@ pub(crate) fn open_imap_with<'a>(
     if imap.is_authenticated() {
         return Ok(imap);
     }
-    if account.oauth.is_some() {
-        imap.authenticate_xoauth2(user, secret)?;
-    } else {
-        imap.authenticate_password(user, secret)?;
+    match account.oauth.as_ref() {
+        Some(oauth) if oauth.provider == OAuthProvider::Custom => {
+            // What the server takes is known once it has said what it can do.
+            if !imap.offers_mechanism("OAUTHBEARER") && !imap.offers_mechanism("XOAUTH2") {
+                imap.capabilities()?;
+            }
+            let (bearer, xoauth2) = (imap.offers_mechanism("OAUTHBEARER"), imap.offers_mechanism("XOAUTH2"));
+            match token_mechanism(oauth.mechanism, bearer, xoauth2)? {
+                SaslChoice::XOAuth2 => imap.authenticate_xoauth2(user, secret)?,
+                _ => imap.authenticate_oauthbearer(user, server.host.trim(), server.port, secret)?,
+            }
+        }
+        Some(_) => imap.authenticate_xoauth2(user, secret)?,
+        None => imap.authenticate_password(user, secret)?,
     }
     Ok(imap)
+}
+
+/// How a token from an own identity provider is given to a server that offers OAUTHBEARER
+/// (`bearer`) and XOAUTH2 (`xoauth2`) as it does: the account's choice, when the server offers
+/// it; by itself, OAUTHBEARER first. A server that offers neither (or not the one chosen) is
+/// never shown the token.
+pub(crate) fn token_mechanism(choice: SaslChoice, bearer: bool, xoauth2: bool) -> Result<SaslChoice, NetError> {
+    match (choice, bearer, xoauth2) {
+        (SaslChoice::OAuthBearer | SaslChoice::Auto, true, _) => Ok(SaslChoice::OAuthBearer),
+        (SaslChoice::XOAuth2 | SaslChoice::Auto, _, true) => Ok(SaslChoice::XOAuth2),
+        (SaslChoice::OAuthBearer, false, _) => Err(NetError::Proto(ProtoError::Auth(said!(
+            "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+        )))),
+        (SaslChoice::XOAuth2, _, false) => {
+            Err(NetError::Proto(ProtoError::Auth(said!("the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"))))
+        }
+        (SaslChoice::Auto, false, false) => Err(NetError::Proto(ProtoError::Auth(said!(
+            "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+        )))),
+    }
 }
 
 /// What Exchange calls, in English, the folders of a mailbox that are no folders of mail to

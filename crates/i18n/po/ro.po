@@ -24546,6 +24546,16 @@ msgid "the server doesn't take a password on this connection"
 msgstr "serverul nu acceptă o parolă pe această conexiune"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server ended the command early"
@@ -24592,6 +24602,11 @@ msgstr "serverul nu oferă nicio metodă de conectare cu parolă"
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "serverul nu oferă nicio metodă de conectare cu token de acces"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
