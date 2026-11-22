@@ -34,6 +34,7 @@ const FORBIDDEN: &[&str] = &[
     "OneNote",
     "OneDrive",
     "SharePoint",
+    "To-Do Bar",
 ];
 
 /// Labels that may contain one of those names, each with why: they say what MailCraft connects
@@ -46,6 +47,10 @@ const ALLOWED: &[(&str, &str)] = &[
     (
         "Keep in Step with Outlook",
         "keeps the to-dos, rules, automatic replies and categories in step with the mailbox's server, which Outlook shows (#661)",
+    ),
+    (
+        "To-Do Bar",
+        "the catalog's feature name, kept as the incumbent calls it so that parity is still measured against it; the window says Tasks and Calendar Bar (#831)",
     ),
 ];
 

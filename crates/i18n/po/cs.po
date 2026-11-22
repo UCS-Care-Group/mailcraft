@@ -177,7 +177,7 @@ msgid "(as the signer says)"
 msgstr "(podle podepisujícího)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(bez jména)"
@@ -194,8 +194,8 @@ msgstr "(žádní příjemci)"
 msgid "(no subject)"
 msgstr "(bez předmětu)"
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(bez názvu)"
@@ -938,10 +938,22 @@ msgid "Add Account"
 msgstr "Přidat účet"
 
 #. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Add Appointment to Tasks"
+msgstr "Přidat schůzku do úkolů"
+
+#. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Add Calendar"
 msgstr "Přidat kalendář"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Add Contact to Tasks"
+msgstr "Přidat kontakt do úkolů"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
@@ -1057,6 +1069,12 @@ msgstr "Přidat úkol do {address}"
 msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "Přidat úkol do {address} (počká zde, dokud nebude povolen To Do)"
 
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Add a task…"
+msgstr "Přidat úkol…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
 #, fuzzy
@@ -1104,6 +1122,12 @@ msgstr "Přidat další telefonní číslo"
 #, fuzzy
 msgid "Add as a Microsoft account"
 msgstr "Přidat jako účet Microsoft"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Add contacts to Favorites to keep them here"
+msgstr "Přidejte kontakty do Oblíbených, aby zde zůstaly"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -1214,8 +1238,8 @@ msgstr ""
 msgid "Address list · {account}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/security.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Address:"
 msgstr "Adresa:"
@@ -1322,7 +1346,7 @@ msgid "All accounts"
 msgstr "Všechny účty"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "Celý den"
@@ -2252,6 +2276,12 @@ msgstr "Účast"
 msgid "Attendees"
 msgstr "Účastníci"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Attendees:"
+msgstr "Účastníci:"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -2522,6 +2552,12 @@ msgstr "Odebrané binární soubory"
 msgid "Birthday"
 msgstr "Narozeniny"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Birthday:"
+msgstr "Narozeniny:"
+
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2661,7 +2697,7 @@ msgid "By Subject"
 msgstr "Podle předmětu"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Kalendář"
@@ -5319,6 +5355,12 @@ msgstr "E-mailová adresa (nepovinné)"
 msgid "Email the people of this meeting"
 msgstr "Poslat e-mail účastníkům této schůzky"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Email:"
+msgstr "E-mail:"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7928,6 +7970,12 @@ msgstr "Připojit se k online schůzce"
 msgid "Join {service} Meeting"
 msgstr "Připojit se ke schůzce {service}"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Join:"
+msgstr "Připojit se:"
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -9132,13 +9180,13 @@ msgid "Mark All as Read"
 msgstr "Označit vše jako přečtené"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "Označit jako dokončené"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "Označit jako nedokončené"
@@ -9621,6 +9669,12 @@ msgstr "Další výsledky na serveru se nenabízejí: {why}"
 #, fuzzy
 msgid "More results on the server can't be asked for now"
 msgstr "O další výsledky na serveru teď nelze požádat"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "More tasks are in the Tasks module."
+msgstr "Další úkoly jsou v modulu Úkoly."
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -10286,7 +10340,7 @@ msgid "Next Monday"
 msgstr "Příští pondělí"
 
 #. interface
-#: crates/ui-egui/src/date_picker.rs
+#: crates/ui-egui/src/date_picker.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Next Month"
 msgstr "Příští měsíc"
@@ -11099,6 +11153,12 @@ msgid "Nothing in it: replaces what is open here"
 msgstr "Nic v ní není: nahradí to, co je zde otevřeno"
 
 #. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Nothing in the next 7 days"
+msgstr "Nic v následujících 7 dnech"
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Nothing is added to your mail until it has all been read."
@@ -11177,7 +11237,7 @@ msgid "Nothing on."
 msgstr "Nic není."
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "Zde není co dělat."
@@ -11279,7 +11339,7 @@ msgid "October"
 msgstr "října"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Vypnuto"
@@ -11947,6 +12007,12 @@ msgstr "Organizátor"
 msgid "Organizer"
 msgstr "Organizátor"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Organizer:"
+msgstr "Organizátor:"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -12252,7 +12318,7 @@ msgid "Pending development"
 msgstr "Čeká na vývoj"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "Lidé"
@@ -12274,6 +12340,12 @@ msgstr "Oprávnění"
 #, fuzzy
 msgid "Phone"
 msgstr "Telefon"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Phone:"
+msgstr "Telefon:"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
@@ -12566,7 +12638,7 @@ msgid "Previous Message"
 msgstr "Předchozí zpráva"
 
 #. interface
-#: crates/ui-egui/src/date_picker.rs
+#: crates/ui-egui/src/date_picker.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Previous Month"
 msgstr "Předchozí měsíc"
@@ -13349,6 +13421,12 @@ msgstr "Odebrat z tohoto počítače váš klíč {format} pro {who}? Odstraní 
 #, fuzzy
 msgid "Remove {name}"
 msgstr "Odebrat {name}"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Remove {part} from the Tasks and Calendar Bar"
+msgstr "Odebrat {part} z panelu úkolů a kalendáře"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -16499,11 +16577,27 @@ msgstr "Zpráva o stavu úkolu:"
 msgid "Task:"
 msgstr "Úkol:"
 
-#. android, command label, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "Úkoly"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Tasks and\n"
+"Calendar Bar"
+msgstr ""
+"Panel úkolů\n"
+"a kalendáře"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Tasks and Calendar Bar"
+msgstr "Panel úkolů a kalendáře"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -19939,7 +20033,7 @@ msgid "To: {names}"
 msgstr "Komu: {names}"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Today"
 msgstr "Dnes"
@@ -19951,7 +20045,7 @@ msgid "Today could not be read."
 msgstr "Dnešek se nepodařilo přečíst."
 
 #. android, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Zítra"
@@ -20643,6 +20737,12 @@ msgstr "Čekání na schválení se nečekaně zastavilo"
 msgid "Want to be one? Sign up in #11"
 msgstr "Chcete být mezi nimi? Přihlaste se v #11"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Web page:"
+msgstr "Webová stránka:"
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -20845,6 +20945,12 @@ msgstr "Kdy"
 msgid "When you switch:"
 msgstr "Při přepnutí:"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "When:"
+msgstr "Kdy:"
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -20862,6 +20968,12 @@ msgstr "Tam, kde karta uvádí, že klíč je: MailCraft ho nestahuje."
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "Kde se liší, má ponechaný kontakt:"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Where:"
+msgstr "Kde:"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22601,6 +22713,12 @@ msgstr "pro tento název nebyla nalezena žádná adresa"
 msgid "no answer"
 msgstr "bez odpovědi"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "no appointment with id {id}"
+msgstr "žádná schůzka s id {id}"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -22614,7 +22732,7 @@ msgid "no calendar with id {id}"
 msgstr "žádný kalendář s id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "žádný kontakt s id {id}"
@@ -23026,7 +23144,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr "nejprve uložte poštovní schránku do souboru: přepnutí uchová její kopii vedle tohoto souboru"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select a contact first"
 msgstr "nejprve vyberte kontakt"
@@ -23050,7 +23168,7 @@ msgid "select a task first"
 msgstr "nejprve vyberte úkol"
 
 #. interface, what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "nejprve vyberte událost"
@@ -23833,7 +23951,7 @@ msgid "the series \"{title}\" doesn't happen on {date}"
 msgstr "řada „{title}“ se {date} nekoná"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "řada se nekoná {date}"
@@ -25632,7 +25750,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "Změny kalendáře „{name}“ ({n}) se zde zadržují a neodesílají: tento účet ho už nesmí měnit. Odešlou se, pokud bude zase smět."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"

@@ -178,7 +178,7 @@ msgid "(as the signer says)"
 msgstr "(ხელმომწერის თქმით)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/ui-egui/src/people_view.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "(no name)"
 msgstr "(უსახელო)"
@@ -195,8 +195,8 @@ msgstr "(მიმღების გარეშე)"
 msgid "(no subject)"
 msgstr "(უთემო)"
 
-#. interface
-#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "(no title)"
 msgstr "(უსათაურო)"
@@ -935,10 +935,22 @@ msgid "Add Account"
 msgstr "ანგარიშის დამატება"
 
 #. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Add Appointment to Tasks"
+msgstr "შეხვედრის ამოცანებში დამატება"
+
+#. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "Add Calendar"
 msgstr "კალენდრის დამატება"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Add Contact to Tasks"
+msgstr "კონტაქტის ამოცანებში დამატება"
 
 #. command label, interface
 #: crates/engine/src/cmd/followup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reminder_dialog.rs
@@ -1054,6 +1066,12 @@ msgstr "დავალების დამატება მისამა�
 msgid "Add a task to {address} (it waits here until To Do is allowed)"
 msgstr "დავალების დამატება მისამართზე {address} (აქ დაელოდება, სანამ To Do-ს ნებართვა არ მიეცემა)"
 
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Add a task…"
+msgstr "ამოცანის დამატება…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt
 #, fuzzy
@@ -1101,6 +1119,12 @@ msgstr "კიდევ ერთი ტელეფონის ნომრი
 #, fuzzy
 msgid "Add as a Microsoft account"
 msgstr "Microsoft-ის ანგარიშად დამატება"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Add contacts to Favorites to keep them here"
+msgstr "კონტაქტების აქ შესანახად დაამატეთ ისინი რჩეულებში"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -1218,8 +1242,8 @@ msgstr "მისამართების სია"
 msgid "Address list · {account}"
 msgstr "მისამართების სია · {account}"
 
-#. interface
-#: crates/ui-egui/src/security.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Address:"
 msgstr "მისამართი:"
@@ -1326,7 +1350,7 @@ msgid "All accounts"
 msgstr "ყველა ანგარიში"
 
 #. android, interface, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "All day"
 msgstr "მთელი დღე"
@@ -2251,6 +2275,12 @@ msgstr "დასწრება"
 msgid "Attendees"
 msgstr "მონაწილეები"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Attendees:"
+msgstr "მონაწილეები:"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -2519,6 +2549,12 @@ msgstr ""
 msgid "Birthday"
 msgstr "დაბადების დღე"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Birthday:"
+msgstr "დაბადების დღე:"
+
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Black"
@@ -2656,7 +2692,7 @@ msgid "By Subject"
 msgstr "თემის მიხედვით"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "კალენდარი"
@@ -5309,6 +5345,12 @@ msgstr "ელფოსტის მისამართი (არასავ
 msgid "Email the people of this meeting"
 msgstr "წერილის მიწერა ამ შეხვედრის მონაწილეებისთვის"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Email:"
+msgstr "ელფოსტა:"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7898,6 +7940,12 @@ msgstr "ონლაინ შეხვედრაზე შეერთებ�
 msgid "Join {service} Meeting"
 msgstr "{service} შეხვედრაზე შეერთება"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Join:"
+msgstr "შეერთება:"
+
 #. interface, ribbon location
 #: crates/engine/src/cmd/notes.rs crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -9090,13 +9138,13 @@ msgid "Mark All as Read"
 msgstr "ყველას წაკითხულად მონიშვნა"
 
 #. command label, interface
-#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Mark Complete"
 msgstr "შესრულებულად მონიშვნა"
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Mark Incomplete"
 msgstr "შეუსრულებლად მონიშვნა"
@@ -9576,6 +9624,12 @@ msgstr "სერვერზე მეტი შედეგი არ არ�
 #, fuzzy
 msgid "More results on the server can't be asked for now"
 msgstr "სერვერზე მეტი შედეგის მოთხოვნა ახლა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "More tasks are in the Tasks module."
+msgstr "სხვა ამოცანები ამოცანების განყოფილებაშია."
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -10238,7 +10292,7 @@ msgid "Next Monday"
 msgstr "მომავალი ორშაბათი"
 
 #. interface
-#: crates/ui-egui/src/date_picker.rs
+#: crates/ui-egui/src/date_picker.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Next Month"
 msgstr "შემდეგი თვე"
@@ -11049,6 +11103,12 @@ msgid "Nothing in it: replaces what is open here"
 msgstr "ცარიელია: აქ გახსნილს ჩაანაცვლებს"
 
 #. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Nothing in the next 7 days"
+msgstr "მომდევნო 7 დღეში არაფერი იგეგმება"
+
+#. interface
 #: crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "Nothing is added to your mail until it has all been read."
@@ -11127,7 +11187,7 @@ msgid "Nothing on."
 msgstr "არაფერია დაგეგმილი."
 
 #. interface
-#: crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Nothing to do here."
 msgstr "აქ გასაკეთებელი არაფერია."
@@ -11229,7 +11289,7 @@ msgid "October"
 msgstr "ოქტომბერი"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "გამორთულია"
@@ -11896,6 +11956,12 @@ msgstr "ორგანიზატორი"
 msgid "Organizer"
 msgstr "ორგანიზატორი"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Organizer:"
+msgstr "ორგანიზატორი:"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -12199,7 +12265,7 @@ msgid "Pending development"
 msgstr "დამუშავების მოლოდინში"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "People"
 msgstr "ადამიანები"
@@ -12221,6 +12287,12 @@ msgstr "ნებართვები"
 #, fuzzy
 msgid "Phone"
 msgstr "ტელეფონი"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Phone:"
+msgstr "ტელეფონი:"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
@@ -12510,7 +12582,7 @@ msgid "Previous Message"
 msgstr "წინა წერილი"
 
 #. interface
-#: crates/ui-egui/src/date_picker.rs
+#: crates/ui-egui/src/date_picker.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Previous Month"
 msgstr "წინა თვე"
@@ -13283,6 +13355,12 @@ msgstr "გსურთ თქვენი {format} გასაღების 
 #, fuzzy
 msgid "Remove {name}"
 msgstr "წაშლა: {name}"
+
+#. interface
+#: crates/ui-egui/src/tasks_calendar_bar.rs
+#, fuzzy
+msgid "Remove {part} from the Tasks and Calendar Bar"
+msgstr "{part} — ამოცანებისა და კალენდრის ზოლიდან ამოღება"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -16407,11 +16485,27 @@ msgstr "დავალების მდგომარეობის მო�
 msgid "Task:"
 msgstr "დავალება:"
 
-#. android, command label, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#. android, command label, interface, name, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "Tasks"
 msgstr "დავალებები"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Tasks and\n"
+"Calendar Bar"
+msgstr ""
+"ამოცანებისა და\n"
+"კალენდრის ზოლი"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Tasks and Calendar Bar"
+msgstr "ამოცანებისა და კალენდრის ზოლი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -19819,7 +19913,7 @@ msgid "To: {names}"
 msgstr "ვის: {names}"
 
 #. android, command label, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Today"
 msgstr "დღეს"
@@ -19831,7 +19925,7 @@ msgid "Today could not be read."
 msgstr "„დღეს“ გვერდის წაკითხვა ვერ მოხერხდა."
 
 #. android, interface, name, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_calendar_bar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Tomorrow"
 msgstr "ხვალ"
@@ -20519,6 +20613,12 @@ msgstr "დამტკიცების მოლოდინი მოულ�
 msgid "Want to be one? Sign up in #11"
 msgstr "გსურთ, გახდეთ ერთ-ერთი? დარეგისტრირდით #11-ში"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Web page:"
+msgstr "ვებგვერდი:"
+
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -20721,6 +20821,12 @@ msgstr "როდის"
 msgid "When you switch:"
 msgstr "გადართვისას:"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "When:"
+msgstr "როდის:"
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -20738,6 +20844,12 @@ msgstr "სადაც ბარათის თანახმად გას
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "სადაც ისინი განსხვავდება, დატოვებულ კონტაქტს აქვს:"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "Where:"
+msgstr "სად:"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22467,6 +22579,12 @@ msgstr "ამ სახელისთვის მისამართი ვ
 msgid "no answer"
 msgstr "პასუხი არ არის"
 
+#. what a command says
+#: crates/engine/src/cmd/tasks/from_item.rs
+#, fuzzy
+msgid "no appointment with id {id}"
+msgstr "შეხვედრა იდენტიფიკატორით {id} ვერ მოიძებნა"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -22480,7 +22598,7 @@ msgid "no calendar with id {id}"
 msgstr "კალენდარი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "კონტაქტი id-ით {id} არ არსებობს"
@@ -22892,7 +23010,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr "ჯერ შეინახეთ საფოსტო ყუთი ფაილში: გადართვა მის ასლს იმ ფაილის გვერდით ინახავს"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "select a contact first"
 msgstr "ჯერ მონიშნეთ კონტაქტი"
@@ -22916,7 +23034,7 @@ msgid "select a task first"
 msgstr "ჯერ მონიშნეთ დავალება"
 
 #. interface, what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/tasks/from_item.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "ჯერ მონიშნეთ ჩანაწერი"
@@ -23697,7 +23815,7 @@ msgid "the series \"{title}\" doesn't happen on {date}"
 msgstr "სერია „{title}“ {date}-ს არ იმართება"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/tasks/from_item.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "სერია ამ დღეს არ ტარდება: {date}"
@@ -25473,7 +25591,7 @@ msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this acco
 msgstr "კალენდრის „{name}“ ცვლილებები ({n}) აქ შეჩერებულია და არ იგზავნება: ამ ანგარიშს მისი შეცვლის უფლება შეიძლება აღარ ჰქონდეს. ისინი გაიგზავნება, თუ უფლება დაუბრუნდება."
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/tasks_calendar_bar.rs
 #, fuzzy
 msgid "{n} contact"
 msgid_plural "{n} contacts"
