@@ -503,25 +503,17 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
 /// `<img>` asks for by `cid:` and is a picture by its bytes.
-/// The original's HTML when the reading pane shows it (at the width and theme `env`); `None` when
-/// the pane shows its text instead: HTML that reads to no text and no picture it can show (only
-/// scripts, only pictures it hasn't got), beside a text part that says something
-/// (`reading::view`).
+/// The original's HTML for a message no pane has said how it showed ([`Session::read_at`]): its
+/// text part only when the HTML reads to no text and no picture at all, beside a text part that
+/// says something. (Never the text part when the HTML shows something a pane might show: that
+/// at worst quotes less than was shown, never words that weren't.)
 fn shown_html<'m>(m: &'m Message, env: &mailcraft_html::Env) -> Option<&'m str> {
     let html = m.body.html.as_deref()?;
     if m.body.text.trim().is_empty() {
         return Some(html);
     }
     let blocks = mailcraft_html::parse_in(html, env).blocks;
-    let picture = mailcraft_html::images(&blocks).iter().any(|b| match &b.kind {
-        mailcraft_html::BlockKind::Image { data: Some(_), .. } => true,
-        mailcraft_html::BlockKind::Image { src, .. } => match src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and(src.get(4..)) {
-            Some(id) => m.attachments.iter().any(|a| a.content_id.trim_matches(['<', '>']).eq_ignore_ascii_case(id.trim())),
-            None => true,
-        },
-        _ => false,
-    });
-    (mailcraft_html::has_text(&blocks) || picture).then_some(html)
+    (mailcraft_html::has_text(&blocks) || !mailcraft_html::images(&blocks).is_empty()).then_some(html)
 }
 
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
@@ -591,7 +583,11 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
     // An original in HTML is carried below with its look; one in plain text is quoted in the body,
     // and so is one whose HTML the reading pane shows its text for.
-    let shown = shown_html(&m, &s.read_env(m.id));
+    let shown = match s.read_as_text(m.id) {
+        Some(true) => None,
+        Some(false) => m.body.html.as_deref(),
+        None => shown_html(&m, &s.read_env(m.id)),
+    };
     let quote = match shown {
         Some(html) if quoting => {
             let (html, written) = quoted_html(s, &m, html);

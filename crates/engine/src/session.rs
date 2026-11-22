@@ -1293,9 +1293,10 @@ pub struct Session {
     /// nothing. Ships off until the feature is ready. Never saved.
     pub dav_enabled: bool,
     /// The width and theme each message was last read at, in the reading pane or a window of its
-    /// own ([`Session::read_at`]): a reply or forward quotes it as it was read there, with what its
-    /// `@media` hid there left out. A message read nowhere is quoted as a wide light pane reads it.
-    read_at: HashMap<Id, mailcraft_html::Env>,
+    /// own, and whether its text part was shown instead of its HTML ([`Session::read_at`]): a
+    /// reply or forward quotes it as it was read there, with what its `@media` hid there left
+    /// out. A message read nowhere is quoted as a wide light pane reads it.
+    read_at: HashMap<Id, (mailcraft_html::Env, bool)>,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1343,19 +1344,29 @@ impl Swaps {
 const MAX_READ_AT: usize = 256;
 
 impl Session {
-    /// Message `id` was read at the width and in the theme `env` (the host's reading pane or a
-    /// window of its own says so, each time it shows it).
-    pub fn read_at(&mut self, id: Id, env: mailcraft_html::Env) {
+    /// Message `id` was read at the width and in the theme `env`, its text part shown instead of
+    /// its HTML when `as_text` (the host's reading pane or a window of its own says so, each time
+    /// it shows it).
+    pub fn read_at(&mut self, id: Id, env: mailcraft_html::Env, as_text: bool) {
         // lean: forgets them all at the cap; a message read again is said again at once.
         if self.read_at.len() >= MAX_READ_AT && !self.read_at.contains_key(&id) {
             self.read_at.clear();
         }
-        self.read_at.insert(id, env);
+        // lean: the last place to show it wins (a message open in the pane and in a window of its
+        // own at another width is quoted as the one drawn last read it; the owner saw that one
+        // too). Keyed by place if that ever matters.
+        self.read_at.insert(id, (env, as_text));
     }
 
     /// The width and theme message `id` was last read at ([`Session::read_at`]).
     pub fn read_env(&self, id: Id) -> mailcraft_html::Env {
-        self.read_at.get(&id).copied().unwrap_or_default()
+        self.read_at.get(&id).map(|r| r.0).unwrap_or_default()
+    }
+
+    /// Whether message `id` was last read as its text part, when it was read at all
+    /// ([`Session::read_at`]).
+    pub fn read_as_text(&self, id: Id) -> Option<bool> {
+        self.read_at.get(&id).map(|r| r.1)
     }
 
     pub fn new(mailbox: Mailbox) -> Self {

@@ -343,8 +343,9 @@ impl Quoter<'_, '_> {
                     }
                     return true;
                 }
-                if skip.nested == 0 && ends_itself && self.open.iter().any(|o| o == name) {
-                    // `<tr><td hidden>x</tr>`: the row's end ends the cell.
+                if skip.nested == 0 && (ends_itself || matches!(skip.name.as_str(), "svg" | "math")) && self.open.iter().any(|o| o == name) {
+                    // `<tr><td hidden>x</tr>`: the row's end ends the cell; `<div><svg></div>`:
+                    // the end of what holds an SVG picture ends it (as in the reading pane).
                     self.skip = None;
                     return false;
                 }
@@ -359,7 +360,8 @@ impl Quoter<'_, '_> {
             self.raw = true;
             return;
         }
-        if DROPPED.contains(&name) {
+        // (An SVG or MathML element written `<svg/>` has nothing in it to leave out.)
+        if DROPPED.contains(&name) && !(tag.self_closing && matches!(name, "svg" | "math")) {
             self.skip = Some(Skip { name: name.to_string(), nested: 0 });
             return;
         }

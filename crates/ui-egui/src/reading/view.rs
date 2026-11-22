@@ -471,10 +471,6 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     // The width the body is laid out at, to the pixel, tests the message's `@media`: it is the
     // room this `ui` has (the body's margins are already outside it), in the steps above.
     let env = Env::for_pane(width, t.dark);
-    // A reply or forward of it quotes it as it is read here.
-    if matches!(place, Place::Pane | Place::Window(_)) {
-        app.session.read_at(message.id, env);
-    }
     let can_download = super::remote::available(app);
     let Some(made) = store.entry(message, place, images::frame(&ctx), can_download, env).map(|entry| entry.fit(message, can_download, env)) else {
         return;
@@ -486,6 +482,11 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     #[cfg(not(test))]
     let _ = made;
     let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
+    // A reply or forward of it quotes it as it is read here: at this width and in this theme, its
+    // HTML or its text part, as shown.
+    if matches!(place, Place::Pane | Place::Window(_)) {
+        app.session.read_at(message.id, env, entry.doc.from_text);
+    }
     if entry.doc.blocks.is_empty() {
         ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
         if let Some(state) = app.text_selection.state(place) {

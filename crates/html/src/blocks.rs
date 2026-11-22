@@ -40,6 +40,9 @@ const COPY_FLOOR: usize = 64 * 1024;
 /// Longest written-out list marker read from an Outlook list paragraph, in bytes.
 const MAX_MARKER: usize = 24;
 
+/// Most open SVG and MathML elements followed; one deeper leaves a template inside it counted.
+const MAX_FOREIGN: usize = 64;
+
 /// Most blank lines kept between two blocks.
 const MAX_SPACE: u8 = 3;
 
@@ -788,8 +791,9 @@ struct Builder {
     /// marker the pane makes of it, until its item's text shows it.
     marker_at: Option<usize>,
     marker_due: Option<(usize, String)>,
-    /// Open `<svg>` and `<math>`, whose `<template>` is none (foreign content, as in a browser).
-    foreign: usize,
+    /// Open `<svg>` and `<math>`, whose `<template>` is none (foreign content, as in a browser):
+    /// for each, how many nodes were open when it was, so that it ends with what holds it.
+    foreign: Vec<usize>,
 }
 
 impl Builder {
@@ -840,7 +844,7 @@ impl Builder {
             seen: None,
             marker_at: None,
             marker_due: None,
-            foreign: 0,
+            foreign: Vec::new(),
         }
     }
 
@@ -872,12 +876,15 @@ impl Builder {
                 self.note_boundary(&tag.name);
                 // A template counts while it is what leaves its content out: not inside SVG or
                 // MathML, where it is no template, nor inside what is hidden already, which ends
-                // where it would have ended without it.
-                if tag.name == "template" && (self.template > 0 || (self.hidden == 0 && self.foreign == 0)) {
+                // where it would have ended without it. (An SVG or MathML element ends with what
+                // holds it, if not before.)
+                let open = self.nodes.len();
+                self.foreign.retain(|at| *at <= open);
+                if tag.name == "template" && (self.template > 0 || (self.hidden == 0 && self.foreign.is_empty())) {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
-                    if matches!(tag.name.as_str(), "svg" | "math") {
-                        self.foreign = self.foreign.saturating_add(1);
+                    if matches!(tag.name.as_str(), "svg" | "math") && !tag.self_closing && self.foreign.len() < MAX_FOREIGN {
+                        self.foreign.push(open);
                     }
                     self.open(&tag);
                 }
@@ -889,7 +896,7 @@ impl Builder {
                     self.template -= 1;
                 } else if self.template == 0 {
                     if matches!(name.as_str(), "svg" | "math") {
-                        self.foreign = self.foreign.saturating_sub(1);
+                        self.foreign.pop();
                     }
                     self.end(&name);
                 }

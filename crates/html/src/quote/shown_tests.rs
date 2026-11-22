@@ -234,6 +234,13 @@ fn a_template_in_svg_or_in_what_is_hidden_hides_nothing_after_it() {
         assert_eq!(shown(&html), "HELLOAPPROVED", "{html}");
         assert!(quoted(&html).iter().all(|q| q == "HELLOAPPROVED"), "{html}");
     }
+    // An SVG or MathML element ends with what holds it, or at once when written `<svg/>`: a
+    // template after it hides what is in it again, in the pane and the quote alike.
+    for before in ["<svg/>", "<math />", "<p hidden><svg></p>", "<div><svg></div>", "<span><math></span>", "<table><tr><td><svg></td></tr></table>"] {
+        let html = format!("A{before}<template>B</template>C");
+        assert_eq!(shown(&html), "AC", "{html}");
+        assert!(quoted(&html).iter().all(|q| q == "AC"), "{html}");
+    }
     // A template outside them still hides what is in it, and a stray end changes nothing.
     assert_eq!(shown("A<template>B</template>C</template>D"), "ACD");
     assert_eq!(shown("A<svg></svg><template>B</template>C"), "AC");

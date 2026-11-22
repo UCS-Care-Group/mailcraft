@@ -83,7 +83,7 @@ fn a_message_is_quoted_as_the_pane_it_was_read_in_read_it() {
         for command in ["mail.reply", "mail.replyAll", "mail.forward"] {
             let mut s = session();
             let id = message(&mut s, html, "");
-            s.read_at(id, env);
+            s.read_at(id, env, false);
             run(&mut s, command, json!({"id": id}));
             let q = compose(&s).quote.clone().unwrap();
             for word in kept.iter().chain(["Hello Avery,"].iter()) {
@@ -96,28 +96,36 @@ fn a_message_is_quoted_as_the_pane_it_was_read_in_read_it() {
     }
 }
 
-/// HTML that reads to nothing in the pane, which shows the text part instead: a reply or forward
-/// quotes the text part, which the owner read.
+/// HTML beside a text part that says something else: a reply or forward quotes the one the pane
+/// showed, as it said; for a message no pane has shown, the text part only when the HTML holds no
+/// text and no picture at all (a picture the pane might show is never traded for words it didn't).
 #[test]
-fn an_original_shown_as_its_text_is_quoted_as_its_text() {
-    for html in ["<script>x()</script>", "<p hidden>Hidden words</p>", "<img src=\"cid:missing@example.org\">"] {
-        for command in ["mail.reply", "mail.forward"] {
-            let mut s = session();
-            let id = message(&mut s, html, "Plain words the owner read");
-            run(&mut s, command, json!({"id": id}));
-            let c = compose(&s).clone();
-            assert!(c.quote.is_none() && c.format == crate::BodyFormat::Plain, "{html} {command}");
-            assert!(
-                c.body.plain().contains("Plain words the owner read") && !c.body.plain().contains("Hidden"),
-                "{html} {command}: {}",
-                c.body.plain()
-            );
+fn the_html_or_the_text_part_is_quoted_as_the_pane_showed_it() {
+    let shapes = [
+        ("<img src=\"cid:logo%40news.example\">", false),
+        ("<img src=\"cid:<logo@news.example>\">", false),
+        ("<img src=\"cid:missing@news.example\">", false),
+        ("<img src=\"https://pics.example/a.png\" alt=\"ALTWORDS\">", false),
+        ("<p>Shown words</p>", false),
+        ("<script>x()</script>", true),
+        ("<p hidden>Hidden words</p>", true),
+    ];
+    for (html, unread_as_text) in shapes {
+        for said in [None, Some(false), Some(true)] {
+            for command in ["mail.reply", "mail.forward"] {
+                let mut s = session();
+                let id = message(&mut s, html, "SENDER ALTERNATIVE");
+                if let Some(as_text) = said {
+                    s.read_at(id, mailcraft_html::Env::default(), as_text);
+                }
+                let as_text = said.unwrap_or(unread_as_text);
+                run(&mut s, command, json!({"id": id}));
+                let c = compose(&s).clone();
+                assert_eq!(c.quote.is_none(), as_text, "{html} {said:?} {command}");
+                assert_eq!(c.format == crate::BodyFormat::Plain, as_text, "{html} {said:?} {command}");
+                assert_eq!(c.body.plain().contains("SENDER ALTERNATIVE"), as_text, "{html} {said:?} {command}");
+                assert!(c.quote.is_none_or(|q| !q.text.contains("SENDER ALTERNATIVE") && !q.html.contains("Hidden")), "{html} {said:?} {command}");
+            }
         }
     }
-    // HTML that shows something is quoted as HTML still.
-    let mut s = session();
-    let id = message(&mut s, "<p>Shown words</p>", "Other words");
-    run(&mut s, "mail.reply", json!({"id": id}));
-    let q = compose(&s).quote.clone().unwrap();
-    assert!(q.html.contains("Shown words") && !q.text.contains("Other words"));
 }

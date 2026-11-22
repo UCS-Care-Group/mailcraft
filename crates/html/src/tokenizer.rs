@@ -34,6 +34,8 @@ pub(crate) struct Tag<'a> {
     /// What the message's style sheets say about the element, set by the one who reads them
     /// (`sheet.rs`).
     pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
+    /// Written `<name ... />`: an SVG or MathML element so written has no content and no end tag.
+    pub self_closing: bool,
 }
 
 impl Tag<'_> {
@@ -168,6 +170,7 @@ impl<'a> Tokenizer<'a> {
         }
         let name = tag_name(self.slice(start, i));
         let mut attrs = Vec::new();
+        let mut self_closing = false;
         loop {
             while matches!(b.get(i), Some(c) if c.is_ascii_whitespace() || *c == b'/') {
                 i += 1;
@@ -175,6 +178,7 @@ impl<'a> Tokenizer<'a> {
             match b.get(i) {
                 None => break,
                 Some(b'>') => {
+                    self_closing = i.checked_sub(1).and_then(|p| b.get(p)) == Some(&b'/');
                     i += 1;
                     break;
                 }
@@ -226,7 +230,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs, sheet: None }
+        Tag { name, attrs, sheet: None, self_closing }
     }
 }
 
