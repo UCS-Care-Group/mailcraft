@@ -13,11 +13,12 @@ fn link(url: &str) -> Style {
 }
 
 /// The invariants every document keeps.
-fn check(t: &RichText) {
+pub(super) fn check(t: &RichText) {
     assert!(!t.paragraphs().is_empty());
     assert_eq!(t.len(), t.text().chars().count());
     for p in t.paragraphs() {
         assert!(p.level <= MAX_LEVEL, "{t:?}");
+        assert!(p.list == ListKind::None || p.align == Align::Left, "a list item is left: {t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
             assert!(r.text.chars().all(|c| c == '\t' || !c.is_control()), "{t:?}");
@@ -589,6 +590,42 @@ fn undo_is_bounded() {
 }
 
 #[test]
+fn a_marked_step_hands_its_width_to_undo_and_back_to_redo() {
+    let mut b = RichBody::default();
+    b.type_text("ab").unwrap();
+    // The picture was 300 wide; its holder made it 120.
+    let width = std::cell::Cell::new(Some(120));
+    b.push_mark(Mark { picture: 7, width: Some(300) });
+    // Typing after it is a step of its own, which puts no width back.
+    b.type_text("c").unwrap();
+    let swap = |m: Mark| {
+        assert_eq!(m.picture, 7);
+        Mark { picture: m.picture, width: width.replace(m.width) }
+    };
+    assert!(b.undo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(120)));
+    assert!(b.undo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(300)));
+    assert!(b.redo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("ab", Some(120)));
+    assert!(b.redo_with(swap));
+    assert_eq!((b.plain().as_str(), width.get()), ("abc", Some(120)));
+    // Plain undo goes through a marked step, leaving its width alone.
+    assert!(b.undo() && b.undo());
+    assert!(b.redo() && b.redo());
+    assert_eq!(b.plain(), "abc");
+}
+
+#[test]
+fn a_mark_clears_redo() {
+    let mut b = RichBody::default();
+    b.type_text("ab").unwrap();
+    assert!(b.undo());
+    b.push_mark(Mark { picture: 1, width: None });
+    assert!(!b.can_redo() && b.can_undo());
+}
+
+#[test]
 fn inserting_at_keeps_the_selection_where_it_was() {
     let mut b = RichBody::from_plain("abc\nquote");
     b.select(1, 2).unwrap();
@@ -604,7 +641,7 @@ fn inserting_at_keeps_the_selection_where_it_was() {
 enum Op {
     Select(usize, usize),
     Type(String),
-    Paste(String),
+    Paste(String, u8, u8),
     Backspace,
     Delete,
     Bold,
@@ -615,6 +652,7 @@ enum Op {
     Unlink,
     List(u8),
     Indent(bool),
+    Align(u8),
     Clear,
     Plain(String),
     Undo,
@@ -626,7 +664,7 @@ fn op() -> impl Strategy<Value = Op> {
     prop_oneof![
         (0usize..40, 0usize..40).prop_map(|(a, b)| Op::Select(a, b)),
         text().prop_map(Op::Type),
-        text().prop_map(Op::Paste),
+        (text(), 0u8..3, 0u8..3).prop_map(|(s, k, a)| Op::Paste(s, k, a)),
         Just(Op::Backspace),
         Just(Op::Delete),
         Just(Op::Bold),
@@ -637,6 +675,7 @@ fn op() -> impl Strategy<Value = Op> {
         Just(Op::Unlink),
         (0u8..3).prop_map(Op::List),
         any::<bool>().prop_map(Op::Indent),
+        (0u8..3).prop_map(Op::Align),
         Just(Op::Clear),
         text().prop_map(Op::Plain),
         Just(Op::Undo),
@@ -679,7 +718,12 @@ proptest! {
             let _ = match op {
                 Op::Select(a, h) => b.select(a, h),
                 Op::Type(s) => b.type_text(&s),
-                Op::Paste(s) => b.paste(&RichText::from_plain(&s)),
+                Op::Paste(s, k, a) => {
+                    let kind = [ListKind::None, ListKind::Bullet, ListKind::Numbered][k as usize];
+                    let align = [Align::Left, Align::Center, Align::Right][a as usize];
+                    let pasted = RichText::from_plain(&s).paragraphs().iter().map(|p| Paragraph { list: kind, align, ..p.clone() }).collect();
+                    b.paste(&RichText::from_paragraphs(pasted))
+                }
                 Op::Backspace => b.backspace(),
                 Op::Delete => b.delete_forward(),
                 Op::Bold => b.toggle_bold().map(|_| ()),
@@ -690,6 +734,7 @@ proptest! {
                 Op::Unlink => b.set_link(None),
                 Op::List(k) => b.toggle_list([ListKind::None, ListKind::Bullet, ListKind::Numbered][k as usize]).map(|_| ()),
                 Op::Indent(deeper) => b.indent(if deeper { 1 } else { -1 }).map(|_| ()),
+                Op::Align(a) => b.set_align([Align::Left, Align::Center, Align::Right][a as usize]),
                 Op::Clear => b.clear_formatting(),
                 Op::Plain(s) => b.set_plain(&s),
                 Op::Undo => { b.undo(); Ok(()) }
@@ -704,11 +749,12 @@ proptest! {
 
     /// Any documents, cleaned, survive being stored.
     #[test]
-    fn documents_survive_storing(texts in proptest::collection::vec(("\\PC{0,8}", any::<bool>(), any::<u8>(), 0u8..3, any::<u8>()), 1..8)) {
-        let paragraphs = texts.into_iter().map(|(text, b, size, list, level)| Paragraph {
+    fn documents_survive_storing(texts in proptest::collection::vec(("\\PC{0,8}", any::<bool>(), any::<u8>(), 0u8..3, any::<u8>(), 0u8..3), 1..8)) {
+        let paragraphs = texts.into_iter().map(|(text, b, size, list, level, align)| Paragraph {
             runs: vec![Run::new(text, Style { bold: b, size: Some(size), ..Style::default() })],
             list: [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize],
             level,
+            align: [Align::Left, Align::Center, Align::Right][align as usize],
             signature: b,
         }).collect();
         let t = RichText::from_paragraphs(paragraphs);
@@ -724,11 +770,11 @@ fn courier_new() -> Font {
 }
 
 #[test]
-fn courier_new_is_the_one_fixed_width_font() {
+fn courier_new_is_the_one_fixed_width_font_of_the_six() {
     let courier = courier_new();
     assert_eq!(courier.label(), "Courier New");
     assert!(courier.is_fixed_width());
-    assert_eq!(Font::ALL.iter().filter(|f| f.is_fixed_width()).collect::<Vec<_>>(), vec![&courier]);
+    assert_eq!(Built::ALL.iter().filter(|f| f.is_fixed_width()).collect::<Vec<_>>(), vec![&Built::CourierNew]);
     // Written with a fixed-width fallback, so a recipient without Courier New keeps the columns too.
     assert_eq!(courier.css(), "'Courier New', Courier, monospace");
 }
@@ -736,33 +782,136 @@ fn courier_new_is_the_one_fixed_width_font() {
 #[test]
 fn a_fixed_width_family_comes_back_as_courier_new() {
     let courier = courier_new();
-    for font in Font::ALL {
-        assert_eq!(Font::from_css(font.css()), Some(font), "{font:?}");
+    for font in Font::built_fonts() {
+        assert_eq!(Font::from_css(&font.css()), Some(font.clone()), "{font:?}");
     }
-    for first in [
-        "Courier New",
-        "\"Courier New\"",
-        "Courier",
-        "Liberation Mono",
-        "Cousine",
-        "Consolas",
-        "Menlo",
-        "DejaVu Sans Mono",
-        "monospace",
-        "ui-monospace",
-    ] {
-        assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier), "{first}");
+    for first in ["Courier New", "\"Courier New\"", "monospace", "ui-monospace"] {
+        assert_eq!(Font::from_css(&format!("{first}, serif")), Some(courier.clone()), "{first}");
+    }
+    // A family that only looks like one of the six is kept as the family it names: a message that
+    // asks for Liberation Mono asks for Liberation Mono, and the window draws it in whatever of
+    // its own names is installed (#1493).
+    for first in ["Courier", "Liberation Mono", "Cousine", "Carlito", "Helvetica", "Geneva"] {
+        assert_eq!(Font::from_css(&format!("{first}, serif")).unwrap().key(), first.to_lowercase(), "{first}");
     }
 }
 
 #[test]
 fn a_font_this_version_doesnt_know_leaves_the_rest_of_the_look() {
-    // A font a later version adds is the message's own here, and the run keeps its bold and its
-    // colour, rather than the whole text losing its look (#969, a review point on #1327).
+    // A font a later version adds is a family name like any other: the run keeps its bold and its
+    // colour, and the name too, which the window draws in whatever of its own fonts it has
+    // (#969, a review point on #1327; #1493, which can name any family there is).
     let style: Style = serde_json::from_str(r##"{"bold": true, "color": "#1f6feb", "font": "aFontFromLater"}"##).unwrap();
-    assert_eq!(style, Style { bold: true, color: Some("#1f6feb".into()), ..Style::default() });
+    assert_eq!(style, Style { bold: true, color: Some("#1f6feb".into()), font: Font::parse("aFontFromLater"), ..Style::default() });
     for odd in [r#"{"font": 7}"#, r#"{"font": null}"#, r#"{"font": {"name": "Arial"}}"#] {
         assert_eq!(serde_json::from_str::<Style>(odd).unwrap().font, None, "{odd}");
     }
     assert_eq!(serde_json::from_str::<Style>(r#"{"font": "courierNew"}"#).unwrap().font, Some(courier_new()));
+}
+
+#[test]
+fn any_family_can_be_named() {
+    // The composer offers what is installed here (#1493): a name is kept as it is written, and
+    // what goes out comes back through a paste unchanged.
+    let fira = Font::parse("Fira Code").unwrap();
+    assert_eq!(fira.label(), "fira code");
+    assert_eq!(fira.key(), "fira code");
+    // Written lower case, as it is kept: a `font-family` is matched case-insensitively.
+    assert_eq!(fira.css(), "'fira code'");
+    assert_eq!(Font::from_css("'Fira Code'"), Some(fira.clone()));
+    // A list is kept whole. It is not the same font as its first name alone: what comes after the
+    // first name is what a recipient without that family falls back to, and dropping it would
+    // quietly change the message (#1493).
+    let mono = Font::parse("Fira Code, monospace").unwrap();
+    assert_ne!(mono, fira);
+    assert_eq!(mono.key(), fira.key());
+    assert_eq!(mono.css(), "'fira code', monospace");
+    assert_eq!(Font::from_css("Fira Code, monospace"), Some(mono));
+    // A name of another script is a name too.
+    assert_eq!(Font::parse("微软雅黑").unwrap().css(), "微软雅黑");
+}
+
+#[test]
+fn a_font_list_that_falls_back_differently_is_another_font() {
+    // Two runs of one paragraph asking for the same family but falling back differently are two
+    // runs: joining them would drop one of the fallbacks (#1493).
+    let serifly = Font::parse("Missing, serif").unwrap();
+    let monoly = Font::parse("Missing, monospace").unwrap();
+    assert_ne!(serifly, monoly);
+    assert_eq!(serifly.key(), monoly.key());
+    assert_eq!(serifly.css(), "missing, serif");
+    assert_eq!(monoly.css(), "missing, monospace");
+}
+
+#[test]
+fn a_family_css_cannot_read_as_an_identifier_is_quoted() {
+    // A family beginning with a digit or a dash is only a name to CSS when it is quoted.
+    assert_eq!(Font::parse("123 Font, monospace").unwrap().css(), "'123 font', monospace");
+    assert_eq!(Font::parse("-dash").unwrap().css(), "'-dash'");
+    // An ordinary name is not quoted, and neither is one of the six, which writes its own list.
+    assert_eq!(Font::parse("FiraCode").unwrap().css(), "firacode");
+    assert_eq!(Font::parse("verdana").unwrap().css(), Built::Verdana.css());
+}
+
+#[test]
+fn a_font_name_is_kept_to_what_a_font_family_can_carry() {
+    // The same rules a message's own list is kept to, so what goes out comes back as it went.
+    assert_eq!(Font::parse("  Calibri  "), Built::Calibri.font().into());
+    // A name that isn't plain is left out, as a message's own list leaves it out; the rest of a
+    // list is kept.
+    assert_eq!(Font::parse("Fira; Code"), None);
+    assert_eq!(Font::parse("<script>"), None);
+    assert_eq!(Font::parse("a+b"), None);
+    // A name of a list that isn't plain is left out and the rest kept, as a message's list is.
+    assert_eq!(Font::parse("Fira Code, a+b").unwrap().list(), "fira code");
+    assert_eq!(Font::parse(""), None);
+    assert_eq!(Font::parse(",,, "), None);
+    assert_eq!(Font::parse("!!!"), None);
+    // A name too long for a `font-family` is no name, and a list is capped at eight families.
+    let long = "z".repeat(33);
+    assert_eq!(Font::parse(&long), None);
+    let many: String = (0..20).map(|n| format!("f{n},")).collect();
+    assert_eq!(Font::parse(&many).unwrap().list().split(',').count(), MAX_FONT_NAMES);
+    // Junk of any size is refused, not worked through.
+    assert_eq!(Font::parse(&"q".repeat(100_000)), None);
+}
+
+#[test]
+fn the_six_are_still_the_six_however_they_are_written() {
+    // A mailbox file of 0.13 wrote the enum's own names; they still mean the six's own lists.
+    for (written, built) in [
+        ("courierNew", Built::CourierNew),
+        ("CourierNew", Built::CourierNew),
+        ("Courier-New", Built::CourierNew),
+        ("arial", Built::Arial),
+        ("Georgia", Built::Georgia),
+        ("system", Built::System),
+    ] {
+        assert_eq!(Font::stored(written).unwrap().built(), Some(built), "{written}");
+    }
+    assert_eq!(Font::stored("courierNew").unwrap().css(), "'Courier New', Courier, monospace");
+}
+
+#[test]
+fn a_font_that_asks_only_for_a_kind_of_font_is_no_font() {
+    for keyword in ["serif", "sans-serif", "cursive", "ui-serif", "inherit"] {
+        assert_eq!(Font::from_css(keyword), None, "{keyword}");
+    }
+    // But a family that happens to be first, with a kind after it, is kept.
+    assert_eq!(Font::from_css("Georgia, serif"), Built::Georgia.font().into());
+    assert_eq!(Font::from_css("Noto Serif, serif").unwrap().list(), "noto serif,serif");
+}
+
+#[test]
+fn a_font_read_from_a_file_that_isnt_one_costs_a_run_its_font_and_nothing_else() {
+    let body = |json: &str| serde_json::from_str::<Style>(json).ok();
+    // A value of the wrong kind is no font; the style around it is still read.
+    let style = serde_json::from_str::<Style>(r#"{"bold":true,"font":7,"size":12}"#).unwrap();
+    assert!(style.font.is_none());
+    assert!(style.bold);
+    assert_eq!(style.size, Some(12));
+    assert!(body(r#"{"font":{"not":"a font"}}"#).is_some_and(|s| s.font.is_none()));
+    // An empty or absurd name is no font either, and `clean` lets it go.
+    assert!(serde_json::from_str::<Style>(r#"{"font":""}"#).unwrap().clean().font.is_none());
+    assert!(serde_json::from_str::<Style>(&format!(r#"{{"font":"{}"}}"#, "z".repeat(5000))).unwrap().clean().font.is_none());
 }

@@ -210,7 +210,8 @@ fn queue(
 /// own that `ui.closeWindow` closes, that another mailbox in view (`file.new`, `file.open`)
 /// closes, or that closes with its appointment when that is taken away.
 fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
-    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo");
+    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo")
+        || (id == "calendar.paste" && params.get("cut").and_then(Value::as_bool) == Some(true));
     if !removes && !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
         if let Some(fields) = params.as_object_mut() {
             fields.remove("unsaved");
@@ -581,6 +582,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         answer_with(app, said);
     }
 }
+
+/// The batch of calendar items an agent asked about and what the owner's yes reaches: its own
+/// file, as the tests that hold the gate to what it shows (#494, U-1, U-2, C-1).
+#[cfg(test)]
+#[path = "calendar_batch_guard_tests.rs"]
+mod calendar_batch_guard_tests;
 
 #[cfg(test)]
 mod tests {

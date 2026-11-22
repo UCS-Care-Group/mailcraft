@@ -175,6 +175,28 @@ fn a_bad_saved_fingerprint_does_not_release_a_listed_mailbox_from_its_server() {
 }
 
 #[test]
+fn a_listed_mailbox_without_a_usable_saved_server_is_not_pointed_at_one() {
+    // Its folders carry one server's ids; with the saved settings gone or unusable (a damaged
+    // file), naming a server would put another mailbox under those ids.
+    for unusable in [None, Some("")] {
+        let mut s = switched_on();
+        let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+        let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+        s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "2".into(), ..Default::default() });
+        match unusable {
+            None => s.mailbox.account_mut(id).unwrap().zimbra = None,
+            Some(url) => s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap().url = url.into(),
+        }
+        let before = s.mailbox.account(id).unwrap().clone();
+        assert!(
+            said(s.run("account.edit", &json!({"id":id,"zimbra":{"url":"https://other.example.org"}})))
+                .contains("can't be changed once its mail is here")
+        );
+        assert_eq!(s.mailbox.account(id).unwrap(), &before);
+    }
+}
+
+#[test]
 fn identity_edits_with_the_switch_off_leave_zimbra_unchanged() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();

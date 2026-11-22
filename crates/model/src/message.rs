@@ -39,6 +39,42 @@ impl Importance {
     }
 }
 
+/// How private a message is, as its sender marked it (the `Sensitivity` header of RFC 2156,
+/// which Outlook writes): no header is normal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Sensitivity {
+    #[default]
+    Normal,
+    Personal,
+    Private,
+    Confidential,
+}
+
+impl Sensitivity {
+    pub const ALL: [Sensitivity; 4] = [Sensitivity::Normal, Sensitivity::Personal, Sensitivity::Private, Sensitivity::Confidential];
+
+    /// By its code, or by the header's word (`Company-Confidential`).
+    pub fn parse(s: &str) -> Option<Sensitivity> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "normal" => Some(Sensitivity::Normal),
+            "personal" => Some(Sensitivity::Personal),
+            "private" => Some(Sensitivity::Private),
+            "confidential" | "company-confidential" => Some(Sensitivity::Confidential),
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Sensitivity::Normal => "normal",
+            Sensitivity::Personal => "personal",
+            Sensitivity::Private => "private",
+            Sensitivity::Confidential => "confidential",
+        }
+    }
+}
+
 /// Follow-up flag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,6 +129,12 @@ pub struct Attachment {
 impl Attachment {
     pub fn new(name: impl Into<String>, mime: impl Into<String>, data: Vec<u8>) -> Attachment {
         Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data), kept: None }
+    }
+
+    /// Whether it is a calendar part (an invitation, an answer to one).
+    pub fn is_calendar(&self) -> bool {
+        let kind = self.mime.trim().to_ascii_lowercase();
+        kind.starts_with("text/calendar") || kind.starts_with("application/ics") || self.name.to_ascii_lowercase().ends_with(".ics")
     }
 
     /// How many bytes the file is, in memory or where it is kept.
@@ -413,6 +455,26 @@ pub struct Message {
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
     pub incomplete: bool,
+    /// Some of its header fields, recipients (To, Cc) or categories were left out as it was read,
+    /// past what is kept of one message (`mailcraft_mime`), or, before it is fetched, some of its
+    /// recipients or its subject as its server listed it ([`crate::sync::GraphMessage::cut`]): a
+    /// rule can't tell from it what they said (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub headers_cut: bool,
+    /// Some of its categories were left out as its server listed it
+    /// ([`crate::sync::GraphMessage::categories_cut`]): they are the server's still once it is
+    /// fetched, so a rule can't tell from it what they said (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
+    /// Downloaded before, and listed by its server since as another version (changed or sent on
+    /// another device, a draft again): what is here of it, but for what the listing said, is the
+    /// version before, until the new one is fetched whole. No rule goes by it meanwhile (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub stale: bool,
+    /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
+    /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub rules_waiting: Option<Box<crate::RulesWaiting>>,
     /// For a draft of a Microsoft account: its marker on the server, what the server last had
     /// of it, and whether it waits to go up (R3.4.1). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
@@ -450,6 +512,11 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
+    /// A rule that shows a desktop alert acted on it as it arrived, or once it was here whole
+    /// ([`crate::Rule::alert`], [`crate::Mailbox::run_waiting_rules`]): the window shows one for it
+    /// once the run or the download is over, wherever the rule put it. Not written.
+    #[serde(skip)]
+    pub rule_alert: bool,
     /// For a Digitally signed or Encrypted message (#30): the bytes it came as ([`Original`]).
     /// `None` for every other message, for one read before they were kept (Check again downloads
     /// them, `mail.checkAgain`), and once something the bytes hold was taken out of it here (an
@@ -777,8 +844,52 @@ impl Message {
             || crate::protected::has_armour_within(self.body.text.as_bytes(), 64 * 1024)
     }
 
+    /// Whether the message carries the category `name`, compared as category names are
+    /// ([`crate::sync::same_category`]: in every script's case, so "BÜRO" is "Büro").
     pub fn has_category(&self, name: &str) -> bool {
         self.categories.iter().any(|c| crate::sync::same_category(c, name))
+    }
+
+    /// How private its sender marked it.
+    pub fn sensitivity(&self) -> Sensitivity {
+        self.header("Sensitivity").and_then(Sensitivity::parse).unwrap_or_default()
+    }
+
+    /// Whether only part of it is here: what a server lists of it, its headers, or a text that
+    /// couldn't be read.
+    pub fn partly_here(&self) -> bool {
+        self.unfetched || self.incomplete || self.not_downloaded > 0 || self.kept.as_deref().is_some_and(|k| k.failed)
+    }
+
+    /// Whether how big it is can be told: a list of new mail needn't say, and what is here of it
+    /// is no measure; nor is a header that says it is too large to download, which a sender can
+    /// write ([`Message::list_size`]).
+    pub fn size_known(&self) -> bool {
+        (self.not_downloaded > 0 || !(self.unfetched || self.incomplete) || self.server.as_ref().is_some_and(|s| s.size > 0))
+            && self.list_size().is_some()
+    }
+
+    /// Whether it is an automatic reply, an out-of-office one say, as its sender's program marked
+    /// it (`Auto-Submitted: auto-replied`, RFC 3834): on the message, or in its header block while
+    /// that is in memory, where a build from before the line stayed on the message put it.
+    pub fn is_automatic_reply(&self) -> bool {
+        let replied = |v: &str| v.trim().to_ascii_lowercase().starts_with("auto-replied");
+        let in_block = || self.header_block.lines().iter().filter(|l| l.name.eq_ignore_ascii_case("Auto-Submitted")).any(|l| replied(&l.value));
+        self.header("Auto-Submitted").is_some_and(replied) || (!self.header_block.none_in_memory() && in_block())
+    }
+
+    /// Whether it is a meeting invitation or an update of one: a calendar part in memory that
+    /// asks (`METHOD:REQUEST`, RFC 5546), not one that answers or calls off.
+    pub fn is_meeting_request(&self) -> bool {
+        self.attachments.iter().filter(|a| a.is_calendar() && a.is_loaded()).any(|a| {
+            let head = a.data.get(..a.data.len().min(64 * 1024)).unwrap_or_default();
+            String::from_utf8_lossy(head).lines().any(|line| {
+                let line = line.trim_end_matches('\r');
+                line.len() >= 7
+                    && line.get(..7).is_some_and(|k| k.eq_ignore_ascii_case("METHOD:"))
+                    && line.get(7..).is_some_and(|m| m.trim().eq_ignore_ascii_case("REQUEST"))
+            })
+        })
     }
 }
 

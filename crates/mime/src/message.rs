@@ -111,6 +111,9 @@ pub struct Message {
     pub draft: bool,
     /// Every other header field that isn't MIME structure, in order.
     pub headers: Vec<(String, String)>,
+    /// Some of its header fields, recipients (To, Cc) or categories were left out as it was
+    /// read, past what is kept of one message: what they said can't be told from it.
+    pub headers_cut: bool,
     /// An Exchange `AuthAs` stamp ([`crate::AUTH_AS`]) was read from it.
     pub fresh_stamps: bool,
     /// The bytes a Digitally signed or Encrypted message came as, in CRLF lines
