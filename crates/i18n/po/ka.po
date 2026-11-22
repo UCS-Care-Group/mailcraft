@@ -8742,6 +8742,12 @@ msgstr "ფოსტა ონლაინ არქივში მხოლო
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "„არასასურველ ფოსტაში“ მოხვედრილი ფოსტა მაინც ჯერ გეკითხებათ. „ფაილი › პარამეტრები“ ამას ისევ გამორთავს."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "ონლაინ არქივში არსებული ფოსტა არქივის შიგნით კოპირდება: სანაცვლოდ გადაიტანეთ გარეთ"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

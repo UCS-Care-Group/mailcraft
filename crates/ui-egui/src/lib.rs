@@ -1819,6 +1819,10 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// Something went wrong in some piece of the Exchange server run under way (an error, a folder
+    /// it couldn't read, a piece refused): an online archive's run is judged by the whole run,
+    /// never by its last piece alone (#1834 review).
+    ews_run_trouble: bool,
     /// The password the run in flight went with, until the system is asked to remember it: once
     /// a run (#802).
     sync_password: Option<String>,
@@ -2112,6 +2116,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            ews_run_trouble: false,
             sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,

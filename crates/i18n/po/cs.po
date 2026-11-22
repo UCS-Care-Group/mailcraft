@@ -8782,6 +8782,12 @@ msgstr "Pošta se do online archivu dostane jen z vlastní poštovní schránky:
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "U pošty v Nevyžádané poště se stále nejdřív ptá. Soubor › Možnosti to zase vypne."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Pošta v online archivu se kopíruje v rámci archivu: místo toho ji přesuňte ven"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

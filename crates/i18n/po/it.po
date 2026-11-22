@@ -8761,6 +8761,12 @@ msgstr "La posta entra in un archivio online solo dalla propria cassetta postale
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "La posta in Posta indesiderata chiede sempre prima. File › Opzioni lo disattiva di nuovo."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "La posta in un archivio online si copia all'interno dell'archivio: spostala fuori invece"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

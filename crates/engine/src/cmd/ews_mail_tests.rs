@@ -902,3 +902,32 @@ fn mail_deleted_from_an_archive_folder_goes_after_a_clean_partial_run() {
     assert!(here(&s, archive, "M1").is_none(), "gone from the folder read");
     assert!(here(&s, archive, "M2").is_some(), "the folder not read keeps its mail");
 }
+
+/// A mark of gone left in a folder by a read cut short doesn't make a later clean run of other
+/// folders take that folder's mail (#1834 review).
+#[test]
+fn an_archive_run_sweeps_only_the_folders_it_read() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas {
+        changed: vec![folder("A1", "", "2019", FolderKind::Custom), folder("A2", "", "2020", FolderKind::Custom)],
+        afresh: true,
+        ..Default::default()
+    };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "Budget 2019", 1_700_000_000)], true, true), "S1");
+    read(&mut s, archive, page("A2", vec![mail("M2", "Budget 2020", 1_700_000_100)], true, true), "S2");
+    end(&mut s, archive, false);
+    // A read of 2020 that marks M2 gone and is cut short (it fails).
+    let cut = EwsMessagePage { folder: "A2".into(), removed: vec!["M2".into()], last: true, ..Default::default() };
+    read(&mut s, archive, cut, "S2b");
+    apply_ews_mail(&mut s, EwsMailResult { errors: vec!["the connection dropped".into()], partial: false, ..piece(archive) }).unwrap();
+    assert!(here(&s, archive, "M2").is_some(), "a run that went wrong takes nothing");
+    // A clean run of 2019 alone: 2020's mark is not its to act on.
+    let ewsr = s.run("sync.ewsRequest", &json!({"account": archive}));
+    assert!(ewsr.is_ok());
+    read(&mut s, archive, page("A1", vec![], false, true), "S1c");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M2").is_some(), "a folder not read keeps its mail");
+}

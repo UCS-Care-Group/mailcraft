@@ -8797,6 +8797,12 @@ msgstr "Poczta trafia do archiwum online tylko z własnej skrzynki: najpierw prz
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "Poczta w folderze Wiadomości-śmieci nadal najpierw pyta. Plik › Opcje ponownie to wyłącza."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Poczta w archiwum online jest kopiowana w obrębie archiwum: zamiast tego przenieś ją na zewnątrz"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

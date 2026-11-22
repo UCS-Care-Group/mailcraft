@@ -8793,6 +8793,12 @@ msgstr "Mesajele intră într-o arhivă online doar din propria cutie poștală:
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "E-mailurile din E-mail nedorit tot cer întâi confirmarea. Fișier › Opțiuni oprește din nou această opțiune."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Mesajele dintr-o arhivă online se copiază în interiorul arhivei: mutați-le în schimb în afară"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

@@ -269,3 +269,20 @@ fn an_archive_is_never_put_before_or_moved_by_itself() {
     assert!(mb.move_account(archive, None).is_err());
     assert!(mb.move_account(owner, Some(archive)).is_err());
 }
+
+/// Mail is copied out of an online archive no more than into it: the server says no id for a
+/// copy into another mailbox (#1834 review). And taking the archive away as an account puts back
+/// what was moved into it, as hiding it does.
+#[test]
+fn nothing_is_copied_out_of_the_archive_and_removing_it_puts_moves_back() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    let (kickoff, inbox) = on_owners_server(&mut mb, owner);
+    let budget = mb.messages.values().find(|m| m.subject == "Budget 2019").unwrap().id;
+    assert!(matches!(mb.copy_message(budget, inbox), Err(ModelError::Invalid(why)) if why == COPY_OUT_OF_ARCHIVE));
+    mb.move_messages(&[kickoff], year).unwrap();
+    mb.remove_account(archive).unwrap();
+    let m = mb.message(kickoff).expect("kept");
+    assert_eq!((m.account, m.folder), (owner, inbox));
+}

@@ -77,7 +77,7 @@ impl Mailbox {
         if !self.account(archive).is_some_and(Account::is_archive) {
             return Err(ModelError::Invalid("that account isn't an online archive".into()));
         }
-        self.put_back_moves_into(Some(archive));
+        // (Moves into it go back first: [`Mailbox::remove_account`] sees to it.)
         self.remove_account(archive)
     }
 
@@ -105,7 +105,7 @@ impl Mailbox {
 
     /// [`Mailbox::put_back_moves_into_archives`] for the archive `only` alone, when one is named
     /// (the one being taken away: the others' moves go on, #1834 review).
-    fn put_back_moves_into(&mut self, only: Option<Id>) -> bool {
+    pub(crate) fn put_back_moves_into(&mut self, only: Option<Id>) -> bool {
         let back: Vec<(Id, Id, Id)> = self
             .messages
             .values()

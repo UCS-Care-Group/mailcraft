@@ -8760,6 +8760,12 @@ msgstr "邮件只能从其所属邮箱进入在线存档：请先将其移到该
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "垃圾邮件中的邮件仍须逐封询问。可在“文件 › 选项”中关闭此功能。"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "在线存档中的邮件只能在存档内复制：请改为将其移出"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

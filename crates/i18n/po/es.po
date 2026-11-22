@@ -8766,6 +8766,12 @@ msgstr "El correo solo entra en un archivo en línea desde su propio buzón: mu�
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "El correo en Correo no deseado sigue preguntando antes. Archivo › Opciones lo desactiva de nuevo."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "El correo de un archivo en línea se copia dentro del archivo: muévalo fuera en su lugar"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

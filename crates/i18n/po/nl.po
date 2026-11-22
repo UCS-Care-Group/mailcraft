@@ -8451,6 +8451,12 @@ msgstr "E-mail komt alleen vanuit het eigen postvak in een onlinearchief: verpla
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "E-mail in Ongewenste e-mail vraagt nog steeds eerst. Bestand › Opties zet dit weer uit."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "E-mail in een onlinearchief wordt binnen het archief gekopieerd: verplaats het in plaats daarvan naar buiten"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

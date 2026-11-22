@@ -8727,6 +8727,12 @@ msgstr "Le courrier n'entre dans une archive en ligne que depuis sa propre boît
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "Le courrier dans Courrier indésirable demande toujours d'abord. Fichier › Options le désactive à nouveau."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Le courrier d'une archive en ligne est copié à l'intérieur de l'archive : déplacez-le plutôt hors de l'archive"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

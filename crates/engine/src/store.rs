@@ -3222,14 +3222,15 @@ fn save_as_of(path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String>
 }
 
 fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String> {
-    // (Nothing of an online archive is written: it is read from its server while connected, #1818.)
-    let on_disk = mailbox.for_disk();
-    let mailbox: &Mailbox = &on_disk;
     // What was read of the file ahead of its opening is not what it says once this is written.
     st.ahead = None;
     if seq < st.newest {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }
+    // (Nothing of an online archive is written: it is read from its server while connected, #1818.
+    // Worked out only for a save that writes, #1834 review.)
+    let on_disk = mailbox.for_disk();
+    let mailbox: &Mailbox = &on_disk;
     // (The header blocks of messages held in memory, an Undo step, taken through this mailbox's own
     // `Shared`: the file a link leads to has another.)
     let held = lock(&shared.held).kept_blocks();

@@ -248,6 +248,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     // A run begins: nothing lost in an earlier one is held against it.
     if !request.inbox_pass {
         s.ews_run_cut.remove(&account);
+        s.ews_run_read.remove(&account);
     }
     serde_json::to_value(request).map_err(|e| fail(e.to_string()))
 }
@@ -420,6 +421,17 @@ fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
     changed
 }
 
+/// Most folders one run's reads are remembered of (a server may list any number).
+const MAX_RUN_FOLDERS: usize = 4_096;
+
+/// The end of a clean run of an online archive (#1834 review): of its messages, those the
+/// server said are gone from a folder this run read go, and no other.
+fn sweep_read(mb: &mut mailcraft_model::Mailbox, account: Id, read: &std::collections::HashSet<String>, down: &mut graph_down::Down) {
+    let before = mb.messages.len();
+    mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone && read.contains(&s.folder))));
+    down.removed += before - mb.messages.len();
+}
+
 fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
@@ -510,6 +522,11 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         if !ews_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down) {
             left_out = left_out.saturating_add(1);
         }
+        // (The folders this run read: an archive's end sweeps no other, #1834 review.)
+        let read = s.ews_run_read.entry(account).or_default();
+        if read.len() < MAX_RUN_FOLDERS {
+            read.insert(page.folder.clone());
+        }
     }
     s.graph_index = index;
     down.end_piece(s, account, result.partial);
@@ -531,12 +548,17 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // (An online archive is only ever read in part, its folder list and the folders opened, so a
     // run of it is never `whole`: what the folders it read said is gone goes when it went well.
     // Only those folders mark anything gone, so nothing of a folder not read goes, #1834 review.)
-    let archive_clean = s.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive)
-        && result.errors.is_empty()
-        && !result.stopped
-        && !result.auth_refused;
-    if (result.whole || archive_clean) && !result.partial && !run_cut {
-        graph_down::sweep(&mut s.mailbox, account, None, &mut down);
+    let archive = s.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive);
+    let archive_clean = archive && result.errors.is_empty() && !result.stopped && !result.auth_refused;
+    let read = if result.partial { None } else { s.ews_run_read.remove(&account) };
+    if !result.partial && !run_cut {
+        if result.whole && !archive {
+            graph_down::sweep(&mut s.mailbox, account, None, &mut down);
+        } else if archive_clean {
+            // Only what the folders this run read said is gone goes: a mark left in a folder
+            // by a read cut short before stays until that folder is read again (#1834 review).
+            sweep_read(&mut s.mailbox, account, &read.unwrap_or_default(), &mut down);
+        }
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);

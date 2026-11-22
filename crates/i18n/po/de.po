@@ -8235,6 +8235,12 @@ msgstr "E-Mails gelangen nur aus dem eigenen Postfach in ein Onlinearchiv: Versc
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "E-Mails in Junk-E-Mail fragen weiterhin zuerst. Datei › Optionen schaltet dies wieder aus."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "E-Mails in einem Onlinearchiv werden innerhalb des Archivs kopiert: Verschieben Sie sie stattdessen heraus"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

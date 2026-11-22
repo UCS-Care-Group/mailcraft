@@ -7279,6 +7279,11 @@ msgstr ""
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."

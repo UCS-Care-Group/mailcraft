@@ -8761,6 +8761,12 @@ msgstr "Az online archívumba csak a saját postafiókjából kerülhet levél: 
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "A junk e-mailben lévő levelek még mindig kérdezik először. Fájl › A beállítások újra kikapcsolják ezt."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Az online archívumban lévő levelek az archívumon belül másolhatók: inkább helyezze át őket onnan"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy

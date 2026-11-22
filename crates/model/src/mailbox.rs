@@ -1496,6 +1496,10 @@ pub const INTO_ARCHIVE: &str = "Mail goes into an online archive only from its o
 /// there, and nothing of the archive is kept on this computer.
 pub const COPY_INTO_ARCHIVE: &str = "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox";
 
+/// Why mail in an online archive isn't copied out of it (#1834 review): the server makes the copy
+/// in another mailbox without saying where, and it would come twice.
+pub const COPY_OUT_OF_ARCHIVE: &str = "Mail in an online archive is copied within the archive: move it out instead";
+
 /// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
@@ -1652,6 +1656,11 @@ impl Mailbox {
     pub fn remove_account(&mut self, id: Id) -> Result<(), ModelError> {
         if self.account(id).is_none() {
             return Err(not_found("account", id));
+        }
+        // (An online archive taken away by itself: moves into it the server hasn't made go back
+        // first, as [`Mailbox::remove_archive`] does, #1834 review.)
+        if self.account(id).is_some_and(Account::is_archive) {
+            self.put_back_moves_into(Some(id));
         }
         let going: HashSet<Id> =
             self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id) || a.archive_of == Some(id)).map(|a| a.id).collect();
@@ -3095,6 +3104,10 @@ impl Mailbox {
         // (A copy within an online archive is made there by its server; none comes in, #1818.)
         if from_account != to_account && self.account(to_account).is_some_and(Account::is_archive) {
             return Err(invalid(COPY_INTO_ARCHIVE));
+        }
+        // (Nor out of it: the server says no id for a copy into another mailbox, #1834 review.)
+        if from_account != to_account && self.account(from_account).is_some_and(Account::is_archive) {
+            return Err(invalid(COPY_OUT_OF_ARCHIVE));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
         // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's

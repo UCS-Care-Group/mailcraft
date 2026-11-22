@@ -197,7 +197,7 @@ impl MailApp {
         let sent = Some(secret.clone());
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let pieces = self.hand_ews(account, EwsJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
-        (self.sync_refused, self.sync_password) = (false, sent);
+        (self.sync_refused, self.sync_password, self.ews_run_trouble) = (false, sent, false);
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -228,8 +228,8 @@ impl MailApp {
             };
             let (last, whole) = (!piece.partial, piece.whole);
             // (An online archive's run reads only part of it and is never `whole`: it went through
-            // when nothing went wrong, #1834 review.)
-            let clean = piece.errors.is_empty() && !piece.stopped && !piece.auth_refused;
+            // when nothing went wrong in any piece of it, #1834 review.)
+            self.ews_run_trouble |= !piece.errors.is_empty() || piece.stopped || piece.auth_refused || !piece.blocked.is_empty();
             // Another mailbox took the place of the one the run was for: its accounts are other
             // accounts, whatever their ids and addresses, and what the run brings is nobody's. The
             // run is called off, and what comes of it until its end is thrown away.
@@ -248,6 +248,7 @@ impl MailApp {
                 self.session.driver.fetch.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
+            self.ews_run_trouble |= untrusted;
             // The server answered with its folders or its mail: it took the password (#802).
             if piece.server_answered() {
                 self.keep_accepted_password(self.ews_credential_account(account));
@@ -274,10 +275,13 @@ impl MailApp {
                             self.ews_unreadable.insert(account, folders);
                         }
                     }
+                    let unreadable = said["unreadableFolders"].as_array().is_some_and(|all| !all.is_empty());
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
+                    self.ews_run_trouble |= unreadable || errors.as_ref().is_some_and(|e| !e.is_empty());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                 }
                 Err(e) => {
+                    self.ews_run_trouble = true;
                     self.status(e.to_string());
                     self.session.driver.sending.doubted();
                     // A piece that was refused is not skipped over: the run is called off, and the
@@ -312,7 +316,8 @@ impl MailApp {
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }
-            self.archive_run_ended(account, clean && !untrusted);
+            let went_well = !std::mem::take(&mut self.ews_run_trouble);
+            self.archive_run_ended(account, went_well);
             self.sync_password = None;
             self.note_pushed(account);
             return;
@@ -327,6 +332,9 @@ impl MailApp {
         }
         if read {
             self.archive_failed.remove(&account);
+            // (Never `whole`, so the end of a run that went well clears what earlier ones said
+            // went wrong here, #1834 review: this run said nothing, or it wouldn't have.)
+            self.note_sync_problems(account, &[], true);
         } else {
             self.archive_failed.insert(account);
         }
