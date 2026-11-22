@@ -166,14 +166,17 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
             .filter(|a| !a.email.is_empty())
             .collect()
     };
-    let categories: Vec<String> = json::raw(m.get("tn"))
-        .unwrap_or_default()
-        .split(',')
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .take(MAX_CATEGORIES)
-        .map(|name| name.get(..name.floor_char_boundary(json::MAX_TEXT)).unwrap_or_default().to_string())
-        .collect();
+    let tags = json::raw(m.get("tn")).unwrap_or_default();
+    let named = || tags.split(',').map(str::trim).filter(|t| !t.is_empty());
+    let categories: Vec<String> =
+        named().take(MAX_CATEGORIES).map(|name| name.get(..name.floor_char_boundary(json::MAX_TEXT)).unwrap_or_default().to_string()).collect();
+    // Past what is kept of a list, or of one name, what it said is left out (#566).
+    let categories_cut = named().count() > MAX_CATEGORIES || named().any(|name| name.len() > json::MAX_TEXT);
+    // And so is a recipient past what is kept of them, or one with no address to keep, and the
+    // end of a subject past what is kept of a text.
+    let listed = |kind: &str| json::list(m.get("e")).iter().filter(|e| json::raw(e.get("t")).is_some_and(|t| t.trim() == kind)).count();
+    let (to, cc) = (people("t"), people("c"));
+    let cut = to.len() < listed("t") || cc.len() < listed("c") || json::raw(m.get("su")).is_some_and(|subject| subject.len() > json::MAX_TEXT);
     let arrived = json::number(m.get("d")).map_or(0, |ms| i64::try_from(ms / 1000).unwrap_or(0));
     let sent = json::number(m.get("sd")).map_or(arrived, |ms| i64::try_from(ms / 1000).unwrap_or(arrived));
     let server = ServerMessage {
@@ -202,12 +205,14 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
         message_id: json::text(m.get("mid")).unwrap_or_default().trim().trim_matches(['<', '>']).to_string(),
         subject: json::line(m.get("su")),
         from: people("f").into_iter().next().unwrap_or_default(),
-        to: people("t"),
-        cc: people("c"),
+        to,
+        cc,
         sent,
         received: arrived,
         preview: json::line(m.get("fr")),
         has_attachments: has('a'),
         draft: Some(has('d')),
+        cut,
+        categories_cut,
     })
 }

@@ -313,6 +313,29 @@ fn folders_made_between_delta_pages_are_each_listed_and_kept() {
     assert!(!all.pages.iter().any(|p| p.removed.contains(&in_first.to_string()) || p.removed.contains(&in_second.to_string())));
 }
 
+#[test]
+fn what_is_left_out_of_a_listed_message_is_said() {
+    // What a rule decides on (#566): recipients, the subject's end and categories left out as a
+    // message is listed are marked, so nothing is decided on half of them.
+    let listed = |extra: serde_json::Value| {
+        let mut m = serde_json::json!({"id": "300", "l": "2", "d": 1_700_000_000_000u64, "su": "Hello",
+            "e": [{"t": "f", "a": "ada@example.org"}, {"t": "t", "a": "bob@example.org"}], "tn": "Red,Blue"});
+        for (k, v) in extra.as_object().unwrap() {
+            m[k.as_str()] = v.clone();
+        }
+        crate::items::message(&m).unwrap()
+    };
+    let whole = listed(serde_json::json!({}));
+    assert!(!whole.cut && !whole.categories_cut);
+    let many: Vec<serde_json::Value> = (0..201).map(|i| serde_json::json!({"t": "t", "a": format!("p{i}@example.org")})).collect();
+    assert!(listed(serde_json::json!({"e": many})).cut);
+    assert!(listed(serde_json::json!({"e": [{"t": "c", "p": "No Address"}]})).cut);
+    assert!(listed(serde_json::json!({"su": "x".repeat(16 * 1024 + 1)})).cut);
+    let tags = (0..51).map(|i| format!("T{i}")).collect::<Vec<_>>().join(",");
+    let over = listed(serde_json::json!({"tn": tags}));
+    assert!(over.categories_cut && !over.cut && over.server.categories.len() == 50);
+}
+
 struct Edited {
     server: StandIn,
     edit: Box<dyn Fn(&mut serde_json::Value)>,

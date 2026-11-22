@@ -187,9 +187,12 @@ impl MailApp {
             note: None,
             cancel: None,
             tick: None,
+            calendar: None,
+            cut: None,
+            listing: None,
         };
         self.sync_mark_asking(account);
-        self.set_dialog(Some(Dialog::Confirm { command: "ui.allowSync".to_string(), params: json!({"account": account}), ask }));
+        self.set_dialog(Some(Dialog::Confirm { command: "ui.allowSync".to_string(), params: json!({"account": account}), ask: Box::new(ask) }));
         true
     }
 

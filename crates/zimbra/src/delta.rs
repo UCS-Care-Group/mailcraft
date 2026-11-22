@@ -17,8 +17,6 @@ use crate::soap;
 /// Most changed and deleted ids one page of a delta holds.
 pub const CHANGES: usize = 500;
 const DELETES: usize = 1000;
-/// Longest token taken.
-const MAX_TOKEN: usize = 256;
 
 /// What one page of a delta said.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -44,8 +42,8 @@ pub fn request(base: &str, token: &Secret, since: &str) -> Result<HttpRequest, E
 pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
     let answer = soap::answer("SyncRequest", response)?;
     let token = json::raw(answer.get("token")).unwrap_or_default();
-    let fit = !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_alphanumeric() || b"-.:".contains(&b));
-    if !fit {
+    // (What a token may be is the model's to say: the one rule for a saved and an answered one.)
+    if token.is_empty() || !mailcraft_model::ZimbraServer::token_ok(&token) {
         return Err(Error::Unreadable);
     }
     let mut delta = Delta { token, ..Delta::default() };

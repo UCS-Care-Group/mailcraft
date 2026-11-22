@@ -297,9 +297,18 @@ fn taking_away_an_appointment_whose_window_has_changes_asks_whatever_is_allowed(
     let s = session();
     let everything = Class::ALL.to_vec();
     let unsaved = json!({"form": "appointment", "title": "Lunch"});
-    for (id, mut params) in
-        [("calendar.delete", json!({"id": 1})), ("calendar.removeCalendar", json!({"id": 1})), ("edit.undo", json!({})), ("edit.redo", json!({}))]
-    {
+    // An appointment and a calendar the mailbox has: a command's target is read as the one the
+    // command would act on, and an id the mailbox doesn't have is refused (below).
+    let mut events = s.mailbox.events.values().filter(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| e.id);
+    let event = events.next().expect("the sample has an appointment");
+    let calendar = s.mailbox.calendars.first().map(|c| c.id).expect("a calendar of the sample");
+    let targets = [
+        ("calendar.delete", json!({"id": event})),
+        ("calendar.removeCalendar", json!({"id": calendar})),
+        ("edit.undo", json!({})),
+        ("edit.redo", json!({})),
+    ];
+    for (id, mut params) in targets {
         assert_ne!(classify(&s, id, &params), Access::Asked(Class::Delete), "{id}: nothing in a window");
         params["unsaved"] = unsaved.clone();
         assert_eq!(classify(&s, id, &params), Access::Asked(Class::Delete), "{id}");
@@ -309,8 +318,26 @@ fn taking_away_an_appointment_whose_window_has_changes_asks_whatever_is_allowed(
         );
     }
     // A cancellation to the people invited is the stronger question.
-    let params = json!({"id": 1, "send": true, "unsaved": unsaved});
+    let params = json!({"id": event, "send": true, "unsaved": unsaved});
     assert_eq!(classify(&s, "calendar.delete", &params), Access::Asked(Class::Send));
+}
+
+#[test]
+fn an_appointment_the_mailbox_does_not_have_is_refused_before_the_owner_is_asked() {
+    // The ids an agent names are the mailbox's own, and a target that isn't one of its
+    // appointments is refused by the gate: the command would only say the event is gone, and the
+    // owner is never asked about what couldn't be acted on. (The window's changes alone are the
+    // Delete question `classify` reads; refusing is the gate's, before anything is said.)
+    let s = session();
+    let everything = Class::ALL.to_vec();
+    let missing = s.mailbox.events.keys().copied().max().unwrap_or(0).saturating_add(1);
+    assert!(s.mailbox.event(missing).is_none(), "no appointment is {missing}");
+    let params = json!({"id": missing, "unsaved": {"form": "appointment", "title": "Lunch"}});
+    assert_eq!(classify(&s, "calendar.delete", &params), Access::Asked(Class::Delete));
+    match check(&s, "calendar.delete", &params, &everything) {
+        Verdict::Refuse(why) => assert!(why.contains("no event with id"), "{why}"),
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]

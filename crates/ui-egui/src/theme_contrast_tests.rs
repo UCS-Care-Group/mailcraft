@@ -55,6 +55,13 @@ const PAIRS: &[Pair] = &[
     ("on_accent on accent", |t| t.on_accent, |t| t.accent, TEXT),
     ("overdue on surface", |t| t.overdue, |t| t.surface, TEXT),
     ("overdue on flagged_row", |t| t.overdue, |t| t.flagged_row, TEXT),
+    // The message list's row backgrounds under its senders (#1657): an unread one is in the
+    // accent's text colour, on a flagged row or on a shaded one.
+    ("accent_text on flagged_row", |t| t.accent_text, |t| t.flagged_row, TEXT),
+    ("text on row_shade", |t| t.text, |t| t.row_shade(), TEXT),
+    ("text_dim on row_shade", |t| t.text_dim, |t| t.row_shade(), TEXT),
+    ("accent_text on row_shade", |t| t.accent_text, |t| t.row_shade(), TEXT),
+    ("overdue on row_shade", |t| t.overdue, |t| t.row_shade(), TEXT),
     ("icon on ribbon", |t| t.icon, |t| t.ribbon, GRAPHIC),
     ("input_border on surface", |t| t.input_border, |t| t.surface, GRAPHIC),
     ("red on surface", |t| t.red, |t| t.surface, TEXT),
@@ -214,6 +221,9 @@ fn custom_accent_colours_meet_their_contrast() {
         Color32::from_rgb(0x80, 0x80, 0x80),
         Color32::from_rgb(0x12, 0x34, 0x56),
         Color32::from_rgb(0xAB, 0xCD, 0xEF),
+        // A reviewer found an unread sender in this one short on the shaded band in Dark High
+        // Contrast (#1657).
+        Color32::from_rgb(0xA3, 0xA3, 0xA3),
         super::DEFAULT_CUSTOM_COLOR,
     ];
     let mut x: u32 = 0x1234_5678;
@@ -245,4 +255,81 @@ fn custom_accent_colours_meet_their_contrast() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// The shaded band (#1657) is there to see against the plain row in every theme: 1.08:1 in the
+/// light one, more in the others. It is the same whatever the accent, which is fitted to it.
+#[test]
+fn the_shaded_band_stays_visible() {
+    let faint: Vec<String> = every_theme()
+        .iter()
+        .filter(|(_, t, _)| ratio(t.row_shade(), t.surface) < 1.06)
+        .map(|(mode, t, _)| format!("{mode}: {:.3}", ratio(t.row_shade(), t.surface)))
+        .collect();
+    assert!(faint.is_empty(), "{}", faint.join("\n"));
+}
+
+/// A message-list row's text on whatever is under it (#1657): the list or its shaded band, a
+/// flag's tint, a selection (with and without the focus, over a flag's tint or not) or the
+/// pointer's shade. Plain and dim text read on every one as they are; the coloured inks (the
+/// accent's for an unread sender, overdue's, the red "[Draft]") are fitted to it, in every preset
+/// and a sweep of custom accents.
+#[test]
+fn a_list_rows_text_reads_on_whatever_is_under_it() {
+    let mut themes = every_theme();
+    // #A3A3A3 first, the one a reviewer found an unread sender short with on the shaded band in
+    // Dark High Contrast, then a sweep of 60 more.
+    let mut customs = vec![Color32::from_rgb(0xA3, 0xA3, 0xA3)];
+    let mut x: u32 = 0x1234_5678;
+    for _ in 0..60 {
+        let mut next = || {
+            x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (x >> 24) as u8
+        };
+        customs.push(Color32::from_rgb(next(), next(), next()));
+    }
+    for c in customs {
+        let hex = super::hex_string(c);
+        for high in [false, true] {
+            themes.push((format!("custom {hex} light {high}"), Tokens::build_choice(false, Accent::Custom, Some(c), high), high));
+            themes.push((format!("custom {hex} dark {high}"), Tokens::build_choice(true, Accent::Custom, Some(c), high), high));
+            let blue = Tokens::build_dark_choice(super::DarkStyle::Blue, Accent::Custom, Some(c), high);
+            themes.push((format!("custom {hex} blue dark {high}"), blue, high));
+        }
+    }
+    let mut wrong = Vec::new();
+    for (mode, t, high) in &themes {
+        let need = if *high { STRONG } else { TEXT };
+        for (shaded, flagged, selected, hovered) in row_unders() {
+            let under = t.list_row_layers(shaded, flagged, selected, hovered).under();
+            let inks = [
+                ("text", t.text),
+                ("text_dim", t.text_dim),
+                ("accent_text", t.text_ink_on(t.accent_text, under)),
+                ("overdue", t.text_ink_on(t.overdue, under)),
+                ("[Draft]", t.text_ink_on(t.red, under)),
+            ];
+            for (name, ink) in inks {
+                let r = ratio(ink, under);
+                if r < need {
+                    wrong.push(format!("{mode}: {name} shaded {shaded} flagged {flagged} selected {selected:?} hovered {hovered}: {r:.2}"));
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Every way a row can be laid: shaded or not, flagged or not, not selected (under the pointer
+/// or not) or selected with the list's focus or without.
+fn row_unders() -> Vec<(bool, bool, Option<bool>, bool)> {
+    let mut all = Vec::new();
+    for shaded in [false, true] {
+        for flagged in [false, true] {
+            for (selected, hovered) in [(None, false), (None, true), (Some(false), false), (Some(true), false)] {
+                all.push((shaded, flagged, selected, hovered));
+            }
+        }
+    }
+    all
 }
