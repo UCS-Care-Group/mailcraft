@@ -179,9 +179,9 @@ server, a file), not which command gave it, and a command or a field added later
 same way. A base64 `data` payload (an attachment, an export) can't be framed without breaking its
 bytes: the answer says `"untrusted": true`, and once decoded it is just as untrusted. A name
 copied back from an answer, frame and all (a folder's, a category's), names the same thing: a
-param that names something (`folder`, `category`, `account`, `calendar`, `rule`, `list`, `name`,
-`path`, `id`, `ids` and the recipients and addresses) is read as the text inside it when it is one
-whole frame. Text the agent writes (a body, a subject, a search) is taken as written, frame and
+param that names something (a folder, a category, an account, a calendar, a rule, a list, a
+file, a person, a recipient, an attendee, an address, a host, a link, a key's fingerprint) is read
+as the text inside it when it is one whole frame as MailCraft writes it. Text the agent writes (a body, a subject, a search) is taken as written, frame and
 all. Inside a frame, a character that reads as `<` beside another (an
 ASCII `<`, its fullwidth and small forms, the angle brackets of other scripts, `‹`, `«`, with
 nothing but invisible characters or combining marks between them) and one that reads as `<<` on its own (`≪`, `《`,

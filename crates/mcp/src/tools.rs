@@ -70,8 +70,10 @@ pub(crate) const PLAIN_KEYS: &[&str] = &[
 /// Characters that read as `<`: its fullwidth and small forms, the angle brackets and
 /// arrowheads of other scripts, the single guillemet. A marker begins with two of them side by
 /// side, so inside a frame no two stand side by side.
-const OPENS: &[char] =
-    &['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}', '\u{02c2}', '\u{1438}'];
+const OPENS: &[char] = &[
+    '<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}', '\u{02c2}', '\u{1438}',
+    '\u{2770}', '\u{29fc}', '\u{2991}', '\u{16b2}',
+];
 /// Characters that read as `<<` on their own (much-less-than, double angle brackets): always
 /// escaped. They are rare in prose; the guillemet `«`, common in it, is one of [`OPENS`].
 const DOUBLE_OPENS: &[char] = &['\u{226a}', '\u{22d8}', '\u{300a}', '\u{27ea}', '\u{2aa1}', '\u{2af7}'];
@@ -237,7 +239,8 @@ pub fn frame(v: Value) -> Value {
 /// calendar, a rule, a list, a person, a file in the mailbox…): a value of theirs that is one
 /// whole frame is read as the text inside it. Text the agent writes (a body, a subject, a search)
 /// is taken as written, frame and all.
-const NAMING_PARAMS: &[&str] = &[
+pub(crate) const NAMING_PARAMS: &[&str] = &[
+    // Folders, categories, accounts, calendars, rules, lists, files in the mailbox.
     "folder",
     "target",
     "category",
@@ -248,13 +251,46 @@ const NAMING_PARAMS: &[&str] = &[
     "list",
     "name",
     "path",
+    "file",
+    "remote",
     "id",
     "ids",
+    "value",
+    "zone",
+    "group",
+    "label",
+    "secondLabel",
+    // People, addresses and the lists they are on.
     "to",
     "cc",
     "bcc",
+    "from",
     "email",
     "address",
+    "sender",
+    "domain",
+    "entry",
+    "safe",
+    "blocked",
+    "trusted",
+    "attendees",
+    "optional",
+    "people",
+    "displayName",
+    "username",
+    "first",
+    "last",
+    "nickname",
+    "company",
+    "department",
+    "phone",
+    "website",
+    // Hosts, links and keys an answer gave.
+    "host",
+    "mx",
+    "url",
+    "mailto",
+    "fingerprint",
 ];
 
 /// `v` with every string under one of [`NAMING_PARAMS`] that is one whole frame, as
@@ -263,7 +299,8 @@ const NAMING_PARAMS: &[&str] = &[
 fn unframe(v: Value, naming: bool) -> Value {
     match v {
         Value::String(t) if naming => match t.strip_prefix(UNTRUSTED_OPEN).and_then(|t| t.strip_suffix(UNTRUSTED_CLOSE)) {
-            Some(inner) if !inner.contains("<<") => Value::String(unescape(inner)),
+            // Only a frame as the program writes it: one whose escapes it would have written.
+            Some(inner) if !inner.contains("<<") && escape(&unescape(inner)) == inner => Value::String(unescape(inner)),
             _ => Value::String(t),
         },
         Value::Array(a) => Value::Array(a.into_iter().map(|x| unframe(x, naming)).collect()),

@@ -678,27 +678,22 @@ fn a_screenshot_always_says_it_is_untrusted() {
 
 /// What reads as `<` to a reader, and what shows nothing, written here apart from the code under
 /// test: the look-alikes and invisible characters a sender could reach for.
-const LESS: &[char] =
-    &['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}', '\u{02c2}', '\u{1438}'];
-const MUCH_LESS: &[char] = &['\u{226a}', '\u{22d8}', '\u{300a}', '\u{27ea}', '\u{2aa1}'];
+const LESS: &[char] = &[
+    '<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}', '\u{02c2}', '\u{1438}',
+    '\u{2770}', '\u{29fc}', '\u{2991}', '\u{16b2}',
+];
+const MUCH_LESS: &[char] = &['\u{226a}', '\u{22d8}', '\u{300a}', '\u{27ea}', '\u{2aa1}', '\u{2af7}'];
 const UNSEEN: &[char] =
     &['\u{200b}', '\u{200f}', '\u{2060}', '\u{feff}', '\u{fe0f}', '\u{e0100}', '\u{180b}', '\u{85}', '\u{7f}', '\u{1}', '\u{34f}'];
 
 fn unseen(c: char) -> bool {
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
     UNSEEN.contains(&c)
         || mailcraft_names::is_format(c)
         || mailcraft_names::is_ignorable(c)
-        || matches!(
-            c,
-            '\u{fe00}'..='\u{fe0f}'
-                | '\u{e0100}'..='\u{e01ef}'
-                | '\u{180b}'..='\u{180f}'
-                | '\u{0300}'..='\u{036f}'
-                | '\u{1ab0}'..='\u{1aff}'
-                | '\u{1dc0}'..='\u{1dff}'
-                | '\u{20d0}'..='\u{20ff}'
-                | '\u{fe20}'..='\u{fe2f}'
-        )
+        || matches!(c, '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}' | '\u{180b}'..='\u{180f}')
+        // Every mark, as Unicode's table has it.
+        || matches!(get_general_category(c), G::NonspacingMark | G::SpacingMark | G::EnclosingMark)
         || c.is_control() && !matches!(c, '\n' | '\r' | '\t')
 }
 
@@ -872,4 +867,103 @@ fn an_unframed_look_alike_marker_is_caught() {
     let mut bare = Vec::new();
     bare_marks(&json!({"nested": {"untrustedNote": MARKS}}), "", &mut bare);
     assert_eq!(bare.len(), 1, "only the frame's own note is let through");
+}
+
+#[test]
+fn every_look_alike_is_escaped_beside_another() {
+    for c in LESS {
+        let t = format!("{c}{c}end");
+        assert!(!crate::tools::escape(&t).starts_with(&format!("{c}{c}")), "{c:?}");
+    }
+    for c in MUCH_LESS {
+        assert!(!crate::tools::escape(&c.to_string()).contains(*c), "{c:?}");
+    }
+}
+
+#[test]
+fn only_a_frame_the_program_writes_is_taken_off() {
+    let mut h = Headless::new(Session::at(mailcraft_engine::sample::mailbox(now(), 0), now(), 0), Vec::new());
+    let pol = Policy::default();
+    // Escapes the program never writes inside a frame: kept as they stand.
+    let forged = format!("{UNTRUSTED_OPEN}ceo&#x40;example.org&#x2c; other&#x40;example.org{UNTRUSTED_CLOSE}");
+    exec(&mut h, &pol, "mail.new", json!({"to": forged, "subject": "s", "body": "b"})).unwrap();
+    let to = h.session.compose.as_ref().unwrap().to.clone();
+    assert!(!to.contains("ceo@example.org"), "{to}");
+    // One the program wrote comes off.
+    let real = format!("{UNTRUSTED_OPEN}{}{UNTRUSTED_CLOSE}", crate::tools::escape("Ada <ada@example.org>"));
+    exec(&mut h, &pol, "compose.set", json!({"to": real})).unwrap();
+    assert_eq!(h.session.compose.as_ref().unwrap().to, "Ada <ada@example.org>");
+}
+
+/// Params written by the agent, or words of the program's, never a name copied from an answer:
+/// a whole frame in them is taken as written. Every other param taking text names something.
+const WRITTEN_PARAMS: &[&str] = &[
+    "query",
+    "text",
+    "html",
+    "body",
+    "subject",
+    "title",
+    "notes",
+    "comment",
+    "description",
+    "location",
+    "signature",
+    "reply",
+    "internal",
+    "external",
+    "alt",
+    "new",
+    "with",
+    "char",
+    "password",
+    "secret",
+    "token",
+    "clientId",
+    "tenant",
+    "session",
+    "remember",
+    "showAs",
+    "repeats",
+    "window",
+    "size",
+    "mime",
+    "expected",
+    "changeKey",
+    "etag",
+    "lastModified",
+    "contactHomes",
+    "calendarHomes",
+    // What an answer says back, written in the same doc as the params.
+    "messages",
+    "reasons",
+    "problems",
+    "notices",
+    "error",
+    "failure",
+    "removed",
+    "unknown",
+];
+
+#[test]
+fn every_param_that_takes_text_is_reviewed() {
+    let mut unreviewed = std::collections::BTreeSet::new();
+    for spec in mailcraft_engine::cmd::registry().all() {
+        let doc = spec.params;
+        let mut rest = doc;
+        // Every `"key"?: string`, `"key": [string]`, `"key": string|null`… of the doc.
+        while let Some(at) = rest.find('"') {
+            let after = &rest[at + 1..];
+            let Some(end) = after.find('"') else { break };
+            let key = &after[..end];
+            let tail = after[end + 1..].trim_start_matches('?').trim_start_matches(':').trim_start();
+            let text = tail.starts_with("string") || tail.starts_with("[string");
+            let reviewed = crate::tools::NAMING_PARAMS.contains(&key) || WRITTEN_PARAMS.contains(&key);
+            if !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric()) && text && !reviewed {
+                unreviewed.insert(format!("{key} ({})", spec.id));
+            }
+            rest = &after[end + 1..];
+        }
+    }
+    assert!(unreviewed.is_empty(), "params that take text, neither naming nor written: {unreviewed:?}");
 }
