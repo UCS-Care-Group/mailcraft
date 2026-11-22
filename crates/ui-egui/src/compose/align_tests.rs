@@ -539,6 +539,57 @@ fn a_signatures_picture_is_sized_by_a_corner_that_stays_under_the_pointer_wherev
 }
 
 #[test]
+fn a_messages_picture_is_sized_by_a_corner_that_stays_under_the_pointer_wherever_its_line_stands() {
+    // The key, how far the corner is dragged to the right, the corner, and how wide the picture
+    // comes out.
+    let cases = [(Key::L, 20.0, "right", 100), (Key::E, 20.0, "right", 120), (Key::R, -20.0, "left", 100)];
+    for (align, dx, side, wide) in cases {
+        let board = PictureBoard::default();
+        let mut h = writing_with(&board);
+        *board.0.borrow_mut() = (Some(png(80, 40)), None);
+        h.event(Event::Paste(String::new()));
+        h.run_steps(2);
+        key_with(&mut h, Modifiers::COMMAND, align);
+        h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+        h.run_steps(4);
+        let area = body(&h);
+        let (frame, corner) = frame_and_corner(&h, area);
+        let (frame, corner) = (frame.expect("the picture's frame"), corner.expect("its corner"));
+        let edge = if side == "left" { frame.left_bottom() } else { frame.right_bottom() };
+        assert!(
+            near(corner.center().x, edge.x) && near(corner.center().y, edge.y),
+            "{align:?}: the corner is at the {side}: {corner:?} on {frame:?}"
+        );
+        // Where the window says it is, for a script or an agent, is where it is drawn.
+        let id = u64::from(mailcraft_model::pictures::FIRST_ID);
+        let listed = h.state().hit.rect("pictureCorner", id).expect("the corner is listed");
+        assert!(near(listed.center().x, corner.center().x) && near(listed.center().y, corner.center().y), "{align:?}: {listed:?} {corner:?}");
+        let from = corner.center();
+        let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        h.event(Event::PointerMoved(from));
+        h.step();
+        h.event(button(from, true));
+        h.step();
+        let mut at = from;
+        for n in 1..=4 {
+            at = from + vec2(dx * n as f32 / 4.0, 0.0);
+            h.event(Event::PointerMoved(at));
+            h.step();
+            let (shown, corner) = frame_and_corner(&h, area);
+            let corner = corner.expect("the corner while it is dragged");
+            assert!(near(corner.center().x, at.x), "{align:?}: the corner is at {corner:?}, the pointer at {at:?}, the frame {shown:?}");
+        }
+        h.event(button(at, false));
+        h.run_steps(3);
+        let width = h.state().session.compose.as_ref().unwrap().pictures.first().and_then(|p| p.width);
+        assert_eq!(width, Some(wide), "{align:?}");
+        let (frame, corner) = frame_and_corner(&h, area);
+        let corner = corner.expect("the corner once it was let go");
+        assert!(near(corner.center().x, at.x), "{align:?}: the picture came out with its corner at {corner:?} on {frame:?}, the pointer at {at:?}");
+    }
+}
+
+#[test]
 fn a_centred_line_is_drawn_left_once_the_message_is_plain_text_and_centred_again_as_html() {
     let mut h = writing();
     let line = "centred";
