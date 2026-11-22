@@ -101,6 +101,7 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
         (c.pictures, c.picture_seq) = (kept, seq);
         return Err(fail(e.to_string()));
     }
+    c.note_body_edit();
     c.dirty = true;
     let held: HashSet<u32> = c.body.text().pictures().into_iter().collect();
     let bytes: usize = c.pictures.iter().filter(|p| held.contains(&p.id)).map(|p| p.data.len()).sum();
@@ -131,6 +132,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     if was != width {
         c.body.push_mark(Mark { picture: id, width: was });
         c.dirty = true;
+        c.note_body_edit();
     }
     Ok(json!({"id": id, "width": width}))
 }

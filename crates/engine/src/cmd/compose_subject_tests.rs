@@ -180,6 +180,52 @@ fn a_subject_replacement_ends_the_body_typing_group() {
     assert_eq!(compose(&s).subject, "Hello tomorrow");
 }
 
+#[test]
+fn resizing_a_picture_after_undoing_a_subject_correction_drops_that_redo() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    let mut png = b"\x89PNG\r\n\x1a\nIHDR....".to_vec();
+    png.resize(png.len() + 8, 7);
+    let data = mailcraft_charset::base64::STANDARD.encode(png);
+    let id = run(&mut s, "insert.picture", json!({"data": data, "file": "chart.png"}))["id"].as_u64().unwrap();
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let (from, to) = span("Lunch tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(compose(&s).subject, "Lunch tomorow");
+
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 80}));
+    assert_eq!(picture_width(&s, id), Some(80));
+    if s.run("compose.redo", &json!({})).is_ok() {
+        assert_eq!(picture_width(&s, id), Some(80));
+    }
+    assert_eq!(compose(&s).subject, "Lunch tomorow", "redo does not bring the subject correction back");
+
+    run(&mut s, "compose.undo", json!({}));
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    run(&mut s, "compose.undo", json!({}));
+    let same = picture_width(&s, id);
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": same}));
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(compose(&s).subject, "Lunch tomorrow", "an unchanged width keeps the subject redo");
+}
+
+#[test]
+fn inserting_a_picture_after_undoing_a_subject_correction_drops_that_redo() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"subject": "Lunch tomorow"}));
+    let (from, to) = span("Lunch tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    run(&mut s, "compose.undo", json!({}));
+    let mut png = b"\x89PNG\r\n\x1a\nIHDR....".to_vec();
+    png.resize(png.len() + 8, 7);
+    let data = mailcraft_charset::base64::STANDARD.encode(png);
+    run(&mut s, "insert.picture", json!({"data": data, "file": "chart.png"}));
+    let _ = s.run("compose.redo", &json!({}));
+    assert_eq!(compose(&s).subject, "Lunch tomorow");
+}
+
 fn picture_width(s: &Session, id: u64) -> Option<u16> {
     compose(s).pictures.iter().find(|p| u64::from(p.id) == id).and_then(|p| p.width)
 }
