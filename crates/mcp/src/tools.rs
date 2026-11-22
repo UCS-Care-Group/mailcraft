@@ -67,55 +67,80 @@ pub(crate) const PLAIN_KEYS: &[&str] = &[
     "color",
 ];
 
-/// Characters that read as `<` or `>`: the frame's markers can't be written with them either.
-const OPENS: &[char] = &['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}'];
-const CLOSES: &[char] = &['>', '\u{ff1e}', '\u{fe65}', '\u{203a}', '\u{00bb}', '\u{232a}', '\u{3009}', '\u{27e9}', '\u{276f}', '\u{276d}'];
+/// Characters that read as `<`: its fullwidth and small forms, the angle brackets and
+/// arrowheads of other scripts, the single guillemet. A marker begins with two of them side by
+/// side, so inside a frame no two stand side by side.
+const OPENS: &[char] =
+    &['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}', '\u{02c2}', '\u{1438}'];
+/// Characters that read as `<<` on their own (much-less-than, double angle brackets): always
+/// escaped. They are rare in prose; the guillemet `«`, common in it, is one of [`OPENS`].
+const DOUBLE_OPENS: &[char] = &['\u{226a}', '\u{22d8}', '\u{300a}', '\u{27ea}', '\u{2aa1}'];
 
-/// A character that shows nothing (a zero-width space, a bidirectional mark…).
+/// A character that shows nothing: a format character (a zero-width space, a bidirectional
+/// mark…), any other default-ignorable one, a variation selector, a control character but the
+/// line break and the tab.
 fn invisible(c: char) -> bool {
-    mailcraft_names::is_format(c) || mailcraft_names::is_ignorable(c)
+    mailcraft_names::is_format(c)
+        || mailcraft_names::is_ignorable(c)
+        || matches!(c, '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}' | '\u{180b}'..='\u{180f}')
+        || c.is_control() && !matches!(c, '\n' | '\r' | '\t')
 }
 
-/// `t` as it stands in a frame: two characters that read as `<` (or `>`) side by side, with only
-/// invisible ones between them, are written `&lt;` or `&#x…;`, and so are those invisible ones,
-/// so nothing inside can read as a marker; an `&` that would read as such an escape is `&amp;`.
-/// [`unescape`] gives `t` back exactly.
+/// The character an escape at the start of `t` stands for, and what follows it: `&lt;`, `&amp;`
+/// or `&#x` and one to six lower-case hex digits and `;`. [`escape`] writes only these, and
+/// writes an `&` that would begin one as `&amp;`; [`unescape`] reads only these.
+fn entity(t: &str) -> Option<(char, &str)> {
+    if let Some(r) = t.strip_prefix("&lt;") {
+        return Some(('<', r));
+    }
+    if let Some(r) = t.strip_prefix("&amp;") {
+        return Some(('&', r));
+    }
+    let (hex, r) = t.strip_prefix("&#x")?.split_once(';')?;
+    let digits = (1..=6).contains(&hex.len()) && hex.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'));
+    let c = if digits { u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)? } else { return None };
+    Some((c, r))
+}
+
+/// `t` as it stands in a frame: a character that reads as `<` beside another (nothing but
+/// invisible ones between them), and one that reads as `<<` on its own, is written `&lt;` or
+/// `&#x…;`, so nothing inside reads as the start of a marker; an `&` that would read as such an
+/// escape is `&amp;`. Everything else, `>` and invisible characters included, is left as it is.
+/// [`unescape`] gives `t` back exactly. Linear: the nearest visible neighbours are found in one
+/// pass each way.
 pub(crate) fn escape(t: &str) -> String {
-    let chars: Vec<char> = t.chars().collect();
-    let kind = |c: char| {
-        if OPENS.contains(&c) {
-            1
-        } else if CLOSES.contains(&c) {
-            2
-        } else {
-            0
+    let chars: Vec<(usize, char)> = t.char_indices().collect();
+    let opens = |c: char| OPENS.contains(&c) || DOUBLE_OPENS.contains(&c);
+    // Whether the nearest visible character before (after) each one reads as `<`.
+    let mut before = vec![false; chars.len()];
+    let mut last = false;
+    for (i, &(_, c)) in chars.iter().enumerate() {
+        if let Some(b) = before.get_mut(i) {
+            *b = last;
         }
-    };
-    // The nearest visible neighbour on either side.
-    let neighbour = |i: usize, back: bool| -> Option<char> {
-        let mut j = i;
-        loop {
-            j = if back { j.checked_sub(1)? } else { j.checked_add(1)? };
-            let c = *chars.get(j)?;
-            if !invisible(c) {
-                return Some(c);
-            }
+        if !invisible(c) {
+            last = opens(c);
         }
-    };
-    let paired = |i: usize, k: u8| k != 0 && [neighbour(i, true), neighbour(i, false)].into_iter().flatten().any(|c| kind(c) == k);
+    }
+    let mut after = vec![false; chars.len()];
+    let mut next = false;
+    for (i, &(_, c)) in chars.iter().enumerate().rev() {
+        if let Some(a) = after.get_mut(i) {
+            *a = next;
+        }
+        if !invisible(c) {
+            next = opens(c);
+        }
+    }
     let mut out = String::with_capacity(t.len());
-    for (i, &c) in chars.iter().enumerate() {
-        let near_angle = || [neighbour(i, true), neighbour(i, false)].into_iter().flatten().any(|c| kind(c) != 0);
-        let k = kind(c);
-        if k != 0 && paired(i, k) || invisible(c) && near_angle() {
+    for (i, &(at, c)) in chars.iter().enumerate() {
+        let beside = before.get(i).copied().unwrap_or(false) || after.get(i).copied().unwrap_or(false);
+        if DOUBLE_OPENS.contains(&c) || OPENS.contains(&c) && beside {
             match c {
                 '<' => out.push_str("&lt;"),
-                '>' => out.push_str("&gt;"),
                 c => out.push_str(&format!("&#x{:x};", u32::from(c))),
             }
-        } else if c == '&'
-            && ["lt;", "gt;", "amp;", "#x"].iter().any(|e| chars.get(i + 1..).is_some_and(|r| r.iter().take(e.len()).copied().eq(e.chars())))
-        {
+        } else if c == '&' && t.get(at..).and_then(entity).is_some() {
             out.push_str("&amp;");
         } else {
             out.push(c);
@@ -131,21 +156,7 @@ pub(crate) fn unescape(t: &str) -> String {
     while let Some(at) = rest.find('&') {
         out.push_str(rest.get(..at).unwrap_or_default());
         let tail = rest.get(at..).unwrap_or_default();
-        let hex = tail.strip_prefix("&#x").and_then(|h| h.split_once(';')).and_then(|(h, r)| {
-            let c = (h.len() <= 6).then(|| u32::from_str_radix(h, 16).ok()).flatten().and_then(char::from_u32)?;
-            Some((c, r))
-        });
-        let (c, next) = if let Some(r) = tail.strip_prefix("&lt;") {
-            ('<', r)
-        } else if let Some(r) = tail.strip_prefix("&gt;") {
-            ('>', r)
-        } else if let Some(r) = tail.strip_prefix("&amp;") {
-            ('&', r)
-        } else if let Some((c, r)) = hex {
-            (c, r)
-        } else {
-            ('&', tail.get(1..).unwrap_or_default())
-        };
+        let (c, next) = entity(tail).unwrap_or(('&', tail.get(1..).unwrap_or_default()));
         out.push(c);
         rest = next;
     }
@@ -160,6 +171,9 @@ fn wrap_text(t: &str) -> String {
 
 /// A short word of the program's own: a value under one of [`PLAIN_KEYS`] is left plain only
 /// when it is one, and a key of an answer is left as it is only when it is one.
+// lean: a word of up to 64 of these characters from a server or a file (a foreign mailbox's note
+// colour, say) under a plain key or as a key passes unframed: no spaces, so no sentence can, and
+// the program's own values all fit. Tag such values at their source if a field ever needs more.
 fn token(t: &str) -> bool {
     !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_alphanumeric() || "_:+./#-".contains(c))
 }
@@ -223,7 +237,7 @@ pub fn frame(v: Value) -> Value {
 fn unframe(v: Value) -> Value {
     match v {
         Value::String(t) => match t.strip_prefix(UNTRUSTED_OPEN).and_then(|t| t.strip_suffix(UNTRUSTED_CLOSE)) {
-            Some(inner) if !inner.contains("<<") && !inner.contains(">>") => Value::String(unescape(inner)),
+            Some(inner) if !inner.contains("<<") => Value::String(unescape(inner)),
             _ => Value::String(t),
         },
         Value::Array(a) => Value::Array(a.into_iter().map(unframe).collect()),
