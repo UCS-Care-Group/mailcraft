@@ -36,6 +36,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use mailcraft_model::sync::RemoteFlags;
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
 use mailcraft_model::{AccountKind, Calendar, Event, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS, category_key};
 
@@ -52,6 +53,9 @@ pub(crate) struct Touched {
     /// Of those, the ones it moved to another folder: the only ones an undo moves back on an
     /// IMAP server ([`imap_back`]).
     moved_messages: BTreeSet<Id>,
+    /// Of those, the ones it took away: an undo brings back only these, not one a server
+    /// removed since ([`imap_back`]).
+    removed_messages: BTreeSet<Id>,
     /// The messages whose reminder the change itself changed (#948).
     follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
@@ -167,6 +171,7 @@ fn loose_key_of_attached(p: &Pending) -> String {
 /// `before`'s message `id`, which `after` no longer has, noted in `t`.
 fn gone(t: &mut Touched, id: Id, b: &Arc<Message>, g: &BTreeSet<Id>) {
     t.changed_messages.insert(id);
+    t.removed_messages.insert(id);
     if relevant(b, g) {
         t.messages.insert(id, None);
     }
@@ -496,57 +501,133 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     (out, said.lines(lang))
 }
 
-/// The first move waiting for each message: where its server has it until then.
-fn waiting_moves(mb: &Mailbox) -> HashMap<Id, (String, u32)> {
+/// Where its server has each message a move waits for until then: the first such move's
+/// mailbox, UID and flags.
+fn waiting_moves(mb: &Mailbox) -> HashMap<Id, (String, u32, Option<RemoteFlags>)> {
     let mut out = HashMap::new();
     for p in &mb.pending {
-        if let Pending::Move { message, from, uid, .. } = p {
-            out.entry(*message).or_insert_with(|| (from.clone(), *uid));
+        // (Only a move of its own account's server: one of another account's is that server's.)
+        if let Pending::Move { account, message, from, uid, synced, .. } = p
+            && mb.message(*message).is_some_and(|m| m.account == *account)
+        {
+            out.entry(*message).or_insert_with(|| (from.clone(), *uid, *synced));
         }
     }
     out
 }
 
-/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it (`waiting`, of
-/// `mb`), else of its folder; `None` when the server's UID there isn't known.
-fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32)>, m: &Message) -> Option<(String, u32)> {
-    waiting.get(&m.id).cloned().or_else(|| (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)))
+/// `folder` of `now`, and the folders it is in, back in `out` when the undo took them away (the
+/// change made it, and the server has it still): where the server has a message is a folder here.
+fn bring_folder(out: &mut Mailbox, now: &Mailbox, folder: Id) {
+    let mut at = Some(folder);
+    for _ in 0..64 {
+        let Some(id) = at.filter(|id| out.folder(*id).is_none()) else { return };
+        let Some(f) = now.folder(id) else { return };
+        at = f.parent;
+        out.folders.push(f.clone());
+    }
 }
 
-/// An IMAP account's message the change touched that its server has somewhere else now than
-/// where `out` puts it (the server took the change since: a move into Deleted Items, say). The
-/// UID it had then is the server's no more: it is put where the server has it now and moved
-/// back from there, as the owner would move it, so that the next run sends the move back.
-/// (Moves out of the account and deletions for good still end the history: `sync.apply`.) The
-/// waiting moves are looked through once, so that a big undo takes time in proportion to its size.
+/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it (`waiting`, of
+/// `mb`), else of its folder; `None` when the server's UID there isn't known.
+fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32, Option<RemoteFlags>)>, m: &Message) -> Option<(String, u32)> {
+    match waiting.get(&m.id) {
+        Some((from, uid, _)) => Some((from.clone(), *uid)),
+        None => (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)),
+    }
+}
+
+/// An IMAP account's messages the change touched, as the server has them since (#1842). The
+/// UID a message had then is the server's no more when the server has it elsewhere now (it took
+/// the change: a move into Deleted Items, say), so it is put where the server has it now:
+///
+/// - one the change moved is moved back from there, as the owner would move it, so that the next
+///   run sends the move back (the moves that waited for it are the change's, and go);
+/// - one the change didn't move (it marked it read, say) stays there, with the moves that wait
+///   for it, and only what the change did to it is undone;
+/// - one the server removed since stays removed (one the change removed comes back).
+///
+/// Moves out of the account and deletions for good still end the history (`sync.apply`). The
+/// waiting moves are looked through once, and the moves back are made together, so that a big
+/// undo takes time in proportion to its size; a move back that is refused (its folder is gone)
+/// leaves that message where the server has it, and the others go on.
 fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
     let (was, is) = (waiting_moves(out), waiting_moves(now));
-    // (Only what the change moved: a message it marked read, say, that was moved elsewhere since
-    // stays where it is now.)
-    let back: Vec<(Id, Id)> = touched
-        .moved_messages
-        .iter()
-        .filter_map(|id| {
-            let (o, c) = (out.message(*id)?, now.message(*id)?);
-            let imap = now.account(c.account).is_some_and(|a| a.kind == AccountKind::Imap);
-            let moved_there = server_place(out, &was, o) != server_place(now, &is, c);
-            (imap && !relevant(c, g) && !relevant(o, g) && o.account == c.account && moved_there).then_some((*id, o.folder))
-        })
-        .collect();
-    if back.is_empty() {
+    let imap = |m: &Message| !relevant(m, g) && now.account(m.account).is_some_and(|a| a.kind == AccountKind::Imap);
+    let mut back: Vec<(Id, Id)> = Vec::new();
+    let mut kept: HashSet<Id> = HashSet::new();
+    let mut removed: Vec<Id> = Vec::new();
+    for id in &touched.changed_messages {
+        let Some(o) = out.message(*id).filter(|o| imap(o)) else { continue };
+        let Some(c) = now.message(*id) else {
+            if !touched.removed_messages.contains(id) {
+                removed.push(*id);
+            }
+            continue;
+        };
+        if !imap(c) || o.account != c.account || server_place(out, &was, o) == server_place(now, &is, c) {
+            continue;
+        }
+        if touched.moved_messages.contains(id) {
+            back.push((*id, o.folder));
+        } else {
+            kept.insert(*id);
+        }
+    }
+    if back.is_empty() && kept.is_empty() && removed.is_empty() {
         return;
     }
-    let ids: HashSet<Id> = back.iter().map(|(id, _)| *id).collect();
-    let theirs = |p: &Pending| matches!(p, Pending::Move { message, .. } if ids.contains(message));
-    out.pending.retain(|p| !theirs(p));
-    out.pending.extend(now.pending.iter().filter(|p| theirs(p)).cloned());
+    let ours: HashSet<Id> = back.iter().map(|(id, _)| *id).chain(kept.iter().copied()).chain(removed.iter().copied()).collect();
+    // (The moves of their own account's server; another account's, of one moved in, stay.)
+    let messages = &out.messages;
+    out.pending.retain(|p| {
+        !matches!(p, Pending::Move { account, message, .. } if ours.contains(message) && messages.get(message).is_some_and(|m| m.account == *account))
+    });
+    for id in &removed {
+        out.messages.remove(id);
+    }
+    // (Where the server has it: a folder of the account it is in now, else where the run left it.)
+    let by_remote: HashMap<(Id, &str), Id> =
+        now.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| ((f.account, f.remote.as_str()), f.id)).collect();
+    let mut moves: Vec<(Id, Id)> = Vec::new();
     for (id, target) in back {
         let Some(c) = now.message(id) else { continue };
+        let there = is.get(&id).and_then(|(from, uid, synced)| Some((*by_remote.get(&(c.account, from.as_str()))?, *uid, *synced)));
+        let (folder, uid, synced) = match there {
+            Some(place) => place,
+            None if is.contains_key(&id) => {
+                // (The folder the server has it in isn't known here: it stays as the run left it.)
+                kept.insert(id);
+                continue;
+            }
+            None => (c.folder, c.uid, c.synced),
+        };
+        bring_folder(out, now, folder);
         if let Ok(m) = out.message_mut(id) {
+            (m.folder, m.uid, m.synced) = (folder, uid, synced);
+        }
+        if target != folder && out.folder(target).is_some_and(|f| f.account == c.account) && !out.stays_out_of(id, target) {
+            moves.push((id, target));
+        }
+    }
+    out.pending.extend(
+        now.pending
+            .iter()
+            .filter(|p| {
+                matches!(p, Pending::Move { account, message, .. } if kept.contains(message) && now.message(*message).is_some_and(|m| m.account == *account))
+            })
+            .cloned(),
+    );
+    for id in &kept {
+        let Some(c) = now.message(*id) else { continue };
+        bring_folder(out, now, c.folder);
+        if let Ok(m) = out.message_mut(*id) {
             (m.folder, m.uid, m.synced) = (c.folder, c.uid, c.synced);
         }
-        // (Refused, it stays where the server has it, which is never wrong; the others go on.)
-        if target != c.folder {
+    }
+    // (All at once; should that be refused, each on its own, a refused one where the server has it.)
+    if out.move_each(&moves).is_err() {
+        for (id, target) in moves {
             let _ = out.move_message(id, target);
         }
     }

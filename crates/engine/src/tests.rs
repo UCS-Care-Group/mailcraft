@@ -1612,6 +1612,96 @@ mod two_way {
         run(&mut s, "edit.undo", json!({}));
         let ops = request(&s, a).ops;
         assert!(!ops.iter().any(|op| matches!(op, RemoteOp::Move { .. })), "not moved back: {ops:?}");
+        // It is where the server has it, under that UID, and unread again.
+        let m = s.mailbox.message(one).unwrap();
+        assert_eq!((m.folder, m.uid, m.read), (archive, 12, false));
+    }
+
+    /// Moved here, then moved on by the server before the run took the move: undo moves it back
+    /// from where the server has it now, once, and the change's own move doesn't go too.
+    #[test]
+    fn undo_of_a_move_the_server_took_elsewhere_sends_one_move_back() {
+        let (mut s, a, inbox, archive) = synced();
+        let trash = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.move", json!({"ids": [one], "folder": archive}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, trash, 9, 10)], ..Default::default() });
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "Trash".into(), uid: 9, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
+    }
+
+    /// Snoozed into a Snoozed folder the step made, and the run made both: undo moves it back
+    /// from there, and the folder the server has stays here.
+    #[test]
+    fn undo_of_a_move_into_a_folder_the_step_made_moves_it_back_from_there() {
+        let (mut s, a, inbox, _) = synced();
+        let one = titled(&s, a, "Two");
+        let until = s.now() + 3600;
+        run(&mut s, "mail.snooze", json!({"ids": [one], "until": until}));
+        let snoozed = s.mailbox.message(one).unwrap().folder;
+        assert_ne!(snoozed, inbox);
+        let remote = "Snoozed".to_string();
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                created: vec![Created { folder: snoozed, remote: remote.clone() }],
+                moved: vec![moved(one, "INBOX", 2, snoozed, 5, 11)],
+                ..Default::default()
+            },
+        );
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
+        assert!(s.mailbox.folder(snoozed).is_some_and(|f| f.remote == remote), "the server's folder stays");
+        assert_eq!(request(&s, a).ops, [RemoteOp::Move { message: one, from: remote, uid: 5, to: "INBOX".into(), to_folder: inbox, create: vec![] }]);
+    }
+
+    /// Deleted (into Deleted Items), the server took it, and since then it was deleted for good
+    /// elsewhere: undo doesn't bring back what the server no longer has.
+    #[test]
+    fn undo_doesnt_bring_back_a_message_the_server_removed_since() {
+        let (mut s, a, _, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, deleted, 5, 10)], ..Default::default() });
+        // (A later run found it gone from the server.)
+        s.mailbox.messages.remove(&one);
+        run(&mut s, "edit.undo", json!({}));
+        assert!(s.mailbox.message(one).is_none(), "it stays gone");
+        assert!(request(&s, a).ops.is_empty());
+    }
+
+    /// Two messages deleted at once and undone after the run took them, one of them from a folder
+    /// gone since: that one stays where the server has it, and the other goes back.
+    #[test]
+    fn a_refused_move_back_leaves_that_message_where_the_server_has_it_and_the_others_go_back() {
+        let (mut s, a, inbox, archive) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let (two, filed) = (titled(&s, a, "Two"), titled(&s, a, "Filed"));
+        run(&mut s, "mail.delete", json!({"ids": [filed, two]}));
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                moved: vec![moved(filed, "Archive", 1, deleted, 5, 10), moved(two, "INBOX", 2, deleted, 6, 10)],
+                ..Default::default()
+            },
+        );
+        // (The Archive folder is gone since, as a run found it.)
+        s.mailbox.folders.retain(|f| f.id != archive);
+        run(&mut s, "edit.undo", json!({}));
+        let filed_now = s.mailbox.message(filed).unwrap();
+        assert_eq!((filed_now.folder, filed_now.uid), (deleted, 5), "where the server has it");
+        assert_eq!(s.mailbox.message(two).map(|m| m.folder), Some(inbox));
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: two, from: "Trash".into(), uid: 6, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
     }
 
     /// Undone before the server heard of it, a deletion is simply called off.
