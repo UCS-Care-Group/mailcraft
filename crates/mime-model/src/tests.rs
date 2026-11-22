@@ -553,6 +553,10 @@ fn message() -> impl Strategy<Value = Message> {
             returned: 0,
             placed: String::new(),
             incomplete: false,
+            headers_cut: false,
+            categories_cut: false,
+            stale: false,
+            rules_waiting: None,
             server_draft: None,
             held: String::new(),
             send_at: None,
@@ -560,6 +564,7 @@ fn message() -> impl Strategy<Value = Message> {
             sent_here: false,
             answers: None,
             kept: None,
+            rule_alert: false,
             original: None,
             parts_removed: false,
             original_wanted: false,
@@ -791,6 +796,56 @@ fn exchanges_direction_is_kept_past_the_header_cap() {
     assert_eq!(words(&parse(flood.as_bytes())).len(), MAX_AUTH_AS);
     let long = format!("{DIRECTIONALITY}: Incoming{}x\r\n\r\n", " ".repeat(10_000));
     assert_ne!(words(&parse(long.as_bytes()))[0].trim(), "Incoming");
+}
+
+/// A field past the 2,000 a header is split into, after fields that trip none of the other caps
+/// (2,000 `MIME-Version` lines, 36 KB): the message says its header was cut, so an exception
+/// that reads the header can't tell, and the rule doesn't delete the message (#566).
+#[test]
+fn a_field_past_the_split_cap_is_said_cut() {
+    use mailcraft_model::{Action, Condition, Rule};
+    let filler = "MIME-Version: 1.0\r\n".repeat(2_000);
+    let raw = format!("From: a@example.org\r\nSubject: offer\r\n{filler}X-Gateway: keep-this\r\n\r\nbody\r\n");
+    let m = parse(raw.as_bytes());
+    let rule = Rule {
+        name: "r".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
+        exceptions: vec![Condition::Sensitivity(mailcraft_model::Sensitivity::Private)],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
+    assert!(m.headers_cut, "a field left out, and nothing says so");
+}
+
+/// A message whose `Auto-Submitted` line is in its header block, as a build from before the line
+/// stayed on the message kept it: "is an automatic reply" reads it there while the block is in
+/// memory, and can't tell while it is kept outside, so that an exception for automatic replies
+/// still leaves it alone (#566).
+#[test]
+fn an_automatic_reply_mark_kept_in_the_header_block_is_read_there() {
+    use mailcraft_model::{Action, Condition, ContentRef, HeaderBlock, HeaderLine, Rule};
+    let mut m = parse(b"From: ann@example.org\r\nTo: bo@example.org\r\nSubject: away\r\nAuto-Submitted: auto-replied\r\n\r\nbody\r\n");
+    m.headers.retain(|(name, _)| name != "Auto-Submitted");
+    m.header_block = HeaderBlock::of(&[HeaderLine { at: 0, name: "Auto-Submitted".into(), value: "auto-replied".into() }]);
+    // (A block in memory stays as it is when the message is split again, as at an open.)
+    m.split_headers();
+    let rule = Rule {
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["away".into()])],
+        exceptions: vec![Condition::AutomaticReply],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    assert!(Condition::AutomaticReply.matches(&m) && !Condition::AutomaticReply.unread_in(&m));
+    assert!(!rule.matches(&m), "the rule deletes an automatic reply its exception was to leave alone");
+    assert!(rule.reads_header(), "Run Rules Now brings the block in for it");
+    let kept = mailcraft_model::Message {
+        header_block: HeaderBlock { data: Default::default(), kept: Some(ContentRef { sha256: [7; 32], len: 2_000 }) },
+        ..m
+    };
+    assert!(Condition::AutomaticReply.unread_in(&kept) && !rule.matches(&kept));
 }
 
 /// A reaction (#1544) goes out with its part marked, and what is read back is an ordinary message

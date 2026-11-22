@@ -115,7 +115,9 @@ impl Known {
             }
             let addresses: Vec<String> = chunk
                 .values()
-                .filter(|m| self.outgoing.contains(&m.folder))
+                // A draft moved into the Outbox has gone to nobody: its recipients aren't known
+                // for it, or Send would let a lookalike in it go unasked (#1747).
+                .filter(|m| self.outgoing.contains(&m.folder) && !m.draft)
                 .flat_map(|m| m.to.iter().chain(&m.cc).chain(&m.bcc))
                 .map(|a| a.email.trim().to_lowercase())
                 .collect();

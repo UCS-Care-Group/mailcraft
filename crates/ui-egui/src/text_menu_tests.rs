@@ -1862,6 +1862,121 @@ fn a_field_left_after_the_keyboard_was_on_its_menu_is_left() {
     assert_eq!(wrong, Vec::<String>::new());
 }
 
+/// Paste Text Only, as it is read out: it has no key.
+const PASTE_TEXT: &str = "Paste Text Only";
+
+/// HTML in a look of its own, the text beside it and a picture, as a web page copied puts them.
+fn formatted(board: &Board) {
+    let mut held = board.0.borrow_mut();
+    held.html = Some(r#"<span style="font-family: Georgia; font-size: 24pt; color: #c00000"><b><i>Agenda</i></b></span><p>next</p>"#.into());
+    held.text = Some("Agenda\r\nnext".into());
+    held.image = Some(png());
+}
+
+/// The text of the body or the signature open, with its formatting.
+fn rich(h: &Window) -> mailcraft_model::RichText {
+    match h.state().session.signature_edit.as_ref() {
+        Some(e) => e.body.text().clone(),
+        None => h.state().session.compose.as_ref().unwrap().body.text().clone(),
+    }
+}
+
+#[test]
+fn paste_text_only_pastes_the_text_without_its_formatting() {
+    for into in [Into::Body, Into::Signature] {
+        let open = |board: &Board| {
+            let mut h = if matches!(into, Into::Body) { writing("Plan for Friday", Some(board)) } else { signature_page(board) };
+            let kind = if matches!(into, Into::Body) { "composeBody" } else { "signatureBody" };
+            let start = h.state().hit.rect(kind, 0).expect("the text").min + vec2(1.0, 8.0);
+            click(&mut h, start, PointerButton::Primary);
+            h.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+            settle(&mut h, 2);
+            (h, start)
+        };
+        // What Ctrl+V pastes from a clipboard holding the text alone.
+        let bare = Board::holding("Agenda\r\nnext");
+        let (mut h, _) = open(&bare);
+        frame(&mut h, backend_paste(&bare));
+        settle(&mut h, 3);
+        let want = rich(&h);
+        // Paste Text Only, with the HTML and a picture beside the text: the same, no more.
+        let board = Board::default();
+        formatted(&board);
+        let (mut h, start) = open(&board);
+        menu_at(&mut h, start);
+        assert_eq!(offered(&h, PASTE_TEXT), Some(true), "{into:?}");
+        choose(&mut h, PASTE_TEXT);
+        settle(&mut h, 3);
+        assert_eq!(rich(&h), want, "{into:?}: the text alone");
+        assert!(!rich(&h).paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold || r.style.italic), "{into:?}");
+        // Paste keeps the clipboard's look, as before.
+        let (mut h, start) = open(&board);
+        menu_at(&mut h, start);
+        choose(&mut h, &paste());
+        settle(&mut h, 3);
+        assert!(rich(&h).paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold && r.text == "Agenda"), "{into:?}: Paste keeps it");
+    }
+}
+
+#[test]
+fn paste_text_only_with_no_text_on_the_clipboard_changes_nothing() {
+    // A picture alone, and a text that is empty: neither is pasted, the selection stays.
+    for text in [None, Some("")] {
+        let board = Board::default();
+        {
+            let mut held = board.0.borrow_mut();
+            held.text = text.map(str::to_string);
+            held.image = Some(png());
+        }
+        let mut h = writing("Plan for Friday", Some(&board));
+        h.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+        settle(&mut h, 2);
+        let start = body_start(&h);
+        menu_at(&mut h, start);
+        choose(&mut h, PASTE_TEXT);
+        settle(&mut h, 3);
+        assert_eq!((plain(&h), sel(&h)), ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }), "text {text:?}");
+    }
+}
+
+#[test]
+fn paste_text_only_is_the_bodys_alone_and_needs_the_hosts_clipboard() {
+    // Greyed with no clipboard to read (the browser).
+    let mut h = writing("Plan for Friday", None);
+    let start = body_start(&h);
+    menu_at(&mut h, start);
+    assert_eq!(offered(&h, PASTE_TEXT), Some(false));
+    press(&mut h, Key::Escape);
+    settle(&mut h, 2);
+    // A one-line field pastes text alone already: not offered there.
+    let board = Board::holding("Agenda");
+    let mut h = writing("", Some(&board));
+    let line = subject_line(&h);
+    click(&mut h, line.center(), PointerButton::Primary);
+    menu_at(&mut h, line.center());
+    assert_eq!(offered(&h, &paste()), Some(true));
+    assert_eq!(offered(&h, PASTE_TEXT), None);
+}
+
+#[test]
+fn paste_text_only_chosen_by_the_control_channel_pastes_nothing() {
+    let board = Board::default();
+    formatted(&board);
+    let mut h = writing("Plan for Friday", Some(&board));
+    let start = body_start(&h);
+    let injected = |h: &mut Window, pos: Pos2, which: PointerButton| {
+        let synthetic = &mut h.state_mut().synthetic;
+        synthetic.push(Event::PointerMoved(pos));
+        synthetic.push(button(pos, which, true));
+        synthetic.push(button(pos, which, false));
+        settle(h, 5);
+    };
+    injected(&mut h, start, PointerButton::Secondary);
+    let item = place_of(&h, PASTE_TEXT).center();
+    injected(&mut h, item, PointerButton::Primary);
+    assert_eq!((plain(&h).as_str(), board.0.borrow().reads), ("Plan for Friday", 0));
+}
+
 #[test]
 fn advanced_searchs_fields_have_the_menu() {
     let board = Board::holding("Maya");

@@ -23,7 +23,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("compose.select", "Select Text", "Message", select).pure().params(r#"{"from": number, "to"?: number} (to: the caret, default from)"#).when_writing(needs_doc),
         CommandSpec::new("compose.type", "Type", "Message", type_text)
             .pure()
-            .params(r#"{"text": string, "autoList"?: bool} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there). "autoList" (the keyboard's, with a space): when the paragraph so far is `* `, `- `, `1. ` or `1) ` in an HTML message and File › Options has Automatic bulleted and numbered lists on, it becomes a list item without the marker, an undo step of its own"#)
+            .params(r#"{"text": string, "autoList"?: bool} — over the selection, in the formatting at the caret; a line break starts a paragraph (of the same kind; a line break alone in an empty list item ends the list there). "autoList" (the keyboard's, with a space): when the paragraph so far is `* `, `- `, `1. ` or `1) ` in an HTML message and File › Options has Automatic bulleted and numbered lists on, it becomes a list item without the marker, an undo step of its own."#)
+            .when_writing(needs_doc),
+        CommandSpec::new("compose.replaceText", "Replace Text at Position", "Message", replace_text)
+            .pure()
+            .params(r#"{"from": number, "to": number, "expected": string, "text": string} — replace the expected text at [from, to) as one undo step, preserving the first character's style. Each string is on one line and at most 255 characters. The caret moves to the end of the replacement, and a stale range or different text leaves the body alone"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.delete", "Delete Text", "Message", delete)
             .pure()
@@ -192,6 +196,15 @@ fn type_text(s: &mut Session, v: &Value) -> CmdResult {
     Ok(state(s))
 }
 
+fn replace_text(s: &mut Session, v: &Value) -> CmdResult {
+    let from = position(v, "from")?.ok_or_else(|| bad("`from` (number) is required"))?;
+    let to = position(v, "to")?.ok_or_else(|| bad("`to` (number) is required"))?;
+    let expected = p::req_str(v, "expected")?;
+    let text = p::req_str(v, "text")?;
+    edit(s, &json!({}), |body| body.replace_exact((from, to), expected, text))?;
+    Ok(state(s))
+}
+
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let forward = p::bool(v, "forward").unwrap_or(false);
     let named = position(v, "from")?.is_some() || position(v, "to")?.is_some();
@@ -209,21 +222,35 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.undo() {
+    if !step(s, false)? {
         return Err(fail("nothing to undo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.redo() {
+    if !step(s, true)? {
         return Err(fail("nothing to redo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
+}
+
+/// One step back (or forward, `redo`) in the open text; a step of the message's can put a
+/// picture's width back (`compose.picture.set`). Whether there was one.
+fn step(s: &mut Session, redo: bool) -> Result<bool, CmdError> {
+    if s.signature_edit.is_none()
+        && let Some(c) = s.compose.as_mut()
+    {
+        let pictures = &mut c.pictures;
+        let swap = |mark| super::picture::swap_width(pictures, mark);
+        let done = if redo { c.body.redo_with(swap) } else { c.body.undo_with(swap) };
+        c.dirty |= done;
+        return Ok(done);
+    }
+    let d = doc_mut(s)?;
+    let done = if redo { d.body.redo() } else { d.body.undo() };
+    *d.dirty |= done;
+    Ok(done)
 }
 
 fn bold(s: &mut Session, v: &Value) -> CmdResult {

@@ -105,6 +105,8 @@ mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+mod spelling;
 mod system_locale;
 mod system_motion;
 #[cfg(test)]
@@ -1140,6 +1142,8 @@ fn services(
     Services {
         platform_calls,
         file_dialog: Some(file_dialog),
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        spelling: Some(Box::new(spelling::NativeChecker::default())),
         #[cfg(windows)]
         recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
