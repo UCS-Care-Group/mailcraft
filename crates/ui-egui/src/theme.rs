@@ -232,7 +232,8 @@ pub struct Tokens {
     pub surface_sunken: Color32,
     /// The ring round a control that has the keyboard's focus in a box that has no stroke of its own.
     pub focus_ring: Color32,
-    /// The line under a row of the message list.
+    /// The line under a row of the message list: plainly seen on a bright screen (#1657), and in
+    /// High Contrast 3:1 on the list.
     pub rule: Color32,
     /// The groove a progress bar runs in.
     pub track: Color32,
@@ -346,7 +347,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0xE6, 0xE9, 0xEF),
+            rule: c(0xC6, 0xCD, 0xD8),
             border_faint: c(0xEC, 0xEF, 0xF4),
             track: c(0xD6, 0xDC, 0xE6),
             lane: window,
@@ -446,7 +447,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0x2E, 0x2E, 0x32),
+            rule: c(0x46, 0x46, 0x4D),
             border_faint: c(0x2A, 0x2A, 0x2D),
             track: c(0x3E, 0x3E, 0x43),
             lane: panel,
@@ -487,6 +488,32 @@ impl Tokens {
     /// The edge of a chip.
     pub fn data_edge(&self, rgb: Color32) -> Color32 {
         rgb.linear_multiply(0.8)
+    }
+
+    /// The faint band every other row of the message list wears with View › Shade Alternate Rows
+    /// (#1657): the list's own colour a little towards its text, a little more in High Contrast.
+    /// A custom accent is fitted against it ([`accent::custom_ink`]).
+    pub fn row_shade(&self) -> Color32 {
+        self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
+    }
+
+    /// How a message-list row is laid, from the bottom up (#1657): its shaded band, a flag's tint,
+    /// a selection's fill (letting a little of a flag's tint through) or else the pointer's shade.
+    /// `selected` is whether the list has the focus, for a selected row. The list paints these
+    /// and its coloured text is fitted to what they make ([`RowLayers::under`]), so the two can't
+    /// part, as long as every layer it paints covers all of the row's text.
+    pub fn list_row_layers(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> RowLayers {
+        let selection = selected.map(|focus| {
+            let fill = if focus { self.selection } else { self.selection_unfocused };
+            if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }
+        });
+        RowLayers {
+            base: self.surface,
+            band: shaded.then(|| self.row_shade()),
+            flag: flagged.then_some(self.flagged_row),
+            selection,
+            hover: (selected.is_none() && hovered).then_some(self.hover_subtle),
+        }
     }
 
     /// The strength with which a mailbox colour tints an event block over `surface`.
@@ -1421,6 +1448,39 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
     let (r, g, b) = PALETTE.get(hash as usize % PALETTE.len()).copied().unwrap_or((0x0B, 0x7F, 0xAB));
     let c = Color32::from_rgb(r, g, b);
     c.linear_multiply(t.avatar_shade)
+}
+
+/// How much of a selected row's fill is laid over a flag's tint, so the tint shows through.
+pub const LIST_FLAGGED_SELECTION: f32 = 0.72;
+
+/// The layers of a message-list row, from the bottom up ([`Tokens::list_row_layers`]): each one
+/// that is there is painted in this order, and the row's coloured text is fitted to [`Self::under`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowLayers {
+    /// The list's own colour, under everything.
+    pub base: Color32,
+    /// The band of a shaded row (View › Shade Alternate Rows).
+    pub band: Option<Color32>,
+    /// A flagged or overdue message's tint.
+    pub flag: Option<Color32>,
+    /// A selected row's fill.
+    pub selection: Option<Color32>,
+    /// The pointer's shade, on a row that is not selected.
+    pub hover: Option<Color32>,
+}
+
+impl RowLayers {
+    /// What the row's text sits on: every layer laid over the one before, as egui blends them.
+    pub fn under(&self) -> Color32 {
+        [self.band, self.flag, self.selection, self.hover].into_iter().flatten().fold(self.base, |under, layer| over(layer, under))
+    }
+}
+
+/// `src` (premultiplied, as egui's colours are) painted over `dst`, blended as the painter does.
+fn over(src: Color32, dst: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(src.a()) / 255.0;
+    let ch = |s: u8, d: u8| (f32::from(s) + f32::from(d) * keep).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(ch(src.r(), dst.r()), ch(src.g(), dst.g()), ch(src.b(), dst.b()))
 }
 
 #[cfg(test)]

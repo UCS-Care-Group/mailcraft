@@ -30,7 +30,7 @@ use crate::ModelError;
 mod body;
 mod find;
 
-pub use body::{MAX_UNDO, RichBody, Selection};
+pub use body::{MAX_UNDO, Mark, RichBody, Selection};
 pub use find::{MAX_FIND, Place};
 
 /// Most characters one body holds (counting one for each paragraph break).
