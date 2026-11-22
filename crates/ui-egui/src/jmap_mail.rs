@@ -88,7 +88,8 @@ impl MailApp {
             self.jmap_refused.remove(&account);
         }
         let Some(secret) = self.jmap_secret(account) else {
-            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            self.set_dialog(dialog);
             return Ok(json!({"pending": "password"}));
         };
         // (Through the command: a run begins afresh, whatever one that never ended had read.)

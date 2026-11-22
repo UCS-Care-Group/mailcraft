@@ -426,11 +426,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Mail from an `.eml` or `.mbox` file is never put in an Outbox or a folder under one: with an
   Outbox in view it goes to the account's Drafts (as drafts, not queued), else its Inbox; naming an
   Outbox is refused (`crates/engine/src/io.rs`).
-- Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
-  now, and puts addresses the owner has written to (Sent Items) above those that only wrote. The
-  people the search box offers after `from:`, `to:` and `cc:` (#308) come from it, so the same
-  holds for them (and then the owner's own addresses, which it leaves out); nothing is asked of
-  a server for them.
+- Autocomplete (`compose.suggest`) skips Junk E-mail and Drafts, counts a date after now as now,
+  and ranks by how often each address was sent to from Sent Items or the Outbox, without trusting
+  an incoming `From:` (a sender writes that line). When nobody was written to, contacts come ahead
+  of people only seen in mail that arrived. A new message's suggestions include the owner's own
+  addresses; the people the search box offers after `from:`, `to:` and `cc:` (#308) come from the
+  same ranking and then offer those addresses last. Nothing is asked of a server for them.
 - A reply, forward or reopened draft quotes an HTML original as its HTML reads
   (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner
   never saw.

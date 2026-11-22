@@ -102,7 +102,8 @@ impl MailApp {
             self.jmap_refused.remove(&account);
         }
         let Some(secret) = self.ews_secret(account) else {
-            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            self.set_dialog(dialog);
             return Ok(json!({"pending": "password"}));
         };
         let inbox_pass = p.get("inboxPass").and_then(Value::as_bool).unwrap_or(false);

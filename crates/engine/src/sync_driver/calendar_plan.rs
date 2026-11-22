@@ -92,6 +92,9 @@ impl CalendarPlan {
 pub struct CalendarLook {
     /// Waiting changes that couldn't be sent any more and were given up: the owner is told.
     pub dropped: Vec<Dropped>,
+    /// What else the owner is told, each line with its account: a renamed category whose events
+    /// wait for the calendar's permission (#851).
+    pub said: Vec<(Id, String)>,
     /// Nothing else is at work: a calendar ticked in a shared mailbox that the owner's permission
     /// is missing for may be asked about now.
     pub may_ask: bool,
@@ -140,7 +143,17 @@ impl Session {
         let window = self.calendar_window();
         for account in self.calendar_accounts() {
             // What is ready to go, and for how long it has been: a change gets a quiet moment.
-            let ready = remote::events_waiting(self, account).due;
+            // No calendar to ask (the owner hasn't given the permission): a renamed category goes
+            // on waiting for its events, its old name staying on the server's list, and the owner
+            // is told so, once (#851).
+            if self.driver.calendar.consent_needed.contains(&account)
+                && let Some(line) = self.mailbox.event_renames_wait(account)
+            {
+                look.said.push((account, line));
+                self.mailbox_changed();
+            }
+            // (So is a renamed category that events on the server wait for, #851.)
+            let ready = remote::events_waiting(self, account).due.saturating_add(usize::from(self.mailbox.events_rename(account).is_some()));
             // (What exactly would go: nothing, when a change was changed back; and not the very
             // same as a moment ago, which would go round in circles.)
             let changes = if self.driver.calendar.quiet_over(account, ready, now) { self.calendar_changes(account) } else { None };
@@ -186,7 +199,9 @@ impl Session {
     /// it, and it never starts while another job is at work (`busy`) or while something waits to
     /// go up.
     pub fn calendar_around(&self, account: Id, day: mailcraft_time::Date, busy: bool) -> Result<CalendarPlan, AroundRefused> {
-        if busy || self.calendar_changes(account).is_some() {
+        // (A renamed category that waits for the server's own events isn't such a change: nothing
+        // of it is in the days looked at, #851.)
+        if busy || self.calendar_changes(account).is_some_and(|changes| !changes.ops.is_empty()) {
             return Err(AroundRefused::Busy);
         }
         if self.driver.calendar.consent_needed.contains(&account) {
@@ -320,8 +335,12 @@ impl Session {
         let shared = self.is_shared_account(account);
         if shared {
             self.shared_permission_in(account, came, &mut out);
-        } else if came.consent_needed && self.driver.calendar.consent_needed.insert(account) {
-            out.consent_asked = true;
+        } else if came.consent_needed {
+            // (No calendar to ask: a renamed category's events wait for the permission, and the
+            // next look says so, #851.)
+            if self.driver.calendar.consent_needed.insert(account) {
+                out.consent_asked = true;
+            }
         }
         self.calendar_list_in(account, came.calendars, came.categories, came.extras_missing, &mut out);
         if let Some(hours) = came.hours {
@@ -356,7 +375,10 @@ impl Session {
         }
         // Something went up: what the server has now is asked for again soon, should this
         // answer have been cut short.
-        let went = came.uploaded.is_some_and(|uploaded| !uploaded.outcomes.is_empty());
+        // (A rename of a category on the server counts when it got somewhere, #851: one that
+        // changed nothing and isn't done is a failure, and waits longer each time.)
+        let renamed = |r: &mailcraft_model::remote::CategoryRenamed| r.done || r.denied || r.refused || r.changed > 0;
+        let went = came.uploaded.is_some_and(|uploaded| !uploaded.outcomes.is_empty() || uploaded.renamed.as_ref().is_some_and(renamed));
         // A wide job that brought events but not all it was asked for counts as a failure too (the
         // back-off keeps the next one from starting at every look); one that carried changes is
         // left as it was, so that its quick retry isn't held up any longer.
@@ -443,6 +465,16 @@ impl Session {
                 Ok(applied) => {
                     if let Some(first) = applied.messages.first() {
                         out.status.push(Text::verbatim(first.clone()));
+                    } else if applied.renamed > 0 {
+                        // A renamed category reached events that aren't kept here (#851).
+                        let n = applied.renamed;
+                        let lang = self.interface_language;
+                        let template = lang.tn(
+                            u64::from(n),
+                            "The category was renamed on {n} event on the server",
+                            "The category was renamed on {n} events on the server",
+                        );
+                        out.status.push(Text::verbatim(mailcraft_i18n::fmt(template, &[("n", &n.to_string())])));
                     }
                     log::info!(
                         "calendar: of {} changes sent, {} were taken, {} refused, {} are to be tried again, {} given up; {} still wait, {} are yet to be seen on the server",
