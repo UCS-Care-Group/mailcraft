@@ -372,6 +372,12 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
             Err(e) => err(e),
         },
         "ui.inspect" => ok(inspect(app, ctx)),
+        // The families installed on this computer, which `format.font` writes text in (#1493).
+        // Read-only: it starts the look if it hasn't been made, and says so while it is being.
+        "ui.fonts" => {
+            crate::fonts::ask(ctx);
+            ok(crate::fonts::inspect(ctx))
+        }
         // Whether the mailbox is open (while it opens, this alone is answered: `opening`), and
         // the one being read in the background, if any.
         "app.status" => ok(json!({"mailbox": "open", "opening": crate::opening::ahead_inspect(app)})),

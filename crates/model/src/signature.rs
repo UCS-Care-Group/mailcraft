@@ -231,7 +231,7 @@ pub fn text_hash(text: &RichText) -> u64 {
                 st.size,
                 st.link,
                 st.color,
-                st.font.map(|f| f.label()),
+                st.font.as_ref().map(|f| f.label().to_string()),
                 r.picture
             ));
         }

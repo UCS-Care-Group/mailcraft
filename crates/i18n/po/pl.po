@@ -3252,6 +3252,12 @@ msgid "Check for Updates"
 msgstr "Sprawdź aktualizacje"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Check for new versions"
@@ -5864,6 +5870,12 @@ msgstr "Znajdź powiązane wiadomości"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Znajdź termin"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8498,6 +8510,12 @@ msgstr "Adres łudząco podobny do innego."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Sprawdzanie certyfikatu serwera…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26882,6 +26900,15 @@ msgstr "„{subject}” nie została znaleziona na serwerze, więc nie można je
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• do {to}, temat „{subject}”"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

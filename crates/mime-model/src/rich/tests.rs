@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{
+    Align, Built, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link,
+};
 use mailcraft_model::signature::{Layout, MAX_WIDTH, Signature};
 use proptest::prelude::*;
 
@@ -46,10 +48,12 @@ fn assert_in_set(html: &str) {
                 .and_then(|t| t.strip_suffix("\">"))
                 .is_some_and(|url| !url.contains(['"', '<', '>']) && safe_link(&mailcraft_html::unescape(url)).is_some())
             || tag.strip_prefix("<span style=\"color:").and_then(|t| t.strip_suffix("\">")).is_some_and(|c| safe_color(c).as_deref() == Some(c))
-            || tag
-                .strip_prefix("<span style=\"font-family:")
-                .and_then(|t| t.strip_suffix("\">"))
-                .is_some_and(|f| Font::ALL.iter().any(|font| font.css() == f))
+            || tag.strip_prefix("<span style=\"font-family:").and_then(|t| t.strip_suffix("\">")).is_some_and(|f| {
+                // A `font-family` as it comes out of a `Font`: the six's own lists, or the
+                // families named here quoted where they need it, lower case, escaped.
+                let un = mailcraft_html::unescape(f);
+                Built::ALL.iter().any(|font| font.css() == un) || Font::parse(&un).is_some_and(|font| font.css() == un)
+            })
             || is_cid_img(tag)
             || SIGNATURE_TABLE.contains(&tag);
         assert!(ok, "{tag:?} is outside the set in {html:?}");
@@ -372,9 +376,9 @@ fn arb_style() -> impl Strategy<Value = Style> {
             (
                 Just(s),
                 proptest::option::of(prop_oneof![Just("#1f6feb".to_string()), Just("red".to_string()), "\\PC{0,8}"]),
-                proptest::option::of(0usize..Font::ALL.len()),
+                proptest::option::of(prop_oneof![Just("Fira Code".to_string()), Just("Noto Sans".to_string()), Just("Trebuchet MS".to_string())]),
             )
-                .prop_map(|(s, color, font)| Style { color, font: font.and_then(|f| Font::ALL.get(f).copied()), ..s })
+                .prop_map(|(s, color, font)| Style { color, font: font.as_deref().and_then(Font::parse), ..s })
         })
 }
 
@@ -513,7 +517,7 @@ fn logo_signature(layout: Layout) -> Signature {
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1f6feb".into()))).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
     body.set_align(12, 12, Align::Right).unwrap();
     sig.set_body(body).unwrap();
     let id = sig.add_picture("lumen-logo.png", png(), Some("Lumen \"Studio\" <logo>"), Some(0)).unwrap();
@@ -666,6 +670,33 @@ fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
 }
 
 #[test]
+fn a_family_installed_here_is_written_and_comes_back_through_a_paste() {
+    // #1493: the composer offers what is installed on this computer, so a message carries a family
+    // of its own; a paste keeps the first name of the list it came from.
+    let style = Style { font: Font::parse("Fira Code, monospace"), ..Style::default() };
+    let t = RichText::from_paragraphs(vec![Paragraph::new(vec![styled("code", style)], ListKind::None)]);
+    let html = to_html(&t);
+    assert!(html.contains("<span style=\"font-family:&#39;fira code&#39;, monospace\">code</span>"), "{html}");
+    assert_eq!(from_html(&html), t);
+    // A list that names a family keeps the family and what the list asks for after it; a list that
+    // asks only for a kind of font keeps what MailCraft has for that kind — `monospace` is the one
+    // fixed-width font of the set, so pasted text art keeps its columns (#969).
+    let serif = Style { font: Font::parse("Noto Serif, serif"), ..Style::default() };
+    assert_eq!(
+        from_html("<div><span style=\"font-family:'Noto Serif', serif\">x</span></div>"),
+        RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", serif)], ListKind::None)])
+    );
+    let mono = Style { font: Font::from_css("monospace"), ..Style::default() };
+    assert_eq!(
+        from_html("<div><span style=\"font-family:monospace\">x</span></div>"),
+        RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", mono)], ListKind::None)])
+    );
+    // And one that asks only for a kind with no font of its own keeps nothing.
+    let plain = RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", Style::default())], ListKind::None)]);
+    assert_eq!(from_html("<div><span style=\"font-family:cursive\">x</span></div>"), plain);
+}
+
+#[test]
 fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
     // #969: a signature drawn with spaces in Courier New comes back as it was written.
     let courier = Style { font: Font::parse("Courier New"), ..Style::default() };
@@ -675,7 +706,7 @@ fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
         Paragraph::new(vec![styled("+------+", courier)], ListKind::None),
     ]);
     let html = to_html(&t);
-    assert!(html.contains("<span style=\"font-family:'Courier New', Courier, monospace\">| &nbsp;Hi &nbsp;|</span>"), "{html}");
+    assert!(html.contains("<span style=\"font-family:&#39;Courier New&#39;, Courier, monospace\">| &nbsp;Hi &nbsp;|</span>"), "{html}");
     assert_in_set(&html);
     assert_eq!(from_html(&html), t);
 }
