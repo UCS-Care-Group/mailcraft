@@ -19995,6 +19995,11 @@ msgstr ""
 msgid "the last calendar can't be deleted"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 msgid "the list shows every account's folder: open one account's folder, or name the folder"
@@ -20521,12 +20526,12 @@ msgid "the top level"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 msgid "the user name or access token has a character that can't be sent"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 msgid "the user name or access token is too long to be sent"
 msgstr ""
 
@@ -20591,7 +20596,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 msgid "there is no access token to sign in with"
 msgstr ""
 

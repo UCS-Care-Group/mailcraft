@@ -50,7 +50,7 @@ jobs:
               ical) echo crates/ical/ ;;
               vcard) echo crates/vcard/ ;;
               link) echo crates/link/ ;;
-              imap|smtp) echo crates/proto/ ;;
+              imap|smtp|sasl_failure) echo crates/proto/ ;;
               po) echo crates/i18n/src/ ;;
               jmap_*) echo crates/jmap/ ;;
               pst|rtf) echo crates/pst/ ;;

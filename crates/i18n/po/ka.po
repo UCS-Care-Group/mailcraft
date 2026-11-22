@@ -23995,6 +23995,11 @@ msgstr "ბოლო „გაგზავნა/მიღებისას“ 
 msgid "the last calendar can't be deleted"
 msgstr "ბოლო კალენდრის წაშლა შეუძლებელია"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -24625,13 +24630,13 @@ msgid "the top level"
 msgstr "ზედა დონე"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token has a character that can't be sent"
 msgstr "მომხმარებლის სახელში ან წვდომის ტოკენში ისეთი სიმბოლოა, რომლის გაგზავნაც შეუძლებელია"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token is too long to be sent"
 msgstr "მომხმარებლის სახელი ან წვდომის ტოკენი გასაგზავნად ზედმეტად გრძელია"
@@ -24709,7 +24714,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr "ხელმოწერა სახელით „{to}“ უკვე არსებობს"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "there is no access token to sign in with"
 msgstr "შესასვლელად წვდომის ტოკენი არ არის"

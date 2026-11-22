@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An SMTP client (RFC 5321) with STARTTLS (RFC 3207) and AUTH PLAIN / LOGIN / XOAUTH2 (RFC 4954).
+//! An SMTP client (RFC 5321) with STARTTLS (RFC 3207) and AUTH PLAIN / LOGIN / XOAUTH2 /
+//! OAUTHBEARER (RFC 4954, RFC 7628).
 
 use std::io::{Read, Write};
 
 use mailcraft_charset::base64::STANDARD;
 
 use crate::line::Wire;
-use crate::{ProtoError, Secrets, for_trace, tidy, xoauth2};
+use crate::{FAILURE_ANSWER, ProtoError, SaslFailure, Secrets, for_trace, oauthbearer, tidy, xoauth2};
 use mailcraft_i18n::{Arg, Text, said};
 
 /// Most lines one reply may have.
@@ -24,6 +25,8 @@ pub struct Smtp<S> {
     wire: Wire<S>,
     ext: Extensions,
     secrets: Secrets,
+    /// Why the last token sign-in was refused, when the server said ([`Smtp::sasl_failure`]).
+    sasl_failure: Option<SaslFailure>,
 }
 
 /// What the server offered in its answer to EHLO.
@@ -34,6 +37,8 @@ pub struct Extensions {
     pub auth_login: bool,
     /// The server takes an OAuth access token instead of a password (SASL XOAUTH2).
     pub auth_xoauth2: bool,
+    /// The server takes an OAuth access token the standard way (SASL OAUTHBEARER, RFC 7628).
+    pub auth_oauthbearer: bool,
     /// The largest message the server takes; `Some(0)` when it names no limit.
     pub size: Option<u64>,
     pub eight_bit_mime: bool,
@@ -73,7 +78,7 @@ impl<S: Read + Write> Smtp<S> {
 
     /// Continue on a stream that already greeted (after the caller wrapped it in TLS).
     pub fn resume(stream: S) -> Self {
-        Smtp { wire: Wire::new(stream), ext: Extensions::default(), secrets: Secrets::default() }
+        Smtp { wire: Wire::new(stream), ext: Extensions::default(), secrets: Secrets::default(), sasl_failure: None }
     }
 
     /// What the last [`hello`](Self::hello) learned.
@@ -164,30 +169,57 @@ impl<S: Read + Write> Smtp<S> {
     /// it isn't shown the token. 535 and friends → `ProtoError::Auth`.
     pub fn auth_xoauth2(&mut self, user: &str, token: &str) -> Result<(), ProtoError> {
         let payload = xoauth2(user, token)?;
-        if !self.ext.auth_xoauth2 {
+        let offered = self.ext.auth_xoauth2;
+        self.auth_token("XOAUTH2", offered, token, &payload, "")
+    }
+
+    /// AUTH OAUTHBEARER (RFC 7628): an OAuth access token in place of a password, the standard
+    /// way. `host` and `port` are the server's, as connected to. A server that doesn't offer it
+    /// isn't shown the token. 535 and friends → `ProtoError::Auth`, with the server's reasons,
+    /// when it gave them, in [`Smtp::sasl_failure`].
+    pub fn auth_oauthbearer(&mut self, user: &str, host: &str, port: u16, token: &str) -> Result<(), ProtoError> {
+        let payload = oauthbearer(user, host, port, token)?;
+        let offered = self.ext.auth_oauthbearer;
+        self.auth_token("OAUTHBEARER", offered, token, &payload, FAILURE_ANSWER)
+    }
+
+    /// Why the server refused the last token sign-in, when it said in the way RFC 7628 has it.
+    pub fn sasl_failure(&self) -> Option<&SaslFailure> {
+        self.sasl_failure.as_ref()
+    }
+
+    /// A token sign-in with SASL `mechanism`: `payload` (base64) as the client's message, and
+    /// `failure_answer` for the server's reasons when it refuses.
+    fn auth_token(&mut self, mechanism: &str, offered: bool, token: &str, payload: &str, failure_answer: &str) -> Result<(), ProtoError> {
+        self.sasl_failure = None;
+        if !offered {
             return Err(ProtoError::Auth(said!("the server offers no way to sign in with an access token")));
         }
         self.secrets.add(token);
-        self.secrets.add(&payload);
-        let line = format!("AUTH XOAUTH2 {payload}");
+        self.secrets.add(payload);
+        let line = format!("AUTH {mechanism} {payload}");
         let reply = if line.len() <= MAX_COMMAND {
-            self.secret_command(&line, "AUTH XOAUTH2 ***")?
+            self.secret_command(&line, &format!("AUTH {mechanism} ***"))?
         } else {
             // Too long for one line, as tokens mostly are: wait for the server to ask (RFC 4954 §4).
-            let ask = self.command("AUTH XOAUTH2")?;
+            let ask = self.command(&format!("AUTH {mechanism}"))?;
             if ask.code != 334 {
                 return Err(self.sign_in_failed(&ask));
             }
-            self.secret_command(&payload, "***")?
+            self.secret_command(payload, "***")?
         };
         match reply.code {
             235 => Ok(()),
             334 => {
-                // A refusal comes in two parts: the reasons (JSON in base64), and, once an empty
-                // line has acknowledged them, the verdict.
-                let verdict = self.command("")?;
+                // A refusal comes in two parts: the reasons (JSON in base64), and, once they
+                // have been answered as the mechanism has it, the verdict.
+                self.sasl_failure = reply.lines.first().and_then(|reasons| SaslFailure::read(reasons.as_bytes()));
+                let verdict = self.command(failure_answer)?;
                 match verdict.code {
-                    235 => Ok(()),
+                    235 => {
+                        self.sasl_failure = None;
+                        Ok(())
+                    }
                     334 => {
                         let _ = self.command("*");
                         Err(ProtoError::Auth(said!("the server asked for more than a user name and access token")))
@@ -353,6 +385,7 @@ fn extensions(lines: &[String]) -> Extensions {
                         "PLAIN" => ext.auth_plain = true,
                         "LOGIN" => ext.auth_login = true,
                         "XOAUTH2" => ext.auth_xoauth2 = true,
+                        "OAUTHBEARER" => ext.auth_oauthbearer = true,
                         _ => {}
                     }
                 }

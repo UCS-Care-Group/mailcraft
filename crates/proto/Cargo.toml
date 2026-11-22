@@ -12,6 +12,8 @@ workspace = true
 mailcraft-charset = { workspace = true }
 mailcraft-i18n = { workspace = true }
 log = { workspace = true }
+# The reasons a server gives for refusing an OAUTHBEARER sign-in come as JSON (RFC 7628 §3.2.2).
+serde_json = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

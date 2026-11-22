@@ -24054,6 +24054,11 @@ msgstr "上一次发送/接收出现了问题"
 msgid "the last calendar can't be deleted"
 msgstr "最后一个日历无法删除"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -24684,13 +24689,13 @@ msgid "the top level"
 msgstr "顶层"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token has a character that can't be sent"
 msgstr "用户名或访问令牌包含无法发送的字符"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token is too long to be sent"
 msgstr "用户名或访问令牌太长而无法发送"
@@ -24768,7 +24773,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr "已经有一个名为“{to}”的签名"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "there is no access token to sign in with"
 msgstr "没有可供登录的访问令牌"

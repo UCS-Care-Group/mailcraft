@@ -22678,6 +22678,11 @@ msgstr "das letzte Senden/Empfangen hatte Probleme"
 msgid "the last calendar can't be deleted"
 msgstr "der letzte Kalender kann nicht gelöscht werden"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -23289,13 +23294,13 @@ msgid "the top level"
 msgstr "der obersten Ebene"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token has a character that can't be sent"
 msgstr "Der Benutzername oder das Zugriffstoken enthält ein Zeichen, das nicht gesendet werden kann"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token is too long to be sent"
 msgstr "Der Benutzername oder das Zugriffstoken ist zu lang, um gesendet zu werden"
@@ -23372,7 +23377,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr "es gibt bereits eine Signatur namens „{to}“"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "there is no access token to sign in with"
 msgstr "Es gibt kein Zugriffstoken für die Anmeldung"

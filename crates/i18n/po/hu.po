@@ -24073,6 +24073,11 @@ msgstr "az utolsó Küldés/Fogadás során problémák voltak"
 msgid "the last calendar can't be deleted"
 msgstr "az utolsó naptár nem törölhető"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -24703,13 +24708,13 @@ msgid "the top level"
 msgstr "felső szint"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token has a character that can't be sent"
 msgstr "a felhasználó neve vagy a token-hez való hozzáférés olyan karakterrel rendelkezik, amelyet nem lehet elküldeni"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token is too long to be sent"
 msgstr "a felhasználó neve vagy hozzáférése túl hosszú ahhoz, hogy elküldjék"
@@ -24787,7 +24792,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr "Van már egy \"{to}\" nevű aláírás."
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "there is no access token to sign in with"
 msgstr "nincs hozzáférése a bejelentkezéshez"

@@ -24131,6 +24131,11 @@ msgstr "poslední Odeslat/přijmout mělo potíže"
 msgid "the last calendar can't be deleted"
 msgstr "poslední kalendář nelze odstranit"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -24761,13 +24766,13 @@ msgid "the top level"
 msgstr "nejvyšší úroveň"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token has a character that can't be sent"
 msgstr "uživatelské jméno nebo přístupový token obsahuje znak, který nelze odeslat"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "the user name or access token is too long to be sent"
 msgstr "uživatelské jméno nebo přístupový token je příliš dlouhý na odeslání"
@@ -24845,7 +24850,7 @@ msgid "there is already a signature named \"{to}\""
 msgstr "podpis s názvem „{to}“ už existuje"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/lib.rs
+#: crates/proto/src/lib.rs crates/proto/src/oauthbearer.rs
 #, fuzzy
 msgid "there is no access token to sign in with"
 msgstr "není žádný přístupový token, kterým se přihlásit"

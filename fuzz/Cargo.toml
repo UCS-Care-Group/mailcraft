@@ -247,3 +247,10 @@ path = "fuzz_targets/header_block.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "sasl_failure"
+path = "fuzz_targets/sasl_failure.rs"
+test = false
+doc = false
+bench = false
