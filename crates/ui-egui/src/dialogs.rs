@@ -179,7 +179,7 @@ pub enum Dialog {
     FindReplace(crate::find_replace::FindReplace),
     /// Review › Spelling & Grammar (F7): walks the Subject, then the body. It only collects the
     /// replacement. Change and Change All run commands ([`crate::spelling_dialog`]).
-    Spelling(crate::spelling_dialog::SpellingDialog),
+    Spelling(Box<crate::spelling_dialog::SpellingDialog>),
     /// Insert › Symbol ([`crate::symbol`]).
     Symbol(crate::symbol::Symbol),
 }
@@ -478,7 +478,7 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         return crate::find_replace::FindReplace::open(app, name == "replace").map(Dialog::FindReplace);
     }
     if name == "spelling" {
-        return crate::spelling_dialog::SpellingDialog::open(app).map(Dialog::Spelling);
+        return crate::spelling_dialog::SpellingDialog::open(app).map(|d| Dialog::Spelling(Box::new(d)));
     }
     if matches!(name, "attachItem" | "businessCard") {
         app.session.compose.as_ref()?;
