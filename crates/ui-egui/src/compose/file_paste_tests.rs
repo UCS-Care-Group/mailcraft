@@ -345,6 +345,29 @@ fn posix_paths_and_file_uris_keep_backslashes_in_the_name() {
 }
 
 #[test]
+fn macos_matches_the_exact_whitespace_in_a_bare_filename() {
+    let spaced = "/Users/Ada/ report.pdf ".to_string();
+    let plain = "/Users/Ada/report.pdf".to_string();
+    let files = [spaced.clone(), plain.clone()];
+    assert_eq!(super::named_by(" report.pdf \r\n", &files, Os::Mac), Some(vec![spaced]));
+    assert_eq!(super::named_by("report.pdf", &files, Os::Mac), Some(vec![plain]));
+    assert_eq!(super::named_by(" report.pdf", &files, Os::Mac), None);
+}
+
+#[test]
+fn posix_paths_keep_trailing_whitespace_and_still_require_exact_matching() {
+    let spaced = "/home/ada/report.pdf\t".to_string();
+    let plain = "/home/ada/report.pdf".to_string();
+    let files = [spaced.clone(), plain.clone()];
+    for os in [Os::Mac, Os::Other] {
+        assert_eq!(super::named_by("/home/ada/report.pdf\t\r\n \n", &files, os), Some(vec![spaced.clone()]));
+        assert_eq!(super::named_by("file:///home/ada/report.pdf%09", &files, os), Some(vec![spaced.clone()]));
+        assert_eq!(super::named_by("/home/ada/report.pdf", &files, os), Some(vec![plain.clone()]));
+        assert_eq!(super::named_by("/home/ada/report.pdf ", &files, os), None);
+    }
+}
+
+#[test]
 fn windows_paths_match_either_separator_and_drive_file_uris() {
     let file = r"C:\My Files\notes.txt".to_string();
     let files = [file.clone()];

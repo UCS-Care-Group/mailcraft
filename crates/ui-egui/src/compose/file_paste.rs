@@ -149,8 +149,8 @@ fn named_by(text: &str, files: &[String], os: Os) -> Option<Vec<String>> {
         let matches = |name: &str| name == line || name == decoded;
         matches(path.as_ref()) || (os.takes_bare_names() && file.rsplit('/').next().is_some_and(matches))
     };
-    // (A paste of more lines than files can name is no list of them.)
-    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).take(files.len().saturating_add(1)).collect();
+    // Ignore blank lines, but keep whitespace in a filename. More names than files is no list.
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(files.len().saturating_add(1)).collect();
     if lines.is_empty() {
         return os.takes_files_alone().then(|| files.to_vec());
     }
