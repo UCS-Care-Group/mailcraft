@@ -165,7 +165,7 @@ msgid "'{subject}' stays where it was moved: it is Digitally signed or Encrypted
 msgstr "‚{subject}‘ zůstává tam, kam byla přesunuta: je digitálně podepsaná nebo šifrovaná a její kopie v poštovní schránce, odkud pochází, byla odstraněna, zatímco kopie, ze které byla poprvé přesunuta, si ponechává původní bajty. Přesuňte ji zpět, chcete-li ji tam znovu mít."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/calendar_view/list.rs
 #, fuzzy
 msgid "(No title)"
 msgstr "(Bez názvu)"
@@ -201,7 +201,7 @@ msgid "(no title)"
 msgstr "(bez názvu)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(žádné)"
@@ -1928,13 +1928,19 @@ msgid "Arrange Contacts By"
 msgstr "Uspořádat kontakty podle"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "Arrange List By"
+msgstr "Seřadit seznam podle"
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "Arrange Tasks By"
 msgstr "Uspořádat úkoly podle"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Uspořádání"
@@ -2209,6 +2215,12 @@ msgid_plural "Attached {n} files"
 msgstr[0] "Připojen {n} soubor"
 msgstr[1] "Připojeny {n} soubory"
 msgstr[2] "Připojeno {n} souborů"
+
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Attachment"
+msgstr "Příloha"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -2661,7 +2673,7 @@ msgid "By Subject"
 msgstr "Podle předmětu"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Kalendář"
@@ -4244,6 +4256,12 @@ msgstr "Vyjmout nepřijímá žádné parametry: vyjme, co je vybrané"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMÉNA\\uživatel nebo vy@example.org; prázdné pro vaši adresu"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Daily"
+msgstr "Denně"
+
 #. name
 #: crates/ui-egui/src/theme.rs
 #, fuzzy
@@ -4561,8 +4579,8 @@ msgstr "Odstranění na řádku konverzace, které zasáhne víc než jednu zpr�
 msgid "Delete this category"
 msgstr "Odstranit tuto kategorii"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Delete this event?"
 msgstr "Odstranit tuto událost?"
@@ -5359,8 +5377,8 @@ msgstr "Prázdná poštovní schránka"
 msgid "Enable Rule"
 msgstr "Zapnout pravidlo"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "End"
 msgstr "Konec"
@@ -7076,6 +7094,12 @@ msgstr "Jsem správce: schválit MailCraft pro mou organizaci"
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Jsem správce: schválit ho pro mou organizaci"
 
+#. interface, name
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Icon"
+msgstr "Ikona"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8384,6 +8408,12 @@ msgstr "Odkaz"
 msgid "Links"
 msgstr "Odkazy"
 
+#. command label, name, ribbon
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "List"
+msgstr "Seznam"
+
 #. command label
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -8433,6 +8463,12 @@ msgid "List Notes"
 msgstr "Vypsat poznámky"
 
 #. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "List Rows"
+msgstr "Řádky seznamu"
+
+#. command label
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
 msgid "List Tasks"
@@ -8456,8 +8492,8 @@ msgstr "Načítám…"
 msgid "Local mailbox"
 msgstr "Místní poštovní schránka"
 
-#. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Místo"
@@ -9556,6 +9592,12 @@ msgstr "pondělí"
 msgid "Month"
 msgstr "Měsíc"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Monthly"
+msgstr "Měsíčně"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -10442,7 +10484,7 @@ msgid "No categories yet"
 msgstr "Zatím žádné kategorie"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/calendar_view/list.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No category"
 msgstr "Bez kategorie"
@@ -10842,7 +10884,7 @@ msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "Neodpovídá nikdo, nebo více vašich kontaktů: {names}"
 
 #. android, interface, name, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Žádné"
@@ -12992,11 +13034,17 @@ msgstr "Znovu se připojit přes Google"
 msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
 msgstr "Znovu se připojte přes Google, pokud vaše přihlášení vypršelo nebo bylo odvoláno. Stažená pošta i nastavení účtu zůstanou zachovány."
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recurrence"
 msgstr "Opakování"
+
+#. name
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "Recurrence Pattern"
+msgstr "Vzorec opakování"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -15977,6 +16025,12 @@ msgstr "Tuto schůzku organizuje někdo jiný: zůstává v kalendáři, do kter
 msgid "Something did not go through, or did not arrive as it was sent. The steps below say what."
 msgstr "Něco neprošlo nebo nedorazilo tak, jak bylo odesláno. Níže uvedené kroky říkají co."
 
+#. command label
+#: crates/engine/src/cmd/calendar_list.rs
+#, fuzzy
+msgid "Sort List"
+msgstr "Seřadit seznam"
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -16037,8 +16091,8 @@ msgstr "Návrhy opravy"
 msgid "Stand this calendar beside the others"
 msgstr "Postavit tento kalendář vedle ostatních"
 
-#. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Start"
 msgstr "Začátek"
@@ -17186,6 +17240,12 @@ msgstr ""
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "Kalendář {name} a jeho události uchovávané v tomto počítači budou odstraněny, stejně jako adresa, která se pro něj uchovává. Nikam se nic neodešle; k odběru se můžete znovu přihlásit pomocí adresy."
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "The calendars shown hold no items."
+msgstr "Zobrazené kalendáře neobsahují žádné položky."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -20572,7 +20632,7 @@ msgid "Version {version} is ready:"
 msgstr "Verze {version} je připravena:"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_list.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Zobrazení"
@@ -20684,6 +20744,12 @@ msgstr "Čísla týdnů"
 #, fuzzy
 msgid "Week starts on"
 msgstr "Týden začíná"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Weekly"
+msgstr "Týdně"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -21089,6 +21155,12 @@ msgstr "Yahoo"
 #, fuzzy
 msgid "Yahoo Mail"
 msgstr "Yahoo Mail"
+
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "Yearly"
+msgstr "Ročně"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -23050,7 +23122,7 @@ msgid "select a task first"
 msgstr "nejprve vyberte úkol"
 
 #. interface, what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "nejprve vyberte událost"
@@ -25464,6 +25536,15 @@ msgstr "{name}: není soubor zprávy"
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}: není soubor zprávy, kalendáře ani kontaktu, který MailCraft čte"
 
+#. interface
+#: crates/ui-egui/src/calendar_view/list.rs
+#, fuzzy
+msgid "{name}: {n} item"
+msgid_plural "{name}: {n} items"
+msgstr[0] "{name}: {n} položka"
+msgstr[1] "{name}: {n} položky"
+msgstr[2] "{name}: {n} položek"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -25916,6 +25997,15 @@ msgid_plural "{n} items selected"
 msgstr[0] "{n} vybraná položka"
 msgstr[1] "{n} vybrané položky"
 msgstr[2] "{n} vybraných položek"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} item, {left} more not listed"
+msgid_plural "{n} items, {left} more not listed"
+msgstr[0] "{n} položka, dalších {left} není uvedeno"
+msgstr[1] "{n} položky, dalších {left} není uvedeno"
+msgstr[2] "{n} položek, dalších {left} není uvedeno"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs

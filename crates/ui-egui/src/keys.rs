@@ -831,7 +831,12 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         {
             // A typed set of more than one is deleted as that set, never as the one series its
             // focus might name: the occurrence scope keeps its one accurate question.
-            let params = if id == "calendar.delete" && app.session.sel.events.len() > 1 { json!({ "scope": "occurrence" }) } else { json!({}) };
+            let params =
+                if id == "calendar.delete" && app.session.view.calendar != mailcraft_engine::CalView::List && app.session.sel.events.len() > 1 {
+                    json!({"scope": "occurrence"})
+                } else {
+                    json!({})
+                };
             let _ = app.run(id, params);
             continue;
         }

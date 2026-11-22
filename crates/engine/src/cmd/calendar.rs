@@ -52,7 +52,7 @@ fn own_specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.delete", "Delete", "Appointment › Actions", delete)
             .params(r#"{"id"?: number, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "scope"?: "series" | "occurrence", "occurrence"?: "YYYY-MM-DD" (only that day of a series), "send"?: true (required for a meeting the owner organizes on a server: the people invited are sent a cancellation), "comment"?: string (a note for them), "decline"?: true (somebody else's meeting: decline it rather than only delete the owner's copy; the organizer is told when "send" is true)} — "items" deletes that set in one step (1 to 200; a day of a series needs its "day", and "scope": "series" deletes all of a series named without one); without "items" or "id", Delete takes a typed selection of two or more as such a set (and one of one item that isn't the event in focus); a typed selection of one item that has the focus (what a click selects) is the one event it names, as `id` is (or nothing, with no typed selection: the event in focus), with the older scope rules: of a series, the whole series unless "scope": "occurrence" names that day. A set answers {"deleted": n, "items": [...]}, n being a count; one whole event answers {"deleted": id}, its id; one day of a series answers {"id", "occurrence"}"#)
             .selection(needs_event),
-        CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).reads().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set"#),
+        CommandSpec::new("calendar.select", "Select Event", "Calendar", selection::select).reads().params(r#"{"id"?: number | null, "day"?: "YYYY-MM-DD", "series"?: bool, "items"?: [{"id": number, "day"?: "YYYY-MM-DD"}, …], "extend"?: bool} — "items" is the typed selection: whole events, and occurrences of a series by the day the series names them by; "extend" toggles each named item in or out. `id`: null selects nothing; `id`/`day` is the older single-event selection, and replaces the typed set. With `id`, "series": true selects the whole event without a day, as a List row does"#),
         CommandSpec::new("calendar.get", "Get Event", "Calendar", get).pure().params(r#"{"id"?: number}"#),
         CommandSpec::new("calendar.list", "List Events", "Calendar", list)
             .pure()
@@ -1335,7 +1335,11 @@ fn show_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let value = p::bool(v, "value");
     let c = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| failed!("no calendar with id {id}", id))?;
     c.visible = value.unwrap_or(!c.visible);
-    Ok(json!({"id": id, "visible": c.visible}))
+    let visible = c.visible;
+    if !visible {
+        selection::hide_calendar(s, id);
+    }
+    Ok(json!({"id": id, "visible": visible}))
 }
 
 /// How much a way of showing time counts when two overlap: the stronger one is what shows.

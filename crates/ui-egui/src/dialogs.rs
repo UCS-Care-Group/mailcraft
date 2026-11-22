@@ -1918,6 +1918,38 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         Some((_, said)) => said.or(day).or(Some(e.start.date)),
         None => day,
     };
+    // The List selects the series without a day. Back in a grid, Delete needs an explicit
+    // choice again. Offer an occurrence from that grid when there is one.
+    let grid_delete_without_day = id == "calendar.delete"
+        && day.is_none()
+        && e.recurrence.is_some()
+        && app.session.sel.event == Some(e.id)
+        && app.session.view.module == mailcraft_engine::Module::Calendar
+        && app.session.view.calendar != mailcraft_engine::CalView::List
+        && !has("scope")
+        && !has("occurrence");
+    let day = if grid_delete_without_day {
+        let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
+        let day = e
+            .occurrences_in(from, to, &here)
+            .into_iter()
+            .filter(|o| (from..=to).contains(&o.start.date))
+            .min_by_key(|o| (o.start.date < app.session.view.date, o.start))
+            .map(|o| o.start.date)
+            .or_else(|| e.series_day_on(e.start.date, &here).map(|_| e.start.date));
+        if day.is_none() {
+            let name: String = e.title.chars().filter(|c| !c.is_control()).take(80).collect();
+            return Some(Question::new(
+                tl!("Delete Recurring Item"),
+                format!("{name}\n{}", tl!("Delete this event?")),
+                tl!("The Entire Series"),
+                json!({"id": e.id, "scope": "series"}),
+            ));
+        }
+        day
+    } else {
+        day
+    };
     if let Some(day) = day.filter(|_| e.recurrence.is_some() && about_days && !has("scope") && !has("occurrence")) {
         let title = match id {
             "calendar.delete" => tl!("Delete Recurring Item"),
@@ -1931,8 +1963,13 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
             tl!("\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"),
             &[("name", &name), ("day", &crate::dates::long(day))],
         );
-        let one = json!({"scope": "occurrence", "occurrence": day.iso()});
-        return Some(Question::new(title, text, tl!("Just This One"), one).or(tl!("The Entire Series"), json!({"scope": "series"})));
+        let mut one = json!({"scope": "occurrence", "occurrence": day.iso()});
+        let mut series = json!({"scope": "series"});
+        if grid_delete_without_day {
+            one["id"] = json!(e.id);
+            series["id"] = json!(e.id);
+        }
+        return Some(Question::new(title, text, tl!("Just This One"), one).or(tl!("The Entire Series"), series));
     }
     if opening {
         return None;

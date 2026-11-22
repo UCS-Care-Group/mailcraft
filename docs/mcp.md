@@ -197,7 +197,7 @@ of a mailbox file being opened, which is framed) and the `mailcraft://commands` 
 answer the program's own words, are not framed. `screenshot` always says `"untrusted": true`: the
 picture shows message text. That covers a message's source (`mail.viewSource`), the searches `mail.findRelated` and
 `mail.findFromSender` build from a message's subject or sender, an online meeting's link
-(`calendar.get`, `calendar.list`, `calendar.join`), the categories and identifiers a server or a
+(`calendar.get`, `calendar.list`, `calendar.join`), titles and categories in `calendar.listRows`, the categories and identifiers a server or a
 file gave, and a contact's names, postal addresses, phones and web sites. The server's instructions say the same. This is defence in depth: the gate above is what protects.
 
 **What a sender hid.** `read_message` and `mail.get` answer, beside `body` (what the owner sees), a `hiddenText` field (#599) when the message has any: the words of what its sender hid (a preheader, the other copy of a desktop and mobile pair), which the owner's reading pane leaves out and search finds. It is message text like the rest: framed as untrusted, data and never instructions. A message read before #599 has none until it is read again from its source.

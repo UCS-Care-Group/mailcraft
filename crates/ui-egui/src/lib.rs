@@ -2254,9 +2254,14 @@ impl MailApp {
         let v = &mut self.session.view;
         (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
             (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
-        // How People and Tasks are arranged, likewise.
+        // How People, Tasks and the calendar's List view are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;
+        (v.list_sort, v.list_descending, v.list_arrange) = (saved.list_sort, saved.list_descending, saved.list_arrange);
+        // (A file written by hand can name a column that doesn't sort.)
+        if !v.list_sort.sorts() {
+            v.list_sort = mailcraft_engine::ListColumn::Start;
+        }
         // Gmail's categories as folders or as tabs (#911).
         v.gmail_tabs = saved.gmail_tabs;
         // Where the switch between the modules is (#1174).
@@ -2344,6 +2349,26 @@ impl MailApp {
         if id == "edit.undo" && self.session.undo_send_wait().is_some() && self.session.undo_send_latest() {
             return self.run("compose.undoSend", json!({}));
         }
+        // The Calendar List shows one selected row. A typed selection made by a script must
+        // never make the window's Delete take other items that the List does not show selected.
+        let params = if id == "calendar.delete"
+            && self.session.view.module == mailcraft_engine::Module::Calendar
+            && self.session.view.calendar == mailcraft_engine::CalView::List
+            && (params.is_null() || params.as_object().is_some_and(serde_json::Map::is_empty))
+        {
+            let event =
+                self.session.sel.event.filter(|id| {
+                    mailcraft_engine::cmd::calendar_list::cached(&self.session).flat().any(|(_, row)| row.event == *id && !row.free_busy)
+                });
+            let Some(event) = event else {
+                let why = tl!("select an appointment first");
+                self.say_refused(id, why);
+                return Err(why.to_string());
+            };
+            json!({"id": event, "scope": "series"})
+        } else {
+            params
+        };
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
         // A message being written isn't let go of without a word (#442).

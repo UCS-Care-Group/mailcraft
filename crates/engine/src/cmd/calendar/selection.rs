@@ -29,9 +29,13 @@ mod selection_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("calendar.selectAll", "Select All", "Calendar", select_all).reads().key("Mod+A").params(
-            r#"{} — every distinct appointment shown in the range in view and in the calendars shown, up to 200; answers {"selected": n, "capped": bool} (capped says the range holds more than 200)"#,
-        ),
+        CommandSpec::new("calendar.selectAll", "Select All", "Calendar", select_all)
+            .reads()
+            .key("Mod+A")
+            .when(|s| (s.view.calendar == crate::CalView::List).then_some(""))
+            .params(
+                r#"{} — every distinct appointment shown in the grid range and in the calendars shown, up to 200; answers {"selected": n, "capped": bool} (capped says the range holds more than 200)"#,
+            ),
         CommandSpec::new("calendar.paste", "Paste", "Calendar", paste).params(
             r#"{"items": [{"id": number, "day"?: "YYYY-MM-DD"}, …], "start": "YYYY-MM-DDTHH:MM", "cut"?: bool, "calendar"?: number, "send"?: bool} — pastes the named items at `start`: the earliest timed one there, the others by their own day and time-of-day offsets from it, whole-day ones as whole days. "cut": true moves them (a series' occurrence as that occurrence changed, never a cancellation); "calendar" is where they go (default: each one's own; a series' occurrence stays in its series' calendar). Answers {"ids": [...], "cut": bool}, the ids in the order of the items. Items are required, 1 to 200, and the same item twice is refused, and so is a copy (not a cut) of an item with files attached, as Copy Event refuses one (only its server keeps them). "send": true is required when cutting makes the account's server write to the people invited"#,
         ),
@@ -325,7 +329,8 @@ pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
         }
         Named::Legacy { id, day } => {
             let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
-            s.sel.event_day = day.or(Some(e.start.date));
+            // The List selects one whole event or series, with no day in focus.
+            s.sel.event_day = if p::bool(v, "series") == Some(true) { None } else { day.or(Some(e.start.date)) };
             s.sel.event = Some(id);
             // An older single-event selection may not leave an unrelated set standing.
             s.sel.events.clear();
@@ -338,6 +343,18 @@ pub(super) fn select(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     Ok(json!({}))
+}
+
+/// Hidden items leave the selected set before Delete can act on it.
+pub(super) fn hide_calendar(s: &mut Session, calendar: Id) {
+    let hidden = |id| s.mailbox.event(id).is_some_and(|e| e.calendar == calendar);
+    let kept: Vec<_> = s.sel.events.iter().copied().filter(|item| !hidden(item.id)).collect();
+    if kept.len() != s.sel.events.len() {
+        set_selection(s, &kept);
+    } else if s.sel.event.is_some_and(hidden) {
+        s.sel.event = None;
+        s.sel.event_day = None;
+    }
 }
 
 /// What `extend` starts from: the typed set, or the legacy focus as the one item it stands for.
