@@ -185,6 +185,7 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 mod merge_contacts;
+pub mod mirror;
 #[cfg(test)]
 mod module_foot_tests;
 pub mod motion;
@@ -1185,7 +1186,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"ar"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
@@ -5160,6 +5161,7 @@ impl MailApp {
         }
         if !self.styled {
             theme::install_fonts(ctx);
+            mirror::Mirror::install(ctx);
             // Mod with -, = and 0 would also scale the whole window; interface size is in Options.
             ctx.options_mut(|o| o.zoom_with_keyboard = false);
             // egui closes the window on Mod+Q by itself; here that is Mark as Read. A Mac quits

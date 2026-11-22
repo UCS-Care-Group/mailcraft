@@ -1,0 +1,1 @@
+- Arabic is offered as a preview language: the whole window reads from the right, with Arabic plurals, dates and numbers. Digits and Latin words inside an Arabic line are still drawn mirrored until line ordering lands in the toolkit ([#483](https://github.com/GITHUB_REPOSITORY/issues/483)).

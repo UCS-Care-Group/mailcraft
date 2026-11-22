@@ -46,6 +46,12 @@ pub fn set_current(lang: Lang) {
     store_current(lang);
 }
 
+/// Whether the window reads from the right (Arabic). The whole frame is then mirrored by
+/// [`crate::mirror`], so layout code is written once, left to right.
+pub fn rtl() -> bool {
+    current().is_rtl()
+}
+
 /// The window's language.
 pub fn current() -> Lang {
     let _held = hold_language();

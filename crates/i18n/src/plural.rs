@@ -24,6 +24,10 @@ pub enum Rule {
     /// Three forms (`plural=(n==1 ? 0 : (n>=2 && n<=4) ? 1 : 2)`): Czech (and Slovak).
     /// One for 1; another for 2, 3 and 4 alone (22 is "22 zpráv"); the third for the rest, 0 included.
     Czech,
+    /// Six forms (`plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5)`):
+    /// Arabic. None for 0; one for 1; the dual for 2; a few (3 to 10 past the hundreds: 3, 103);
+    /// many (11 to 99 past the hundreds: 11, 111); and the rest (100, 102, 200).
+    Arabic,
 }
 
 impl Rule {
@@ -43,6 +47,14 @@ impl Rule {
                 2..=4 => 1,
                 _ => 2,
             },
+            Rule::Arabic => match n {
+                0 => 0,
+                1 => 1,
+                2 => 2,
+                n if (3..=10).contains(&(n % 100)) => 3,
+                n if n % 100 >= 11 => 4,
+                _ => 5,
+            },
             Rule::Romanian => match n {
                 1 => 0,
                 0 => 1,
@@ -58,6 +70,7 @@ impl Rule {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
             Rule::Romanian | Rule::Polish | Rule::Czech => 3,
+            Rule::Arabic => 6,
         }
     }
 
@@ -80,6 +93,10 @@ impl Rule {
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
             (Some(3), Some("n==1?0:(n>=2&&n<=4)?1:2" | "(n==1)?0:(n>=2&&n<=4)?1:2" | "n==1?0:n>=2&&n<=4?1:2")) => Rule::Czech,
+            (
+                Some(6),
+                Some("n==0?0:n==1?1:n==2?2:n%100>=3&&n%100<=10?3:n%100>=11?4:5" | "n==0?0:n==1?1:n==2?2:(n%100>=3&&n%100<=10)?3:(n%100>=11)?4:5"),
+            ) => Rule::Arabic,
             _ => Rule::NotOne,
         }
     }
@@ -127,6 +144,11 @@ mod tests {
         assert_eq!(Rule::from_header("garbage((("), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n>1)+(n>2);"), Rule::NotOne);
         assert_eq!((Rule::AboveOne.index(0), Rule::AboveOne.index(1), Rule::AboveOne.index(2)), (0, 0, 1));
+        let ar = Rule::from_header("nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);");
+        assert_eq!(ar, Rule::Arabic);
+        let forms: Vec<usize> = [0, 1, 2, 3, 10, 11, 99, 100, 102, 103, 111, 1000].iter().map(|n| ar.index(*n)).collect();
+        assert_eq!(forms, [0, 1, 2, 3, 3, 4, 4, 5, 5, 3, 4, 5]);
+        assert_eq!(ar.forms(), 6);
         assert_eq!((Rule::NotOne.index(0), Rule::NotOne.index(1), Rule::NotOne.index(2)), (1, 0, 1));
     }
 }
