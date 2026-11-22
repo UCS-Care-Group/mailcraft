@@ -710,3 +710,14 @@ fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
     assert_in_set(&html);
     assert_eq!(from_html(&html), t);
 }
+
+#[test]
+fn test_gmail_reply_conversion() {
+    let gmail_reply = include_str!("../../../html/corpus/gmail_reply.html");
+    let rich = super::from_html_for_compose(gmail_reply);
+    let plain = rich.to_plain();
+    assert!(!plain.contains(">>>"), "Should NOT contain >>>");
+    for line in plain.lines() {
+        assert!(!line.trim_start().starts_with('>'), "Line should not start with >: {line}");
+    }
+}

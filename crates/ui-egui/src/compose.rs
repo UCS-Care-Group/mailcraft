@@ -302,6 +302,8 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
             signature(app, ui);
             if c.quote {
                 ui.add_space(8.0);
+                ui.label(egui::RichText::new(tl!("Original message")).italics().color(t.text_dim));
+                ui.add_space(4.0);
                 // The original senses the pointer over all of the view it is drawn in: kept to
                 // below where it begins, so that it doesn't lie over the owner's text and take a
                 // click meant for it (the body then never got the keyboard back, #158).

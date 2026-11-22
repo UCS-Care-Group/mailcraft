@@ -27131,3 +27131,18 @@ msgstr "−Righe"
 #~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 #~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
+msgid "Edit as text"
+msgstr "Modifica come testo"
+
+msgid "Remove quoted conversation from this reply"
+msgstr "Rimuovi la conversazione precedente da questa risposta"
+
+msgid "Convert quoted message to editable text to delete or change parts of it"
+msgstr "Converti la conversazione precedente in testo modificabile per eliminarne o cambiarne delle parti"
+
+msgid "Remove Quoted Message"
+msgstr "Rimuovi cronologia"
+
+msgid "Edit Quoted Message as Text"
+msgstr "Modifica cronologia come testo"
+
