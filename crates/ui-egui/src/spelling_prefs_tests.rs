@@ -98,8 +98,9 @@ fn a_hostile_settings_file_is_cleaned_and_capped() {
     assert_eq!(ui.custom_dictionary.len(), 10_000);
     assert_eq!(ui.custom_dictionary.first().map(String::as_str), Some("ok"));
     assert!(ui.custom_dictionary.iter().any(|word| word == "Hello"));
+    assert!(ui.custom_dictionary.iter().any(|word| word == "hello"));
     assert!(ui.custom_dictionary.iter().any(|word| word == "Colour"));
-    assert!(!ui.custom_dictionary.iter().any(|word| word == "hello" || word == "COLOUR" || word.contains(' ')));
+    assert!(!ui.custom_dictionary.iter().any(|word| word == "COLOUR" || word.contains(' ')));
     assert!(!ui.custom_dictionary.iter().any(|word| word.chars().count() > 64));
     assert!(!ui.custom_dictionary.iter().any(|word| word == "w10000"));
 
@@ -114,6 +115,14 @@ fn a_hostile_settings_file_is_cleaned_and_capped() {
     assert_eq!(window.ui.custom_dictionary.len(), 10_000);
     assert!(window.ui.spelling_language.is_empty());
     assert!(window.spelling_rev >= 1);
+}
+
+#[test]
+fn a_lowercase_entry_is_kept_when_a_capitalised_one_does_not_cover_it() {
+    let both: UiState = serde_json::from_value(json!({"customDictionary": ["Mailcraft", "mailcraft"]})).unwrap();
+    assert_eq!(both.custom_dictionary, vec!["Mailcraft".to_string(), "mailcraft".to_string()]);
+    let lower_first: UiState = serde_json::from_value(json!({"customDictionary": ["mailcraft", "Mailcraft"]})).unwrap();
+    assert_eq!(lower_first.custom_dictionary, vec!["mailcraft".to_string()]);
 }
 
 #[test]
@@ -135,8 +144,9 @@ fn a_large_custom_dictionary_is_deduped_quickly() {
     assert!(ui.custom_dictionary.iter().any(|word| word == "Colour"));
     assert!(ui.custom_dictionary.iter().any(|word| word == "ABC" || word == "Abc"));
     assert!(ui.custom_dictionary.iter().any(|word| word == "ABC") && ui.custom_dictionary.iter().any(|word| word == "Abc"));
-    assert!(!ui.custom_dictionary.iter().any(|word| word == "hello" || word == "HELLO" || word == "COLOUR"));
-    assert_eq!(ui.custom_dictionary.iter().filter(|word| word.starts_with('w')).count(), 9_996);
+    assert!(ui.custom_dictionary.iter().any(|word| word == "hello"));
+    assert!(!ui.custom_dictionary.iter().any(|word| word == "HELLO" || word == "COLOUR"));
+    assert_eq!(ui.custom_dictionary.iter().filter(|word| word.starts_with('w')).count(), 9_995);
     assert!(!ui.custom_dictionary.iter().any(|word| word.starts_with('W')));
 }
 

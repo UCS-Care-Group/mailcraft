@@ -612,8 +612,8 @@ fn accept_saved_word(text: &str) -> Option<String> {
 }
 
 /// Words already kept, so a long list is deduplicated without scanning it again for each word.
-/// A lowercase entry covers every casing, a capitalised entry covers that spelling and the same
-/// word in all capitals, and a lowercase word is the same entry as any earlier spelling of it.
+/// A lowercase entry covers every casing. A capitalised entry covers that spelling and the same
+/// word in all capitals, and does not cover the lowercase word.
 #[derive(Default)]
 struct Kept {
     folded: std::collections::HashSet<String>,
@@ -640,7 +640,9 @@ impl Kept {
     fn has(&self, word: &str) -> bool {
         let (exact, folded, has_upper) = word_keys(word);
         if !has_upper {
-            return self.folded.contains(&folded);
+            // A capitalised entry is recorded in `folded` but does not cover the lowercase word,
+            // matching `word_matches`: only a lowercase entry does.
+            return self.lower.contains(&folded);
         }
         self.lower.contains(&folded) || self.exact.contains(&exact) || (all_capitals(&exact) && self.folded.contains(&folded))
     }
