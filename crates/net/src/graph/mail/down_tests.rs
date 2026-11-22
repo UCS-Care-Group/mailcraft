@@ -28,7 +28,14 @@ fn run(server: &StandIn, links: Vec<GraphLink>, cancel: &AtomicBool) -> Vec<Grap
 fn links_after(pieces: &[GraphMailResult], mut links: Vec<GraphLink>) -> Vec<GraphLink> {
     for page in pieces.iter().flat_map(|p| &p.pages) {
         links.retain(|l| l.folder != page.folder);
-        links.push(GraphLink { folder: page.folder.clone(), link: page.link.clone(), caught_up: page.caught_up, counts: page.counts });
+        links.push(GraphLink {
+            folder: page.folder.clone(),
+            link: page.link.clone(),
+            caught_up: page.caught_up,
+            counts: page.counts,
+            afresh: false,
+            ..Default::default()
+        });
     }
     links
 }
@@ -393,6 +400,9 @@ mod inbox_pass {
         assert!(asked[0].starts_with("GET ") && asked[0].contains("messages/delta"), "{asked:?}");
         // Every piece is of the pass, partial, and none says the mailbox was read whole.
         assert!(pieces.iter().all(|p| p.inbox_pass && p.partial && !p.whole && p.listing.is_none()), "{pieces:?}");
+        // Only its last piece ends it (#566).
+        let ends: Vec<bool> = pieces.iter().map(|p| p.inbox_pass_end).collect();
+        assert!(ends.len() > 1 && ends.last() == Some(&true) && ends[..ends.len() - 1].iter().all(|end| !end), "{ends:?}");
         let got: Vec<&str> = pieces.iter().flat_map(|p| &p.pages).flat_map(|p| &p.messages).map(|m| m.server.id.as_str()).collect();
         assert_eq!(got, [new_inbox.as_str()]);
         assert!(pieces.iter().flat_map(|p| &p.pages).all(|p| p.folder == inbox && p.caught_up));
@@ -410,7 +420,7 @@ mod inbox_pass {
             rest.iter().flat_map(|p| &p.pages).filter(|p| p.folder == archive).flat_map(|p| &p.messages).map(|m| m.server.id.as_str()).collect();
         assert_eq!(inbox_news, 0, "the Inbox was read by the pass");
         assert_eq!(archive_news, [new_archive.as_str()]);
-        assert!(rest.last().unwrap().whole && rest.iter().all(|p| !p.inbox_pass));
+        assert!(rest.last().unwrap().whole && rest.iter().all(|p| !p.inbox_pass && !p.inbox_pass_end));
     }
 
     #[test]
@@ -429,7 +439,7 @@ mod inbox_pass {
             pieces.push(piece);
         });
         let last = pieces.last().unwrap();
-        assert!(last.stopped && last.inbox_pass && !last.whole);
+        assert!(last.stopped && last.inbox_pass && last.inbox_pass_end && !last.whole);
         let got: usize = pieces.iter().flat_map(|p| &p.pages).map(|p| p.messages.len()).sum();
         assert!(got > 0 && got < 250, "{got}");
         // The next pass goes on from there: nothing twice, nothing missed.
@@ -447,6 +457,76 @@ mod inbox_pass {
         let asked = GraphMailRequest { inbox_pass: Some(folder), ..request(Vec::new()) };
         let pieces = whole_run(&server.url(), "not the token", &asked, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
         let last = pieces.last().unwrap();
-        assert!(last.partial && last.inbox_pass && !last.errors.is_empty() && last.pages.is_empty());
+        assert!(last.partial && last.inbox_pass && last.inbox_pass_end && !last.errors.is_empty() && last.pages.is_empty());
     }
+}
+
+/// A message to more people, or with more categories, than the reader keeps says so (#566): a
+/// rule then can't tell from the listing what was left out.
+#[test]
+fn a_listing_with_more_recipients_or_categories_than_are_kept_says_it_cut_them() {
+    let people =
+        |n: usize, p: &str| (0..n).map(|i| serde_json::json!({"emailAddress": {"address": format!("{p}{i}@example.org")}})).collect::<Vec<_>>();
+    let read = |to: usize, cc: usize, categories: usize| {
+        let entry = serde_json::json!({
+            "id": "AAMk-600", "parentFolderId": "F-in", "receivedDateTime": "2026-10-14T16:00:00Z", "subject": "To all of us",
+            "toRecipients": people(to, "t"), "ccRecipients": people(cc, "c"),
+            "categories": (0..categories).map(|i| format!("C{i}")).collect::<Vec<_>>(),
+        });
+        super::down::message_of(&entry).unwrap()
+    };
+    let whole = read(500, 500, 25);
+    assert!(!whole.cut && whole.to.len() == 500 && whole.cc.len() == 500 && whole.server.categories.len() == 25);
+    let cut = read(600, 0, 0);
+    assert!(cut.cut && cut.to.len() == 500);
+    assert!(read(0, 501, 0).cut);
+    let categories = read(0, 0, 26);
+    assert!(categories.categories_cut && !categories.cut && !whole.categories_cut);
+}
+
+/// A recipient the reader can't keep (no address and no name) and a subject longer than it keeps
+/// make the listing cut as well (#566): a rule can't tell from it what they said.
+#[test]
+fn a_listing_that_leaves_a_recipient_or_the_end_of_its_subject_out_says_it_cut_them() {
+    let read = |subject: &str, cc: serde_json::Value| {
+        let entry = serde_json::json!({
+            "id": "AAMk-601", "parentFolderId": "F-in", "receivedDateTime": "2026-10-14T16:00:00Z", "subject": subject,
+            "toRecipients": [{"emailAddress": {"address": "ada@example.org"}}], "ccRecipients": cc,
+        });
+        super::down::message_of(&entry).unwrap()
+    };
+    let plain = read("Plan", serde_json::json!([{"emailAddress": {"address": "bo@example.org"}}]));
+    assert!(!plain.cut && plain.cc.len() == 1);
+    let nobody = read("Plan", serde_json::json!([{"emailAddress": {}}]));
+    assert!(nobody.cut && nobody.cc.is_empty());
+    let long = format!("{} confidential", "a".repeat(1_000));
+    let cut = read(&long, serde_json::json!([]));
+    assert!(cut.cut && cut.subject.chars().count() == 998);
+    assert!(!read(&"a".repeat(998), serde_json::json!([])).cut, "a subject that fits is whole");
+}
+
+#[test]
+fn a_device_that_takes_less_passes_a_larger_message_over_and_keeps_the_batch_within_its_room() {
+    // A phone (MB3.17): each message within `most_bytes`, the batch within `most_total`.
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 4, NOW);
+    let big = format!("From: avery@example.org\r\nTo: owner@example.org\r\nSubject: Large\r\n\r\n{}\r\n", "x".repeat(64 * 1024));
+    server.state().mailbox.update(&ids[1], |m| m.mime = Some(big.clone()));
+    let mut request = fetch_request(&ids);
+    request.most_bytes = 16 * 1024;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.too_large, [ids[1].clone()]);
+    assert_eq!(got.failed, [ids[1].clone()], "named as passed over too, so the background leaves it");
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str(), ids[2].as_str(), ids[3].as_str()]);
+    assert!(got.errors.is_empty() && !got.offline, "{:?}", got.errors);
+    assert!(got.fetched.iter().all(|f| f.mime.len() <= 16 * 1024));
+
+    // The batch's room: once it is used up, the rest wait (neither fetched nor failed).
+    let first = got.fetched[0].mime.len() as u64;
+    let mut request = fetch_request(&[ids[0].clone(), ids[2].clone(), ids[3].clone()]);
+    request.most_total = first + 1;
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &request, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[0].as_str()]);
+    assert!(got.failed.is_empty() && got.too_large.is_empty() && got.errors.is_empty(), "{got:?}");
 }

@@ -52,6 +52,12 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     if !is_id(&m.server.id) {
         return false;
     }
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    m.categories_cut |= m.server.categories.len() > 50;
+    let (to, cc) = (people(&m.to), people(&m.cc));
+    // (A blank and a character after it, at the most, say a subject on one line is longer.)
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 2).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_owned();
     server.gone = false;
@@ -68,8 +74,7 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
     m.from = person(&m.from).unwrap_or_default();
-    m.to = people(&m.to);
-    m.cc = people(&m.cc);
+    (m.to, m.cc) = (to, cc);
     true
 }
 
@@ -295,6 +300,7 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
         link: String::new(),
         caught_up: false,
         afresh: page.afresh,
+        relist_gen: 0,
         counts: None,
     };
     graph_down::take_page(mb, index, account, &as_page, down);

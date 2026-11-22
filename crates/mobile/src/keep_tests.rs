@@ -204,6 +204,7 @@ fn the_sending_mark_is_on_disk_before_the_send_job_starts() {
         },
         SendReceive::with_runner(move |req| runner(req)),
         Some(dir.path().to_string()),
+        &[],
     )
     .unwrap();
     let account = fill(&core);
@@ -312,7 +313,10 @@ fn removing_the_data_removes_the_files_and_the_sign_ins() {
     block_on(core.save_now()).unwrap();
     std::fs::write(dir.0.join("mailbox.mailcraft.unreadable-1"), b"old").unwrap();
     assert!(dir.0.join("mailbox.mailcraft.blobs").exists());
+    block_on(core.hold_background_sync(account, true)).unwrap();
     block_on(core.delete_local_data()).unwrap();
+    // The holds went with the mailbox: a new account given the same number is not held back.
+    assert!(!core.sync.lock().sr.held(account));
     assert_eq!(std::fs::read_dir(&dir.0).unwrap().count(), 0);
     assert!(platform.secrets.kept.lock().unwrap().is_empty());
     assert!(subjects(&core).is_empty());
@@ -472,7 +476,10 @@ fn an_index_that_does_not_parse_is_set_aside_and_never_taken_for_an_empty_one() 
     fill(&core);
     // The removal goes through, and says that older sign-ins may be left.
     let answer = block_on(core.delete_local_data()).unwrap();
-    assert!(matches!(&answer, DataRemoved::SignInsMayRemain { message } if message.contains("Settings") && !message.contains("mail")), "{answer:?}");
+    assert!(
+        matches!(&answer, DataRemoved::SignInsMayRemain { message } if message.contains("settings") && !message.contains("mail") && !message.contains("Android")),
+        "{answer:?}"
+    );
     assert!(subjects(&core).is_empty(), "the mail is removed");
     let kept = platform.secrets.kept.lock().unwrap().clone();
     // The garbage is set aside, not lost, and nothing parses as the index any more.

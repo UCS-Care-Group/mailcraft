@@ -176,7 +176,7 @@ pub fn jmap_fetch_request(s: &Session, account: Id, message: Option<Id>, most: u
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
             m.server
                 .as_ref()
-                .filter(|server| graph_down::still_to_fetch(&s.mailbox, m) && jmap_down::is_id(&server.id))
+                .filter(|server| (graph_down::still_to_fetch(&s.mailbox, m) || s.asked_for_save(id)) && jmap_down::is_id(&server.id))
                 .map(|server| vec![server.id.clone()])
                 .unwrap_or_default()
         }
@@ -261,7 +261,7 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     let name = receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded(result);
     let mut taken = Taken::default();
-    let mut down = Down::default();
+    let mut down = Down::of_run(s, account);
     // What became of the changes: the marks before the moves, since a move may give a message a
     // new id, by which an answer about its marks would no longer find it.
     let mut told = Told::default();
@@ -287,7 +287,8 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     // What was sent: gone from the Outbox, or held there with what happened.
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
@@ -312,6 +313,7 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
         jmap_down::take_window(&mut s.mailbox, &mut index, account, page, first, &mut down);
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     // The run's end: what its complete windows left out goes, when it went well (and not after a
     // listing cut short: what left a mailbox may be in one it missed). Either way the next run
     // begins afresh.
@@ -324,7 +326,7 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     // The threads of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded || waits_changed {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded || waits_changed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

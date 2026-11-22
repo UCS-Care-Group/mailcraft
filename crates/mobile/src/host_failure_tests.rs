@@ -57,6 +57,10 @@ impl Platform for Throws {
         Err(HostError::Native)
     }
 
+    fn open_link(&self, _url: String) -> Result<(), HostError> {
+        Err(HostError::Unsupported)
+    }
+
     fn now(&self) -> Result<i64, HostError> {
         Err(HostError::Native)
     }

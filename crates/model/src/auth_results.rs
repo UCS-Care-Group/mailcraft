@@ -16,7 +16,9 @@
 //!   the mail came from inside the owner's own organisation. What the window lets a remembered
 //!   sender's pictures come by, and a sender's own picture.
 //! - [`failed_check`]: the server says it failed DMARC, or, when the server gives no DMARC
-//!   verdict at all, SPF for the sender's domain. A **sender warning**.
+//!   verdict at all, SPF for the sender's domain. A **sender warning**. Not when Exchange Online
+//!   says it didn't enforce DMARC because the mail came through another service first
+//!   (`compauth=none reason=905`), unless the sender is at the account's own domain.
 //!
 //! Everything is bounded: so many headers looked through, so many characters of the value, so
 //! many clauses.
@@ -404,6 +406,52 @@ pub(crate) fn dkim_passed(account: Option<&Account>, m: &Message) -> Vec<(String
         .collect()
 }
 
+/// What the account's own server says of a message's checks, short and safe to hand to an agent
+/// (#1472): each method's result as a lower-case word (`pass`, `fail`, `softfail`, `none` …) and,
+/// when a signature passed, whose domain signed it. A word the server writes that is not a plain
+/// short one is left out, never passed on.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Summary {
+    pub spf: Option<String>,
+    pub dkim: Option<String>,
+    pub dkim_domain: Option<String>,
+    pub dmarc: Option<String>,
+}
+
+/// Longest result word and longest signer's domain a [`Summary`] carries.
+const MAX_RESULT_WORD: usize = 16;
+const MAX_SUMMARY_DOMAIN: usize = 100;
+
+/// A result word as it goes into a [`Summary`]: letters and dashes, in lower case, at most
+/// [`MAX_RESULT_WORD`] of them; `None` for anything else (a result is the first thing a clause
+/// says, but a sender can put anything into a value).
+fn result_word(word: &str) -> Option<String> {
+    let ok = !word.is_empty() && word.len() <= MAX_RESULT_WORD && word.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
+    ok.then(|| word.to_ascii_lowercase())
+}
+
+/// What the server of `account` says of `m`'s SPF, DKIM and DMARC checks: read from the one
+/// `Authentication-Results` header it wrote ([`own_results`]: the topmost, and only when it is the
+/// server's), never from a lower one, which the sender could have written. `None` when there is
+/// no such header or it says nothing of the three: nothing is guessed.
+pub fn summary(account: Option<&Account>, m: &Message) -> Option<Summary> {
+    let value = own_results(account, m, false)?.first().copied()?;
+    let (parsed, _) = clauses(value);
+    let first_of =
+        |wanted: &str| parsed.iter().filter_map(|words| result(words)).find(|(method, _)| method == wanted).and_then(|(_, word)| result_word(&word));
+    // Whether a signature passed does not depend on how long its domain is: only the domain shown
+    // is left out when it is over the cap.
+    let signed = dkim_passed(account, m).into_iter().next().map(|(d, _)| d);
+    let found = Summary {
+        spf: first_of("spf"),
+        // A signature that passed is the news, whatever order the server listed them in.
+        dkim: if signed.is_some() { Some("pass".into()) } else { first_of("dkim") },
+        dkim_domain: signed.filter(|d| d.len() <= MAX_SUMMARY_DOMAIN),
+        dmarc: first_of("dmarc"),
+    };
+    (found.spf.is_some() || found.dkim.is_some() || found.dmarc.is_some()).then_some(found)
+}
+
 /// Whether the `Authentication-Results` value `value` gives a DMARC verdict: a `dmarc` (or
 /// `compauth`) clause of any result, or a part not read ([`clauses`]) where one may stand.
 fn dmarc_verdict(value: &str) -> bool {
@@ -444,7 +492,10 @@ impl Failed {
 /// no `dmarc` clause at all, `spf=fail` for a `smtp.mailfrom` at the sender's domain or one under
 /// the domain it judged; a DMARC failure for a domain whose policy is `p=none` is
 /// [`Failed::DmarcPolicyNone`]. A server that says nothing, or says it of another domain, gives `None`,
-/// and so does Exchange Online's `compauth=pass` for the sender, which is its last word.
+/// and so does Exchange Online's `compauth=pass` for the sender, which is its last word, and its
+/// `compauth=none reason=905`, which says it didn't enforce DMARC because the mail came through
+/// another service first ([`complex_routing`]), for a sender outside the account's own domain
+/// ([`own_organisation`]).
 pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     let clauses = own_clauses(account, m)?;
     // Unlike `vouched`, any address is read: a sender whose name is written in other letters
@@ -454,8 +505,16 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     let judged =
         |words: &[String], key: &str| property(words, key).map(|v| sender_warnings::sender_domain(v).or_else(|| sender_warnings::normal_domain(v)));
     let of_sender = |words: &[String]| judged(words, "header.from").is_none_or(|j| j.is_some_and(|j| judged_for(&j, &sender_domain)));
-    // Exchange Online's composite verdict overrides a DMARC failure it chose to let through.
-    if clauses.iter().any(|words| result(words).is_some_and(|(method, outcome)| method == "compauth" && outcome == "pass") && of_sender(words)) {
+    // Exchange Online's composite verdict overrides a DMARC failure it chose to let through, and
+    // so does its word that it didn't enforce DMARC because of the route, but not for the owner's
+    // own domain: Exchange says that of everything a tenant behind a gateway gets, a spoof of a
+    // colleague sent straight to Microsoft 365 past the gateway among it.
+    let outside = !own_organisation(account, &sender_domain);
+    let routed = |words: &[String]| outside && complex_routing(words);
+    if clauses.iter().any(|words| {
+        result(words).is_some_and(|(method, outcome)| method == "compauth" && (outcome == "pass" || (outcome == "none" && routed(words))))
+            && of_sender(words)
+    }) {
         return None;
     }
     let mut dmarc_said = false;
@@ -477,6 +536,34 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
             && judged(words, "smtp.mailfrom").flatten().is_some_and(|j| j == sender_domain || judged_for(&sender_domain, &j))
     });
     spf_fails.then_some(Failed::Spf)
+}
+
+/// Whether a `compauth` clause gives Exchange Online's reason `905`: it didn't enforce DMARC
+/// because of complex routing, which is what it says when the mail came through another service
+/// first (a filtering gateway in front of Microsoft 365, or an organisation's own server). Such a
+/// service sends from an address the sender's SPF doesn't name, and may change the message under
+/// the sender's signature (a rewritten link, a banner, a tag on the subject), so `dmarc` and
+/// `spf` fail for senders who are who they say. Exchange gives the code from how the tenant's
+/// mail is routed, not from the message: it says it too of mail sent straight to Microsoft 365
+/// past the gateway, which is why it doesn't count for the owner's own domain
+/// ([`own_organisation`]). Only that one code: the other codes of `compauth=none` (an
+/// administrator's allow list, among others) let mail by for reasons that say nothing of the
+/// checks, which then still stand.
+fn complex_routing(words: &[String]) -> bool {
+    property(words, "reason") == Some("905")
+}
+
+/// Whether `sender_domain` (as [`sender_warnings::sender_domain`] reads it) is of the
+/// organisation of `account`'s own address: its registrable part ([`sender_warnings::registrable`])
+/// is that of the account's domain, so `hr.lumen.example` and `lumen.example` are one, and
+/// `lumen.example.org` is not. The account's address is read as the sender's is: lower case,
+/// `xn--` labels as the letters they stand for, no dot at the end. No account, or no domain in
+/// its address, has no own domain. Another domain the organisation has, which the account's
+/// address isn't at, is not known to be its.
+fn own_organisation(account: Option<&Account>, sender_domain: &str) -> bool {
+    account
+        .and_then(|account| sender_warnings::sender_domain(&account.email))
+        .is_some_and(|own| sender_warnings::registrable(&own) == sender_warnings::registrable(sender_domain))
 }
 
 /// Whether a `dmarc` clause says the domain's policy is `none`: in the server's comment

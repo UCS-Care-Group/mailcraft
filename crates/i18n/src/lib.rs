@@ -37,6 +37,10 @@ macro_rules! said {
 #[cfg(test)]
 mod chinese_tests;
 #[cfg(test)]
+mod czech_tests;
+#[cfg(test)]
+mod polish_tests;
+#[cfg(test)]
 mod said_tests;
 
 use std::collections::HashMap;
@@ -66,7 +70,10 @@ pub enum Lang {
     Dutch,
     Romanian,
     Hungarian,
+    Polish,
+    Czech,
     ChineseSimplified,
+    Georgian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -74,7 +81,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 10] = [
+    pub const ALL: [Lang; 13] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -83,7 +90,10 @@ impl Lang {
         Lang::Dutch,
         Lang::Romanian,
         Lang::Hungarian,
+        Lang::Polish,
+        Lang::Czech,
         Lang::ChineseSimplified,
+        Lang::Georgian,
         Lang::Pseudo,
     ];
 
@@ -98,7 +108,10 @@ impl Lang {
             Lang::Dutch => "nl",
             Lang::Romanian => "ro",
             Lang::Hungarian => "hu",
+            Lang::Polish => "pl",
+            Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
+            Lang::Georgian => "ka",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -137,6 +150,9 @@ impl Lang {
             "nl" => Some(Lang::Dutch),
             "ro" => Some(Lang::Romanian),
             "hu" => Some(Lang::Hungarian),
+            "pl" => Some(Lang::Polish),
+            "cs" => Some(Lang::Czech),
+            "ka" => Some(Lang::Georgian),
             _ => None,
         }
     }
@@ -152,7 +168,10 @@ impl Lang {
             Lang::Dutch => "Nederlands",
             Lang::Romanian => "Română",
             Lang::Hungarian => "Magyar",
+            Lang::Polish => "Polski",
+            Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
+            Lang::Georgian => "ქართული",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -161,7 +180,17 @@ impl Lang {
     pub fn preview(self) -> bool {
         matches!(
             self,
-            Lang::French | Lang::German | Lang::Spanish | Lang::Italian | Lang::Dutch | Lang::Romanian | Lang::Hungarian | Lang::ChineseSimplified
+            Lang::French
+                | Lang::German
+                | Lang::Spanish
+                | Lang::Italian
+                | Lang::Dutch
+                | Lang::Romanian
+                | Lang::Hungarian
+                | Lang::Polish
+                | Lang::Czech
+                | Lang::ChineseSimplified
+                | Lang::Georgian
         )
     }
 
@@ -456,10 +485,13 @@ mod tests {
             "Nederlands (voorbeeld)",
             "Română (previzualizare)",
             "Magyar (előzetes)",
+            "Polski (wersja zapoznawcza)",
+            "Čeština (náhled)",
         ];
         if !cfg!(target_arch = "wasm32") {
             expected.push("简体中文（预览）");
         }
+        expected.push("ქართული (საცდელი)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -471,6 +503,8 @@ mod tests {
         assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
         assert_eq!(Lang::from_pref("auto", Some("hu_HU.UTF-8")), Lang::Hungarian);
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
+        assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
+        assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
     }
 
     #[test]

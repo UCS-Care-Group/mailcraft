@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-20 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -53,14 +53,20 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **Allow edits by maintainers** (the box under a new pull request, on by default for a fork):
   it lets a maintainer bring your branch up to date with `main` or fix a small thing without
   waiting for you.
-- **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
-  spdx, test-files, layers, wasm, wasm-clock (no std clock in code the browser runs), and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+- **`cargo xtask ci` passes** on your machine before every commit: the cheap checks first (fmt,
+  assets, spdx, test-files, workflows, layers, wasm-clock (no std clock in code the browser runs),
+  i18n --check, release-notes, docs-log), then clippy, the tests, wasm, and cargo-deny when it is
+  installed. Commits carry the task id (`R3.2: messages come down by delta`).
 - **Rows of the documents' tables and lines of the release notes are files of their own.** A row
   of a document's revision history goes in `docs/log.d/<document without .md>/revisions/<issue>.md`,
   a row of `ROADMAP.md`'s progress log in `docs/log.d/ROADMAP/progress/<issue>.md`
   ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
+- **New interface texts are translated in every catalogue, marked `#, fuzzy`** (a draft; a
+  best-effort translation is fine), after `cargo xtask i18n`
+  ([`docs/translating.md`](docs/translating.md#new-texts-in-a-pull-request)). Left empty, they
+  don't block a review.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Security fixes: a fix for a security finding comes with a test that covers every site of its
   root cause**, not only the one that was reported: a table over every command, reader or writer
@@ -79,6 +85,32 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **Changes to sync, the store, sign-in and secrets** (the paths in
   [`CODEOWNERS`](.github/CODEOWNERS), which asks a maintainer for review) are read by a maintainer
   before they land. Expect questions.
+
+## Continuous integration
+
+`ci-ok` is the check a pull request must pass (with `cla`). CI runs in tiers:
+
+- **A pull request** runs `quick` at once: the cheap checks of `cargo xtask ci` (formatting, SPDX
+  lines, the catalogues, the fragments…), so a stale `.po` or a fragment that won't join fails in
+  a few minutes. Beside it, the tests of the packages it changes and of every package that depends
+  on them, on Linux, macOS and Windows (`cargo xtask affected` turns the changed files into a
+  nextest filter; the run's log and summary say what it selected and why). A translation alone
+  (`crates/i18n/po/` and documentation) runs on Linux only; the Android app's own files run its job
+  and no Rust tests; documentation alone runs `quick` only. The check of the phone binding for
+  Android runs when something it is built from changes.
+- **The whole suite** runs on every system when the pull request changes what every package is
+  built from (`Cargo.lock`, the root `Cargo.toml`, the toolchain, `.cargo/`, `.config/`, `xtask/`,
+  `.github/workflows/`, `.github/scripts/`) or a file outside every package, on every push to
+  `main`, and on a run by hand. The merge queue runs the whole suite on Linux alone: macOS's
+  runners are scarce, and the push to `main` after the merge runs every system.
+- **Label a pull request `full-ci`** to run the whole suite on it: adding the label starts the run.
+- **On a schedule:** coverage (nightly and on `main`, no longer on pull requests), FreeBSD and
+  Windows on Arm (nightly), fuzzing of every reader (weekly, and on a pull request that changes
+  one), the audit and the benchmarks.
+
+A test that passed on a pull request's selection can still fail on `main` (it reads something no
+dependency leads to): `main` runs everything on every merge, and when you are unsure, use the
+label.
 
 ## A first contribution
 
@@ -119,6 +151,10 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-20 | minor | New interface texts in a pull request are translated in every catalogue and marked `#, fuzzy`; left empty, they don't block a review |
+| 2026-11-17 | patch | The merge queue runs the whole suite on Linux alone; the push to `main` runs every system |
+| 2026-11-16 | minor | Continuous integration: the tiers, the cheap checks first in `quick`, a pull request's tests chosen from the packages it changes, and the `full-ci` label that runs the whole suite |
+| 2026-11-15 | patch | `cargo xtask ci` lists all its steps (i18n --check, release-notes, docs-log) |
 | 2026-11-14 | patch | `cargo xtask ci` names its wasm-clock step: no std clock or sleep in code the browser runs (#1337) |
 | 2026-11-12 | minor | An open pull request holds its feature while its author answers a review within 7 days; after that the feature is free to be built afresh |
 | 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |

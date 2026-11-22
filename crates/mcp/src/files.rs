@@ -10,7 +10,8 @@
 //! - what is written goes into a folder that, with every link followed, lies in DIR, as a new
 //!   file (`create_new`: an existing file, or a link of any kind in its place, is never written
 //!   through or over), never hidden (a leading dot), with the extension the command produces
-//!   (any but programs, scripts, web pages and macro-capable Office files, the kinds the attachment opener refuses or asks about, for an attachment).
+//!   (any but programs, scripts, web pages, macro-capable Office files, Markdown, and keys,
+//!   certificates and signatures: the kinds the attachment opener refuses or asks about first, for an attachment).
 
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -112,7 +113,9 @@ impl FilesDir {
             return Err(format!("{given}: this command writes a .{ext} file; the name must end in .{ext}"));
         }
         if e.as_deref().is_some_and(is_risky) {
-            return Err(format!("{given}: programs, scripts, web pages and Office files that can run macros are not written for an agent"));
+            return Err(format!(
+                "{given}: programs, scripts, web pages, Office files that can run macros, Markdown, and keys, certificates and signatures (the kinds the attachment opener refuses or asks about first) are not written for an agent"
+            ));
         }
         let parent = joined.parent().ok_or_else(|| format!("{given}: no folder"))?;
         let real_parent = parent.canonicalize().map_err(|e| format!("{given}: {e}"))?;

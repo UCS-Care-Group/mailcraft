@@ -31,6 +31,7 @@ pub struct Backend {
     arriving: Receiver<Result<TrayHandle, String>>,
     handle: Option<TrayHandle>,
     lang: Lang,
+    badged: bool,
     #[cfg(test)]
     stand_in: bool,
 }
@@ -62,22 +63,28 @@ impl Backend {
             arriving,
             handle: None,
             lang: i18n::current(),
+            badged: false,
             #[cfg(test)]
             stand_in: false,
         }
     }
 
-    pub fn poll(&mut self) {
+    pub fn poll(&mut self, badged: bool) {
+        let mut started = false;
         if let Ok(result) = self.arriving.try_recv() {
             match result {
-                Ok(handle) => self.handle = Some(handle),
+                Ok(handle) => {
+                    self.handle = Some(handle);
+                    started = true;
+                }
                 Err(e) => log::warn!("system tray unavailable; closing will exit MailCraft: {e}"),
             }
         }
-        if self.lang != i18n::current() {
+        if started || self.badged != badged || self.lang != i18n::current() {
             self.lang = i18n::current();
+            self.badged = badged;
             if let Some(handle) = &self.handle {
-                handle.handle.update(|_| ());
+                handle.handle.update(|item| item.badged = badged);
             }
         }
     }
@@ -93,7 +100,12 @@ impl Backend {
     #[cfg(test)]
     pub fn stand_in() -> Self {
         let (_, arriving) = channel();
-        Self { arriving, handle: None, lang: i18n::current(), stand_in: true }
+        Self { arriving, handle: None, lang: i18n::current(), badged: false, stand_in: true }
+    }
+
+    #[cfg(test)]
+    pub fn badged(&self) -> bool {
+        self.badged
     }
 }
 
@@ -110,23 +122,25 @@ fn start_item<T>(signals: Arc<Signals>, spawn: impl FnOnce(Item) -> Result<T, St
 
 pub(super) struct Item {
     signals: Arc<Signals>,
-    icon: ksni::Icon,
+    icons: [ksni::Icon; 2],
+    badged: bool,
 }
 
 fn make_item(signals: Arc<Signals>) -> Result<Item, String> {
-    let icon = crate::app_icon().ok_or("MailCraft icon couldn't be read")?;
+    let [plain, badged] = super::icons().ok_or("MailCraft icon couldn't be read")?;
+    Ok(Item { signals, icons: [sni_icon(plain)?, sni_icon(badged)?], badged: false })
+}
+
+fn sni_icon(icon: egui::IconData) -> Result<ksni::Icon, String> {
     let mut argb = Vec::with_capacity(icon.rgba.len());
     for &[r, g, b, a] in icon.rgba.as_chunks::<4>().0 {
         // StatusNotifierItem uses network-order ARGB, unlike egui's RGBA.
         argb.extend_from_slice(&[a, r, g, b]);
     }
-    Ok(Item {
-        signals,
-        icon: ksni::Icon {
-            width: i32::try_from(icon.width).map_err(|_| "tray icon is too wide")?,
-            height: i32::try_from(icon.height).map_err(|_| "tray icon is too tall")?,
-            data: argb,
-        },
+    Ok(ksni::Icon {
+        width: i32::try_from(icon.width).map_err(|_| "tray icon is too wide")?,
+        height: i32::try_from(icon.height).map_err(|_| "tray icon is too tall")?,
+        data: argb,
     })
 }
 
@@ -138,7 +152,8 @@ impl ksni::Tray for Item {
         "MailCraft".into()
     }
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        vec![self.icon.clone()]
+        let [plain, badged] = &self.icons;
+        vec![if self.badged { badged } else { plain }.clone()]
     }
     fn activate(&mut self, _: i32, _: i32) {
         self.signals.send(SHOW);

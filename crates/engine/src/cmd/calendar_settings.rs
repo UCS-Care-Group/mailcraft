@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use mailcraft_model::{Account, Calendar, Id, Rgb};
+use mailcraft_model::{Account, Calendar, Id, Mailbox, Rgb};
 use mailcraft_time::Weekday;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -52,7 +52,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.calendars", "List Calendars", "Calendar", list)
             .pure()
-            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "rights": "freeBusy"|"read"|"edit", "owner": {"address", "name"} | null, "current"}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
+            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "rights": "freeBusy"|"read"|"edit", "owner": {"address", "name"} | null, "current", "subscription": {"host", "intervalMinutes", "checked": seconds (0: never), "events", "capped": bool, "failure": string | null} | null (set for a calendar subscribed to on the web)}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
         CommandSpec::new("calendar.showOnly", "Show Only This Calendar", "Home › Manage Calendars", show_only)
             .params(r#"{"id": number} — that calendar is shown and every other one hidden"#),
         CommandSpec::new("calendar.color", "Calendar Colour", "Home › Manage Calendars", color)
@@ -104,8 +104,9 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let accounts: Vec<&Account> = mailbox.accounts_in_order().into_iter().filter(|a| keepers.contains(&a.id)).take(50).collect();
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
+        let main_owner = mailbox.main_calendar_owner(account.id).unwrap_or_default();
         let group_of = |c: &Calendar| {
-            if is_shared_with(account, c) {
+            if c.is_shared_with(&[&account.email, main_owner]) {
                 SHARED_CALENDARS.to_string()
             } else if c.group.trim().is_empty() {
                 MY_CALENDARS.to_string()
@@ -143,21 +144,25 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
             groups.push(CalendarGroup { title, account: account.id, calendars: calendars.iter().map(|c| c.id).collect() });
         }
     }
-    let here: Vec<Id> = listed.iter().filter(|c| keeper(c).is_none()).map(|c| c.id).collect();
+    let here: Vec<Id> = listed.iter().filter(|c| keeper(c).is_none() && !c.is_subscribed()).map(|c| c.id).collect();
     if !here.is_empty() {
         let title = if accounts.is_empty() { MY_CALENDARS } else { remote::LOCAL_CALENDAR };
         groups.push(CalendarGroup { title: title.to_string(), account: 0, calendars: here });
+    }
+    // The calendars subscribed to (#209), last: they are copies of other people's, on the web.
+    let subscribed: Vec<Id> = listed.iter().filter(|c| c.is_subscribed()).map(|c| c.id).collect();
+    if !subscribed.is_empty() {
+        groups.push(CalendarGroup { title: OTHER_CALENDARS.to_string(), account: 0, calendars: subscribed });
     }
     groups
 }
 
 /// Whether `calendar`, one that `account`'s server lists, is somebody else's, shared with the
-/// account: its owner is a person other than the account's own address. Never the account's main
-/// calendar, and never one whose owner the server didn't say.
-pub(crate) fn is_shared_with(account: &Account, calendar: &Calendar) -> bool {
-    let own = account.email.trim();
-    let Some(owner) = calendar.owner.as_ref() else { return false };
-    !calendar.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
+/// account: its owner is a person other than the account, by the address it was added with or by
+/// the one its server names as its main calendar's owner (#661), or one opened by address. Never
+/// the account's main calendar, and never one of its list whose owner the server didn't say.
+pub(crate) fn is_shared_with(mailbox: &Mailbox, account: &Account, calendar: &Calendar) -> bool {
+    calendar.is_shared_with(&[&account.email, mailbox.main_calendar_owner(account.id).unwrap_or_default()])
 }
 
 /// The calendars that are shown, in the order of the list.
@@ -226,7 +231,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         Some(json!({
             "id": c.id, "name": c.name, "color": c.shown_color().hex(), "ownColor": c.own_color.is_some(),
             "visible": c.visible, "readOnly": remote::writable(&s.mailbox, c.id).is_err(), "current": c.id == current,
-            "rights": c.rights, "owner": c.owner,
+            "rights": c.rights, "owner": c.owner, "subscription": c.subscription.as_ref().map(subscription_json),
         }))
     };
     let groups: Vec<Value> = calendar_groups(s)
@@ -241,6 +246,15 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         fields.insert("groups".into(), Value::Array(groups));
     }
     Ok(answer)
+}
+
+/// What is known of a subscribed calendar, for a list: where it is read from (the host only),
+/// how often, when it last answered, why not when it didn't, and whether events were left out.
+fn subscription_json(sub: &mailcraft_model::subscription::Subscription) -> Value {
+    json!({
+        "host": sub.host, "intervalMinutes": sub.interval(), "checked": sub.checked, "events": sub.events, "capped": sub.capped,
+        "failure": sub.failed().map(|failure| failure.message()),
+    })
 }
 
 fn calendar_named(s: &Session, v: &Value, key: &str) -> Result<Id, CmdError> {

@@ -245,8 +245,10 @@ impl Core {
     /// may be empty. On success the account is in the mailbox, its sign-in is in the platform's
     /// credential store (when the owner lets sign-ins be remembered) and Send/Receive has it for
     /// the session; nothing is kept if the store refuses, nor if the call is dropped before the
-    /// account is in.
-    pub async fn sign_in_microsoft(&self, email: String) -> Result<SignInOutcome, CoreError> {
+    /// account is in. `settings` is what the owner chose in Add Account of what the phone keeps
+    /// of a new account's mail (its window, and the phone's storage cap); an account the owner
+    /// had already keeps its own.
+    pub async fn sign_in_microsoft(&self, email: String, settings: crate::limits::DownloadSettings) -> Result<SignInOutcome, CoreError> {
         let (address, tokens) = match self.account_sign_in(signin::hint_of(&email)).await? {
             Ok(signed) => signed,
             Err(outcome) => return Ok(outcome),
@@ -259,6 +261,7 @@ impl Core {
         };
         let new_account = json!({
             "email": address, "name": name, "displayName": name, "kind": "microsoft", "auth": "oauth2", "provider": "microsoft", "directory": directory,
+            "keepOffline": crate::settings::MOBILE_KEEP_OFFLINE,
         });
         // One job on the session's thread: the sign-in is kept, the account is added and
         // Send/Receive takes the sign-in, or none of it. A call dropped (or a core shut down) before
@@ -287,11 +290,31 @@ impl Core {
                         signin::restore_refresh(platform, &for_call, before.as_deref());
                     }
                 };
+                // (The storage cap is the mailbox's, not the account's: a new account's choice of it
+                // goes again with the account when its setup fails.)
+                let limits_before = s.mailbox.device_limits;
+                let restore_limits = |s: &mut mailcraft_engine::Session| {
+                    if s.mailbox.device_limits != limits_before {
+                        s.mailbox.device_limits = limits_before;
+                        s.mailbox_changed();
+                    }
+                };
                 let account = match known {
                     Some(id) => id,
                     None => {
                         let made = s.run("account.add", &new_account).map_err(CoreError::from);
-                        match made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)) {
+                        // The phone keeps what the owner chose of a new account's mail (MB3.16).
+                        let made = made.and_then(|m| m.get("id").and_then(Value::as_u64).ok_or(CoreError::Internal)).and_then(|id| {
+                            match crate::limits::apply_to(s, id, settings) {
+                                Ok(()) => Ok(id),
+                                Err(e) => {
+                                    let _ = s.run("account.remove", &json!({"id": id}));
+                                    restore_limits(s);
+                                    Err(CoreError::from(e))
+                                }
+                            }
+                        });
+                        match made {
                             Ok(id) => id,
                             Err(error) => {
                                 // (Nothing is kept of a sign-in that made no account.)
@@ -308,6 +331,9 @@ impl Core {
                 if let Some(why) = crate::sync_api::adopt_refusal(lang, adopted) {
                     if known.is_none() && s.run("account.remove", &json!({"id": account})).is_err() {
                         log::warn!("accounts: an account added for a refused sign-in couldn't be removed again");
+                    }
+                    if known.is_none() {
+                        restore_limits(s);
                     }
                     undo_kept(platform.as_ref());
                     return Ok(Err(why));
@@ -330,6 +356,10 @@ impl Core {
     pub async fn grant_permission(&self, account: u64, permission: Permission) -> Result<PermissionOutcome, CoreError> {
         let email = self.email_of(account).await?;
         let Some(place) = self.signins.begin() else { return Ok(not_granted("a sign-in is already open")) };
+        // (Looked at with the place held: `shutdown` calls off the one that is open, and none opens after it.)
+        if self.closing.load(Ordering::Acquire) {
+            return Err(CoreError::Cancelled);
+        }
         let endpoints = match signin::client_oauth() {
             Some(o) => self.signins.at(permission_endpoints(&o, permission.into())),
             None => return Ok(not_granted("this build of MailCraft has no Microsoft sign-in set up")),
@@ -353,11 +383,23 @@ impl Core {
         let kept = self
             .call(move |s| {
                 let there = s.mailbox.accounts.iter().any(|a| a.id == account && a.kind == AccountKind::Microsoft);
-                Ok(match (there, sync.remembers()) {
+                let kept = match (there, sync.remembers()) {
                     (false, _) => None,
                     (true, true) => Some(signin::keep_refresh(platform.as_ref(), &for_email, &tokens_refresh)),
                     (true, false) => Some(Ok(())),
-                })
+                };
+                if matches!(kept, Some(Ok(()))) {
+                    // The sign-in that covers it is the account's newest: the session's too, so that
+                    // a job has it with sign-ins not remembered (never its access token as a mail one).
+                    let theirs = Tokens { refresh: tokens_refresh.clone(), ..Default::default() };
+                    sync.adopt_refresh(s, account, &theirs);
+                    // Allowed, as far as is known: the next to-do job finds out, at once (MB3.18).
+                    if permission == Permission::Tasks {
+                        s.driver.tasks.allowed(account);
+                    }
+                    sync.pacer.poke();
+                }
+                Ok(kept)
             })
             .await?;
         match kept {
@@ -374,8 +416,9 @@ impl Core {
     pub async fn permission_state(&self, account: u64, permission: Permission) -> Result<PermissionState, CoreError> {
         let email = self.email_of(account).await?;
         let Some(o) = signin::client_oauth() else { return Ok(PermissionState::Unknown) };
-        let mail = self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail));
-        let graph = self.signins.at(Endpoints::for_resource(&o, Resource::Graph));
+        // (Only the tokens' scopes are asked for here; the phone's endpoints all the same, #661.)
+        let mail = self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::GraphMail));
+        let graph = self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::Graph));
         let sync = self.sync.clone();
         let refresh = self.call(move |s| Ok(sync.refresh_for(s, account))).await?;
         let reply = Queue::<Checked>::new();
@@ -442,13 +485,19 @@ impl Core {
         // One job: the account goes and, when no other account has its address, so does its sign-in,
         // whatever becomes of the caller (a shutdown between two calls would leave the credential).
         let platform = self.native.clone();
+        let sync = self.sync.clone();
         self.call(move |s| {
             s.run("account.remove", &json!({"id": account})).map_err(CoreError::from)?;
+            // What was being fetched for it is called off, and nothing it brings is taken in.
+            sync.cancel_fetches(Some(account));
             // (Nothing else of the account's is held under its address: a mailbox with another account
             // of the same address keeps it.)
             let still = s.mailbox.accounts.iter().any(|a| a.kind == AccountKind::Microsoft && a.email.trim().eq_ignore_ascii_case(&email));
-            if !still {
-                signin::forget(platform.as_ref(), &email);
+            // (The account stays removed when the store refuses: the owner is told its sign-in is still kept.)
+            if !still && signin::forget(platform.as_ref(), &email).is_err() {
+                return Err(CoreError::Failed {
+                    reason: "the account was removed, but its sign-in couldn't be removed from this phone's secure store".to_string(),
+                });
             }
             Ok(())
         })
@@ -472,7 +521,10 @@ impl Core {
             return Err(CoreError::Cancelled);
         }
         let endpoints = match signin::client_oauth() {
-            Some(o) => self.signins.at(Endpoints::for_resource(&o, Resource::GraphMail)),
+            // (The page of a phone's sign-in asks for nothing of the to-dos, the rules, the automatic
+            // replies and the categories: the to-dos are asked for by themselves, and the rest the
+            // phone doesn't keep in step, #661.)
+            Some(o) => self.signins.at(Endpoints::for_resource_without_sync(&o, Resource::GraphMail)),
             None => return Ok(Err(failed("this build of MailCraft has no Microsoft sign-in set up"))),
         };
         let page = self.page(endpoints, hint, Why::Account, place.cancel_flag()).await;

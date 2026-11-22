@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
 use mailcraft_engine::cmd::folder::sort_as_listed;
-use mailcraft_model::{Folder, FolderKind, GmailCategory, Id, Mailbox};
+use mailcraft_model::{Account, Folder, FolderKind, GmailCategory, Id, Mailbox};
 use serde_json::json;
 
 use crate::favorites_sync::Note;
@@ -68,20 +68,33 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::left("modules").exact_size(RAIL_W).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        for (m, icon, id) in module_buttons() {
+        for (n, (m, icon, id)) in module_buttons().into_iter().enumerate() {
             let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
+            app.hit.add("module", n as u64, r);
             let active = app.session.view.module == m;
+            // Messages dragged over Calendar, Tasks or People are taken there (#873); Mail takes nothing.
+            let takes = dropped_as(m).is_some();
+            let dragged_over = takes && resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some();
+            if dragged_over {
+                crate::drag_pointer::note_folder(ui.ctx(), true);
+                app.hit.add("moduleDrop", n as u64, r);
+                ui.painter().rect_filled(r.shrink(6.0), 4.0, t.hover);
+                ui.painter().rect_stroke(r.shrink(6.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+            }
             if active {
                 // The module in view: a bar at the window's edge, and its icon in the accent.
                 let bar = Rect::from_min_size(pos2(r.min.x + 6.0, r.center().y - 16.0), vec2(2.0, 32.0));
                 ui.painter().rect_filled(bar, 1.0, t.accent);
-            } else if resp.hovered() {
+            } else if resp.hovered() && !dragged_over {
                 ui.painter().rect_filled(r.shrink(6.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
             }
             // One colour: the icons of the bar are line drawings, lit when theirs is the module in view.
             let ink = if active { t.accent_text } else { t.icon };
             icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
             let sc = crate::widgets::shortcut_text(app, id);
+            if takes && let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
+                drop_on_module(app, m, &drag.0);
+            }
             if resp.on_hover_text(format!("{} ({sc})", tl!(m.label()))).clicked() {
                 let _ = app.run(id, json!({}));
             }
@@ -94,6 +107,79 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
             resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
         }
     });
+}
+
+/// What a message let go over the module `m` becomes (#873): the kind `mail.itemFromMessage`
+/// fills in, and the form that opens with it. `None` for Mail.
+fn dropped_as(m: Module) -> Option<(&'static str, &'static str)> {
+    match m {
+        Module::Calendar => Some(("appointment", "event")),
+        Module::Tasks => Some(("task", "task")),
+        Module::People => Some(("contact", "contact")),
+        Module::Mail => None,
+    }
+}
+
+pub(crate) use mailcraft_engine::sync_driver::fetch::DROP;
+
+/// Messages let go over Calendar, Tasks or People in the module bar (#873), as in classic Outlook:
+/// a new appointment (in a window of its own), task or contact opens, filled in from the first of
+/// them that is still there: its subject, its text, its sender. Nothing is made until the owner
+/// saves it there, and the message stays where it is, as it was. One form opens however many were
+/// dragged (a task or a contact is filled in in the one dialog), and the status bar says so. A
+/// message of which only the server's short preview is here waits to be downloaded first.
+pub(crate) fn drop_on_module(app: &mut MailApp, m: Module, dragged: &[Id]) {
+    let name = match m {
+        Module::Calendar => "calendar",
+        Module::Tasks => "tasks",
+        Module::People => "people",
+        Module::Mail => return,
+    };
+    let _ = app.run(DROP, json!({"module": name, "ids": dragged}));
+}
+
+/// The first two messages of a drop (`ids`) that are still in the mailbox.
+pub(crate) fn dropped(app: &MailApp, p: &serde_json::Value) -> Vec<Id> {
+    mailcraft_engine::sync_driver::fetch::dropped(&app.session, p)
+}
+
+/// `ui.dropOnModule`; `None` for any other command.
+pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &serde_json::Value) -> Option<Result<serde_json::Value, String>> {
+    (id == DROP).then(|| drop_on(app, p))
+}
+
+fn drop_on(app: &mut MailApp, p: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let (kind, form) = match p.get("module").and_then(serde_json::Value::as_str) {
+        Some("calendar") => ("appointment", "event"),
+        Some("tasks") => ("task", "task"),
+        Some("people") => ("contact", "contact"),
+        _ => return Err("`module` is \"calendar\", \"tasks\" or \"people\"".into()),
+    };
+    let here = dropped(app, p);
+    let Some(first) = here.first().copied() else { return Err(tl!("None of those messages is in this mailbox any more.").to_string()) };
+    let fields = app.session.run("mail.itemFromMessage", &json!({"id": first, "as": kind})).map_err(|e| {
+        app.last_error = Some(e.clone());
+        e.to_string()
+    })?;
+    if form == "event" {
+        // (A window that can't open says why in the status bar itself.)
+        if let Some(Err(e)) = crate::windows::open_form(app, form, &fields) {
+            return Err(e);
+        }
+    } else {
+        match crate::dialogs::open_dialog(app, form, &fields) {
+            Some(dialog) => {
+                app.set_dialog(Some(dialog));
+                app.sync_panel = None;
+            }
+            None => return Ok(json!({"opened": null})),
+        }
+    }
+    if here.len() > 1 {
+        let n = p.get("ids").and_then(serde_json::Value::as_array).map_or(here.len(), Vec::len);
+        app.status(tln!(n, "{n} message was dragged: only the first was opened.", "{n} messages were dragged: only the first was opened."));
+    }
+    Ok(json!({"opened": form, "message": first}))
 }
 
 /// How tall the row of modules is at the foot of the pane on the left (#1174), and how large a
@@ -385,6 +471,38 @@ fn move_before(own: &[Id], account: Id, up: bool) -> Option<Option<Id>> {
     }
 }
 
+/// A folder being dragged up or down among the folders beside it, or (`favorite`) among the
+/// Favorites kept in MailCraft (#1514).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FolderDrag {
+    pub id: Id,
+    pub favorite: bool,
+}
+
+/// What a folder's row moves among (#1514), top to bottom, it among them: under Favorites
+/// (`favorite`) the favourites kept in MailCraft, in its account's list the folders beside it
+/// but Inbox, Drafts, Sent Items and Deleted Items, which lead. Empty where it doesn't move.
+fn reorder_peers(app: &MailApp, id: Id, favorite: bool) -> Vec<Id> {
+    if favorite {
+        let own = mailcraft_engine::cmd::folder::own_favorites(&app.session);
+        if own.contains(&id) { own } else { Vec::new() }
+    } else {
+        app.session.mailbox.reorder_siblings(id)
+    }
+}
+
+/// What a folder's row moves before when `dragged` is let go over the row of `target` among
+/// `peers` (#1514), in its upper half (`upper`) or its lower: `target` itself, or the one after
+/// it (`None` inside: last). `None` when either isn't among them, or they are one.
+fn drop_before(peers: &[Id], dragged: Id, target: Id, upper: bool) -> Option<Option<Id>> {
+    if dragged == target || !peers.contains(&dragged) {
+        return None;
+    }
+    let rest: Vec<Id> = peers.iter().copied().filter(|p| *p != dragged).collect();
+    let at = rest.iter().position(|p| *p == target)?;
+    Some(if upper { Some(target) } else { rest.get(at.saturating_add(1)).copied() })
+}
+
 /// How far the folder pane scrolls this frame while an account is dragged with the pointer at
 /// height `y` (#702): towards the top within a row of the top of the part in view, `pane`,
 /// towards the bottom within a row of its bottom, faster the nearer the edge; else nothing. A
@@ -463,13 +581,19 @@ fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
     }
 }
 
-/// While an account is being dragged: a small label by the pointer with its name.
-fn account_ghost(app: &MailApp, ui: &Ui) {
-    let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) else { return };
+/// While an account or a folder (#1514) is being dragged: a small label by the pointer with its name.
+fn drag_ghost(app: &MailApp, ui: &Ui) {
+    let name = if let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) {
+        let Some(a) = app.session.mailbox.account(drag.0) else { return };
+        if a.name.trim().is_empty() { tl!("Mailbox").to_string() } else { a.name.clone() }
+    } else if let Some(drag) = egui::DragAndDrop::payload::<FolderDrag>(ui.ctx()) {
+        let Some(f) = app.session.mailbox.folder(drag.id) else { return };
+        folder_name(f).to_string()
+    } else {
+        return;
+    };
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
-    let Some(a) = app.session.mailbox.account(drag.0) else { return };
     let t = Tokens::get(ui.ctx());
-    let name = if a.name.trim().is_empty() { tl!("Mailbox").to_string() } else { a.name.clone() };
     egui::Area::new(egui::Id::unique("account_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
         |ui| {
@@ -498,9 +622,17 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     // another account's folder has too (two Inboxes); in its tree, its name.
     let name = if key == "fav" { result_folder_label(&app.session.mailbox, f) } else { folder_name(f).to_string() };
     let t = Tokens::get(ui.ctx());
+    // An account whose Favorites are Outlook's has them changed in Outlook: nothing to do here.
+    let from_outlook = mailcraft_engine::cmd::folder::favorites_from_server(&app.session, f.account);
+    // Dragged up or down among the folders beside it, or among the Favorites kept here (#1514).
+    let favorite_row = key == "fav";
+    let movable = if favorite_row { f.favorite && !from_outlook } else { !mailcraft_model::leads(f) };
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let resp = ui.interact(r, ui.scope_id().with((key, f.id)), Sense::click());
+    let resp = ui.interact(r, ui.scope_id().with((key, f.id)), if movable { Sense::click_and_drag() } else { Sense::click() });
     app.hit.add("folder", f.id, r);
+    if movable {
+        resp.dnd_set_drag_payload(FolderDrag { id: f.id, favorite: favorite_row });
+    }
     let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
     if selected {
         ui.painter().rect_filled(row, 6.0, t.accent_soft);
@@ -555,19 +687,48 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
         }
     }
-    if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
+    // (Asked only while messages are carried: egui hands over whatever is carried, of any kind.)
+    if egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(ui.ctx())
+        && let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>()
+    {
         // Only what isn't here already.
         let ids = crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id);
         if !ids.is_empty() {
             let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
         }
     }
+    // A folder dragged over another beside it: a line where it would go, and the move on letting go.
+    // (Not on the lower half of one whose subfolders show: the drop would land after them all, a
+    // line at this row's edge would lie, so it is no place to drop.)
+    let subtree_shows = !favorite_row && has_children && !app.ui.collapsed_folders.contains(&f.id);
+    if let Some(drag) = resp.dnd_hover_payload::<FolderDrag>()
+        && drag.favorite == favorite_row
+        && let Some(pos) = ui.ctx().pointer_interact_pos()
+    {
+        let upper = pos.y < r.center().y;
+        if (upper || !subtree_shows) && drop_before(&reorder_peers(app, f.id, favorite_row), drag.id, f.id, upper).is_some() {
+            crate::drag_pointer::note_folder(ui.ctx(), true);
+            let y = if upper { r.min.y + 0.5 } else { r.max.y - 0.5 };
+            let (left, right) = (r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT + HIGHLIGHT_LEFT, r.max.x - HIGHLIGHT_RIGHT);
+            ui.painter().line_segment([pos2(left + 3.0, y), pos2(right, y)], Stroke::new(2.0, t.accent));
+            ui.painter().circle_stroke(pos2(left + 3.0, y), 3.0, Stroke::new(2.0, t.accent));
+            app.hit.add("folderGap", f.id, Rect::from_min_max(pos2(left, y - 3.0), pos2(right, y + 3.0)));
+        }
+    }
+    if egui::DragAndDrop::has_payload_of_type::<FolderDrag>(ui.ctx())
+        && let Some(drag) = resp.dnd_release_payload::<FolderDrag>()
+        && drag.favorite == favorite_row
+        && let Some(pos) = ui.ctx().pointer_interact_pos()
+        && (pos.y < r.center().y || !subtree_shows)
+        && let Some(before) = drop_before(&reorder_peers(app, f.id, favorite_row), drag.id, f.id, pos.y < r.center().y)
+    {
+        let cmd = if favorite_row { "folder.reorderFavorite" } else { "folder.reorder" };
+        let _ = app.run(cmd, json!({"id": drag.id, "before": before}));
+    }
     // (One of the server's own, Conversation History say, is left as it is, and takes no new
     // folder either: #756.)
     let (id, custom, favorite, kind) = (f.id, f.kind == FolderKind::Custom && !f.server_owned(), f.favorite, f.kind);
     let takes_folders = !(f.kind == FolderKind::Custom && f.server_owned());
-    // An account whose Favorites are Outlook's has them changed in Outlook: nothing to do here.
-    let from_outlook = mailcraft_engine::cmd::folder::favorites_from_server(&app.session, f.account);
     resp.context_menu(|ui| {
         ui.set_min_width(190.0);
         let item = |ui: &mut Ui, app: &mut MailApp, label: &str, cmd: &str, params: serde_json::Value, enabled: bool| {
@@ -576,27 +737,51 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
                 ui.close();
             }
         };
-        item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
+        // The keyboard's and the menu's way of a drag (#1514), where the row moves.
+        if movable {
+            let peers = reorder_peers(app, id, favorite_row);
+            let cmd = if favorite_row { "folder.reorderFavorite" } else { "folder.reorder" };
+            for (label, up) in [(tl!("Move Up"), true), (tl!("Move Down"), false)] {
+                let before = move_before(&peers, id, up);
+                if ui.add_enabled(before.is_some(), egui::Button::new(label).min_size(vec2(180.0, 0.0))).clicked() {
+                    if let Some(before) = before {
+                        let _ = app.run(cmd, json!({"id": id, "before": before}));
+                    }
+                    ui.close();
+                }
+            }
+            ui.separator();
+        }
+        item(ui, app, tl_later!("New Folder…"), "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), takes_folders);
         // (Not one that is or holds what a JMAP account's server has, which stays for now.)
         let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
+        item(ui, app, tl_later!("Rename Folder…"), "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
         let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
+        item(ui, app, tl_later!("Delete Folder"), "folder.delete", json!({"id": id}), deletable);
         ui.separator();
-        item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
+        item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
+        // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+        let ruled = app.session.mailbox.rules_reach(app.session.mailbox.folder(id).map_or(0, |f| f.account));
+        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), ruled);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
+            item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {
-            item(ui, app, "Favorites Are Set in Outlook", "folder.favorite", json!({"id": id}), false);
+            item(ui, app, tl_later!("Favorites Are Set in Outlook"), "folder.favorite", json!({"id": id}), false);
         } else {
-            item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
+            item(
+                ui,
+                app,
+                if favorite { tl_later!("Remove from Favorites") } else { tl_later!("Add to Favorites") },
+                "folder.favorite",
+                json!({"id": id}),
+                true,
+            );
         }
         ui.separator();
-        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
+        item(ui, app, tl_later!("Properties…"), "folder.properties", json!({"id": id}), true);
     });
 }
 
@@ -957,7 +1142,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             account_drop(app, ui, &blocks, end);
             ui.add_space(8.0);
         });
-        account_ghost(app, ui);
+        drag_ghost(app, ui);
     });
     app.ui.folder_pane_width = shown.response.rect.width();
 }
@@ -1012,6 +1197,20 @@ pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
     parts.join("/")
 }
 
+/// What the folder pane calls an account: its name (Account Settings › Account name), and its
+/// address while none is (#1017).
+pub(crate) fn account_label(a: &Account) -> String {
+    if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }
+}
+
+/// The account as a folder row away from the pane names it: [`account_label`], and its address
+/// too when the owner named it, so that two mailboxes are told apart.
+pub(crate) fn account_name(a: &Account) -> String {
+    let label = account_label(a);
+    let email = a.email.trim();
+    if email.is_empty() || email == label { label } else { format!("{label} ({email})") }
+}
+
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,
 /// in the bar over a search's results): its name, and for a folder of a shared mailbox the
 /// mailbox it is in, so that its Inbox is never taken for the owner's (#70).
@@ -1047,3 +1246,7 @@ pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> Strin
 #[cfg(test)]
 #[path = "nav_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "nav_drop_tests.rs"]
+mod drop_tests;

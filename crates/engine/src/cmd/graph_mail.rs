@@ -88,6 +88,10 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         full: full_sweep_due(s, account),
         // The conversation ids of mail listed before they were asked for (#795).
         threads: super::thread_ids::to_ask(&s.mailbox, account),
+        // A phone lists only its window's mail (MB3.16); a computer everything.
+        since: s.mailbox.listed_since(account, s.now()),
+        // A category renamed here, for the mail that isn't kept here (#851).
+        rename: s.mailbox.mail_rename(account),
     })
 }
 
@@ -116,10 +120,11 @@ pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest>
     let shared = shared_mailbox(s, account).ok()?;
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).and_then(|id| s.mailbox.folder(id))?;
     let (id, links) = match inbox.server.as_ref()? {
-        server if server.id.is_empty() => return None,
+        // (One to be listed afresh is the whole run's to list: MB3.16.)
+        server if server.id.is_empty() || server.relist => return None,
         server if server.delta.is_empty() => (server.id.clone(), Vec::new()),
         server if server.caught_up => {
-            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }])
+            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, ..Default::default() }])
         }
         _ => return None,
     };
@@ -129,6 +134,7 @@ pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest>
         shared,
         links,
         inbox_pass: Some(GraphFolder { id, name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
+        since: s.mailbox.listed_since(account, s.now()),
         ..Default::default()
     })
 }
@@ -154,8 +160,21 @@ fn links(mb: &Mailbox, account: Id) -> Vec<GraphLink> {
         .iter()
         .filter(|f| f.account == account)
         .filter_map(|f| f.server.as_ref())
-        .filter(|s| !s.delta.is_empty())
-        .map(|s| GraphLink { folder: s.id.clone(), link: s.delta.clone(), caught_up: s.caught_up, counts: s.counts.filter(|_| s.caught_up) })
+        .filter(|s| !s.delta.is_empty() || s.relist)
+        .map(|s| {
+            if s.relist {
+                // Listed afresh from its start (MB3.16): the link it had is never followed.
+                return GraphLink { folder: s.id.clone(), afresh: true, relist_gen: s.relist_gen, ..Default::default() };
+            }
+            GraphLink {
+                folder: s.id.clone(),
+                link: s.delta.clone(),
+                caught_up: s.caught_up,
+                counts: s.counts.filter(|_| s.caught_up),
+                afresh: false,
+                relist_gen: 0,
+            }
+        })
         .collect()
 }
 
@@ -251,12 +270,14 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
                 .message(id)
                 .filter(|m| m.account == account)
                 .ok_or_else(|| failed!("no message with id {id} in {name}", id, name = a.name))?;
-            m.server.as_ref().filter(|_| graph_down::still_to_fetch(&s.mailbox, m)).map(|server| vec![server.id.clone()]).unwrap_or_default()
+            // (Whole already, when Save Message As asks for the server's copy, #1561.)
+            let asked = graph_down::still_to_fetch(&s.mailbox, m) || s.asked_for_save(id);
+            m.server.as_ref().filter(|_| asked).map(|server| vec![server.id.clone()]).unwrap_or_default()
         }
         None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), s.now(), &s.graph_unfetchable),
     };
     let shared = shared_mailbox(s, account)?;
-    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none() })
+    Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none(), ..Default::default() })
 }
 
 /// Take in messages fetched whole. Not an undo step.
@@ -273,6 +294,20 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     let taken: Vec<Id> =
         result.fetched.iter().filter_map(|f| graph_down::take_fetched_as(&mut s.mailbox, &mut index, account, &f.id, &f.mime)).collect();
     s.graph_index = index;
+    // New mail its rules couldn't tell of from what its server listed: they have their say now
+    // that it is here whole (#566), a Microsoft account's and an Exchange server account's alike
+    // (and a JMAP account's, whose runs don't yet put new mail through the rules as it arrives).
+    // Those a rule shows a desktop alert for now are named, for the window to show it.
+    let clock = s.rule_clock();
+    let alerted = |s: &Session, id: Id| s.mailbox.message(id).is_some_and(|m| m.rule_alert);
+    let mut alerts = Vec::new();
+    for id in &taken {
+        let before = alerted(s, *id);
+        s.mailbox.run_waiting_rules(*id, &clock);
+        if !before && alerted(s, *id) {
+            alerts.push(*id);
+        }
+    }
     // Older than its mail to keep offline (the owner opened it): whole until the mailbox is
     // opened again (#143).
     let window = mailcraft_model::OfflineWindow::of(&s.mailbox, s.now());
@@ -291,7 +326,7 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     s.sync_progress.counted_as(&s.mailbox, account, counts, now);
     let graph_down::FullCounts { all, waiting, large } = counts;
     Ok(
-        json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
+        json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for, "alerts": alerts}),
     )
 }
 
@@ -380,6 +415,9 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 MessageOutcome::Done { .. } => taken.pushed += 1,
                 _ => taken.updated += 1,
             }
+            // A message's server id is new or gone (a copy's, say): where each message is, is
+            // looked at afresh, as for an Exchange server account (#566).
+            s.graph_index = Default::default();
         }
     }
     // What was made here from another mailbox of the same owner's (#70).
@@ -405,7 +443,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     // What was sent (R3.4.2): gone from the Outbox, or held there with what happened.
     let mut sent = 0;
     for done in &result.sent {
-        if super::graph_send::send_done(&mut s.mailbox, account, done, s.interface_language, &mut refused) {
+        let sent_at = s.now();
+        if super::graph_send::send_done_at(&mut s.mailbox, account, done, s.interface_language, &mut refused, Some(sent_at)) {
             sent += usize::from(matches!(done.outcome, SendOutcome::Sent));
             taken.updated += 1;
             s.graph_index = Default::default();
@@ -424,14 +463,33 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
         }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
-    let mut down = Down::default();
+    let mut down = Down::of_run(s, account);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // (The Inbox pass is a download of its own for what the account had.)
+    down.end_piece(s, account, result.partial && !result.inbox_pass_end);
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
+    // A renamed category, given to the mail that isn't kept here (#851): what is done no longer
+    // holds the old name's deletion, and what the server wouldn't change is said.
+    let mut renamed = false;
+    // How many messages it reached in all, the runs before with this one, once it is done.
+    let mut renamed_in_all = 0u32;
+    if let Some(came) = &result.renamed {
+        let mut came = came.clone();
+        came.tidy();
+        if came.done {
+            renamed_in_all = s.mailbox.renamed_before(account, true, &came).saturating_add(came.changed);
+        }
+        let before = s.mailbox.category_sweeps.get(&account).cloned();
+        if let Some(line) = s.mailbox.take_renamed(account, true, &came) {
+            errors.push(line);
+        }
+        renamed = s.mailbox.category_sweeps.get(&account) != before.as_ref();
+    }
     // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
     // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
     // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
@@ -441,7 +499,8 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
-        graph_down::sweep(&mut s.mailbox, account, &mut down);
+        let since = s.mailbox.listed_since(account, s.now());
+        graph_down::sweep(&mut s.mailbox, account, since, &mut down);
         // Every folder read and none passed over: the full sweep is done for the hour (#276).
         if !result.partial && result.timings.skipped == 0 {
             let now = s.now();
@@ -450,7 +509,7 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || named || threaded {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || named || threaded || renamed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
@@ -460,6 +519,10 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     }
     // Send/Receive Progress: where the run is, what it brought, what went wrong.
     let step = match (&result.progress, &result.listing, result.sent.is_empty()) {
+        // A renamed category on its way to the mail that isn't kept here (#851).
+        _ if let Some(renaming) = result.renaming.filter(|_| result.partial) => {
+            Some((SyncPhase::Renaming, String::new(), renaming.done.min(renaming.total), renaming.total))
+        }
         (Some(progress), ..) => {
             let name = s.mailbox.folder_by_server(account, &progress.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
             let phase = if result.inbox_pass { SyncPhase::Inbox } else { SyncPhase::NewMail };
@@ -498,7 +561,13 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
     match (&result.progress, result.partial) {
         // Under way: how far it has got.
         (Some(progress), true) => s.sync_status = graph_down::progress_words(&s.mailbox, account, progress, s.interface_language),
-        (_, true) => {}
+        (_, true) => {
+            if let Some(renaming) = result.renaming {
+                let (done, total) = (renaming.done.min(renaming.total).to_string(), renaming.total.to_string());
+                let template = s.interface_language.t("Renaming a category on the server: {done} of {total} messages");
+                s.sync_status = mailcraft_i18n::fmt(template, &[("done", &done), ("total", &total)]);
+            }
+        }
         (_, false) => {
             let t = s.local_now();
             // What the server refused in this run, said once, ahead of anything else.
@@ -508,6 +577,15 @@ fn apply_graph_news(s: &mut Session, result: GraphMailResult) -> CmdResult {
                 refused.join(" ")
             } else if result.stopped && errors.is_empty() {
                 lang.t("Stopped; carries on from here next time").to_string()
+            } else if errors.is_empty()
+                && let Some(n) = Some(renamed_in_all).filter(|n| *n > 0)
+            {
+                let template = lang.tn(
+                    u64::from(n),
+                    "The category was renamed on {n} message on the server",
+                    "The category was renamed on {n} messages on the server",
+                );
+                mailcraft_i18n::fmt(template, &[("n", &n.to_string())])
             } else if errors.is_empty() {
                 (if summary == "Up to date" { lang.t("Up to date") } else { lang.t("Folders up to date") }).to_string()
             } else {
@@ -598,6 +676,8 @@ pub(super) fn change_done(
                 counts: None,
                 sync_state: String::new(),
                 well_known: false,
+                relist: false,
+                relist_gen: 0,
             });
             taken.pushed += 1;
             None
@@ -610,7 +690,10 @@ pub(super) fn change_done(
             let server = f.server.as_mut().filter(|server| server.id == there.id)?;
             match change {
                 FolderChange::Rename { .. } => server.name = there.name.clone(),
-                _ => server.parent = there.parent.clone(),
+                _ => {
+                    server.parent = there.parent.clone();
+                    f.place_before_move = None;
+                }
             }
             taken.pushed += 1;
             None
@@ -644,7 +727,9 @@ pub(super) fn change_done(
                     format!("Couldn't rename the folder \"{was}\" on the server: {why}")
                 }
                 _ => {
-                    f.parent = back;
+                    f.set_parent(back);
+                    // (Back in its old place too, #1514.)
+                    f.place = f.place_before_move.take().or(f.place);
                     format!("Couldn't move the folder \"{was}\" on the server: {why}")
                 }
             };
@@ -819,7 +904,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         f.name = name.to_string();
     }
     if !moved_here && can_go {
-        f.parent = parent_here;
+        f.set_parent(parent_here);
     }
     if f.kind == FolderKind::Custom && there.kind != FolderKind::Custom {
         f.kind = there.kind;
@@ -838,6 +923,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         sync_state: last.sync_state,
         // (Once the server's own, always: one odd answer doesn't clear it.)
         well_known: own,
+        relist: last.relist,
+        relist_gen: last.relist_gen,
     });
     *f != before
 }

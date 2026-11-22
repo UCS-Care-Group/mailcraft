@@ -21,12 +21,18 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
-            .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
+            .params(r#"{"name": string, "parent"?: number | null (default: the folder in view, when it is `account`'s or no account is named; otherwise the account's top level. null: the account's top level), "account"?: number} — `account` says whose folder it is, and is an account that is there; a `parent` of another account's is refused rather than quietly given. Answers {"id", "account", "path"}"#),
         CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#).selection(can_rename),
         CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#).selection(can_move),
         CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
         CommandSpec::new("folder.favorite", "Add to Favorites", "Folder › Favorites", favorite).params(
             r#"{"value"?: bool (default: toggle), "id"?: number} — refused for a folder of an account whose Favorites come from its server (Outlook's list, which is changed in Outlook; `view.favorites` says which accounts those are). A shared mailbox's folders are favourites kept in MailCraft, whatever the account it is opened through has: nothing is written to any server for them"#,
+        ),
+        CommandSpec::new("folder.reorder", "Move Folder Up or Down", "Folder Pane", reorder).params(
+            r#"{"id": number, "before"?: number | null} — puts the folder in another place among the folders that share its parent, as dragging it there in the folder pane does (#1514): right before the folder `before` names, which has the same parent, or last among them without one. Inbox, Drafts, Sent Items and Deleted Items lead an account's top level and stay there: they aren't moved, nor named as `before`. The order is kept in the mailbox, never sent to a server, and followed by the folder pane and folder.list; a folder put under another parent goes last there, and one added since comes after those placed, by name. Answers {"moved": bool, "order": [id] (the folders beside it, it among them, as the pane lists them)}"#,
+        ),
+        CommandSpec::new("folder.reorderFavorite", "Move Favorite Up or Down", "Folder Pane", reorder_favorite).params(
+            r#"{"id": number, "before"?: number | null} — puts a favourite kept in MailCraft in another place under Favorites, as dragging it there does (#1514): right before the favourite `before` names, or last without one. Refused for the Favorites of an account whose Favorites come from its server (Outlook's list, in Outlook's order, changed in Outlook; `view.favorites` says which accounts those are), as `id` or as `before`. The order is kept in the mailbox, never sent to a server; a folder taken off Favorites and put back goes last. Answers {"moved": bool, "favorites": [id] (what the pane lists under Favorites, in its order)}"#,
         ),
         CommandSpec::new("view.favorites", "Favorites from Outlook", "File › Options", favorites_command).pure().params(
             r#"{"own"?: bool} — "own": true shows the Favorites that are marked here even for an account whose server has a list of its own, false the server's list where there is one (default: as it is). Answers what the folder pane lists under Favorites, in its order: {"own": bool, "favorites": [{"id", "name", "account", "path"}], "accounts": [{"account": number, "from": "server" | "mailbox", "listed": number}]}"#,
@@ -41,20 +47,9 @@ pub fn specs() -> Vec<CommandSpec> {
 /// Most folders the pane lists under Favorites.
 const MAX_FAVORITES: usize = 1_000;
 
-/// The rank of the folders that lead an account's list, in the order they lead it.
-fn lead_rank(kind: FolderKind) -> usize {
-    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
-    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
-}
-
-/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
-/// the folder pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead;
-/// every other folder, Archive, Junk Email and Outbox among them, follows by name without regard
-/// to case. Subfolders are by name alone.
-pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
-    // The id last: two folders of one name keep their places from frame to frame.
-    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.name.to_lowercase(), f.id));
-}
+/// Put folders that share a parent in the order the folder pane lists them (#1514: the owner's
+/// order where they gave one).
+pub use mailcraft_model::sort_as_listed;
 
 /// Whether the Favorites of `account` are the ones its server lists (the folders Outlook shows
 /// under Favorites, taken in with `sync.applyFavorites`) rather than the ones marked here: the
@@ -69,6 +64,14 @@ pub fn favorites_from_server(s: &Session, account: Id) -> bool {
 /// here of every other account, as they always were. The marks of an account whose list comes
 /// from its server are kept, and count again once it no longer does.
 pub fn favorites(s: &Session) -> Vec<Id> {
+    let mut out = all_favorites(s);
+    out.truncate(MAX_FAVORITES);
+    out
+}
+
+/// [`favorites`] without the cap: what reordering works on, so a `before` past the cap still lands
+/// where it was asked (#1514).
+fn all_favorites(s: &Session) -> Vec<Id> {
     let mut out: Vec<Id> = Vec::new();
     let mut served: Vec<Id> = Vec::new();
     if !s.prefs.own_favorites {
@@ -79,9 +82,80 @@ pub fn favorites(s: &Session) -> Vec<Id> {
             }
         }
     }
-    out.extend(s.mailbox.folders.iter().filter(|f| f.favorite && !served.contains(&f.account)).map(|f| f.id));
-    out.truncate(MAX_FAVORITES);
+    let mut own: Vec<&Folder> = s.mailbox.folders.iter().filter(|f| f.favorite && !served.contains(&f.account)).collect();
+    // In the order the owner put them in (#1514); those without a place after them, as they were.
+    own.sort_by_key(|f| f.favorite_place.unwrap_or(u32::MAX));
+    out.extend(own.into_iter().map(|f| f.id));
     out
+}
+
+/// The favourites kept in MailCraft, as the pane lists them (#1514): what
+/// `folder.reorderFavorite` moves among, Outlook's own left out.
+pub fn own_favorites(s: &Session) -> Vec<Id> {
+    all_favorites(s).into_iter().filter(|id| s.mailbox.folder(*id).is_some_and(|f| f.favorite && !favorites_from_server(s, f.account))).collect()
+}
+
+/// The id of `key` in `v`, `None` when it is missing or null; anything else that isn't an id is
+/// refused.
+fn opt_id(v: &Value, key: &str) -> Result<Option<Id>, CmdError> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(_) => Ok(Some(p::req_id(v, key)?)),
+    }
+}
+
+/// Put a folder in another place among the folders beside it (#1514).
+fn reorder(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let before = opt_id(v, "before")?;
+    for named in std::iter::once(Some(id)).chain([before]).flatten() {
+        if let Some(f) = s.mailbox.folder(named).filter(|f| mailcraft_model::leads(f)) {
+            return Err(failed!("{name} stays at the top of its account's folders", name = f.name.as_str()));
+        }
+    }
+    let moved = s.mailbox.reorder_folder(id, before)?;
+    let (account, parent) = s.mailbox.folder(id).map(|f| (f.account, f.parent)).unwrap_or_default();
+    let mut siblings: Vec<&Folder> = s.mailbox.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
+    sort_as_listed(&mut siblings, parent.is_none());
+    let order: Vec<Id> = siblings.into_iter().map(|f| f.id).collect();
+    Ok(json!({"moved": moved, "order": order}))
+}
+
+/// Put a favourite kept in MailCraft in another place among the others (#1514).
+fn reorder_favorite(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let before = opt_id(v, "before")?;
+    let own = |s: &Session, id: Id| -> Result<(), CmdError> {
+        let f = s.mailbox.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
+        if favorites_from_server(s, f.account) {
+            return Err(fail(FROM_OUTLOOK));
+        }
+        if !f.favorite {
+            return Err(failed!("{name} isn't among the Favorites", name = f.name.as_str()));
+        }
+        Ok(())
+    };
+    own(s, id)?;
+    if let Some(before) = before {
+        if before == id {
+            return Err(fail("a favourite can't be put before itself"));
+        }
+        own(s, before)?;
+    }
+    let was = own_favorites(s);
+    let mut order: Vec<Id> = was.iter().copied().filter(|f| *f != id).collect();
+    let at = before.and_then(|b| order.iter().position(|f| *f == b)).unwrap_or(order.len());
+    order.insert(at, id);
+    let moved = order != was;
+    if moved {
+        let place: HashMap<Id, u32> = order.iter().enumerate().map(|(n, id)| (*id, u32::try_from(n).unwrap_or(u32::MAX))).collect();
+        for f in s.mailbox.folders.iter_mut() {
+            if let Some(n) = place.get(&f.id) {
+                f.favorite_place = Some(*n);
+            }
+        }
+    }
+    Ok(json!({"moved": moved, "favorites": favorites(s)}))
 }
 
 fn favorites_json(s: &Session) -> Value {
@@ -268,8 +342,8 @@ pub(crate) fn named(s: &Session, folder: &Value, account: Option<Id>) -> Result<
 /// `account` from the parameters (#1200): an id, and an account that is there. Taken for "none",
 /// an account that isn't there would quietly become the account in view, and the answer would
 /// read as though it came from the one that was asked for. `mail.list` and `folder.select` read
-/// it through this, so that [`named`] is given an account it can trust. `folder.new` does not: it
-/// takes `account` only where `parent` names no folder, and reads it loosely.
+/// it through this, so that [`named`] is given an account it can trust; `folder.new` does too,
+/// and refuses a `parent` that isn't that account's (#1319).
 pub(crate) fn account_named(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
     let Some(id) = p::id_strict(v, "account")? else { return Ok(None) };
     match s.mailbox.account(id) {
@@ -376,21 +450,31 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let name = p::req_str(v, "name")?;
-    // `"parent": null` asks for the top level; no `parent` means under the folder in view.
+    // `account` says whose folder to make, read strictly and checked to be there (#1319): an
+    // account that isn't, or isn't an id, is refused rather than quietly becoming the one in view.
+    let named = account_named(s, v)?;
+    // `"parent": null` asks for that account's top level; no `parent` means under the folder in
+    // view, when it is that account's, and otherwise at that account's top level.
     let parent = match v.get("parent") {
         Some(Value::Null) => None,
         Some(_) => Some(p::req_id(v, "parent")?),
-        None => s.mailbox.folder(s.view.folder).map(|f| f.id),
+        None => s.mailbox.folder(s.view.folder).filter(|f| named.is_none_or(|a| a == f.account)).map(|f| f.id),
     };
-    let account = match parent.and_then(|p| s.mailbox.folder(p)) {
-        Some(f) => f.account,
-        None => p::id(v, "account")
+    let account = match parent {
+        Some(p) => {
+            let f = s.mailbox.folder(p).ok_or_else(|| failed!("no folder with id {p}", p))?;
+            if named.is_some_and(|a| a != f.account) {
+                return Err(failed!("folder {p} is not that account's", p));
+            }
+            f.account
+        }
+        None => named
             .or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account))
             .or_else(|| s.mailbox.default_account().map(|a| a.id))
             .ok_or_else(|| fail("add an account first"))?,
     };
     let id = s.mailbox.add_folder(account, parent, name)?;
-    Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
+    Ok(json!({"id": id, "account": account, "path": s.mailbox.folder_path(id)}))
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
@@ -435,6 +519,10 @@ fn favorite(s: &mut Session, v: &Value) -> CmdResult {
     }
     let f = s.mailbox.folder_mut(id)?;
     f.favorite = p::bool(v, "value").unwrap_or(!f.favorite);
+    // (Put back later, it goes last: #1514.)
+    if !f.favorite {
+        f.favorite_place = None;
+    }
     Ok(json!({"id": id, "favorite": f.favorite}))
 }
 

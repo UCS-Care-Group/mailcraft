@@ -101,6 +101,14 @@ ignore = true
 multiple-versions = "warn"
 # Workspace crates name each other by path alone; every crates.io dependency has a version.
 wildcards = "allow"
+# A file or page is opened only through `apps/mailcraft/src/file_launcher.rs` and `browser.rs`, which
+# check what is opened and how the desktop types it: no crate that opens things its own way
+# (egui_kittest's tests open their snapshot diffs).
+deny = [
+    { crate = "open", wrappers = ["egui_kittest"], reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
+    { crate = "opener", reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
+    { crate = "webbrowser", reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
+]
 
 [sources]
 unknown-registry = "deny"

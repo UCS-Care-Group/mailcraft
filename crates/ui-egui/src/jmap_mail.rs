@@ -88,7 +88,8 @@ impl MailApp {
             self.jmap_refused.remove(&account);
         }
         let Some(secret) = self.jmap_secret(account) else {
-            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            self.set_dialog(dialog);
             return Ok(json!({"pending": "password"}));
         };
         // (Through the command: a run begins afresh, whatever one that never ended had read.)
@@ -137,7 +138,7 @@ impl MailApp {
     pub(crate) fn ask_for_jmap_send(&mut self) -> bool {
         let Some(account) = self.jmap_send_asks.iter().next().copied() else { return false };
         self.jmap_send_asks.remove(&account);
-        let waits = mailcraft_engine::cmd::graph_send::waiting(&self.session.mailbox, account) > 0;
+        let waits = mailcraft_engine::cmd::graph_send::waiting(&self.session, account) > 0;
         waits && !self.can_send_jmap_quietly(account) && self.start_sync(&json!({"account": account})).is_ok()
     }
 
@@ -153,6 +154,7 @@ impl MailApp {
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("jmap mail: the run stopped without its last piece (its task ended early)");
+                    self.session.end_run_unfinished(account);
                     (self.sync_rx, self.sync_refused) = (None, false);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
