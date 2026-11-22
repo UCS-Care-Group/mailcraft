@@ -180,6 +180,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
+                in_item: block.in_item,
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
