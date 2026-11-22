@@ -99,6 +99,18 @@ msgstr "\"{name}\" non è una categoria conservata solo su questo computer"
 msgid "\"{name}\" will be permanently deleted."
 msgstr "«{name}» verrà eliminato definitivamente."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "\"{name}\", {when}"
+msgstr "«{name}», {when}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "\"{name}\", {when}, moves to {to}"
+msgstr "«{name}», {when}, passa a {to}"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -116,6 +128,18 @@ msgstr "«{set}» non è un insieme di messaggi"
 #, fuzzy
 msgid "\"{shown}\" isn't an e-mail address"
 msgstr "«{shown}» non è un indirizzo di posta elettronica"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr "«{title}» è annullato e non può essere selezionato"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "\"{title}\" is cancelled, so it can't be added to the selection."
+msgstr "«{title}» è annullato, quindi non può essere aggiunto alla selezione."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -206,6 +230,12 @@ msgstr "+ azione"
 #, fuzzy
 msgid "+ condition"
 msgstr "+ condizione"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ eccezione"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -376,6 +406,18 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Non è stato ancora possibile inviare una modifica al calendario; verrà ritentato: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
+msgstr "Un calendario che mostra solo quando le persone sono occupate non ha appuntamenti da copiare: aprire uno dei calendari leggibili."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "A calendar that only shows when people are busy has nothing that can be deleted."
+msgstr "Un calendario che mostra solo quando le persone sono occupate non contiene nulla che si possa eliminare."
+
+#. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -392,6 +434,12 @@ msgstr "Un punto di codice scritto U+2192 o 2192, oppure un numero decimale dopo
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "Il calendario di un collega, tramite il suo indirizzo, con il tuo account di lavoro o scuola. Conservato solo su questo computer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "Una condizione, o le eccezioni di uno stesso tipo insieme, può cercare al massimo 20 parole o indirizzi."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -422,6 +470,12 @@ msgstr "Come sempre, prima viene salvata accanto a essa una copia dell'intera ca
 #, fuzzy
 msgid "A date"
 msgstr "Una data"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Un avviso desktop per la posta su cui questa regola agisce all'arrivo, quando MailCraft non è la finestra in primo piano, anche quando quello per la nuova posta è disattivato in File › Opzioni"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -518,6 +572,18 @@ msgstr "Una riunione viene inoltrata al massimo a {n} persone alla volta."
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
 msgstr "Una riunione nel tuo calendario ha questo ID ma un altro organizzatore, quindi questo invito non può modificarla."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them."
+msgstr "Una riunione organizzata da qualcun altro viene tolta solo dal proprio calendario, e l'organizzatore non viene informato a meno che si scelga di rifiutarla e informarlo."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgstr "Una riunione organizzata da qualcun altro viene tolta solo dal proprio calendario, e l'organizzatore non viene informato a meno che si scelga di rifiutarla e informarlo: l'annullamento inviato è quello della riunione che si organizza."
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -608,6 +674,12 @@ msgstr "Un rapporto viene scritto accanto alla tua casella."
 msgid "A rule needs a name, and something to look for."
 msgstr "Una regola richiede un nome e qualcosa da cercare."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "Una regola deve fare qualcosa: un'azione o un avviso desktop."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -625,6 +697,12 @@ msgstr "Un salvataggio della casella è ancora in corso: riprova tra un momento"
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
 msgstr "Non è stato possibile stabilire una connessione sicura con il server. Scrivi l'indirizzo del server in Impostazioni server."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "A series and one of its days are both named; nothing was changed."
+msgstr "Sono indicati sia una serie sia uno dei suoi giorni; non è stato modificato nulla."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -667,6 +745,12 @@ msgstr "Una breve nota con il link a quella pagina, da incollare in una mail o i
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Un indirizzo web, un indirizzo email, un numero di telefono (tel:) o un altro indirizzo come ms-settings:network-vpn. Senza selezione, l'indirizzo viene inserito così com'è."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "Una parola da cercare ha al massimo 200 caratteri."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1142,6 +1226,12 @@ msgid "Address:"
 msgstr "Indirizzo:"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "Indirizzi"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Addresses separated by ; (leave empty for replies to come to you)"
@@ -1472,6 +1562,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "Un appuntamento contrassegnato come privato mostra solo che sei occupato. Nessun invitato a nulla viene nominato."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "An appointment this would move is being changed in its own window and isn't saved: nothing was moved"
+msgstr "Un appuntamento che verrebbe spostato è in corso di modifica nella sua finestra e non è salvato: non è stato spostato nulla"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -1494,6 +1590,12 @@ msgstr "Un'importazione è in corso"
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "Un elemento ricorrente non può essere portato in un altro calendario in questo modo. Tenere premuto Ctrl per copiarvi questa occorrenza, oppure usare Sposta nel calendario dal suo menu per l'intera serie."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "An item would land where it already is; nothing was moved."
+msgstr "Un elemento finirebbe dove si trova già; non è stato spostato nulla."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -2024,6 +2126,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Si possono sottoscrivere al massimo {n} calendari: annulla prima l'iscrizione a uno."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Al massimo {n} richieste per posta partono alla volta."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -2549,7 +2657,7 @@ msgid "By Subject"
 msgstr "Per oggetto"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Calendario"
@@ -2749,6 +2857,12 @@ msgstr "Annulla accesso"
 #, fuzzy
 msgid "Cancel This Meeting?"
 msgstr "Annullare questa riunione?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Cancellations from the server of {account}:"
+msgstr "Annullamenti dal server di {account}:"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
@@ -3326,6 +3440,12 @@ msgstr "Cancella formattazione"
 msgid "Clear Recent Searches"
 msgstr "Cancella ricerche recenti"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Cancella le categorie"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3349,6 +3469,12 @@ msgstr "Cancella ricerca"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Cancella ricerca (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Rimuovi il contrassegno"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3421,6 +3547,24 @@ msgstr "Chiude questa cassetta postale condivisa e rimuove la posta conservata q
 #, fuzzy
 msgid "Close to system tray"
 msgstr "Chiudi nell'area di notifica"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then copy"
+msgstr "Chiudere prima ciò che è aperto, poi copiare"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then cut"
+msgstr "Chiudere prima ciò che è aperto, poi tagliare"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then paste"
+msgstr "Chiudere prima ciò che è aperto, poi incollare"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -3666,8 +3810,8 @@ msgstr "Copiato. Incollalo in una email o in una chat per il tuo amministratore.
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Copia un breve messaggio con l'indirizzo della pagina Microsoft in cui un amministratore dell'organizzazione approva MailCraft, una volta per tutti. Non viene inviato nulla: incollarlo personalmente in un messaggio o in una chat."
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Copia"
@@ -3755,6 +3899,12 @@ msgid "Copy problems"
 msgstr "Copia problemi"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Copy takes no parameters: it copies what is selected"
+msgstr "Copia non accetta parametri: copia ciò che è selezionato"
+
+#. interface
 #: crates/ui-egui/src/move_items.rs
 #, fuzzy
 msgid "Copy the selected items to the folder:"
@@ -3770,6 +3920,12 @@ msgstr "Copia la versione, la piattaforma e la parte finale del registro di Mail
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "Copia nella cartella"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "Copia nella cartella"
 
 #. interface
@@ -4058,11 +4214,17 @@ msgstr "Visualizzazione corrente"
 msgid "Custom color"
 msgstr ""
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Taglia"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Cut takes no parameters: it cuts what is selected"
+msgstr "Taglia non accetta parametri: taglia ciò che è selezionato"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4181,6 +4343,12 @@ msgstr "Rifiuta e proponi"
 #, fuzzy
 msgid "Decline and Tell the Organizer"
 msgstr "Rifiuta e informa l'organizzatore"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Decline the Others and Tell Their Organizers"
+msgstr "Rifiuta gli altri e informa i loro organizzatori"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4327,6 +4495,12 @@ msgid "Delete Text"
 msgstr "Elimina testo"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete These Appointments?"
+msgstr "Eliminare questi appuntamenti?"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
@@ -4335,8 +4509,20 @@ msgstr "Elimina questa occorrenza"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Delete Your Copy of These Meetings?"
+msgstr "Eliminare la propria copia di queste riunioni?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "Eliminare la propria copia di questa riunione?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete and Send Cancellations"
+msgstr "Elimina e invia gli annullamenti"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -4965,6 +5151,12 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr "La firma di ogni account va in fondo ai suoi nuovi messaggi, alle risposte e agli inoltri. Lasciala vuota per non averne."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "Ogni condizione ed eccezione richiede qualcosa da cercare."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -5389,6 +5581,12 @@ msgstr "Tutto ciò che era conservato su questo telefono è stato rimosso."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Tutto ciò che fa l'interfaccia è un comando: {commands} in tutto, che coprono il {percent}% del catalogo delle funzionalità. La riga di comando, il canale di controllo e il server MCP eseguono gli stessi comandi."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "Tranne se"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6099,7 +6297,7 @@ msgid "Friday"
 msgstr "venerdì"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "Da"
@@ -6121,6 +6319,12 @@ msgstr "Dal mittente"
 #, fuzzy
 msgid "From a mailing list."
 msgstr "Da una mailing list."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "«Da» e «Inviato a» richiedono indirizzi completi, come qualcuno@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6590,6 +6794,12 @@ msgstr "Ha un allegato"
 msgid "Has attachments"
 msgstr "Ha allegati"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "Ha la categoria"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -6601,6 +6811,12 @@ msgstr "Indirizza le risposte a"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Indirizza le risposte ad altri indirizzi"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Altezza"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6870,6 +7086,12 @@ msgstr "Se quella pagina indica che l'account non è di un amministratore, preme
 #, fuzzy
 msgid "If that page says you need admin approval"
 msgstr "Se quella pagina indica che serve l'approvazione dell'amministratore"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "If you choose \"{choice}\", their organizers are told:"
+msgstr "Se si sceglie «{choice}», i loro organizzatori vengono informati:"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7383,6 +7605,12 @@ msgid "Invented mail, meetings, people and tasks to try things on"
 msgstr "Posta, riunioni, persone e attività inventate su cui fare prove"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Invitations from the server of {account}:"
+msgstr "Inviti dal server di {account}:"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Invite Attendees"
@@ -7393,6 +7621,24 @@ msgstr "Invita partecipanti"
 #, fuzzy
 msgid "Invite attendees"
 msgstr "Invita partecipanti"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "È un invito o un aggiornamento di riunione"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "È una risposta automatica"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "È contrassegnato"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -7575,6 +7821,14 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "Con esso se ne vanno i suoi messaggi, allegati, impostazioni e l'accesso memorizzato, così come calendario, contatti, attività e orari di lavoro provenienti dal suo server."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Anche la regola dell'account viene rimossa; se il suo server la conserva, resta lì."
+msgstr[1] "Anche le {n} regole dell'account vengono rimosse; quelle che il suo server conserva restano lì."
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
@@ -7585,14 +7839,6 @@ msgstr "Oggetto: «{subject}». Testo: «{body}»."
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "Il testo viene sostituito"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Se ne va anche la sua {n} regola; quella che tiene il suo server resta lì."
-msgstr[1] "Se ne vanno anche le sue {n} regole; quelle che tiene il suo server restano lì."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7701,6 +7947,12 @@ msgstr "Posta indesiderata"
 #, fuzzy
 msgid "Just This One"
 msgstr "Solo questo"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -8379,6 +8631,12 @@ msgstr "Posta su questo telefono"
 #, fuzzy
 msgid "Mail only"
 msgstr "Solo posta"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "La posta a cui si applica una qualsiasi eccezione non viene toccata"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -9288,6 +9546,12 @@ msgid "More actions for {name}"
 msgstr "Altre azioni per {name}"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "More calendar items remain in this view"
+msgstr "In questa vista restano altri elementi del calendario"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "More commands"
@@ -9400,10 +9664,28 @@ msgid "Move Rule"
 msgstr "Sposta la regola"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move These Appointments?"
+msgstr "Spostare questi appuntamenti?"
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Up"
 msgstr "Sposta su"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move and Send Invitations"
+msgstr "Sposta e invia gli inviti"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move and Send Updates"
+msgstr "Sposta e invia gli aggiornamenti"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9483,6 +9765,12 @@ msgstr "Sposta nel calendario dell'account"
 msgid "Move to folder"
 msgstr "Sposta nella cartella"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "«Sposta nella cartella» e «Copia nella cartella» richiedono una cartella; «Categorizza» richiede una categoria."
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -9524,6 +9812,30 @@ msgstr "I miei calendari"
 #, fuzzy
 msgid "My Tasks"
 msgstr "Le mie attività"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "Il mio indirizzo è in Cc"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "Il mio indirizzo è in A"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "Il mio indirizzo è in A o Cc"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "Il mio indirizzo non è in A"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9842,8 +10154,8 @@ msgstr "Nuova posta"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "La nuova posta che Gmail mette in Social, Promozioni, Aggiornamenti o Forum arriva senza avviso."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "La nuova posta che Gmail mette in Social, Promotions, Aggiornamenti o Forums arriva senza avviso, a meno che una delle tue regole ne mostri uno."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -9880,6 +10192,12 @@ msgstr "Nuova regola"
 #, fuzzy
 msgid "New task"
 msgstr "Nuova attività"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "New times from the server of {account}:"
+msgstr "Nuovi orari dal server di {account}:"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -9932,8 +10250,8 @@ msgstr "Mese successivo"
 msgid "Next Page"
 msgstr "Pagina successiva"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "Settimana prossima"
@@ -9969,7 +10287,7 @@ msgid "No Color"
 msgstr "Nessun colore"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "Nessuna data"
@@ -10447,6 +10765,12 @@ msgid "Nobody is signing in"
 msgstr "Nessun accesso in corso"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Nobody is written to about:"
+msgstr "Nessuno riceve comunicazioni su:"
+
+#. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Nobody matches the search"
@@ -10475,6 +10799,12 @@ msgstr "Nessuno, o più di uno dei contatti, corrisponde a: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Nessuno"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Nessuno di questi messaggi consente di annullare l'iscrizione da qui."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -10807,10 +11137,22 @@ msgid "Nothing to do here."
 msgstr "Niente da fare qui."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Nothing was copied or cut: copy or cut an appointment first"
+msgstr "Non è stato copiato né tagliato nulla: copiare o tagliare prima un appuntamento"
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
 msgstr "Non è stato fatto nulla: ciò che l'agente ha chiesto è cambiato dopo la tua richiesta di conferma."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Nothing was done: what you were asked about has changed since. Ask again."
+msgstr "Non è stato fatto nulla: ciò su cui è stata posta la domanda è cambiato nel frattempo. Riprovare."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11027,6 +11369,12 @@ msgstr "Dopo che ha funzionato, l'archivio credenziali del sistema la conserva p
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
 msgstr "Un'occorrenza di una serie non può trovarsi in un calendario diverso dal resto della serie."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "One occurrence of a series can't be moved to another calendar than the rest of the series. Cut the whole series, or copy this day instead."
+msgstr "Un'occorrenza di una serie non può essere spostata in un calendario diverso da quello del resto della serie. Tagliare l'intera serie, oppure copiare questo giorno."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11379,6 +11727,24 @@ msgstr "Open source con licenza MIT o Apache License 2.0, a scelta."
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "Open source con licenza MIT o Apache License 2.0, a scelta. I caratteri dell'interfaccia sono Inter, Source Sans 3 e JetBrains Mono (SIL Open Font License). Ogni icona è disegnata nel codice."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then copy"
+msgstr "Aprire prima il Calendario, poi copiare"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then cut"
+msgstr "Aprire prima il Calendario, poi tagliare"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then paste"
+msgstr "Aprire prima il Calendario, poi incollare"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11795,7 +12161,7 @@ msgid "Password:"
 msgstr "Password:"
 
 #. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Incolla"
@@ -11816,6 +12182,12 @@ msgstr ""
 #, fuzzy
 msgid "Paste or write the signature's HTML"
 msgstr "Incolla o scrivi l'HTML della firma"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Paste takes no parameters: it puts what was copied or cut where a time is picked"
+msgstr "Incolla non accetta parametri: mette ciò che è stato copiato o tagliato dove è scelto un orario"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11895,11 +12267,23 @@ msgstr "Scegli l'ultimo giorno"
 msgid "Picture"
 msgstr "Immagine"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Formato immagine"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Layout immagine"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Dimensione immagine"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11918,6 +12302,12 @@ msgstr "Immagine sopra il testo"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Immagine accanto al testo"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Dimensione immagine"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12452,6 +12842,18 @@ msgstr "Lettura delle tue risposte automatiche dal server…"
 msgid "Real name"
 msgstr "Nome reale"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Ricevuto tra"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "«Ricevuto tra» richiede uno o due giorni (AAAA-MM-GG), il precedente per primo."
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -12502,6 +12904,12 @@ msgstr "Posta recente"
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
 msgstr "La posta recente è conservata su questo telefono e quella più vecchia resta sul tuo server di posta. Non viene eliminato nulla dal server."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "Il destinatario contiene"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -12866,6 +13274,12 @@ msgid "Remove this condition"
 msgstr "Rimuovi questa condizione"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "Rimuovi questa eccezione"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
@@ -13102,6 +13516,12 @@ msgid ""
 msgstr ""
 "Reimposta\n"
 "visualizzazione"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Reimposta dimensione"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -13917,7 +14337,7 @@ msgid "Seeing when other people are busy needs your permission: File › Info �
 msgstr "Per vedere quando gli altri sono occupati serve l'autorizzazione: File › Informazioni › Collega calendario e contatti"
 
 #. command label, name
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Select All"
 msgstr "Seleziona tutto"
@@ -14016,6 +14436,12 @@ msgstr "Seleziona qualcuno per vedere i dettagli"
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Select the message before previewing its attachment."
 msgstr "Seleziona il messaggio prima di aprire l’anteprima dell’allegato."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selezioni al massimo {n} messaggi da cui disiscriversi."
 
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -14437,6 +14863,12 @@ msgstr "Invio…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr "Invia la segnalazione al team di MailCraft, come la mostra questa finestra."
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "La riservatezza è"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -14454,6 +14886,12 @@ msgstr "Posta inviata"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "Inviata come scritta, senza nulla che esegua o tracci. Le immagini vengono dal loro indirizzo web e i programmi dei destinatari decidono se caricarle. Un messaggio che scrivi mostra una copia più semplice di questa firma; se la modifichi lì, viene inviata quella copia."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "Inviato solo a me"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14555,6 +14993,30 @@ msgstr "Impostazioni"
 #: crates/ui-egui/src/menubar.rs
 msgid "Settings…"
 msgstr "Impostazioni…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Più indirizzi: separarli con un punto e virgola (;). Ne basta uno."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Più testi: separarli con un punto e virgola (;). Ne basta uno."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14761,6 +15223,12 @@ msgid "Show Training"
 msgstr "Mostra formazione"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "Mostra un avviso desktop"
+
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert for reminders"
@@ -14900,6 +15368,12 @@ msgstr "Mostra il riquadro delle cartelle"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Mostra i messaggi di questa conversazione"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "Mostra l'immagine nella sua dimensione"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15284,11 +15758,23 @@ msgstr "Barra multifunzione semplificata"
 msgid "Single Line"
 msgstr "Riga singola"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Dimensione"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "La dimensione è tra"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "«La dimensione è tra» richiede due dimensioni in KB, la minore per prima."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -15385,6 +15871,18 @@ msgstr "Alcuni file non sono stati allegati: il messaggio non può contenerne al
 #, fuzzy
 msgid "Some of the search was checked on this computer"
 msgstr "Parte della ricerca è stata verificata su questo computer"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Some of these are in the calendars shown where the time was picked and some are in others: paste them in two goes, so that each lands in the calendar you mean."
+msgstr "Alcuni sono nei calendari mostrati dove è stato scelto l'orario e altri in altri: incollarli in due volte, in modo che ciascuno finisca nel calendario voluto."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed."
+msgstr "Alcuni invitano le persone a una nuova riunione e altri comunicano loro una modifica: tagliarli uno alla volta, in modo che per ciascuno venga posta una domanda a parte. Non è stato modificato nulla."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -15673,6 +16171,12 @@ msgstr "Oggetto"
 #, fuzzy
 msgid "Subject contains"
 msgstr "L'oggetto contiene"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "L'oggetto o il corpo contiene"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -16159,6 +16663,12 @@ msgstr "Impossibile completare l'operazione."
 msgid "That could not be saved."
 msgstr "Non è stato possibile salvare."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "That day of the series can't be put exactly where it was asked to go; nothing was moved."
+msgstr "Quel giorno della serie non può essere messo esattamente dove richiesto; non è stato spostato nulla."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -16254,6 +16764,12 @@ msgstr "Questa non è la password di questo file."
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "Quella chiave è già sulla card"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "That paste was just made, so nothing was pasted again"
+msgstr "Quell'incolla è appena stato fatto, quindi non è stato incollato nulla di nuovo"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16534,6 +17050,12 @@ msgstr "Il calendario è già in fase di aggiornamento."
 #, fuzzy
 msgid "The calendar is being updated: try again in a moment."
 msgstr "Il calendario è in fase di aggiornamento: riprovare tra un momento."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The calendar items this question is about can't be read, so nothing was asked or done."
+msgstr "Gli elementi del calendario a cui si riferisce questa domanda non possono essere letti, quindi non è stato chiesto né fatto nulla."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -17248,6 +17770,30 @@ msgstr "Il proprietario non ha consentito la ricerca di aggiornamenti."
 msgid "The page was closed, or five minutes went by before the sign-in was finished."
 msgstr "La pagina è stata chiusa, oppure sono passati cinque minuti prima che l'accesso fosse completato."
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste asks for more, and this route never asks: nothing was moved"
+msgstr "L'incolla richiede altro, e questa via non chiede mai: non è stato spostato nulla"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but it answered that it moved nothing"
+msgstr "L'incolla è stato eseguito, ma ha risposto di non aver spostato nulla"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer can't be counted"
+msgstr "L'incolla è stato eseguito, ma la sua risposta non può essere contata"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer doesn't say how many items it moved"
+msgstr "L'incolla è stato eseguito, ma la sua risposta non dice quanti elementi ha spostato"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -17336,6 +17882,12 @@ msgstr "Il servizio di segnalazione al momento non funziona. Riprova più tardi 
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "La risposta del servizio di segnalazione non è comprensibile per MailCraft, quindi la segnalazione potrebbe essere arrivata. Riprova più tardi oppure aprila su GitHub."
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Le regole non toccano la posta di una cassetta postale condivisa: ha regole proprie."
 
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
@@ -17512,6 +18064,30 @@ msgid "The server is busy. Try again in a few minutes."
 msgstr "Il server è occupato. Riprova tra qualche minuto."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} sends the {n} person invited the invitation by mail."
+msgid_plural "The server of {account} sends the {n} people invited the invitation by mail."
+msgstr[0] "Il server di {account} invia per e-mail l'invito alla {n} persona invitata."
+msgstr[1] "Il server di {account} invia per e-mail l'invito alle {n} persone invitate."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited of the new time."
+msgid_plural "The server of {account} tells the {n} people invited of the new time."
+msgstr[0] "Il server di {account} comunica il nuovo orario alla {n} persona invitata."
+msgstr[1] "Il server di {account} comunica il nuovo orario alle {n} persone invitate."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited, so that they know it is cancelled."
+msgid_plural "The server of {account} tells the {n} people invited, so that they know it is cancelled."
+msgstr[0] "Il server di {account} avvisa la {n} persona invitata, perché sappia che è annullato."
+msgstr[1] "Il server di {account} avvisa le {n} persone invitate, perché sappiano che è annullato."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
@@ -17618,6 +18194,30 @@ msgstr "I server qui sotto sono quelli che {domain} pubblica per i programmi di 
 #, fuzzy
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr "I server qui sotto sono stati trovati nei record DNS di {domain} (i suoi record SRV). Controllali prima di connetterti."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below send the {n} person invited the invitation by mail."
+msgid_plural "The servers of the accounts named below send the {n} people invited the invitation by mail."
+msgstr[0] "I server degli account indicati sotto inviano per e-mail l'invito alla {n} persona invitata."
+msgstr[1] "I server degli account indicati sotto inviano per e-mail l'invito alle {n} persone invitate."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited of the new time."
+msgid_plural "The servers of the accounts named below tell the {n} people invited of the new time."
+msgstr[0] "I server degli account indicati sotto comunicano il nuovo orario alla {n} persona invitata."
+msgstr[1] "I server degli account indicati sotto comunicano il nuovo orario alle {n} persone invitate."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of the accounts named below tell the {n} people invited, so that they know it is cancelled."
+msgstr[0] "I server degli account indicati sotto avvisano la {n} persona invitata, perché sappia che è annullato."
+msgstr[1] "I server degli account indicati sotto avvisano le {n} persone invitate, perché sappiano che è annullato."
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -17871,7 +18471,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "Il nome utente è troppo lungo o contiene un carattere non ammesso in un nome"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "La finestra non è ancora pronta."
@@ -17961,10 +18561,22 @@ msgid "Thesaurus"
 msgstr "Dizionario dei sinonimi"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
+msgstr "Sono riunioni organizzate da qualcun altro, a cui si è invitati. Eliminarle le toglie solo dal proprio calendario, e l'organizzatore non viene informato che non si parteciperà. Rifiutarle informa l'organizzatore, se lo si sceglie."
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "These are the answers this computer has been told of."
 msgstr "Queste sono le risposte di cui questo computer è stato informato."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These calendar items can't be shown to you as one batch, so nothing was asked or done."
+msgstr "Questi elementi del calendario non possono essere mostrati come un unico gruppo, quindi non è stato chiesto né fatto nulla."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -18026,8 +18638,8 @@ msgstr "Vengono salvati in un file che scegli tu e che alleghi alla segnalazione
 msgid "They share {what}."
 msgstr "Condividono {what}."
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Questa settimana"
@@ -18339,6 +18951,14 @@ msgid "This deletes the {n} message of this conversation that is listed here. It
 msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
 msgstr[0] "Questo elimina il {n} messaggio di questa conversazione elencato qui. Va in Posta eliminata."
 msgstr[1] "Questo elimina i {n} messaggi di questa conversazione elencati qui. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} appointment from your calendar."
+msgid_plural "This deletes {n} appointments from your calendar."
+msgstr[0] "Questo elimina {n} appuntamento dal calendario."
+msgstr[1] "Questo elimina {n} appuntamenti dal calendario."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18812,6 +19432,28 @@ msgstr "Questo messaggio verrà eliminato definitivamente."
 msgid "This message's Digital signature can't be checked."
 msgstr "Impossibile verificare la firma digitale di questo messaggio."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment to {when}, in {to}."
+msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
+msgstr[0] "Questo sposta {n} appuntamento a {when} ({to})."
+msgstr[1] "Questo sposta {n} appuntamenti, il primo a {when} e gli altri di altrettanto ({to})."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgid_plural "This moves {n} appointments, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgstr[0] "Questo sposta {n} appuntamento, il primo con un orario a {when} e gli altri di altrettanto ({to})."
+msgstr[1] "Questo sposta {n} appuntamenti, il primo con un orario a {when} e gli altri di altrettanto ({to})."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
+msgstr "Questo incolla richiede prima una risposta del proprietario, e questo comando non chiede mai: non è stato incollato nulla"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -18925,6 +19567,12 @@ msgstr "Non è stato possibile leggere questa attività."
 #, fuzzy
 msgid "This version of MailCraft can't search an address list"
 msgstr "Questa versione di MailCraft non può cercare in un elenco indirizzi"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This was copied from another mailbox than the one open now"
+msgstr "Questo è stato copiato da una casella di posta diversa da quella aperta ora"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -19205,7 +19853,7 @@ msgid "Tomorrow"
 msgstr "Domani"
 
 #. what a command says
-#: crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Troppe modifiche al calendario sono in attesa di essere inviate al server. Lasciare prima che Invia/Ricevi le trasmetta."
@@ -19501,6 +20149,26 @@ msgstr "Annulla iscrizione al calendario"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Annulla iscrizione a un calendario Internet"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Disiscriviti dalle loro liste"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Disiscriviti dai messaggi selezionati"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Annulla l'iscrizione a {n} lista."
+msgstr[1] "Annulla l'iscrizione a {n} liste."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19512,6 +20180,12 @@ msgstr "Si disiscriva sulla pagina della lista, nel suo browser."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Disiscrizione fatta."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Disiscrizione: {click} con un clic, {mail} per posta, {pages} da fare sulla loro pagina, {left} tralasciati."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19928,6 +20602,12 @@ msgid "What is bundled in this app, and under which licence"
 msgstr "Cosa include questa app e con quale licenza"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What is on the system's clipboard isn't this appointment"
+msgstr "Ciò che si trova negli appunti di sistema non è questo appuntamento"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What it is made of"
@@ -19956,6 +20636,24 @@ msgstr "Cosa fare quando l'organizzazione deve approvare MailCraft"
 #, fuzzy
 msgid "What to do next"
 msgstr "Cosa fare ora"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied has changed since; copy it again to paste it"
+msgstr "Ciò che è stato copiato è cambiato nel frattempo; copiarlo di nuovo per incollarlo"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied or cut has no time to be pasted at"
+msgstr "Ciò che è stato copiato o tagliato non ha un orario a cui incollarlo"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was cut has changed since; cut it again to paste it"
+msgstr "Ciò che è stato tagliato è cambiato nel frattempo; tagliarlo di nuovo per incollarlo"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -20080,7 +20778,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Chi ha firmato questo messaggio e il certificato"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Larghezza"
@@ -20847,6 +21545,12 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "la scheda di un contatto conserva al massimo 32 chiavi"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "a day of the series is needed to move one of its occurrences"
+msgstr "serve un giorno della serie per spostarne una delle occorrenze"
+
+#. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
@@ -20975,8 +21679,8 @@ msgstr "una risposta può essere lunga al massimo {most} caratteri"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "una regola non può spostare la posta in Posta in uscita: verrebbe inviata"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "una regola non può spostare né copiare la posta in Posta in uscita: la invierebbe"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21055,6 +21759,12 @@ msgstr "le regole di una cassetta postale condivisa sono sue: questa versione no
 #, fuzzy
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "una firma è aperta: aggiungi le sue immagini con signature.picture.add"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "una firma è aperta: ridimensiona le sue immagini con signature.picture.set"
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -21182,6 +21892,13 @@ msgstr[1] "e altri {n}, non uniti ora"
 msgid "at most 200 messages can be forwarded together"
 msgstr "si possono inoltrare insieme al massimo 200 messaggi"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgctxt "between e-mail addresses"
+msgid "{others}, {last}"
+msgstr "{others}, {last}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -21259,6 +21976,12 @@ msgstr "impossibile raggiungere {host}: {reason}"
 #, fuzzy
 msgid "day"
 msgstr "giorno"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "scadenza"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
@@ -21483,6 +22206,12 @@ msgstr "modifica opzioni, firme o regole"
 msgid "it clicks or types in the window"
 msgstr "fa clic o digita nella finestra"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "copia la posta in più di una cartella"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -21506,6 +22235,12 @@ msgstr "andrà sul server alla prossima connessione"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "ha due condizioni dello stesso tipo, e il server accetterebbe l'una o l'altra invece di entrambe"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "ha due eccezioni dello stesso tipo che cercano cose diverse, e il server ne accetta una sola"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -21590,6 +22325,12 @@ msgstr "ha richiesto troppo tempo"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "scrive ad altre persone o si collega al web"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "its account"
+msgstr "il suo account"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -21748,7 +22489,7 @@ msgid "no calendar was opened by address"
 msgstr "nessun calendario è stato aperto per indirizzo"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "nessun calendario con id {id}"
@@ -21760,7 +22501,7 @@ msgid "no contact with id {id}"
 msgstr "nessun contatto con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
 msgid "no event with id {id}"
 msgstr "nessun evento con id {id}"
@@ -21848,6 +22589,12 @@ msgstr "nessun server in uscita"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "nessuna immagine {id} in questa firma"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "nessuna immagine {id} è stata inserita in questo messaggio"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22087,6 +22834,12 @@ msgstr "in un messaggio si possono inserire solo i propri calendari"
 msgid "optional"
 msgstr "facoltativo"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "o"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22177,11 +22930,39 @@ msgstr "selezionare prima un messaggio"
 msgid "select a task first"
 msgstr "selezionare prima un'attività"
 
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#. interface, what a command says, why a command can't run
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selezionare prima un appuntamento"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "Riservato"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "Normale"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "Personale"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Privato"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -22327,6 +23108,12 @@ msgid "that message isn't waiting in the Outbox"
 msgstr "quel messaggio non attende nella Posta in uscita"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "that series has no day to select"
+msgstr "quella serie non ha giorni da selezionare"
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "that step changes a message that is open for writing: close it first"
@@ -22458,6 +23245,18 @@ msgstr "il browser non può conservare una copia della cassetta postale accanto 
 msgid "the browser can't read folders by path"
 msgstr "il browser non può leggere le cartelle tramite percorso"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" of {account}"
+msgstr "il calendario «{calendar}» di {account}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" on this computer"
+msgstr "il calendario «{calendar}» su questo computer"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -22487,6 +23286,18 @@ msgstr "il certificato è quello di un'autorità di certificazione, non la chiav
 #, fuzzy
 msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
 msgstr "il certificato non è per la posta: il suo utilizzo della chiave o utilizzo esteso della chiave è per altro"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the changed occurrence has no id"
+msgstr "l'occorrenza modificata non ha un ID"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the changed occurrence is gone"
+msgstr "l'occorrenza modificata non c'è più"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22554,6 +23365,12 @@ msgstr "la fine è precedente all'inizio"
 msgid "the end of the time range must be after its start"
 msgstr "la fine dell'intervallo di tempo deve essere successiva al suo inizio"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the entire series \"{name}\""
+msgstr "l'intera serie «{name}»"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
@@ -22589,6 +23406,24 @@ msgstr "il file è più grande di quanto possa essere un file di chiavi pubblich
 #, fuzzy
 msgid "the folder is already empty"
 msgstr "la cartella è già vuota"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "la cartella in cui copia la posta è in un altro account"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "la cartella in cui copia la posta è su questo computer"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "la cartella in cui copia la posta non è sul server"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -22759,10 +23594,22 @@ msgid "the network couldn't get there"
 msgstr "la rete non è riuscita a raggiungerlo"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the occurrence was not changed; nothing was moved"
+msgstr "l'occorrenza non è stata modificata; non è stato spostato nulla"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
 msgstr "la cartella padre appartiene a un altro account"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the pasted items would land outside the years a calendar can hold"
+msgstr "gli elementi incollati finirebbero fuori dagli anni che un calendario può contenere"
 
 #. what a command says
 #: crates/mobile/src/message.rs
@@ -22819,6 +23666,12 @@ msgid "the result {why}"
 msgstr "il risultato {why}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the same calendar item is named twice; nothing was changed"
+msgstr "lo stesso elemento del calendario è indicato due volte; non è stato modificato nulla"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "the search can't look for this sender's address as a whole address"
@@ -22849,7 +23702,19 @@ msgid "the sender has no usable e-mail address"
 msgstr "il mittente non ha un indirizzo di posta elettronica utilizzabile"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "l'indirizzo del mittente è più lungo di quanto cerca una regola ({n} caratteri)"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the series \"{title}\" doesn't happen on {date}"
+msgstr "la serie «{title}» non ha luogo il {date}"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "la serie non ricorre il {date}"
@@ -22905,14 +23770,50 @@ msgstr "il server ha chiesto più di quanto contenesse il comando"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "il server non può rimuovere un contrassegno"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "il server non può cancellare le categorie"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "il server non può contrassegnare la posta"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "il server non può tenere le regole in quest'ordine: una regola che il server non lascia modificare non lascia loro alcun posto libero"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "il server non può guardare il giorno in cui è arrivata la posta"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "il server non può controllare se hai contrassegnato la posta"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "il server non può rimuovere singoli messaggi (non offre UIDPLUS)"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "il server non può mostrare un avviso desktop"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -23249,6 +24150,18 @@ msgstr "il nome utente o la password contiene un carattere che non può essere i
 msgid "the user name or password is too long"
 msgstr "il nome utente o la password è troppo lungo"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "their calendar"
+msgstr "il loro calendario"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "their own calendars"
+msgstr "i loro calendari"
+
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
@@ -23441,6 +24354,12 @@ msgstr "le categorie di questo account non sono sincronizzate con alcun server"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "le categorie di questo account non sono sincronizzate con il suo server"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "questa versione non può disiscriversi con un clic"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -23544,13 +24463,13 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "questo messaggio non è scaricato: aprilo quando sei online, poi inviarlo di nuovo"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
 msgstr "questa serie ha troppi giorni annullati"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "questa serie ha troppi giorni modificati"
@@ -23562,6 +24481,20 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "volta"
 msgstr[1] "volte"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "to {n} person"
+msgid_plural "to {n} people"
+msgstr[0] "a {n} persona"
+msgstr[1] "a {n} persone"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "to {people}"
+msgstr "a {people}"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -23940,6 +24873,12 @@ msgstr "{count} messaggi non sono stati cercati per intero: qui c'è solo il lor
 #, fuzzy
 msgid "{days} (all day)"
 msgstr "{days} (tutto il giorno)"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{day} at {time}"
+msgstr "{day} alle {time}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
@@ -24460,6 +25399,14 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "{n} account ne ha una"
 msgstr[1] "{n} account ne hanno una"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{n} appointment"
+msgid_plural "{n} appointments"
+msgstr[0] "{n} appuntamento"
+msgstr[1] "{n} appuntamenti"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -24484,6 +25431,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "{n} corpo o allegato manca dalla cartella dei contenuti della cassetta postale, o è danneggiato."
 msgstr[1] "{n} corpi o allegati mancano dalla cartella dei contenuti della cassetta postale, o sono danneggiati."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} con un messaggio dal tuo account tramite Posta in uscita:"
+msgstr[1] "{n} con un messaggio ciascuna dal tuo account tramite Posta in uscita:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24499,6 +25454,14 @@ msgid "{n} calendar item"
 msgid_plural "{n} calendar items"
 msgstr[0] "{n} elemento del calendario"
 msgstr[1] "{n} elementi del calendario"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} calendar item selected"
+msgid_plural "{n} calendar items selected"
+msgstr[0] "{n} elemento del calendario selezionato"
+msgstr[1] "{n} elementi del calendario selezionati"
 
 #. what a command says
 #: crates/engine/src/undo.rs
@@ -24723,6 +25686,14 @@ msgstr[0] "{n} ora prima"
 msgstr[1] "{n} ore prima"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} con un clic: il suo server riceve l'indirizzo indicato, nient'altro."
+msgstr[1] "{n} con un clic: il server di ogni lista riceve l'indirizzo indicato, nient'altro, una alla volta."
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
@@ -24819,7 +25790,7 @@ msgstr[0] "{n} messaggio archiviato"
 msgstr[1] "{n} messaggi archiviati"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -24881,14 +25852,6 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} messaggio è già qui ed è escluso"
 msgstr[1] "{n} messaggi sono già qui e sono esclusi"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} messaggio corrispondente"
-msgstr[1] "{n} messaggi corrispondenti"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
@@ -25023,6 +25986,14 @@ msgid "{n} minute before"
 msgid_plural "{n} minutes before"
 msgstr[0] "{n} minuto prima"
 msgstr[1] "{n} minuti prima"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Un'altra ({n}) per posta non viene inviata ora: seleziona meno messaggi per vederla."
+msgstr[1] "Altre {n} per posta non vengono inviate ora: seleziona meno messaggi per vederle."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -25188,6 +26159,14 @@ msgid_plural "{n} people proposed another time."
 msgstr[0] "{n} persona ha proposto un altro orario."
 msgstr[1] "{n} persone hanno proposto un altro orario."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} person without an address"
+msgid_plural "{n} people without an address"
+msgstr[0] "{n} persona senza indirizzo"
+msgstr[1] "{n} persone senza indirizzo"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -25272,6 +26251,14 @@ msgstr[0] "{n} selezionato"
 msgstr[1] "{n} selezionati"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} mittente viene escluso: posta di cui il server non garantisce, in Posta indesiderata, con un avviso sul mittente o che non indica come."
+msgstr[1] "{n} mittenti vengono esclusi: posta di cui il server non garantisce, in Posta indesiderata, con un avviso sul mittente o che non indica come."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25352,6 +26339,14 @@ msgstr[0] "{n} non letto sul server"
 msgstr[1] "{n} non letti sul server"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} si annulla sulla propria pagina: apri il suo messaggio per farlo lì."
+msgstr[1] "{n} si annullano sulla propria pagina: apri ciascuno di quei messaggi per farlo lì."
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} was here already"
@@ -25410,6 +26405,20 @@ msgstr "{path} è più grande di {mb} MB"
 #, fuzzy
 msgid "{path} isn't a mailbox; bring it in with File › Import"
 msgstr "{path} non è una cassetta postale; importarlo con File › Importa"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{people} and {nameless}"
+msgstr "{people} e {nameless}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{people} and {n} more"
+msgid_plural "{people} and {n} more"
+msgstr[0] "{people} e altri {n}"
+msgstr[1] "{people} e altri {n}"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -25622,6 +26631,12 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• a {to}, oggetto «{subject}»"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "−Bin"
@@ -25632,6 +26647,26 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "Se ne va anche la sua {n} regola; quella che tiene il suo server resta lì."
+#~ msgstr[1] "Se ne vanno anche le sue {n} regole; quelle che tiene il suo server restano lì."
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "La nuova posta che Gmail mette in Social, Promozioni, Aggiornamenti o Forum arriva senza avviso."
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "una regola non può spostare la posta in Posta in uscita: verrebbe inviata"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} messaggio corrispondente"
+#~ msgstr[1] "{n} messaggi corrispondenti"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
