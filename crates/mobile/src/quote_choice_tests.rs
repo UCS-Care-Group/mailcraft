@@ -65,7 +65,7 @@ fn a_reply_quotes_what_the_reading_view_showed() {
             // The view shows the HTML whenever it holds a picture; the text part only for HTML of nothing.
             let shown_as_text = html.starts_with("<script");
             assert_eq!(as_text, Some(shown_as_text), "{html}");
-            assert_eq!(view.blocks.is_empty(), false, "{html}");
+            assert!(!view.blocks.is_empty(), "{html}");
             assert_eq!(quoted_text, shown_as_text, "{html}");
             assert_eq!(quote.is_none(), shown_as_text, "{html}");
             assert!(quote.is_none_or(|q| !q.text.contains("SENDER ALTERNATIVE") && !q.html.contains("SENDER ALTERNATIVE")), "{html}");
