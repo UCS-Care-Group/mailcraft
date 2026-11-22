@@ -157,7 +157,8 @@ fn a_free_busy_calendar_gives_nothing_away_by_its_order_or_groups() {
         ..event(title, location, at(2026, 10, 5, 9), rule, &[category])
     };
     let mut first = session(Vec::new());
-    add_free_busy(&mut first, vec![hidden("Aardvark", "Zurich", "Zoo", weekly()), hidden("Zebra", "Aachen", "Ant", None)]);
+    let cancelled = Event { cancelled: true, ..hidden("Aardvark", "Zurich", "Zoo", weekly()) };
+    add_free_busy(&mut first, vec![cancelled, hidden("Zebra", "Aachen", "Ant", None)]);
     let mut second = session(Vec::new());
     add_free_busy(&mut second, vec![hidden("Zebra", "Aachen", "Ant", weekly()), hidden("Aardvark", "Zurich", "Zoo", None)]);
     for arrange in ["recurrence", "categories", "none"] {
@@ -169,6 +170,7 @@ fn a_free_busy_calendar_gives_nothing_away_by_its_order_or_groups() {
                 let mut page = run(s, "calendar.listRows", json!({}));
                 // (The ids are the only thing told apart, and they say nothing.)
                 for row in page["rows"].as_array_mut().unwrap() {
+                    assert_eq!(row["cancelled"].as_bool(), Some(false));
                     row["id"] = json!(0);
                 }
                 rows.push(page);

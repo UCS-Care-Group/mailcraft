@@ -129,7 +129,7 @@ impl Row {
             categories,
             calendar_name: calendar_name.trim().to_string(),
             attachment: e.has_attachments && !free_busy,
-            cancelled: e.cancelled,
+            cancelled: e.cancelled && !free_busy,
             show_as: e.show_as,
             free_busy,
         }
