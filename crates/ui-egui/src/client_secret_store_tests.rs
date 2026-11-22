@@ -15,7 +15,7 @@ use mailcraft_host::secrets::OAUTH_CLIENT;
 use mailcraft_model::Id;
 use serde_json::json;
 
-use crate::{MailApp, SecretStore, Services};
+use crate::{MailApp, SecretStore, Services, SignInRequest};
 
 const NOW: i64 = 1_791_993_600;
 const ISSUER: &str = "https://id.example.org/realms/mail";
@@ -92,4 +92,51 @@ fn nothing_is_remembered_when_sign_ins_are_not() {
     assert!(store.held.lock().unwrap().is_empty());
     // Still there for this session.
     assert_eq!(a.client_secret_of(id), SECRET);
+}
+
+/// A host that counts the sign-ins it is handed (and never answers them).
+fn counting(a: &mut MailApp) -> Arc<Mutex<usize>> {
+    let asked = Arc::new(Mutex::new(0));
+    let count = asked.clone();
+    a.services.sign_in = Some(Box::new(move |_req: SignInRequest| {
+        *count.lock().unwrap() += 1;
+        std::sync::mpsc::channel().1
+    }));
+    asked
+}
+
+#[test]
+fn a_client_whose_secret_isnt_here_is_said_so_and_the_provider_never_asked() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let asked = counting(&mut a);
+    // As a file from a build that never stored the secret has it: it says there is one.
+    let id = own_account(&mut a);
+    let oauth = a.session.mailbox.account(id).unwrap().oauth.clone().unwrap();
+    let error = a.begin_sign_in(id, oauth.clone(), "alice@example.org", "a-refresh-token".into(), false, false).unwrap_err();
+    assert!(error.contains("client secret for alice@example.org isn't stored") && error.contains("Account Settings"), "{error}");
+    assert_eq!(*asked.lock().unwrap(), 0, "the provider was asked without the secret");
+    // While the credential store is still being read, that is what is said.
+    a.start_secret_read(false);
+    assert!(a.secret_read.is_some());
+    let waiting = a.begin_sign_in(id, oauth.clone(), "alice@example.org", "a-refresh-token".into(), true, false).unwrap_err();
+    assert!(waiting.contains("credential store"), "{waiting}");
+    read_store(&mut a);
+    // Entered again: the sign-in goes ahead, with it.
+    a.set_client_secret(id, SECRET);
+    a.begin_sign_in(id, oauth, "alice@example.org", "a-refresh-token".into(), false, false).unwrap();
+    assert_eq!(*asked.lock().unwrap(), 1);
+}
+
+#[test]
+fn a_public_client_needs_no_secret() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let asked = counting(&mut a);
+    let id = own_account(&mut a);
+    a.execute("account.edit", json!({"id": id, "hasSecret": false})).unwrap();
+    let oauth = a.session.mailbox.account(id).unwrap().oauth.clone().unwrap();
+    a.begin_sign_in(id, oauth, "alice@example.org", "a-refresh-token".into(), false, false).unwrap();
+    assert_eq!(*asked.lock().unwrap(), 1);
+    assert!(a.session.sync_status.contains("browser"), "{}", a.session.sync_status);
 }

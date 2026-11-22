@@ -28074,3 +28074,18 @@ msgstr ""
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
 msgid "In the form (client_secret_post)"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Waiting for the system's credential store…"
+msgstr ""

@@ -3747,12 +3747,31 @@ impl MailApp {
         };
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let browser = refresh.is_empty();
-        let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
+        // (A renewal the provider refuses goes on to its page when the owner asked for the run:
+        // the words say so, so that a wait for the browser never looks like a renewal stuck.)
+        let waiting = if browser {
+            tl!("Sign in on the page that opened in your browser…")
+        } else if quiet {
+            tl!("Renewing the sign-in…")
+        } else {
+            tl!("Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser.")
+        };
         let client_secret = match oauth.provider {
             mailcraft_model::OAuthProvider::Google => self.google_client_secret().to_string(),
             mailcraft_model::OAuthProvider::Custom => self.client_secret_of(account),
             mailcraft_model::OAuthProvider::Microsoft => String::new(),
         };
+        // An own provider's client that has a secret, with none here: asking the provider without
+        // it only brings back a refusal that blames the client id. Said as it is instead.
+        if oauth.provider == mailcraft_model::OAuthProvider::Custom && oauth.has_secret && client_secret.is_empty() {
+            if self.secret_read.is_some() {
+                return Err(tl!("Waiting for the system's credential store…").to_string());
+            }
+            return Err(i18n::fmt(
+                tl!("The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"),
+                &[("account", email)],
+            ));
+        }
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
