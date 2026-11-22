@@ -1688,6 +1688,11 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "At most {n} requests by mail go at once."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 msgid "At start time"
 msgstr ""
@@ -5513,6 +5518,11 @@ msgid "Have replies sent to other addresses"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Held:"
 msgstr ""
@@ -8717,6 +8727,11 @@ msgid "None"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "None of these messages can be unsubscribed from here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 msgid "None of those messages is in this mailbox any more."
 msgstr ""
@@ -9903,9 +9918,19 @@ msgstr ""
 msgid "Picture"
 msgstr ""
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Layout"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
 msgstr ""
 
 #. command label
@@ -9921,6 +9946,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Picture beside text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
 msgstr ""
 
 #. android, command label, ribbon
@@ -10902,6 +10932,11 @@ msgid ""
 "View"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 msgid "Reset View"
@@ -11662,6 +11697,11 @@ msgstr ""
 msgid "Select the message before previewing its attachment."
 msgstr ""
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr ""
+
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
 msgid "Selection"
@@ -12117,6 +12157,18 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 msgid "Shapes"
 msgstr ""
 
@@ -12396,6 +12448,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Show the messages of this conversation"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
 msgstr ""
 
 #. android
@@ -12720,8 +12777,8 @@ msgstr ""
 msgid "Single Line"
 msgstr ""
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 msgid "Size"
 msgstr ""
 
@@ -16225,6 +16282,23 @@ msgstr ""
 msgid "Unsubscribe from Internet Calendar"
 msgstr ""
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+msgid "Unsubscribe from Their Lists"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "Unsubscribe from the Selected Messages"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribe on the list's page in your browser."
@@ -16233,6 +16307,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
 msgstr ""
 
 #. interface
@@ -16714,7 +16793,7 @@ msgid "Who signed this message, and the certificate"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 msgid "Width"
 msgstr ""
 
@@ -17524,6 +17603,11 @@ msgstr ""
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr ""
+
 #. what a command says
 #: crates/model/src/signature.rs
 msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't show other kinds)"
@@ -18186,6 +18270,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "no picture {id} in this signature"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
 msgstr ""
 
 #. what a command says
@@ -19518,6 +19607,11 @@ msgstr ""
 msgid "this account's categories aren't kept in step with its server"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "this build can't unsubscribe in one click"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 msgid "this contact has no e-mail address"
@@ -20393,6 +20487,13 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] ""
+msgstr[1] ""
+
 #. what a command says
 #: crates/model/src/message.rs
 msgid "{n} byte"
@@ -20598,6 +20699,13 @@ msgstr[1] ""
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
 msgid "{n} hour before"
 msgid_plural "{n} hours before"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -20865,6 +20973,13 @@ msgid_plural "{n} minutes before"
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] ""
+msgstr[1] ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 msgid "{n} more file was not attached: a message takes at most {max} files from a share."
@@ -21082,6 +21197,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{n} stays on this computer"
 msgid_plural "{n} stay on this computer"
@@ -21148,6 +21270,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/folder_properties.rs
 msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -21379,6 +21508,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "• to {to}, subject “{subject}”"
 msgstr ""
 
 #. interface

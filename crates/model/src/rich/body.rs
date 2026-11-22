@@ -51,6 +51,17 @@ impl Selection {
 struct Step {
     text: RichText,
     selection: Selection,
+    /// A picture's width this step puts back, kept beside the text by its holder.
+    mark: Option<Mark>,
+}
+
+/// The width a picture is shown at, as a step of undo puts it back: the picture is kept beside
+/// the text (a message's pictures), so only its holder can set it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Mark {
+    pub picture: u32,
+    /// `None`: its own width.
+    pub width: Option<u16>,
 }
 
 /// The owner's text in a message being written, with its selection and its own undo.
@@ -196,7 +207,18 @@ impl RichBody {
     }
 
     fn push_undo(&mut self) {
-        self.undo.push(Step { text: self.text.clone(), selection: self.selection });
+        self.push_step(None);
+    }
+
+    /// A step of its own that changes no text: undoing it puts `mark` back (a picture's width
+    /// before its holder changed it).
+    pub fn push_mark(&mut self, mark: Mark) {
+        self.push_step(Some(mark));
+        self.typing = None;
+    }
+
+    fn push_step(&mut self, mark: Option<Mark>) {
+        self.undo.push(Step { text: self.text.clone(), selection: self.selection, mark });
         self.redo.clear();
         let mut kept: usize = self.undo.iter().map(|s| s.text.len()).sum();
         // Snapshots share a table's immutable allocation, so charge it once across the history.
@@ -613,23 +635,39 @@ impl RichBody {
         Ok(())
     }
 
-    /// Back one step. Whether there was one.
+    /// Back one step. Whether there was one. A step's [`Mark`] is left as it is: see
+    /// [`RichBody::undo_with`].
     pub fn undo(&mut self) -> bool {
-        let Some(step) = self.undo.pop() else { return false };
-        let now = Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection) };
-        self.redo.push(now);
-        self.pending = None;
-        self.typing = None;
-        true
+        self.undo_with(|mark| mark)
     }
 
     /// Forward one step. Whether there was one.
     pub fn redo(&mut self) -> bool {
+        self.redo_with(|mark| mark)
+    }
+
+    /// Back one step, `swap` putting back the [`Mark`] the step has and answering the one it
+    /// replaced, which redo puts back in turn. Whether there was a step.
+    pub fn undo_with(&mut self, swap: impl FnOnce(Mark) -> Mark) -> bool {
+        let Some(step) = self.undo.pop() else { return false };
+        let now = self.take_step(step, swap);
+        self.redo.push(now);
+        true
+    }
+
+    /// Forward one step, as [`RichBody::undo_with`].
+    pub fn redo_with(&mut self, swap: impl FnOnce(Mark) -> Mark) -> bool {
         let Some(step) = self.redo.pop() else { return false };
-        let now = Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection) };
+        let now = self.take_step(step, swap);
         self.undo.push(now);
+        true
+    }
+
+    /// Put `step` in place: the step that brings back what was there.
+    fn take_step(&mut self, step: Step, swap: impl FnOnce(Mark) -> Mark) -> Step {
+        let mark = step.mark.map(swap);
         self.pending = None;
         self.typing = None;
-        true
+        Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection), mark }
     }
 }

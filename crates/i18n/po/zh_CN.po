@@ -2030,6 +2030,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "最多可订阅 {n} 个日历：请先取消订阅其中一个。"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "一次最多发送 {n} 个邮件请求。"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -6632,6 +6638,12 @@ msgid "Have replies sent to other addresses"
 msgstr "将回复发送到其他地址"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "高度"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -10506,6 +10518,12 @@ msgid "None"
 msgstr "无"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "这些邮件都无法在此退订。"
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -11930,11 +11948,23 @@ msgstr "选择最后一天"
 msgid "Picture"
 msgstr "图片"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "图片格式"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "图片布局"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "图片大小"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11953,6 +11983,12 @@ msgstr "图片在文字上方"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "图片在文字旁"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "图片大小"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -13146,6 +13182,12 @@ msgstr ""
 "重置\n"
 "视图"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "重置大小"
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
@@ -14067,6 +14109,12 @@ msgstr "选择一个人以查看详细信息"
 msgid "Select the message before previewing its attachment."
 msgstr "请先选择邮件，再预览其附件。"
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "一次最多选择 {n} 封邮件来退订。"
+
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -14613,6 +14661,18 @@ msgstr "设置…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Shapes"
 msgstr "形状"
@@ -14954,6 +15014,12 @@ msgstr "显示文件夹窗格"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "显示此会话中的邮件"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "以图片自身大小显示"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15341,8 +15407,8 @@ msgstr "简化功能区"
 msgid "Single Line"
 msgstr "单行"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "大小"
@@ -19556,6 +19622,25 @@ msgstr "取消订阅日历"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "取消订阅 Internet 日历"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "退订其列表"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "从所选邮件退订"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "退订 {n} 个列表。"
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19567,6 +19652,12 @@ msgstr "在浏览器中打开列表的页面退订。"
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "已退订。"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "正在退订：{click} 个一键退订，{mail} 个通过邮件，{pages} 个需在其自己的页面上完成，{left} 个被略过。"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20140,7 +20231,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "邮件的签名者及其证书"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "宽度"
@@ -21117,6 +21208,12 @@ msgstr "共享邮箱有自己的规则：此版本无法创建这些规则"
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "已有签名打开：请使用 signature.picture.add 添加图片"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "已有签名打开：请使用 signature.picture.set 调整其图片大小"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21907,6 +22004,12 @@ msgstr "没有发送服务器"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "此签名中没有图片 {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "此邮件中未插入图片 {id}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23500,6 +23603,12 @@ msgstr "此账户的类别未与服务器同步"
 msgid "this account's categories aren't kept in step with its server"
 msgstr "此账户的类别未与其服务器同步"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "此版本无法一键退订"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24534,6 +24643,13 @@ msgid "{n} body or attachment is missing from the mailbox's content folder, or d
 msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
 msgstr[0] "邮箱内容文件夹中有 {n} 个邮件正文或附件缺失或损坏。"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} 个通过您的账户经发件箱各发一封邮件："
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24742,6 +24858,13 @@ msgstr[0] "{n}小时"
 msgid "{n} hour before"
 msgid_plural "{n} hours before"
 msgstr[0] "提前 {n} 小时"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} 个一键退订：每个列表的服务器只会收到它给出的地址，逐个进行。"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -25008,6 +25131,13 @@ msgid "{n} minute before"
 msgid_plural "{n} minutes before"
 msgstr[0] "提前 {n} 分钟"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "另有 {n} 个邮件请求现在不会发送：请少选一些邮件以查看。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -25229,6 +25359,13 @@ msgid_plural "{n} selected"
 msgstr[0] "已选择 {n} 项"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} 个发件人被排除：您的服务器不担保的邮件、垃圾邮件中的邮件、发件人带有警告的邮件，或未说明退订方式的邮件。"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -25297,6 +25434,13 @@ msgstr[0] "{n} 封未读邮件"
 msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
 msgstr[0] "服务器上有 {n} 封未读邮件"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} 个需在其自己的网页上退订：请逐一打开这些邮件在那里操作。"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25564,6 +25708,12 @@ msgstr ""
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附件转发"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• 发送至 {to}，主题“{subject}”"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

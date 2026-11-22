@@ -1960,6 +1960,12 @@ msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Er kunnen maximaal {n} agenda's worden geabonneerd: zeg eerst een abonnement op."
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Er gaan hoogstens {n} verzoeken per e-mail tegelijk."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "At start time"
@@ -6371,6 +6377,12 @@ msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
 
 #. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Hoogte"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Held:"
@@ -10130,6 +10142,12 @@ msgid "None"
 msgstr "Geen"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Voor geen van deze berichten kunt u zich hier afmelden."
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "None of those messages is in this mailbox any more."
@@ -11526,10 +11544,22 @@ msgstr "De laatste dag kiezen"
 msgid "Picture"
 msgstr "Afbeelding"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Afbeeldingsopmaak"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Layout"
 msgstr "Indeling van de afbeelding"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Afbeeldingsgrootte"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -11547,6 +11577,12 @@ msgstr "Afbeelding boven de tekst"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Afbeelding naast de tekst"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Afbeeldingsgrootte"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12684,6 +12720,12 @@ msgstr ""
 "Weergave\n"
 "herstellen"
 
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Grootte herstellen"
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 msgid "Reset View"
@@ -13565,6 +13607,12 @@ msgstr "Selecteer iemand om de details te zien"
 msgid "Select the message before previewing its attachment."
 msgstr "Selecteer het bericht voordat u een voorbeeld van de bijlage bekijkt."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selecteer hoogstens {n} berichten om af te melden."
+
 #. ribbon location
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -14100,6 +14148,18 @@ msgstr "Instellingen…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 msgid "Shapes"
 msgstr "Vormen"
 
@@ -14423,6 +14483,12 @@ msgstr "Het mappenvenster weergeven"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "De berichten van dit gesprek weergeven"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "De afbeelding op haar eigen grootte tonen"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -14805,8 +14871,8 @@ msgstr "Vereenvoudigd lint"
 msgid "Single Line"
 msgstr "Eén regel"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Grootte"
@@ -18975,6 +19041,26 @@ msgstr "Abonnement op agenda opzeggen"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Abonnement op internetagenda opzeggen"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Afmelden bij hun lijsten"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Afmelden bij de geselecteerde berichten"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Afmelden voor {n} lijst."
+msgstr[1] "Afmelden voor {n} lijsten."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -18986,6 +19072,12 @@ msgstr "Meld u af op de pagina van de lijst in uw browser."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Afgemeld."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Afmelden: {click} met één klik, {mail} per e-mail, {pages} te doen op hun pagina, {left} overgeslagen."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19551,7 +19643,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Wie dit bericht ondertekende, en het certificaat"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Breedte"
@@ -20509,6 +20601,12 @@ msgstr "de regels van een gedeeld postvak zijn van dat postvak: deze versie maak
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "een handtekening is geopend: voeg de afbeeldingen toe met signature.picture.add"
 
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "een handtekening is geopend: wijzig de grootte van de afbeeldingen met signature.picture.set"
+
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
@@ -21300,6 +21398,12 @@ msgstr "geen uitgaande server"
 #, fuzzy
 msgid "no picture {id} in this signature"
 msgstr "geen afbeelding {id} in deze handtekening"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "er is geen afbeelding {id} in dit bericht geplaatst"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22889,6 +22993,12 @@ msgstr "de categorieën van dit account worden met geen enkele server gelijk geh
 msgid "this account's categories aren't kept in step with its server"
 msgstr "de categorieën van dit account worden niet gelijk gehouden met zijn server"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "deze versie kan niet met één klik afmelden"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -23930,6 +24040,14 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] "{n} berichttekst of bijlage ontbreekt in de inhoudsmap van het postvak, of is beschadigd."
 msgstr[1] "{n} berichtteksten of bijlagen ontbreken in de inhoudsmap van het postvak, of zijn beschadigd."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} met een bericht vanuit uw account via Postvak UIT:"
+msgstr[1] "{n} met elk een bericht vanuit uw account via Postvak UIT:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -24167,6 +24285,14 @@ msgid "{n} hour before"
 msgid_plural "{n} hours before"
 msgstr[0] "{n} uur ervoor"
 msgstr[1] "{n} uur ervoor"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} met één klik: de server ontvangt het opgegeven adres, verder niets."
+msgstr[1] "{n} met één klik: de server van elke lijst ontvangt het opgegeven adres, verder niets, één voor één."
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
@@ -24469,6 +24595,14 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} minuut ervoor"
 msgstr[1] "{n} minuten ervoor"
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Nog {n} per e-mail wordt nu niet verzonden: selecteer minder berichten om het te zien."
+msgstr[1] "Nog {n} per e-mail worden nu niet verzonden: selecteer minder berichten om ze te zien."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -24718,6 +24852,14 @@ msgstr[0] "{n} geselecteerd"
 msgstr[1] "{n} geselecteerd"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} afzender wordt overgeslagen: e-mail waarvoor uw server niet instaat, in Ongewenste e-mail, met een waarschuwing over de afzender of zonder te zeggen hoe."
+msgstr[1] "{n} afzenders worden overgeslagen: e-mail waarvoor uw server niet instaat, in Ongewenste e-mail, met een waarschuwing over de afzender of zonder te zeggen hoe."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -24796,6 +24938,14 @@ msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
 msgstr[0] "{n} ongelezen op de server"
 msgstr[1] "{n} ongelezen op de server"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} meldt af op de eigen pagina: open het bericht om het daar te doen."
+msgstr[1] "{n} melden af op hun eigen pagina: open elk van die berichten om het daar te doen."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -25070,6 +25220,12 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• aan {to}, onderwerp ‘{subject}’"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
