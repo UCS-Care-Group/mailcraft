@@ -357,3 +357,20 @@ fn a_five_minute_token_is_used_as_it_comes_not_renewed_again_at_once() {
     let brief = refresh_custom(&own(&server), "", "old").unwrap();
     assert!(brief.expires_at - brief.issued_at >= 60 && brief.fresh_for(mailcraft_time::now(), 600));
 }
+
+/// A no from the provider's page is said in fixed words by its code: its own words, which may
+/// name the owner or the organisation, reach neither the error nor anything traded (#1844 review).
+#[test]
+fn a_no_from_the_page_is_said_in_fixed_words_never_the_providers() {
+    let server = FakeHttp::answering(good("r"));
+    let (open, _) = browser_adding(true, "&error=access_denied&error_description=Private%20text%20about%20ada%40example.org");
+    let error = sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).unwrap_err();
+    let said = format!("{error} {error:?}");
+    assert!(said.contains("access was refused on the sign-in page"), "{said}");
+    assert!(!said.contains("Private") && !said.contains("ada@example.org") && !said.contains("ada%40"), "{said}");
+    assert_eq!(server.asked(), 0, "nothing was traded");
+    // A code nobody knows: the general words, not the code itself.
+    let (open, _) = browser_adding(true, "&error=Private-code-ada&error_description=more");
+    let error = sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).unwrap_err();
+    assert!(!format!("{error} {error:?}").contains("Private"), "{error}");
+}

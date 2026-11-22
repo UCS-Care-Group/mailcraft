@@ -114,7 +114,7 @@ fn an_own_identity_providers_sign_in_is_bound_to_the_provider_and_the_client() {
         ..Default::default()
     };
     let key = secret_key("refresh", &account);
-    assert!(key.contains("imap=mail.example.org:993") && key.contains("oauth=custom|https://id.example.org/realms/mail|"), "{key}");
+    assert!(key.contains("imap=mail.example.org:993") && key.contains("oauth=custom|34:https://id.example.org/realms/mail|"), "{key}");
     // A change of anything the sign-in belongs to is another name: nothing remembered is found.
     for changed in [
         OAuth { issuer: "https://id.attacker.example".into(), ..oauth.clone() },

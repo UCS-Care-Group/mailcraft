@@ -158,6 +158,13 @@ fn judge_issued(request: &[u8], state: &str, issuer: &str, required: bool) -> (&
         };
         return (&FAILED, Some(Err(Refused::from(NetError::Proto(ProtoError::Protocol(why.into()))))));
     }
+    // A no from the page is said in this module's own words, by its code alone: the provider's
+    // words (`error_description`) may name the owner or the organisation, and are neither logged
+    // nor shown (#1844 review).
+    if let Some((_, error)) = fields.iter().find(|(name, _)| name == "error").filter(|(_, error)| !error.is_empty()) {
+        log::info!("the identity provider's page came back with a no");
+        return (&FAILED, Some(Err(Refused::from(refused(error)))));
+    }
     match code_of(&fields) {
         Ok(code) => (&DONE, Some(Ok(code))),
         Err(refused) => (&FAILED, Some(Err(refused))),

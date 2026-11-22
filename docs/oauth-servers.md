@@ -80,6 +80,10 @@ over TLS, and never to Microsoft's or Google's. Removing the account gives the p
 token back (RFC 7009) when it names a revocation address, and forgets the sign-in and the client
 secret here.
 
+On the command line, `mailcraft-cli sync` prints the provider's page to open; a client secret is
+read from `MAILCRAFT_CLIENT_SECRET` (the desktop program's credential store isn't used there), and
+without it a client that has one doesn't start the sign-in.
+
 ## Keycloak
 
 In the realm your mail users live in:

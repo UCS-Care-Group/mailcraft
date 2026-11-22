@@ -14883,7 +14883,7 @@ msgid "Send your password to another server?"
 msgstr "Elküldi a jelszót egy másik kiszolgálónak?"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Send your sign-in to another server?"
 msgstr "Küldjem a bejelentkezésedet egy másik szerverre?"
@@ -24075,8 +24075,9 @@ msgstr "az utolsó naptár nem törölhető"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/oauthbearer.rs
+#, fuzzy
 msgid "the mail server's name can't be sent with a sign-in"
-msgstr ""
+msgstr "a levelezőkiszolgáló neve nem küldhető el bejelentkezéssel"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -24464,13 +24465,15 @@ msgstr "a kiszolgáló nem vesz jelszót ezen a kapcsolaton"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
-msgstr ""
+msgstr "a kiszolgáló nem fogad el tokent OAUTHBEARER módon, amit a fiók OAuth-beállításai kérnek"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
-msgstr ""
+msgstr "a kiszolgáló nem fogad el tokent XOAUTH2 módon, amit a fiók OAuth-beállításai kérnek"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -24522,8 +24525,9 @@ msgstr "a szerver nem tud bejelentkezni egy token-hozzáféréssel"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
-msgstr ""
+msgstr "a kiszolgáló nem kínál bejelentkezést hozzáférési tokennel (sem OAUTHBEARER, sem XOAUTH2)"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -27554,325 +27558,396 @@ msgstr "−Sorok"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers"
-msgstr ""
+msgstr "az identitásszolgáltatóval történő bejelentkezés soha nem kerül a Microsoft vagy a Google levelezőkiszolgálóira"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is only sent to a mail server on this computer in a test"
-msgstr ""
+msgstr "az identitásszolgáltatóval történő bejelentkezés csak teszt során kerül ezen a számítógépen futó levelezőkiszolgálóra"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
-msgstr ""
+msgstr "az identitásszolgáltatóval történő bejelentkezés csak a fiók saját levelezőkiszolgálóival használható"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
-msgstr ""
+msgstr "adja meg a MailCraft számára az identitásszolgáltatónál regisztrált ügyfél-azonosítót"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "find your identity provider's sign-in addresses (Discover), or enter them"
-msgstr ""
+msgstr "keresse meg az identitásszolgáltató bejelentkezési címeit (Felderítés), vagy adja meg őket"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the client id can only be letters, digits and punctuation, at most 200 of them"
-msgstr ""
+msgstr "az ügyfél-azonosító csak betűket, számjegyeket és írásjeleket tartalmazhat, legfeljebb 200-at"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
-msgstr ""
+msgstr "az identitásszolgáltató (kibocsátó) címe nem tartalmazhat lekérdezést vagy töredéket"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the redirect port must be between 1 and 65535, or automatic"
-msgstr ""
+msgstr "az átirányítási portnak 1 és 65535 között kell lennie, vagy automatikusnak"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "use common, consumers, organizations, or a directory's id or domain as the tenant"
-msgstr ""
+msgstr "bérlőként a common, consumers, organizations értéket vagy egy címtár azonosítóját vagy tartományát használja"
 
 #. name
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "your identity provider"
-msgstr ""
+msgstr "az identitásszolgáltatója"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Agree to the addresses outside your identity provider's domain, or enter others"
-msgstr ""
+msgstr "Fogadja el az identitásszolgáltató tartományán kívüli címeket, vagy adjon meg másokat"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Asked for besides openid email offline_access"
-msgstr ""
+msgstr "Az openid email offline_access mellett kért"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Automatic (OAUTHBEARER, else XOAUTH2)"
-msgstr ""
+msgstr "Automatikus (OAUTHBEARER, különben XOAUTH2)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "Ügyfél-azonosító"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client secret (optional)"
-msgstr ""
+msgstr "Titkos ügyfélkulcs (nem kötelező)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Discover"
-msgstr ""
+msgstr "Felderítés"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Extra scopes"
-msgstr ""
+msgstr "További hatókörök"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Find the sign-in and token addresses from the identity provider's address. Only that address is sent."
-msgstr ""
+msgstr "Megkeresi a bejelentkezési és a tokencímet az identitásszolgáltató címéből. Csak ez a cím lesz elküldve."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Find your identity provider's addresses with Discover, or enter them"
-msgstr ""
+msgstr "Keresse meg az identitásszolgáltató címeit a Felderítés gombbal, vagy adja meg őket"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Finding the addresses stopped unexpectedly"
-msgstr ""
+msgstr "A címek keresése váratlanul leállt"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Forget the client secret"
-msgstr ""
+msgstr "Titkos ügyfélkulcs elfelejtése"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Found: sign-in at {signIn}, tokens from {token}."
-msgstr ""
+msgstr "Megtalálva: bejelentkezés itt: {signIn}, tokenek innen: {token}."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Google (built in)"
-msgstr ""
+msgstr "Google (beépített)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "I trust these addresses"
-msgstr ""
+msgstr "Megbízom ezekben a címekben"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Identity provider"
-msgstr ""
+msgstr "Identitásszolgáltató"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Identity provider (issuer)"
-msgstr ""
+msgstr "Identitásszolgáltató (kibocsátó)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."
-msgstr ""
+msgstr "Nem ad ki frissítési tokent: minden alkalommal, amikor egy bejelentkezés lejár, újra be kell jelentkeznie."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Keep the built-in settings"
-msgstr ""
+msgstr "Beépített beállítások megtartása"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."
-msgstr ""
+msgstr "A rendszer hitelesítőadat-tárolójában tárolva, soha nem a postafiókban. Egy asztali program nem tudja igazán titokban tartani Ön előtt."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Kept: type a new one to replace it"
-msgstr ""
+msgstr "Tárolva: írjon be egy újat a cseréjéhez"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Mechanism"
-msgstr ""
+msgstr "Mechanizmus"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Microsoft 365 or Outlook.com (built in)"
-msgstr ""
+msgstr "Microsoft 365 vagy Outlook.com (beépített)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "No addresses found: {reason}"
-msgstr ""
+msgstr "Nem található cím: {reason}"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "OAuth Built-in Settings"
-msgstr ""
+msgstr "Beépített OAuth-beállítások"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "OAuth settings"
-msgstr ""
+msgstr "OAuth-beállítások"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Only if your provider gave one"
-msgstr ""
+msgstr "Csak ha a szolgáltató adott ilyet"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Redirect port"
-msgstr ""
+msgstr "Átirányítási port"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Register http://127.0.0.1 with any port (or the one above) as the redirect address."
-msgstr ""
+msgstr "Regisztrálja átirányítási címként a http://127.0.0.1 címet tetszőleges porttal (vagy a fentivel)."
 
 #. command label
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Restore Default OAuth Settings"
-msgstr ""
+msgstr "Alapértelmezett OAuth-beállítások visszaállítása"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Revocation address (optional)"
-msgstr ""
+msgstr "Visszavonási cím (nem kötelező)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Scopes"
-msgstr ""
+msgstr "Hatókörök"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Sign in with your identity provider (OAuth 2.0) instead"
-msgstr ""
+msgstr "Bejelentkezés inkább az identitásszolgáltatóval (OAuth 2.0)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Sign-in address"
-msgstr ""
+msgstr "Bejelentkezési cím"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The client secret can only be letters, digits and punctuation"
-msgstr ""
+msgstr "A titkos ügyfélkulcs csak betűket, számjegyeket és írásjeleket tartalmazhat"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The one registered for MailCraft"
-msgstr ""
+msgstr "A MailCraft számára regisztrált"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The redirect port is a number from 1 to 65535, or empty for any free one"
-msgstr ""
+msgstr "Az átirányítási port egy szám 1 és 65535 között, vagy üres bármely szabad porthoz"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The sign-in is only sent to: {servers}"
-msgstr ""
+msgstr "A bejelentkezés csak ide lesz elküldve: {servers}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "These addresses are outside your identity provider's domain: {hosts}"
-msgstr ""
+msgstr "Ezek a címek az identitásszolgáltató tartományán kívül esnek: {hosts}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
-msgstr ""
+msgstr "Ezek a beállítások többé nem a(z) {provider} beállításai lesznek: a MailCraft ezt a fiókot saját identitásszolgáltatóval rendelkező fiókként kezeli a fenti értékekből kiindulva, és újra be kell jelentkeznie."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Token address"
-msgstr ""
+msgstr "Tokencím"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Use a password instead"
-msgstr ""
+msgstr "Inkább jelszó használata"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use it"
-msgstr ""
+msgstr "Használat"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use my own identity provider"
-msgstr ""
+msgstr "Saját identitásszolgáltató használata"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use your own identity provider instead…"
-msgstr ""
+msgstr "Inkább saját identitásszolgáltató használata…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Wait for your identity provider's addresses"
-msgstr ""
+msgstr "Várjon az identitásszolgáltató címeire"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Your domain names {issuer} for signing in."
-msgstr ""
+msgstr "A tartománya a(z) {issuer} címet adja meg a bejelentkezéshez."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Your own identity provider"
-msgstr ""
+msgstr "Saját identitásszolgáltató"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "the incoming and outgoing servers above"
-msgstr ""
+msgstr "a fenti bejövő és kimenő kiszolgálók"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
-msgstr ""
+msgstr "A(z) {domain} szerint a levelezése identitásszolgáltatóval jelentkezik be (OAuth 2.0)."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client secret sent"
-msgstr ""
+msgstr "Titkos ügyfélkulcs küldése"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "In the Authorization header (client_secret_basic)"
-msgstr ""
+msgstr "Az Authorization fejlécben (client_secret_basic)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "In the form (client_secret_post)"
-msgstr ""
+msgstr "Az űrlapon (client_secret_post)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser."
-msgstr ""
+msgstr "A bejelentkezés megújítása… Ha nem újítható meg, jelentkezzen be a böngészőben megnyíló oldalon."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"
-msgstr ""
+msgstr "A(z) {account} titkos ügyfélkulcsa nincs tárolva ezen a számítógépen: adja meg újra a Fiókbeállításokban (Fájl › Információ)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Waiting for the system's credential store…"
-msgstr ""
+msgstr "Várakozás a rendszer hitelesítőadat-tárolójára…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
+msgstr "Ha folytatja, az identitásszolgáltató oldalán jelentkezik be, és az általa kiadott hozzáférési token ide lesz elküldve: {hosts}. Csak akkor folytassa, ha tudja, hogy ezek a szolgáltatójához tartoznak."

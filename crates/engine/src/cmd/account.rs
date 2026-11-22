@@ -118,7 +118,15 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft, google or custom"))?),
         None => None,
     };
-    let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
+    // A client id is any visible ASCII its provider issued (RFC 6749 Appendix A.1: `mailcraft:desktop`,
+    // say; it is encoded wherever it is sent); a tenant goes into an address, and stays a word.
+    let client_id = match p::str(v, "clientId").map(str::trim) {
+        Some(id) if id.len() > 200 || !id.bytes().all(|b| b.is_ascii_graphic()) => {
+            return Err(bad("`clientId` is letters, digits and punctuation, at most 200 of them"));
+        }
+        id => id.map(str::to_string),
+    };
+    let tenant = word("tenant", 64)?;
     let directory = directory_of(v)?;
     let own = own_provider_fields(v)?;
     let as_custom = match v.get("asCustom") {

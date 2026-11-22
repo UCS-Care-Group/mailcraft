@@ -728,7 +728,9 @@ fn write_accounts<S: serde::Serializer>(accounts: &[Account], serializer: S) -> 
                 fields.insert("id".into(), account.id.into());
                 list.serialize_element(&fields)?;
             }
-            None if account.signs_in_with_own_provider() => {
+            // (Only an IMAP account's: one of another kind a file named an unknown provider for
+            // keeps its kind, #1844 review.)
+            None if account.kind == AccountKind::Imap && account.signs_in_with_own_provider() => {
                 let mut value = serde_json::to_value(account).map_err(serde::ser::Error::custom)?;
                 if let Some(fields) = value.as_object_mut() {
                     fields.insert("kind".into(), serde_json::Value::String(crate::oauth::OWN_SIGN_IN_KIND.into()));

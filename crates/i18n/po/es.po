@@ -14894,7 +14894,7 @@ msgid "Send your password to another server?"
 msgstr "¿Enviar su contraseña a otro servidor?"
 
 #. interface
-#: crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Send your sign-in to another server?"
 msgstr "¿Enviar su inicio de sesión a otro servidor?"
@@ -24080,8 +24080,9 @@ msgstr "no se puede eliminar el último calendario"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/oauthbearer.rs
+#, fuzzy
 msgid "the mail server's name can't be sent with a sign-in"
-msgstr ""
+msgstr "el nombre del servidor de correo no se puede enviar con un inicio de sesión"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -24469,13 +24470,15 @@ msgstr "el servidor no acepta una contraseña en esta conexión"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
-msgstr ""
+msgstr "el servidor no acepta un token con OAUTHBEARER, que es lo que pide la configuración OAuth de esta cuenta"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"
-msgstr ""
+msgstr "el servidor no acepta un token con XOAUTH2, que es lo que pide la configuración OAuth de esta cuenta"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -24527,8 +24530,9 @@ msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de a
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
-msgstr ""
+msgstr "el servidor no ofrece ninguna forma de iniciar sesión con un token de acceso (ni OAUTHBEARER ni XOAUTH2)"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -27708,325 +27712,396 @@ msgstr "−Líneas"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers"
-msgstr ""
+msgstr "un inicio de sesión con su proveedor de identidad nunca se envía a los servidores de correo de Microsoft ni de Google"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is only sent to a mail server on this computer in a test"
-msgstr ""
+msgstr "un inicio de sesión con su proveedor de identidad solo se envía a un servidor de correo de este equipo en una prueba"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
-msgstr ""
+msgstr "un inicio de sesión con su proveedor de identidad solo se usa con los servidores de correo de esta cuenta"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
-msgstr ""
+msgstr "escriba el id. de cliente registrado para MailCraft en su proveedor de identidad"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "find your identity provider's sign-in addresses (Discover), or enter them"
-msgstr ""
+msgstr "busque las direcciones de inicio de sesión de su proveedor de identidad (Detectar) o escríbalas"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the client id can only be letters, digits and punctuation, at most 200 of them"
-msgstr ""
+msgstr "el id. de cliente solo puede contener letras, dígitos y signos de puntuación, 200 como máximo"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
-msgstr ""
+msgstr "la dirección del proveedor de identidad (emisor) no puede tener una consulta ni un fragmento"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "the redirect port must be between 1 and 65535, or automatic"
-msgstr ""
+msgstr "el puerto de redirección debe estar entre 1 y 65535, o ser automático"
 
 #. what a command says
 #: crates/model/src/oauth.rs
+#, fuzzy
 msgid "use common, consumers, organizations, or a directory's id or domain as the tenant"
-msgstr ""
+msgstr "use common, consumers, organizations, o el id. o dominio de un directorio como inquilino"
 
 #. name
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "your identity provider"
-msgstr ""
+msgstr "su proveedor de identidad"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Agree to the addresses outside your identity provider's domain, or enter others"
-msgstr ""
+msgstr "Acepte las direcciones fuera del dominio de su proveedor de identidad o escriba otras"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Asked for besides openid email offline_access"
-msgstr ""
+msgstr "Solicitados además de openid email offline_access"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Automatic (OAUTHBEARER, else XOAUTH2)"
-msgstr ""
+msgstr "Automático (OAUTHBEARER; si no, XOAUTH2)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "Id. de cliente"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client secret (optional)"
-msgstr ""
+msgstr "Secreto de cliente (opcional)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Discover"
-msgstr ""
+msgstr "Detectar"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Extra scopes"
-msgstr ""
+msgstr "Ámbitos adicionales"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Find the sign-in and token addresses from the identity provider's address. Only that address is sent."
-msgstr ""
+msgstr "Busca las direcciones de inicio de sesión y de token a partir de la dirección del proveedor de identidad. Solo se envía esa dirección."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Find your identity provider's addresses with Discover, or enter them"
-msgstr ""
+msgstr "Busque las direcciones de su proveedor de identidad con Detectar o escríbalas"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Finding the addresses stopped unexpectedly"
-msgstr ""
+msgstr "La búsqueda de las direcciones se detuvo de forma inesperada"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Forget the client secret"
-msgstr ""
+msgstr "Olvidar el secreto de cliente"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Found: sign-in at {signIn}, tokens from {token}."
-msgstr ""
+msgstr "Encontrado: inicio de sesión en {signIn}, tokens de {token}."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Google (built in)"
-msgstr ""
+msgstr "Google (integrado)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "I trust these addresses"
-msgstr ""
+msgstr "Confío en estas direcciones"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Identity provider"
-msgstr ""
+msgstr "Proveedor de identidad"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Identity provider (issuer)"
-msgstr ""
+msgstr "Proveedor de identidad (emisor)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."
-msgstr ""
+msgstr "No emite tokens de actualización: se le pedirá que inicie sesión de nuevo cada vez que caduque una sesión."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Keep the built-in settings"
-msgstr ""
+msgstr "Mantener la configuración integrada"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."
-msgstr ""
+msgstr "Se guarda en el almacén de credenciales del sistema, nunca en el buzón. Un programa de escritorio no puede ocultárselo realmente."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Kept: type a new one to replace it"
-msgstr ""
+msgstr "Guardado: escriba uno nuevo para reemplazarlo"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Mechanism"
-msgstr ""
+msgstr "Mecanismo"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Microsoft 365 or Outlook.com (built in)"
-msgstr ""
+msgstr "Microsoft 365 u Outlook.com (integrado)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "No addresses found: {reason}"
-msgstr ""
+msgstr "No se encontraron direcciones: {reason}"
 
 #. command label
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "OAuth Built-in Settings"
-msgstr ""
+msgstr "Configuración OAuth integrada"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "OAuth settings"
-msgstr ""
+msgstr "Configuración de OAuth"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Only if your provider gave one"
-msgstr ""
+msgstr "Solo si su proveedor le dio uno"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Redirect port"
-msgstr ""
+msgstr "Puerto de redirección"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Register http://127.0.0.1 with any port (or the one above) as the redirect address."
-msgstr ""
+msgstr "Registre http://127.0.0.1 con cualquier puerto (o el de arriba) como dirección de redirección."
 
 #. command label
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "Restore Default OAuth Settings"
-msgstr ""
+msgstr "Restaurar la configuración OAuth predeterminada"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Revocation address (optional)"
-msgstr ""
+msgstr "Dirección de revocación (opcional)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Scopes"
-msgstr ""
+msgstr "Ámbitos"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Sign in with your identity provider (OAuth 2.0) instead"
-msgstr ""
+msgstr "Iniciar sesión con su proveedor de identidad (OAuth 2.0)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Sign-in address"
-msgstr ""
+msgstr "Dirección de inicio de sesión"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The client secret can only be letters, digits and punctuation"
-msgstr ""
+msgstr "El secreto de cliente solo puede contener letras, dígitos y signos de puntuación"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The one registered for MailCraft"
-msgstr ""
+msgstr "El registrado para MailCraft"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The redirect port is a number from 1 to 65535, or empty for any free one"
-msgstr ""
+msgstr "El puerto de redirección es un número del 1 al 65535, o vacío para cualquiera libre"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "The sign-in is only sent to: {servers}"
-msgstr ""
+msgstr "El inicio de sesión solo se envía a: {servers}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "These addresses are outside your identity provider's domain: {hosts}"
-msgstr ""
+msgstr "Estas direcciones están fuera del dominio de su proveedor de identidad: {hosts}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
-msgstr ""
+msgstr "Esta configuración dejará de ser la de {provider}: MailCraft tratará esta cuenta como una con su propio proveedor de identidad, a partir de los valores anteriores, y tendrá que iniciar sesión de nuevo."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Token address"
-msgstr ""
+msgstr "Dirección de token"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Use a password instead"
-msgstr ""
+msgstr "Usar una contraseña"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use it"
-msgstr ""
+msgstr "Usarlo"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use my own identity provider"
-msgstr ""
+msgstr "Usar mi propio proveedor de identidad"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Use your own identity provider instead…"
-msgstr ""
+msgstr "Usar su propio proveedor de identidad…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Wait for your identity provider's addresses"
-msgstr ""
+msgstr "Espere a las direcciones de su proveedor de identidad"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Your domain names {issuer} for signing in."
-msgstr ""
+msgstr "Su dominio indica {issuer} para iniciar sesión."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Your own identity provider"
-msgstr ""
+msgstr "Su propio proveedor de identidad"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "the incoming and outgoing servers above"
-msgstr ""
+msgstr "los servidores de entrada y salida anteriores"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
-msgstr ""
+msgstr "{domain} indica que su correo inicia sesión con un proveedor de identidad (OAuth 2.0)."
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "Client secret sent"
-msgstr ""
+msgstr "Envío del secreto de cliente"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "In the Authorization header (client_secret_basic)"
-msgstr ""
+msgstr "En el encabezado Authorization (client_secret_basic)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
 msgid "In the form (client_secret_post)"
-msgstr ""
+msgstr "En el formulario (client_secret_post)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser."
-msgstr ""
+msgstr "Renovando el inicio de sesión… Si no se puede renovar, inicie sesión en la página que se abre en el explorador."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"
-msgstr ""
+msgstr "El secreto de cliente de {account} no está guardado en este equipo: vuelva a escribirlo en Configuración de la cuenta (Archivo › Información)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Waiting for the system's credential store…"
-msgstr ""
+msgstr "Esperando al almacén de credenciales del sistema…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
+msgstr "Si continúa, iniciará sesión en la página de su proveedor de identidad y el token de acceso que este emita se enviará a {hosts}. Continúe solo si sabe que son de su proveedor."

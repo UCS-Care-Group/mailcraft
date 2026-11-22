@@ -30,12 +30,16 @@ pub(super) struct OwnFields {
     reveal: bool,
     /// The owner asked to forget the client secret there is.
     forget_secret: bool,
-    /// The identity provider's description, while it is fetched.
-    discovering: Option<Receiver<Result<crate::OAuthFound, String>>>,
+    /// The identity provider's description, while it is fetched, with the issuer it was asked
+    /// of: an answer for an issuer the owner has changed since is let go of (#1844 review).
+    discovering: Option<(String, Receiver<Result<crate::OAuthFound, String>>)>,
     /// What Discover found, said in a line; or why it found nothing.
     found: String,
+    /// The issuer and addresses Discover last found: they hold while the issuer stays the same.
+    discovered: Option<Discovered>,
     /// The hosts of the found addresses outside the issuer's own domain, and whether the owner
-    /// agreed to them.
+    /// agreed to them. Each needs the agreement while an address found on it is used as found
+    /// ([`OwnFields::outside_in_use`]); one typed over by the owner doesn't.
     outside: Vec<String>,
     agreed: bool,
     /// The question whether a Microsoft or Google account is to use its own identity provider.
@@ -46,7 +50,43 @@ pub(super) struct OwnFields {
     pub(super) offered: String,
 }
 
+/// What Discover found for an issuer: its addresses as found.
+#[derive(Clone, Default)]
+struct Discovered {
+    issuer: String,
+    authorize: String,
+    token: String,
+    revoke: String,
+}
+
+/// The host of an address, lower case; empty when it has none.
+fn host_of(address: &str) -> String {
+    let rest = address.split("://").nth(1).unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // (An IPv6 address is in brackets, colons and all; Discover names it without them.)
+    let host = match authority.strip_prefix('[') {
+        Some(inside) => inside.split(']').next().unwrap_or(""),
+        None => authority.split(':').next().unwrap_or(""),
+    };
+    host.to_ascii_lowercase()
+}
+
 impl OwnFields {
+    /// The hosts outside the issuer's domain that an address still used as Discover found it is
+    /// on: what the owner has to agree to (#1844 review: an address typed over needs no
+    /// agreement, the others still do).
+    fn outside_in_use(&self, oauth: &OAuth) -> Vec<String> {
+        let Some(found) = &self.discovered else { return self.outside.clone() };
+        let as_found = [(&oauth.authorize, &found.authorize), (&oauth.token, &found.token), (&oauth.revoke, &found.revoke)];
+        self.outside
+            .iter()
+            .filter(|h| {
+                as_found.iter().any(|(now, then)| now.trim() == then.trim() && !then.trim().is_empty() && host_of(then) == h.to_ascii_lowercase())
+            })
+            .cloned()
+            .collect()
+    }
+
     pub(super) fn of(oauth: Option<&OAuth>) -> OwnFields {
         OwnFields { port: oauth.and_then(|o| o.redirect_port).map(|p| p.to_string()).unwrap_or_default(), ..OwnFields::default() }
     }
@@ -65,6 +105,18 @@ impl OwnFields {
     pub(super) fn wipe(&mut self) {
         self.secret.wipe();
     }
+}
+
+/// Takes away from `oauth` what Discover found for `found`'s issuer, once the issuer is another:
+/// each address still as found, and how the provider was to be spoken to. What the owner typed
+/// over stays.
+fn forget_discovered(oauth: &mut OAuth, found: &Discovered) {
+    for (now, then) in [(&mut oauth.authorize, &found.authorize), (&mut oauth.token, &found.token), (&mut oauth.revoke, &found.revoke)] {
+        if now.trim() == then.trim() {
+            now.clear();
+        }
+    }
+    (oauth.client_auth, oauth.issuer_in_response, oauth.base_scopes) = (ClientAuth::default(), false, None);
 }
 
 /// The redirect port as typed: `Ok(None)` for any free one.
@@ -110,7 +162,7 @@ impl AccountSetup {
         if self.own.discovering.is_some() {
             return Some(tl!("Wait for your identity provider's addresses").to_string());
         }
-        if !self.own.outside.is_empty() && !self.own.agreed {
+        if !self.own.outside_in_use(&oauth).is_empty() && !self.own.agreed {
             return Some(tl!("Agree to the addresses outside your identity provider's domain, or enter others").to_string());
         }
         let secret = self.own.typed_secret();
@@ -162,25 +214,38 @@ impl AccountSetup {
         if !self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) {
             return;
         }
+        let setup = self.oauth.clone().filter(|_| account == 0);
         if !self.own.typed_secret().is_empty() {
             let secret = self.own.typed_secret().to_string();
-            app.set_client_secret(account, &secret);
+            match &setup {
+                Some(oauth) => app.set_setup_client_secret(oauth, &secret),
+                None => app.set_client_secret(account, &secret),
+            }
             self.own.wipe();
+            // (A replacement typed over a Forget ticked before is kept, not forgotten again.)
+            self.own.forget_secret = false;
         } else if self.own.forget_secret {
-            app.set_client_secret(account, "");
+            match &setup {
+                Some(oauth) => app.set_setup_client_secret(oauth, ""),
+                None => app.set_client_secret(account, ""),
+            }
             self.own.forget_secret = false;
         }
     }
 
     /// Take in what Discover found, once it has.
     pub(super) fn poll_discover(&mut self) {
-        let answer = match self.own.discovering.as_ref().map(Receiver::try_recv) {
+        let answer = match self.own.discovering.as_ref().map(|(_, rx)| rx.try_recv()) {
             Some(Err(TryRecvError::Empty)) | None => return,
             Some(Ok(answer)) => answer,
             Some(Err(TryRecvError::Disconnected)) => Err(tl!("Finding the addresses stopped unexpectedly").to_string()),
         };
-        self.own.discovering = None;
+        let asked = self.own.discovering.take().map(|(issuer, _)| issuer).unwrap_or_default();
         let Some(oauth) = self.oauth.as_mut().filter(|o| o.provider == OAuthProvider::Custom) else { return };
+        // (Found for an issuer the owner has changed since: not this one's addresses.)
+        if asked != oauth.issuer.trim() {
+            return;
+        }
         match answer {
             Ok(found) => {
                 (oauth.authorize, oauth.token, oauth.revoke) = (line(&found.authorize, 2048), line(&found.token, 2048), line(&found.revoke, 2048));
@@ -198,6 +263,8 @@ impl AccountSetup {
                 self.own.found = said;
                 self.own.outside = found.outside.iter().take(8).map(|h| line(h, 253)).collect();
                 self.own.agreed = false;
+                self.own.discovered =
+                    Some(Discovered { issuer: asked, authorize: oauth.authorize.clone(), token: oauth.token.clone(), revoke: oauth.revoke.clone() });
             }
             Err(why) => self.own.found = fmt(tl!("No addresses found: {reason}"), &[("reason", &shown(&why, 200))]),
         }
@@ -244,6 +311,12 @@ impl AccountSetup {
         field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
         if provider == OAuthProvider::Microsoft {
             field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+        }
+        // (Only an account with IMAP and SMTP servers can: a Microsoft account kept in step
+        // through Graph has none, and an own provider's token goes to its own servers, #1844
+        // review.)
+        if self.incoming.host.trim().is_empty() || self.outgoing.host.trim().is_empty() {
+            return;
         }
         if !self.own.asking {
             if button(ui, tl!("Use your own identity provider instead…"), false, true).clicked() {
@@ -308,6 +381,12 @@ impl AccountSetup {
         let has_secret = self.oauth.as_ref().is_some_and(|o| o.has_secret);
         let Some(oauth) = self.oauth.as_mut() else { return };
         field(ui, pass, "issuer", tl!("Identity provider (issuer)"), &mut oauth.issuer, "https://id.example.org/realms/mail", 2048);
+        // Another issuer: what Discover found for the one before isn't its (#1844 review).
+        if let Some(found) = self.own.discovered.clone().filter(|found| found.issuer != oauth.issuer.trim()) {
+            forget_discovered(oauth, &found);
+            (self.own.discovered, self.own.found, self.own.agreed) = (None, String::new(), false);
+            self.own.outside.clear();
+        }
         let can_discover = app.services.oauth_discover.is_some() && !oauth.issuer.trim().is_empty() && self.own.discovering.is_none();
         let mut discover = false;
         ui.horizontal(|ui| {
@@ -319,25 +398,24 @@ impl AccountSetup {
             }
         });
         if discover && let Some(start) = app.services.oauth_discover.as_ref() {
-            self.own.discovering = Some(start(oauth.issuer.trim().to_string()));
+            let issuer = oauth.issuer.trim().to_string();
+            self.own.discovering = Some((issuer.clone(), start(issuer)));
             self.own.found.clear();
         }
         if !self.own.found.is_empty() {
             note(ui, &self.own.found, t.text_dim);
         }
-        if !self.own.outside.is_empty() {
-            let hosts = self.own.outside.join(", ");
+        let outside = self.oauth.as_ref().map(|o| self.own.outside_in_use(o)).unwrap_or_default();
+        if !outside.is_empty() {
+            let hosts = outside.join(", ");
             note(ui, &fmt(tl!("These addresses are outside your identity provider's domain: {hosts}"), &[("hosts", &hosts)]), t.orange);
             ui.checkbox(&mut self.own.agreed, tl!("I trust these addresses"));
         }
         let Some(oauth) = self.oauth.as_mut() else { return };
-        let before = (oauth.authorize.clone(), oauth.token.clone());
+        // (An address typed by hand is the owner's own: nothing to agree to for it; the ones still
+        // as Discover found them keep asking, [`OwnFields::outside_in_use`].)
         field(ui, pass, "authorizeUrl", tl!("Sign-in address"), &mut oauth.authorize, "https://…/auth", 2048);
         field(ui, pass, "tokenUrl", tl!("Token address"), &mut oauth.token, "https://…/token", 2048);
-        // (Addresses typed by hand are the owner's own: nothing to agree to.)
-        if before != (oauth.authorize.clone(), oauth.token.clone()) {
-            self.own.outside.clear();
-        }
         field(ui, pass, "revokeUrl", tl!("Revocation address (optional)"), &mut oauth.revoke, "https://…/revoke", 2048);
         field(ui, pass, "clientId", tl!("Client ID"), &mut self.client_id, tl!("The one registered for MailCraft"), 200);
         caption(ui, tl!("Client secret (optional)"), &t);

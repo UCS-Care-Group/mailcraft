@@ -37,7 +37,9 @@ fn discovering(app: &mut MailApp, outside: &[&str]) -> Log<String> {
         let (tx, rx) = mpsc::channel();
         tx.send(Ok(OAuthFound {
             authorize: format!("{issuer}/protocol/openid-connect/auth"),
-            token: format!("{issuer}/protocol/openid-connect/token"),
+            // (Outside hosts are those of addresses found, as Discover finds them: the token
+            // address on the first, when there is one.)
+            token: outside.first().map_or_else(|| format!("{issuer}/protocol/openid-connect/token"), |host| format!("https://{host}/token")),
             revoke: String::new(),
             outside: outside.clone(),
             no_refresh: false,
@@ -255,4 +257,52 @@ fn removing_the_account_gives_the_refresh_token_back_where_the_provider_says() {
     a.adopt_tokens(id, signed_in("Alice"));
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert_eq!(given.lock().unwrap().len(), 1);
+}
+
+/// An address typed over needs no agreement; one still as Discover found it on an outside host
+/// does (#1844 review).
+#[test]
+fn only_an_outside_address_still_as_found_needs_the_agreement() {
+    let mut a = app(false);
+    let requests = signing_in(&mut a);
+    discovering(&mut a, &["tokens.example.net"]);
+    let mut h = at_password(a);
+    click(&mut h, "Sign in with your identity provider (OAuth 2.0) instead");
+    wizard_mut(&mut h).oauth.as_mut().unwrap().issuer = ISSUER.into();
+    wizard_mut(&mut h).client_id = "mailcraft".into();
+    h.run_steps(2);
+    click(&mut h, "Discover");
+    h.run_steps(3);
+    // The sign-in address typed over: the outside token address still asks.
+    wizard_mut(&mut h).oauth.as_mut().unwrap().authorize = format!("{ISSUER}/other/auth");
+    h.run_steps(2);
+    click(&mut h, "Connect");
+    assert!(requests.lock().unwrap().is_empty());
+    assert!(wizard(&h).unwrap().error.contains("outside"), "{}", wizard(&h).unwrap().error);
+    // The token address typed over too: nothing left to agree to.
+    wizard_mut(&mut h).oauth.as_mut().unwrap().token = format!("{ISSUER}/other/token");
+    h.run_steps(2);
+    click(&mut h, "Connect");
+    assert_eq!(requests.lock().unwrap().len(), 1);
+}
+
+/// What Discover found for one issuer isn't kept once the issuer is another (#1844 review).
+#[test]
+fn another_issuer_takes_away_what_discover_found() {
+    let mut a = app(false);
+    let _requests = signing_in(&mut a);
+    discovering(&mut a, &[]);
+    let mut h = at_password(a);
+    click(&mut h, "Sign in with your identity provider (OAuth 2.0) instead");
+    wizard_mut(&mut h).oauth.as_mut().unwrap().issuer = ISSUER.into();
+    wizard_mut(&mut h).client_id = "mailcraft".into();
+    h.run_steps(2);
+    click(&mut h, "Discover");
+    h.run_steps(3);
+    assert!(!wizard(&h).unwrap().oauth.as_ref().unwrap().token.is_empty());
+    wizard_mut(&mut h).oauth.as_mut().unwrap().issuer = "https://id.example.org/realms/other".into();
+    h.run_steps(2);
+    let oauth = wizard(&h).unwrap().oauth.clone().unwrap();
+    assert!(oauth.token.is_empty() && oauth.authorize.is_empty(), "{oauth:?}");
+    assert!(!oauth.issuer_in_response && oauth.base_scopes.is_none());
 }

@@ -134,17 +134,63 @@ fn fetch(address: &str) -> Result<Option<Vec<u8>>, NetError> {
     Err(NetError::Config("the identity provider sent its description on through too many redirects".into()))
 }
 
-/// A `Location` as an absolute address: as written when it is one, else on `from`'s host.
-fn absolute(from: &Url, location: &str) -> String {
+/// A `Location` as an absolute address, resolved against `from` as a URI reference is (RFC 3986
+/// §5.2): an absolute one as written; `//host/…` with `from`'s scheme; `/path` on `from`'s host;
+/// `?query` on `from`'s path; and `name` beside `from`'s document, in its directory (#1844
+/// review). What comes of it is checked by [`Url::parse`] before anything is fetched.
+pub(super) fn absolute(from: &Url, location: &str) -> String {
     let location = location.trim();
     if location.contains("://") {
         return location.to_string();
     }
     let scheme = if from.secure { "https" } else { "http" };
+    if let Some(rest) = location.strip_prefix("//") {
+        return format!("{scheme}://{rest}");
+    }
     let host = if from.host.contains(':') { format!("[{}]", from.host) } else { from.host.clone() };
     let port = if from.port == 0 { String::new() } else { format!(":{}", from.port) };
-    let path = if location.starts_with('/') { location.to_string() } else { format!("/{location}") };
-    format!("{scheme}://{host}{port}{path}")
+    // (`from`'s path without its query, and the directory it is in.)
+    let path = from.path.split(['?', '#']).next().unwrap_or("");
+    let path = if path.is_empty() { "/" } else { path };
+    let target = if location.starts_with('/') {
+        location.to_string()
+    } else if location.starts_with('?') {
+        format!("{path}{location}")
+    } else if location.is_empty() || location.starts_with('#') {
+        path.to_string()
+    } else {
+        let directory = path.rfind('/').map_or("/", |at| path.get(..=at).unwrap_or("/"));
+        format!("{directory}{location}")
+    };
+    format!("{scheme}://{host}{port}{}", remove_dots(&target))
+}
+
+/// A path with its `.` and `..` segments taken out (RFC 3986 §5.2.4), its query kept as it is.
+fn remove_dots(target: &str) -> String {
+    let (path, query) = match target.find(['?', '#']) {
+        Some(at) => target.split_at(at),
+        None => (target, ""),
+    };
+    let mut out: Vec<&str> = Vec::new();
+    let segments: Vec<&str> = path.split('/').skip(1).collect();
+    let last = segments.len().saturating_sub(1);
+    for (n, segment) in segments.iter().enumerate() {
+        match *segment {
+            "." => {
+                if n == last {
+                    out.push("");
+                }
+            }
+            ".." => {
+                out.pop();
+                if n == last {
+                    out.push("");
+                }
+            }
+            other => out.push(other),
+        }
+    }
+    format!("/{}{query}", out.join("/"))
 }
 
 /// Read an identity provider's description of itself, fetched for `issuer` (as typed).

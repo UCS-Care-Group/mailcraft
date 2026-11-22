@@ -141,6 +141,9 @@ fn a_token_from_an_own_identity_provider_goes_to_the_accounts_own_servers_and_no
     // Never Microsoft's or Google's, whose tokens come from their own providers, nor this computer.
     for host in own_hosts(OAuthProvider::Microsoft).into_iter().chain(own_hosts(OAuthProvider::Google)).chain([
         "gmail.googleapis.com",
+        // Microsoft's other clouds too (#1844 review).
+        "outlook.office365.us",
+        "partner.outlook.cn",
         "127.0.0.1",
         "localhost",
         "[::1]",

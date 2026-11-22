@@ -100,7 +100,10 @@ const TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
 /// How long an access token is taken to last when the server doesn't say, and the longest it is believed to.
 const DEFAULT_LIFETIME: i64 = 3_600;
 const MAX_LIFETIME: i64 = 7 * 24 * 3_600;
-/// The shortest life a token is taken to have, whatever the provider said (seconds).
+/// The life a token is taken to have when the provider says it has none at all (0, or less):
+/// used as it comes, never renewed again and again before anything is done with it (seconds).
+/// A life it does say is kept as said, however short (#1844 review): a short token is kept fresh
+/// by the half-life margin ([`Tokens::fresh_for`]), not by a longer life it hasn't got.
 const MIN_LIFETIME: i64 = 60;
 
 /// Longest name or address taken from an identity token.
@@ -1627,9 +1630,12 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
         Some(Value::String(s)) => s.trim().parse::<i64>().ok(),
         _ => None,
     };
-    // (A token said to live less than a minute is taken to live one: it is used as it comes,
-    // never renewed again and again before anything is done with it.)
-    let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(MIN_LIFETIME, MAX_LIFETIME);
+    // (Its life as the provider said it, up to a week; one said to be none at all, a minute.)
+    let lifetime = match lifetime {
+        Some(seconds) if seconds > 0 => seconds.min(MAX_LIFETIME),
+        Some(_) => MIN_LIFETIME,
+        None => DEFAULT_LIFETIME,
+    };
     Ok(Tokens {
         access: access.to_string(),
         refresh: refresh.to_string(),

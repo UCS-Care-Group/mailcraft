@@ -449,7 +449,13 @@ fn own_provider_destination(account: &Account, host: &str) -> Result<(), NetErro
     if host.is_empty() || !(named(account.incoming.as_ref()) || named(account.outgoing.as_ref())) {
         return Err(NetError::Config(said!("a sign-in with your identity provider is only used with this account's own mail servers")));
     }
-    if is_microsoft_host(&host) || mailcraft_model::is_gmail_host(&host) || mailcraft_model::is_google_host(&host) {
+    // (Microsoft's mail hosts in every one of its clouds, office365.us and .cn among them, #1844
+    // review.)
+    if is_microsoft_host(&host)
+        || mailcraft_model::is_exchange_online(&host)
+        || mailcraft_model::is_gmail_host(&host)
+        || mailcraft_model::is_google_host(&host)
+    {
         return Err(NetError::Config(said!("a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers")));
     }
     if crate::transport::is_loopback(&host) && !microsoft_loopback_allowed() {

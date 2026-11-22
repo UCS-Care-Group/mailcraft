@@ -310,8 +310,20 @@ impl OAuth {
     /// stay remembered under the names they always had.)
     pub fn binding(&self) -> String {
         let used = self.effective();
-        let base = format!("{}|{}|{}|{}", self.provider.code(), used.issuer, used.token, used.client_id);
-        if self.provider == OAuthProvider::Custom { format!("{base}|{}", used.revoke) } else { base }
+        if self.provider == OAuthProvider::Custom {
+            // (Each value with its length before it: values may hold the separator, and two
+            // different settings must never come to the same binding.)
+            let field = |value: &str| format!("{}:{value}", value.len());
+            return format!(
+                "{}|{}|{}|{}|{}",
+                self.provider.code(),
+                field(&used.issuer),
+                field(&used.token),
+                field(&used.client_id),
+                field(&used.revoke)
+            );
+        }
+        format!("{}|{}|{}|{}", self.provider.code(), used.issuer, used.token, used.client_id)
     }
 }
 

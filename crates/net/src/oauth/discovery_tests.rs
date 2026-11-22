@@ -6,7 +6,7 @@ use proptest::prelude::*;
 
 use mailcraft_model::ClientAuth;
 
-use super::discovery::{addresses, client_auth_of, discover, read};
+use super::discovery::{absolute, addresses, client_auth_of, discover, read};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -236,4 +236,23 @@ fn a_provider_that_names_itself_in_its_answers_is_noted() {
     // Only a true is a yes.
     doc["authorization_response_iss_parameter_supported"] = serde_json::json!("true");
     assert!(!read(ISSUER, doc.to_string().as_bytes()).unwrap().issuer_in_response);
+}
+
+/// A redirect's `Location` is resolved as a URI reference against the document it came from
+/// (RFC 3986 §5.2, #1844 review).
+#[test]
+fn a_redirect_is_resolved_as_a_uri_reference() {
+    let from = crate::http::Url::parse("https://id.example.org/realms/mail/.well-known/openid-configuration?x=1").unwrap();
+    for (location, resolved) in [
+        ("https://other.example.org/doc", "https://other.example.org/doc"),
+        ("/moved", "https://id.example.org/moved"),
+        ("metadata.json", "https://id.example.org/realms/mail/.well-known/metadata.json"),
+        ("../up.json", "https://id.example.org/realms/mail/up.json"),
+        ("./here.json", "https://id.example.org/realms/mail/.well-known/here.json"),
+        ("//other.example.org/meta", "https://other.example.org/meta"),
+        ("?y=2", "https://id.example.org/realms/mail/.well-known/openid-configuration?y=2"),
+        ("/a/../../b", "https://id.example.org/b"),
+    ] {
+        assert_eq!(absolute(&from, location), resolved, "{location}");
+    }
 }

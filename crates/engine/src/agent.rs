@@ -3548,16 +3548,32 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     _ => {}
                 }
                 // Where it signs in is named when that changes: that is where the owner's sign-in goes.
+                // (Compared whole, the revocation address among them, and only then clipped to be
+                // said: a change past what is shown still asks, #1844 review.)
                 let signs_in_at = |a: &mailcraft_model::Account| {
                     a.oauth.as_ref().map(|o| {
                         let used = o.effective();
-                        (o.provider, clip(&used.authorize, 120), clip(&used.token, 120), clip(&used.client_id, 80))
+                        (o.provider, used.authorize, used.token, used.client_id, used.revoke)
                     })
                 };
                 if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != signs_in_at(account)) {
                     match now {
-                        Some((mailcraft_model::OAuthProvider::Custom, page, token, _)) => {
-                            text.push_str(&format!("; it signs in with its own identity provider, on the page {page}, with tokens from {token}"));
+                        Some((mailcraft_model::OAuthProvider::Custom, page, token, ..)) => {
+                            // (Each from its start and its end, so that two that differ late are
+                            // told apart.)
+                            let said = |address: &str| {
+                                let clean = clip(address, usize::MAX);
+                                if clean.chars().count() <= 120 {
+                                    return clean;
+                                }
+                                let tail: String = clean.chars().rev().take(40).collect::<Vec<_>>().into_iter().rev().collect();
+                                format!("{}{tail}", clip(&clean, 78))
+                            };
+                            text.push_str(&format!(
+                                "; it signs in with its own identity provider, on the page {}, with tokens from {}",
+                                said(&page),
+                                said(&token)
+                            ));
                         }
                         Some((provider, ..)) => text.push_str(&format!("; it signs in with {}", provider.label())),
                         None => text.push_str("; it signs in with a password"),

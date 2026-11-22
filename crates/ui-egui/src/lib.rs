@@ -1738,8 +1738,10 @@ pub struct MailApp {
     /// ([`secret_read`]); only what was found. The window asks this, never the store.
     secret_cache: std::collections::HashMap<String, String>,
     /// The client secrets typed this session for accounts that sign in with an own identity
-    /// provider (0: the account being set up). Never saved; redacted from `Debug`.
-    pub(crate) client_secrets: std::collections::HashMap<Id, String>,
+    /// provider (0: the account being set up), each with the settings it was typed for
+    /// ([`mailcraft_model::OAuth::binding`]): used only with those, never with a provider's
+    /// changed settings (#1844 review). Never saved; redacted from `Debug`.
+    pub(crate) client_secrets: std::collections::HashMap<Id, (String, String)>,
     /// The background read of the store under way, with the opening it was started for.
     secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
     /// The opening, and whether remembering was on, when the store was last read by itself.
@@ -3660,15 +3662,48 @@ impl MailApp {
         )
     }
 
-    /// The client secret of `account` (0 for the one being set up), an account that signs in with
-    /// an own identity provider: typed this session, else what the credential store gave back;
-    /// empty for none.
+    /// The client secret of `account` (0 for the one being set up): [`Self::client_secret_for`]
+    /// the account, or what was typed for the one being set up. For tests: the window asks with
+    /// the account, or the settings, in hand.
+    #[cfg(test)]
     pub(crate) fn client_secret_of(&self, account: Id) -> String {
-        if let Some(typed) = self.client_secrets.get(&account) {
-            return typed.clone();
+        match self.session.mailbox.account(account) {
+            Some(a) => self.client_secret_for(a),
+            None => self.typed_client_secret(account, None),
         }
-        let Some(a) = self.session.mailbox.account(account).filter(|a| a.oauth.as_ref().is_some_and(|o| o.has_secret)) else { return String::new() };
+    }
+
+    /// The client secret of the account `a` (one being removed, say), an account that signs in with
+    /// an own identity provider: typed this session for its settings as they are, else what the
+    /// credential store gave back under them; empty for none.
+    pub(crate) fn client_secret_for(&self, a: &mailcraft_model::Account) -> String {
+        let typed = self.typed_client_secret(a.id, a.oauth.as_ref());
+        if !typed.is_empty() {
+            return typed;
+        }
+        if !a.oauth.as_ref().is_some_and(|o| o.has_secret) {
+            return String::new();
+        }
         self.secret_cache.get(&Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a)).cloned().unwrap_or_default()
+    }
+
+    /// The client secret typed this session for `account`, when it was typed for `oauth` as it
+    /// is (any, when `None`); else empty.
+    fn typed_client_secret(&self, account: Id, oauth: Option<&mailcraft_model::OAuth>) -> String {
+        match self.client_secrets.get(&account) {
+            Some((bound, secret)) if oauth.is_none_or(|o| o.binding() == *bound) => secret.clone(),
+            _ => String::new(),
+        }
+    }
+
+    /// Keep `secret`, typed for the account being set up with the settings `oauth`; an empty one
+    /// forgets any (#1844 review: a secret typed for one provider never goes to another).
+    pub(crate) fn set_setup_client_secret(&mut self, oauth: &mailcraft_model::OAuth, secret: &str) {
+        if secret.is_empty() {
+            self.client_secrets.remove(&0);
+        } else {
+            self.client_secrets.insert(0, (oauth.binding(), secret.to_string()));
+        }
     }
 
     /// Keep the client secret the owner typed for `account` (0 for the one being set up): in
@@ -3690,7 +3725,8 @@ impl MailApp {
             }
             return;
         }
-        self.client_secrets.insert(account, secret.to_string());
+        let bound = self.session.mailbox.account(account).and_then(|a| a.oauth.as_ref()).map(mailcraft_model::OAuth::binding).unwrap_or_default();
+        self.client_secrets.insert(account, (bound, secret.to_string()));
         if account != 0 {
             self.remember(mailcraft_host::secrets::OAUTH_CLIENT, account, secret);
         }
@@ -3705,7 +3741,8 @@ impl MailApp {
         };
         let kept = self.tokens.get(&gone.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
         let refresh = kept.or_else(|| self.secret_cache.get(&Self::secret_key("refresh", gone)).cloned()).unwrap_or_default();
-        let secret = self.client_secret_of(gone.id);
+        // (Read through `gone`: the account is no longer in the mailbox, #1844 review.)
+        let secret = self.client_secret_for(gone);
         self.client_secrets.remove(&gone.id);
         if let (false, Some(revoke)) = (refresh.is_empty(), self.services.revoke_sign_in.as_ref()) {
             revoke(oauth, secret, refresh);
@@ -3765,7 +3802,11 @@ impl MailApp {
         };
         let client_secret = match oauth.provider {
             mailcraft_model::OAuthProvider::Google => self.google_client_secret().to_string(),
-            mailcraft_model::OAuthProvider::Custom => self.client_secret_of(account),
+            mailcraft_model::OAuthProvider::Custom => match self.session.mailbox.account(account) {
+                Some(a) => self.client_secret_for(a),
+                // (The account being set up: typed for these very settings, or none.)
+                None => self.typed_client_secret(account, Some(&oauth)),
+            },
             mailcraft_model::OAuthProvider::Microsoft => String::new(),
         };
         // An own provider's client that has a secret, with none here: asking the provider without
@@ -3832,7 +3873,7 @@ impl MailApp {
             return;
         }
         // The client secret typed while it was set up is the account's now.
-        if let Some(secret) = self.client_secrets.remove(&0) {
+        if let Some((_, secret)) = self.client_secrets.remove(&0) {
             self.set_client_secret(account, &secret);
         }
         self.remember("refresh", account, &tokens.refresh);
@@ -4216,6 +4257,8 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
+            // (Typed for the old mailbox's accounts, whose ids another mailbox may reuse.)
+            self.client_secrets.clear();
             self.jmap_send_asks.clear();
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
@@ -5159,7 +5202,12 @@ impl MailApp {
                 self.session.driver.round.queue.push_front((whose, quiet));
             }
             let quiet = run.is_none_or(|(_, _, _, quiet)| quiet);
-            let retried = self.token_retried.take() == Some(account);
+            // (Only this account's run ends the one retry it had: another account's leaves it,
+            // #1844 review.)
+            let retried = self.token_retried == Some(account);
+            if retried {
+                self.token_retried = None;
+            }
             let totals = std::mem::take(&mut self.sync_totals);
             let refused = std::mem::take(&mut self.sync_refused);
             if refused {
@@ -5188,7 +5236,8 @@ impl MailApp {
             self.status(summary);
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
-            if refused && !retried && !called_off {
+            // (Not after the owner stopped the run.)
+            if refused && !retried && !called_off && !totals.stopped {
                 self.retry_refused_token(account, quiet);
             }
             return;

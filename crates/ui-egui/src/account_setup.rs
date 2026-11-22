@@ -806,7 +806,8 @@ impl AccountSetup {
             if !records.is_empty() {
                 records.insert("username".into(), json!(line(&found.username, LINE)));
                 if !found.oauth_issuer.is_empty() {
-                    records.insert("oauthIssuer".into(), json!(line(&found.oauth_issuer, LINE)));
+                    // (Whole, up to the longest address taken: a cut one would name another.)
+                    records.insert("oauthIssuer".into(), json!(line(&found.oauth_issuer, mailcraft_model::oauth::MAX_ENDPOINT)));
                 }
                 m.insert("found".into(), Value::Object(records));
             }
@@ -1091,6 +1092,10 @@ impl AccountSetup {
                     self.oauth = None;
                     self.someone_else = None;
                     self.go(Page::Password);
+                } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Custom) {
+                    // Back to its OAuth settings as they were typed, as Cancel Sign-In elsewhere
+                    // does (#1844 review).
+                    self.go(Page::Password);
                 } else {
                     self.go(Page::Address);
                 }
@@ -1199,6 +1204,8 @@ impl AccountSetup {
             (Page::Password, Action::PasswordInstead) => {
                 self.oauth = None;
                 self.own.wipe();
+                // (Nor is a client secret typed for that provider kept, #1844 review.)
+                app.client_secrets.remove(&0);
                 self.error.clear();
             }
             (Page::Password, Action::Go) if self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) => {
@@ -1977,6 +1984,7 @@ impl AccountSetup {
             app.cancel_admin_consent();
         }
         self.forget_password();
+        app.client_secrets.remove(&0);
     }
 
     /// A wizard that went while its owner was in the browser, in a way it couldn't see, left that
@@ -2065,19 +2073,22 @@ impl AccountSetup {
                 (!named.is_empty()).then(|| fmt(why, &[("domain", &domain), ("hosts", &named.join(", "))]))
             })
             .collect();
+        // (Signing in with an own identity provider, the mail servers get a token from it, not
+        // the password: said as it is, #1844 review.)
+        let token = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom);
         page(ui, &t, |ui| {
-            heading(ui, tl!("Send your password to another server?"), &t);
+            heading(ui, if token { tl!("Send your sign-in to another server?") } else { tl!("Send your password to another server?") }, &t);
             for why in &whys {
                 ui.label(RichText::new(why).font(medium(13.0)).color(t.text));
             }
-            note(
-                ui,
-                &fmt(
-                    tl!("If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."),
-                    &[("hosts", &hosts)],
-                ),
-                t.text_dim,
-            );
+            let what = if token {
+                tl!(
+                    "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
+                )
+            } else {
+                tl!("If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's.")
+            };
+            note(ui, &fmt(what, &[("hosts", &hosts)]), t.text_dim);
             note(ui, tl!("If you don't, nothing is sent, and you can change the servers in Server settings."), t.text_dim);
         });
         let (mut yes, mut no) = (false, false);

@@ -83,6 +83,14 @@ fn an_earlier_version_keeps_such_an_account_whole_instead_of_failing_to_open_the
     let mut plain = Mailbox::default();
     plain.accounts.push(imap_account(OAuth { provider: OAuthProvider::Google, ..OAuth::default() }));
     assert_eq!(serde_json::to_value(&plain).unwrap()["accounts"][0]["kind"], "imap");
+    // An account of another kind whose file names a provider this version reads as its own keeps
+    // its kind when written and read back (#1844 review).
+    let mut other = Mailbox::default();
+    other.accounts.push(Account { kind: AccountKind::Microsoft, ..imap_account(own()) });
+    let file = serde_json::to_value(&other).unwrap();
+    assert_eq!(file["accounts"][0]["kind"], "microsoft");
+    let back: Mailbox = serde_json::from_value(file).unwrap();
+    assert_eq!(back.accounts[0].kind, AccountKind::Microsoft);
 }
 
 #[test]
@@ -188,6 +196,16 @@ fn the_binding_changes_with_every_value_a_remembered_sign_in_belongs_to() {
     assert_eq!(microsoft.matches('|').count(), 3, "{microsoft}");
     // Not with the ones it doesn't.
     assert_eq!(OAuth { scopes: String::new(), mechanism: SaslChoice::XOAuth2, redirect_port: None, ..own() }.binding(), base);
+}
+
+/// Values may hold the separator: two settings that differ only in where it falls never come to
+/// the same binding, so a sign-in remembered under one is never found (and its refresh token
+/// never sent away) under the other (#1844 review).
+#[test]
+fn settings_that_move_a_separator_between_values_are_bound_apart() {
+    let a = OAuth { client_id: "mailcraft".into(), revoke: "https://id.example.org/revoke|https://attacker.example/revoke".into(), ..own() };
+    let b = OAuth { client_id: "mailcraft|https://id.example.org/revoke".into(), revoke: "https://attacker.example/revoke".into(), ..own() };
+    assert_ne!(a.binding(), b.binding());
 }
 
 proptest! {

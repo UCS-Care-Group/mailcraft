@@ -385,7 +385,9 @@ impl ImapWorld {
             (true, ..) => "",
             (false, true, true) => " AUTH=OAUTHBEARER",
             (false, true, false) => " AUTH=OAUTHBEARER AUTH=XOAUTH2",
-            (false, false, _) => " AUTH=XOAUTH2",
+            // (Neither offered: a server that takes no token at all, #1844 review.)
+            (false, false, true) => "",
+            (false, false, false) => " AUTH=XOAUTH2",
         };
         let sasl_ir = if self.sasl_ir { " SASL-IR" } else { "" };
         let plain = if self.plain && (!self.offer_starttls || secured) { " AUTH=PLAIN" } else { "" };

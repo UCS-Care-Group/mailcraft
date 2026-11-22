@@ -49,11 +49,23 @@ fn an_imap_account_is_set_up_with_its_own_identity_provider() {
     assert!(!shown.to_ascii_lowercase().contains("secret\":\""), "{shown}");
 }
 
+/// A client id is whatever visible ASCII the provider issued (RFC 6749 Appendix A.1), a colon
+/// among it (#1844 review); a tenant stays a word.
+#[test]
+fn a_provider_issued_client_id_with_punctuation_is_taken() {
+    let mut s = Session::empty();
+    let id = add(&mut s, &own(json!({"clientId": "mailcraft:desktop"})));
+    assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().client_id, "mailcraft:desktop");
+    assert!(s.run("account.edit", &json!({"id": id, "tenant": "a:b"})).is_err());
+}
+
 #[test]
 fn what_cant_be_used_is_refused() {
     let mut s = Session::empty();
     for extra in [
         json!({"clientId": ""}),
+        json!({"clientId": "has space"}),
+        json!({"clientId": "x".repeat(201)}),
         json!({"tokenUrl": "http://id.example.org/token"}),
         json!({"authorizeUrl": "https://user:pw@id.example.org/auth"}),
         json!({"issuer": "https://id.example.org/?x"}),
@@ -190,4 +202,18 @@ fn how_the_client_secret_is_sent_and_whether_the_provider_names_itself_are_setti
     assert!(s.run("account.edit", &json!({"id": ms, "baseScopes": "openid"})).is_err());
     // What each provider uses is said.
     assert_eq!(s.run("account.oauthDefaults", &json!({"provider": "custom"})).unwrap()["clientAuth"], "basic");
+}
+
+/// What an agent is asked to allow names a change of where the account signs in even when it
+/// lies past what is shown of a long address, or in the revocation address (#1844 review).
+#[test]
+fn an_agent_is_told_of_a_sign_in_change_however_late_in_the_address() {
+    let mut s = Session::empty();
+    let long = format!("{ISSUER}/{}/one", "a".repeat(100));
+    let id = add(&mut s, &own(json!({"tokenUrl": long})));
+    let other = long.replace("/one", "/two");
+    let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "tokenUrl": other}));
+    assert!(said.contains("its own identity provider") && said.contains("/two"), "{said}");
+    let revoke = crate::agent::describe(&s, "account.edit", &json!({"id": id, "revokeUrl": "https://elsewhere.example.org/revoke"}));
+    assert!(revoke.contains("its own identity provider"), "{revoke}");
 }

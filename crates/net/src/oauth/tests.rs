@@ -1334,12 +1334,16 @@ fn how_long_a_token_lasts() {
     for unsaid in ["", r#","expires_in":null"#, r#","expires_in":"soon""#, r#","expires_in":[3600]"#] {
         assert_eq!(lasting(unsaid).expires_at, 1_000 + DEFAULT_LIFETIME, "{unsaid}");
     }
-    // Already over, or nearly: a minute, so that it is used as it comes rather than renewed
-    // again and again before anything is done with it. And longer than any token lasts.
-    for over in [r#","expires_in":0"#, r#","expires_in":-5"#, r#","expires_in":"-99999999999999""#, r#","expires_in":-1e300"#, r#","expires_in":30"#]
-    {
+    // Said to have no life at all: a minute, so that it is used as it comes rather than renewed
+    // again and again before anything is done with it. A short life it does have is the life it
+    // has, never more (#1844 review).
+    for over in [r#","expires_in":0"#, r#","expires_in":-5"#, r#","expires_in":"-99999999999999""#, r#","expires_in":-1e300"#] {
         assert_eq!(lasting(over).expires_at, 1_000 + MIN_LIFETIME, "{over}");
+        assert!(lasting(over).fresh(1_000), "used as it comes: {over}");
     }
+    let short = lasting(r#","expires_in":30"#);
+    assert_eq!(short.expires_at, 1_030);
+    assert!(short.fresh(1_000) && !short.fresh(1_030), "fresh as it comes, never past its end");
     for forever in [r#","expires_in":99999999999"#, r#","expires_in":1e300"#, r#","expires_in":18446744073709551615"#] {
         assert_eq!(lasting(forever).expires_at, 1_000 + MAX_LIFETIME, "{forever}");
     }
