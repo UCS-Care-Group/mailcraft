@@ -15,7 +15,7 @@
 //! when it has one, is typed here and kept in the system's credential store alone; the mailbox
 //! says only that there is one. Saving goes through `account.add` and `account.edit`.
 
-use mailcraft_model::{OAuthProvider, SaslChoice};
+use mailcraft_model::{ClientAuth, OAuthProvider, SaslChoice};
 
 use super::*;
 
@@ -150,6 +150,8 @@ impl AccountSetup {
             m.insert(key.into(), json!(value.trim()));
         }
         m.insert("mechanism".into(), json!(oauth.mechanism.code()));
+        m.insert("clientAuth".into(), json!(oauth.client_auth.code()));
+        m.insert("issuerInResponse".into(), json!(oauth.issuer_in_response));
         m.insert("hasSecret".into(), json!(oauth.has_secret));
     }
 
@@ -181,6 +183,7 @@ impl AccountSetup {
         match answer {
             Ok(found) => {
                 (oauth.authorize, oauth.token, oauth.revoke) = (line(&found.authorize, 2048), line(&found.token, 2048), line(&found.revoke, 2048));
+                (oauth.client_auth, oauth.issuer_in_response) = (found.client_auth, found.issuer_in_response);
                 let host = |address: &str| address.split("://").nth(1).and_then(|rest| rest.split(['/', '?', ':']).next()).unwrap_or("").to_string();
                 let mut said = fmt(
                     tl!("Found: sign-in at {signIn}, tokens from {token}."),
@@ -276,6 +279,7 @@ impl AccountSetup {
                 revoke: used.revoke,
                 scopes: extra,
                 mechanism: used.mechanism,
+                client_auth: used.client_auth,
                 redirect_port: oauth.redirect_port,
                 ..OAuth::default()
             };
@@ -350,6 +354,17 @@ impl AccountSetup {
             t.text_dim,
         );
         let Some(oauth) = self.oauth.as_mut() else { return };
+        // RFC 6749 §2.3.1: the header is what every provider takes; Discover says when it is the form.
+        caption(ui, tl!("Client secret sent"), &t);
+        let sent = |way: ClientAuth| match way {
+            ClientAuth::Basic => tl!("In the Authorization header (client_secret_basic)"),
+            ClientAuth::Post => tl!("In the form (client_secret_post)"),
+        };
+        egui::ComboBox::from_id_salt(field_id(("account", "clientAuth"))).selected_text(sent(oauth.client_auth)).show_ui(ui, |ui| {
+            for way in [ClientAuth::Basic, ClientAuth::Post] {
+                ui.selectable_value(&mut oauth.client_auth, way, sent(way));
+            }
+        });
         field(ui, pass, "scopes", tl!("Extra scopes"), &mut oauth.scopes, tl!("Asked for besides openid email offline_access"), 1024);
         field(ui, pass, "redirectPort", tl!("Redirect port"), &mut self.own.port, tl!("Automatic"), 5);
         note(ui, tl!("Register http://127.0.0.1 with any port (or the one above) as the redirect address."), t.text_dim);

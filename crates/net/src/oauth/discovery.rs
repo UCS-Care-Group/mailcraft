@@ -18,6 +18,7 @@
 
 use std::time::Duration;
 
+use mailcraft_model::ClientAuth;
 use serde_json::Value;
 
 use crate::NetError;
@@ -47,9 +48,11 @@ pub struct Discovered {
     /// The hosts of its addresses that lie outside the issuer's own domain (its registrable
     /// part), for the owner to be asked about once before anything is sent there.
     pub outside: Vec<String>,
-    /// It takes a client secret only in the `Authorization` header (`client_secret_basic`),
-    /// not in the form.
-    pub secret_in_header: bool,
+    /// How a client secret is to be sent: in the `Authorization` header (`client_secret_basic`)
+    /// unless the provider lists the form (`client_secret_post`) and not the header.
+    pub client_auth: ClientAuth,
+    /// It says its page names itself (`iss`) when it sends the owner back (RFC 9207).
+    pub issuer_in_response: bool,
 }
 
 impl Discovered {
@@ -183,8 +186,8 @@ pub fn read(issuer: &str, body: &[u8]) -> Result<Discovered, NetError> {
     if !grants.is_empty() && !grants.iter().any(|g| g == "authorization_code") {
         return Err(bad("says it doesn't sign people in on its page (authorization code)"));
     }
-    let auth_methods = list("token_endpoint_auth_methods_supported");
-    let secret_in_header = auth_methods.iter().any(|m| m == "client_secret_basic") && !auth_methods.iter().any(|m| m == "client_secret_post");
+    let client_auth = client_auth_of(&list("token_endpoint_auth_methods_supported"));
+    let issuer_in_response = object.get("authorization_response_iss_parameter_supported").and_then(Value::as_bool).unwrap_or(false);
     let home = host_of(issuer);
     let home = mailcraft_model::sender_warnings::registrable(&home).to_string();
     let mut outside: Vec<String> = Vec::new();
@@ -194,7 +197,26 @@ pub fn read(issuer: &str, body: &[u8]) -> Result<Discovered, NetError> {
             outside.push(host);
         }
     }
-    Ok(Discovered { issuer: issuer.to_string(), authorize, token, revoke, scopes_supported: list("scopes_supported"), outside, secret_in_header })
+    Ok(Discovered {
+        issuer: issuer.to_string(),
+        authorize,
+        token,
+        revoke,
+        scopes_supported: list("scopes_supported"),
+        outside,
+        client_auth,
+        issuer_in_response,
+    })
+}
+
+/// How a client secret goes to a provider that lists these ways of taking one
+/// (`token_endpoint_auth_methods_supported`): in the header, which every provider must take
+/// (RFC 6749 §2.3.1) and which one that lists nothing takes (RFC 8414 §2), unless it lists the
+/// form and not the header. (Its revocation address takes what its token address takes: a
+/// provider that lists other ways there is rare enough not to be asked about.)
+pub(crate) fn client_auth_of(methods: &[String]) -> ClientAuth {
+    let lists = |method: &str| methods.iter().any(|m| m == method);
+    if lists("client_secret_post") && !lists("client_secret_basic") { ClientAuth::Post } else { ClientAuth::Basic }
 }
 
 /// The host of an address, lower-cased.

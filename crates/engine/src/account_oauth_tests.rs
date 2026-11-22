@@ -157,3 +157,25 @@ fn an_identity_provider_a_domains_document_names_is_offered_never_taken_by_itsel
     let gmail = json!({"email": "ada@gmail.com", "found": {"oauthIssuer": "https://id.example.org"}});
     assert_eq!(s.run("account.preset", &gmail).unwrap()["oauthIssuer"], Value::Null);
 }
+
+#[test]
+fn how_the_client_secret_is_sent_and_whether_the_provider_names_itself_are_settings() {
+    use mailcraft_model::ClientAuth;
+    let mut s = Session::empty();
+    let id = add(&mut s, &own(json!({})));
+    assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().client_auth, ClientAuth::Basic);
+    s.run("account.edit", &json!({"id": id, "clientAuth": "post", "issuerInResponse": true})).unwrap();
+    let oauth = s.mailbox.account(id).unwrap().oauth.clone().unwrap();
+    assert_eq!((oauth.client_auth, oauth.issuer_in_response), (ClientAuth::Post, true));
+    for bad in [json!({"clientAuth": "private_key_jwt"}), json!({"clientAuth": 1}), json!({"issuerInResponse": "yes"})] {
+        let mut v = bad.clone();
+        v["id"] = json!(id);
+        assert!(s.run("account.edit", &v).is_err(), "{bad}");
+    }
+    // Microsoft's are built in: changed only by becoming an own provider.
+    let ms =
+        add(&mut s, &json!({"email": "bo@example.org", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}));
+    assert!(s.run("account.edit", &json!({"id": ms, "clientAuth": "post"})).is_err());
+    // What each provider uses is said.
+    assert_eq!(s.run("account.oauthDefaults", &json!({"provider": "custom"})).unwrap()["clientAuth"], "basic");
+}

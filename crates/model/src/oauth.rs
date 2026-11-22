@@ -87,6 +87,50 @@ impl SaslChoice {
     }
 }
 
+/// How a client with a secret proves who it is to the token and revocation addresses (RFC 6749
+/// §2.3.1). A client without a secret names itself in the form either way (§3.2.1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ClientAuth {
+    /// `client_secret_basic`: the client id and secret in the `Authorization` header (HTTP Basic,
+    /// each form-encoded first). Every provider must take it (§2.3.1), and it is what a provider
+    /// that says nothing takes (RFC 8414 §2).
+    #[default]
+    #[serde(rename = "basic")]
+    Basic,
+    /// `client_secret_post`: the two in the form, for a provider that takes only that.
+    #[serde(rename = "post")]
+    Post,
+}
+
+impl ClientAuth {
+    pub fn is_basic(&self) -> bool {
+        *self == ClientAuth::Basic
+    }
+
+    pub fn parse(text: &str) -> Option<ClientAuth> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "" | "basic" | "client_secret_basic" | "header" => Some(ClientAuth::Basic),
+            "post" | "client_secret_post" | "form" | "body" => Some(ClientAuth::Post),
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            ClientAuth::Basic => "basic",
+            ClientAuth::Post => "post",
+        }
+    }
+
+    /// The name the standards and providers' descriptions give it.
+    pub fn method(self) -> &'static str {
+        match self {
+            ClientAuth::Basic => "client_secret_basic",
+            ClientAuth::Post => "client_secret_post",
+        }
+    }
+}
+
 /// Everything a sign-in uses, as it is used: built in for Microsoft and Google, the account's
 /// own for an own identity provider ([`OAuth::effective`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -101,6 +145,11 @@ pub struct OAuthDefaults {
     /// Everything the tokens are asked for, separated by spaces.
     pub scopes: String,
     pub mechanism: SaslChoice,
+    /// How a client secret is sent, when there is one.
+    pub client_auth: ClientAuth,
+    /// Whether the provider's page names itself (`iss`) when it sends the owner back (RFC 9207),
+    /// so that an answer without it is refused.
+    pub issuer_in_response: bool,
     /// The client id: the account's own, or empty for the build's own (Microsoft and Google only).
     pub client_id: String,
     /// Whether the client id used is the build's own.
@@ -127,6 +176,8 @@ impl OAuthProvider {
                     revoke: String::new(),
                     scopes: MICROSOFT_MAIL_SCOPE.into(),
                     mechanism: SaslChoice::XOAuth2,
+                    client_auth: ClientAuth::Post,
+                    issuer_in_response: false,
                     client_id: String::new(),
                     built_in_client: true,
                     hosts: MICROSOFT_HOSTS.iter().map(|h| h.to_string()).collect(),
@@ -141,6 +192,8 @@ impl OAuthProvider {
                 revoke: GOOGLE_REVOKE.into(),
                 scopes: GOOGLE_SCOPE.into(),
                 mechanism: SaslChoice::XOAuth2,
+                client_auth: ClientAuth::Post,
+                issuer_in_response: false,
                 client_id: String::new(),
                 built_in_client: true,
                 hosts: GOOGLE_HOSTS.iter().map(|h| h.to_string()).collect(),
@@ -177,6 +230,8 @@ impl OAuth {
             used.token = self.token.trim().to_string();
             used.revoke = self.revoke.trim().to_string();
             used.mechanism = self.mechanism;
+            used.client_auth = self.client_auth;
+            used.issuer_in_response = self.issuer_in_response;
             used.scopes = scope_list(CUSTOM_SCOPE, &self.scopes);
         }
         used
@@ -203,6 +258,8 @@ impl OAuth {
         }
         let own = [&self.issuer, &self.authorize, &self.token, &self.revoke, &self.scopes].iter().any(|value| !value.trim().is_empty())
             || !self.mechanism.is_auto()
+            || !self.client_auth.is_basic()
+            || self.issuer_in_response
             || self.has_secret;
         if self.provider != OAuthProvider::Custom {
             if own {

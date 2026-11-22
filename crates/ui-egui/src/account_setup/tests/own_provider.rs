@@ -4,7 +4,7 @@
 //! with Discover and a client secret, and a built-in account turned into one after a question.
 //! Invented example.org addresses; nothing leaves the test.
 
-use mailcraft_model::{OAuthProvider, SaslChoice};
+use mailcraft_model::{ClientAuth, OAuthProvider, SaslChoice};
 
 use super::*;
 use crate::OAuthFound;
@@ -41,6 +41,9 @@ fn discovering(app: &mut MailApp, outside: &[&str]) -> Log<String> {
             revoke: String::new(),
             outside: outside.clone(),
             no_refresh: false,
+            // A provider that lists only the form for a secret, and names itself in its answers.
+            client_auth: ClientAuth::Post,
+            issuer_in_response: true,
         }))
         .unwrap();
         rx
@@ -81,6 +84,9 @@ fn a_new_account_signs_in_with_its_own_identity_provider_found_from_its_issuer()
     let oauth = wizard(&h).unwrap().oauth.clone().unwrap();
     assert_eq!(oauth.token, format!("{ISSUER}/protocol/openid-connect/token"));
     assert!(says(&h, "Found: sign-in at id.example.org"));
+    // How it takes a secret and that it names itself come with the addresses (RFC 6749 §2.3.1, RFC 9207).
+    assert_eq!((oauth.client_auth, oauth.issuer_in_response), (ClientAuth::Post, true));
+    assert!(says(&h, "Client secret sent"));
     // The client, and its secret typed in the masked field.
     wizard_mut(&mut h).client_id = "mailcraft".into();
     type_password(&mut h);
@@ -94,6 +100,7 @@ fn a_new_account_signs_in_with_its_own_identity_provider_found_from_its_issuer()
     let account = h.state().session.mailbox.accounts.iter().find(|x| x.email == "alice@unknown.example").cloned().expect("the account is added");
     let oauth = account.oauth.clone().unwrap();
     assert_eq!((oauth.provider, oauth.issuer.as_str(), oauth.has_secret), (OAuthProvider::Custom, ISSUER, true));
+    assert_eq!((oauth.client_auth, oauth.issuer_in_response, sent.client_auth), (ClientAuth::Post, true, ClientAuth::Post));
     // The secret is the account's for the session; never in the mailbox, a command's answer or Debug.
     assert_eq!(h.state().client_secret_of(account.id), TYPED);
     let mailbox = serde_json::to_string(&h.state().session.mailbox).unwrap();

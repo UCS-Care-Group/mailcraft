@@ -1256,6 +1256,8 @@ fn services(
                         token: found.token,
                         revoke: found.revoke,
                         outside: found.outside,
+                        client_auth: found.client_auth,
+                        issuer_in_response: found.issuer_in_response,
                     })
                     .map_err(|e| e.to_string())
             })

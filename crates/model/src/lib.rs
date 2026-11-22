@@ -98,7 +98,7 @@ pub use message::{
 };
 pub use messages::Messages;
 pub use note::{JournalEntry, Note};
-pub use oauth::{OAuthDefaults, SaslChoice};
+pub use oauth::{ClientAuth, OAuthDefaults, SaslChoice};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};

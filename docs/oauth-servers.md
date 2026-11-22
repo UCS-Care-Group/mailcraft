@@ -28,8 +28,14 @@ real mailbox.
 
   A provider that insists on a confidential client gives it a secret: enter it in **Client secret**.
   MailCraft keeps it in your system's credential store, never in the mailbox file, and sends it to
-  the provider's token address alone. A desktop program can't really keep a secret from the person
-  using it, so a public client is the better choice where the provider allows one.
+  the provider's token and revocation addresses alone. A desktop program can't really keep a secret
+  from the person using it (RFC 8252 §8.5), so a public client is the better choice where the
+  provider allows one.
+
+  **Client secret sent** says how: *In the Authorization header* (`client_secret_basic`), the way
+  every provider must take (RFC 6749 §2.3.1) and the one MailCraft uses unless told otherwise, or
+  *In the form* (`client_secret_post`). **Discover** picks the form only when the provider's
+  description lists it and not the header; one that lists nothing takes the header (RFC 8414).
 - **Mail servers that take the token** with SASL OAUTHBEARER (RFC 7628) or XOAUTH2. MailCraft
   uses OAUTHBEARER when a server offers it and XOAUTH2 otherwise, or the one you choose in
   **Mechanism**. A server that offers neither is never shown the token, and MailCraft says so.
@@ -38,6 +44,11 @@ MailCraft asks the provider for `openid email offline_access`, and for any **Ext
 add (`mail`, say, if your mail servers look for one). `offline_access` brings a refresh token, so
 that you aren't asked to sign in again each time a token runs out; a provider that won't give one
 is said to when you press Discover.
+
+When the provider's page sends you back to MailCraft it may say which provider it is (`iss`,
+RFC 9207; Keycloak does). MailCraft then checks it is the issuer in the settings, and uses nothing
+of an answer that names another. When the provider's description says it always names itself,
+Discover notes that, and an answer that doesn't is refused too.
 
 ## Setting the account up
 
@@ -115,7 +126,12 @@ them on the submission port too: nothing else to set.
   issuer, character for character (a slash at the end, `http` for `https`, another realm).
 - **"says it doesn't take the protected sign-in (PKCE with S256)"**: turn S256 on for the client.
 - **"your identity provider doesn't know this client id, or its client secret"**: check the client
-  ID, and the secret for a confidential client.
+  ID, and the secret for a confidential client. A provider that won't take the secret in the
+  header wants **Client secret sent** set to *In the form* (Discover sets it when the provider
+  says so).
+- **"the sign-in came back from another identity provider than the one asked"**: the page that
+  sent you back named an issuer other than the one in the settings. Check the issuer address, and
+  what opened the page.
 - **The browser says the redirect address isn't allowed**: register `http://127.0.0.1` with any
   port, or set the same fixed port in both places.
 - **"the server offers no way to sign in with an access token"**: the mail server offers neither

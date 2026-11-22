@@ -4,7 +4,9 @@
 
 use proptest::prelude::*;
 
-use super::discovery::{addresses, discover, read};
+use mailcraft_model::ClientAuth;
+
+use super::discovery::{addresses, client_auth_of, discover, read};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -40,7 +42,10 @@ fn a_keycloak_shaped_description_gives_the_addresses() {
     assert_eq!(found.authorize, format!("{ISSUER}/protocol/openid-connect/auth"));
     assert_eq!(found.token, format!("{ISSUER}/protocol/openid-connect/token"));
     assert_eq!(found.revoke, format!("{ISSUER}/protocol/openid-connect/revoke"));
-    assert!(found.outside.is_empty() && !found.lacks_offline_access() && !found.secret_in_header);
+    assert!(found.outside.is_empty() && !found.lacks_offline_access());
+    // It lists both: the header, which every provider takes (RFC 6749 §2.3.1).
+    assert_eq!(found.client_auth, ClientAuth::Basic);
+    assert!(!found.issuer_in_response);
 }
 
 #[test]
@@ -57,7 +62,7 @@ fn an_authentik_shaped_one_with_its_token_on_another_host_says_so() {
     assert_eq!(found.outside, ["tokens.example.net"]);
     // It lists its scopes, and offline_access isn't one: no refresh tokens.
     assert!(found.lacks_offline_access());
-    assert!(found.secret_in_header);
+    assert_eq!(found.client_auth, ClientAuth::Basic);
     assert!(found.revoke.is_empty());
 }
 
@@ -207,4 +212,28 @@ proptest! {
         }
         let _ = read(ISSUER, serde_json::Value::Object(doc).to_string().as_bytes());
     }
+}
+
+#[test]
+fn the_secret_goes_in_the_form_only_when_the_provider_lists_that_and_not_the_header() {
+    let list = |methods: &[&str]| methods.iter().map(|m| m.to_string()).collect::<Vec<_>>();
+    // RFC 8414 §2: a provider that lists nothing takes client_secret_basic.
+    assert_eq!(client_auth_of(&[]), ClientAuth::Basic);
+    assert_eq!(client_auth_of(&list(&["client_secret_basic", "client_secret_post"])), ClientAuth::Basic);
+    assert_eq!(client_auth_of(&list(&["client_secret_post"])), ClientAuth::Post);
+    assert_eq!(client_auth_of(&list(&["private_key_jwt", "client_secret_post", "none"])), ClientAuth::Post);
+    assert_eq!(client_auth_of(&list(&["private_key_jwt", "none"])), ClientAuth::Basic);
+    let mut doc: serde_json::Value = serde_json::from_str(&keycloak(ISSUER)).unwrap();
+    doc["token_endpoint_auth_methods_supported"] = serde_json::json!(["client_secret_post"]);
+    assert_eq!(read(ISSUER, doc.to_string().as_bytes()).unwrap().client_auth, ClientAuth::Post);
+}
+
+#[test]
+fn a_provider_that_names_itself_in_its_answers_is_noted() {
+    let mut doc: serde_json::Value = serde_json::from_str(&keycloak(ISSUER)).unwrap();
+    doc["authorization_response_iss_parameter_supported"] = serde_json::json!(true);
+    assert!(read(ISSUER, doc.to_string().as_bytes()).unwrap().issuer_in_response);
+    // Only a true is a yes.
+    doc["authorization_response_iss_parameter_supported"] = serde_json::json!("true");
+    assert!(!read(ISSUER, doc.to_string().as_bytes()).unwrap().issuer_in_response);
 }

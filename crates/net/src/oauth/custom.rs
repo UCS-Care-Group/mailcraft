@@ -9,6 +9,13 @@
 //! owner (or their administrator) registered there for MailCraft: a public client, or one with a
 //! client secret, which the host hands in from the system's credential store and which goes to
 //! the token and revocation addresses alone (RFC 8252 §8.5 says what such a secret is worth).
+//! A client with a secret proves who it is in the `Authorization` header (`client_secret_basic`,
+//! RFC 6749 §2.3.1), or in the form for a provider that takes only that; a public client names
+//! itself in the form (§3.2.1). The revocation address is asked the same way (RFC 7009 §2.1).
+//!
+//! When the provider's page sends the owner back it may name itself (`iss`, RFC 9207): a name
+//! other than the issuer's is refused, and so is none from a provider that says it names itself,
+//! so that a code meant for one provider is never traded at another.
 //!
 //! The redirect is `http://127.0.0.1:{port}/`, the IP literal RFC 8252 §7.3 asks for, on any free
 //! port or the one the settings name for a provider that can't register "any port".
@@ -16,6 +23,8 @@
 //! What the provider answers is hostile. Its refusals are told apart by their code alone, in
 //! fixed words; the text it adds for people is never shown (it could say anything, or repeat a
 //! secret).
+
+use mailcraft_model::ClientAuth;
 
 use super::*;
 
@@ -87,19 +96,72 @@ pub(super) fn sign_in_custom_refused(
     let verifier = random(32)?;
     let state = random(24)?;
     open(&page(&used, &redirect_uri, &state, &challenge(&verifier), login_hint));
-    let code = redirect.wait(&state, cancel, patience)?;
+    let (issuer, iss_required) = (used.issuer.clone(), used.issuer_in_response);
+    let code = redirect.wait_for(&state, cancel, patience, |request, state| judge_issued(request, state, &issuer, iss_required))?;
     drop(redirect);
     let mut fields = vec![
         ("grant_type", "authorization_code"),
-        ("client_id", used.client_id.as_str()),
         ("code", code.as_str()),
         ("redirect_uri", redirect_uri.as_str()),
         ("code_verifier", verifier.as_str()),
     ];
-    if !client_secret.is_empty() {
-        fields.push(("client_secret", client_secret));
+    let authorization = client_authentication(&used, client_secret, &mut fields);
+    let secrets = [code.as_str(), verifier.as_str(), client_secret, credentials(&authorization)];
+    trade_custom(&token_endpoint, &fields, authorization.as_deref(), "", &secrets).map_err(Refused::from)
+}
+
+/// How the client proves who it is to the token or revocation address (RFC 6749 §2.3.1, §3.2.1):
+/// with a secret, the `Authorization` header to send (`client_secret_basic`: the id and secret
+/// each form-encoded, joined by a colon, in base64), or the two in the form (`client_secret_post`);
+/// without one, its id in the form. The id is never sent both ways (a provider may refuse that).
+fn client_authentication<'a>(used: &'a mailcraft_model::OAuthDefaults, client_secret: &'a str, fields: &mut Vec<(&str, &'a str)>) -> Option<String> {
+    if client_secret.is_empty() {
+        fields.push(("client_id", used.client_id.as_str()));
+        return None;
     }
-    trade_custom(&token_endpoint, &fields, "", &[code.as_str(), verifier.as_str(), client_secret]).map_err(Refused::from)
+    match used.client_auth {
+        ClientAuth::Basic => {
+            let pair = format!("{}:{}", http::encode(&used.client_id), http::encode(client_secret));
+            Some(format!("Basic {}", mailcraft_charset::base64::STANDARD.encode(pair.as_bytes())))
+        }
+        ClientAuth::Post => {
+            fields.push(("client_id", used.client_id.as_str()));
+            fields.push(("client_secret", client_secret));
+            None
+        }
+    }
+}
+
+/// The credentials in an `Authorization` header (the base64 after `Basic `), to be kept out of
+/// errors as the secret is: a server that repeats them repeats the secret.
+fn credentials(authorization: &Option<String>) -> &str {
+    authorization.as_deref().map_or("", |header| header.strip_prefix("Basic ").unwrap_or(header))
+}
+
+/// [`judge`] for an identity provider that may name itself in its answer (RFC 9207 §2.4): the
+/// answer, a code or a refusal, is taken only from `issuer` (when it is known), and only with
+/// its name when `required`. Checked before anything else in it is believed.
+fn judge_issued(request: &[u8], state: &str, issuer: &str, required: bool) -> (&'static Page, Option<Result<String, Refused>>) {
+    let fields = match brought(request, state) {
+        Ok(fields) => fields,
+        Err(page) => return (page, None),
+    };
+    let named = fields.iter().find(|(name, _)| name == "iss").map(|(_, value)| value.as_str());
+    let wrong = match named {
+        Some(named) => !issuer.is_empty() && named != issuer,
+        None => required,
+    };
+    if wrong {
+        let why = match named {
+            Some(_) => "the sign-in came back from another identity provider than the one asked: nothing of it was used",
+            None => "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used",
+        };
+        return (&FAILED, Some(Err(Refused::from(NetError::Proto(ProtoError::Protocol(why.into()))))));
+    }
+    match code_of(&fields) {
+        Ok(code) => (&DONE, Some(Ok(code))),
+        Err(refused) => (&FAILED, Some(Err(refused))),
+    }
 }
 
 /// The address of the identity provider's sign-in page, with everything it needs to send the
@@ -134,11 +196,10 @@ pub fn refresh_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) -
         return Err(NetError::Proto(ProtoError::Auth("there is no earlier sign-in to renew".into())));
     }
     // (No scope: the new tokens are for what the sign-in was given, RFC 6749 §6.)
-    let mut fields = vec![("grant_type", "refresh_token"), ("client_id", used.client_id.as_str()), ("refresh_token", refresh_token)];
-    if !client_secret.is_empty() {
-        fields.push(("client_secret", client_secret));
-    }
-    trade_custom(&token_endpoint, &fields, refresh_token, &[refresh_token, client_secret])
+    let mut fields = vec![("grant_type", "refresh_token"), ("refresh_token", refresh_token)];
+    let authorization = client_authentication(&used, client_secret, &mut fields);
+    let secrets = [refresh_token, client_secret, credentials(&authorization)];
+    trade_custom(&token_endpoint, &fields, authorization.as_deref(), refresh_token, &secrets)
 }
 
 /// Give a refresh token back to the identity provider (RFC 7009), when it names where: what is
@@ -155,11 +216,11 @@ pub fn revoke_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) ->
     }
     mailcraft_model::oauth::endpoint(&used.revoke).map_err(|why| NetError::Config(format!("the revocation address {why}").into()))?;
     let endpoint = Url::parse(&used.revoke)?;
-    let mut fields = vec![("token", refresh_token), ("token_type_hint", "refresh_token"), ("client_id", used.client_id.as_str())];
-    if !client_secret.is_empty() {
-        fields.push(("client_secret", client_secret));
-    }
-    let answer = http::post_form(&endpoint, &fields, TOKEN_TIMEOUT).map_err(|e| e.without(refresh_token).without(client_secret))?;
+    let mut fields = vec![("token", refresh_token), ("token_type_hint", "refresh_token")];
+    let authorization = client_authentication(&used, client_secret, &mut fields);
+    let answer = http::post_form_as(&endpoint, &fields, authorization.as_deref(), TOKEN_TIMEOUT).map_err(|e| {
+        [refresh_token, client_secret, credentials(&authorization)].iter().filter(|s| !s.is_empty()).fold(e, |e, secret| e.without(secret))
+    })?;
     // RFC 7009 §2.2: 200 whether or not the token was still good.
     if answer.status == 200 {
         return Ok(());
@@ -174,9 +235,16 @@ pub fn revoke_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) ->
 }
 
 /// POST the form to the token endpoint and read the tokens out of the answer, the refusal by its
-/// code alone. `secrets` are the parts of the form that must not come back in an error.
-fn trade_custom(endpoint: &Url, fields: &[(&str, &str)], earlier_refresh: &str, secrets: &[&str]) -> Result<Tokens, NetError> {
-    let answer = http::post_form(endpoint, fields, TOKEN_TIMEOUT)
+/// code alone, with the client's credentials in the `Authorization` header when it sends them so.
+/// `secrets` are the parts of the request that must not come back in an error.
+fn trade_custom(
+    endpoint: &Url,
+    fields: &[(&str, &str)],
+    authorization: Option<&str>,
+    earlier_refresh: &str,
+    secrets: &[&str],
+) -> Result<Tokens, NetError> {
+    let answer = http::post_form_as(endpoint, fields, authorization, TOKEN_TIMEOUT)
         .map_err(|e| secrets.iter().filter(|s| !s.is_empty()).fold(e, |e, secret| e.without(secret)))?;
     let json = serde_json::from_slice::<Value>(&answer.body).ok().filter(Value::is_object);
     if let Some(code) = json.as_ref().and_then(|j| j.get("error")).and_then(Value::as_str) {

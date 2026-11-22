@@ -206,3 +206,29 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn how_the_secret_is_sent_is_kept_and_the_standard_way_is_the_default() {
+    use crate::ClientAuth;
+    // RFC 6749 §2.3.1: the header, which every provider takes, unless the account says the form.
+    assert_eq!(own().client_auth, ClientAuth::Basic);
+    assert!(!serde_json::to_string(&own()).unwrap().contains("clientAuth"));
+    let post = OAuth { client_auth: ClientAuth::Post, issuer_in_response: true, ..own() };
+    let text = serde_json::to_string(&post).unwrap();
+    assert!(text.contains("\"clientAuth\":\"post\"") && text.contains("\"issuerInResponse\":true"), "{text}");
+    assert_eq!(serde_json::from_str::<OAuth>(&text).unwrap(), post);
+    assert_eq!((post.effective().client_auth, post.effective().issuer_in_response), (ClientAuth::Post, true));
+    // A way this version doesn't know reads as the standard one, and the account still opens.
+    let odd: OAuth = serde_json::from_str(r#"{"provider":"custom","clientId":"m","clientAuth":"private_key_jwt","issuerInResponse":"yes"}"#).unwrap();
+    assert_eq!((odd.client_auth, odd.issuer_in_response), (ClientAuth::Basic, false));
+    // Names a command may use.
+    for (text, way) in [("basic", ClientAuth::Basic), ("client_secret_post", ClientAuth::Post), (" POST ", ClientAuth::Post)] {
+        assert_eq!(ClientAuth::parse(text), Some(way), "{text}");
+    }
+    assert_eq!(ClientAuth::parse("private_key_jwt"), None);
+    // Microsoft's and Google's are built in.
+    for provider in [OAuthProvider::Microsoft, OAuthProvider::Google] {
+        assert!(OAuth { provider, client_auth: ClientAuth::Post, ..OAuth::default() }.check().is_err());
+        assert!(OAuth { provider, issuer_in_response: true, ..OAuth::default() }.check().is_err());
+    }
+}

@@ -27901,3 +27901,18 @@ msgstr ""
 #: crates/ui-egui/src/account_setup.rs
 msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Client secret sent"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "In the Authorization header (client_secret_basic)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "In the form (client_secret_post)"
+msgstr ""

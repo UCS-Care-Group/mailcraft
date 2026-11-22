@@ -822,6 +822,10 @@ pub struct OAuthFound {
     pub outside: Vec<String>,
     /// It says it hands out no refresh tokens: the owner signs in again each time a token runs out.
     pub no_refresh: bool,
+    /// How it takes a client secret (RFC 6749 §2.3.1): in the header unless it lists only the form.
+    pub client_auth: mailcraft_model::ClientAuth,
+    /// It says its page names itself when it sends the owner back (RFC 9207).
+    pub issuer_in_response: bool,
 }
 
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the

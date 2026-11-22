@@ -18,7 +18,7 @@ mod followup;
 mod snooze;
 #[path = "category_sweep.rs"]
 mod sweep;
-use crate::oauth::SaslChoice;
+use crate::oauth::{ClientAuth, SaslChoice};
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -1015,6 +1015,14 @@ pub struct OAuth {
     /// credential store. Never the secret itself.
     #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
     pub has_secret: bool,
+    /// [`OAuthProvider::Custom`]: how the client secret is sent to the token and revocation
+    /// addresses: in the `Authorization` header unless the provider takes it only in the form.
+    #[serde(skip_serializing_if = "ClientAuth::is_basic", deserialize_with = "crate::sync::lenient_or_default")]
+    pub client_auth: ClientAuth,
+    /// [`OAuthProvider::Custom`]: the provider says its page names itself when it sends the
+    /// owner back (RFC 9207), so an answer that doesn't is refused.
+    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
+    pub issuer_in_response: bool,
 }
 
 /// A change made here to what a Microsoft account's server has that comparing with what the

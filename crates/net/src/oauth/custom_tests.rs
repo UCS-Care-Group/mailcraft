@@ -6,6 +6,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use mailcraft_model::ClientAuth;
+
 use super::*;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -52,6 +54,12 @@ type Seen = Arc<Mutex<String>>;
 /// A browser on another thread that comes back to the loopback port with a code, and the state
 /// the page was given (or another).
 fn browser(right_state: bool) -> (impl Fn(&str) + use<>, Seen) {
+    browser_adding(right_state, "")
+}
+
+/// [`browser`], coming back with `extra` (`&iss=…`, say) after the code and state.
+fn browser_adding(right_state: bool, extra: &str) -> (impl Fn(&str) + use<>, Seen) {
+    let extra = extra.to_string();
     let seen = Seen::default();
     let kept = seen.clone();
     let opener = move |url: &str| {
@@ -59,10 +67,11 @@ fn browser(right_state: bool) -> (impl Fn(&str) + use<>, Seen) {
         let args: HashMap<String, String> = http::pairs(url.split_once('?').unwrap().1).into_iter().collect();
         let port: u16 = args["redirect_uri"].strip_prefix("http://127.0.0.1:").unwrap().trim_end_matches('/').parse().unwrap();
         let state = if right_state { args["state"].clone() } else { "somebody-elses".into() };
+        let extra = extra.clone();
         std::thread::spawn(move || {
             let mut socket = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap();
             socket.set_read_timeout(Some(PATIENCE)).unwrap();
-            let request = format!("GET /?code=synthetic-code&state={state} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n");
+            let request = format!("GET /?code=synthetic-code&state={state}{extra} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n");
             socket.write_all(request.as_bytes()).unwrap();
             let mut answer = Vec::new();
             let _ = socket.read_to_end(&mut answer);
@@ -106,7 +115,7 @@ fn a_client_secret_goes_to_the_token_address_alone_and_never_into_an_error() {
     let (open, seen) = browser(true);
     let cancel = AtomicBool::new(false);
     let error = sign_in_custom(&own(&server), SECRET, "alice@example.org", &open, &cancel).unwrap_err();
-    assert_eq!(form(&server, 0)["client_secret"], SECRET);
+    assert_eq!(authorization(&server, 0).as_deref(), Some(basic("mailcraft-desktop", SECRET).as_str()));
     assert!(!seen.lock().unwrap().contains(SECRET), "the secret went through the browser");
     // In fixed words: the provider's own text is never shown.
     let shown = format!("{error} {error:?}");
@@ -168,10 +177,8 @@ fn refreshing_keeps_the_newest_refresh_token() {
     let first = refresh_custom(&own(&server), SECRET, "original").unwrap();
     assert_eq!(first.refresh, "rotated");
     let trade = form(&server, 0);
-    assert_eq!(
-        (trade["grant_type"].as_str(), trade["refresh_token"].as_str(), trade["client_secret"].as_str()),
-        ("refresh_token", "original", SECRET)
-    );
+    assert_eq!((trade["grant_type"].as_str(), trade["refresh_token"].as_str()), ("refresh_token", "original"));
+    assert_eq!(authorization(&server, 0), Some(basic("mailcraft-desktop", SECRET)));
     assert!(!trade.contains_key("scope"));
     // An answer without a new one keeps the one given.
     assert_eq!(refresh_custom(&own(&server), "", "rotated").unwrap().refresh, "rotated");
@@ -214,7 +221,10 @@ fn revoking_gives_the_refresh_token_back_where_the_provider_says() {
     revoke_custom(&own(&server), SECRET, "the-refresh").unwrap();
     let sent = form(&server, 0);
     assert!(server.request(0).starts_with("POST /revoke "));
-    assert_eq!((sent["token"].as_str(), sent["token_type_hint"].as_str(), sent["client_secret"].as_str()), ("the-refresh", "refresh_token", SECRET));
+    assert_eq!((sent["token"].as_str(), sent["token_type_hint"].as_str()), ("the-refresh", "refresh_token"));
+    // RFC 7009 §2.1: the client proves who it is as at the token address.
+    assert_eq!(authorization(&server, 0), Some(basic("mailcraft-desktop", SECRET)));
+    assert!(!sent.contains_key("client_secret") && !sent.contains_key("client_id"));
     // Nowhere to give it back: nothing is sent.
     let quiet = FakeHttp::answering(json_answer("200 OK", ""));
     revoke_custom(&OAuth { revoke: String::new(), ..own(&quiet) }, "", "the-refresh").unwrap();
@@ -232,4 +242,102 @@ fn the_endpoints_of_an_own_provider_are_its_settings() {
     assert_eq!((ends.authorize, ends.token), (server.url("/auth"), server.url("/token")));
     assert_eq!(ends.scope, "openid email offline_access mail");
     assert!(ends.consent.is_empty() && ends.fewer.is_empty() && ends.lesser.is_empty());
+}
+
+/// The `Authorization` header of request `n`, when it has one.
+fn authorization(server: &FakeHttp, n: usize) -> Option<String> {
+    let request = server.request(n);
+    let head = request.split_once("\r\n\r\n").map_or(request.as_str(), |(head, _)| head).to_string();
+    head.lines()
+        .find_map(|line| line.split_once(':').filter(|(name, _)| name.eq_ignore_ascii_case("authorization")).map(|(_, v)| v.trim().to_string()))
+}
+
+/// RFC 6749 §2.3.1 by hand: each form-encoded, joined by a colon, in base64.
+fn basic(id: &str, secret: &str) -> String {
+    format!("Basic {}", mailcraft_charset::base64::STANDARD.encode(format!("{}:{}", http::encode(id), http::encode(secret)).as_bytes()))
+}
+
+#[test]
+fn a_secret_goes_in_the_header_and_the_form_names_no_client() {
+    let server = FakeHttp::answering(good("r"));
+    let (open, _) = browser(true);
+    sign_in_custom(&own(&server), SECRET, "", &open, &AtomicBool::new(false)).unwrap();
+    let trade = form(&server, 0);
+    // §4.1.3: client_id only from a client that doesn't authenticate; never both ways.
+    assert!(!trade.contains_key("client_id") && !trade.contains_key("client_secret"), "{trade:?}");
+    assert_eq!(authorization(&server, 0).unwrap(), "Basic bWFpbGNyYWZ0LWRlc2t0b3A6bm90LWEtcmVhbC1jbGllbnQtc2VjcmV0");
+}
+
+#[test]
+fn the_header_form_encodes_the_id_and_secret_before_base64() {
+    let server = FakeHttp::answering(good("r"));
+    let oauth = OAuth { client_id: "desk:top".into(), ..own(&server) };
+    refresh_custom(&oauth, "a:b+c%d/e", "old").unwrap();
+    let sent = authorization(&server, 0).unwrap();
+    let decoded = mailcraft_charset::base64::STANDARD.decode(sent.strip_prefix("Basic ").unwrap()).unwrap();
+    // The colon in each is escaped, so the one between them is the only one there is.
+    assert_eq!(String::from_utf8(decoded).unwrap(), "desk%3Atop:a%3Ab%2Bc%25d%2Fe");
+}
+
+#[test]
+fn a_provider_that_takes_only_the_form_gets_the_secret_there() {
+    let server = FakeHttp::start(|_, _| good("r"));
+    let oauth = OAuth { client_auth: ClientAuth::Post, ..own(&server) };
+    refresh_custom(&oauth, SECRET, "old").unwrap();
+    let trade = form(&server, 0);
+    assert_eq!((trade["client_id"].as_str(), trade["client_secret"].as_str()), ("mailcraft-desktop", SECRET));
+    assert_eq!(authorization(&server, 0), None);
+    revoke_custom(&oauth, SECRET, "old").unwrap();
+    assert_eq!(form(&server, 1)["client_secret"], SECRET);
+    assert_eq!(authorization(&server, 1), None);
+}
+
+#[test]
+fn a_public_client_names_itself_in_the_form_and_sends_no_header() {
+    let server = FakeHttp::start(|_, _| good("r"));
+    for oauth in [own(&server), OAuth { client_auth: ClientAuth::Post, ..own(&server) }] {
+        let n = server.asked();
+        refresh_custom(&oauth, "", "old").unwrap();
+        let trade = form(&server, n);
+        assert_eq!(trade.get("client_id").map(String::as_str), Some("mailcraft-desktop"));
+        assert!(!trade.contains_key("client_secret") && authorization(&server, n).is_none());
+    }
+}
+
+#[test]
+fn the_header_never_comes_back_in_an_error() {
+    let header = basic("mailcraft-desktop", SECRET);
+    let echo = format!(r#"{{"error":"invalid_client","error_description":"got {}"}}"#, header);
+    let server = FakeHttp::answering(json_answer("401 Unauthorized", &echo));
+    let error = refresh_custom(&own(&server), SECRET, "old").unwrap_err();
+    let shown = format!("{error} {error:?}");
+    assert!(!shown.contains(header.trim_start_matches("Basic ")) && !shown.contains(SECRET), "{shown}");
+    assert!(error.is_refused_sign_in());
+}
+
+#[test]
+fn an_answer_naming_the_issuer_is_taken_and_one_naming_another_never_traded() {
+    // RFC 9207 §2.4.
+    let server = FakeHttp::answering(good("r"));
+    let issuer = own(&server).issuer;
+    let (open, _) = browser_adding(true, &format!("&iss={}", http::encode(&issuer)));
+    assert!(sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).is_ok());
+    let other = FakeHttp::answering(good("r"));
+    let (open, _) = browser_adding(true, "&iss=https%3A%2F%2Fevil.example%2Frealms%2Fmail");
+    let error = sign_in_custom(&own(&other), "", "", &open, &AtomicBool::new(false)).unwrap_err();
+    assert!(format!("{error}").contains("another identity provider"), "{error}");
+    assert_eq!(other.asked(), 0, "a code from another provider was traded");
+}
+
+#[test]
+fn an_answer_without_the_name_a_provider_promised_is_refused() {
+    let server = FakeHttp::answering(good("r"));
+    let promised = OAuth { issuer_in_response: true, ..own(&server) };
+    let (open, _) = browser(true);
+    let error = sign_in_custom(&promised, "", "", &open, &AtomicBool::new(false)).unwrap_err();
+    assert!(format!("{error}").contains("without your identity provider's name"), "{error}");
+    assert_eq!(server.asked(), 0);
+    // A provider that never said it names itself: its answer without a name is taken.
+    let (open, _) = browser(true);
+    assert!(sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).is_ok());
 }
