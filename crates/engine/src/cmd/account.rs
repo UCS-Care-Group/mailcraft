@@ -674,7 +674,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let before = a.clone();
     let named_by_address = before.named_by_address();
     // The settings of a Zimbra account are not changed while the switch is off (its address sent
-    // back as it is, with the rest of what `account.list` hands out, is no change of them).
+    // back as it is changes none; its `zimbra` settings sent back are refused, changed or not).
     let readdressed = v.get("email").is_some_and(|e| !e.as_str().is_some_and(|e| e.trim().eq_ignore_ascii_case(before.email.trim())));
     if !s.zimbra && (asks_for_zimbra(v) || (before.kind == AccountKind::Zimbra && readdressed)) {
         return Err(fail(super::zimbra_mail::SWITCHED_OFF));
