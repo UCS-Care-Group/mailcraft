@@ -12209,6 +12209,12 @@ msgstr "Adatvédelem"
 msgid "Private"
 msgstr "Magánjellegű"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Az ilyen fájlokat megnyitó programok a tartalmukkal dolgoznak: megjeleníthetik a bennük lévő webes tartalmat, vagy átvehetik a bennük lévő kulcsokat és tanúsítványokat. Csak akkor nyissa meg, ha tudja, ki küldte, és várta."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18406,6 +18412,12 @@ msgstr "Ezt a kapcsolatot véglegesen törölni fogják."
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "A MailCraft másolata nem frissül magától."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "A MailCraft e példánya Flatpak homokozóban fut, ahol nem tudja biztosítani, hogy az ilyen fájl a megfelelő programmal nyíljon meg. Mentse a Mentés paranccsal, és nyissa meg saját maga."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

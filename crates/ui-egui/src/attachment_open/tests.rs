@@ -75,8 +75,13 @@ fn a_kind_of_no_known_name_is_refused_where_the_desktop_types_by_content() {
 
 #[test]
 fn macros_and_web_pages_are_asked_about_first() {
-    let (mut a, id, opened) = app(&["budget.xlsm", "page.html"]);
-    for index in 0..2 {
+    let (mut a, id, opened) = app(&["budget.xlsm", "page.html", "notes.md", "key.asc", "mail.p7m"]);
+    // Markdown, keys, certificates and signatures: the program that opens them acts on them.
+    for index in 2..5 {
+        let (_, text, _) = super::question(&a, &json!({"id": id, "index": index})).unwrap();
+        assert!(text.contains("act on what is in them"), "{text}");
+    }
+    for index in 0..5 {
         let r = a.run("mail.openAttachment", json!({"id": id, "index": index})).unwrap();
         assert_eq!(r["pending"], "confirm");
         let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };

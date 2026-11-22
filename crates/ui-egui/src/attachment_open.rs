@@ -33,7 +33,8 @@ fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
     Ok((id, index, a.name.clone()))
 }
 
-/// What the owner is asked before an Office file with macros or a web page is opened; `None`
+/// What the owner is asked before an Office file with macros, a web page, Markdown, or a key,
+/// certificate or signature is opened; `None`
 /// for everything else (it opens, or it is refused, without a question).
 pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, String)> {
     let (_, _, name) = target(app, p).ok()?;
@@ -43,6 +44,9 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, Stri
         Verdict::Scripts => {
             tl!("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
         }
+        Verdict::Active => tl!(
+            "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+        ),
         Verdict::Open | Verdict::Blocked => return None,
     };
     let text = crate::i18n::fmt(tl!("Open {name}? {why}"), &[("name", &shown), ("why", why)]);
@@ -54,6 +58,13 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, Stri
 /// opens a file only once the desktop has said it is the kind its name says.
 pub fn no_kind_teller_text() -> String {
     tl!("To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As.").to_string()
+}
+
+/// What the owner is told when an attachment of a kind whose name has several types (a `.png`
+/// can be two kinds of picture) isn't opened from the Flatpak sandbox: the computer outside types
+/// it again, and may tell them apart by what is in the file.
+pub fn sandbox_kind_text() -> String {
+    tl!("This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself.").to_string()
 }
 
 /// `mail.openAttachment` from the window, the control channel or a test.

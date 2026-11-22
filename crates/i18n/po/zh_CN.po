@@ -12206,6 +12206,12 @@ msgstr "隐私"
 msgid "Private"
 msgstr "私人"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "打开此类文件的程序会处理其中的内容：可能显示其中的网页内容，或导入其中的密钥和证书。仅当您知道发件人并且正在等待该文件时才打开它。"
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18402,6 +18408,12 @@ msgstr "该联系人将被永久删除。"
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "此 MailCraft 版本不会自行更新。"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "此 MailCraft 副本运行在 Flatpak 沙盒中，无法确保此类文件会用正确的程序打开。请用“另存为”保存后自行打开。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

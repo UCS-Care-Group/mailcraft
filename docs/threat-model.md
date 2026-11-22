@@ -448,9 +448,13 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   drawings). A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
   the bytes alone. The desktop has five seconds to answer; with no answer, or neither program
   installed, nothing is opened. Inside a Flatpak sandbox the portal types the file again with the
-  computer's own database, so a kind whose name has several types there (`opening::SEVERAL`) is
-  not opened at all; a computer whose database knows more types for a name than the sandbox's
-  remains a limit of the portal.
+  computer's own database, so a kind whose name has several types there (`opening::SEVERAL`, a
+  `.png` among them) is not opened at all, and the owner is told why and to save it; a computer
+  whose database knows more types for a name than the sandbox's remains a limit of the portal.
+- Markdown (whose viewers can show the web content in it) and keys, certificates and signatures
+  (`.asc`, `.p7m`, `.p7s`, `.pem`, `.sig`, which their programs can take in when opened) are asked
+  about first on every system, as web pages and Office files with macros are
+  (`opening::ACTIVE`).
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).

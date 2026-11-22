@@ -3,7 +3,7 @@
 //! Linux and the BSDs type a file by what is in it when they don't know its name: there only a
 //! kind the desktop knows by name ([`KNOWN`]) is opened, whatever else the lists say.
 
-use crate::opening::{BLOCKED, Chooser, KNOWN, MACROS, SCRIPTS, SEVERAL, Verdict, desktop_types, verdict, verdict_for};
+use crate::opening::{ACTIVE, BLOCKED, Chooser, KNOWN, MACROS, SCRIPTS, SEVERAL, Verdict, desktop_types, verdict, verdict_for};
 
 /// Every kind the lists name, every kind of [`KNOWN`], and every kind of one to three letters.
 fn every_kind() -> Vec<String> {
@@ -64,6 +64,22 @@ fn the_known_kinds_are_kinds_that_open_as_documents() {
     assert_eq!(verdict_for("a.png", Chooser::NameOrContent), Verdict::Open);
     assert_eq!(desktop_types("png"), ["image/apng", "image/vnd.mozilla.apng", "image/png"]);
     assert!(desktop_types("qzx").is_empty() && desktop_types("").is_empty());
+}
+
+#[test]
+fn markdown_keys_certificates_and_signatures_ask_first_everywhere() {
+    for kind in ACTIVE {
+        for chooser in [Chooser::Name, Chooser::NameOrContent] {
+            assert_eq!(verdict_for(&format!("x.{kind}"), chooser), Verdict::Active, "{kind}");
+            assert_eq!(verdict_for(&format!("X.{}", kind.to_uppercase()), chooser), Verdict::Active, "{kind}");
+        }
+        assert!(!desktop_types(kind).is_empty(), "{kind}");
+        assert!(crate::opening::is_risky(kind), "{kind}");
+        assert!(!BLOCKED.contains(kind) && !MACROS.contains(kind) && !SCRIPTS.contains(kind), "{kind}");
+    }
+    assert!(Verdict::Active.asks());
+    assert_eq!(verdict_for("notes.md", Chooser::Name), Verdict::Active);
+    assert_eq!(verdict_for("key.asc", Chooser::Name), Verdict::Active);
 }
 
 #[test]
@@ -132,7 +148,11 @@ fn what_is_refused_on_purpose_is_never_accepted() {
 /// particular type of those.
 #[test]
 fn the_known_types_cover_what_this_desktop_says() {
-    let Ok(globs) = std::fs::read_to_string("/usr/share/mime/globs2") else { return };
+    let Ok(globs) = std::fs::read_to_string("/usr/share/mime/globs2") else {
+        // Linux CI has the database (it comes with GTK): its absence there is a fault.
+        assert!(!(cfg!(target_os = "linux") && std::env::var_os("CI").is_some()), "no /usr/share/mime/globs2 on Linux CI");
+        return;
+    };
     let subclasses = std::fs::read_to_string("/usr/share/mime/subclasses").unwrap_or_default();
     let globs: Vec<(&str, String)> = globs
         .lines()
@@ -146,6 +166,7 @@ fn the_known_types_cover_what_this_desktop_says() {
     for (kind, types) in KNOWN {
         let accepted = |t: &str| types.iter().chain(REFUSED_ON_PURPOSE).any(|k| k.eq_ignore_ascii_case(t));
         let own: std::collections::BTreeSet<&str> = globs.iter().filter(|(_, p)| *p == format!("*.{kind}")).map(|(t, _)| *t).collect();
+        assert!(!own.is_empty(), "{kind}: the desktop doesn't know this kind by name");
         for t in &own {
             assert!(accepted(t), "{kind}: {t} is missing");
         }

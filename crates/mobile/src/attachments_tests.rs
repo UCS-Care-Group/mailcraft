@@ -51,6 +51,11 @@ fn the_verdict_is_the_desktops() {
     assert_eq!(attachment_check("report.pdf".into()).verdict, OpenVerdict::Open);
     assert_eq!(attachment_check("budget.XLSM".into()).verdict, OpenVerdict::Macros);
     assert_eq!(attachment_check("page.html".into()).verdict, OpenVerdict::Scripts);
+    for active in ["notes.md", "key.asc", "mail.p7m", "mail.p7s", "cert.pem", "file.sig"] {
+        assert_eq!(attachment_check(active.into()).verdict, OpenVerdict::Active, "{active}");
+    }
+    assert!(crate::attachments::refuse_unless_openable(&attachment_check("notes.md".into()), false).is_err());
+    assert!(crate::attachments::refuse_unless_openable(&attachment_check("notes.md".into()), true).is_ok());
     for blocked in ["setup.apk", "a.apks", "a.xapk", "a.aab", "a.ipa", "a.mobileconfig", "run.exe", "noextension", ""] {
         let check = attachment_check(blocked.into());
         assert_eq!(check.verdict, OpenVerdict::Blocked, "{blocked}");

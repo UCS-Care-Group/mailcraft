@@ -26,6 +26,10 @@ pub enum Verdict {
     Macros,
     /// A web page or a drawing that can carry scripts, which open in the browser: ask first.
     Scripts,
+    /// A file the program that opens it acts on: Markdown, whose viewers can show the web content
+    /// in it, and keys, certificates and signatures, which their programs can take in when opened:
+    /// ask first.
+    Active,
     /// A program, a script, a shortcut, an installer or a disk image: never opened from mail.
     Blocked,
 }
@@ -33,7 +37,7 @@ pub enum Verdict {
 impl Verdict {
     /// Whether the owner is asked before it opens.
     pub fn asks(self) -> bool {
-        matches!(self, Verdict::Macros | Verdict::Scripts)
+        matches!(self, Verdict::Macros | Verdict::Scripts | Verdict::Active)
     }
 }
 
@@ -292,11 +296,15 @@ pub fn is_launchable(ext: &str) -> bool {
 /// Web pages and drawings that open in the browser, where what is in them runs.
 pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xht", "xml", "xsl"];
 
+/// Files the program that opens them acts on ([`Verdict::Active`]): Markdown, and keys,
+/// certificates and signatures.
+pub const ACTIVE: &[&str] = &["md", "markdown", "asc", "p7m", "p7s", "pem", "sig"];
+
 /// Whether a file of this kind (the part after the last dot, in lower case) is one the opener
-/// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
+/// refuses or asks about first ([`BLOCKED`], [`MACROS`], [`SCRIPTS`] and [`ACTIVE`] together): the one list
 /// the files an agent may not have written are refused by.
 pub fn is_risky(ext: &str) -> bool {
-    !ext.is_ascii() || BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+    !ext.is_ascii() || BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext) || ACTIVE.contains(&ext)
 }
 
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
@@ -342,7 +350,7 @@ impl Chooser {
 /// particular types of those (an Opus `.ogg`). With [`Chooser::NameOrContent`] no other kind is
 /// opened, and the host opens a file only when the desktop types it as one of these, so a doubled
 /// kind left out (a disk image `.img.xz`, a compressed PostScript or drawing) is refused. The
-/// kinds of [`MACROS`] and [`SCRIPTS`] here still ask first.
+/// kinds of [`MACROS`], [`SCRIPTS`] and [`ACTIVE`] here still ask first.
 pub const KNOWN: &[(&str, &[&str])] = &[
     // Documents and text.
     ("pdf", &["application/pdf", "application/acrobat", "application/nappdf", "application/x-pdf", "image/pdf"]),
@@ -396,7 +404,6 @@ pub const KNOWN: &[(&str, &[&str])] = &[
     // Mail, calendars and cards.
     ("eml", &["message/rfc822"]),
     ("mbox", &["application/mbox"]),
-    ("msg", &["application/vnd.ms-outlook"]),
     ("ics", &["text/calendar", "application/ics", "text/x-vcalendar"]),
     ("vcs", &["text/calendar", "application/ics", "text/x-vcalendar"]),
     ("vcf", &["text/vcard", "text/directory", "text/x-vcard"]),
@@ -661,6 +668,8 @@ pub fn verdict_for(name: &str, chooser: Chooser) -> Verdict {
         Verdict::Macros
     } else if SCRIPTS.contains(&ext.as_str()) {
         Verdict::Scripts
+    } else if ACTIVE.contains(&ext.as_str()) {
+        Verdict::Active
     } else {
         Verdict::Open
     }

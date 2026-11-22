@@ -67,7 +67,7 @@ pub mod approval;
 #[cfg(test)]
 mod attachment_menu_tests;
 mod attachment_open;
-pub use attachment_open::no_kind_teller_text;
+pub use attachment_open::{no_kind_teller_text, sandbox_kind_text};
 pub mod attachment_preview;
 pub mod auto_replies;
 #[cfg(test)]

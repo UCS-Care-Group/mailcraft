@@ -199,6 +199,8 @@ fn typer_output_within(command: &mut Command, deadline: Duration) -> std::io::Re
         if let Some(status) = child.try_wait()? {
             let mut said = Vec::new();
             if let Some(out) = child.stdout.take() {
+                // lean: read once the typer has ended, so not under the deadline; only a process it
+                // left running with this pipe could hold it (gio and kmimetypefinder leave none).
                 out.take(MAX_SAID).read_to_end(&mut said)?;
             }
             return if status.success() { Ok(said) } else { Err(std::io::Error::other("the desktop couldn't say what kind the file is")) };
@@ -218,24 +220,28 @@ fn in_flatpak() -> bool {
     std::env::var_os("FLATPAK_ID").is_some() || Path::new("/.flatpak-info").exists()
 }
 
-/// The types the desktop may give the file `name` for it to be opened ([`opening::desktop_types`]);
-/// none, inside a Flatpak sandbox, for a kind whose name has several types ([`opening::SEVERAL`]),
-/// which the computer outside may tell apart by what is in the file.
-fn kinds_for(name: &str, sandboxed: bool) -> &'static [&'static str] {
+/// The types the desktop may give the file `name` for it to be opened ([`opening::desktop_types`]).
+/// Inside a Flatpak sandbox a kind whose name has several types ([`opening::SEVERAL`]) is refused
+/// (`PermissionDenied`): the computer outside types it again and may tell them apart by what is
+/// in the file.
+fn kinds_for(name: &str, sandboxed: bool) -> std::io::Result<&'static [&'static str]> {
     let ext = opening::extension(name);
-    if sandboxed && opening::SEVERAL.contains(&ext.as_str()) { &[] } else { opening::desktop_types(&ext) }
+    if sandboxed && opening::SEVERAL.contains(&ext.as_str()) {
+        return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "not opened from the sandbox"));
+    }
+    Ok(opening::desktop_types(&ext))
 }
 
 /// Open the file at `path` with the system's program and leave it running on its own. On Linux
 /// and the BSDs only when the desktop takes it for a kind of its name ([`open_typed`]); a file
 /// it takes for another kind is refused with `InvalidData`, and with no program to say what kind
-/// it is, `Unsupported`.
+/// it is, `Unsupported`; inside Flatpak, a kind of several types, `PermissionDenied`.
 pub(crate) fn open_detached(path: &Path) -> std::io::Result<()> {
     if Opener::this_platform() != Opener::XdgOpen {
         return start_detached(Target::File, path);
     }
     let name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-    let kinds = kinds_for(name, in_flatpak());
+    let kinds = kinds_for(name, in_flatpak())?;
     open_typed(path, kinds, typer_output, Command::spawn).map(reap)
 }
 

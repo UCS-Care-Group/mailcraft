@@ -12174,6 +12174,12 @@ msgstr "კონფიდენციალურობა"
 msgid "Private"
 msgstr "პირადი"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "პროგრამები, რომლებიც ასეთ ფაილებს ხსნიან, მათ შიგთავსზე მოქმედებენ: შეუძლიათ აჩვენონ მასში არსებული ვებშიგთავსი ან მიიღონ მასში შენახული გასაღებები და სერტიფიკატები. გახსენით მხოლოდ მაშინ, თუ იცით, ვინ გამოგზავნა და მას ელოდებით."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18336,6 +18342,12 @@ msgstr "ეს კონტაქტი სამუდამოდ წაიშ
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "MailCraft-ის ეს ასლი თავად არ განახლდება."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "MailCraft-ის ეს ასლი Flatpak-ის იზოლირებულ გარემოში მუშაობს, სადაც ვერ უზრუნველყოფს, რომ ამ ტიპის ფაილი სწორი პროგრამით გაიხსნას. შეინახეთ ბრძანებით „შენახვა როგორც“ და თავად გახსენით."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

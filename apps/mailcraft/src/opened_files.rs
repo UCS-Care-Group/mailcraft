@@ -59,6 +59,23 @@ pub fn base() -> Option<PathBuf> {
     cache.is_absolute().then(|| cache.join("MailCraft").join("Attachments"))
 }
 
+/// What the owner is told when the attachment `name` couldn't be opened, by why
+/// (`file_launcher::open_detached`'s error).
+pub(crate) fn refusal(name: &str, why: std::io::ErrorKind) -> String {
+    match why {
+        // The desktop takes it for a kind other than its name says (Linux and the BSDs).
+        std::io::ErrorKind::InvalidData => opening::blocked_message(name),
+        // Nothing to ask what kind it is (Linux and the BSDs).
+        std::io::ErrorKind::Unsupported => mailcraft_ui_egui::no_kind_teller_text(),
+        // A kind of several types, from the Flatpak sandbox.
+        std::io::ErrorKind::PermissionDenied => mailcraft_ui_egui::sandbox_kind_text(),
+        _ => {
+            log::warn!("couldn't open an attachment with the system's program ({why:?})");
+            "No program could be started to open the attachment: save it with Save As instead.".to_string()
+        }
+    }
+}
+
 /// The files opened in this run: where they go, and how many there have been.
 pub struct Opened {
     base: PathBuf,
@@ -74,17 +91,7 @@ impl Opened {
     /// Write `bytes` as an attachment called `name` and open it with the system's program.
     pub fn open(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.write(name, bytes)?;
-        crate::file_launcher::open_detached(&path).map_err(|e| {
-            match e.kind() {
-                // The desktop takes it for a kind other than its name says (Linux and the BSDs).
-                std::io::ErrorKind::InvalidData => return opening::blocked_message(name),
-                // Nothing to ask what kind it is (Linux and the BSDs).
-                std::io::ErrorKind::Unsupported => return mailcraft_ui_egui::no_kind_teller_text(),
-                _ => {}
-            }
-            log::warn!("couldn't open an attachment with the system's program ({:?})", e.kind());
-            "No program could be started to open the attachment: save it with Save As instead.".to_string()
-        })
+        crate::file_launcher::open_detached(&path).map_err(|e| refusal(name, e.kind()))
     }
 
     /// Write the file where it is opened from (the work of [`open`](Self::open) before the

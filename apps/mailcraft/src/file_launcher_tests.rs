@@ -118,12 +118,31 @@ fn a_file_the_desktop_takes_for_its_kind_is_opened_by_the_same_desktop() {
 fn inside_flatpak_a_kind_of_several_types_is_not_opened() {
     // The portal types the file again outside, by the computer's own database.
     for name in ["x.png", "x.json", "x.ogg", "x.html", "x.md"] {
-        assert!(kinds_for(name, true).is_empty(), "{name}");
-        assert!(!kinds_for(name, false).is_empty(), "{name}");
+        assert_eq!(kinds_for(name, true).unwrap_err().kind(), std::io::ErrorKind::PermissionDenied, "{name}");
+        assert!(!kinds_for(name, false).unwrap().is_empty(), "{name}");
     }
-    assert_eq!(kinds_for("x.pdf", true), kinds_for("x.pdf", false));
-    assert!(kinds_for("x.pdf", true).contains(&"application/pdf"));
-    assert!(kinds_for("x.qzx", false).is_empty() && kinds_for("noext", false).is_empty());
+    assert_eq!(kinds_for("x.pdf", true).unwrap(), kinds_for("x.pdf", false).unwrap());
+    assert!(kinds_for("x.pdf", true).unwrap().contains(&"application/pdf"));
+    assert!(kinds_for("x.qzx", false).unwrap().is_empty() && kinds_for("noext", false).unwrap().is_empty());
+}
+
+#[test]
+fn each_refusal_says_why_it_is() {
+    use crate::opened_files::refusal;
+    use std::io::ErrorKind;
+    // Another kind than the name says: the kind's refusal.
+    let e = refusal("x.png", ErrorKind::InvalidData);
+    assert!(e.contains("doesn't open x.png") && e.contains("Save As"), "{e}");
+    // From the Flatpak sandbox: no word of harm, only what it can't make sure of.
+    let e = refusal("x.png", ErrorKind::PermissionDenied);
+    assert_eq!(e, mailcraft_ui_egui::sandbox_kind_text());
+    assert!(e.contains("Flatpak") && e.contains("Save As") && !e.contains("harm"), "{e}");
+    // Nothing to ask what kind it is.
+    assert_eq!(refusal("x.png", ErrorKind::Unsupported), mailcraft_ui_egui::no_kind_teller_text());
+    // Anything else: no program could be started.
+    for why in [ErrorKind::NotFound, ErrorKind::TimedOut, ErrorKind::Other] {
+        assert!(refusal("x.png", why).starts_with("No program could be started"), "{why:?}");
+    }
 }
 
 #[cfg(unix)]
