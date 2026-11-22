@@ -463,6 +463,9 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
         note: Some(("comment", String::new(), tl!("A note to go with it (optional)").to_string())),
         cancel: None,
         tick: None,
+        calendar: None,
+        cut: None,
+        listing: None,
     }))
 }
 

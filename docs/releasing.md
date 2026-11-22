@@ -263,8 +263,9 @@ GitHub's command line (`gh attestation verify <file> -R UCS-Care-Group/mailcraft
 online).
 ## The Android release
 
-**Off for now (since 0.14.0):** `release.yml`'s `android` and `android-e2e` jobs don't run, so a
-release has no APK and nothing goes to Google Play. Android CI on pull requests is unchanged. What
+**Off for now (since 0.14.0):** `release.yml`'s `android` and `android-e2e` jobs run only when the
+repository variable `ANDROID_RELEASE` is `true`, and it isn't set, so a release has no APK and
+nothing goes to Google Play. Android CI on pull requests is unchanged. What
 follows is how it works when the jobs are turned back on.
 
 The same version tag builds the Android app (`.github/workflows/android.yml`, called from
