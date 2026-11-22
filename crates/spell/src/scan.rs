@@ -89,7 +89,14 @@ fn continues_token(text: &str, at: usize, word_chars: &[char]) -> bool {
 }
 
 fn in_token(word_chars: &[char], c: char) -> bool {
-    is_latin_letter(c) || is_other_letter(c) || is_combining_mark(c) || c.is_ascii_digit() || c == '\'' || c == '-' || word_chars.contains(&c)
+    is_latin_letter(c)
+        || is_other_letter(c)
+        || is_combining_mark(c)
+        || c.is_ascii_digit()
+        || c == '\''
+        || c == '-'
+        || c == '\u{2019}'
+        || word_chars.contains(&c)
 }
 
 fn is_edge_char(c: char) -> bool {

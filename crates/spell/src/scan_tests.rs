@@ -58,6 +58,18 @@ fn a_token_cut_by_the_scan_cap_is_not_reported() {
 }
 
 #[test]
+fn curly_apostrophe_joins_a_word_without_wordchars() {
+    let dict = Dictionary::parse("SET UTF-8\n", "1\ndon’t\n").expect("parse");
+    assert!(dict.is_correct("don’t"));
+    assert!(dict.check_text("don’t", 8).is_empty(), "U+2019 is inside the word, not a break");
+    assert!(dict.check_text("‘don’t’", 8).is_empty(), "quotes at the edges are still trimmed");
+    let text = "don’t stop";
+    let ranges = dict.check_text(text, 8);
+    assert_eq!(ranges.len(), 1, "{ranges:?}");
+    assert_eq!(text.get(ranges[0].clone()).unwrap_or(""), "stop");
+}
+
+#[test]
 fn combining_marks_stay_on_the_word() {
     let dict = dict();
     assert!(dict.check_text("co\u{0308}operate", 8).is_empty(), "decomposed coöperate");
