@@ -1960,6 +1960,12 @@ msgstr "Die Liste bitten, Ihnen keine E-Mails mehr zu senden. MailCraft fragt vo
 msgid "Ask to be told when the message is read"
 msgstr "Bitten Sie darum, benachrichtigt zu werden, sobald die Nachricht gelesen wurde"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "Bitten Sie darum, benachrichtigt zu werden, sobald die Nachricht das Postfach des Empfängers erreicht"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -12657,6 +12663,12 @@ msgstr "Antworten anfordern"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "Zustellbestätigung anfordern"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Request a Read Receipt"
 msgstr "Lesebestätigung anfordern"
 
@@ -13986,6 +13998,12 @@ msgstr "Vertraulichkeit ist"
 #, fuzzy
 msgid "Sent"
 msgstr "Gesendet"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "„{subject}“ wurde ohne Zustellbestätigung gesendet: Der Postausgangsserver bietet sie nicht an"
 
 #. name
 #: crates/model/src/mailbox.rs

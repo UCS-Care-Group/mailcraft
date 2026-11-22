@@ -420,6 +420,8 @@ pub(crate) struct SmtpWorld {
     pub(crate) token: String,
     /// Say STARTTLS is on offer (it isn't: what follows the go-ahead is no handshake).
     pub(crate) offer_starttls: bool,
+    /// Say DSN is on offer (RFC 3461): the client may then ask for a delivery receipt.
+    pub(crate) offer_dsn: bool,
     /// Recipients to answer 550 for.
     pub(crate) refuse: Vec<String>,
     /// With `auth` and `auth_optional`: take MAIL FROM, then refuse every recipient of a connection that hasn't
@@ -1102,7 +1104,8 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
                 (false, false) => "",
             };
             let starttls = if world.offer_starttls { "250-STARTTLS\r\n" } else { "" };
-            format!("250-fake.example.org\r\n250-8BITMIME\r\n250-SIZE 10485760\r\n{auth}{starttls}250 HELP")
+            let dsn = if world.offer_dsn { "250-DSN\r\n" } else { "" };
+            format!("250-fake.example.org\r\n250-8BITMIME\r\n250-SIZE 10485760\r\n{auth}{starttls}{dsn}250 HELP")
         } else if upper == "STARTTLS" && world.offer_starttls {
             drop(world);
             pretend_tls(&mut out, &mut reader, "220 go ahead\r\n");

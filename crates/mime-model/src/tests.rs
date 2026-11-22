@@ -520,6 +520,8 @@ fn message() -> impl Strategy<Value = Message> {
             flag,
             importance,
             read_receipt: false,
+            // Not a header: a delivery receipt asked for here must not come back from the bytes.
+            delivery_receipt: true,
             reaction: false,
             categories,
             answered,

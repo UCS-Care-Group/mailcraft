@@ -2059,6 +2059,12 @@ msgstr "Chiedere alla lista di non inviarle più la sua posta. MailCraft chiede 
 msgid "Ask to be told when the message is read"
 msgstr "Chiedi di essere avvisato quando il messaggio viene letto"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "Chiedi di essere avvisato quando il messaggio arriva nella casella del destinatario"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -13486,6 +13492,12 @@ msgstr "Richiedi risposte"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "Richiedi una conferma di consegna"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Richiedi una conferma di lettura"
 
@@ -14874,6 +14886,12 @@ msgstr "La riservatezza è"
 #, fuzzy
 msgid "Sent"
 msgstr "Inviato"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "Inviato «{subject}» senza conferma di consegna: il server in uscita non le offre"
 
 #. name
 #: crates/model/src/mailbox.rs

@@ -85,6 +85,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a read receipt: `Disposition-Notification-To` naming its sender, or Exchange's flag for one. Kept with its draft. MailCraft only ever asks for receipts: it never answers a request in mail that comes in"#)
             .when_writing(needs_compose),
+        CommandSpec::new("compose.deliveryReceipt", "Request a Delivery Receipt", "Options › Tracking", delivery_receipt)
+            .pure()
+            .params(r#"{"value"?: bool} (default: the other way round) — whether the message being written asks for a delivery receipt. Kept with its draft, off until asked. A Microsoft account sets `isDeliveryReceiptRequested`; an Exchange server account sets `IsDeliveryReceiptRequested`; an IMAP account asks with SMTP delivery status notifications (RFC 3461) when the server offers them, and otherwise the message is sent and the owner is told. A JMAP account does not ask yet. MailCraft only ever asks: it never answers a receipt that comes in"#)
+            .when_writing(needs_compose),
         CommandSpec::new("compose.followUp", "Follow Up", "Message › Tags", super::followup::compose_follow_up)
             .pure()
             .when_writing(needs_compose)
@@ -1020,6 +1024,23 @@ fn read_receipt(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"readReceipt": on}))
 }
 
+/// Request a Delivery Receipt: on or off for the message being written, or the other way round.
+fn delivery_receipt(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["value"])?;
+    let wanted = match v.get("value") {
+        None | Some(Value::Null) => None,
+        Some(Value::Bool(b)) => Some(*b),
+        Some(_) => return Err(bad("`value` is true or false")),
+    };
+    let c = compose_mut(s)?;
+    let on = wanted.unwrap_or(!c.delivery_receipt);
+    if c.delivery_receipt != on {
+        c.delivery_receipt = on;
+        c.dirty = true;
+    }
+    Ok(json!({"deliveryReceipt": on}))
+}
+
 /// Whether a draft or a sent message asked for a read receipt: as kept here, or as its header
 /// says (a draft that came down from an IMAP server's Drafts). Only for the owner's own message
 /// opened to write again; a request in mail that comes in is never read, nor answered.
@@ -1100,6 +1121,8 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         // A reminder kept with a draft is "if nobody replies" for the days it was given as, or the time.
         follow_up: m.follow_up.filter(|f| f.if_no_reply).map(|f| if f.days > 0 { FollowUpPlan::Days(f.days) } else { FollowUpPlan::At(f.at) }),
         read_receipt: asked_receipt(m),
+        // A delivery receipt is not a header: only what was kept with the message here.
+        delivery_receipt: m.delivery_receipt,
         send_at: m.send_at,
         in_reply_to: m.in_reply_to.clone(),
         references: m.references.clone(),
@@ -1440,6 +1463,7 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
         read: true,
         importance: c.importance,
         read_receipt: c.read_receipt,
+        delivery_receipt: c.delivery_receipt,
         follow_up: c.follow_up.map(|plan| {
             let (at, days) = match plan {
                 FollowUpPlan::Days(d) => (now.saturating_add(i64::from(d).saturating_mul(86_400)), d),

@@ -362,7 +362,15 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
             .and_then(|envelope| deliver(&mut smtp, &envelope, &message))
             .map_err(|e| relay_hint(&request.account, e));
         match outcome {
-            Ok(()) => {
+            Ok(receipt) => {
+                // The message went. A delivery receipt that the server can't give is said, and
+                // is not a failure of the send.
+                if message.delivery_receipt && !receipt {
+                    run.out.problem(said!(
+                        "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them",
+                        subject = subject_said(&message)
+                    ));
+                }
                 run.out.sent.push(message.id);
                 if filed_there {
                     run.out.filed.push(message.id);

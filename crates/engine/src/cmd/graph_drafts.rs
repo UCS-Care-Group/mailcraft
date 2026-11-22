@@ -85,6 +85,10 @@ pub fn draft_up(m: &Message) -> Option<DraftUp> {
         importance: differs(&|was| was.importance == now.importance).then_some(m.importance),
         // (Nor of a read receipt, for a draft the server never had that asks for none.)
         read_receipt: differs(&|was| was.read_receipt == now.read_receipt).then_some(m.read_receipt).filter(|on| synced.is_some() || *on),
+        // (Nor of a delivery receipt, for a draft the server never had that asks for none.)
+        delivery_receipt: differs(&|was| was.delivery_receipt == now.delivery_receipt)
+            .then_some(m.delivery_receipt)
+            .filter(|on| synced.is_some() || *on),
         attachments,
     })
 }
@@ -105,6 +109,7 @@ pub fn draft_up_whole(m: &Message) -> Option<DraftUp> {
         reply_to: Some(m.reply_to.clone()),
         importance: Some(m.importance),
         read_receipt: Some(m.read_receipt),
+        delivery_receipt: Some(m.delivery_receipt),
         attachments: Some(up.attachments.unwrap_or_else(|| AttachmentsUp { here: m.attachments.iter().map(AttachmentUp::of).collect(), synced })),
         ..up
     })
@@ -208,6 +213,9 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcra
         }
         if let Some(read_receipt) = change.read_receipt {
             state.read_receipt = read_receipt;
+        }
+        if let Some(delivery_receipt) = change.delivery_receipt {
+            state.delivery_receipt = delivery_receipt;
         }
         if let Some(importance) = change.importance {
             state.importance = importance;

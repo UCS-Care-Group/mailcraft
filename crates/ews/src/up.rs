@@ -392,6 +392,7 @@ impl<E: HttpExchange> Run<'_, E> {
             reply_to: up.reply_to.clone(),
             importance: up.importance,
             read_receipt: up.read_receipt,
+            delivery_receipt: up.delivery_receipt,
             ..ItemUpdate::default()
         };
         // (An adopted draft is written over whatever is there, named with the key it was found
@@ -465,6 +466,7 @@ impl<E: HttpExchange> Run<'_, E> {
             reply_to: up.reply_to.clone().unwrap_or_default(),
             importance: up.importance.unwrap_or_default(),
             read_receipt: up.read_receipt.unwrap_or_default(),
+            delivery_receipt: up.delivery_receipt.unwrap_or_default(),
             attachments: here.clone(),
             marker: up.marker.clone(),
         };

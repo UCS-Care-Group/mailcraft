@@ -71,6 +71,9 @@ pub struct PlaceUp {
     /// It asks for a read receipt (a message written here with Request a Read Receipt).
     #[serde(skip_serializing_if = "is_false")]
     pub read_receipt: bool,
+    /// It asks for a delivery receipt (a message written here with Request a Delivery Receipt).
+    #[serde(skip_serializing_if = "is_false")]
+    pub delivery_receipt: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -103,6 +106,7 @@ impl PlaceUp {
             flag,
             importance: m.importance,
             read_receipt: m.read_receipt,
+            delivery_receipt: m.delivery_receipt,
             categories: m.categories.clone(),
             attachments: m.attachments.iter().map(AttachmentUp::of).collect(),
         }

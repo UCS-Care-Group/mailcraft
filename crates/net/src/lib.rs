@@ -299,6 +299,10 @@ mod password_tests;
 
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
+mod dsn_tests;
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
 mod report_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

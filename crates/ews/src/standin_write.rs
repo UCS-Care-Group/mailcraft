@@ -240,6 +240,14 @@ impl State {
                             _ => return Err(invalid("IsReadReceiptRequested is true or false")),
                         };
                     }
+                    "message:IsDeliveryReceiptRequested" => {
+                        let v = value("IsDeliveryReceiptRequested").ok_or_else(|| invalid("IsDeliveryReceiptRequested is missing"))?;
+                        item.delivery_receipt = match v.text.trim() {
+                            "true" => true,
+                            "false" => false,
+                            _ => return Err(invalid("IsDeliveryReceiptRequested is true or false")),
+                        };
+                    }
                     other => return Err(invalid(format!("{other} is no property this stand-in updates"))),
                 }
             }
@@ -386,6 +394,7 @@ impl State {
             cc: Vec::new(),
             reply_to: Vec::new(),
             read_receipt: false,
+            delivery_receipt: false,
             received: "2026-10-14T16:00:00Z".into(),
             sent: "2026-10-14T16:00:00Z".into(),
             read: true,
@@ -416,6 +425,13 @@ impl State {
             item.subject = header("Subject");
             item.message_id = header("Message-ID");
             item.mime = bytes;
+            if let Some(flag) = message.child_in(TYPES, "IsDeliveryReceiptRequested") {
+                item.delivery_receipt = match flag.text.trim() {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err(invalid("IsDeliveryReceiptRequested is true or false")),
+                };
+            }
         } else {
             let order = [
                 "Subject",
@@ -427,6 +443,7 @@ impl State {
                 "CcRecipients",
                 "BccRecipients",
                 "IsReadReceiptRequested",
+                "IsDeliveryReceiptRequested",
                 "ReplyTo",
             ];
             let parts = Check::children(message, TYPES, &order)?;
@@ -461,7 +478,12 @@ impl State {
                 Some("true") => true,
                 Some(_) => return Err(invalid("IsReadReceiptRequested is true or false")),
             };
-            item.reply_to = parts.get(9).copied().flatten().map(people_of).unwrap_or_default();
+            item.delivery_receipt = match parts.get(9).copied().flatten().map(|n| n.text.trim()) {
+                None | Some("false") => false,
+                Some("true") => true,
+                Some(_) => return Err(invalid("IsDeliveryReceiptRequested is true or false")),
+            };
+            item.reply_to = parts.get(10).copied().flatten().map(people_of).unwrap_or_default();
             item.preview = item.body.1.chars().take(200).collect();
             item.message_id = format!("<{}@example.org>", self.issued.saturating_add(1));
         }

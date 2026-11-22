@@ -79,6 +79,8 @@ pub struct Item {
     pub reply_to: Vec<(String, String)>,
     /// It asks for a read receipt (`IsReadReceiptRequested`).
     pub read_receipt: bool,
+    /// It asks for a delivery receipt (`IsDeliveryReceiptRequested`).
+    pub delivery_receipt: bool,
     /// The body, and whether it is HTML.
     pub body: (bool, String),
     /// The flag's status as the server has it: `NotFlagged`, `Flagged` or `Complete`.
@@ -175,6 +177,7 @@ impl State {
             cc: Vec::new(),
             reply_to: Vec::new(),
             read_receipt: false,
+            delivery_receipt: false,
             received: when.clone(),
             sent: when,
             read,

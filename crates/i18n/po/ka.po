@@ -2054,6 +2054,12 @@ msgstr "სთხოვეთ სიას, აღარ გამოგიგ�
 msgid "Ask to be told when the message is read"
 msgstr "შეტყობინების მოთხოვნა, როცა წერილს წაიკითხავენ"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "შეტყობინების მოთხოვნა, როცა წერილი მიმღების საფოსტო ყუთში მივა"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -13449,6 +13455,12 @@ msgstr "პასუხების მოთხოვნა"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "მიწოდების დადასტურების მოთხოვნა"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "წაკითხვის დადასტურების მოთხოვნა"
 
@@ -14832,6 +14844,12 @@ msgstr "კონფიდენციალურობა არის"
 #, fuzzy
 msgid "Sent"
 msgstr "გაგზავნილი"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "„{subject}“ მიწოდების დადასტურების გარეშე გაიგზავნა: გამავალი სერვერი ამას არ გვთავაზობს"
 
 #. name
 #: crates/model/src/mailbox.rs

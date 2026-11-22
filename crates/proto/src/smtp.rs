@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An SMTP client (RFC 5321) with STARTTLS (RFC 3207) and AUTH PLAIN / LOGIN / XOAUTH2 (RFC 4954).
+//! An SMTP client (RFC 5321) with STARTTLS (RFC 3207), AUTH PLAIN / LOGIN / XOAUTH2 (RFC 4954)
+//! and delivery status notifications when the server offers them (RFC 3461).
 
 use std::io::{Read, Write};
 
@@ -37,6 +38,8 @@ pub struct Extensions {
     /// The largest message the server takes; `Some(0)` when it names no limit.
     pub size: Option<u64>,
     pub eight_bit_mime: bool,
+    /// The server offers delivery status notifications (`DSN`, RFC 3461).
+    pub dsn: bool,
 }
 
 /// Neither the stream nor anything secret is shown.
@@ -201,6 +204,14 @@ impl<S: Read + Write> Smtp<S> {
 
     /// MAIL FROM, RCPT TO (every recipient must be accepted), DATA with CRLF normalisation and dot-stuffing.
     pub fn send(&mut self, from: &str, recipients: &[&str], message: &[u8]) -> Result<(), ProtoError> {
+        self.send_with(from, recipients, message, false).map(|_| ())
+    }
+
+    /// Like [`send`]. When `delivery_receipt` is set and the server offered `DSN` (RFC 3461),
+    /// `MAIL FROM` carries `RET=HDRS` and each `RCPT TO` carries `NOTIFY=SUCCESS,FAILURE`.
+    /// Returns whether that request went with the message. A server that did not offer `DSN`
+    /// still takes the message, and the return is false.
+    pub fn send_with(&mut self, from: &str, recipients: &[&str], message: &[u8], delivery_receipt: bool) -> Result<bool, ProtoError> {
         // Nothing is sent unless every address is safe to put on a command line.
         if !from.is_empty() && !is_address(from) {
             return Err(bad_address(from));
@@ -222,12 +233,23 @@ impl<S: Read + Write> Smtp<S> {
         if self.ext.eight_bit_mime && !message.is_ascii() {
             mail.push_str(" BODY=8BITMIME");
         }
+        // RET=HDRS and NOTIFY=SUCCESS,FAILURE only when EHLO named DSN, and only when the lines
+        // still fit (RFC 5321's command limit). Otherwise the message goes without the request.
+        let notify = " NOTIFY=SUCCESS,FAILURE";
+        let asked = delivery_receipt
+            && self.ext.dsn
+            && mail.len().saturating_add(" RET=HDRS".len()) <= MAX_COMMAND
+            && recipients.iter().all(|rcpt| "RCPT TO:<>".len().saturating_add(rcpt.len()).saturating_add(notify.len()) <= MAX_COMMAND);
+        if asked {
+            mail.push_str(" RET=HDRS");
+        }
         let reply = self.command(&mail)?;
         if reply.class() != 2 {
             return Err(self.refused(&reply));
         }
         for rcpt in recipients {
-            let reply = self.command(&format!("RCPT TO:<{rcpt}>"))?;
+            let line = if asked { format!("RCPT TO:<{rcpt}>{notify}") } else { format!("RCPT TO:<{rcpt}>") };
+            let reply = self.command(&line)?;
             if reply.class() != 2 {
                 let refused = match self.refused(&reply) {
                     // (The address, then what the server said of it: no words of MailCraft's to say.)
@@ -251,7 +273,7 @@ impl<S: Read + Write> Smtp<S> {
         if reply.class() != 2 {
             return Err(self.refused(&reply));
         }
-        Ok(())
+        Ok(asked)
     }
 
     /// QUIT. A server that hangs up without answering has quit all the same.
@@ -346,6 +368,7 @@ fn extensions(lines: &[String]) -> Extensions {
         match words.next() {
             Some("STARTTLS") => ext.starttls = true,
             Some("8BITMIME") => ext.eight_bit_mime = true,
+            Some("DSN") => ext.dsn = true,
             Some("SIZE") => ext.size = Some(words.next().and_then(|n| n.parse().ok()).unwrap_or(0)),
             Some("AUTH") => {
                 for mechanism in words {
@@ -414,5 +437,7 @@ fn data_block(message: &[u8]) -> (Vec<u8>, usize) {
     (out, size)
 }
 
+#[cfg(test)]
+mod dsn_tests;
 #[cfg(test)]
 mod tests;

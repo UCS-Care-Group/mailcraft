@@ -203,6 +203,7 @@ const SAFE: &[&str] = &[
     "compose.set",
     "compose.replyTo",
     "compose.readReceipt",
+    "compose.deliveryReceipt",
     // Delay Delivery: a time on the message being written; nothing goes until Send, which is asked about (#950).
     "compose.delay",
     // A message waiting in the Outbox goes back to Drafts and is not sent (#950).

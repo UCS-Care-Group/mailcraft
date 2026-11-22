@@ -91,6 +91,7 @@ pub(super) struct Written {
     pub bcc: Option<Vec<String>>,
     pub reply_to: Option<Vec<String>>,
     pub read_receipt: Option<bool>,
+    pub delivery_receipt: Option<bool>,
 }
 
 impl Written {
@@ -102,6 +103,7 @@ impl Written {
             || self.bcc.is_some()
             || self.reply_to.is_some()
             || self.read_receipt.is_some()
+            || self.delivery_receipt.is_some()
     }
 
     /// Take `name` when it is one of a draft's own parts: whether it was.
@@ -118,6 +120,9 @@ impl Written {
             "replyTo" => self.reply_to = Some(recipients(value, name)?),
             "isReadReceiptRequested" => {
                 self.read_receipt = Some(value.as_bool().ok_or_else(|| bad("'isReadReceiptRequested' is true or false."))?);
+            }
+            "isDeliveryReceiptRequested" => {
+                self.delivery_receipt = Some(value.as_bool().ok_or_else(|| bad("'isDeliveryReceiptRequested' is true or false."))?);
             }
             _ => return Ok(false),
         }
@@ -146,6 +151,9 @@ impl Written {
         }
         if let Some(read_receipt) = self.read_receipt {
             m.read_receipt = read_receipt;
+        }
+        if let Some(delivery_receipt) = self.delivery_receipt {
+            m.delivery_receipt = delivery_receipt;
         }
     }
 }
