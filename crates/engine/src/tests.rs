@@ -1599,6 +1599,21 @@ mod two_way {
         assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "Trash".into(), uid: 5 }], "deleted where the server has it now");
     }
 
+    /// Undo of a read mark leaves where the message is alone: moved since (from another device,
+    /// say), it isn't moved back.
+    #[test]
+    fn undo_of_a_read_mark_doesnt_move_a_message_moved_since() {
+        let (mut s, a, _, archive) = synced();
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.markRead", json!({"id": one}));
+        // Since then the server moved it into Archive, as a run found it.
+        let m = s.mailbox.message_mut(one).unwrap();
+        (m.folder, m.uid) = (archive, 12);
+        run(&mut s, "edit.undo", json!({}));
+        let ops = request(&s, a).ops;
+        assert!(!ops.iter().any(|op| matches!(op, RemoteOp::Move { .. })), "not moved back: {ops:?}");
+    }
+
     /// Undone before the server heard of it, a deletion is simply called off.
     #[test]
     fn a_deletion_undone_before_the_run_sends_nothing() {

@@ -49,6 +49,9 @@ pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
+    /// Of those, the ones it moved to another folder: the only ones an undo moves back on an
+    /// IMAP server ([`imap_back`]).
+    moved_messages: BTreeSet<Id>,
     /// The messages whose reminder the change itself changed (#948).
     follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
@@ -181,6 +184,9 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         match (b, a) {
             (Some(b), Some(a)) if a != b => {
                 t.changed_messages.insert(id);
+                if a.folder != b.folder {
+                    t.moved_messages.insert(id);
+                }
                 if a.follow_up != b.follow_up {
                     t.follow_up_changed.insert(id);
                 }
@@ -515,8 +521,10 @@ fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32)>, m: &Message)
 /// waiting moves are looked through once, so that a big undo takes time in proportion to its size.
 fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
     let (was, is) = (waiting_moves(out), waiting_moves(now));
+    // (Only what the change moved: a message it marked read, say, that was moved elsewhere since
+    // stays where it is now.)
     let back: Vec<(Id, Id)> = touched
-        .changed_messages
+        .moved_messages
         .iter()
         .filter_map(|id| {
             let (o, c) = (out.message(*id)?, now.message(*id)?);
