@@ -76,9 +76,11 @@ fn each_servers_certificate_is_asked_about_and_the_account_keeps_what_was_truste
     let asked = checks_in_turn(&mut a, vec![Err(certificate(false)), Err(certificate(true)), Ok(())]);
     let mut h = connect_to_bridge(a);
     assert_eq!(page(&h), Some(Page::ServerCertificate));
-    for shown in ["Trust this server's certificate?", "127.0.0.1", "An Invented Bridge", "ab:ab:ab:ab"] {
+    for shown in ["Trust this server's certificate?", "127.0.0.1", "An Invented Bridge", "ab:ab:ab:ab", "won't connect to it"] {
         assert!(says(&h, shown), "{shown}");
     }
+    // It promises no question later: a mail server's certificate that changes is refused, and said.
+    assert!(!says(&h, "you are asked again"));
     // Not trusted, and not tried again, until the box is ticked.
     h.get_by_role_and_label(Role::Button, "Continue").click();
     h.run_steps(5);

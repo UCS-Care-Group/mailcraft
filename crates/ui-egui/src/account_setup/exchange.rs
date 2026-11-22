@@ -824,7 +824,8 @@ impl AccountSetup {
         };
         let host = EwsServer { url: certificate.url.clone(), ..Default::default() }.host().map(str::to_string).unwrap_or_default();
         let host = shown(&host, 120);
-        certificate_question(ui, pass, self.page, &host, &certificate, &mut self.exchange.ticked, &self.error)
+        let later = tl!("Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again.");
+        certificate_question(ui, pass, self.page, &host, &certificate, &mut self.exchange.ticked, &self.error, later)
     }
 
     /// The mailbox is in Microsoft 365: it is a Microsoft account.
@@ -866,7 +867,10 @@ impl AccountSetup {
 
 /// The page that asks whether to trust a certificate the system doesn't: an Exchange server's, or
 /// a mail server's (#1413). What the certificate is, and the box that trusts that one certificate
-/// for this account; Continue only with it ticked. `host` is the server's, as it is shown.
+/// for this account; Continue only with it ticked. `host` is the server's, as it is shown, and
+/// `later` says what happens when the server shows another certificate later, which differs by
+/// the kind of account.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn certificate_question(
     ui: &mut Ui,
     pass: &Pass,
@@ -875,6 +879,7 @@ pub(super) fn certificate_question(
     certificate: &EwsCertificate,
     ticked: &mut bool,
     error: &str,
+    later: &str,
 ) -> Option<Action> {
     let t = pass.t;
     page(ui, &t, |ui| {
@@ -906,11 +911,7 @@ pub(super) fn certificate_question(
         row(ui, tl!("SHA-256 fingerprint"), &grouped(&certificate.fingerprint), true);
         ui.add_space(6.0);
         ui.checkbox(ticked, tl!("Trust this certificate for this account"));
-        note(
-            ui,
-            tl!("Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."),
-            t.text_dim,
-        );
+        note(ui, later, t.text_dim);
     });
     problem(ui, error);
     let ready = *ticked;

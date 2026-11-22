@@ -2035,7 +2035,11 @@ impl AccountSetup {
             Page::ServerCertificate => match self.server_certificate.clone() {
                 Some((_, certificate)) => {
                     let host = shown(&certificate.url, 120);
-                    exchange::certificate_question(ui, &pass, self.page, &host, &certificate, &mut self.server_ticked, &self.error)
+                    // (No later question for a mail server yet: a certificate that changes is refused, and said.)
+                    let later = tl!(
+                        "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+                    );
+                    exchange::certificate_question(ui, &pass, self.page, &host, &certificate, &mut self.server_ticked, &self.error, later)
                 }
                 // Nothing to ask about: back to the password and the servers.
                 None => Some(Action::Back),

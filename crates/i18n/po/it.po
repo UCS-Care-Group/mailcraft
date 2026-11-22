@@ -11190,6 +11190,11 @@ msgstr "Solo l'organizzatore della riunione può cambiarne l'orario."
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Viene considerato attendibile solo questo certificato, e solo per questo account. Se in seguito il server ne presenta un altro, ti verrà chiesto di nuovo."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy

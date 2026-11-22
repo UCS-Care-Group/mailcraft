@@ -157,12 +157,26 @@ fn a_fingerprint_that_is_no_fingerprint_is_refused_before_connecting() {
 #[test]
 fn an_account_that_signs_in_on_its_providers_page_never_connects_by_a_fingerprint() {
     // Its token goes only to a server the system trusts: a fingerprint is refused before any
-    // connection, even one of exactly the certificate shown.
+    // connection, even one of exactly the certificate shown, by every way mail goes out or comes
+    // in (incoming over IMAP, outgoing over SMTP).
     let (server, der) = bridge_certificate(year() - 1, year() + 10);
-    let peer = imap(server);
+    let fingerprint = cert::fingerprint(&der);
     let oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
-    let account = Account { oauth, ..account(peer.port, &cert::fingerprint(&der)) };
-    let error = crate::sync::open_imap(&account, "an-invented-token").err();
-    assert!(matches!(error, Some(NetError::Config(_))), "{error:?}");
-    assert!(peer.world().log.is_empty(), "{:?}", peer.world().log);
+    let pinned = |port| Some(Server { host: "127.0.0.1".into(), port, security: Security::StartTls, trusted: fingerprint.clone() });
+
+    let imap_peer = imap(server);
+    let incoming = Account { oauth: oauth.clone(), incoming: pinned(imap_peer.port), ..account(0, "") };
+    let smtp_peer =
+        Fake::smtp(crate::fake::SmtpWorld { user: USER.into(), token: "an-invented-token".into(), offer_starttls: true, ..Default::default() });
+    let outgoing = Account { oauth, incoming: None, outgoing: pinned(smtp_peer.port), ..account(0, "") };
+
+    let cases: [(&str, Option<NetError>, usize); 2] = [
+        ("incoming", crate::sync::open_imap(&incoming, "an-invented-token").err(), imap_peer.world().log.len()),
+        ("outgoing", crate::send::open_smtp(&outgoing, "an-invented-token").err(), smtp_peer.world().log.len()),
+    ];
+    for (which, error, lines) in cases {
+        assert!(matches!(error, Some(NetError::Config(_))), "{which}: {error:?}");
+        assert_eq!(lines, 0, "{which}: something was said to the server");
+    }
+    assert_eq!(smtp_peer.world().connections, 0);
 }

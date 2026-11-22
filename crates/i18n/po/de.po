@@ -10486,6 +10486,11 @@ msgstr "Nur der Organisator der Besprechung kann ihre Zeit ändern."
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Nur diesem Zertifikat wird vertraut, und zwar ausschließlich für dieses Konto. Wenn der Server später ein anderes Zertifikat vorlegt, werden Sie erneut gefragt."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
