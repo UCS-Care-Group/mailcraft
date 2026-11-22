@@ -25,7 +25,7 @@ fn a_pasted_table_fits_the_composer_and_has_one_position() {
     let mut layout = Layout::default();
     let ctx = egui::Context::default();
     let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
-        layout.paras.push(Layout::default().lay(ui.ctx(), paragraph, 0, false, &[], &Tokens::light(), 96.0));
+        layout.paras.push(Layout::default().lay(ui.ctx(), paragraph, 0, false, &[], &Tokens::light(), 96.0, &mut crate::fonts::Chooser::none()));
     });
     frame.textures_delta.clear();
     let p = layout.paras.first().unwrap();
@@ -100,7 +100,7 @@ fn plain_mode_draws_the_actual_table_text_in_one_object() {
     let mut chars = 0;
     let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
         let tokens = Tokens::light();
-        let para = Layout::default().lay(ui.ctx(), paragraph, 0, true, &[], &tokens, 240.0);
+        let para = Layout::default().lay(ui.ctx(), paragraph, 0, true, &[], &tokens, 240.0, &mut crate::fonts::Chooser::none());
         chars = para.chars;
         let table = para.tables.first().unwrap();
         table.grid.paint(ui.painter(), pos2(40.0, 40.0), &tokens);

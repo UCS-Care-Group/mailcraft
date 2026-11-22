@@ -318,11 +318,20 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     );
 }
 
+/// A menu that holds a text field the owner clicks in and types into, which keeps that click: the
+/// font menu's search for a family installed here (#1493).
+fn keeps_clicks(ui: &mut Ui, name: &str, content: impl FnOnce(&mut Ui)) {
+    let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| content(ui));
+}
+
 /// A rich signature: its formatting bar, the editor, its pictures and the size they add.
 fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
+        // The font menu holds a field to search in: a click inside it is for the field, not a way
+        // out of the menu (#1493).
+        keeps_clicks(ui, tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
         // The colour menu holds a field for a colour of the owner's own: a click in it is for the
         // field, not a way out of the menu, as on the ribbon (#1493, #1464).
@@ -627,3 +636,7 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
         }
     });
 }
+
+#[cfg(test)]
+#[path = "signature_menu_tests.rs"]
+mod signature_menu_tests;
