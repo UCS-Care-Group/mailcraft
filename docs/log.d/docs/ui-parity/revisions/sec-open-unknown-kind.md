@@ -1,0 +1,1 @@
+| 2026-11-22 | patch | SEC-2: on Linux and the BSDs, an attachment of a kind the desktop doesn't know by name, or that it takes for another kind, is refused and can be saved |

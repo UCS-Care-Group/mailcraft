@@ -438,6 +438,13 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - A `.mailcraft` attachment is never opened from a message: it can only be saved
   (`crates/engine/src/opening.rs`), so a sender cannot put a mailbox with accounts of their
   choosing in front of the owner with one click.
+- On Linux and the BSDs an attachment is opened only when its kind is one the desktop knows by
+  name (`KNOWN` in `crates/engine/src/opening.rs`) and the same desktop, asked first (`gio info`,
+  `kmimetypefinder`), takes the written file for that kind; anything else can only be saved
+  (`apps/mailcraft/src/file_launcher.rs`). The desktop types a file by its first bytes when it
+  doesn't know the name, or knows two kinds for it, so what is in the file never chooses the
+  program. A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
+  the bytes alone.
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).

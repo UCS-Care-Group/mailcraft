@@ -56,6 +56,9 @@ fn the_verdict_is_the_desktops() {
         assert_eq!(check.verdict, OpenVerdict::Blocked, "{blocked}");
         assert!(!check.blocked.is_empty(), "{blocked}");
     }
+    // A kind of no known name, where the computer would type it by what is in it.
+    let by_content = mailcraft_engine::opening::Chooser::THIS == mailcraft_engine::opening::Chooser::NameOrContent;
+    assert_eq!(attachment_check("invoice.qzx".into()).verdict == OpenVerdict::Blocked, by_content);
     // A kind that is hidden behind another is judged by what the name is written as.
     assert_eq!(attachment_check("invoice.pdf.apk".into()).verdict, OpenVerdict::Blocked);
     assert_eq!(attachment_check("x.pdf\u{202e}kpa".into()).verdict, attachment_check("x.pdfkpa".into()).verdict);

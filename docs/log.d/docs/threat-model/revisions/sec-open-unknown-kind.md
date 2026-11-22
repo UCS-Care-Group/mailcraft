@@ -1,0 +1,1 @@
+| 2026-11-22 | minor | SEC-2: on Linux and the BSDs an attachment opens only when its kind is one the desktop knows by name and the desktop, asked first, takes the file for that kind; files are never handed to `xdg-open` |

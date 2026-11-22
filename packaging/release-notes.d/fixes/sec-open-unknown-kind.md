@@ -1,0 +1,1 @@
+- On Linux and the BSDs, an attachment opens only when it is of a kind the desktop knows by name and the desktop agrees the file is that kind; any other attachment can be saved with Save As.

@@ -15,7 +15,8 @@
 //! - **Only what the window allowed:** the window refuses programs, scripts and the like and
 //!   asks about macros before this is called (`mailcraft_engine::opening`); the kind is checked
 //!   once more here, and the name is made safe once more (no folders, nothing hidden or
-//!   option-like, no name Windows keeps for itself, not too long).
+//!   option-like, no name Windows keeps for itself, not too long). On Linux and the BSDs a file
+//!   the desktop takes for a kind other than its name says is not opened (`file_launcher.rs`).
 //! - **Ours alone:** the folders are made for this user only (0700 on Unix), a link where one of
 //!   them should be is never followed, and a file is only ever made new, never written through
 //!   something that was there.
@@ -74,6 +75,10 @@ impl Opened {
     pub fn open(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.write(name, bytes)?;
         crate::file_launcher::open_detached(&path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::InvalidData {
+                // The desktop takes it for a kind other than its name says (Linux and the BSDs).
+                return opening::blocked_message(name);
+            }
             log::warn!("couldn't open an attachment with the system's program ({:?})", e.kind());
             "No program could be started to open the attachment: save it with Save As instead.".to_string()
         })

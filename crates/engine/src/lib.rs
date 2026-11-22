@@ -50,6 +50,8 @@ pub mod mark;
 mod mark_tests;
 pub mod opening;
 #[cfg(test)]
+mod opening_kind_tests;
+#[cfg(test)]
 mod opening_tests;
 #[cfg(test)]
 mod openpgp_signature_tests;

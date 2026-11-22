@@ -59,6 +59,21 @@ fn programs_and_scripts_are_refused_and_nothing_is_opened() {
 }
 
 #[test]
+fn a_kind_of_no_known_name_is_refused_where_the_desktop_types_by_content() {
+    use mailcraft_engine::opening::Chooser;
+    let (mut a, id, opened) = app(&["invoice.qzx"]);
+    let r = a.run("mail.openAttachment", json!({"id": id, "index": 0}));
+    if Chooser::THIS == Chooser::NameOrContent {
+        let e = r.unwrap_err();
+        assert!(e.contains("doesn't open invoice.qzx") && e.contains("Save As"), "{e}");
+        assert!(opened.lock().unwrap().is_empty());
+        assert!(a.execute("mail.saveAttachment", json!({"id": id, "index": 0})).is_ok());
+    } else {
+        assert_eq!(r.unwrap()["opened"], true);
+    }
+}
+
+#[test]
 fn macros_and_web_pages_are_asked_about_first() {
     let (mut a, id, opened) = app(&["budget.xlsm", "page.html"]);
     for index in 0..2 {

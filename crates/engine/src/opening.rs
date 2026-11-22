@@ -6,7 +6,10 @@
 //! file. This is what the desktop host and the window go by before they do:
 //! - [`verdict`]: programs, scripts, shortcuts, installers and disk images are never opened
 //!   (they can run as soon as they open); Office files with macros and web pages ask first
-//!   (macros and scripts are what they are for); anything else opens.
+//!   (macros and scripts are what they are for); anything else opens, except on Linux and the
+//!   BSDs, where only a kind the desktop knows by name ([`KNOWN`]) does, and the host opens it
+//!   only when the desktop types the file as that kind: there a kind it doesn't know is typed by
+//!   what is in the file, and the sender chose that.
 //! - [`file_name`]: the name the file is written under, from the attachment's own name, made
 //!   safe to put in a folder: no folders of its own, nothing hidden, nothing that reads as an
 //!   option, no name Windows keeps for itself, not too long.
@@ -315,10 +318,222 @@ pub fn extension(name: &str) -> String {
     }
 }
 
-/// What may be done with an attachment of this name when the owner asks to open it. It is read
-/// from the name the file would be written under ([`file_name`]), which is what the computer
-/// goes by when it chooses the program.
+/// How the computer chooses the program that opens a file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Chooser {
+    /// By its kind alone; a kind no program is set for opens none (Windows, macOS, phones).
+    Name,
+    /// By its kind when the desktop knows it, and by what is in it when it doesn't (Linux and the
+    /// BSDs: xdg-open, GIO and KDE go by the shared MIME database, which falls back to the
+    /// file's first bytes): only a kind of [`KNOWN`] is opened there.
+    NameOrContent,
+}
+
+impl Chooser {
+    /// The way of the computer this is built for.
+    pub const THIS: Chooser =
+        if cfg!(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))) { Chooser::NameOrContent } else { Chooser::Name };
+}
+
+/// Kinds the shared MIME database of Linux and the BSDs has long known by name, each with the
+/// types (and their older names) the desktop may say a file of that kind is: with
+/// [`Chooser::NameOrContent`] no other kind is opened, and the host opens a file only when the
+/// desktop types it as one of these, since where a name has two types (a `.png` can be `image/png`
+/// or `image/apng`) GIO decides by what is in the file. The kinds of [`MACROS`] and [`SCRIPTS`]
+/// here still ask first.
+pub const KNOWN: &[(&str, &[&str])] = &[
+    // Documents and text.
+    ("pdf", &["application/pdf", "application/acrobat", "application/nappdf", "application/x-pdf", "image/pdf"]),
+    ("txt", &["text/plain"]),
+    ("csv", &["text/csv", "text/x-comma-separated-values", "text/x-csv"]),
+    ("tsv", &["text/tab-separated-values"]),
+    ("rtf", &["application/rtf", "text/rtf"]),
+    ("odt", &["application/vnd.oasis.opendocument.text"]),
+    ("ods", &["application/vnd.oasis.opendocument.spreadsheet"]),
+    ("odp", &["application/vnd.oasis.opendocument.presentation"]),
+    ("odg", &["application/vnd.oasis.opendocument.graphics"]),
+    ("odf", &["application/vnd.oasis.opendocument.formula"]),
+    ("ott", &["application/vnd.oasis.opendocument.text-template"]),
+    ("ots", &["application/vnd.oasis.opendocument.spreadsheet-template"]),
+    ("otp", &["application/vnd.oasis.opendocument.presentation-template"]),
+    ("otg", &["application/vnd.oasis.opendocument.graphics-template"]),
+    ("docx", &["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    ("dotx", &["application/vnd.openxmlformats-officedocument.wordprocessingml.template"]),
+    ("xlsx", &["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]),
+    ("xltx", &["application/vnd.openxmlformats-officedocument.spreadsheetml.template"]),
+    ("pptx", &["application/vnd.openxmlformats-officedocument.presentationml.presentation"]),
+    ("potx", &["application/vnd.openxmlformats-officedocument.presentationml.template"]),
+    ("ppsx", &["application/vnd.openxmlformats-officedocument.presentationml.slideshow"]),
+    ("epub", &["application/epub+zip"]),
+    ("tex", &["text/x-tex", "application/x-tex"]),
+    ("log", &["text/x-log"]),
+    ("json", &["application/json", "application/schema+json"]),
+    ("yaml", &["application/yaml", "application/x-yaml", "text/x-yaml", "text/yaml"]),
+    ("yml", &["application/yaml", "application/x-yaml", "text/x-yaml", "text/yaml"]),
+    ("xps", &["application/vnd.ms-xpsdocument", "application/xps"]),
+    ("djvu", &["image/vnd.djvu", "image/x-djvu", "image/x.djvu", "image/vnd.djvu+multipage"]),
+    ("fb2", &["application/x-fictionbook+xml", "application/x-fictionbook"]),
+    ("markdown", &["text/markdown", "text/x-markdown"]),
+    // Mail, calendars and cards.
+    ("eml", &["message/rfc822"]),
+    ("mbox", &["application/mbox"]),
+    ("ics", &["text/calendar", "application/ics", "text/x-vcalendar"]),
+    ("vcs", &["text/calendar", "application/ics", "text/x-vcalendar"]),
+    ("vcf", &["text/vcard", "text/directory", "text/x-vcard"]),
+    ("vcard", &["text/vcard", "text/directory", "text/x-vcard"]),
+    // Pictures.
+    ("jpg", &["image/jpeg", "image/pjpeg"]),
+    ("jpeg", &["image/jpeg", "image/pjpeg"]),
+    ("jpe", &["image/jpeg", "image/pjpeg"]),
+    ("png", &["image/apng", "image/vnd.mozilla.apng", "image/png"]),
+    ("gif", &["image/gif"]),
+    ("bmp", &["image/bmp", "image/x-MS-bmp", "image/x-bmp"]),
+    ("tif", &["image/tiff"]),
+    ("tiff", &["image/tiff"]),
+    ("webp", &["image/webp"]),
+    ("heic", &["image/heif", "image/heic", "image/heic-sequence", "image/heif-sequence"]),
+    ("heif", &["image/heif", "image/heic", "image/heic-sequence", "image/heif-sequence"]),
+    ("avif", &["image/avif", "image/avif-sequence"]),
+    ("ico", &["image/vnd.microsoft.icon", "application/ico", "image/ico", "image/icon", "image/x-ico", "image/x-icon", "text/ico"]),
+    (
+        "psd",
+        &[
+            "image/vnd.adobe.photoshop",
+            "application/photoshop",
+            "application/x-photoshop",
+            "image/photoshop",
+            "image/psd",
+            "image/x-photoshop",
+            "image/x-psd",
+        ],
+    ),
+    ("xcf", &["image/x-xcf"]),
+    ("cr2", &["image/x-canon-cr2"]),
+    ("nef", &["image/x-nikon-nef"]),
+    ("arw", &["image/x-sony-arw"]),
+    ("dng", &["image/x-adobe-dng"]),
+    ("orf", &["image/x-olympus-orf"]),
+    ("rw2", &["image/x-panasonic-rw2", "image/x-panasonic-raw2"]),
+    ("raf", &["image/x-fuji-raf"]),
+    // Sound and video.
+    ("mp3", &["audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/x-mpeg", "audio/x-mpg"]),
+    ("m4a", &["audio/mp4", "audio/m4a", "audio/x-m4a"]),
+    ("aac", &["audio/aac", "audio/x-aac"]),
+    (
+        "ogg",
+        &[
+            "audio/ogg",
+            "audio/x-ogg",
+            "audio/x-flac+ogg",
+            "audio/x-oggflac",
+            "audio/x-speex+ogg",
+            "audio/x-vorbis+ogg",
+            "audio/vorbis",
+            "audio/x-vorbis",
+            "video/ogg",
+            "video/x-ogg",
+            "video/x-theora+ogg",
+            "video/x-theora",
+        ],
+    ),
+    (
+        "oga",
+        &[
+            "audio/ogg",
+            "audio/x-ogg",
+            "audio/x-flac+ogg",
+            "audio/x-oggflac",
+            "audio/x-speex+ogg",
+            "audio/x-vorbis+ogg",
+            "audio/vorbis",
+            "audio/x-vorbis",
+        ],
+    ),
+    ("opus", &["audio/ogg", "audio/x-ogg", "audio/x-opus+ogg"]),
+    ("flac", &["audio/flac", "audio/x-flac"]),
+    ("wav", &["audio/vnd.wave", "audio/wav", "audio/x-wav"]),
+    ("wma", &["audio/x-ms-wma", "audio/wma"]),
+    ("mid", &["audio/midi", "audio/x-midi"]),
+    ("midi", &["audio/midi", "audio/x-midi"]),
+    ("amr", &["audio/AMR", "audio/amr-encrypted"]),
+    ("mp4", &["video/mp4", "video/mp4v-es", "video/x-m4v"]),
+    ("m4v", &["video/mp4", "video/mp4v-es", "video/x-m4v"]),
+    ("mov", &["video/quicktime"]),
+    ("avi", &["video/vnd.avi", "video/avi", "video/divx", "video/msvideo", "video/vnd.divx", "video/x-avi", "video/x-msvideo"]),
+    ("mkv", &["video/matroska", "video/x-matroska"]),
+    ("webm", &["video/webm"]),
+    ("wmv", &["video/x-ms-wmv"]),
+    ("mpg", &["video/mpeg", "video/mpeg-system", "video/x-mpeg", "video/x-mpeg-system", "video/x-mpeg2"]),
+    ("mpeg", &["video/mpeg", "video/mpeg-system", "video/x-mpeg", "video/x-mpeg-system", "video/x-mpeg2"]),
+    ("ogv", &["video/ogg", "video/x-ogg"]),
+    // Archives.
+    ("zip", &["application/zip", "application/x-zip", "application/x-zip-compressed"]),
+    ("7z", &["application/x-7z-compressed"]),
+    ("rar", &["application/vnd.rar", "application/x-rar", "application/x-rar-compressed"]),
+    ("tar", &["application/x-tar", "application/x-gtar"]),
+    ("gz", &["application/gzip", "application/x-gzip"]),
+    ("tgz", &["application/x-compressed-tar"]),
+    ("bz2", &["application/x-bzip2", "application/bzip2", "application/x-bzip"]),
+    ("xz", &["application/x-xz"]),
+    // Office files that can carry macros (they ask first).
+    ("doc", &["application/msword", "application/vnd.ms-word", "application/x-msword"]),
+    ("dot", &["application/msword-template", "text/vnd.graphviz"]),
+    ("xls", &["application/vnd.ms-excel", "application/msexcel", "application/x-msexcel"]),
+    ("xlt", &["application/vnd.ms-excel", "application/msexcel", "application/x-msexcel"]),
+    ("ppt", &["application/vnd.ms-powerpoint", "application/mspowerpoint", "application/powerpoint", "application/x-mspowerpoint"]),
+    (
+        "pot",
+        &[
+            "application/vnd.ms-powerpoint",
+            "application/mspowerpoint",
+            "application/powerpoint",
+            "application/x-mspowerpoint",
+            "text/x-gettext-translation-template",
+            "text/x-pot",
+        ],
+    ),
+    ("pps", &["application/vnd.ms-powerpoint", "application/mspowerpoint", "application/powerpoint", "application/x-mspowerpoint"]),
+    ("pub", &["application/vnd.ms-publisher", "text/x-ssh-public-key"]),
+    ("vsd", &["application/vnd.visio"]),
+    ("vss", &["application/vnd.visio"]),
+    ("docm", &["application/vnd.ms-word.document.macroEnabled.12"]),
+    ("dotm", &["application/vnd.ms-word.template.macroEnabled.12"]),
+    ("xlsm", &["application/vnd.ms-excel.sheet.macroEnabled.12"]),
+    ("xltm", &["application/vnd.ms-excel.template.macroEnabled.12"]),
+    ("xlam", &["application/vnd.ms-excel.addin.macroEnabled.12"]),
+    ("xlsb", &["application/vnd.ms-excel.sheet.binary.macroEnabled.12"]),
+    ("pptm", &["application/vnd.ms-powerpoint.presentation.macroEnabled.12"]),
+    ("potm", &["application/vnd.ms-powerpoint.template.macroEnabled.12"]),
+    ("ppam", &["application/vnd.ms-powerpoint.addin.macroEnabled.12"]),
+    ("ppsm", &["application/vnd.ms-powerpoint.slideshow.macroEnabled.12"]),
+    ("vsdm", &["application/vnd.ms-visio.drawing.macroEnabled.main+xml"]),
+    // Pages and drawings that can carry scripts (they ask first).
+    ("htm", &["application/xhtml+xml", "text/html"]),
+    ("html", &["application/xhtml+xml", "text/html"]),
+    ("xhtml", &["application/xhtml+xml"]),
+    ("mht", &["application/x-mimearchive"]),
+    ("mhtml", &["application/x-mimearchive"]),
+    ("svg", &["image/svg+xml"]),
+    ("xml", &["application/xml", "text/xml"]),
+    ("xsl", &["application/xslt+xml"]),
+];
+
+/// The types the desktop may give a file of kind `ext` ([`KNOWN`]); none for a kind not there.
+pub fn desktop_types(ext: &str) -> &'static [&'static str] {
+    KNOWN.iter().find(|(kind, _)| *kind == ext).map(|(_, types)| *types).unwrap_or_default()
+}
+
+/// What may be done with an attachment of this name when the owner asks to open it, on this
+/// computer ([`Chooser::THIS`]); see [`verdict_for`].
 pub fn verdict(name: &str) -> Verdict {
+    verdict_for(name, Chooser::THIS)
+}
+
+/// What may be done with an attachment of this name when the owner asks to open it on a
+/// computer that chooses its program as `chooser` says. It is read from the name the file would
+/// be written under ([`file_name`]), which is what the computer goes by when it chooses the
+/// program.
+pub fn verdict_for(name: &str, chooser: Chooser) -> Verdict {
     let safe = file_name(name);
     let ext = extension(&safe);
     if ext.is_empty() {
@@ -326,6 +541,9 @@ pub fn verdict(name: &str) -> Verdict {
         return Verdict::Blocked;
     }
     if BLOCKED.contains(&ext.as_str()) {
+        Verdict::Blocked
+    } else if chooser == Chooser::NameOrContent && desktop_types(&ext).is_empty() {
+        // A kind the desktop may not know: it would guess from what is in it.
         Verdict::Blocked
     } else if !ext.is_ascii() {
         // A kind the lists can't judge (a computer may fold its letters into ASCII ones): ask.
