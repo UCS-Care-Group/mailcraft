@@ -587,21 +587,26 @@ pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
     unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
 }
 
-/// What an agent's command that takes appointments away would lose (#494): the windows of those
-/// it takes, with changes that aren't saved, close with them ([`show`]). `calendar.delete` takes
-/// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
-/// step brings back as it was.
+/// What an agent's command would affect while appointments have unsaved changes (#494): a
+/// Delete or cut names every member of its set, conservatively including its whole series;
+/// removing a calendar takes its appointments, an undo or redo what the step brings back.
 pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
     unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
 }
 
-/// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
+/// Whether `calendar.delete`, a cut `calendar.paste`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
 /// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
 pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
     // As the command reads it (#553): `12.0` is 12, and one named wrongly (0, null, text) takes nothing away.
     let named = |selected: Option<Id>| mailcraft_engine::p::id_strict(p, "id").ok().and_then(|n| n.or(selected));
     let sel = &app.session.sel;
     match id {
+        "calendar.delete" if mailcraft_engine::cmd::calendar::delete_form(sel, p).ok() != Some(mailcraft_engine::cmd::calendar::DeleteForm::One) => {
+            mailcraft_engine::cmd::calendar::delete_items(&app.session, p).is_ok_and(|items| items.iter().any(|selected| selected.id == item))
+        }
+        "calendar.paste" if p.get("cut").and_then(Value::as_bool) == Some(true) => {
+            mailcraft_engine::cmd::calendar::selected_items(&app.session, p).is_ok_and(|items| items.iter().any(|selected| selected.id == item))
+        }
         "calendar.delete" => named(sel.event) == Some(item),
         "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == named(None)),
         "people.delete" => named(sel.contact) == Some(item),

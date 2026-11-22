@@ -808,6 +808,8 @@ struct Builder {
     /// side it stands at ([`bidi`]).
     align_from: AlignFrom,
     dir: Dir,
+    /// It is part of a list item ([`Block::in_item`]).
+    in_item: bool,
     line_height: Option<LineHeight>,
     /// The enclosing block's value, when an inline element supplies a tentative override.
     block_line_height: Option<LineHeight>,
@@ -897,6 +899,7 @@ impl Builder {
             align: Align::Left,
             align_from: AlignFrom::Nothing,
             dir: Dir::Ltr,
+            in_item: false,
             line_height: None,
             block_line_height: None,
             inline_line_height: None,
@@ -1179,6 +1182,7 @@ impl Builder {
             };
             let loose = self.loose_style();
             (self.align, self.align_from, self.dir) = (loose.align, loose.align_from, loose.dir);
+            self.in_item = matches!(self.kind, BlockKind::ListItem { .. }) || self.inside_item();
             self.start_line_height();
             self.fresh = true;
         }
@@ -1334,7 +1338,8 @@ impl Builder {
         let dir = if beside && self.dir == Dir::Auto { Dir::Ltr } else { self.dir };
         let rtl = bidi::rtl(dir, spans.iter().flat_map(|s| s.text.chars()));
         let align = bidi::placed(self.align, self.align_from, rtl);
-        let block = Block { quote: self.quote_depth(), align, rtl, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        let block =
+            Block { quote: self.quote_depth(), align, rtl, beside, in_item: self.in_item, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -1534,6 +1539,7 @@ impl Builder {
                     align,
                     rtl: loose.dir == Dir::Rtl,
                     beside,
+                    in_item: self.inside_item(),
                     image_padding: css.padding_insets().filter(|padding| padding.any()),
                     ..Block::new(kind, spans)
                 };
@@ -1660,6 +1666,11 @@ impl Builder {
             }
         }
         None
+    }
+
+    /// Whether a list item is open, however far inside it: in a table or a box of its own too.
+    fn inside_item(&self) -> bool {
+        self.nodes.iter().any(|n| matches!(n.kind, Kind::Item(_)))
     }
 
     /// Whether something open has a background of its own.
@@ -1923,7 +1934,8 @@ impl Builder {
         let table = Table { spaced, ..table };
         // (The margins of a box on a line are the table's own: the line is placed as a whole.)
         let inset = if boxed.inline { [0, 0] } else { boxed.margin };
-        let block = Block { quote: self.quote_depth(), align, beside, inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align, beside, in_item: self.inside_item(), inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = boxed.inline.then_some(boxed.parent);
@@ -2122,7 +2134,8 @@ impl Builder {
             t.spaced = spaced;
         }
         let inset = if table.inline { [0, 0] } else { table.margin };
-        let block = Block { quote: self.quote_depth(), align: table.align, beside, inset, ..Block::new(kind, Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align: table.align, beside, in_item: self.inside_item(), inset, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = table.inline.then_some(table.parent);
