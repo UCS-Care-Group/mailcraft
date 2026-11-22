@@ -99,6 +99,18 @@ msgstr "„{name}“ არ არის მხოლოდ ამ კომპ�
 msgid "\"{name}\" will be permanently deleted."
 msgstr "„{name}“ სამუდამოდ წაიშლება."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "\"{name}\", {when}"
+msgstr "„{name}“, {when}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "\"{name}\", {when}, moves to {to}"
+msgstr "„{name}“, {when}, გადადის: {to}"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -116,6 +128,18 @@ msgstr "„{set}“ წერილების ნაკრები არ ა
 #, fuzzy
 msgid "\"{shown}\" isn't an e-mail address"
 msgstr "„{shown}“ ელფოსტის მისამართი არ არის"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "\"{title}\" is cancelled, and can't be selected"
+msgstr "„{title}“ გაუქმებულია და მისი მონიშვნა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "\"{title}\" is cancelled, so it can't be added to the selection."
+msgstr "„{title}“ გაუქმებულია, ამიტომ მონიშნულებს ვერ დაემატება."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -380,6 +404,18 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "კალენდრის ცვლილება ჯერ ვერ გაიგზავნა და ხელახლა ვცდით: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
+msgstr "კალენდარს, რომელიც მხოლოდ ადამიანების დაკავებულობას აჩვენებს, დასაკოპირებელი ჩანაწერი არ აქვს: გახსენით ერთ-ერთი კალენდარი, რომლის წაკითხვაც შეიძლება."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "A calendar that only shows when people are busy has nothing that can be deleted."
+msgstr "კალენდარში, რომელიც მხოლოდ ადამიანების დაკავებულობას აჩვენებს, წასაშლელი არაფერია."
+
+#. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
 #, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
@@ -535,6 +571,18 @@ msgstr "შეხვედრა ერთდროულად მაქსი�
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
 msgstr "თქვენს კალენდარში ამ ID-ით შეხვედრა არის, მაგრამ სხვა ორგანიზატორით, ამიტომ ეს მოწვევა მას ვერ შეცვლის."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them."
+msgstr "სხვის მიერ ორგანიზებული შეხვედრა მხოლოდ თქვენი კალენდრიდან იშლება და ორგანიზატორს არ ეცნობება, თუ არ აირჩევთ მის უარყოფას და შეტყობინებას."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "A meeting somebody else organizes is taken out of your calendar only, and its organizer is not told unless you choose to decline it and tell them: the cancellation that is sent is of the meeting you organize."
+msgstr "სხვის მიერ ორგანიზებული შეხვედრა მხოლოდ თქვენი კალენდრიდან იშლება და ორგანიზატორს არ ეცნობება, თუ არ აირჩევთ მის უარყოფას და შეტყობინებას: გაგზავნილი გაუქმება ეხება შეხვედრას, რომლის ორგანიზატორიც თქვენ ხართ."
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -647,6 +695,12 @@ msgstr "საფოსტო ყუთის შენახვა ჯერ �
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
 msgstr "სერვერთან დაცული კავშირი ვერ დამყარდა. აკრიფეთ სერვერის მისამართი სერვერის პარამეტრებში."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "A series and one of its days are both named; nothing was changed."
+msgstr "მითითებულია როგორც სერია, ისე მისი ერთ-ერთი დღე; არაფერი შეცვლილა."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1507,6 +1561,12 @@ msgid "An appointment marked private shows only that you are busy. Nobody invite
 msgstr "პირადად მონიშნული ჩანაწერი მხოლოდ იმას აჩვენებს, რომ დაკავებული ხართ. მოწვეულთა სახელები არ ჩანს."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "An appointment this would move is being changed in its own window and isn't saved: nothing was moved"
+msgstr "ჩანაწერი, რომელსაც ეს გადაიტანდა, საკუთარ ფანჯარაში იცვლება და შენახული არ არის: არაფერი გადატანილა"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "An authority on the way to a trusted one doesn't allow the certificate to be used this way."
@@ -1529,6 +1589,12 @@ msgstr "მიმდინარეობს იმპორტი"
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "განმეორებადი ელემენტი სხვა კალენდარში ასე ვერ გადავა. მხოლოდ ამ დღის იქ დასაკოპირებლად დაჭერილი გეჭიროთ Ctrl, მთელი სერიისთვის კი მის მენიუში გამოიყენეთ „კალენდარში გადატანა“."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "An item would land where it already is; nothing was moved."
+msgstr "ელემენტი იქ აღმოჩნდებოდა, სადაც უკვე არის; არაფერი გადატანილა."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -2585,7 +2651,7 @@ msgid "By Subject"
 msgstr "თემის მიხედვით"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "კალენდარი"
@@ -2785,6 +2851,12 @@ msgstr "შესვლის გაუქმება"
 #, fuzzy
 msgid "Cancel This Meeting?"
 msgstr "გავაუქმო ეს შეხვედრა?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Cancellations from the server of {account}:"
+msgstr "გაუქმებები {account}-ის სერვერიდან:"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/calendar_view.rs
@@ -3471,6 +3543,24 @@ msgid "Close to system tray"
 msgstr "დახურვისას სისტემურ უჯრაში დამალვა"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then copy"
+msgstr "ჯერ დახურეთ ის, რაც ღიაა, შემდეგ დააკოპირეთ"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then cut"
+msgstr "ჯერ დახურეთ ის, რაც ღიაა, შემდეგ ამოჭერით"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then paste"
+msgstr "ჯერ დახურეთ ის, რაც ღიაა, შემდეგ ჩასვით"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Closed the page? This opens the provider's sign-in page afresh."
@@ -3713,8 +3803,8 @@ msgstr "დაკოპირდა. ჩასვით ის წერილ�
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "აკოპირებს მოკლე შეტყობინებას Microsoft-ის იმ გვერდის მისამართით, სადაც თქვენი ორგანიზაციის ადმინისტრატორი MailCraft-ს ერთხელ, ყველასთვის ამტკიცებს. არაფერი იგზავნება: თავად ჩასვით ის წერილში ან ჩატში."
 
-#. command label, interface, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/view_source.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Copy"
 msgstr "კოპირება"
@@ -3800,6 +3890,12 @@ msgstr "შეტყობინების კოპირება ადმ�
 #, fuzzy
 msgid "Copy problems"
 msgstr "პრობლემების კოპირება"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Copy takes no parameters: it copies what is selected"
+msgstr "კოპირება პარამეტრებს არ იღებს: ის აკოპირებს მონიშნულს"
 
 #. interface
 #: crates/ui-egui/src/move_items.rs
@@ -4111,11 +4207,17 @@ msgstr "მიმდინარე ხედი"
 msgid "Custom color"
 msgstr ""
 
-#. command label, name
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Cut"
 msgstr "ამოჭრა"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Cut takes no parameters: it cuts what is selected"
+msgstr "ამოჭრა პარამეტრებს არ იღებს: ის ამოჭრის მონიშნულს"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -4233,6 +4335,12 @@ msgstr "უარის თქმა და სხვა დროის შე�
 #, fuzzy
 msgid "Decline and Tell the Organizer"
 msgstr "უარის თქმა და ორგანიზატორისთვის შეტყობინება"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Decline the Others and Tell Their Organizers"
+msgstr "დანარჩენების უარყოფა და მათი ორგანიზატორებისთვის შეტყობინება"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4379,6 +4487,12 @@ msgid "Delete Text"
 msgstr "ტექსტის წაშლა"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete These Appointments?"
+msgstr "წავშალო ეს ჩანაწერები?"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Delete This Occurrence"
@@ -4387,8 +4501,20 @@ msgstr "მხოლოდ ამ დღის წაშლა"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Delete Your Copy of These Meetings?"
+msgstr "წავშალო ამ შეხვედრების თქვენი ასლები?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Delete Your Copy of This Meeting?"
 msgstr "წავშალო ამ შეხვედრის თქვენი ასლი?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete and Send Cancellations"
+msgstr "წაშლა და გაუქმებების გაგზავნა"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -6955,6 +7081,12 @@ msgid "If that page says you need admin approval"
 msgstr "თუ იმ გვერდზე წერია, რომ ადმინისტრატორის თანხმობა გჭირდებათ"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "If you choose \"{choice}\", their organizers are told:"
+msgstr "თუ აირჩევთ „{choice}“-ს, მათ ორგანიზატორებს ეცნობებათ:"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "If you don't, nothing is sent to it, and the search goes on elsewhere or ends."
@@ -7465,6 +7597,12 @@ msgstr "თქვენი დავალებების სიაში ა
 #, fuzzy
 msgid "Invented mail, meetings, people and tasks to try things on"
 msgstr "გამოგონილი ფოსტა, შეხვედრები, ადამიანები და დავალებები საცდელად"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Invitations from the server of {account}:"
+msgstr "მოწვევები {account}-ის სერვერიდან:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9387,6 +9525,12 @@ msgid "More actions for {name}"
 msgstr "სხვა მოქმედებები: {name}"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "More calendar items remain in this view"
+msgstr "ამ ხედში კიდევ არის კალენდრის ელემენტები"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "More commands"
@@ -9499,10 +9643,28 @@ msgid "Move Rule"
 msgstr "წესის გადატანა"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move These Appointments?"
+msgstr "გადავიტანო ეს ჩანაწერები?"
+
+#. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Move Up"
 msgstr "აწევა"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move and Send Invitations"
+msgstr "გადატანა და მოწვევების გაგზავნა"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Move and Send Updates"
+msgstr "გადატანა და განახლებების გაგზავნა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10005,6 +10167,12 @@ msgstr "ახალი წესი"
 #, fuzzy
 msgid "New task"
 msgstr "ახალი დავალება"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "New times from the server of {account}:"
+msgstr "ახალი დროები {account}-ის სერვერიდან:"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10572,6 +10740,12 @@ msgid "Nobody is signing in"
 msgstr "არავინ შედის"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Nobody is written to about:"
+msgstr "არავის ეწერება შემდეგზე:"
+
+#. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Nobody matches the search"
@@ -10936,10 +11110,22 @@ msgid "Nothing to do here."
 msgstr "აქ გასაკეთებელი არაფერია."
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Nothing was copied or cut: copy or cut an appointment first"
+msgstr "არაფერი დაკოპირებულა ან ამოჭრილა: ჯერ დააკოპირეთ ან ამოჭერით ჩანაწერი"
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Nothing was done: what the agent asked about changed after you were asked."
 msgstr "არაფერი გაკეთებულა: ის, რასაც აგენტი ეკითხებოდა, შეიცვალა მას შემდეგ, რაც გკითხეს."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Nothing was done: what you were asked about has changed since. Ask again."
+msgstr "არაფერი გაკეთებულა: ის, რაზეც გკითხეთ, მას შემდეგ შეიცვალა. სცადეთ თავიდან."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11156,6 +11342,12 @@ msgstr "როგორც კი იმუშავებს, თქვენ�
 #, fuzzy
 msgid "One occurrence of a series can't be in another calendar than the rest of the series."
 msgstr "სერიის ერთი დღე სერიის დანარჩენი ნაწილისგან განსხვავებულ კალენდარში ვერ იქნება."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "One occurrence of a series can't be moved to another calendar than the rest of the series. Cut the whole series, or copy this day instead."
+msgstr "სერიის ერთი შემთხვევა ვერ გადავა სხვა კალენდარში, ვიდრე სერიის დანარჩენი ნაწილი. ამოჭერით მთელი სერია, ან ამის ნაცვლად დააკოპირეთ ეს დღე."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11508,6 +11700,24 @@ msgstr "ღია კოდი MIT ლიცენზიით ან Apache Lic
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "ღია კოდი MIT ლიცენზიით ან Apache License 2.0-ით, თქვენი არჩევანით. ინტერფეისის შრიფტებია Inter, Source Sans 3 და JetBrains Mono (SIL Open Font License). ყოველი ხატულა კოდით არის დახატული."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then copy"
+msgstr "ჯერ გახსენით კალენდარი, შემდეგ დააკოპირეთ"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then cut"
+msgstr "ჯერ გახსენით კალენდარი, შემდეგ ამოჭერით"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Open the Calendar first, then paste"
+msgstr "ჯერ გახსენით კალენდარი, შემდეგ ჩასვით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11920,7 +12130,7 @@ msgid "Password:"
 msgstr "პაროლი:"
 
 #. command label, name, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paste"
 msgstr "ჩასმა"
@@ -11941,6 +12151,12 @@ msgstr ""
 #, fuzzy
 msgid "Paste or write the signature's HTML"
 msgstr "ჩასვით ან დაწერეთ ხელმოწერის HTML"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Paste takes no parameters: it puts what was copied or cut where a time is picked"
+msgstr "ჩასმა პარამეტრებს არ იღებს: დაკოპირებულს ან ამოჭრილს სვამს იქ, სადაც დროა არჩეული"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -14078,7 +14294,7 @@ msgid "Seeing when other people are busy needs your permission: File › Info �
 msgstr "სხვების დაკავებულობის სანახავად საჭიროა თქვენი ნებართვა: ფაილი › ინფორმაცია › კალენდრისა და კონტაქტების დაკავშირება"
 
 #. command label, name
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Select All"
 msgstr "ყველას მონიშვნა"
@@ -15608,6 +15824,18 @@ msgid "Some of the search was checked on this computer"
 msgstr "ძიების ნაწილი ამ კომპიუტერზე შემოწმდა"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Some of these are in the calendars shown where the time was picked and some are in others: paste them in two goes, so that each lands in the calendar you mean."
+msgstr "ზოგი მათგანი იმ კალენდრებშია, რომლებიც იქ ჩანს, სადაც დრო აირჩიეს, ზოგი კი სხვებში: ჩასვით ორ ეტაპად, რომ თითოეული თქვენთვის სასურველ კალენდარში მოხვდეს."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "Some of these invite the people to a new meeting and some tell them of a change: cut them one at a time, so that each is asked about on its own. Nothing was changed."
+msgstr "ზოგი მათგანი ხალხს ახალ შეხვედრაზე იწვევს, ზოგი კი ცვლილებას ატყობინებს: ამოჭერით სათითაოდ, რომ თითოეულზე ცალკე გკითხოთ. არაფერი შეცვლილა."
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Somebody"
@@ -16384,6 +16612,12 @@ msgstr "ეს ვერ შესრულდა."
 msgid "That could not be saved."
 msgstr "ეს ვერ შეინახა."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "That day of the series can't be put exactly where it was asked to go; nothing was moved."
+msgstr "სერიის ის დღე ზუსტად იქ ვერ მოთავსდება, სადაც მოითხოვეს; არაფერი გადატანილა."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -16479,6 +16713,12 @@ msgstr "ეს ამ ფაილის პაროლი არ არის.
 #, fuzzy
 msgid "That key is on the card already"
 msgstr "ეს გასაღები უკვე ბარათზეა"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "That paste was just made, so nothing was pasted again"
+msgstr "ეს ჩასმა ახლახან შესრულდა, ამიტომ თავიდან არაფერი ჩასმულა"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -16761,6 +17001,12 @@ msgstr "კალენდარი უკვე ახლდება."
 #, fuzzy
 msgid "The calendar is being updated: try again in a moment."
 msgstr "კალენდარი ახლდება: ცოტა ხანში ისევ სცადეთ."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The calendar items this question is about can't be read, so nothing was asked or done."
+msgstr "კალენდრის ელემენტები, რომლებსაც ეს კითხვა ეხება, ვერ იკითხება, ამიტომ არაფერი უკითხავთ და არაფერი გაკეთებულა."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -17475,6 +17721,30 @@ msgstr "მფლობელს განახლებების შემ�
 msgid "The page was closed, or five minutes went by before the sign-in was finished."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste asks for more, and this route never asks: nothing was moved"
+msgstr "ჩასმას მეტი სჭირდება, ეს გზა კი არასდროს კითხულობს: არაფერი გადატანილა"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but it answered that it moved nothing"
+msgstr "ჩასმა შესრულდა, მაგრამ უპასუხა, რომ არაფერი გადაუტანია"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer can't be counted"
+msgstr "ჩასმა შესრულდა, მაგრამ მისი პასუხის დათვლა შეუძლებელია"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer doesn't say how many items it moved"
+msgstr "ჩასმა შესრულდა, მაგრამ მისი პასუხი არ ამბობს, რამდენი ელემენტი გადაიტანა"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -17742,6 +18012,30 @@ msgid "The server is busy. Try again in a few minutes."
 msgstr "სერვერი დაკავებულია. სცადეთ რამდენიმე წუთში."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} sends the {n} person invited the invitation by mail."
+msgid_plural "The server of {account} sends the {n} people invited the invitation by mail."
+msgstr[0] "{account}-ის სერვერი მოწვევას ფოსტით უგზავნის მოწვეულ პირებს ({n})."
+msgstr[1] "{account}-ის სერვერი მოწვევას ფოსტით უგზავნის მოწვეულ პირებს ({n})."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited of the new time."
+msgid_plural "The server of {account} tells the {n} people invited of the new time."
+msgstr[0] "{account}-ის სერვერი მოწვეულ პირებს ({n}) ახალ დროს ატყობინებს."
+msgstr[1] "{account}-ის სერვერი მოწვეულ პირებს ({n}) ახალ დროს ატყობინებს."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited, so that they know it is cancelled."
+msgid_plural "The server of {account} tells the {n} people invited, so that they know it is cancelled."
+msgstr[0] "{account}-ის სერვერი მოწვეულ პირებს ({n}) ატყობინებს, რომ იცოდნენ, რომ გაუქმდა."
+msgstr[1] "{account}-ის სერვერი მოწვეულ პირებს ({n}) ატყობინებს, რომ იცოდნენ, რომ გაუქმდა."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
@@ -17848,6 +18142,30 @@ msgstr "ქვემოთ მოცემულ სერვერებს დ
 #, fuzzy
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
 msgstr "ქვემოთ მოცემული სერვერები ნაპოვნია დომენის {domain} DNS ჩანაწერებში (მის SRV ჩანაწერებში). დაკავშირებამდე გადაამოწმეთ ისინი."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below send the {n} person invited the invitation by mail."
+msgid_plural "The servers of the accounts named below send the {n} people invited the invitation by mail."
+msgstr[0] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვევას ფოსტით უგზავნიან მოწვეულ პირებს ({n})."
+msgstr[1] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვევას ფოსტით უგზავნიან მოწვეულ პირებს ({n})."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited of the new time."
+msgid_plural "The servers of the accounts named below tell the {n} people invited of the new time."
+msgstr[0] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვეულ პირებს ({n}) ახალ დროს ატყობინებენ."
+msgstr[1] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვეულ პირებს ({n}) ახალ დროს ატყობინებენ."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of the accounts named below tell the {n} people invited, so that they know it is cancelled."
+msgstr[0] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვეულ პირებს ({n}) ატყობინებენ, რომ იცოდნენ, რომ გაუქმდა."
+msgstr[1] "ქვემოთ დასახელებული ანგარიშების სერვერები მოწვეულ პირებს ({n}) ატყობინებენ, რომ იცოდნენ, რომ გაუქმდა."
 
 #. interface
 #: crates/ui-egui/src/settings_notice.rs
@@ -18099,7 +18417,7 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "მომხმარებლის სახელი ზედმეტად გრძელია ან შეიცავს სიმბოლოს, რომელიც სახელში არ შეიძლება იყოს"
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "ფანჯარა ჯერ არ გახსნილა."
@@ -18189,10 +18507,22 @@ msgid "Thesaurus"
 msgstr "თეზაურუსი"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
+msgstr "ეს შეხვედრებია, რომლებსაც სხვა აწყობს; თქვენ მოწვეული ხართ. მათი წაშლა მხოლოდ თქვენი კალენდრიდან შლის მათ და ორგანიზატორი ვერ გაიგებს, რომ არ მოხვალთ. მათი უარყოფა ორგანიზატორს ატყობინებს, თუ ამას აირჩევთ."
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "These are the answers this computer has been told of."
 msgstr "ეს ის პასუხებია, რომლებიც ამ კომპიუტერს ეცნობა."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These calendar items can't be shown to you as one batch, so nothing was asked or done."
+msgstr "კალენდრის ამ ელემენტების ერთ ჯგუფად ჩვენება შეუძლებელია, ამიტომ არაფერი უკითხავთ და არაფერი გაკეთებულა."
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -18568,6 +18898,14 @@ msgid "This deletes the {n} message of this conversation that is listed here. It
 msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
 msgstr[0] "ეს შლის ამ მიმოწერის აქ ჩამოთვლილ წერილებს ({n}). ისინი წაშლილებში გადავა."
 msgstr[1] "ეს შლის ამ მიმოწერის აქ ჩამოთვლილ წერილებს ({n}). ისინი წაშლილებში გადავა."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} appointment from your calendar."
+msgid_plural "This deletes {n} appointments from your calendar."
+msgstr[0] "ეს თქვენი კალენდრიდან შლის ჩანაწერებს: {n}."
+msgstr[1] "ეს თქვენი კალენდრიდან შლის ჩანაწერებს: {n}."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19041,6 +19379,28 @@ msgstr "ეს წერილი სამუდამოდ წაიშლე
 msgid "This message's Digital signature can't be checked."
 msgstr "ამ წერილის ციფრული ხელმოწერის შემოწმება შეუძლებელია."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment to {when}, in {to}."
+msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
+msgstr[0] "ეს ჩანაწერებს ({n}) გადაიტანს: {when}, {to}."
+msgstr[1] "ეს ჩანაწერებს ({n}) გადაიტანს, ყველაზე ადრეულს: {when}, დანარჩენებს იმდენივეთი, {to}."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgid_plural "This moves {n} appointments, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgstr[0] "ეს ჩანაწერებს ({n}) გადაიტანს, ყველაზე ადრეულს დროით: {when}, დანარჩენებს იმდენივეთი, {to}."
+msgstr[1] "ეს ჩანაწერებს ({n}) გადაიტანს, ყველაზე ადრეულს დროით: {when}, დანარჩენებს იმდენივეთი, {to}."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
+msgstr "ამ ჩასმას ჯერ მფლობელის პასუხი სჭირდება, ეს ბრძანება კი არასდროს კითხულობს: არაფერი ჩასმულა"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
@@ -19154,6 +19514,12 @@ msgstr "ამ დავალების წაკითხვა ვერ �
 #, fuzzy
 msgid "This version of MailCraft can't search an address list"
 msgstr "MailCraft-ის ამ ვერსიას მისამართების სიაში ძიება არ შეუძლია"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This was copied from another mailbox than the one open now"
+msgstr "ეს დაკოპირდა სხვა საფოსტო ყუთიდან, ვიდრე ახლა ღიაა"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -19430,7 +19796,7 @@ msgid "Tomorrow"
 msgstr "ხვალ"
 
 #. what a command says
-#: crates/engine/src/cmd/remote.rs
+#: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "სერვერზე გასაგზავნად ზედმეტად ბევრი კალენდრის ცვლილება ელოდება. ჯერ „გაგზავნა/მიღებამ“ გაატაროს ისინი."
@@ -20185,6 +20551,12 @@ msgid "What is bundled in this app, and under which licence"
 msgstr "რა შედის ამ აპლიკაციაში და რომელი ლიცენზიით"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What is on the system's clipboard isn't this appointment"
+msgstr "სისტემის ბუფერში რაც არის, ეს ჩანაწერი არ არის"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What it is made of"
@@ -20213,6 +20585,24 @@ msgstr "რა გააკეთოთ, როცა თქვენმა ო�
 #, fuzzy
 msgid "What to do next"
 msgstr "შემდეგი ნაბიჯი"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied has changed since; copy it again to paste it"
+msgstr "დაკოპირებული მას შემდეგ შეიცვალა; ჩასასმელად თავიდან დააკოპირეთ"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied or cut has no time to be pasted at"
+msgstr "დაკოპირებულს ან ამოჭრილს არ აქვს დრო, რომელზეც ჩაისმება"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was cut has changed since; cut it again to paste it"
+msgstr "ამოჭრილი მას შემდეგ შეიცვალა; ჩასასმელად თავიდან ამოჭერით"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -21102,6 +21492,12 @@ msgid "a contact's card keeps at most 32 keys"
 msgstr "კონტაქტის ბარათი მაქსიმუმ 32 გასაღებს ინახავს"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "a day of the series is needed to move one of its occurrences"
+msgstr "სერიის ერთი შემთხვევის გადასატანად საჭიროა სერიის დღე"
+
+#. what a command says
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
@@ -21438,6 +21834,13 @@ msgstr[1] "და კიდევ {n}, ახლა არ შერწყმუ
 #, fuzzy
 msgid "at most 200 messages can be forwarded together"
 msgstr "ერთად მაქსიმუმ 200 წერილის გადაგზავნაა შესაძლებელი"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgctxt "between e-mail addresses"
+msgid "{others}, {last}"
+msgstr "{others}, {last}"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -21867,6 +22270,12 @@ msgstr "ზედმეტად დიდხანს გაგრძელდ�
 msgid "it writes to other people or reaches out to the web"
 msgstr "სხვა ადამიანებს წერს ან ინტერნეტს მიმართავს"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "its account"
+msgstr "მისი ანგარიში"
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
@@ -22024,7 +22433,7 @@ msgid "no calendar was opened by address"
 msgstr "მისამართით არცერთი კალენდარი არ გახსნილა"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/file.rs crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "კალენდარი id-ით {id} არ არსებობს"
@@ -22036,7 +22445,7 @@ msgid "no contact with id {id}"
 msgstr "კონტაქტი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
 #, fuzzy
 msgid "no event with id {id}"
 msgstr "ღონისძიება id-ით {id} არ არსებობს"
@@ -22465,8 +22874,8 @@ msgstr "ჯერ მონიშნეთ წერილი"
 msgid "select a task first"
 msgstr "ჯერ მონიშნეთ დავალება"
 
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
+#. interface, what a command says, why a command can't run
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "select an appointment first"
 msgstr "ჯერ მონიშნეთ ჩანაწერი"
@@ -22643,6 +23052,12 @@ msgid "that message isn't waiting in the Outbox"
 msgstr "ეს წერილი „გასაგზავნებში“ არ ელოდება"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "that series has no day to select"
+msgstr "ამ სერიას მოსანიშნი დღე არ აქვს"
+
+#. what a command says
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "that step changes a message that is open for writing: close it first"
@@ -22774,6 +23189,18 @@ msgstr "ბრაუზერი საფოსტო ყუთის ასლ
 msgid "the browser can't read folders by path"
 msgstr "ბრაუზერი საქაღალდეებს ბილიკით ვერ კითხულობს"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" of {account}"
+msgstr "{account}-ის კალენდარი „{calendar}“"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" on this computer"
+msgstr "კალენდარი „{calendar}“ ამ კომპიუტერზე"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -22803,6 +23230,18 @@ msgstr "სერტიფიკატი სასერტიფიკაც�
 #, fuzzy
 msgid "the certificate isn't for mail: its key usage or extended key usage is for something else"
 msgstr "სერტიფიკატი ფოსტისთვის არ არის: მისი გასაღების გამოყენება ან გაფართოებული გამოყენება სხვა რამისთვისაა"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the changed occurrence has no id"
+msgstr "შეცვლილ შემთხვევას ID არ აქვს"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the changed occurrence is gone"
+msgstr "შეცვლილი შემთხვევა აღარ არსებობს"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22868,6 +23307,12 @@ msgstr "დასასრული დასაწყისზე ადრე�
 #, fuzzy
 msgid "the end of the time range must be after its start"
 msgstr "დროის შუალედის დასასრული მისი დასაწყისის შემდეგ უნდა იყოს"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the entire series \"{name}\""
+msgstr "მთელი სერია „{name}“"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs
@@ -23091,10 +23536,22 @@ msgid "the network couldn't get there"
 msgstr "ქსელმა იქამდე ვერ მიაღწია"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the occurrence was not changed; nothing was moved"
+msgstr "შემთხვევა არ შეცვლილა; არაფერი გადატანილა"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
 msgstr "მშობელი საქაღალდე სხვა ანგარიშს ეკუთვნის"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the pasted items would land outside the years a calendar can hold"
+msgstr "ჩასმული ელემენტები იმ წლებს მიღმა აღმოჩნდებოდნენ, რომლებსაც კალენდარი იტევს"
 
 #. what a command says
 #: crates/mobile/src/message.rs
@@ -23151,6 +23608,12 @@ msgid "the result {why}"
 msgstr "შედეგი {why}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the same calendar item is named twice; nothing was changed"
+msgstr "კალენდრის ერთი და იგივე ელემენტი ორჯერაა მითითებული; არაფერი შეცვლილა"
+
+#. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "the search can't look for this sender's address as a whole address"
@@ -23187,7 +23650,13 @@ msgid "the sender's address is longer than a rule looks for ({n} characters)"
 msgstr "გამგზავნის მისამართი იმაზე გრძელია, ვიდრე წესი ეძებს ({n} სიმბოლო)"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the series \"{title}\" doesn't happen on {date}"
+msgstr "სერია „{title}“ {date}-ს არ იმართება"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series doesn't happen on {date}"
 msgstr "სერია ამ დღეს არ ტარდება: {date}"
@@ -23623,6 +24092,18 @@ msgstr "მომხმარებლის სახელში ან პა
 msgid "the user name or password is too long"
 msgstr "მომხმარებლის სახელი ან პაროლი ზედმეტად გრძელია"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "their calendar"
+msgstr "მათ კალენდარში"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "their own calendars"
+msgstr "მათ საკუთარ კალენდრებში"
+
 #. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
@@ -23921,13 +24402,13 @@ msgid "this message isn't downloaded: open it once you're online, then send it a
 msgstr "ეს წერილი არ ჩამოტვირთულა: გახსენით, როცა ონლაინ იქნებით, შემდეგ ხელახლა გაგზავნეთ"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many cancelled days"
 msgstr "ამ სერიას ზედმეტად ბევრი გაუქმებული დღე აქვს"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "this series has too many changed days"
 msgstr "ამ სერიას ზედმეტად ბევრი შეცვლილი დღე აქვს"
@@ -23939,6 +24420,20 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "გამეორება"
 msgstr[1] "გამეორება"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "to {n} person"
+msgid_plural "to {n} people"
+msgstr[0] "პირებს: {n}"
+msgstr[1] "პირებს: {n}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "to {people}"
+msgstr "ადრესატები: {people}"
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -24315,6 +24810,12 @@ msgstr "წერილები ({count}) ბოლომდე არ მო�
 #, fuzzy
 msgid "{days} (all day)"
 msgstr "{days} (მთელი დღე)"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{day} at {time}"
+msgstr "{day}, {time}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
@@ -24836,6 +25337,14 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "ხელმოწერა აქვს {n} ანგარიშს"
 msgstr[1] "ხელმოწერა აქვს {n} ანგარიშს"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{n} appointment"
+msgid_plural "{n} appointments"
+msgstr[0] "ჩანაწერი: {n}"
+msgstr[1] "ჩანაწერი: {n}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -24883,6 +25392,14 @@ msgid "{n} calendar item"
 msgid_plural "{n} calendar items"
 msgstr[0] "კალენდრის ელემენტი: {n}"
 msgstr[1] "კალენდრის ელემენტი: {n}"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} calendar item selected"
+msgid_plural "{n} calendar items selected"
+msgstr[0] "მონიშნულია კალენდრის ელემენტი: {n}"
+msgstr[1] "მონიშნულია კალენდრის ელემენტი: {n}"
 
 #. what a command says
 #: crates/engine/src/undo.rs
@@ -25578,6 +26095,14 @@ msgid_plural "{n} people proposed another time."
 msgstr[0] "სხვა დრო შესთავაზა {n} ადამიანმა."
 msgstr[1] "სხვა დრო შესთავაზა {n} ადამიანმა."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} person without an address"
+msgid_plural "{n} people without an address"
+msgstr[0] "პირი მისამართის გარეშე: {n}"
+msgstr[1] "პირი მისამართის გარეშე: {n}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 #, fuzzy
@@ -25817,6 +26342,20 @@ msgstr "{path} {mb} მბ-ზე დიდია"
 #, fuzzy
 msgid "{path} isn't a mailbox; bring it in with File › Import"
 msgstr "{path} საფოსტო ყუთი არ არის; შემოიტანეთ მენიუდან ფაილი › იმპორტი"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{people} and {nameless}"
+msgstr "{people} და {nameless}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{people} and {n} more"
+msgid_plural "{people} and {n} more"
+msgstr[0] "{people} და კიდევ {n}"
+msgstr[1] "{people} და კიდევ {n}"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
