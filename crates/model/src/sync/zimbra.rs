@@ -285,6 +285,7 @@ fn message_content_ok(m: &GraphMessage) -> bool {
         && m.preview.len() <= MAX_TEXT
         && m.message_id.len() <= MAX_TEXT
         && m.server.change_key.len() <= MAX_ZIMBRA_ID
+        && (m.server.thread.is_empty() || zimbra_id_ok(&m.server.thread))
         && m.server.categories.len() <= MAX_CATEGORIES
         && m.server.categories.iter().all(|c| c.len() <= MAX_TEXT)
         && person(&m.from)
@@ -347,17 +348,18 @@ impl ZimbraMailResult {
                 super::MessageChange::Delete { id } | super::MessageChange::MovedOut { id, .. } => id_ok(id),
             }
         };
+        // A message names itself by a server id, and its folder by one when it names it: on a
+        // page, and read back after a delete the server refused.
+        let message_odd = |m: &GraphMessage| !zimbra_id_ok(&m.server.id) || (!m.server.folder.is_empty() && !zimbra_id_ok(&m.server.folder));
         let outcome_ok = |outcome: &super::MessageOutcome| match outcome {
             super::MessageOutcome::Done { categories, folder, id, .. } => {
                 categories.as_ref().is_none_or(|ns| names(ns)) && (folder.is_empty() || zimbra_id_ok(folder)) && (id.is_empty() || zimbra_id_ok(id))
             }
             _ => true,
         };
-        if self
-            .messages
-            .iter()
-            .any(|done| !change_ok(&done.change) || !outcome_ok(&done.outcome) || done.there.as_ref().is_some_and(|m| !message_content_ok(m)))
-        {
+        if self.messages.iter().any(|done| {
+            !change_ok(&done.change) || !outcome_ok(&done.outcome) || done.there.as_ref().is_some_and(|m| !message_content_ok(m) || message_odd(m))
+        }) {
             return Err("has a change of a message that can't be one");
         }
         let folder_change_ok = |change: &super::FolderChange| match change {
@@ -427,7 +429,6 @@ impl ZimbraMailResult {
                 return Err("has a message whose text is longer than is taken in");
             }
             // A page of changes names each message's folder; a folder's page names its folder.
-            let message_odd = |m: &GraphMessage| !zimbra_id_ok(&m.server.id) || (!m.server.folder.is_empty() && !zimbra_id_ok(&m.server.folder));
             if (!page.folder.is_empty() && !zimbra_id_ok(&page.folder))
                 || (page.afresh && page.folder.is_empty())
                 || page.messages.iter().any(message_odd)

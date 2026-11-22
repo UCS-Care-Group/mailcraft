@@ -127,6 +127,24 @@ fn what_is_out_of_bounds_is_refused_whole() {
     let mut odd = result();
     odd.untrusted = "nope".into();
     assert!(odd.check().is_err());
+    // A conversation's id is a server id like any other, on a page and on a message read back
+    // after a refused delete; and that one names itself and its folder as a page's does.
+    let mut odd = result();
+    odd.pages[0].messages[0].server.thread = "t".repeat(MAX_ZIMBRA_ID + 1);
+    assert!(odd.check().is_err());
+    let back = |there: GraphMessage| {
+        let mut piece = result();
+        let change = crate::sync::MessageChange::Delete { id: "260".into() };
+        piece.messages = vec![crate::sync::MessageChangeDone { change, outcome: crate::sync::MessageOutcome::Gone, there: Some(Box::new(there)) }];
+        piece.check()
+    };
+    assert_eq!(back(message("260", "2")), Ok(()));
+    let mut there = message("260", "2");
+    there.server.thread = "bad\nthread".into();
+    assert!(back(there).is_err());
+    assert!(back(message("bad\nid", "2")).is_err());
+    assert!(back(message("", "2")).is_err());
+    assert!(back(message("260", &"9".repeat(MAX_ZIMBRA_ID + 1))).is_err());
     let mut odd = result();
     odd.url = "u".repeat(crate::ZimbraServer::MAX_URL + 1);
     assert!(odd.check().is_err());
