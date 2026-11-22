@@ -599,11 +599,25 @@ fn class(c: char) -> u8 {
 /// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width the
 /// owner gave it or its own, its height in proportion.
 fn size_of(ctx: &egui::Context, p: &Picture, room: f32) -> Vec2 {
-    let frame = crate::reading::images::frame(ctx);
-    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
-    let [w, h] = own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32]);
+    let [w, h] = own_size(ctx, p);
     let width = p.width.map_or(w, f32::from).min(room).max(8.0);
     vec2(width, (width * h / w).clamp(4.0, 2000.0))
+}
+
+/// A picture's own size in pixels, or a stand-in when it can't be read; never zero.
+pub(super) fn own_size(ctx: &egui::Context, p: &Picture) -> [f32; 2] {
+    let frame = crate::reading::images::frame(ctx);
+    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
+    own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32])
+}
+
+/// The widest the corner of picture `id` makes it, in a body `room` wide; `None` when it has no
+/// corner there: a signature's pictures are sized in File › Signatures, even in a message.
+fn widest(which: Which, id: u32, room: f32) -> Option<f32> {
+    match which {
+        Which::Signature => Some(f32::from(mailcraft_model::signature::MAX_WIDTH)),
+        Which::Message => (id >= mailcraft_model::pictures::FIRST_ID).then(|| room.min(f32::from(mailcraft_model::pictures::MAX_SHOWN_WIDTH))),
+    }
 }
 
 /// A short fingerprint of the pictures' ids and widths, so that the layout follows them.
@@ -779,25 +793,40 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
     let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture of a signature is made wider or narrower by its corner.
-    if which == Which::Signature
+    // A selected picture is made wider or narrower by its corner: only its outline follows the
+    // pointer (every paragraph is laid out again for a new width), and the width is set once
+    // the button is let go.
+    if editable
         && let Some((sel, _)) = now(app, which)
         && let Some((pid, r)) = layout.selected_picture(sel)
+        && let Some(most) = widest(which, pid, width)
     {
         let r = r.translate(origin.to_vec2());
         let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
+        let handle = ui.interact(corner, id.with(("corner", pid)), Sense::drag());
+        app.hit.add("pictureCorner", u64::from(pid), corner);
         if handle.hovered() || handle.dragged() {
             ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
         }
         if handle.dragged() {
             let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, f32::from(mailcraft_model::signature::MAX_WIDTH))));
+            st.resizing = Some((pid, w.clamp(8.0, most)));
         }
         if handle.drag_stopped()
             && let Some((i, w)) = st.resizing.take()
+            && (w.round() - r.width().round()).abs() >= 1.0
         {
-            let _ = app.run("signature.picture.set", json!({"id": i, "width": w.round() as u16}));
+            let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
+            let _ = app.run(command, json!({"id": i, "width": w.round() as u16}));
+        }
+    }
+    // The drag is kept while its picture stays selected, so letting go still sets the width
+    // on a frame that did not move the corner. A command that moves the selection while the
+    // corner is held drops it, and a click in the text places the caret again.
+    if let Some((pid, _)) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == pid);
+        if !still {
+            st.resizing = None;
         }
     }
 
@@ -1161,7 +1190,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
-        if which == Which::Signature {
+        if editable && widest(which, pid, width).is_some() {
             painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
         }
     }

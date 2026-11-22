@@ -354,3 +354,36 @@ fn a_draft_moved_out_of_the_outbox_again_is_no_longer_held() {
     s.run("mail.move", &json!({"ids": [id], "folder": drafts})).unwrap();
     assert!(s.mailbox.message(id).unwrap().held.is_empty());
 }
+
+/// #1748: a draft that went from the Outbox (one moved in and let go with Send Again, before
+/// #1747) is filed in Sent Items as a sent message: no draft, and Resend takes it.
+#[test]
+fn a_draft_that_went_from_the_outbox_is_filed_as_sent() {
+    let (mut s, a, _) = imap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    let sent_items = s.mailbox.folder_of_kind(a, FolderKind::Sent).unwrap();
+    let draft = Message {
+        account: a,
+        folder: outbox,
+        subject: "Plans".into(),
+        from: Address::new("Ada", "ada@mail.example"),
+        to: vec![Address::new("Lin", "lin.zhao@harborworks.example")],
+        date: 100,
+        read: true,
+        draft: true,
+        // The pointer to the server's copy of the draft, which the filed message must not keep.
+        server_draft: Some(mailcraft_model::sync::ServerDraft { marker: "m".into(), ..Default::default() }),
+        body: Body { text: "See you there.".into(), html: None },
+        ..Default::default()
+    };
+    let id = s.mailbox.add_message(draft).unwrap();
+    assert!(s.mailbox.message(id).unwrap().server_draft.is_some(), "a draft the server has a copy of");
+    assert_eq!(to_send(&s, a), vec![id], "it goes with the next run");
+    sent_and_filed(&mut s, a, &[id]);
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.folder, sent_items);
+    assert!(!m.draft && m.server_draft.is_none(), "a sent message, not a draft");
+    let e = s.run("mail.editDraft", &json!({"id": id})).unwrap_err().to_string();
+    assert!(e.contains("draft"), "Open Draft has no draft to open: {e}");
+    s.run("mail.resend", &json!({"id": id})).unwrap();
+}

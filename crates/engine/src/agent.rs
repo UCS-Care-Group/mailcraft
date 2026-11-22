@@ -164,6 +164,7 @@ const SAFE: &[&str] = &[
     "compose.followUp",
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
+    "mail.unsubscribeMany",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -210,6 +211,7 @@ const SAFE: &[&str] = &[
     "compose.attachItem",
     "insert.businessCard",
     "insert.picture",
+    "compose.picture.set",
     "compose.removeAttachment",
     "compose.signature",
     "compose.signatureAsText",
@@ -317,6 +319,7 @@ const SAFE: &[&str] = &[
     "view.timeZone",
     "view.changeView",
     "view.density",
+    "view.shadeRows",
     "view.zoom",
     "view.zoomIn",
     "view.zoomOut",
@@ -475,6 +478,7 @@ const SEND: &[&str] = &[
     "ui.downloadPictures",
     // Unsubscribes from a list: one click reaches its server, by mail writes to it.
     "ui.unsubscribe",
+    "ui.unsubscribeMany",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -1959,6 +1963,20 @@ fn taken(params: &Value) -> Vec<Id> {
     p::ids_strict(params).ok().flatten().unwrap_or_default()
 }
 
+/// Where unsubscribing from message `id` by mail writes, and with what subject, when its list
+/// unsubscribes by mail (as its headers say: data, never instructions).
+fn unsubscribe_mail(s: &Session, id: Id) -> Option<String> {
+    let m = s.mailbox.message(id)?;
+    match mailcraft_model::unsubscribe::way(s.mailbox.account(m.account), m)? {
+        mailcraft_model::unsubscribe::Way::Mail { to, subject, .. } => {
+            let subject = if subject.trim().is_empty() { "Unsubscribe".to_string() } else { subject };
+            // Whole: what is written is what is shown (the address bounds both: 254 and 200).
+            Some(format!("to {} with the subject \u{201c}{}\u{201d}", clip(&to, 254), clip(&subject, 200)))
+        }
+        _ => None,
+    }
+}
+
 /// Commands that destroy, move, send from or open messages, or are costly: an agent names the
 /// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
 /// have changed a moment ago (#620). The owner's own runs keep the selection.
@@ -1985,6 +2003,8 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.sendAgain",
     "mail.cancelSend",
     "mail.setSendTime",
+    // Reaches every list of the messages it names (#1207): named by `ids`, never the selection.
+    "ui.unsubscribeMany",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
@@ -2480,7 +2500,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let key = if id == "ui.unsubscribe" { "message" } else { "id" };
             let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
             let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
-            format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+            // By mail, where it is written and what it says go into the question (#1207).
+            match from.and_then(|m| unsubscribe_mail(s, m)) {
+                Some(mail) => format!("unsubscribe from the mail of {sender} by writing {mail}"),
+                None => format!("unsubscribe from the mail of {sender}, which reaches the list by its server"),
+            }
+        }
+        "mail.unsubscribeMany" | "ui.unsubscribeMany" => {
+            let named = taken(params);
+            let ids = if named.is_empty() { s.sel.messages.clone() } else { named };
+            // Only `ui.unsubscribeMany` writes, and only to the requests by mail it names (`mail`),
+            // read as it reads them: each named is shown, or the call is refused (at most 20).
+            let mails: Vec<String> = taken(&json!({"ids": params.get("mail")})).into_iter().filter_map(|m| unsubscribe_mail(s, m)).collect();
+            let writes =
+                if id == "ui.unsubscribeMany" && !mails.is_empty() { format!(", and writing {}", some(&mails, mails.len())) } else { String::new() };
+            format!("unsubscribe from the lists of {} by their servers{writes}", messages_text(s, &ids))
         }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);

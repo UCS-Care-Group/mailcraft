@@ -913,6 +913,10 @@ pub struct Prefs {
     /// The rows of the message list stand closer together (`view.density`).
     #[serde(skip_serializing_if = "is_false")]
     pub tight_spacing: bool,
+    /// Every other row of the message list wears a faint band, so that where one message ends
+    /// and the next begins is seen at a glance (`view.shadeRows`, #1657).
+    #[serde(skip_serializing_if = "is_false")]
+    pub shade_rows: bool,
     /// How large the text of the message being read is, in percent (`view.zoom`): read through
     /// [`Prefs::zoom_percent`], which keeps it in range whatever the settings file says.
     pub zoom: u16,
@@ -962,6 +966,7 @@ impl Default for Prefs {
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
             tight_spacing: false,
+            shade_rows: false,
             zoom: Prefs::ZOOM_DEFAULT,
             recent_searches: Vec::new(),
             offline: false,
