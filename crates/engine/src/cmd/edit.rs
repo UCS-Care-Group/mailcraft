@@ -246,7 +246,20 @@ impl<'a> Scanned<'a> {
         if is_combining_mark(first) {
             return false;
         }
+        // A match that ends inside a folded expansion (one letter becoming several) is not a
+        // whole word: the end has to be an original character boundary, and that slice the needle.
+        if !self.ends_on_character(start, end) {
+            return false;
+        }
         !self.joins_word_before(start) && !self.joins_word_after(end)
+    }
+
+    /// `stop` is a character of the folded text, and `[start, stop)` is exactly the needle.
+    /// A place whose end falls in the middle of a character is not.
+    fn ends_on_character(&self, start: usize, stop: usize) -> bool {
+        let Some(&from) = self.folded_byte.get(start) else { return false };
+        let Some(&end_abs) = self.folded_byte.get(stop) else { return false };
+        self.folded.get(from..end_abs).is_some_and(|slice| slice == self.needle)
     }
 
     fn joins_word_before(&self, start: usize) -> bool {

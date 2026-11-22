@@ -318,6 +318,21 @@ fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
 }
 
 #[test]
+fn a_whole_word_does_not_match_inside_eszett() {
+    let mut s = writing("ß");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "s", "wholeWord": true}))["found"], false);
+    let r = run(&mut s, "edit.replace", json!({"text": "s", "with": "t", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 0);
+    assert_eq!(mine(&s), "ß");
+    // Without whole word, `strasse` and `straße` keep the comparison Find already makes.
+    let mut s = writing("straße");
+    let plain = run(&mut s, "edit.find", json!({"text": "strasse"}));
+    assert_eq!(plain["found"], false, "Find does not expand ß, and this must stay so");
+    let mut s = writing("strasse");
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "strasse"}))["found"], true);
+}
+
+#[test]
 fn a_span_in_the_quoted_original_is_refused_and_changes_nothing() {
     let mut s = session();
     let id = plain_note(&mut s, "Please fix teh typo");
