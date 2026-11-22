@@ -436,7 +436,26 @@ pub fn token_may_go_to(account: &Account, server: &Server, google_host: &str) ->
             }
             Err(NetError::Config(said!("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server")))
         }
+        Some(OAuthProvider::Custom) => own_provider_destination(account, &server.host),
     }
+}
+
+/// Where a token from the owner's own identity provider may go: the account's own IMAP and SMTP
+/// servers, and never Microsoft's or Google's (they have providers of their own), nor this
+/// computer outside a test.
+fn own_provider_destination(account: &Account, host: &str) -> Result<(), NetError> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let named = |server: Option<&Server>| server.is_some_and(|s| s.host.trim().trim_end_matches('.').eq_ignore_ascii_case(&host));
+    if host.is_empty() || !(named(account.incoming.as_ref()) || named(account.outgoing.as_ref())) {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is only used with this account's own mail servers")));
+    }
+    if is_microsoft_host(&host) || mailcraft_model::is_gmail_host(&host) || mailcraft_model::is_google_host(&host) {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers")));
+    }
+    if crate::transport::is_loopback(&host) && !microsoft_loopback_allowed() {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is only sent to a mail server on this computer in a test")));
+    }
+    Ok(())
 }
 
 /// Whether a fake server on this computer may stand in for Microsoft's mail servers: in this

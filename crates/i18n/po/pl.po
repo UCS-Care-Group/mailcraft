@@ -27717,3 +27717,52 @@ msgstr "−Wiersze"
 #~ msgid "the mailbox has no calendar"
 #~ msgstr "skrzynka pocztowa nie ma kalendarza"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "a sign-in with your identity provider is only sent to a mail server on this computer in a test"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "a sign-in with your identity provider is only used with this account's own mail servers"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "enter the client id registered for MailCraft at your identity provider"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "find your identity provider's sign-in addresses (Discover), or enter them"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "the client id can only be letters, digits and punctuation, at most 200 of them"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "the identity provider (issuer) address can't have a query or a fragment"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "the redirect port must be between 1 and 65535, or automatic"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/oauth.rs
+msgid "use common, consumers, organizations, or a directory's id or domain as the tenant"
+msgstr ""
+
+#. name
+#: crates/model/src/mailbox.rs
+msgid "your identity provider"
+msgstr ""

@@ -429,6 +429,7 @@ fn oauth_destinations_cannot_cross_providers_or_protocols() {
         let expected = match provider {
             OAuthProvider::Google => "Google OAuth access tokens may only be sent",
             OAuthProvider::Microsoft => "a Microsoft sign-in is only used",
+            OAuthProvider::Custom => "a sign-in with your identity provider",
         };
         for error in [test_account(&account, TOKEN).unwrap_err(), send(&account, TOKEN, &hello()).unwrap_err()] {
             assert!(matches!(&error, NetError::Config(why) if why.to_string().starts_with(expected)), "{provider:?}: {error:?}");

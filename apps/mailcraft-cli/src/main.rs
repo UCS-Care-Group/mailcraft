@@ -511,8 +511,12 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                     mailcraft_model::OAuthProvider::Google => {
                                         ("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID").unwrap_or_default())
                                     }
+                                    // (Its client id is the account's own setting: there is no other.)
+                                    mailcraft_model::OAuthProvider::Custom => ("", ""),
                                 };
-                                oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
+                                if !variable.is_empty() {
+                                    oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
+                                }
                             }
                             let open = |url: &str| {
                                 eprintln!(
@@ -522,7 +526,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                             };
                             let cancel = std::sync::atomic::AtomicBool::new(false);
                             let signed_in = match oauth.provider {
-                                mailcraft_model::OAuthProvider::Microsoft => {
+                                mailcraft_model::OAuthProvider::Microsoft | mailcraft_model::OAuthProvider::Custom => {
                                     mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel)
                                 }
                                 mailcraft_model::OAuthProvider::Google => {

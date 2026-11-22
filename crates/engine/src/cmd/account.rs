@@ -104,7 +104,10 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(_) => return Err(bad("`auth` is password or oauth2")),
     }
     let provider = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
+        // (An own identity provider is set up with its own fields, which this doesn't take yet.)
+        Some(name) => {
+            Some(OAuthProvider::parse(name).filter(|p| *p != OAuthProvider::Custom).ok_or_else(|| bad("`provider` is microsoft or google"))?)
+        }
         None => None,
     };
     let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
@@ -147,7 +150,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         _ => return Err(bad(format!("\"{email}\" isn't an e-mail address"))),
     };
     let asked = match p::str(v, "provider") {
-        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft or google"))?),
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft, google or custom"))?),
         None => None,
     };
     // The owner says whose the account is: that settles it.
@@ -164,6 +167,8 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         // Explicitly choosing Google OAuth beats an app-password provider preset.
         // Ordinary discovery without that choice keeps the password flow.
         (Some(OAuthProvider::Google), own) => (Some(provider::google(own.is_some_and(|p| p.service == "Gmail"))), "asked"),
+        // An own identity provider: the servers are found as for a domain nobody here knows.
+        (Some(OAuthProvider::Custom), _) => (None, "asked"),
         _ if named.is_some() => (named, "asked"),
         // Said to be Microsoft's: Outlook.com when the domain is, work or school mail otherwise.
         (Some(OAuthProvider::Microsoft), own) => {
@@ -203,8 +208,8 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         "known": known,
         "via": via,
         "service": preset.service,
-        "auth": if preset.oauth.is_some() { "oauth2" } else { "password" },
-        "provider": preset.oauth.map(OAuthProvider::code),
+        "auth": if preset.oauth.is_some() || asked == Some(OAuthProvider::Custom) { "oauth2" } else { "password" },
+        "provider": if asked == Some(OAuthProvider::Custom) { Some(OAuthProvider::Custom.code()) } else { preset.oauth.map(OAuthProvider::code) },
         "username": username,
         "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
         "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),

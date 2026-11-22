@@ -33,6 +33,7 @@ pub mod messages;
 #[cfg(test)]
 mod messages_tests;
 mod note;
+pub mod oauth;
 mod offline;
 pub mod outlook_colors;
 pub mod pictures;
@@ -97,6 +98,7 @@ pub use message::{
 };
 pub use messages::Messages;
 pub use note::{JournalEntry, Note};
+pub use oauth::{OAuthDefaults, SaslChoice};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};

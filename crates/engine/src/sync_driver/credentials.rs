@@ -24,6 +24,8 @@ pub fn effective_oauth(mut oauth: OAuth, ids: &ClientIds) -> OAuth {
         let (chosen, built_in) = match oauth.provider {
             OAuthProvider::Microsoft => (ids.microsoft_chosen, ids.microsoft_built_in),
             OAuthProvider::Google => (ids.google_chosen, ids.google_built_in),
+            // (An own identity provider has no id but the one registered there.)
+            OAuthProvider::Custom => return oauth,
         };
         oauth.client_id = if chosen.is_empty() { built_in } else { chosen }.to_string();
     }

@@ -104,17 +104,17 @@ const MAX_LIFETIME: i64 = 7 * 24 * 3_600;
 /// Longest name or address taken from an identity token.
 const MAX_IDENTITY: usize = 254;
 
-const MICROSOFT_LOGIN: &str = "https://login.microsoftonline.com";
-const GOOGLE_AUTHORIZE: &str = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
-const GOOGLE_SCOPE: &str = "https://mail.google.com/ openid email";
+// (The built-in values are the model's, so that what the settings show is what is used.)
+const MICROSOFT_LOGIN: &str = mailcraft_model::oauth::MICROSOFT_LOGIN;
+const GOOGLE_AUTHORIZE: &str = mailcraft_model::oauth::GOOGLE_AUTHORIZE;
+const GOOGLE_TOKEN: &str = mailcraft_model::oauth::GOOGLE_TOKEN;
+const GOOGLE_SCOPE: &str = mailcraft_model::oauth::GOOGLE_SCOPE;
 const GOOGLE_DESKTOP_SECRET: &str = match option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET") {
     Some(secret) => secret,
     None => "",
 };
 /// IMAP and SMTP, a refresh token to go with the access token, and who it is that signed in.
-const MICROSOFT_SCOPE: &str =
-    "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
+const MICROSOFT_SCOPE: &str = mailcraft_model::oauth::MICROSOFT_MAIL_SCOPE;
 /// Microsoft Graph: sending mail, reading the calendar and writing to it (events made, moved,
 /// changed and deleted here go back to the server), and reading the contacts. A sign-in from
 /// before the calendar was written to agreed to reading it only: its refresh token gets no
@@ -345,6 +345,12 @@ impl Endpoints {
                 fewer: String::new(),
                 lesser: String::new(),
             },
+            // The owner's own identity provider: its addresses are the account's own settings,
+            // and it is asked for mail and nothing else (it has no Microsoft Graph).
+            OAuthProvider::Custom => {
+                let used = oauth.effective();
+                Endpoints { authorize: used.authorize, token: used.token, scope: used.scopes, ..Endpoints::default() }
+            }
         }
     }
 }
