@@ -231,10 +231,16 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let width = (ui.available_width() - ui.spacing().scroll.allocated_width()).max(0.0);
     let cells = fit(width);
     headings(app, ui, &t, &cells);
-    let selected = selected_line(listing, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    let event = app.session.sel.event;
+    let group = chosen(ui.ctx());
+    let selected = selected_line(listing, lines, event, group.as_ref());
     keys(app, ui, listing, lines, selected);
-    // (Keys may have selected another.)
-    let selected = selected_line(listing, lines, app.session.sel.event, chosen(ui.ctx()).as_ref());
+    let new_group = chosen(ui.ctx());
+    let selected = if event == app.session.sel.event && group == new_group {
+        selected
+    } else {
+        selected_line(listing, lines, app.session.sel.event, new_group.as_ref())
+    };
 
     // A day chosen (Today, Go to Date, the date navigator, this view itself) scrolls to the first
     // row on or after it.
@@ -423,10 +429,8 @@ fn keys(app: &mut MailApp, ui: &Ui, listing: &Listing, lines: &[Line], selected:
     if !has_keyboard(app, &ctx) {
         return;
     }
-    let rows: Vec<(usize, &Row, &Group)> =
-        lines.iter().enumerate().filter_map(|(at, line)| row_in(listing, line).map(|(row, group)| (at, row, group))).collect();
-    let mut current = selected.and_then(|line| rows.iter().position(|(at, ..)| *at == line));
-    if let Some((_, row, _)) = current.and_then(|n| rows.get(n))
+    let mut current = selected;
+    if let Some((row, _)) = current.and_then(|n| lines.get(n)).and_then(|line| row_in(listing, line))
         && crate::keys::take_enter_alone(&ctx, ui.layer_id())
         && !row.free_busy
     {
@@ -452,15 +456,16 @@ fn keys(app: &mut MailApp, ui: &Ui, listing: &Listing, lines: &[Line], selected:
             Key::Minus if alt && !command => app.run("view.week", json!({})),
             Key::ArrowUp | Key::ArrowDown if !alt && !command => {
                 let next = match (current, key) {
-                    (None, _) => 0,
-                    (Some(n), Key::ArrowUp) => n.saturating_sub(1),
-                    (Some(n), _) => (n + 1).min(rows.len().saturating_sub(1)),
+                    (None, _) => lines.iter().position(|line| matches!(line, Line::Row(..))),
+                    (Some(n), Key::ArrowUp) => lines.iter().take(n).rposition(|line| matches!(line, Line::Row(..))),
+                    (Some(n), _) => lines.iter().enumerate().skip(n + 1).find(|(_, line)| matches!(line, Line::Row(..))).map(|(at, _)| at),
                 };
-                let Some(&(line, row, group)) = rows.get(next) else { continue };
+                let Some(line) = next.or(current) else { continue };
+                let Some((row, group)) = lines.get(line).and_then(|line| row_in(listing, line)) else { continue };
                 scroll_into_view(&ctx, line);
                 choose(app, &ctx, row, group);
                 // (Another press in the same frame goes on from this row.)
-                current = Some(next);
+                current = Some(line);
                 continue;
             }
             _ => continue,
