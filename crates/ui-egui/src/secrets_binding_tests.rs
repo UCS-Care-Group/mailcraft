@@ -357,7 +357,9 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
         // sign-in is handed to the host, `client_secret_of`; and its refresh token, given back
         // to the provider when the account is removed, `revoke_own_sign_in`.)
         ("lib.rs", "secret_cache.get(", 4),
-        ("secret_read.rs", "secret_cache.contains_key(", 2),
+        // (Whether the read brought the refresh token, the password, and an own identity
+        // provider's client secret, by the account's own names, `store_may_know`.)
+        ("secret_read.rs", "secret_cache.contains_key(", 3),
         // A subscribed calendar's address is kept like a password (#209): found again by the name
         // that holds its host (`subscribed_address`), and moved into memory for the session when
         // remembering is switched off (`keep_read_subscription_addresses`): two reads.
