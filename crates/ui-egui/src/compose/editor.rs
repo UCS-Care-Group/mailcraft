@@ -143,24 +143,33 @@ pub(crate) fn key_in(command: &str, browser: bool) -> Option<&'static str> {
 /// Ctrl+E goes to the search). In the browser, which keeps the three for itself, the body holds
 /// them whatever its text, so that nothing of the mailbox's acts on them as well.
 pub fn owns_chord(app: &MailApp, ctx: &egui::Context, key: Key, modifiers: Modifiers) -> bool {
+    owns_chord_in(app, ctx, key, modifiers, cfg!(target_arch = "wasm32"))
+}
+
+/// [`owns_chord`] in the browser (`browser`) or out of it.
+pub(crate) fn owns_chord_in(app: &MailApp, ctx: &egui::Context, key: Key, modifiers: Modifiers, browser: bool) -> bool {
     match key {
         Key::B | Key::I | Key::U | Key::K | Key::Z | Key::Y | Key::A => true,
-        Key::L | Key::E | Key::R => !modifiers.shift && !modifiers.alt && (cfg!(target_arch = "wasm32") || !focused_is_plain(app, ctx)),
+        Key::L | Key::E | Key::R => !modifiers.shift && !modifiers.alt && (browser || focused_can_align(app, ctx)),
         _ => false,
     }
 }
 
-/// Whether the body that has the keyboard is a plain-text message's, as the message is now (it
-/// may have changed since the body was last drawn). A signature's never is.
-fn focused_is_plain(app: &MailApp, ctx: &egui::Context) -> bool {
+/// Whether the text of the body that has the keyboard can be aligned now: the signature open in
+/// File › Signatures, or a message being written in HTML. Asked of the session as it is, not as
+/// the body was last drawn: a message made plain, or closed, since then can't be.
+fn focused_can_align(app: &MailApp, ctx: &egui::Context) -> bool {
     let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
     let session = &app.session;
+    if focused == Which::Signature.id(app) {
+        return session.signature_edit.is_some();
+    }
     session
         .compose
         .iter()
         .chain(session.composing.iter())
         .find(|c| id_of(c.id) == focused)
-        .is_some_and(|c| c.format == mailcraft_engine::BodyFormat::Plain)
+        .is_some_and(|c| c.format != mailcraft_engine::BodyFormat::Plain)
 }
 
 /// A size in points as the screen draws it (as the reading pane draws `font-size: Npt`).

@@ -357,6 +357,42 @@ fn in_a_plain_text_message_ctrl_r_and_ctrl_e_are_the_mailboxs_even_from_the_body
     let body = &h.state().session.compose.as_ref().unwrap().body;
     assert_eq!(body.text().align_at(body.selection().head), mailcraft_model::rich::Align::Right);
     assert_eq!(writing(&h), one, "no reply was started");
+    // Closed between two frames, the body that had the keyboard takes neither: Ctrl+E searches.
+    let mut a = app();
+    let id = a.session.rows().first().map(|r| r.id).unwrap();
+    a.run("mail.select", json!({"id": id})).unwrap();
+    a.run("mail.reply", json!({"id": id})).unwrap();
+    a.run("compose.formatHtml", json!({})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(editor::has_focus(&h.ctx));
+    let closed = h.state().session.compose_id().unwrap();
+    h.state_mut().run("compose.close", json!({"discard": true})).unwrap();
+    let session = &h.state().session;
+    assert!(session.compose.iter().chain(session.composing.iter()).all(|c| c.id != closed), "the reply is closed");
+    key_with(&mut h, Modifiers::COMMAND, Key::E);
+    assert!(h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())), "Ctrl+E gave the search box the keyboard");
+}
+
+/// In the browser, which keeps Ctrl+L, Ctrl+E and Ctrl+R for itself, the body holds them whatever
+/// its text, so that Reply and the search don't act on them as well; out of it, a plain-text body
+/// leaves them to the mailbox.
+#[test]
+fn in_the_browser_the_alignment_keys_are_held_by_a_plain_text_body_too() {
+    let mut a = app();
+    let id = a.session.rows().first().map(|r| r.id).unwrap();
+    a.run("mail.select", json!({"id": id})).unwrap();
+    a.run("mail.reply", json!({"id": id})).unwrap();
+    a.run("compose.formatPlain", json!({})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(editor::has_focus(&h.ctx));
+    for key in [Key::L, Key::E, Key::R] {
+        assert!(editor::owns_chord_in(h.state(), &h.ctx, key, Modifiers::COMMAND, true), "{key:?} in the browser");
+        assert!(!editor::owns_chord_in(h.state(), &h.ctx, key, Modifiers::COMMAND, false), "{key:?} out of it");
+    }
 }
 
 /// Ctrl+Shift+R and Ctrl+Shift+E are not the body's: they reply to all and make a folder from it
