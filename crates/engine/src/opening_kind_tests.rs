@@ -102,7 +102,7 @@ fn markdown_keys_certificates_and_signatures_ask_first_everywhere() {
         assert_eq!(verdict_for(name, Chooser::Name), Verdict::Active, "{name}");
     }
     // Certificates Windows installs from a double-click stay refused.
-    for name in ["a.crt", "a.cer", "a.der"] {
+    for name in ["a.crt", "a.cer", "a.der", "a.p7r", "a.sst", "a.stl", "a.spc", "A.SST"] {
         assert_eq!(verdict_for(name, Chooser::Name), Verdict::Blocked, "{name}");
     }
 }

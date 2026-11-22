@@ -134,9 +134,15 @@ pub const BLOCKED: &[&str] = &[
     "bas",
     "fxp",
     "prg",
+    // Certificates, certificate requests' answers, stores and trust lists: Windows takes them into
+    // its certificate store from a double-click.
     "crt",
     "cer",
     "der",
+    "p7r",
+    "sst",
+    "stl",
+    "spc",
     "udl",
     "printerexport",
     "settingcontent-ms",
@@ -301,7 +307,9 @@ pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", 
 pub const ACTIVE: &[&str] = &[
     // Markdown.
     "md", "markdown", "mkd", "mdown", "mdwn", "mkdn", "mmd", "mdx", // Keys, certificates, signatures and requests.
-    "asc", "p7m", "p7s", "pem", "sig", "p12", "pfx", "p7b", "p7c", "gpg", "pgp", "key", "csr", "crl",
+    "asc", "p7m", "p7s", "pem", "sig", "p12", "pfx", "p7b", "p7c", "gpg", "pgp", "key", "csr",
+    "crl",
+    // (`.key` is also a Keynote deck on macOS: asking first only adds a question there.)
 ];
 
 /// Whether a file of this kind (the part after the last dot, in lower case) is one the opener
