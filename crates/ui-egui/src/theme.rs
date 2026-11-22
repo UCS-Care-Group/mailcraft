@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Stroke, Visuals};
-use mailcraft_model::rich::Font;
+use mailcraft_model::rich::Built;
 
 mod accent;
 mod blue;
@@ -717,47 +717,40 @@ pub struct SystemFont {
     fallbacks: Vec<Arc<FontData>>,
     /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
     emoji: Option<Arc<FontData>>,
-    /// The installed face of each font a message can be written in (#582), by font and whether
-    /// it is the bold face; read at start, a few hundred kilobytes each.
-    document: Vec<(Font, bool, Arc<FontData>)>,
+    /// The installed face of each of the six families the composer offers first (#582), by family
+    /// and whether it is the bold face; read at start, a few hundred kilobytes each.
+    document: Vec<(Built, bool, Arc<FontData>)>,
 }
 
-/// The file names (lower case) the face of `font` may have on this system, best first: the
+/// The file names (lower case) the face of `built` may have on this system, best first: the
 /// vendor's own on Windows and macOS, then the open metric-compatible faces on Linux and FreeBSD.
 /// `System` is the window's own font and has none.
-pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
-    match (font, bold) {
-        (Font::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
-        (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
-        (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
-        (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
-        (Font::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
-        (Font::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
-        (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
-        (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
-        (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
-        (Font::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
-        (Font::System, _) => &[],
+pub fn face_files(built: Built, bold: bool) -> &'static [&'static str] {
+    match (built, bold) {
+        (Built::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
+        (Built::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
+        (Built::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
+        (Built::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Built::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Built::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
+        (Built::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
+        (Built::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
+        (Built::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
+        (Built::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
+        (Built::System, _) => &[],
     }
 }
 
-/// The first of the face names of `font` that `has` says is there.
-pub fn first_face(font: Font, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
-    face_files(font, bold).iter().copied().find(|name| has(name))
+/// The first of the face names of `built` that `has` says is there.
+pub fn first_face(built: Built, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
+    face_files(built, bold).iter().copied().find(|name| has(name))
 }
 
-/// The family a message's text in `font` is registered under, when [`SystemFont`] found its face.
-pub fn document_family(font: Font, bold: bool) -> FontFamily {
-    let name = format!("font-{}{}", font.label().to_lowercase(), if bold { "-bold" } else { "" });
+/// The family text in one of the six families is registered under, when [`SystemFont`] found its
+/// face. Any other family is registered by [`crate::fonts`] under a family of its own.
+pub fn document_family(built: Built, bold: bool) -> FontFamily {
+    let name = format!("font-{}{}", built.label().to_lowercase(), if bold { "-bold" } else { "" });
     FontFamily::Name(name.into())
-}
-
-/// How text in a message's own `font` is drawn: its family where `has` says one was registered,
-/// else `None` and the caller draws it in the window's font. `System` is the window's font.
-pub fn document_font(font: Option<Font>, bold: bool, size: f32, has: impl Fn(&FontFamily) -> bool) -> Option<FontId> {
-    let font = font.filter(|f| *f != Font::System)?;
-    let family = document_family(font, bold);
-    has(&family).then(|| FontId::new(size, family))
 }
 
 impl SystemFont {
@@ -857,23 +850,23 @@ impl SystemFont {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_document_faces(mut self, dirs: &[std::path::PathBuf]) -> Self {
         let mut names: Vec<&[&str]> = Vec::new();
-        for font in Font::ALL {
-            names.push(face_files(font, false));
-            names.push(face_files(font, true));
+        for built in Built::ALL {
+            names.push(face_files(built, false));
+            names.push(face_files(built, true));
         }
         let found = find_font_files(dirs, &names);
-        for font in Font::ALL {
+        for built in Built::ALL {
             for bold in [false, true] {
-                let path = first_face(font, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
+                let path = first_face(built, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
                 let Some(bytes) = path.and_then(|p| read_font(p, SYSTEM_FONT_CAP)) else { continue };
-                self.document.push((font, bold, Arc::new(FontData::from_owned(bytes))));
+                self.document.push((built, bold, Arc::new(FontData::from_owned(bytes))));
             }
         }
         self
     }
 
-    /// Which of a message's fonts have an installed face (regular, bold).
-    pub fn document_faces(&self) -> Vec<(Font, bool)> {
+    /// Which of the six families have an installed face (regular, bold).
+    pub fn document_faces(&self) -> Vec<(Built, bool)> {
         self.document.iter().map(|(f, b, _)| (*f, *b)).collect()
     }
 
@@ -1212,7 +1205,7 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     // A message's fonts (#582): the installed face under a family of its own, then the window's
     // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
     // bold: the emphasis is what is sent, and egui can't embolden a face itself.
-    for font in Font::ALL {
+    for font in Built::ALL {
         let face = |bold: bool| system.document.iter().find(|(f, b, _)| *f == font && *b == bold).map(|(_, _, data)| data);
         let Some(regular_face) = face(false) else { continue };
         for bold_face in [false, true] {

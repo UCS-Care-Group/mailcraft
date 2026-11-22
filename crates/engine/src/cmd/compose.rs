@@ -31,10 +31,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(
                 r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "from"?: string (one of the account's sender addresses, account.senderAddresses; default: its own), "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
             ),
-        CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
-        CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(REPLY).selection(needs_message),
+        CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(REPLY).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
-            .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .params(r#"{"id"?: number, "window"?: number} (default: the selected message; `window`: as for Reply) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
             .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
@@ -111,7 +111,9 @@ pub fn specs() -> Vec<CommandSpec> {
 
 const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
 
-const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+const REPLY: &str = r#"{"id"?: number, "window"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286; `window`: the number of the window of its own it is answered from, else the reading pane: the original is quoted as it was read there, and with only what every pane would show of it when it wasn't read there). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
+
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool, "window"?: number} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing; `window`, in either form: as for Reply, and only a number). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written (#442). Those that start another (New
 /// Email, Reply, Forward, Open Draft, People's Email…: [`STARTING`]) open it beside this one,
@@ -392,7 +394,7 @@ fn quoted(s: &Session, m: &Message) -> String {
 /// its HTML reads as, under the opening line. Never the text alternative its sender wrote beside
 /// it (the owner never saw that one, and it can say something else).
 fn quote_text(marker: &str, quoted_html: &str) -> String {
-    let text = mailcraft_html::to_text(quoted_html);
+    let text = mailcraft_html::quote_to_text(quoted_html);
     // (The rule above the header lines is for the eye.)
     let text = text.trim_start_matches('-').trim();
     format!("\n\n{marker}\n{text}\n")
@@ -407,7 +409,7 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
 /// would. With it, the pictures written into the original (`data:`) that it shows, each to go
 /// as a part of its own ([`Written`]).
-fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
+fn quoted_html(s: &Session, m: &Message, html: &str, envs: &[mailcraft_html::Env]) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -422,7 +424,7 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
-    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture), envs));
     out.push_str("\r\n</div>");
     // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
     // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
@@ -503,6 +505,48 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
 /// `<img>` asks for by `cid:` and is a picture by its bytes.
+/// The original's HTML for a message no pane has said how it showed ([`Session::read_at`]): its
+/// text part only when the HTML reads to no text and no picture at all, in every pane its `@media`
+/// tells apart (when they can all be told: else the HTML, which is then quoted as nothing), beside
+/// a text part that says something. (Never the text part when the HTML shows
+/// something a pane might show: that at worst quotes less than was shown, never words that
+/// weren't.)
+/// How message `m` was shown to the owner asking in `place`: its HTML (`None`: its text part),
+/// and the panes it was read in, as [`mailcraft_html::quotable_with_pictures`] takes them. As it
+/// was read there; else as every other place it was read in read it (the owner saw those); else
+/// as every pane would.
+pub(super) fn as_shown<'m>(s: &Session, m: &'m Message, place: crate::ReadIn) -> (Option<&'m str>, Vec<mailcraft_html::Env>) {
+    let read = match s.read_as(m.id, place) {
+        Some(read) => vec![read],
+        None => s.read_elsewhere(m.id),
+    };
+    let envs = read.iter().map(|r| r.0).collect();
+    let shown = if read.is_empty() {
+        shown_html(m)
+    } else if read.iter().all(|r| r.1) {
+        None
+    } else {
+        m.body.html.as_deref()
+    };
+    (shown, envs)
+}
+
+fn shown_html(m: &Message) -> Option<&str> {
+    let html = m.body.html.as_deref()?;
+    if m.body.text.trim().is_empty() {
+        return Some(html);
+    }
+    let (envs, every) = mailcraft_html::media_envs(&mailcraft_html::media_lists(html));
+    if !every {
+        return Some(html);
+    }
+    let shows = |env: &mailcraft_html::Env| {
+        let blocks = mailcraft_html::parse_in(html, env).blocks;
+        mailcraft_html::has_text(&blocks) || !mailcraft_html::images(&blocks).is_empty()
+    };
+    envs.iter().any(shows).then_some(html)
+}
+
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     let ids = mailcraft_model::shown::shown_ids(html);
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
@@ -523,7 +567,25 @@ pub(super) fn references_of(m: &Message) -> Vec<String> {
     references
 }
 
+/// Where a reply or forward was asked for (`window`, else the reading pane): the original is
+/// quoted as it was read there.
+fn read_in(v: &Value) -> Result<crate::ReadIn, CmdError> {
+    match v.get("window") {
+        None => Ok(crate::ReadIn::Pane),
+        Some(w) => w.as_u64().map(crate::ReadIn::Window).ok_or_else(|| CmdError::Params("`window` is a window's number".into())),
+    }
+}
+
+/// `{"id": id}`, with the `window` of `v` when it has one.
+fn with_window(id: Id, v: &Value) -> Value {
+    match v.get("window") {
+        Some(w) => json!({"id": id, "window": w}),
+        None => json!({"id": id}),
+    }
+}
+
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
+    let place = read_in(v)?;
     // A forward carries every file; a reply only quotes the text and the pictures it shows.
     let m = match mode {
         ComposeMode::Forward => source_message(s, v)?,
@@ -568,10 +630,12 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
-    // An original in HTML is carried below with its look; one in plain text is quoted in the body.
-    let quote = match &m.body.html {
+    // An original in HTML is carried below with its look; one in plain text is quoted in the body,
+    // and so is one whose HTML the reading pane shows its text for.
+    let (shown, envs) = as_shown(s, &m, place);
+    let quote = match shown {
         Some(html) if quoting => {
-            let (html, written) = quoted_html(s, &m, html);
+            let (html, written) = quoted_html(s, &m, html, &envs);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
             // The pictures the quote still shows: not those of what was left out of it. (A
             // forward carries the original's own as its attachments.) And those written into
@@ -597,8 +661,8 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
         body: RichBody::from_plain(&body),
-        // A reply is written the way the original was: HTML to HTML, plain text to plain text.
-        format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
+        // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
+        format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
@@ -631,7 +695,7 @@ fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
-    let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
+    let mut out = respond(s, &with_window(id, v), ComposeMode::Reply)?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let bin = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder));
     let deleted = match bin {
@@ -655,7 +719,7 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
     match forwarded(s, v)? {
         (ids, focus) if ids.len() > 1 => forward_attached(s, &ids, focus),
-        (_, focus) => respond(s, &json!({"id": focus}), ComposeMode::Forward),
+        (_, focus) => respond(s, &with_window(focus, v), ComposeMode::Forward),
     }
 }
 
@@ -672,7 +736,8 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// named), and the one in focus, the last named, as for a selection. How many it may be is
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
-    p::only(v, &["id", "ids", "discard"])?;
+    p::only(v, &["id", "ids", "discard", "window"])?;
+    read_in(v)?;
     let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
@@ -1686,7 +1751,8 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
             let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, follow_up: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
-            s.mailbox.apply_rules(cid);
+            let clock = s.rule_clock();
+            s.mailbox.apply_rules(cid, &clock);
             delivered += 1;
         }
     }

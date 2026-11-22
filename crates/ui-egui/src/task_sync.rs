@@ -221,12 +221,15 @@ impl MailApp {
             // Closing it is the same as Not now (`tasks_ask_tick`), so there is no other Cancel.
             cancel: Some(tl!("Not now").to_string()),
             tick: None,
+            calendar: None,
+            cut: None,
+            listing: None,
         };
         for id in accounts.iter().filter(|id| **id != first) {
             ask.more.push((label(*id), json!({"account": id})));
         }
         self.tasks.offer_open = true;
-        self.set_dialog(Some(Dialog::Confirm { command: "tasks.sendLocal".to_string(), params: json!({}), ask }));
+        self.set_dialog(Some(Dialog::Confirm { command: "tasks.sendLocal".to_string(), params: json!({}), ask: Box::new(ask) }));
         true
     }
 
