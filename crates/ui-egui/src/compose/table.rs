@@ -32,7 +32,8 @@ impl TableLayout {
     pub fn plain(ctx: &egui::Context, table: &PastedTable, tokens: &Tokens, room: f32) -> Self {
         let mut job = LayoutJob::default();
         job.wrap.max_width = room;
-        job.append(&table.plain(), 0.0, super::text_format(&Style::default(), true, tokens, &|_| false));
+        // Plain text is drawn in the window's own fonts (#582).
+        job.append(&table.plain(), 0.0, super::text_format(&Style::default(), true, tokens, &mut crate::fonts::Chooser::none()));
         let text = ctx.fonts_mut(|f| f.layout_job(job));
         Self { size: text.size(), cells: Vec::new(), plain: Some(text) }
     }
@@ -43,7 +44,9 @@ impl TableLayout {
         let mut widths = vec![24.0_f32; columns];
         let mut heights = vec![MIN_ROW; table.rows().len()];
         let mut cells = Vec::new();
-        let families = ctx.fonts(|fonts| fonts.families());
+        // One chooser for the table: a cell's family is looked up once, and what isn't here yet is
+        // asked for once, at the end (#1493).
+        let mut fonts = crate::fonts::Chooser::new(ctx);
         for (row_index, row) in table.rows().iter().enumerate() {
             let mut column = 0;
             for cell in row {
@@ -68,9 +71,9 @@ impl TableLayout {
                 };
                 let background =
                     cell.background.as_deref().and_then(mailcraft_model::rich::safe_color).and_then(|color| Color32::from_hex(&color).ok());
-                let format = |style: &Style| {
+                let mut format = |style: &Style| {
                     let style = style.clone().clean();
-                    let mut format = super::text_format(&style, false, tokens, &|family| families.contains(family));
+                    let mut format = super::text_format(&style, false, tokens, &mut fonts);
                     let paper = if format.background != Color32::TRANSPARENT { format.background } else { background.unwrap_or(tokens.surface) };
                     let ink = if style.link.is_some() {
                         tokens.accent_text
@@ -103,6 +106,7 @@ impl TableLayout {
                 column = end_column;
             }
         }
+        fonts.finish(ctx);
         let total = widths.iter().sum::<f32>();
         let scale = (room / total).min(1.0);
         widths.iter_mut().for_each(|w| *w *= scale);
