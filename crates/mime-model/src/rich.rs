@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Rich text (`mailcraft_model::rich`) to HTML and back.
 //!
-//! [`to_html`] writes the owner's text as the HTML part of a message: `<div>` paragraphs, `<ul>`
-//! and `<ol>` lists, `<b>`, `<i>`, `<u>`, `<span style="…">` with a font size, a colour and a
-//! font from the model's list, `<a href>`, and pictures as `<img src="cid:…">` when the text's
-//! holder says which ([`to_html_with`]), and bounded tables. Every character of text and of an
-//! address is escaped, and a link is written only when its address is one the model accepts
-//! (`rich::safe_link`: any scheme but `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out, its first picture
-//! beside or above the text when it asks for that, in a two-cell table, as Outlook writes it.
+//! [`to_html`] writes the owner's text as the HTML part of a message: `<div>` paragraphs (an
+//! indented one inside a 40-pixel left margin a level, a centred or right one with `text-align`
+//! on it, inline, as Outlook writes it), `<ul>` and `<ol>` lists, `<b>`, `<i>`, `<u>`,
+//! `<span style="…">` with a font size, a colour and a font from the model's list, `<a href>`,
+//! and pictures as `<img src="cid:…">` when the text's holder says which ([`to_html_with`]), and
+//! bounded tables. Every character of text and of an address is escaped, and a link is written
+//! only when its address is one the model accepts (`rich::safe_link`: any scheme but
+//! `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out,
+//! its first picture beside or above the text when it asks for that, in a two-cell table, as
+//! Outlook writes it.
 //!
 //! HTML is read by
 //! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
@@ -16,12 +19,13 @@
 //! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts).
 //! [`from_html_for_compose`] and draft reopening preserve bounded text tables with cell alignment,
 //! colours, and merged cells. [`from_html`] and tables outside those bounds give their cells'
-//! paragraphs in reading order.
+//! paragraphs in reading order. A paragraph's indent and its alignment (a list item's excepted)
+//! are kept.
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
 use mailcraft_model::rich::{
-    CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE, MIN_SIZE,
-    OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
+    Align, CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE,
+    MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
 };
 use mailcraft_model::signature::{Layout, Picture, Signature};
 
@@ -43,7 +47,8 @@ impl Img {
 
 /// The text as an HTML fragment (what goes inside `<body>`). A list item a level deeper than the
 /// one before it is in a list of its own inside that item (`<ul><li>a<ul><li>b</li></ul></li></ul>`),
-/// as Outlook, Word and the web's editors write nested lists.
+/// as Outlook, Word and the web's editors write nested lists; so an item is never aligned, or the
+/// items inside it would be too.
 pub fn to_html(text: &RichText) -> String {
     to_html_with(text, &|_| None)
 }
@@ -59,10 +64,11 @@ pub fn to_html_with(text: &RichText, pictures: &dyn Fn(u32) -> Option<Img>) -> S
             close_to(&mut out, &mut open, 0);
             // Increased indent (#1658): a left margin a level, each in a block of its own, as a
             // reader takes no more than 64 pixels from one. A blank line is a blank line however
-            // far in it is, and reads back as one at the margin.
+            // far in it is, and reads back as one at the margin; it is written as it always was,
+            // left, so that blank lines at the edges are known again ([`edge_blank_lines`]).
             let levels = if p.is_empty() { 0 } else { usize::from(p.level.min(MAX_LEVEL)) };
             out.push_str(&INDENT_OPEN.repeat(levels));
-            out.push_str("<div>");
+            out.push_str(div(if p.is_empty() { Align::Left } else { p.align }));
             paragraph(&mut out, p, pictures);
             out.push_str("</div>");
             out.push_str(&"</div>".repeat(levels));
@@ -108,6 +114,15 @@ pub fn to_html_with(text: &RichText, pictures: &dyn Fn(u32) -> Option<Img>) -> S
     }
     close_to(&mut out, &mut open, 0);
     out
+}
+
+/// The `<div>` a paragraph aligned `align` opens with (`text-align` inline, nothing for left).
+fn div(align: Align) -> &'static str {
+    match align {
+        Align::Left => "<div>",
+        Align::Center => "<div style=\"text-align:center\">",
+        Align::Right => "<div style=\"text-align:right\">",
+    }
 }
 
 /// How far each level of Increase Indent moves an ordinary paragraph in, in CSS pixels: what Outlook
@@ -205,19 +220,30 @@ fn img(out: &mut String, img: &Img) {
 
 /// A signature as HTML, its pictures written as `content_id` names them. Laid out with its first
 /// picture on the left of the text or above it when it asks for that: a two-cell table, or the
-/// picture in a paragraph of its own.
+/// picture in a paragraph of its own, aligned as the one it stood in.
 pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) -> String {
     let pictures = |id: u32| sig.picture(id).map(|p| Img::of(p, content_id(p)));
     let first = sig.body().pictures().first().copied().filter(|_| sig.layout != Layout::Inline);
     let Some((first, lead)) = first.and_then(|id| pictures(id).map(|i| (id, i))) else {
         return to_html_with(sig.body(), &pictures);
     };
-    // The text without that picture.
+    // The text without that picture where it first stands (the paragraph it stood in kept as it
+    // was), and how that paragraph is aligned.
+    let mut found = None;
     let rest = RichText::from_paragraphs(
         sig.body()
             .paragraphs()
             .iter()
-            .map(|p| Paragraph::new(p.runs.iter().filter(|r| r.picture != Some(first)).cloned().collect(), p.list).at_level(p.level))
+            .map(|p| {
+                let mut runs = p.runs.clone();
+                if found.is_none()
+                    && let Some(i) = runs.iter().position(|r| r.picture == Some(first))
+                {
+                    runs.remove(i);
+                    found = Some(p.align);
+                }
+                p.with_runs(runs)
+            })
             .collect(),
     );
     let text = to_html_with(&rest, &pictures);
@@ -229,7 +255,7 @@ pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) 
         out.push_str(&text);
         out.push_str("</td></tr></table>\r\n");
     } else {
-        out.push_str("<div>");
+        out.push_str(div(found.unwrap_or_default()));
         img(&mut out, &lead);
         out.push_str("</div>\r\n");
         out.push_str(&text);
@@ -298,8 +324,8 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
             out.push_str(&format!("<span style=\"color:{color}\">"));
             close.push("</span>");
         }
-        if let Some(font) = style.font {
-            out.push_str(&format!("<span style=\"font-family:{}\">", font.css()));
+        if let Some(font) = &style.font {
+            out.push_str(&format!("<span style=\"font-family:{}\">", mailcraft_html::escape(&font.css())));
             close.push("</span>");
         }
         if let Some(highlight) = style.highlight.as_deref().and_then(safe_color) {
@@ -557,7 +583,9 @@ impl Reader {
                 }
                 BlockKind::Rule | BlockKind::Image { .. } => {}
                 kind => {
-                    // A nested list keeps its level, as deep as the model goes.
+                    // A nested list keeps its level, as deep as the model goes; an item is left,
+                    // and so is everything inside one, whatever it looks like (a further paragraph
+                    // is an ordinary paragraph here, and so are a heading and preformatted text).
                     let (list, level) = match kind {
                         BlockKind::ListItem { marker: Marker::Bullet, depth } => (ListKind::Bullet, *depth),
                         BlockKind::ListItem { marker: Marker::Number(_) | Marker::Label(_), depth } => (ListKind::Numbered, *depth),
@@ -565,8 +593,14 @@ impl Reader {
                         // A paragraph moved in from the left keeps its indent (#1658).
                         _ => (ListKind::None, level_of_inset(b.inset[0])),
                     };
+                    let align = match b.align {
+                        _ if b.in_item || matches!(kind, BlockKind::ListItem { .. }) => Align::Left,
+                        mailcraft_html::Align::Left => Align::Left,
+                        mailcraft_html::Align::Center => Align::Center,
+                        mailcraft_html::Align::Right => Align::Right,
+                    };
                     self.gap(b.space);
-                    self.paragraph(&b.spans, list, level.min(MAX_LEVEL));
+                    self.paragraph(&b.spans, list, level.min(MAX_LEVEL), align);
                 }
             }
         }
@@ -620,7 +654,7 @@ impl Reader {
         }
     }
 
-    fn paragraph(&mut self, spans: &[Span], list: ListKind, level: u8) {
+    fn paragraph(&mut self, spans: &[Span], list: ListKind, level: u8, align: Align) {
         let mut cur: Vec<Run> = Vec::new();
         for span in spans {
             let style = Style {
@@ -639,7 +673,7 @@ impl Reader {
                     if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
                         return;
                     }
-                    self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level));
+                    self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level).aligned(align));
                 }
                 if self.pictures && line.contains(OBJECT) {
                     // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
@@ -657,7 +691,7 @@ impl Reader {
             }
         }
         if self.out.len() < mailcraft_model::rich::MAX_PARAGRAPHS {
-            self.out.push(Paragraph::new(cur, list).at_level(level));
+            self.out.push(Paragraph::new(cur, list).at_level(level).aligned(align));
         }
     }
 

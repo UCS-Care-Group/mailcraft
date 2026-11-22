@@ -1286,6 +1286,11 @@ msgstr "在邮件中接受、暂定接受或拒绝会议请求，或从日历中
 msgid "Agenda"
 msgstr "日程"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3239,6 +3244,12 @@ msgstr "检查新版本"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "检查更新"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5836,6 +5847,12 @@ msgstr "查找相关邮件"
 #, fuzzy
 msgid "Find a Time"
 msgstr "查找时间"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8456,6 +8473,12 @@ msgstr "相似地址。"
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "查看服务器的证书…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26512,6 +26535,13 @@ msgstr "在其服务器上找不到“{subject}”，因此无法将其作为附
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• 发送至 {to}，主题“{subject}”"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

@@ -1286,6 +1286,11 @@ msgstr "După ce acceptați, acceptați provizoriu sau refuzați o invitație la
 msgid "Agenda"
 msgstr "Agendă"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3243,6 +3248,12 @@ msgstr "Verificare versiuni noi"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "Căutare actualizări"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5857,6 +5868,12 @@ msgstr "Găsire mesaje asociate"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Găsire oră"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8489,6 +8506,12 @@ msgstr "Adresă care imită alta."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Se examinează certificatul serverului…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26870,6 +26893,15 @@ msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecțio
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• către {to}, subiect „{subject}”"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

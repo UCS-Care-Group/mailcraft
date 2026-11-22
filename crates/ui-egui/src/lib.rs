@@ -129,6 +129,10 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+
+/// The fonts of this computer that text is drawn in: what a message asks for and what the
+/// composer offers, the index of what is installed and the faces read for it.
+pub(crate) mod fonts;
 pub mod forms;
 #[cfg(test)]
 #[path = "forms_date_tests.rs"]
@@ -221,6 +225,8 @@ mod report_problem;
 pub mod ribbon;
 #[cfg(test)]
 mod ribbon_field_tests;
+#[cfg(test)]
+mod ribbon_font_tests;
 pub mod rule_sync;
 #[cfg(test)]
 mod rule_sync_tests;

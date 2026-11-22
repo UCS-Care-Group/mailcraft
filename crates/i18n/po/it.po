@@ -1285,6 +1285,11 @@ msgstr "Dopo aver accettato, accettato con riserva o rifiutato una convocazione 
 msgid "Agenda"
 msgstr "Agenda"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3236,6 +3241,12 @@ msgstr "Verifica nuove versioni"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "Verifica aggiornamenti"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5839,6 +5850,12 @@ msgstr "Trova messaggi correlati"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Trova un orario"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8457,6 +8474,12 @@ msgstr "Indirizzo che ne imita un altro."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Esame del certificato del server…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26635,6 +26658,14 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• a {to}, oggetto «{subject}»"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

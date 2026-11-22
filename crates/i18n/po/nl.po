@@ -1258,6 +1258,11 @@ msgstr "Nadat u een vergaderverzoek in de e-mail hebt geaccepteerd, voorlopig he
 msgid "Agenda"
 msgstr "Agenda"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3134,6 +3139,12 @@ msgstr "Controleren op nieuwe versies"
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
 msgid "Check for Updates"
 msgstr "Controleren op updates"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5623,6 +5634,12 @@ msgstr "Gerelateerde berichten zoeken"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Een tijd zoeken"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8152,6 +8169,12 @@ msgstr "Adres dat erop lijkt."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Bezig met bekijken van het certificaat van de server…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26046,6 +26069,14 @@ msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijl
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• aan {to}, onderwerp ‘{subject}’"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
