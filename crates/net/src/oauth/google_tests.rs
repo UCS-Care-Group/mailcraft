@@ -218,7 +218,8 @@ fn google_refresh_preserves_account_identity_scope_and_expiry() {
     let old = "synthetic-refresh-one";
     let refreshed = refresh_google_at(&endpoint(&server), &google(), STAND_IN_SECRET, old).unwrap();
     assert_eq!((refreshed.access.as_str(), refreshed.refresh.as_str()), ("next-access", old));
-    assert!(!refreshed.fresh(mailcraft_time::now()));
+    // Said to last no time at all: a minute, used as it comes rather than renewed in a loop.
+    assert!(refreshed.expires_at - refreshed.issued_at >= 60);
     let sent = form(&server, 0);
     assert_eq!(sent["grant_type"], "refresh_token");
     assert_eq!(sent["client_secret"], STAND_IN_SECRET);

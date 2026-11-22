@@ -3978,7 +3978,7 @@ impl MailApp {
             // Good for the whole run: Microsoft ends an IMAP session the moment its token runs
             // out, folders still to go. ponytail: ten minutes covers a run; a longer first
             // download still meets the end, and the next run renews.
-            match self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 600)).map(|t| t.access.clone()) {
+            match self.tokens.get(&account).filter(|t| t.fresh_for(mailcraft_time::now(), 600)).map(|t| t.access.clone()) {
                 Some(access) => request.access_token = access,
                 None => {
                     self.begin_sign_in(account, oauth, &address, refresh, quiet, false)?;

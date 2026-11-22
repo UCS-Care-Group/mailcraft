@@ -20,6 +20,8 @@ mod place;
 mod problems_tests;
 mod progress;
 mod search;
+#[cfg(test)]
+mod tokens_tests;
 pub use directory::*;
 pub use drafts::*;
 pub use ews::*;
@@ -245,6 +247,9 @@ pub struct Tokens {
     pub refresh: String,
     /// When the access token stops working (Unix seconds).
     pub expires_at: i64,
+    /// When it was handed out (Unix seconds); 0 when that isn't known. With [`Tokens::expires_at`]
+    /// it gives how long the token lives, which the margin before renewing can't exceed.
+    pub issued_at: i64,
     /// Who signed in, as the provider names them (may be empty): for the account's display name.
     pub name: String,
     /// The address the provider knows them by (may be empty).
@@ -276,7 +281,24 @@ impl Tokens {
     /// spare: one that runs out sooner is renewed before a job starts with it, not during it
     /// (#306). `now` is the wall clock, so time the computer spent asleep counts.
     pub fn fresh(&self, now: i64) -> bool {
-        !self.access.is_empty() && self.expires_at.saturating_sub(FRESH_MARGIN) > now
+        self.fresh_for(now, 0)
+    }
+
+    /// Whether the access token is still good for `wanted` seconds after `now`, with the margin
+    /// of [`Tokens::fresh`] to spare. Both together are never more than half the token's life:
+    /// an identity provider's tokens may live five minutes (Keycloak's own setting), and one just
+    /// handed out must count as fresh, or every renewal asks for the next at once.
+    pub fn fresh_for(&self, now: i64, wanted: i64) -> bool {
+        !self.access.is_empty() && self.expires_at.saturating_sub(self.margin(wanted)) > now
+    }
+
+    /// [`FRESH_MARGIN`] and `wanted`, at most half of how long the token lives when that is known.
+    fn margin(&self, wanted: i64) -> i64 {
+        let full = FRESH_MARGIN.saturating_add(wanted.max(0));
+        if self.issued_at <= 0 || self.expires_at <= self.issued_at {
+            return full;
+        }
+        full.min(self.expires_at.saturating_sub(self.issued_at) / 2)
     }
 
     /// Whether these are somebody else's than the account's whose address is `email` and whose

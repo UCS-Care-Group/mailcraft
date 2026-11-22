@@ -341,3 +341,19 @@ fn an_answer_without_the_name_a_provider_promised_is_refused() {
     let (open, _) = browser(true);
     assert!(sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).is_ok());
 }
+
+#[test]
+fn a_five_minute_token_is_used_as_it_comes_not_renewed_again_at_once() {
+    // Keycloak's own setting: access tokens live five minutes. Renewed tokens that counted as
+    // stale at once made every Send/Receive renew again and again (#1831).
+    let body =
+        |life: &str| json_answer("200 OK", &format!(r#"{{"token_type":"Bearer","expires_in":{life},"access_token":"a","refresh_token":"r"}}"#));
+    let server = FakeHttp::start(move |n, _| body(if n == 0 { "300" } else { "0" }));
+    let now = mailcraft_time::now();
+    let tokens = refresh_custom(&own(&server), "", "old").unwrap();
+    assert!(tokens.issued_at >= now && tokens.expires_at >= tokens.issued_at + 300);
+    assert!(tokens.fresh_for(mailcraft_time::now(), 600), "a token just renewed counts as stale");
+    // One said to live no time at all lives a minute: used once, not renewed in a loop.
+    let brief = refresh_custom(&own(&server), "", "old").unwrap();
+    assert!(brief.expires_at - brief.issued_at >= 60 && brief.fresh_for(mailcraft_time::now(), 600));
+}

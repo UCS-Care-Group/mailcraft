@@ -100,6 +100,8 @@ const TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
 /// How long an access token is taken to last when the server doesn't say, and the longest it is believed to.
 const DEFAULT_LIFETIME: i64 = 3_600;
 const MAX_LIFETIME: i64 = 7 * 24 * 3_600;
+/// The shortest life a token is taken to have, whatever the provider said (seconds).
+const MIN_LIFETIME: i64 = 60;
 
 /// Longest name or address taken from an identity token.
 const MAX_IDENTITY: usize = 254;
@@ -1625,11 +1627,14 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
         Some(Value::String(s)) => s.trim().parse::<i64>().ok(),
         _ => None,
     };
-    let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(0, MAX_LIFETIME);
+    // (A token said to live less than a minute is taken to live one: it is used as it comes,
+    // never renewed again and again before anything is done with it.)
+    let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(MIN_LIFETIME, MAX_LIFETIME);
     Ok(Tokens {
         access: access.to_string(),
         refresh: refresh.to_string(),
         expires_at: now.saturating_add(lifetime),
+        issued_at: now,
         granted_scope: text("scope").chars().take(4096).collect(),
         ..identity(text("id_token"))
     })

@@ -1326,7 +1326,7 @@ fn how_long_a_token_lasts() {
     };
     assert_eq!(
         lasting(r#","expires_in":3599"#),
-        Tokens { access: "acc-ess".into(), refresh: "kept".into(), expires_at: 4_599, ..Default::default() }
+        Tokens { access: "acc-ess".into(), refresh: "kept".into(), expires_at: 4_599, issued_at: 1_000, ..Default::default() }
     );
     assert_eq!(lasting(r#","expires_in":" 3600 ""#).expires_at, 4_600);
     assert_eq!(lasting(r#","expires_in":90.9"#).expires_at, 1_090);
@@ -1334,9 +1334,11 @@ fn how_long_a_token_lasts() {
     for unsaid in ["", r#","expires_in":null"#, r#","expires_in":"soon""#, r#","expires_in":[3600]"#] {
         assert_eq!(lasting(unsaid).expires_at, 1_000 + DEFAULT_LIFETIME, "{unsaid}");
     }
-    // Already over, and longer than any token lasts.
-    for over in [r#","expires_in":0"#, r#","expires_in":-5"#, r#","expires_in":"-99999999999999""#, r#","expires_in":-1e300"#] {
-        assert_eq!(lasting(over).expires_at, 1_000, "{over}");
+    // Already over, or nearly: a minute, so that it is used as it comes rather than renewed
+    // again and again before anything is done with it. And longer than any token lasts.
+    for over in [r#","expires_in":0"#, r#","expires_in":-5"#, r#","expires_in":"-99999999999999""#, r#","expires_in":-1e300"#, r#","expires_in":30"#]
+    {
+        assert_eq!(lasting(over).expires_at, 1_000 + MIN_LIFETIME, "{over}");
     }
     for forever in [r#","expires_in":99999999999"#, r#","expires_in":1e300"#, r#","expires_in":18446744073709551615"#] {
         assert_eq!(lasting(forever).expires_at, 1_000 + MAX_LIFETIME, "{forever}");
