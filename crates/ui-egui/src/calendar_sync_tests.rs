@@ -270,7 +270,7 @@ fn asked(app: &MailApp) -> Option<(String, String, Vec<String>)> {
 /// one is written.
 fn answer(app: &mut MailApp, label: &str, note: &str) {
     let Some(Dialog::Confirm { command, params, ask }) = app.dialog.take() else { panic!("no question is being asked") };
-    let Question { action, with, more, note: field, .. } = ask;
+    let Question { action, with, more, note: field, .. } = *ask;
     let with = if action == label {
         with
     } else {
