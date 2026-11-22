@@ -77,6 +77,21 @@ fn accented_stem_matches_its_own_spelling() {
 }
 
 #[test]
+fn dotted_capital_i_matches_its_dictionary_entry() {
+    // ASCII `I` lowercases to one character. U+0130 `İ` lowercases to `i` plus a combining dot,
+    // so a key built by lowercasing before folding does not match a query, which folds first.
+    assert_eq!('I'.to_lowercase().count(), 1);
+    assert_eq!('İ'.to_lowercase().collect::<String>(), "i\u{0307}");
+    let dotted = Dictionary::parse("SET UTF-8\n", "1\nİstanbul\n").expect("parse");
+    assert!(dotted.is_correct("İstanbul"), "the entry is the spelling that was written");
+    // A capitalised ASCII entry still follows the usual case rule: itself and all capitals.
+    let ascii = Dictionary::parse("SET UTF-8\n", "1\nIstanbul\n").expect("parse");
+    assert!(ascii.is_correct("Istanbul"));
+    assert!(ascii.is_correct("ISTANBUL"));
+    assert!(!ascii.is_correct("istanbul"));
+}
+
+#[test]
 fn malformed_lines_are_skipped() {
     let dict = Dictionary::parse("SET UTF-8\nNOT A REAL DIRECTIVE\nSFX\nPFX A Y\n", "\n\nhello\n/\n").expect("parse");
     assert!(dict.is_correct("hello"));

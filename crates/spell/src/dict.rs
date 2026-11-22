@@ -127,9 +127,11 @@ impl Dictionary {
         if lower.chars().count() > MAX_WORD {
             return;
         }
-        // Queries are accent-folded before lookup (`café` → `cafe`). Index the
-        // same key, and keep `stem.text` as the spelling that was written in the file.
-        let key = to_lower(&fold_accents(&lower));
+        // Queries fold accents before case (`İstanbul` → `istanbul`). Lowercasing
+        // first expands U+0130 to `i` plus a dot, which folding does not remove,
+        // so the entry would miss the key a query builds. ASCII `I` is one
+        // character either way. `stem.text` stays the spelling written in the file.
+        let key = to_lower(&fold_accents(word));
         if key.chars().count() > MAX_WORD {
             return;
         }
