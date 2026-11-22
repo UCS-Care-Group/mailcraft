@@ -1,1 +1,0 @@
-- A Digitally signed or Encrypted message whose bytes Check Again was downloading, and that was put back in Drafts as a draft on another device meanwhile, now gets its new version; before, it kept its old text and files and the new version never came ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).
