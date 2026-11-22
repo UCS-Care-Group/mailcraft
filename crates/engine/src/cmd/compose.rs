@@ -1337,7 +1337,8 @@ fn align_body(c: &mut Compose) {
         };
         c.subject_edits.undo.remove(index);
     }
-    for _ in 0..new_pushes {
+    // The cap keeps `len` snapshots. Markers past that cannot restore text.
+    for _ in 0..new_pushes.min(len) {
         c.subject_edits.undo.push(SubjectStep::Body);
     }
     c.subject_edits.body_pushes = pushes;

@@ -6,6 +6,7 @@
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
+use crate::session::SubjectStep;
 use crate::{Compose, Session, sample};
 
 fn session() -> Session {
@@ -146,6 +147,22 @@ fn a_body_edit_past_the_undo_cap_is_undone_before_the_subject() {
     assert_eq!(compose(&s).subject, "Hello tomorrow");
     run(&mut s, "compose.undo", json!({}));
     assert_eq!(compose(&s).subject, "Hello tomorow");
+}
+
+#[test]
+fn body_markers_stay_within_the_retained_undo_steps() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"subject": "Hello tomorow"}));
+    for n in 0..200 {
+        run(&mut s, "compose.set", json!({"body": format!("step {n}")}));
+    }
+    assert_eq!(compose(&s).body.undo_len(), 100, "the text keeps at most 100 snapshots");
+    let (from, to) = span("Hello tomorow", "tomorow");
+    run(&mut s, "compose.replaceSubject", json!({"from": from, "to": to, "expected": "tomorow", "text": "tomorrow"}));
+    let markers = compose(&s).subject_edits.undo.iter().filter(|step| matches!(step, SubjectStep::Body)).count();
+    assert_eq!(markers, compose(&s).body.undo_len(), "each marker has a snapshot the text can still restore");
+    assert!(matches!(compose(&s).subject_edits.undo.last(), Some(SubjectStep::Subject { .. })));
 }
 
 #[test]
