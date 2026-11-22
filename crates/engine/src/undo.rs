@@ -490,38 +490,56 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     (out, said.lines(lang))
 }
 
-/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it, else of its
-/// folder; `None` when the server's UID there isn't known.
-fn server_place(mb: &Mailbox, m: &Message) -> Option<(String, u32)> {
-    let waiting = mb.pending.iter().find_map(|p| match p {
-        Pending::Move { message, from, uid, .. } if *message == m.id => Some((from.clone(), *uid)),
-        _ => None,
-    });
-    waiting.or_else(|| (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)))
+/// The first move waiting for each message: where its server has it until then.
+fn waiting_moves(mb: &Mailbox) -> HashMap<Id, (String, u32)> {
+    let mut out = HashMap::new();
+    for p in &mb.pending {
+        if let Pending::Move { message, from, uid, .. } = p {
+            out.entry(*message).or_insert_with(|| (from.clone(), *uid));
+        }
+    }
+    out
+}
+
+/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it (`waiting`, of
+/// `mb`), else of its folder; `None` when the server's UID there isn't known.
+fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32)>, m: &Message) -> Option<(String, u32)> {
+    waiting.get(&m.id).cloned().or_else(|| (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)))
 }
 
 /// An IMAP account's message the change touched that its server has somewhere else now than
 /// where `out` puts it (the server took the change since: a move into Deleted Items, say). The
 /// UID it had then is the server's no more: it is put where the server has it now and moved
 /// back from there, as the owner would move it, so that the next run sends the move back.
-/// (Moves out of the account and deletions for good still end the history: `sync.apply`.)
+/// (Moves out of the account and deletions for good still end the history: `sync.apply`.) The
+/// waiting moves are looked through once, so that a big undo takes time in proportion to its size.
 fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
-    for id in &touched.changed_messages {
-        let (Some(o), Some(c)) = (out.message(*id), now.message(*id)) else { continue };
-        let imap = now.account(c.account).is_some_and(|a| a.kind == AccountKind::Imap);
-        if !imap || relevant(c, g) || relevant(o, g) || o.account != c.account || server_place(out, o) == server_place(now, c) {
-            continue;
-        }
-        let target = o.folder;
-        let mine = |p: &Pending| matches!(p, Pending::Move { message, .. } if message == id);
-        out.pending.retain(|p| !mine(p));
-        out.pending.extend(now.pending.iter().filter(|p| mine(p)).cloned());
-        if let Ok(m) = out.message_mut(*id) {
+    let (was, is) = (waiting_moves(out), waiting_moves(now));
+    let back: Vec<(Id, Id)> = touched
+        .changed_messages
+        .iter()
+        .filter_map(|id| {
+            let (o, c) = (out.message(*id)?, now.message(*id)?);
+            let imap = now.account(c.account).is_some_and(|a| a.kind == AccountKind::Imap);
+            let moved_there = server_place(out, &was, o) != server_place(now, &is, c);
+            (imap && !relevant(c, g) && !relevant(o, g) && o.account == c.account && moved_there).then_some((*id, o.folder))
+        })
+        .collect();
+    if back.is_empty() {
+        return;
+    }
+    let ids: HashSet<Id> = back.iter().map(|(id, _)| *id).collect();
+    let theirs = |p: &Pending| matches!(p, Pending::Move { message, .. } if ids.contains(message));
+    out.pending.retain(|p| !theirs(p));
+    out.pending.extend(now.pending.iter().filter(|p| theirs(p)).cloned());
+    for (id, target) in back {
+        let Some(c) = now.message(id) else { continue };
+        if let Ok(m) = out.message_mut(id) {
             (m.folder, m.uid, m.synced) = (c.folder, c.uid, c.synced);
         }
-        // (Refused, it stays where the server has it, which is never wrong.)
+        // (Refused, it stays where the server has it, which is never wrong; the others go on.)
         if target != c.folder {
-            let _ = out.move_message(*id, target);
+            let _ = out.move_message(id, target);
         }
     }
 }
