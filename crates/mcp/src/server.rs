@@ -221,7 +221,7 @@ impl Server {
             "resources/read" => {
                 let uri = params.get("uri").and_then(Value::as_str).ok_or((INVALID_PARAMS, "missing `uri`".to_string()))?;
                 let v = match uri {
-                    MAILBOX_URI => self.backend.call("mailbox.inspect", json!({})),
+                    MAILBOX_URI => self.backend.call("mailbox.inspect", json!({})).map(crate::tools::frame),
                     COMMANDS_URI => self.backend.call("engine.commands", json!({})),
                     _ => return Err((RESOURCE_NOT_FOUND, format!("resource not found: {}", clip(uri)))),
                 }

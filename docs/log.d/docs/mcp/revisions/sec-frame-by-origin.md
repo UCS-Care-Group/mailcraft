@@ -1,0 +1,1 @@
+| 2026-11-22 | patch | Every answer an agent gets frames the text that came from outside, whatever the command or tool: an invitation search, meeting tracking, unsubscribe details, a signer's certificate, the window's state and folder names among them |

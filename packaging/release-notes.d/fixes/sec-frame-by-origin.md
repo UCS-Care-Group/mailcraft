@@ -1,0 +1,1 @@
+- An agent connected through MCP now gets every piece of text from a message, an invitation, a certificate or a server marked as untrusted, whichever command or tool it used, including invitation searches, meeting tracking, unsubscribe details, a message's signer and the window's state.
