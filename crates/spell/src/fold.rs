@@ -225,7 +225,21 @@ pub(crate) fn restore_accents(input: &str, suggestion: &str) -> String {
             break;
         }
         if let Some((j, n, source)) = chosen {
-            out.push(match_case(sc, source));
+            // `ß` uppercases to `SS`. Emitting one character drops a letter (`STRASSE` → `STRASE`).
+            // A mapping that is still one character (`æ` → `ae`) keeps that character and
+            // consumes the whole expansion, as before.
+            let mapped: String = if sc.is_uppercase() {
+                source.to_uppercase().collect()
+            } else if sc.is_lowercase() {
+                source.to_lowercase().collect()
+            } else {
+                source.to_string()
+            };
+            if n > 1 && mapped.chars().count() == n {
+                out.push_str(&mapped);
+            } else {
+                out.push(match_case(sc, source));
+            }
             s = s.saturating_add(n);
             i = j.saturating_add(n);
         } else {

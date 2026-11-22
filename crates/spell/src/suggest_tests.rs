@@ -82,6 +82,16 @@ fn title_case_keeps_a_candidate_with_internal_capitals() {
 }
 
 #[test]
+fn sharp_s_restore_keeps_the_whole_uppercase_mapping() {
+    assert_eq!(crate::fold::restore_accents("straßee", "STRASSE"), "STRASSE");
+    assert_eq!(crate::fold::restore_accents("straße", "strasse"), "straße");
+    let dict = Dictionary::parse("SET UTF-8\nREP 1\nREP straßee STRASSE\n", "1\nSTRASSE\n").expect("parse");
+    let got = dict.suggest("straßee", &[]);
+    assert!(got.iter().any(|word| word == "STRASSE"), "{got:?}");
+    assert!(got.iter().all(|word| dict.is_correct(word)), "{got:?}");
+}
+
+#[test]
 fn ligature_restore_consumes_its_whole_expansion() {
     assert_eq!(crate::fold::restore_accents("encyclopædai", "encyclopaedia"), "encyclopædia");
     assert_eq!(crate::fold::fold_accents("encyclopædia"), "encyclopaedia");
