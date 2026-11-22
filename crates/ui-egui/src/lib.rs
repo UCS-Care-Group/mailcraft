@@ -826,6 +826,9 @@ pub struct OAuthFound {
     pub client_auth: mailcraft_model::ClientAuth,
     /// It says its page names itself when it sends the owner back (RFC 9207).
     pub issuer_in_response: bool,
+    /// Which of the standard scopes it is asked for: `None` for all of them, else those it lists
+    /// ([`mailcraft_model::oauth::base_scopes_for`]).
+    pub base_scopes: Option<String>,
 }
 
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the
@@ -4094,7 +4097,7 @@ impl MailApp {
             // Nobody asked for this run: no page is put in front of the owner.
             Ok(MailStart::Quiet { address }) => return Err(i18n::fmt(tl!("Use Send/Receive to sign in to {address}"), &[("address", &address)])),
             Ok(MailStart::SignIn { oauth, address }) => {
-                self.begin_sign_in(account, oauth, &address, String::new(), false, true)?;
+                self.begin_sign_in(account, *oauth, &address, String::new(), false, true)?;
                 return Ok(json!({"pending": "signIn", "account": account}));
             }
             Err(MailRefusal::AccountGone) => return Err(tl!("The account is gone").to_string()),

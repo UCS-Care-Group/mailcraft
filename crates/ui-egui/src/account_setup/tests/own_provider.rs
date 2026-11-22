@@ -44,6 +44,8 @@ fn discovering(app: &mut MailApp, outside: &[&str]) -> Log<String> {
             // A provider that lists only the form for a secret, and names itself in its answers.
             client_auth: ClientAuth::Post,
             issuer_in_response: true,
+            // And one that lists its scopes without offline_access.
+            base_scopes: Some("openid email".into()),
         }))
         .unwrap();
         rx
@@ -86,6 +88,7 @@ fn a_new_account_signs_in_with_its_own_identity_provider_found_from_its_issuer()
     assert!(says(&h, "Found: sign-in at id.example.org"));
     // How it takes a secret and that it names itself come with the addresses (RFC 6749 §2.3.1, RFC 9207).
     assert_eq!((oauth.client_auth, oauth.issuer_in_response), (ClientAuth::Post, true));
+    assert_eq!(oauth.base_scopes.as_deref(), Some("openid email"));
     assert!(says(&h, "Client secret sent"));
     // The client, and its secret typed in the masked field.
     wizard_mut(&mut h).client_id = "mailcraft".into();

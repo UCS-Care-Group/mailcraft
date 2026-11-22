@@ -1265,6 +1265,7 @@ fn services(
                 mailcraft_net::oauth::discovery::discover(&issuer)
                     .map(|found| mailcraft_ui_egui::OAuthFound {
                         no_refresh: found.lacks_offline_access(),
+                        base_scopes: found.base_scopes(),
                         authorize: found.authorize,
                         token: found.token,
                         revoke: found.revoke,

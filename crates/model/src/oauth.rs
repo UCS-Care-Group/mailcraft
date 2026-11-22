@@ -232,7 +232,8 @@ impl OAuth {
             used.mechanism = self.mechanism;
             used.client_auth = self.client_auth;
             used.issuer_in_response = self.issuer_in_response;
-            used.scopes = scope_list(CUSTOM_SCOPE, &self.scopes);
+            let base = self.base_scopes.as_deref().map_or_else(|| CUSTOM_SCOPE.to_string(), standard_scopes);
+            used.scopes = scope_list(&base, &self.scopes);
         }
         used
     }
@@ -260,6 +261,7 @@ impl OAuth {
             || !self.mechanism.is_auto()
             || !self.client_auth.is_basic()
             || self.issuer_in_response
+            || self.base_scopes.is_some()
             || self.has_secret;
         if self.provider != OAuthProvider::Custom {
             if own {
@@ -283,6 +285,11 @@ impl OAuth {
         if !self.issuer.trim().is_empty() && self.issuer.contains(['?', '#']) {
             return invalid("the identity provider (issuer) address can't have a query or a fragment".into());
         }
+        if let Some(base) = &self.base_scopes
+            && (base.len() > CUSTOM_SCOPE.len() || base.split_ascii_whitespace().any(|s| !CUSTOM_SCOPE.split(' ').any(|c| c == s)))
+        {
+            return invalid(format!("the standard scopes can only be some of {CUSTOM_SCOPE}"));
+        }
         scopes(&self.scopes).map_err(ModelError::Invalid)
     }
 
@@ -298,10 +305,32 @@ impl OAuth {
 
     /// The values a remembered sign-in belongs to: changing any of them needs a fresh sign-in on
     /// the provider's page, so that a changed setting never sends a remembered token anywhere new.
+    /// An own provider's revocation address is one of them: the refresh token goes there when the
+    /// account is removed (RFC 7009). (Microsoft's and Google's are built in, and their sign-ins
+    /// stay remembered under the names they always had.)
     pub fn binding(&self) -> String {
         let used = self.effective();
-        format!("{}|{}|{}|{}", self.provider.code(), used.issuer, used.token, used.client_id)
+        let base = format!("{}|{}|{}|{}", self.provider.code(), used.issuer, used.token, used.client_id);
+        if self.provider == OAuthProvider::Custom { format!("{base}|{}", used.revoke) } else { base }
     }
+}
+
+/// Of `asked`, the scopes of [`CUSTOM_SCOPE`], in its order (anything else in a hand-edited file is
+/// never asked for in their place).
+fn standard_scopes(asked: &str) -> String {
+    CUSTOM_SCOPE.split(' ').filter(|s| asked.split_ascii_whitespace().any(|a| a == *s)).collect::<Vec<_>>().join(" ")
+}
+
+/// Which of [`CUSTOM_SCOPE`] to ask an own identity provider for, from the scopes its description
+/// lists (`scopes_supported`, RFC 8414 §2): `None` for all of them, when it lists none (it needn't)
+/// or lists them all; else those it lists, so that a provider that refuses a scope it doesn't
+/// know (RFC 6749 §3.3) is never asked for one.
+pub fn base_scopes_for(supported: &[String]) -> Option<String> {
+    if supported.is_empty() {
+        return None;
+    }
+    let listed: Vec<&str> = CUSTOM_SCOPE.split(' ').filter(|s| supported.iter().any(|l| l == s)).collect();
+    (listed.len() < CUSTOM_SCOPE.split(' ').count()).then(|| listed.join(" "))
 }
 
 /// `base` and the owner's `extra` scopes, each once, in that order.

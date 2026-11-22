@@ -41,7 +41,9 @@ real mailbox.
   **Mechanism**. A server that offers neither is never shown the token, and MailCraft says so.
 
 MailCraft asks the provider for `openid email offline_access`, and for any **Extra scopes** you
-add (`mail`, say, if your mail servers look for one). `offline_access` brings a refresh token, so
+add (`mail`, say, if your mail servers look for one). A provider whose description lists the
+scopes it has, without some of these three, isn't asked for those it doesn't list: a server may
+refuse a scope it doesn't know (RFC 6749 §3.3). `offline_access` brings a refresh token, so
 that you aren't asked to sign in again each time a token runs out; a provider that won't give one
 is said to when you press Discover. When a mail server turns a token down in the middle of a
 Send/Receive (it ran out early, or the provider withdrew it), MailCraft renews it with the refresh
@@ -71,7 +73,7 @@ Microsoft's tenant) can change there, and **Use your own identity provider inste
 account into one with its own provider, after a question, starting from the values it had.
 
 The sign-in is remembered (when File › Options says to remember sign-ins) under a name that holds
-the provider, its token address, the client id and both mail servers: changing any of them, from
+the provider, its token and revocation addresses, the client id and both mail servers: changing any of them, from
 here, a command or a hand-edited file, asks you to sign in again rather than sending what was
 remembered anywhere new. The token goes only to the account's own incoming and outgoing servers,
 over TLS, and never to Microsoft's or Google's. Removing the account gives the provider its refresh

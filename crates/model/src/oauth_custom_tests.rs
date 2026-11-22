@@ -177,10 +177,15 @@ fn the_binding_changes_with_every_value_a_remembered_sign_in_belongs_to() {
         OAuth { issuer: "https://id2.example.org".into(), ..own() },
         OAuth { token: "https://id.example.org/other".into(), ..own() },
         OAuth { client_id: "other".into(), ..own() },
+        // Where the refresh token goes when the account is removed.
+        OAuth { revoke: "https://elsewhere.example.org/revoke".into(), ..own() },
         OAuth { provider: OAuthProvider::Microsoft, ..OAuth::default() },
     ] {
         assert_ne!(changed.binding(), base, "{changed:?}");
     }
+    // Microsoft's and Google's stay what they were: their remembered sign-ins are found as before.
+    let microsoft = OAuth { provider: OAuthProvider::Microsoft, ..OAuth::default() }.binding();
+    assert_eq!(microsoft.matches('|').count(), 3, "{microsoft}");
     // Not with the ones it doesn't.
     assert_eq!(OAuth { scopes: String::new(), mechanism: SaslChoice::XOAuth2, redirect_port: None, ..own() }.binding(), base);
 }
@@ -231,4 +236,33 @@ fn how_the_secret_is_sent_is_kept_and_the_standard_way_is_the_default() {
         assert!(OAuth { provider, client_auth: ClientAuth::Post, ..OAuth::default() }.check().is_err());
         assert!(OAuth { provider, issuer_in_response: true, ..OAuth::default() }.check().is_err());
     }
+}
+
+/// A provider that lists its scopes is asked only for the standard ones it lists (RFC 6749 §3.3:
+/// it may refuse one it doesn't know); one that lists none, or all of them, for all three.
+#[test]
+fn only_the_standard_scopes_a_provider_lists_are_asked_for() {
+    use crate::oauth::base_scopes_for;
+    let list = |all: &[&str]| all.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(base_scopes_for(&[]), None);
+    assert_eq!(base_scopes_for(&list(&["openid", "email", "offline_access", "profile"])), None);
+    assert_eq!(base_scopes_for(&list(&["openid", "email", "profile"])).as_deref(), Some("openid email"));
+    assert_eq!(base_scopes_for(&list(&["mail", "offline_access"])).as_deref(), Some("offline_access"));
+    assert_eq!(base_scopes_for(&list(&["mail"])).as_deref(), Some(""));
+
+    assert_eq!(own().effective().scopes, "openid email offline_access mail");
+    let listed = OAuth { base_scopes: Some("openid email".into()), ..own() };
+    assert!(listed.check().is_ok());
+    assert_eq!(listed.effective().scopes, "openid email mail");
+    assert_eq!(OAuth { base_scopes: Some(String::new()), ..own() }.effective().scopes, "mail");
+    // Nothing but the standard ones, from a command or a hand-edited file.
+    assert!(OAuth { base_scopes: Some("openid admin".into()), ..own() }.check().is_err());
+    assert_eq!(OAuth { base_scopes: Some("admin email".into()), ..own() }.effective().scopes, "email mail");
+    // Microsoft's and Google's are built in.
+    assert!(OAuth { provider: OAuthProvider::Google, base_scopes: Some("openid".into()), ..OAuth::default() }.check().is_err());
+    // Kept in the file, and left out of it when it is all three.
+    let saved = serde_json::to_value(&listed).unwrap();
+    assert_eq!(saved["baseScopes"], "openid email");
+    assert_eq!(serde_json::from_value::<OAuth>(saved).unwrap(), listed);
+    assert!(serde_json::to_value(own()).unwrap().get("baseScopes").is_none());
 }

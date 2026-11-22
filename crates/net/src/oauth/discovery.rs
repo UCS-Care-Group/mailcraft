@@ -61,6 +61,12 @@ impl Discovered {
     pub fn lacks_offline_access(&self) -> bool {
         !self.scopes_supported.is_empty() && !self.scopes_supported.iter().any(|s| s == "offline_access")
     }
+
+    /// Which of the standard scopes (`openid email offline_access`) to ask it for: `None` for all
+    /// of them, else only those it lists ([`mailcraft_model::oauth::base_scopes_for`]).
+    pub fn base_scopes(&self) -> Option<String> {
+        mailcraft_model::oauth::base_scopes_for(&self.scopes_supported)
+    }
 }
 
 /// Fetch and read what the identity provider at `issuer` says of itself: its OpenID Connect

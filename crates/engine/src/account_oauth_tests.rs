@@ -167,7 +167,18 @@ fn how_the_client_secret_is_sent_and_whether_the_provider_names_itself_are_setti
     s.run("account.edit", &json!({"id": id, "clientAuth": "post", "issuerInResponse": true})).unwrap();
     let oauth = s.mailbox.account(id).unwrap().oauth.clone().unwrap();
     assert_eq!((oauth.client_auth, oauth.issuer_in_response), (ClientAuth::Post, true));
-    for bad in [json!({"clientAuth": "private_key_jwt"}), json!({"clientAuth": 1}), json!({"issuerInResponse": "yes"})] {
+    // Which standard scopes are asked for: as Discover found, and all three again with null.
+    s.run("account.edit", &json!({"id": id, "baseScopes": "openid email"})).unwrap();
+    assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().base_scopes.as_deref(), Some("openid email"));
+    s.run("account.edit", &json!({"id": id, "baseScopes": null})).unwrap();
+    assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().base_scopes, None);
+    for bad in [
+        json!({"clientAuth": "private_key_jwt"}),
+        json!({"clientAuth": 1}),
+        json!({"issuerInResponse": "yes"}),
+        json!({"baseScopes": "openid admin"}),
+        json!({"baseScopes": 3}),
+    ] {
         let mut v = bad.clone();
         v["id"] = json!(id);
         assert!(s.run("account.edit", &v).is_err(), "{bad}");
@@ -176,6 +187,7 @@ fn how_the_client_secret_is_sent_and_whether_the_provider_names_itself_are_setti
     let ms =
         add(&mut s, &json!({"email": "bo@example.org", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}));
     assert!(s.run("account.edit", &json!({"id": ms, "clientAuth": "post"})).is_err());
+    assert!(s.run("account.edit", &json!({"id": ms, "baseScopes": "openid"})).is_err());
     // What each provider uses is said.
     assert_eq!(s.run("account.oauthDefaults", &json!({"provider": "custom"})).unwrap()["clientAuth"], "basic");
 }

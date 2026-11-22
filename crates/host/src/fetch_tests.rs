@@ -112,7 +112,8 @@ fn a_renewal_hands_back_its_tokens_and_says_why_none_came() {
             covers_favorites: false,
         })
     };
-    let (answer, renewal) = with_access_renewing(Access::Renew { oauth: oauth.clone(), refresh: "r1".into() }, &renew_ok, |t| t.to_string());
+    let (answer, renewal) =
+        with_access_renewing(Access::Renew { oauth: Box::new(oauth.clone()), refresh: "r1".into() }, &renew_ok, |t| t.to_string());
     assert_eq!(answer.as_deref(), Some("a2"));
     assert_eq!(renewal.tokens.as_ref().map(|t| t.refresh.as_str()), Some("r2"));
     // Nothing of a token in the `Debug` output.
@@ -120,11 +121,11 @@ fn a_renewal_hands_back_its_tokens_and_says_why_none_came() {
     assert!(!shown.contains("a2") && !shown.contains("r2") && !shown.contains("secret-token"), "{shown}");
 
     let consent = |_: &OAuth, _: &str| -> Result<GraphTokens, NetError> { Err(NetError::ConsentNeeded("no".into())) };
-    let (answer, renewal) = with_access_renewing(Access::Renew { oauth: oauth.clone(), refresh: "r1".into() }, &consent, |_| ());
+    let (answer, renewal) = with_access_renewing(Access::Renew { oauth: Box::new(oauth.clone()), refresh: "r1".into() }, &consent, |_| ());
     assert!(answer.is_none() && renewal.consent_needed && renewal.tokens.is_none());
 
     let failing = |_: &OAuth, _: &str| -> Result<GraphTokens, NetError> { Err(NetError::Config("nope".into())) };
-    let (answer, renewal) = with_access_renewing(Access::Renew { oauth, refresh: "r1".into() }, &failing, |_| ());
+    let (answer, renewal) = with_access_renewing(Access::Renew { oauth: Box::new(oauth), refresh: "r1".into() }, &failing, |_| ());
     assert!(answer.is_none() && renewal.error.is_some() && !renewal.sign_in_refused);
 
     // A token held is used without asking anybody.

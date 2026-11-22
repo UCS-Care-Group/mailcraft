@@ -53,7 +53,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google"|"custom" (custom: the owner's own identity provider, an OpenID Connect or OAuth 2.0 server in front of their own IMAP and SMTP servers; an IMAP account only), "clientId"?: string (required for custom: the client registered there for MailCraft), "tenant"?: string, "issuer"?: string|null (custom: the identity provider's https:// address, from which its sign-in addresses are found), "authorizeUrl"?: string|null, "tokenUrl"?: string|null, "revokeUrl"?: string|null (custom: its sign-in, token and revocation addresses, https:// ones, as found from the issuer or typed), "scopes"?: string|null (custom: what the tokens are asked for besides openid email offline_access, separated by spaces), "mechanism"?: "auto"|"oauthbearer"|"xoauth2" (custom: how the mail servers are given the token; auto: OAUTHBEARER when the server offers it, else XOAUTH2), "clientAuth"?: "basic"|"post" (custom: how a client secret goes to the token and revocation addresses: basic, the default, in the Authorization header as RFC 6749 §2.3.1 has every provider take it; post, in the form, for a provider that lists only that), "issuerInResponse"?: bool (custom: the provider says its page names itself, `iss`, when it sends the owner back, RFC 9207; then an answer without it is refused, and one naming another issuer always is), "redirectPort"?: number|null (the port on this computer the provider's page sends the owner back to; null: any free one), "hasSecret"?: bool (custom: whether a client secret for it is kept in the system's credential store; the window sets it with the secret), "asCustom"?: bool (with an address, scopes or a mechanism for a Microsoft or Google account: set it up for an own identity provider instead, starting from the values it had; without it such a change is refused), — a client secret is never a parameter, nor is any token: they are kept in the system's credential store, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google"|"custom" (custom: the owner's own identity provider, an OpenID Connect or OAuth 2.0 server in front of their own IMAP and SMTP servers; an IMAP account only), "clientId"?: string (required for custom: the client registered there for MailCraft), "tenant"?: string, "issuer"?: string|null (custom: the identity provider's https:// address, from which its sign-in addresses are found), "authorizeUrl"?: string|null, "tokenUrl"?: string|null, "revokeUrl"?: string|null (custom: its sign-in, token and revocation addresses, https:// ones, as found from the issuer or typed), "scopes"?: string|null (custom: what the tokens are asked for besides openid email offline_access, separated by spaces), "mechanism"?: "auto"|"oauthbearer"|"xoauth2" (custom: how the mail servers are given the token; auto: OAUTHBEARER when the server offers it, else XOAUTH2), "clientAuth"?: "basic"|"post" (custom: how a client secret goes to the token and revocation addresses: basic, the default, in the Authorization header as RFC 6749 §2.3.1 has every provider take it; post, in the form, for a provider that lists only that), "issuerInResponse"?: bool (custom: the provider says its page names itself, `iss`, when it sends the owner back, RFC 9207; then an answer without it is refused, and one naming another issuer always is), "baseScopes"?: string|null (custom: which of openid email offline_access the tokens are asked for, when the provider lists its scopes and lacks some of them, as Discover finds; null: all three), "redirectPort"?: number|null (the port on this computer the provider's page sends the owner back to; null: any free one), "hasSecret"?: bool (custom: whether a client secret for it is kept in the system's credential store; the window sets it with the secret), "asCustom"?: bool (with an address, scopes or a mechanism for a Microsoft or Google account: set it up for an own identity provider instead, starting from the values it had; without it such a change is refused), — a client secret is never a parameter, nor is any token: they are kept in the system's credential store, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -203,6 +203,7 @@ struct OwnProvider {
     mechanism: Option<SaslChoice>,
     client_auth: Option<ClientAuth>,
     issuer_in_response: Option<bool>,
+    base_scopes: Option<Option<String>>,
     redirect_port: Option<Option<u16>>,
     has_secret: Option<bool>,
 }
@@ -218,6 +219,7 @@ impl OwnProvider {
             || self.mechanism.is_some()
             || self.client_auth.is_some()
             || self.issuer_in_response.is_some()
+            || self.base_scopes.is_some()
     }
 
     fn apply(self, o: &mut OAuth) {
@@ -240,6 +242,9 @@ impl OwnProvider {
         }
         if let Some(named) = self.issuer_in_response {
             o.issuer_in_response = named;
+        }
+        if let Some(base) = self.base_scopes {
+            o.base_scopes = base;
         }
         if let Some(has_secret) = self.has_secret {
             o.has_secret = has_secret;
@@ -273,6 +278,12 @@ fn own_provider_fields(v: &Value) -> Result<OwnProvider, CmdError> {
         Some(Value::Bool(named)) => Some(*named),
         Some(_) => return Err(bad("`issuerInResponse` is true or false")),
     };
+    let base_scopes = match v.get("baseScopes") {
+        None => None,
+        Some(Value::Null) => Some(None),
+        Some(Value::String(base)) if base.len() <= mailcraft_model::oauth::CUSTOM_SCOPE.len() => Some(Some(base.trim().to_string())),
+        Some(_) => return Err(bad("`baseScopes` is some of openid email offline_access, or null for all of them")),
+    };
     let redirect_port = match v.get("redirectPort") {
         None => None,
         Some(Value::Null) => Some(None),
@@ -291,6 +302,7 @@ fn own_provider_fields(v: &Value) -> Result<OwnProvider, CmdError> {
         mechanism,
         client_auth,
         issuer_in_response,
+        base_scopes,
         redirect_port,
         has_secret: match v.get("hasSecret") {
             None => None,

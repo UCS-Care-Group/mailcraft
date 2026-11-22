@@ -152,6 +152,7 @@ impl AccountSetup {
         m.insert("mechanism".into(), json!(oauth.mechanism.code()));
         m.insert("clientAuth".into(), json!(oauth.client_auth.code()));
         m.insert("issuerInResponse".into(), json!(oauth.issuer_in_response));
+        m.insert("baseScopes".into(), json!(oauth.base_scopes));
         m.insert("hasSecret".into(), json!(oauth.has_secret));
     }
 
@@ -184,6 +185,7 @@ impl AccountSetup {
             Ok(found) => {
                 (oauth.authorize, oauth.token, oauth.revoke) = (line(&found.authorize, 2048), line(&found.token, 2048), line(&found.revoke, 2048));
                 (oauth.client_auth, oauth.issuer_in_response) = (found.client_auth, found.issuer_in_response);
+                oauth.base_scopes = found.base_scopes.clone();
                 let host = |address: &str| address.split("://").nth(1).and_then(|rest| rest.split(['/', '?', ':']).next()).unwrap_or("").to_string();
                 let mut said = fmt(
                     tl!("Found: sign-in at {signIn}, tokens from {token}."),

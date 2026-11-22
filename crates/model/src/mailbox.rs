@@ -1004,6 +1004,12 @@ pub struct OAuth {
     /// [`crate::oauth::CUSTOM_SCOPE`], separated by spaces; empty for nothing more.
     #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
     pub scopes: String,
+    /// [`OAuthProvider::Custom`]: which of [`crate::oauth::CUSTOM_SCOPE`] the tokens are asked
+    /// for, separated by spaces, when the provider's description lists the scopes it has and some
+    /// of those aren't among them (a server may refuse a scope it doesn't know, RFC 6749 §3.3);
+    /// `None` for all of them.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub base_scopes: Option<String>,
     /// [`OAuthProvider::Custom`]: how the mail servers are given the token.
     #[serde(skip_serializing_if = "SaslChoice::is_auto", deserialize_with = "crate::sync::lenient_or_default")]
     pub mechanism: SaslChoice,
