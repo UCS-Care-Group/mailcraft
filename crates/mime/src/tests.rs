@@ -537,6 +537,7 @@ fn message() -> impl Strategy<Value = Message> {
             headers,
             fresh_stamps: false,
             draft: true,
+            headers_cut: false,
             original: None,
         },
     )
@@ -680,6 +681,35 @@ fn recipients_and_categories_are_capped_across_the_message() {
     assert_eq!(m.to.len() + m.cc.len() + m.bcc.len(), crate::MAX_RECIPIENTS);
     assert_eq!(m.categories.len(), crate::MAX_CATEGORIES);
     assert_eq!(m.reply_to.len(), crate::MAX_RECIPIENTS);
+}
+
+/// What is left out past the caps is said on the message (`headers_cut`, #566), so that a rule
+/// doesn't read a field it never saw as not there; a message within them says nothing.
+#[test]
+fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
+    let fields = |n: usize| (0..n).map(|i| format!("X-Trace-{i}: hop\r\n")).collect::<String>();
+    let message = |head: String| parse(format!("From: a@example.org\r\nSubject: s\r\n{head}\r\nbody\r\n").as_bytes());
+    assert!(!message(fields(200)).headers_cut);
+    assert!(message(fields(201)).headers_cut);
+    let to = |n: usize| format!("To: {}\r\n", (0..n).map(|i| format!("u{i}@example.org")).collect::<Vec<_>>().join(", "));
+    assert!(!message(to(crate::MAX_RECIPIENTS)).headers_cut);
+    assert!(message(to(crate::MAX_RECIPIENTS + 1)).headers_cut);
+    let keywords = |n: usize| format!("Keywords: {}\r\n", (0..n).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
+    assert!(!message(keywords(crate::MAX_CATEGORIES)).headers_cut);
+    assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
+}
+
+/// A Cc past the recipients kept after the To: the message says its header was cut, so that a
+/// rule that reads them can't tell, as for a To or a field count past what is kept (#566).
+#[test]
+fn a_cc_past_the_room_left_is_said_cut() {
+    let list = |n: usize| (0..n).map(|i| format!("c{i}@example.org")).collect::<Vec<_>>().join(", ");
+    let with_cc = |n: usize| parse(format!("From: a@example.org\r\nTo: b@example.org\r\nCc: {}\r\nSubject: s\r\n\r\nbody\r\n", list(n)).as_bytes());
+    // One in To leaves room for all but one in Cc.
+    let whole = with_cc(crate::MAX_RECIPIENTS - 1);
+    assert_eq!((whole.cc.len(), whole.headers_cut), (crate::MAX_RECIPIENTS - 1, false));
+    let cut = with_cc(crate::MAX_RECIPIENTS);
+    assert_eq!((cut.cc.len(), cut.headers_cut), (crate::MAX_RECIPIENTS - 1, true));
 }
 
 #[test]

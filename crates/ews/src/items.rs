@@ -254,6 +254,17 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+    // (A subject longer than the XML reader keeps of a text comes with none.)
+    let (subject, subject_cut) = item.child_in(TYPES, "Subject").map_or(("", false), |n| (n.text.as_str(), n.text_cut));
+    let cut = to.len() < listed("ToRecipients")
+        || cc.len() < listed("CcRecipients")
+        || subject_cut
+        || line(subject, MAX_SUBJECT + 1).chars().count() > MAX_SUBJECT;
+    let categories_cut = listed("Categories") > MAX_CATEGORIES;
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
@@ -270,15 +281,17 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
             ..ServerMessage::default()
         },
         message_id: message_id.trim_start_matches('<').trim_end_matches('>').to_owned(),
-        subject: line(item.child_in(TYPES, "Subject").map_or("", |n| n.text.as_str()), MAX_SUBJECT),
+        subject: line(subject, MAX_SUBJECT),
         from: people(item, "From").into_iter().next().unwrap_or_default(),
-        to: people(item, "ToRecipients"),
-        cc: people(item, "CcRecipients"),
+        to,
+        cc,
         sent: time(item, "DateTimeSent"),
         received: time(item, "DateTimeReceived"),
         preview: line(item.child_in(TYPES, "Preview").map_or("", |n| n.text.as_str()), MAX_PREVIEW),
         has_attachments: flag(item, "HasAttachments"),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
+        cut,
+        categories_cut,
     })
 }
 
@@ -294,11 +307,14 @@ pub struct Recipients {
     pub to: Vec<Address>,
     /// `CcRecipients`.
     pub cc: Vec<Address>,
+    /// Some of them were left out, past what is kept of a list or as a recipient that can't be
+    /// kept: a rule can't tell from them who it was sent to (#566).
+    pub cut: bool,
 }
 
 impl std::fmt::Debug for Recipients {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).finish()
+        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).field("cut", &self.cut).finish()
     }
 }
 
@@ -347,7 +363,10 @@ impl GetItemRecipients {
                     let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) else {
                         continue;
                     };
-                    out.push(Recipients { id: id.clone(), to: people(item, "ToRecipients"), cc: people(item, "CcRecipients") });
+                    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+                    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+                    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
+                    out.push(Recipients { id: id.clone(), to, cc, cut });
                 }
                 Err(busy @ Error::Busy { .. }) => return Err(busy),
                 Err(_) => {}
