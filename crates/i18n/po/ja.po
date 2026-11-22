@@ -7990,7 +7990,7 @@ msgstr "このデバイスの制限内でメールを保持"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Keep MailCraft running for mail and reminders when you close its window. Click its icon beside the clock to show it again, or choose Quit from the icon's menu. If no system tray is available, closing exits MailCraft."
-msgstr "ウィンドウを閉じても、メールとアラームのために MailCraft を実行したままにします。再び表示するには、時計の横にあるアイコンをクリックするか、アイコンのメニューから [終了] を選択してください。システム トレイが使用できない場合は、閉じると MailCraft が終了します。"
+msgstr "ウィンドウを閉じても、メールとアラームのために MailCraft を実行したままにします。再び表示するには、時計の横にあるアイコンをクリックします。終了するには、アイコンのメニューから [終了] を選択します。システム トレイが使用できない場合は、閉じると MailCraft が終了します。"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -15460,7 +15460,7 @@ msgstr "月ビューと日付ナビゲーターに週番号を表示する"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Shown as First Last when empty"
-msgstr "空の場合は「姓 名」の形式で表示されます"
+msgstr "空の場合は「名 姓」の形式で表示されます"
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
