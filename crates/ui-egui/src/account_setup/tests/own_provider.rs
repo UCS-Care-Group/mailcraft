@@ -221,3 +221,28 @@ fn app_with(h: Harness<'static, MailApp>) -> MailApp {
     a.dialog = None;
     a
 }
+
+#[test]
+fn removing_the_account_gives_the_refresh_token_back_where_the_provider_says() {
+    let mut a = app(false);
+    let given: Log<(String, String, String)> = Default::default();
+    let log = given.clone();
+    a.services.revoke_sign_in = Some(Box::new(move |oauth: OAuth, secret: String, refresh: String| {
+        log.lock().unwrap().push((oauth.revoke, secret, refresh));
+    }));
+    let add = |a: &mut MailApp, revoke: &str| {
+        let v = json!({"email": "alice@example.org", "incoming": {"host": "mail.example.org"}, "outgoing": {"host": "mail.example.org"}, "auth": "oauth2", "provider": "custom", "clientId": "mailcraft", "issuer": ISSUER, "authorizeUrl": format!("{ISSUER}/auth"), "tokenUrl": format!("{ISSUER}/token"), "revokeUrl": revoke, "hasSecret": true});
+        a.execute("account.add", v).unwrap()["id"].as_u64().unwrap()
+    };
+    let id = add(&mut a, &format!("{ISSUER}/revoke"));
+    a.adopt_tokens(id, signed_in("Alice"));
+    a.set_client_secret(id, TYPED);
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert_eq!(*given.lock().unwrap(), [(format!("{ISSUER}/revoke"), TYPED.to_string(), "ref-1".to_string())]);
+    assert_eq!(a.client_secret_of(id), "");
+    // A provider that names nowhere to give it back is told nothing.
+    let id = add(&mut a, "");
+    a.adopt_tokens(id, signed_in("Alice"));
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert_eq!(given.lock().unwrap().len(), 1);
+}

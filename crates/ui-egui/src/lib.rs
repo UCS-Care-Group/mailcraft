@@ -467,6 +467,10 @@ pub struct Services {
     /// issuer, on a background thread (OpenID Connect Discovery, RFC 8414). Only the issuer's
     /// address goes out; only when the owner presses Discover.
     pub oauth_discover: Option<Box<dyn Fn(String) -> Receiver<Result<OAuthFound, String>>>>,
+    /// Desktop: give an own identity provider a refresh token back (RFC 7009) on a thread of its
+    /// own, with the account's sign-in settings and its client secret (empty for none), when the
+    /// account is removed. Best effort: nothing waits for it, and nothing it says is shown.
+    pub revoke_sign_in: Option<Box<dyn Fn(mailcraft_model::OAuth, String, String)>>,
     /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
     /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
     /// so account setup can tell an address on an Exchange server from one on an IMAP server.
@@ -2715,6 +2719,9 @@ impl MailApp {
             self.graph_tokens.remove(&account);
             self.passwords.remove(&account);
             self.dav_passwords.retain(|(id, _), _| *id != account);
+            // An own identity provider is given its refresh token back, when it says where
+            // (RFC 7009): on a thread of the host's, best effort; it is forgotten here either way.
+            self.revoke_own_sign_in(&gone);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
             self.ews_unreadable.remove(&account);
@@ -3666,6 +3673,22 @@ impl MailApp {
         self.client_secrets.insert(account, secret.to_string());
         if account != 0 {
             self.remember(mailcraft_host::secrets::OAUTH_CLIENT, account, secret);
+        }
+    }
+
+    /// Hand an own identity provider's refresh token for `gone`, an account being removed, to the
+    /// host to give back (`Services::revoke_sign_in`), with its client secret. Nothing when it
+    /// names nowhere to give it back, or there is none.
+    fn revoke_own_sign_in(&mut self, gone: &mailcraft_model::Account) {
+        let Some(oauth) = gone.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom && !o.revoke.trim().is_empty()) else {
+            return;
+        };
+        let kept = self.tokens.get(&gone.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let refresh = kept.or_else(|| self.secret_cache.get(&Self::secret_key("refresh", gone)).cloned()).unwrap_or_default();
+        let secret = self.client_secret_of(gone.id);
+        self.client_secrets.remove(&gone.id);
+        if let (false, Some(revoke)) = (refresh.is_empty(), self.services.revoke_sign_in.as_ref()) {
+            revoke(oauth, secret, refresh);
         }
     }
 

@@ -1260,6 +1260,16 @@ fn services(
                     .map_err(|e| e.to_string())
             })
         })),
+        revoke_sign_in: Some(Box::new(|oauth: mailcraft_model::OAuth, secret: String, refresh: String| {
+            let started = std::thread::Builder::new().name("give back a sign-in".into()).spawn(move || {
+                if mailcraft_net::oauth::revoke_custom(&oauth, &secret, &refresh).is_err() {
+                    log::info!("the identity provider couldn't be told to forget a removed account's sign-in");
+                }
+            });
+            if started.is_err() {
+                log::info!("couldn't start giving a removed account's sign-in back");
+            }
+        })),
         lookup_autodiscover: Some(Box::new(move |domain| {
             background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))
         })),
