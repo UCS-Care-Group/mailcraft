@@ -1668,6 +1668,14 @@ fn main() -> eframe::Result {
     let apple_events = &apple_events;
     // For the window, to take the lock of another mailbox file before it opens it (#517).
     let claimer = guard.as_ref().map(single_instance::Guard::claimer);
+    // The bundled spelling list is large. Parse it off the frame thread so the first check
+    // does not wait on it. A thread the system will not start is ignored: the list still loads
+    // on first use, and this never panics.
+    if let Err(e) = std::thread::Builder::new().name("spelling".into()).spawn(|| {
+        let _ = mailcraft_spell::en_us();
+    }) {
+        log::debug!("the spelling list was not parsed ahead of the window: {e}");
+    }
     run_window(
         options,
         Box::new(move |cc| {

@@ -22,6 +22,8 @@ image = { workspace = true }
 tempfile = { workspace = true }
 mailcraft-host = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
+# The bundled spelling list is parsed off the frame thread at start (`main`).
+mailcraft-spell = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
 mailcraft-control-key = { workspace = true }
 # Sockets: Send/Receive runs on a background thread.
