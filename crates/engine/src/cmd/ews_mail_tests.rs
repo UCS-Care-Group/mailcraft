@@ -931,3 +931,21 @@ fn an_archive_run_sweeps_only_the_folders_it_read() {
     end(&mut s, archive, false);
     assert!(here(&s, archive, "M2").is_some(), "a folder not read keeps its mail");
 }
+
+/// A folder whose listing a run didn't finish is no folder it read: a fresh listing marks the
+/// folder's mail gone until it reaches it, and the rest isn't taken away (#1834 review).
+#[test]
+fn an_archive_folder_listed_part_way_keeps_what_the_listing_didnt_reach() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "One", 1_700_000_000), mail("M2", "Two", 1_700_000_100)], true, true), "S1");
+    end(&mut s, archive, false);
+    // Read afresh again; the first page has only M1, and the run ends before the rest.
+    s.run("sync.ewsRequest", &json!({"account": archive})).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "One", 1_700_000_000)], true, false), "S1b");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M2").is_some(), "not reached by the listing, not taken away");
+}

@@ -522,9 +522,10 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         if !ews_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down) {
             left_out = left_out.saturating_add(1);
         }
-        // (The folders this run read: an archive's end sweeps no other, #1834 review.)
+        // (The folders this run read to the end of their listing: an archive's end sweeps no other,
+        // nor one whose listing stopped part way, #1834 review.)
         let read = s.ews_run_read.entry(account).or_default();
-        if read.len() < MAX_RUN_FOLDERS {
+        if page.last && read.len() < MAX_RUN_FOLDERS {
             read.insert(page.folder.clone());
         }
     }

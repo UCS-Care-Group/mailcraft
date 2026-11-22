@@ -197,7 +197,7 @@ impl MailApp {
         let sent = Some(secret.clone());
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let pieces = self.hand_ews(account, EwsJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
-        (self.sync_refused, self.sync_password, self.ews_run_trouble) = (false, sent, false);
+        (self.sync_refused, self.sync_password, self.ews_run_trouble, self.ews_run_stopped) = (false, sent, false, false);
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -229,7 +229,8 @@ impl MailApp {
             let (last, whole) = (!piece.partial, piece.whole);
             // (An online archive's run reads only part of it and is never `whole`: it went through
             // when nothing went wrong in any piece of it, #1834 review.)
-            self.ews_run_trouble |= !piece.errors.is_empty() || piece.stopped || piece.auth_refused || !piece.blocked.is_empty();
+            self.ews_run_trouble |= !piece.errors.is_empty() || piece.auth_refused || !piece.blocked.is_empty();
+            self.ews_run_stopped |= piece.stopped;
             // Another mailbox took the place of the one the run was for: its accounts are other
             // accounts, whatever their ids and addresses, and what the run brings is nobody's. The
             // run is called off, and what comes of it until its end is thrown away.
@@ -300,6 +301,8 @@ impl MailApp {
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.session.send_run_answered(account);
+            // (Whether it was called off to be started again, before that is taken: below.)
+            let restarts = matches!(self.sync_run, Some((_, _, true, _)));
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.session.driver.round.queue.push_front((whose, quiet));
@@ -316,8 +319,14 @@ impl MailApp {
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }
-            let went_well = !std::mem::take(&mut self.ews_run_trouble);
-            self.archive_run_ended(account, went_well);
+            // (Stopped to make way for something that goes first, and started again after it, a
+            // read isn't a failed one: it goes on when it starts again, #1834 review. Stopped by
+            // the owner, or by anything else, it is.)
+            let stopped = std::mem::take(&mut self.ews_run_stopped);
+            let trouble = std::mem::take(&mut self.ews_run_trouble);
+            if !(restarts && stopped && !trouble) {
+                self.archive_run_ended(account, !trouble && !stopped);
+            }
             self.sync_password = None;
             self.note_pushed(account);
             return;
