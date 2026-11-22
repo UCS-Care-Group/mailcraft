@@ -3334,7 +3334,10 @@ dependencies = [
  "log",
  "mailcraft-control-key",
  "mailcraft-engine",
+ "mailcraft-names",
+ "proptest",
  "serde_json",
+ "unicode-general-category",
 ]
 
 [[package]]
