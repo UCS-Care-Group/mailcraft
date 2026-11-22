@@ -32,9 +32,10 @@ pub(crate) struct Field {
     pub value: String,
 }
 
-/// The header fields of a message or of one MIME part, in order.
+/// The header fields of a message or of one MIME part, in order, and whether any were left out
+/// or cut short past the caps of [`split`] (#566: what they said can't be told).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Headers(pub Vec<Field>);
+pub(crate) struct Headers(pub Vec<Field>, pub bool);
 
 impl Headers {
     /// The value of the first field called `name` (any letter case).
@@ -59,7 +60,7 @@ pub(crate) fn line_at(bytes: &[u8], pos: usize) -> (&[u8], usize) {
 /// empty line, or at the first line that can't be a header field (some senders forget the empty
 /// line). At the `top` of a message a leading mbox `From ` line is skipped.
 pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
-    fn push(fields: &mut Vec<Field>, kept: &mut usize, stamps: &mut [usize; 2], current: Option<(String, Vec<u8>)>) {
+    fn push(fields: &mut Vec<Field>, kept: &mut usize, stamps: &mut [usize; 2], cut: &mut bool, current: Option<(String, Vec<u8>)>) {
         let Some((name, value)) = current else { return };
         // Exchange's own stamps get room past both caps, so that a sender's padding can't push
         // them out, at most `MAX_AUTH_AS` of each; each is cut short, with a mark so that it is
@@ -74,15 +75,20 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
                     text.push('…');
                 }
                 fields.push(Field { name, value: text });
+            } else {
+                *cut = true;
             }
             return;
         }
         if fields.len() < MAX_FIELDS && *kept + name.len() + value.len() <= MAX_BLOCK {
             *kept += name.len() + value.len();
             fields.push(Field { name, value: charset::guess(value.trim_ascii()) });
+        } else {
+            *cut = true;
         }
     }
     let mut fields = Vec::new();
+    let mut cut = false;
     let mut kept = 0usize;
     let mut stamps = [0usize; 2];
     let mut current: Option<(String, Vec<u8>)> = None;
@@ -101,13 +107,16 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
                 Some((_, value)) => {
                     if value.len() + line.len() <= MAX_VALUE {
                         value.extend_from_slice(line);
+                    } else {
+                        cut = true;
                     }
                 }
                 // A continuation of nothing: this is not a header block.
                 None => break pos,
             }
         } else if let Some((name, value)) = field(line) {
-            push(&mut fields, &mut kept, &mut stamps, current.take());
+            push(&mut fields, &mut kept, &mut stamps, &mut cut, current.take());
+            cut |= value.len() > MAX_VALUE;
             current = Some((name, value.get(..MAX_VALUE).unwrap_or(value).to_vec()));
         } else if !(top && first && (line.starts_with(b"From ") || line.starts_with(b">From "))) {
             break pos;
@@ -115,8 +124,8 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
         first = false;
         pos = next;
     };
-    push(&mut fields, &mut kept, &mut stamps, current.take());
-    (Headers(fields), bytes.get(body..).unwrap_or_default())
+    push(&mut fields, &mut kept, &mut stamps, &mut cut, current.take());
+    (Headers(fields, cut), bytes.get(body..).unwrap_or_default())
 }
 
 /// A header line as a name and a raw value, when it is one.
@@ -351,7 +360,7 @@ mod tests {
         let (h, body) = split(b"A: 1\nB: 2\n\nBody\n", true);
         assert_eq!(h.0.len(), 2);
         assert_eq!(body, b"Body\n");
-        assert_eq!(split(b"A: 1", true), (Headers(vec![Field { name: "A".into(), value: "1".into() }]), &b""[..]));
+        assert_eq!(split(b"A: 1", true), (Headers(vec![Field { name: "A".into(), value: "1".into() }], false), &b""[..]));
         assert_eq!(split(b"A: 1\r\n", true).1, b"");
         assert_eq!(split(b"", true), (Headers::default(), &b""[..]));
         assert_eq!(split(b"\r\nBody", true), (Headers::default(), &b"Body"[..]));
