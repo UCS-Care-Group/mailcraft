@@ -22134,6 +22134,12 @@ msgstr "一个账户最多有 {max} 个发件人地址"
 msgid "an event needs a title"
 msgstr "日程需要标题"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "在线存档始终位于其邮箱之下：请移动该帐户"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy

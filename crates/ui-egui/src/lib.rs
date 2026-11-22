@@ -3454,7 +3454,8 @@ impl MailApp {
             .mailbox
             .accounts
             .iter()
-            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
+            // (An online archive has its owner's address and sign-in, and nothing of its own, #1818.)
+            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.archive_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
             .nth(1)
             .is_some()
     }

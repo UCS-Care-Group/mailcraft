@@ -3260,7 +3260,20 @@ pub(crate) fn save_single_with(path: &Path, mailbox: &Mailbox, load: impl Fn(Id)
     let on_disk = mailbox.for_disk();
     let mut st = lock(&shared.state);
     let mut file = AtomicFile::create(&resolve(path)).map_err(|e| format!("{}: {e}", path.display()))?;
-    let bytes = export::write(&mut file, &on_disk, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
+    // (A message `load` brings is as the mailbox in memory has it: one whose move into an online
+    // archive the server hasn't made is written where `for_disk` put it back, #1834 review.)
+    let placed = |id: Id| -> Result<Arc<Message>, String> {
+        let m = load(id)?;
+        match on_disk.message(id) {
+            Some(there) if (there.account, there.folder) != (m.account, m.folder) => {
+                let mut m = Arc::unwrap_or_clone(m);
+                m.lies_in(there.folder, there.account, there.uid, there.synced);
+                Ok(Arc::new(m))
+            }
+            _ => Ok(m),
+        }
+    };
+    let bytes = export::write(&mut file, &on_disk, placed, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
     file.commit().map_err(|e| format!("{}: {e}", path.display()))?;
     // The file is another one now: nothing known about the old one holds, and a state of it
     // still waiting to be written has had its turn.

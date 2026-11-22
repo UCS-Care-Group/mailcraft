@@ -878,3 +878,27 @@ fn the_archive_commands_take_only_an_exchange_server_account() {
     assert!(s.run("account.archive.show", &json!({})).is_err());
     assert!(s.run("account.archive.show", &json!({"account": 9_999})).is_err());
 }
+
+/// An online archive is only ever read in part, so its runs are never `whole`: what a folder it
+/// read says is gone still goes when the run went well, and nothing of a folder not read does
+/// (#1834 review).
+#[test]
+fn mail_deleted_from_an_archive_folder_goes_after_a_clean_partial_run() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas {
+        changed: vec![folder("A1", "", "2019", FolderKind::Custom), folder("A2", "", "2020", FolderKind::Custom)],
+        afresh: true,
+        ..Default::default()
+    };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "Budget 2019", 1_700_000_000)], true, true), "S1");
+    read(&mut s, archive, page("A2", vec![mail("M2", "Budget 2020", 1_700_000_100)], true, true), "S2");
+    // Another program deleted M1; only 2019 is read again, and the run ends well (not whole).
+    let gone = EwsMessagePage { folder: "A1".into(), removed: vec!["M1".into()], last: true, ..Default::default() };
+    read(&mut s, archive, gone, "S1b");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M1").is_none(), "gone from the folder read");
+    assert!(here(&s, archive, "M2").is_some(), "the folder not read keeps its mail");
+}

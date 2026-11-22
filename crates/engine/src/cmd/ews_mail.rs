@@ -528,7 +528,14 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     if !result.partial {
         s.ews_run_cut.remove(&account);
     }
-    if result.whole && !result.partial && !run_cut {
+    // (An online archive is only ever read in part, its folder list and the folders opened, so a
+    // run of it is never `whole`: what the folders it read said is gone goes when it went well.
+    // Only those folders mark anything gone, so nothing of a folder not read goes, #1834 review.)
+    let archive_clean = s.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive)
+        && result.errors.is_empty()
+        && !result.stopped
+        && !result.auth_refused;
+    if (result.whole || archive_clean) && !result.partial && !run_cut {
         graph_down::sweep(&mut s.mailbox, account, None, &mut down);
     }
     // The conversations of mail listed before they were asked for (#795).

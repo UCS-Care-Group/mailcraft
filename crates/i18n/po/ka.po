@@ -22074,6 +22074,12 @@ msgstr "ანგარიშს მაქსიმუმ {max} გამგზ�
 msgid "an event needs a title"
 msgstr "ღონისძიებას სათაური სჭირდება"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "ონლაინ არქივი რჩება თავისი საფოსტო ყუთის ქვეშ: გადაიტანეთ ის ანგარიში"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy

@@ -1817,6 +1817,7 @@ impl Mailbox {
             match mb.account(id) {
                 None => Err(not_found("account", id)),
                 Some(a) if a.is_shared() => Err(invalid("a shared mailbox stays under the account it is opened through: move that account")),
+                Some(a) if a.is_archive() => Err(invalid("an online archive stays under its mailbox: move that account")),
                 Some(_) => Ok(()),
             }
         };

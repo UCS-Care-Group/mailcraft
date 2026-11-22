@@ -22059,6 +22059,12 @@ msgstr "un compte a au plus {max} adresses d’expéditeur"
 msgid "an event needs a title"
 msgstr "un événement doit avoir un titre"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "une archive en ligne reste sous sa boîte aux lettres : déplacez ce compte"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy

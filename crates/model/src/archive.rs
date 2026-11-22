@@ -77,7 +77,7 @@ impl Mailbox {
         if !self.account(archive).is_some_and(Account::is_archive) {
             return Err(ModelError::Invalid("that account isn't an online archive".into()));
         }
-        self.put_back_moves_into_archives();
+        self.put_back_moves_into(Some(archive));
         self.remove_account(archive)
     }
 
@@ -100,9 +100,16 @@ impl Mailbox {
     /// or the mailbox is written to its file). The move is called off; the owner can move it
     /// again. Whether any was put back.
     pub fn put_back_moves_into_archives(&mut self) -> bool {
+        self.put_back_moves_into(None)
+    }
+
+    /// [`Mailbox::put_back_moves_into_archives`] for the archive `only` alone, when one is named
+    /// (the one being taken away: the others' moves go on, #1834 review).
+    fn put_back_moves_into(&mut self, only: Option<Id>) -> bool {
         let back: Vec<(Id, Id, Id)> = self
             .messages
             .values()
+            .filter(|m| only.is_none_or(|archive| m.account == archive))
             .filter_map(|m| {
                 let owner = self.archive_owner(m.account)?.id;
                 let server = m.server.as_ref()?;
@@ -166,6 +173,7 @@ impl Mailbox {
         let archives = self.archives();
         let holds = |id: &Id| archives.contains(id);
         let anything = self.folders.iter().any(|f| holds(&f.account))
+            || self.messages.values().any(|m| holds(&m.account))
             || self.pending.iter().any(|p| holds(&p.account()))
             || self.queued.iter().any(|q| holds(&q.account()))
             || self.accounts.iter().any(|a| a.is_archive() && a.ews.as_ref().is_some_and(|e| *e != EwsServer::default()));

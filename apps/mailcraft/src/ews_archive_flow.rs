@@ -45,6 +45,8 @@ fn the_archive_appears_and_is_read_with_the_owners_sign_in() {
     let started = send_receive(&mut app, json!({"account": archive}));
     assert_eq!(started["ews"], true, "{started}");
     assert!(app.dialog.is_none(), "no password asked for the archive");
+    // (A run of it reads only part of it, and is never `whole`: one that went well is no failure.)
+    assert!(!app.archive_read_failed(archive), "a read that went well is not a failed one");
     let names: Vec<&str> = app.session.mailbox.folders.iter().filter(|f| f.account == archive).map(|f| f.name.as_str()).collect();
     assert!(names.contains(&"2019") && names.contains(&"Inbox") && names.contains(&"Deleted Items"), "{names:?}");
     assert!(!names.contains(&"Sent Items"));
@@ -54,6 +56,7 @@ fn the_archive_appears_and_is_read_with_the_owners_sign_in() {
     app.session.view.folder = year;
     send_receive(&mut app, json!({"account": archive}));
     assert!(app.session.mailbox.messages.values().any(|m| m.account == archive && m.subject == "Budget 2019"));
+    assert!(!app.archive_read_failed(archive));
     assert!(server.standin.state().writes.is_empty(), "reading writes nothing");
 
     // Nothing of it is written to the file.

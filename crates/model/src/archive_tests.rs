@@ -233,3 +233,39 @@ fn a_move_into_the_archive_not_made_yet_is_put_back_not_lost() {
     mb.remove_archive(archive).unwrap();
     assert!(mb.message(kickoff).is_none());
 }
+
+/// Taking one archive away puts back only the moves into that one: another's go on; and a
+/// mailbox holding archive mail without folders still leaves it out of the file (#1834 review).
+#[test]
+fn only_the_archive_taken_away_has_its_moves_put_back() {
+    let (mut mb, owner) = mailbox();
+    let second = exchange(&mut mb, "bob@corp.example.org");
+    let a = mb.add_archive(owner).unwrap();
+    let b = mb.add_archive(second).unwrap();
+    let (kickoff, _) = on_owners_server(&mut mb, owner);
+    let year_a = archived(&mut mb, a);
+    mb.move_messages(&[kickoff], year_a).unwrap();
+    // Bob's: a message of his server moved into his archive.
+    let inbox_b = mb.folder_of_kind(second, FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox_b).unwrap().server = Some(ServerFolder { id: "BOB-INBOX".into(), ..Default::default() });
+    let id = mb.alloc_id();
+    let server = crate::sync::ServerMessage { id: "BOB-1".into(), folder: "BOB-INBOX".into(), ..Default::default() };
+    mb.messages.insert(id, Arc::new(Message { id, account: second, folder: inbox_b, server: Some(server), ..Default::default() }));
+    let year_b = archived(&mut mb, b);
+    mb.move_messages(&[id], year_b).unwrap();
+    mb.remove_archive(a).unwrap();
+    assert_eq!(mb.message(kickoff).unwrap().account, owner, "a's move put back");
+    assert_eq!(mb.message(id).unwrap().account, b, "b's goes on");
+    // Archive mail with no folder of its own here is still left out.
+    mb.folders.retain(|f| f.account != b);
+    let written = mb.for_disk();
+    assert!(written.messages.values().all(|m| m.account != b || m.id == id), "{:?}", written.messages.len());
+}
+
+#[test]
+fn an_archive_is_never_put_before_or_moved_by_itself() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    assert!(mb.move_account(archive, None).is_err());
+    assert!(mb.move_account(owner, Some(archive)).is_err());
+}

@@ -98,6 +98,12 @@ impl MailApp {
         }
     }
 
+    /// Whether the last read of the online archive `archive` failed: it isn't read again by itself
+    /// until the owner asks (#1818).
+    pub fn archive_read_failed(&self, archive: Id) -> bool {
+        self.archive_failed.contains(&archive)
+    }
+
     /// Why the online archive `archive` has nothing to show yet, when it isn't on its way: its
     /// last read failed, or there is no password at hand to read it with (#1818).
     pub(crate) fn archive_not_read(&self, archive: Id) -> Option<&'static str> {
@@ -158,6 +164,11 @@ impl MailApp {
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
             self.passwords.insert(holder, typed.to_string());
         }
+        // An online archive whose read failed is read again only when the owner asks, never by a
+        // round by itself (#1834 review).
+        if quiet && self.archive_failed.contains(&account) {
+            return Err(tl!("The online archive couldn't be read: Refresh to try again").to_string());
+        }
         // The owner asked: a password turned down before is tried again.
         if !quiet {
             self.jmap_refused.remove(&account);
@@ -216,6 +227,9 @@ impl MailApp {
                 }
             };
             let (last, whole) = (!piece.partial, piece.whole);
+            // (An online archive's run reads only part of it and is never `whole`: it went through
+            // when nothing went wrong, #1834 review.)
+            let clean = piece.errors.is_empty() && !piece.stopped && !piece.auth_refused;
             // Another mailbox took the place of the one the run was for: its accounts are other
             // accounts, whatever their ids and addresses, and what the run brings is nobody's. The
             // run is called off, and what comes of it until its end is thrown away.
@@ -298,7 +312,7 @@ impl MailApp {
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }
-            self.archive_run_ended(account, whole && !untrusted);
+            self.archive_run_ended(account, clean && !untrusted);
             self.sync_password = None;
             self.note_pushed(account);
             return;

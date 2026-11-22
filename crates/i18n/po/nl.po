@@ -21536,6 +21536,12 @@ msgstr "een account heeft hoogstens {max} afzenderadressen"
 msgid "an event needs a title"
 msgstr "een gebeurtenis heeft een titel nodig"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "een onlinearchief blijft onder het postvak: verplaats dat account"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
