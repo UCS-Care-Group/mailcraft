@@ -225,7 +225,7 @@ impl Server {
                     COMMANDS_URI => self.backend.call("engine.commands", json!({})),
                     _ => return Err((RESOURCE_NOT_FOUND, format!("resource not found: {}", clip(uri)))),
                 }
-                .map_err(|e| (INTERNAL_ERROR, e))?;
+                .map_err(|e| (INTERNAL_ERROR, crate::tools::frame_error(&e)))?;
                 Ok(json!({"contents": [{"uri": uri, "mimeType": "application/json", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}]}))
             }
             other => Err((METHOD_NOT_FOUND, format!("method not found: {}", clip(other)))),

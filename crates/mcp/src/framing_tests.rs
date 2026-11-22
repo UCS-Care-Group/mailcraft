@@ -47,6 +47,8 @@ struct Fixture {
     task: Id,
     note: Id,
     entry: Id,
+    folder: Id,
+    account: Id,
 }
 
 fn fixture() -> Fixture {
@@ -178,7 +180,25 @@ fn fixture() -> Fixture {
         categories: vec![marked("journalCategory")],
         ..Default::default()
     });
-    Fixture { session: s, message, invitation, event, joinable, contact, task, note, entry }
+    // Every name a server, a file or another person can give: folders (and where they are on
+    // the server), accounts, calendars, categories and rules.
+    for f in &mut s.mailbox.folders {
+        f.name = marked(&format!("folder{}", f.id));
+        f.remote = marked(&format!("remote{}", f.id));
+        f.favorite = true;
+    }
+    for a in &mut s.mailbox.accounts {
+        a.name = marked("accountName");
+        a.display_name = marked("accountDisplayName");
+    }
+    for c in &mut s.mailbox.calendars {
+        c.name = marked(&format!("calendar{}", c.id));
+    }
+    for c in &mut s.mailbox.categories {
+        c.name = marked(&format!("category {}", c.name));
+    }
+    s.mailbox.rules.push(mailcraft_engine::model::Rule { id: 9_000, name: marked("rule"), ..Default::default() });
+    Fixture { session: s, message, invitation, event, joinable, contact, task, note, entry, folder: inbox, account }
 }
 
 /// Where in an answer a marker stands outside a frame (or a frame holds one inside it).
@@ -241,6 +261,9 @@ fn params(f: &Fixture, id: &str) -> Value {
                 Some("tasks") => t,
                 Some("notes") => f.note,
                 Some("journal") => f.entry,
+                Some("folder") => f.folder,
+                Some("account") => f.account,
+                Some("rules") => 9_000,
                 _ => m,
             };
             json!({"id": item})
@@ -312,20 +335,18 @@ fn unsubscribing() -> (Session, Id) {
     (s, id)
 }
 
-/// The engine's command `id`, run by an agent with every `--allow`, over the marked items, with
-/// the params above (or with none: on the selection): what it answered, and where a marker
-/// stands outside a frame.
-fn run_marked(id: &str, none: bool) -> (String, Vec<String>) {
+/// The engine's command `id`, run by an agent through `execute` over the marked items, with
+/// every `--allow` or none, with the params above or none (on the selection): what it answered
+/// or the error it gave, and where a marker stands outside a frame in either.
+fn run_marked(id: &str, none: bool, allow: bool) -> (String, Vec<String>) {
+    let allow = if allow { mailcraft_engine::agent::Class::ALL.to_vec() } else { Vec::new() };
     let (mut h, p) = if id.starts_with("mail.unsubscribe") {
         let (s, m) = unsubscribing();
-        (
-            Headless::new(s, mailcraft_engine::agent::Class::ALL.to_vec()),
-            if id == "mail.unsubscribe" { json!({"id": m}) } else { json!({"ids": [m]}) },
-        )
+        (Headless::new(s, allow), if id == "mail.unsubscribe" { json!({"id": m}) } else { json!({"ids": [m]}) })
     } else {
         let mut f = fixture();
         let p = if none { json!({}) } else { params(&f, id) };
-        let mut h = Headless::new(std::mem::replace(&mut f.session, Session::empty()), mailcraft_engine::agent::Class::ALL.to_vec());
+        let mut h = Headless::new(std::mem::replace(&mut f.session, Session::empty()), allow);
         // A message the agent is writing that holds such text (a reply quotes it), and the
         // selection.
         for (setup, p) in [
@@ -337,14 +358,13 @@ fn run_marked(id: &str, none: bool) -> (String, Vec<String>) {
         }
         (h, p)
     };
-    let answer = match exec(&mut h, &Policy::default(), id, p) {
-        Ok(a) => a,
-        // What a refusal or a failure says is checked by the gate's tests.
-        Err(e) => return (format!("error: {e}"), Vec::new()),
-    };
+    let r = call_tool(&mut h, &Policy::default(), "execute", &json!({"command": id, "params": p}));
+    let text = r.content.first().and_then(|c| c["text"].as_str()).unwrap_or_default().to_string();
+    // An answer is JSON; an error is its text.
+    let said: Value = if r.is_error { Value::String(text.clone()) } else { serde_json::from_str(&text).unwrap() };
     let mut found = Vec::new();
-    bare_marks(&answer, "", &mut found);
-    (answer.to_string(), found.into_iter().map(|b| format!("{id}{b}")).collect())
+    bare_marks(&said, "", &mut found);
+    (text, found.into_iter().map(|b| format!("{id}{} {b}", if r.is_error { " (error)" } else { "" })).collect())
 }
 
 #[test]
@@ -356,9 +376,11 @@ fn no_marker_in_any_answer_of_any_command_stands_outside_a_frame() {
         if matches!(mailcraft_engine::agent::access(spec.id), None | Some(mailcraft_engine::agent::Access::Never)) {
             continue;
         }
-        let (text, found) = run_marked(spec.id, false);
+        let (text, found) = run_marked(spec.id, false, true);
         bare.extend(found);
-        bare.extend(run_marked(spec.id, true).1);
+        for (none, allow) in [(true, true), (false, false), (true, false)] {
+            bare.extend(run_marked(spec.id, none, allow).1);
+        }
         if REACHED.contains(&spec.id) {
             assert!(text.to_lowercase().contains("hostile"), "{} answered without the marked items: {text}", spec.id);
         }
@@ -430,9 +452,10 @@ impl crate::Backend for Answering {
 
 /// What a window might answer: message text under every field that can hold it.
 fn window_answer() -> Value {
+    // Under keys no list names, as a field added later would be.
     json!({
-        "subject": MARKS, "title": MARKS, "joinUrl": MARKS, "to": MARKS, "body": MARKS, "status": 1,
-        "windows": [{"kind": "message", "title": MARKS}], "beingWritten": [{"subject": MARKS}], "data": "iVBORw0KGgo=",
+        "subject": MARKS, "zqxField": MARKS, "path": MARKS, "why": MARKS, "error": MARKS, "status": 1,
+        "nested": [{"anyKey": [MARKS, {"deeper": MARKS}]}], "beingWritten": [{"subject": MARKS}], "data": "iVBORw0KGgo=",
     })
 }
 
@@ -529,4 +552,117 @@ fn what_an_import_report_names_from_the_file_is_framed() {
     assert!(bare.is_empty(), "{bare:?}");
     assert_eq!((&answer["added"], &answer["untrusted"]), (&json!(1), &json!(true)));
     assert_eq!(answer["notes"][0]["what"].as_str().unwrap().matches(UNTRUSTED_OPEN).count(), 1, "framed once: {answer}");
+}
+
+#[test]
+fn the_program_s_own_keys_are_reviewed() {
+    // A string under one of these keys reaches the agent unframed: a key is added here only once
+    // nothing from outside can ever stand under it, in any command's answer.
+    let reviewed = [
+        "untrustedNote",
+        "data",
+        "id",
+        "command",
+        "needs",
+        "kind",
+        "mode",
+        "module",
+        "view",
+        "flag",
+        "importance",
+        "response",
+        "showAs",
+        "level",
+        "format",
+        "sort",
+        "by",
+        "scope",
+        "filter",
+        "readingPane",
+        "spf",
+        "dkim",
+        "dmarc",
+        "date",
+        "received",
+        "completed",
+        "due",
+        "start",
+        "end",
+        "occurrence",
+        "today",
+        "color",
+    ];
+    assert_eq!(crate::tools::PLAIN_KEYS, reviewed);
+}
+
+/// A host that refuses every method with `why`, as a window or a server may, quoting a title.
+struct Refusing;
+
+impl crate::Backend for Refusing {
+    fn call(&mut self, _: &str, _: Value) -> Result<Value, String> {
+        Err(format!("it would forward \u{201c}{MARKS}\u{201d}"))
+    }
+    fn has_ui(&self) -> bool {
+        true
+    }
+    fn describe(&self) -> String {
+        String::new()
+    }
+}
+
+#[test]
+fn every_error_an_agent_is_given_is_framed() {
+    let pol = Policy { allow: mailcraft_engine::agent::Class::ALL.to_vec(), ..Policy::default() };
+    let mut bare = Vec::new();
+    let mut texts = Vec::new();
+    for t in tool_definitions().as_array().unwrap() {
+        let name = t["name"].as_str().unwrap();
+        let args = json!({"command": "mail.get", "commands": [{"command": "mail.get"}], "to": "a@example.org", "subject": "s", "body": "b", "path": "x.mailcraft"});
+        let r = call_tool(&mut Refusing, &pol, name, &args);
+        texts.extend(r.content.iter().filter_map(|c| c["text"].as_str().map(|t| (name.to_string(), t.to_string()))));
+    }
+    for id in mailcraft_engine::agent::runnable() {
+        let r = call_tool(&mut Refusing, &pol, "execute", &json!({"command": id}));
+        texts.extend(r.content.iter().filter_map(|c| c["text"].as_str().map(|t| (id.to_string(), t.to_string()))));
+    }
+    for (who, text) in texts {
+        let v: Value = serde_json::from_str(&text).unwrap_or(Value::String(text));
+        let mut found = Vec::new();
+        bare_marks(&v, "", &mut found);
+        bare.extend(found.into_iter().map(|b| format!("{who}{b}")));
+    }
+    assert!(bare.is_empty(), "markers outside a frame:\n{}", bare.join("\n"));
+}
+
+#[test]
+fn a_list_and_an_item_s_bytes_say_they_are_untrusted() {
+    let list = frame(json!([{"name": MARKS}]));
+    assert_eq!((&list["untrusted"], list["items"][0]["name"].as_str().map(|t| t.starts_with(UNTRUSTED_OPEN))), (&json!(true), Some(true)), "{list}");
+    let bytes = frame(json!({"data": "SGk=", "bytes": 2}));
+    assert_eq!((&bytes["untrusted"], &bytes["data"]), (&json!(true), &json!("SGk=")), "{bytes}");
+    // An answer with nothing from outside is left as it was.
+    assert_eq!(frame(json!({"changed": 1, "id": 4})), json!({"changed": 1, "id": 4}));
+}
+
+#[test]
+fn a_name_copied_back_from_an_answer_names_the_same_thing() {
+    let mut f = fixture();
+    let (message, folder) = (f.message, f.folder);
+    let mut h = Headless::new(std::mem::replace(&mut f.session, Session::empty()), Vec::new());
+    let pol = Policy::default();
+    // A folder's name, as list_folders gives it, finds that folder's messages.
+    let folders = exec(&mut h, &pol, "folder.list", json!({})).unwrap();
+    let name = folders["accounts"][0]["folders"].as_array().unwrap().iter().find(|x| x["id"] == json!(folder)).unwrap()["name"].clone();
+    assert!(name.as_str().unwrap().starts_with(UNTRUSTED_OPEN), "{name}");
+    let listed = exec(&mut h, &pol, "mail.list", json!({"folder": name, "query": "", "limit": 500})).unwrap();
+    assert_eq!(listed["folder"], json!(folder), "{listed}");
+    // A category's name, as read_message gives it, is the category itself, markers and all.
+    let got = exec(&mut h, &pol, "mail.get", json!({"id": message})).unwrap();
+    let category = got["categories"][0].clone();
+    exec(&mut h, &pol, "mail.clearCategories", json!({"ids": [message]})).unwrap();
+    exec(&mut h, &pol, "mail.categorize", json!({"ids": [message], "category": category})).unwrap();
+    assert_eq!(h.session.mailbox.message(message).unwrap().categories, vec![marked("category")]);
+    // Only a whole frame is taken off: one inside other text stays.
+    let half = format!("x {}", category.as_str().unwrap());
+    assert!(exec(&mut h, &pol, "mail.list", json!({"folder": half, "query": ""})).is_err());
 }
