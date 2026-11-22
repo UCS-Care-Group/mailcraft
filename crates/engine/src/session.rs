@@ -951,6 +951,10 @@ pub struct Prefs {
     /// The rows of the message list stand closer together (`view.density`).
     #[serde(skip_serializing_if = "is_false")]
     pub tight_spacing: bool,
+    /// Every other row of the message list wears a faint band, so that where one message ends
+    /// and the next begins is seen at a glance (`view.shadeRows`, #1657).
+    #[serde(skip_serializing_if = "is_false")]
+    pub shade_rows: bool,
     /// How large the text of the message being read is, in percent (`view.zoom`): read through
     /// [`Prefs::zoom_percent`], which keeps it in range whatever the settings file says.
     pub zoom: u16,
@@ -1000,6 +1004,7 @@ impl Default for Prefs {
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
             tight_spacing: false,
+            shade_rows: false,
             zoom: Prefs::ZOOM_DEFAULT,
             recent_searches: Vec::new(),
             offline: false,
@@ -1176,6 +1181,12 @@ pub struct Session {
     /// the run is not made good by one that says all went well). Set by any such piece, cleared
     /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
     pub(crate) ews_run_cut: std::collections::HashSet<Id>,
+    /// The `Message-ID`s each account had before its run now under way brought new mail into its
+    /// Inbox or Junk E-mail ([`crate::cmd::account::message_ids`]), as the run first needed them:
+    /// kept for the run's later pieces, so that a second copy of one message in a later piece is
+    /// as new as the first (#566). Let go of with the run's last piece (an Inbox pass's: its own),
+    /// a run that ends without it ([`Session::end_run_unfinished`]), an undo, or another mailbox.
+    pub(crate) run_had: std::collections::HashMap<Id, std::collections::HashSet<String>>,
     /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
     /// JMAP, said it no longer has), by account and server id: the background passes them over
     /// (opening one still asks). Never saved.
@@ -1403,6 +1414,7 @@ impl Session {
             sync_progress: Default::default(),
             graph_index: Default::default(),
             ews_run_cut: Default::default(),
+            run_had: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
@@ -1513,6 +1525,12 @@ impl Session {
             return zone;
         }
         self.clock.zone.unwrap_or_else(Zone::system)
+    }
+
+    /// The clock the rules run by: now, in the zone the calendar is shown in, with a flag a rule
+    /// sets falling due at the end of the working day.
+    pub fn rule_clock(&self) -> mailcraft_model::RuleClock {
+        mailcraft_model::RuleClock { now: self.now(), zone: self.zone(), due_hour: self.prefs.work_end }
     }
 
     /// The offset at `ts` of the zone the calendar is shown in, in minutes east of UTC.
@@ -3393,6 +3411,7 @@ impl Session {
         self.signatures.forget_messages();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
+        self.run_had.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
         // The background fetch's waits and offline flag were the old mailbox's.
@@ -3547,6 +3566,13 @@ impl Session {
         self.redo.last().map(|u| u.label)
     }
 
+    /// A run of `account` that ends without its last piece (an Inbox check that gave way to a run
+    /// the owner asked for, a job whose thread ended early): what the account had before the run's new mail is let go of, so that
+    /// its next run starts from what it has then (#566).
+    pub fn end_run_unfinished(&mut self, account: Id) {
+        self.run_had.remove(&account);
+    }
+
     /// Forget every undo and redo step: the mailbox as it was then is not what the mail server
     /// has any more (changes were pushed, mail was sent), and going back to it would undo here
     /// what can't be undone there.
@@ -3653,6 +3679,7 @@ impl Session {
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
         self.ews_run_cut.clear();
+        self.run_had.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;
@@ -3840,6 +3867,13 @@ impl Session {
     /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
     /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
+        self.undo_reverts_with(redo, || !self.undo_places(redo).is_empty() || !self.undo_rules_onto_server(redo).is_empty())
+    }
+
+    /// [`Session::undo_reverts`], told by `onto` whether the step puts mail or a rule on its way
+    /// onto another account's server ([`Session::undo_places`], [`Session::undo_rules_onto_server`]),
+    /// for a question that has worked those out already: each works the undo out on a copy.
+    pub(crate) fn undo_reverts_with(&self, redo: bool, onto: impl FnOnce() -> bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
         let (to, now) = (&step.mailbox, &self.mailbox);
@@ -3847,6 +3881,12 @@ impl Session {
             return Some(Class::Accounts);
         }
         if self.undo_sends_items(redo) {
+            return Some(Class::Send);
+        }
+        // A message the step puts on its way onto another account's server again, or a rule it
+        // brings back or switches on that files mail there (#566): an agent's move there, or its
+        // rule that does, is a send too.
+        if onto() {
             return Some(Class::Send);
         }
         // A category kept on this computer alone that the step has go to Outlook (#661), as Add
@@ -3985,14 +4025,49 @@ impl Session {
 
     /// The categories the rules that undoing (`redo`: redoing) puts back give mail and put on a list
     /// kept in step with Outlook that hasn't got them, each with that list's account, so that the
-    /// next job makes them there (#661); none when the step leaves the rules as they are.
+    /// next job makes them there (#661); and those the rules give the mail that a step putting back
+    /// what they read (the Safe or Blocked Senders, an account's address) lets reach them, or
+    /// all of them when it changes a list of categories (#566). None when the step leaves the
+    /// rules, what they read and the lists as they are.
     pub fn undo_rules_make_categories(&self, redo: bool) -> Vec<(String, Id)> {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
-        if step.mailbox.rules == self.mailbox.rules {
+        if step.mailbox.rules == self.mailbox.rules && !crate::agent::undo_changes_what_rules_read(&self.mailbox, &step.mailbox) {
             return Vec::new();
         }
         let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
-        crate::agent::rules_in_outlook(&back)
+        crate::agent::undo_rules_in_outlook(&self.mailbox, &back)
+    }
+
+    /// The accounts on whose servers undoing the last step (or redoing, `redo`) puts a message on
+    /// its way again: one brought back that waits to be made there and doesn't wait now (#566).
+    /// Read off the queue the undo itself makes, by the merge it runs (on a copy, O(n)).
+    pub fn undo_places(&self, redo: bool) -> Vec<Id> {
+        use mailcraft_model::Queued;
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        let waits = |q: &Queued| match q {
+            Queued::PlaceMessage { account, message, .. } => Some((*account, *message)),
+            _ => None,
+        };
+        let now: std::collections::BTreeSet<(Id, Id)> = self.mailbox.queued.iter().filter_map(waits).collect();
+        let mut onto: Vec<Id> = back.queued.iter().filter_map(waits).filter(|w| !now.contains(w)).map(|(account, _)| account).collect();
+        onto.sort_unstable();
+        onto.dedup();
+        onto
+    }
+
+    /// The accounts on whose servers rules file mail, when undoing the last step (or redoing,
+    /// `redo`) changes the rules and leaves such rules switched on (#566), as
+    /// [`Session::undo_places`] reads a message.
+    pub fn undo_rules_onto_server(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        crate::agent::undo_rules_onto_another_server(self, &step.mailbox)
+    }
+
+    /// [`Session::undo_rules_onto_server`], and the names of those rules, quoted.
+    pub(crate) fn undo_rules_onto_named(&self, redo: bool) -> (Vec<String>, Vec<Id>) {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return (Vec::new(), Vec::new()) };
+        crate::agent::undo_rules_onto_named(self, &step.mailbox)
     }
 
     /// Whether undoing the last step (or redoing, `redo`) would take away contacts, events, tasks,
@@ -4005,6 +4080,14 @@ impl Session {
     /// The contacts and the like of [`Session::undo_takes`].
     pub fn undo_removed_items(&self, redo: bool) -> Vec<String> {
         self.undo_takes(redo).1
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) writes to people or puts mail or a rule
+    /// on its way onto another account's server, which [`Session::undo_reverts`] asks as Send when
+    /// the accounts it puts back don't come first: a yes to those covers this too, as it does a
+    /// delete (#566).
+    pub fn undo_sends(&self, redo: bool) -> bool {
+        self.undo_sends_items(redo) || !self.undo_places(redo).is_empty() || !self.undo_rules_onto_server(redo).is_empty()
     }
 
     /// Whether undoing the last step (or redoing, `redo`) needs Delete: it takes away contacts and
@@ -4466,8 +4549,7 @@ fn wipes_history(id: &str) -> bool {
 
 /// Whether an attachment is a calendar part (an invitation, an answer to one).
 pub(crate) fn is_calendar_part(a: &Attachment) -> bool {
-    let kind = a.mime.trim().to_ascii_lowercase();
-    kind.starts_with("text/calendar") || kind.starts_with("application/ics") || a.name.to_ascii_lowercase().ends_with(".ics")
+    a.is_calendar()
 }
 
 /// A calendar part small enough to be read ([`MAX_CALENDAR_PART`]), by its size before it is

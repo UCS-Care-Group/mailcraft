@@ -1137,7 +1137,7 @@ fn view(app: &MailApp) -> Tab {
 /// mail's.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
-    let tight = app.session.prefs.tight_spacing;
+    let (tight, shade) = (app.session.prefs.tight_spacing, app.session.prefs.shade_rows);
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
@@ -1157,6 +1157,7 @@ fn view_of_any(app: &MailApp) -> Tab {
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
                 Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
+                Item::big("shadeRows", "Shade\nRows", "view.shadeRows", no()).checked(shade).at(1, 4),
             ],
         ),
         g(

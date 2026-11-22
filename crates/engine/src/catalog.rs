@@ -206,6 +206,7 @@ Insert|Illustrations|3D Models|insert.models3d
 Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
+Picture Format|Size|Height and Width|compose.picture.set
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox

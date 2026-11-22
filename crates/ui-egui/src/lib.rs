@@ -1446,6 +1446,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Find a Time page), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for Find a Time} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
     ),
     (
+        "ui.unsubscribeMany",
+        "Unsubscribe from Their Lists",
+        "Message",
+        r#"{"ids"?: [number] (default: the selected messages; `id` and any other key refused; an agent names them), "mail"?: [number] (the requests by mail to write: 20 at most, each one of these messages' requests by mail, else refused; absent, null or [], none)} — each sender of the messages once, after the owner's yes to a question that lists each request by mail with its address and subject, as `mail.unsubscribeMany` says: one click goes to each list's server in turn (desktop; each message's bar then says what came of it), each request by mail named in `mail` goes to the Outbox on its own, a list that unsubscribes on its own page is left to its message's bar; answers {"oneClick", "mail", "pages", "leftOut"}: the counts"#,
+    ),
+    (
         "ui.unsubscribe",
         "Unsubscribe",
         "Message",
@@ -2267,6 +2273,12 @@ impl MailApp {
         match self.session.registry.get(id) {
             // Cancel All, while the window has a Send/Receive under way.
             Some(_) if id == "sync.cancel" => self.syncing(),
+            // Run Rules Now over the folder in view: greyed where the rules leave the mail alone (a
+            // shared mailbox's), as in the folder's menu and the Rules dialog.
+            Some(s) if id == "rules.run" => {
+                let mb = &self.session.mailbox;
+                (s.enabled)(&self.session).is_none() && mb.folder(self.session.view.folder).is_some_and(|f| mb.rules_reach(f.account))
+            }
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
                 !self.data_removed
@@ -2396,6 +2408,21 @@ impl MailApp {
             self.set_dialog(Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask: Box::new(ask) }));
             return Ok(json!({"pending": "confirm"}));
         }
+        // Unsubscribing from several messages' lists (#1207): the question says what goes, as the
+        // engine says it, each request by mail with its address and subject; a yes goes with
+        // the messages and the requests it listed, whatever is selected by then.
+        if id == "ui.unsubscribeMany" && params.get("confirmed").and_then(Value::as_bool) != Some(true) {
+            // (Refused before the question, it is said as any refusal is: the menu drops the error.)
+            let (ask, params) = match reading::unsubscribe::question_many(self, &params) {
+                Ok(asked) => asked,
+                Err(e) => {
+                    self.say_refused(id, &e);
+                    return Err(e);
+                }
+            };
+            self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask: Box::new(ask) });
+            return Ok(json!({"pending": "confirm"}));
+        }
         // What can't be taken back is asked about first, once.
         // (An answer to an invitation in the mail has a question of its own.)
         if params.get("confirmed").and_then(Value::as_bool) != Some(true)
@@ -2520,14 +2547,20 @@ impl MailApp {
     /// engine's refusal, its template filled; any other text looked up whole), and, when the
     /// owner has just done it by hand, in a message box too, as Outlook does (#152).
     fn say_refused(&mut self, id: &str, e: &str) {
-        let said = match self.last_error.take() {
-            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-            _ => tl!(e).to_string(),
-        };
+        let said = self.refusal_said(e);
         if self.by_hand && refusal_worth_a_box(id, e) {
             self.refused = Some(said.clone());
         }
         self.status(said);
+    }
+
+    /// What a dialog or the status bar says of `e`, the refusal of the command just run: in the
+    /// window's language, as the engine gave its words.
+    pub(crate) fn refusal_said(&mut self, e: &str) -> String {
+        match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        }
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
@@ -4292,6 +4325,7 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 log::warn!("graph, account {account}: the job ended without an answer (its thread ended early)");
+                self.session.end_run_unfinished(account);
                 (GraphResult { account, ..Default::default() }, false)
             }
         };
@@ -4872,6 +4906,7 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
                     self.logged_problems.end_run(*whose, "mail");
+                    self.session.end_run_unfinished(*whose);
                     (self.sync_rx, self.sync_password) = (None, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
@@ -5082,6 +5117,8 @@ impl MailApp {
     pub fn logic(&mut self, ctx: &egui::Context) {
         swipe::observe_cancelled(ctx);
         attachment_preview::poll(self, ctx);
+        // One-click unsubscribes go one at a time, whatever message is shown (#1207).
+        reading::unsubscribe::poll(self);
         self.apply_language();
         // The system's authorities for mail, once the host has read them: what was checked
         // without them is checked again (#30).

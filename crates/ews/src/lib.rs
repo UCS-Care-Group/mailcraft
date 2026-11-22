@@ -118,6 +118,8 @@ mod mail_tests;
 #[cfg(test)]
 mod own_folders_tests;
 #[cfg(test)]
+mod recipients_cut_tests;
+#[cfg(test)]
 mod resolve_tests;
 #[cfg(test)]
 mod tests;

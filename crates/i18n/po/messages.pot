@@ -194,6 +194,11 @@ msgid "+ condition"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "+ exception"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 msgid "+Bin"
 msgstr ""
@@ -360,6 +365,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr ""
 
@@ -381,6 +391,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
 msgid "A date"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
 msgstr ""
 
 #. android
@@ -548,6 +563,11 @@ msgstr ""
 msgid "A rule needs a name, and something to look for."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 msgid "A rule this editor doesn't show; it is kept as it is."
@@ -601,6 +621,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A word to look for is at most 200 characters."
 msgstr ""
 
 #. date and time, interface
@@ -991,6 +1016,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Address:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Addresses"
 msgstr ""
 
 #. interface
@@ -1735,6 +1765,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_subscribed.rs
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "At most {n} requests by mail go at once."
 msgstr ""
 
 #. interface
@@ -2827,6 +2862,11 @@ msgstr ""
 msgid "Clear Recent Searches"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Clear categories"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Clear filters"
@@ -2845,6 +2885,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Clear search (Esc)"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Clear the flag"
 msgstr ""
 
 #. interface
@@ -3214,6 +3259,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 msgid "Copy to Folder"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Copy to folder"
 msgstr ""
 
 #. interface
@@ -4235,6 +4285,11 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Each condition and exception needs something to look for."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Each sender gets one automatic reply, with the message below:"
 msgstr ""
@@ -4584,6 +4639,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Except if"
 msgstr ""
 
 #. interface
@@ -5170,7 +5230,7 @@ msgid "Friday"
 msgstr ""
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "From"
 msgstr ""
 
@@ -5187,6 +5247,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "From a mailing list."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "From and Sent to take whole addresses, such as someone@example.org."
 msgstr ""
 
 #. name
@@ -5582,6 +5647,11 @@ msgstr ""
 msgid "Has attachments"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Has the category"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Have replies sent to"
@@ -5590,6 +5660,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Have replies sent to other addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Height"
 msgstr ""
 
 #. interface
@@ -6252,6 +6327,21 @@ msgstr ""
 msgid "Invite attendees"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Is a meeting invitation or update"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Is an automatic reply"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Is flagged"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Issued by"
@@ -6403,6 +6493,13 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Its subject: “{subject}”. Its text: “{body}”."
 msgstr ""
@@ -6411,13 +6508,6 @@ msgstr ""
 #: crates/ui-egui/src/signatures.rs
 msgid "Its text is replaced"
 msgstr ""
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] ""
-msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -6507,6 +6597,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Just This One"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "KB"
 msgstr ""
 
 #. interface
@@ -7072,6 +7167,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Mail only"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Mail that any one exception holds for is left alone"
 msgstr ""
 
 #. command label, interface
@@ -8008,6 +8108,11 @@ msgstr ""
 msgid "Move to folder"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Move to the Account's Calendar"
@@ -8041,6 +8146,26 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
 msgid "My Tasks"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "My address is in Cc"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "My address is in To"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "My address is in To or Cc"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "My address isn't in To"
 msgstr ""
 
 #. interface
@@ -8296,7 +8421,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
 msgstr ""
 
 #. android
@@ -8376,8 +8501,8 @@ msgstr ""
 msgid "Next Page"
 msgstr ""
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 msgid "Next Week"
 msgstr ""
 
@@ -8407,7 +8532,7 @@ msgid "No Color"
 msgstr ""
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "No Date"
 msgstr ""
 
@@ -8834,6 +8959,11 @@ msgstr ""
 #. android, interface, name, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/swipe.rs crates/ui-egui/src/tasks_view.rs
 msgid "None"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "None of these messages can be unsubscribed from here."
 msgstr ""
 
 #. interface
@@ -10053,9 +10183,19 @@ msgstr ""
 msgid "Picture"
 msgstr ""
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Format"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 msgid "Picture Layout"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+msgid "Picture Size"
 msgstr ""
 
 #. command label
@@ -10071,6 +10211,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Picture beside text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Picture size"
 msgstr ""
 
 #. android, command label, ribbon
@@ -10519,6 +10664,16 @@ msgstr ""
 msgid "Real name"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Received between"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 msgid "Receiving {name} · folder {number} of {folders}"
@@ -10559,6 +10714,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Recipient contains"
 msgstr ""
 
 #. name
@@ -10860,6 +11020,11 @@ msgid "Remove this condition"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Remove this exception"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
 msgstr ""
@@ -11050,6 +11215,11 @@ msgstr ""
 msgid ""
 "Reset\n"
 "View"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Reset Size"
 msgstr ""
 
 #. command label
@@ -11807,6 +11977,11 @@ msgstr ""
 msgid "Select the message before previewing its attachment."
 msgstr ""
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr ""
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 msgid "Send"
@@ -12155,6 +12330,11 @@ msgstr ""
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sensitivity is"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Sent"
@@ -12168,6 +12348,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sent only to me"
 msgstr ""
 
 #. name
@@ -12253,6 +12438,28 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/menubar.rs
 msgid "Settings…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
 msgstr ""
 
 #. ribbon
@@ -12422,6 +12629,11 @@ msgid "Show Training"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Show a desktop alert"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/alerts.rs
 msgid "Show a desktop alert for reminders"
 msgstr ""
@@ -12536,6 +12748,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Show the messages of this conversation"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+msgid "Show the picture at its own size"
 msgstr ""
 
 #. android
@@ -12860,9 +13077,19 @@ msgstr ""
 msgid "Single Line"
 msgstr ""
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 msgid "Size"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Size is between"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Size is between takes two sizes in KB, the smaller first."
 msgstr ""
 
 #. command label, interface
@@ -13193,6 +13420,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Subject contains"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Subject or body contains"
 msgstr ""
 
 #. what a command says
@@ -14617,6 +14849,11 @@ msgstr ""
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
@@ -15244,8 +15481,8 @@ msgstr ""
 msgid "They share {what}."
 msgstr ""
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "This Week"
 msgstr ""
 
@@ -16493,6 +16730,23 @@ msgstr ""
 msgid "Unsubscribe from Internet Calendar"
 msgstr ""
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+msgid "Unsubscribe from Their Lists"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+msgid "Unsubscribe from the Selected Messages"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribe on the list's page in your browser."
@@ -16501,6 +16755,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Unsubscribed."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
 msgstr ""
 
 #. interface
@@ -17002,7 +17261,7 @@ msgid "Who signed this message, and the certificate"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 msgid "Width"
 msgstr ""
 
@@ -17749,7 +18008,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
-msgid "a rule can't move mail to an Outbox: that would send it"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
 msgstr ""
 
 #. what a command says
@@ -17815,6 +18074,11 @@ msgstr ""
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 msgid "a signature is open: add its pictures with signature.picture.add"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: size its pictures with signature.picture.set"
 msgstr ""
 
 #. what a command says
@@ -17992,6 +18256,11 @@ msgstr ""
 #. name
 #: crates/model/src/calendar.rs
 msgid "day"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "due"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -18182,6 +18451,11 @@ msgstr ""
 msgid "it clicks or types in the window"
 msgstr ""
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it copies mail to more than one folder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "it could not be removed"
@@ -18200,6 +18474,11 @@ msgstr ""
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
 msgstr ""
 
 #. interface
@@ -18493,6 +18772,11 @@ msgid "no picture {id} in this signature"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "no picture {id} was put in this message"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "no rule with id {id}"
 msgstr ""
@@ -18692,6 +18976,11 @@ msgstr ""
 msgid "optional"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "or"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "organizer"
@@ -18770,6 +19059,30 @@ msgstr ""
 #. interface, what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/ui-egui/src/calendar_view.rs
 msgid "select an appointment first"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgctxt "sensitivity"
+msgid "Private"
 msgstr ""
 
 #. android
@@ -19144,6 +19457,21 @@ msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "the folder it copies mail to is in another account"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the folder it copies mail to is on this computer"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the folder it copies mail to isn't on the server"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 msgid "the folder it moves mail to is in another account"
 msgstr ""
 
@@ -19373,6 +19701,11 @@ msgid "the sender has no usable e-mail address"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "the series \"{title}\" doesn't happen on {date}"
 msgstr ""
@@ -19424,12 +19757,42 @@ msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "the server can't clear a flag"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't clear categories"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 msgid "the server can't flag mail"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't look at the day mail came"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't look at whether you flagged mail"
 msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server can't show a desktop alert"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -19880,6 +20243,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/categories_remote.rs
 msgid "this account's categories aren't kept in step with its server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "this build can't unsubscribe in one click"
 msgstr ""
 
 #. what a command says
@@ -20781,6 +21149,13 @@ msgid_plural "{n} bodies or attachments are missing from the mailbox's content f
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] ""
+msgstr[1] ""
+
 #. what a command says
 #: crates/model/src/message.rs
 msgid "{n} byte"
@@ -20997,6 +21372,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 msgid "{n} item"
 msgid_plural "{n} items"
@@ -21081,7 +21463,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
 msgstr[0] ""
@@ -21133,13 +21515,6 @@ msgstr[1] ""
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
-msgstr[0] ""
-msgstr[1] ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -21257,6 +21632,13 @@ msgstr[1] ""
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
 msgid "{n} minute before"
 msgid_plural "{n} minutes before"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -21484,6 +21866,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{n} stays on this computer"
 msgid_plural "{n} stay on this computer"
@@ -21550,6 +21939,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/folder_properties.rs
 msgid "{n} unread on the server"
 msgid_plural "{n} unread on the server"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -21793,6 +22189,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+msgid "• to {to}, subject “{subject}”"
 msgstr ""
 
 #. interface

@@ -222,21 +222,35 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.undo() {
+    if !step(s, false)? {
         return Err(fail("nothing to undo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.redo() {
+    if !step(s, true)? {
         return Err(fail("nothing to redo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
+}
+
+/// One step back (or forward, `redo`) in the open text; a step of the message's can put a
+/// picture's width back (`compose.picture.set`). Whether there was one.
+fn step(s: &mut Session, redo: bool) -> Result<bool, CmdError> {
+    if s.signature_edit.is_none()
+        && let Some(c) = s.compose.as_mut()
+    {
+        let pictures = &mut c.pictures;
+        let swap = |mark| super::picture::swap_width(pictures, mark);
+        let done = if redo { c.body.redo_with(swap) } else { c.body.undo_with(swap) };
+        c.dirty |= done;
+        return Ok(done);
+    }
+    let d = doc_mut(s)?;
+    let done = if redo { d.body.redo() } else { d.body.undo() };
+    *d.dirty |= done;
+    Ok(done)
 }
 
 fn bold(s: &mut Session, v: &Value) -> CmdResult {

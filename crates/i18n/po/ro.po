@@ -232,6 +232,12 @@ msgid "+ condition"
 msgstr "+ condiție"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ excepție"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "+Bin"
@@ -432,6 +438,12 @@ msgstr "Calendarul unui coleg, după adresa lui, cu contul de serviciu sau de ș
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "O condiție, sau excepțiile de un singur tip luate împreună, pot căuta cel mult 20 de cuvinte sau adrese."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "Fișa unei persoane de contact păstrează cel mult 32 de certificate și chei"
 
@@ -458,6 +470,12 @@ msgstr "Mai întâi se salvează o copie a întregii cutii poștale lângă ea, 
 #, fuzzy
 msgid "A date"
 msgstr "O dată"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "O alertă pe desktop pentru e-mailurile asupra cărora acționează această regulă la sosire, cât timp MailCraft nu este fereastra din față, chiar și când cea pentru e-mailurile noi este oprită în Fișier › Opțiuni"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -657,6 +675,12 @@ msgstr "Un raport este scris lângă cutia poștală."
 msgid "A rule needs a name, and something to look for."
 msgstr "O regulă are nevoie de un nume și de ceva de căutat."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "O regulă are nevoie de ceva de făcut: o acțiune sau o alertă pe desktop."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -722,6 +746,12 @@ msgstr "O scurtă notă cu linkul către acea pagină, de lipit într-un e-mail 
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "O adresă web, o adresă de e-mail, un număr de telefon (tel:) sau altă adresă, de exemplu ms-settings:network-vpn. Fără nimic selectat, adresa este inserată așa cum este."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "Un cuvânt de căutat are cel mult 200 de caractere."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1195,6 +1225,12 @@ msgstr "Listă de adrese · {account}"
 #, fuzzy
 msgid "Address:"
 msgstr "Adresă:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "Adrese"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2090,6 +2126,12 @@ msgstr "Se pot deschide după adresă cel mult {n} calendare: eliminați întâi
 #, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Se pot abona cel mult {n} calendare: dezabonați-vă mai întâi de la unul."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Pot pleca cel mult {n} cereri prin e-mail odată."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -3406,6 +3448,12 @@ msgstr "Golire formatare"
 msgid "Clear Recent Searches"
 msgstr "Ștergere căutări recente"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Golire categorii"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3429,6 +3477,12 @@ msgstr "Ștergere căutare"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Ștergere căutare (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Ștergere marcaj"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3874,6 +3928,12 @@ msgstr "Copiază versiunea, platforma și finalul jurnalului propriu MailCraft, 
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "Copiere în dosar"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "Copiere în dosar"
 
 #. interface
@@ -5102,6 +5162,12 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr "Semnătura fiecărui cont se pune la sfârșitul mesajelor noi, al răspunsurilor și al redirecționărilor sale. Lăsați gol pentru nicio semnătură."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "Fiecare condiție și excepție are nevoie de ceva de căutat."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -5533,6 +5599,12 @@ msgstr "Tot ce era păstrat pe acest telefon a fost eliminat."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Tot ce face interfața este o comandă: {commands} în total, acoperind {percent}% din catalogul de funcții. Linia de comandă, canalul de control și serverul MCP rulează aceleași comenzi."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "Doar dacă nu"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6245,7 +6317,7 @@ msgid "Friday"
 msgstr "vineri"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "De la"
@@ -6267,6 +6339,12 @@ msgstr "De la expeditor"
 #, fuzzy
 msgid "From a mailing list."
 msgstr "De la o listă de corespondență."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "„De la” și „Trimis către” primesc adrese întregi, cum ar fi someone@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6744,6 +6822,12 @@ msgstr "Are un atașament"
 msgid "Has attachments"
 msgstr "Are atașamente"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "Are categoria"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -6755,6 +6839,12 @@ msgstr "Răspunsurile să fie trimise la"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Înălțime"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -7563,6 +7653,24 @@ msgstr "Invitare participanți"
 msgid "Invite attendees"
 msgstr "Invitați participanți"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "Este o invitație sau o actualizare de întâlnire"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "Este un răspuns automat"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "Este marcat"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -7744,6 +7852,15 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "Mesajele, atașamentele, setările și conectarea memorată pleacă odată cu el, la fel calendarul, contactele, sarcinile și programul de lucru venite de pe serverul lui."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Se elimină și regula lui; dacă serverul lui o păstrează, rămâne acolo."
+msgstr[1] "Se elimină și cele {n} reguli ale lui; cele păstrate de serverul lui rămân acolo."
+msgstr[2] "Se elimină și cele {n} de reguli ale lui; cele păstrate de serverul lui rămân acolo."
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
@@ -7754,15 +7871,6 @@ msgstr "Subiect: „{subject}”. Text: „{body}”."
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "Textul lui este înlocuit"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Se elimină și {n} regulă a lui; cea păstrată de serverul lui rămâne acolo."
-msgstr[1] "Se elimină și cele {n} reguli ale lui; cele păstrate de serverul lui rămân acolo."
-msgstr[2] "Se elimină și cele {n} de reguli ale lui; cele păstrate de serverul lui rămân acolo."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7871,6 +7979,12 @@ msgstr "E-mail nedorit"
 #, fuzzy
 msgid "Just This One"
 msgstr "Doar aceasta"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -8549,6 +8663,12 @@ msgstr "E-mailuri pe acest telefon"
 #, fuzzy
 msgid "Mail only"
 msgstr "Doar e-mail"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "E-mailurile pentru care se aplică oricare dintre excepții sunt lăsate neatinse"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -9680,6 +9800,12 @@ msgstr "Mutare în calendarul contului dvs."
 msgid "Move to folder"
 msgstr "Mutare în dosar"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "„Mutare în dosar” și „Copiere în dosar” au nevoie de un dosar; „Clasificare” are nevoie de o categorie."
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -9721,6 +9847,30 @@ msgstr "Calendarele mele"
 #, fuzzy
 msgid "My Tasks"
 msgstr "Sarcinile mele"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "Adresa mea este în Cc"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "Adresa mea este în Către"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "Adresa mea este în Către sau Cc"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "Adresa mea nu este în Către"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -10039,8 +10189,8 @@ msgstr "E-mail nou"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă, cu excepția cazului în care o regulă de-a dvs. afișează una pentru ele."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -10136,8 +10286,8 @@ msgstr "Luna viitoare"
 msgid "Next Page"
 msgstr "Pagina următoare"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "Săptămâna viitoare"
@@ -10173,7 +10323,7 @@ msgid "No Color"
 msgstr "Fără culoare"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "Fără dată"
@@ -10687,6 +10837,12 @@ msgstr "Nu se potrivește niciunul sau se potrivesc mai multe contacte: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Niciunul"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Niciunul dintre aceste mesaje nu permite dezabonarea de aici."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -12149,11 +12305,23 @@ msgstr "Alegeți ultima zi"
 msgid "Picture"
 msgstr "Imagine"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Format imagine"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Aspect imagine"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Dimensiune imagine"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -12172,6 +12340,12 @@ msgstr "Imagine deasupra textului"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Imagine lângă text"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Dimensiune imagine"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12713,6 +12887,18 @@ msgstr "Se citesc răspunsurile automate de pe server…"
 msgid "Real name"
 msgstr "Nume real"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Primit între"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "„Primit între” primește una sau două zile (AAAA-LL-ZZ), mai întâi cea mai veche."
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -12764,6 +12950,12 @@ msgstr "E-mailuri recente"
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
 msgstr "E-mailurile recente sunt păstrate pe acest telefon, iar cele mai vechi rămân pe serverul dvs. de e-mail. Nu se șterge nimic de pe server."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "Destinatarul conține"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -13130,6 +13322,12 @@ msgid "Remove this condition"
 msgstr "Eliminați această condiție"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "Eliminați această excepție"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
@@ -13366,6 +13564,12 @@ msgid ""
 msgstr ""
 "Resetare\n"
 "vizualizare"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Resetare dimensiune"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14286,6 +14490,12 @@ msgstr "Selectați pe cineva pentru a vedea detaliile"
 msgid "Select the message before previewing its attachment."
 msgstr "Selectați mesajul înainte de a-i previzualiza atașamentul."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Selectați cel mult {n} mesaje pentru dezabonare."
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -14708,6 +14918,12 @@ msgstr "Se trimite…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr "Trimite raportul echipei MailCraft, așa cum îl arată această fereastră."
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "Confidențialitatea este"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -14725,6 +14941,12 @@ msgstr "Elemente trimise"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "Trimisă așa cum este scrisă, fără nimic care rulează sau urmărește. Imaginile vin de la adresa lor web, iar programele destinatarilor decid dacă le încarcă. Un mesaj pe care îl scrieți arată o copie mai simplă a acestei semnături; dacă o editați acolo, se trimite acea copie."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "Trimis doar mie"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14827,6 +15049,30 @@ msgstr "Setări"
 #, fuzzy
 msgid "Settings…"
 msgstr "Setări…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Mai multe adrese: separați-le cu punct și virgulă (;). Oricare dintre ele este suficientă."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Mai multe texte: separați-le cu punct și virgulă (;). Oricare dintre ele este suficient."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15033,6 +15279,12 @@ msgid "Show Training"
 msgstr "Afișare instruire"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "Afișați o alertă pe desktop"
+
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert for reminders"
@@ -15173,6 +15425,12 @@ msgstr "Afișați panoul de dosare"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Afișați mesajele acestei conversații"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "Afișează imaginea la propria ei dimensiune"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15562,11 +15820,23 @@ msgstr "Panglică simplificată"
 msgid "Single Line"
 msgstr "Un singur rând"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Dimensiune"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "Dimensiunea este între"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "„Dimensiunea este între” primește două dimensiuni în KB, mai întâi cea mai mică."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -15963,6 +16233,12 @@ msgstr "Subiect"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Subiectul conține"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "Subiectul sau corpul conține"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -17677,6 +17953,12 @@ msgstr "Serviciul de rapoarte nu funcționează acum. Încercați din nou mai t�
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Răspunsul serviciului de rapoarte nu este unul pe care MailCraft îl înțelege, deci raportul poate să fi ajuns. Încercați din nou mai târziu sau deschideți-l pe GitHub."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Regulile lasă neatinse e-mailurile unei cutii poștale partajate: aceasta are propriile reguli."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -18432,8 +18714,8 @@ msgstr "Sunt salvate într-un fișier ales de dvs., pe care îl atașați la pro
 msgid "They share {what}."
 msgstr "Au în comun {what}."
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Săptămâna aceasta"
@@ -19956,6 +20238,27 @@ msgstr "Dezabonare de la calendar"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Dezabonare de la un calendar de pe Internet"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Dezabonare de la listele lor"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Dezabonare de la mesajele selectate"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Dezabonare de la {n} listă."
+msgstr[1] "Dezabonare de la {n} liste."
+msgstr[2] "Dezabonare de la {n} de liste."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19967,6 +20270,12 @@ msgstr "Dezabonați-vă pe pagina listei, în browser."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Dezabonat."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Dezabonare: {click} cu un clic, {mail} prin e-mail, {pages} de făcut pe pagina lor, {left} lăsate deoparte."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20568,7 +20877,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Cine a semnat acest mesaj și certificatul"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Lățime"
@@ -21470,8 +21779,8 @@ msgstr "un răspuns poate avea cel mult {most} caractere"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "o regulă nu poate muta e-mailuri în Mesaje de trimis: le-ar trimite"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "o regulă nu poate muta sau copia e-mailuri în Mesaje de trimis: le-ar trimite"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21550,6 +21859,12 @@ msgstr "regulile unei cutii poștale partajate sunt ale ei: această versiune nu
 #, fuzzy
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "o semnătură este deschisă: adăugați-i imaginile cu signature.picture.add"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "o semnătură este deschisă: dimensionați-i imaginile cu signature.picture.set"
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -21764,6 +22079,12 @@ msgstr "{host} nu a putut fi contactat: {reason}"
 #, fuzzy
 msgid "day"
 msgstr "zi"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "termen"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
@@ -21988,6 +22309,12 @@ msgstr "modifică opțiuni, semnături sau reguli"
 msgid "it clicks or types in the window"
 msgstr "dă clic sau scrie în fereastră"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "copiază e-mailurile în mai multe dosare"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -22011,6 +22338,12 @@ msgstr "ajunge pe server la următoarea conectare"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "are două condiții de același tip, iar serverul ar accepta oricare dintre ele, nu pe amândouă"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "are două excepții de același tip care caută lucruri diferite, iar serverul acceptă una singură"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -22361,6 +22694,12 @@ msgid "no picture {id} in this signature"
 msgstr "nu există imaginea {id} în această semnătură"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "imaginea {id} nu a fost pusă în acest mesaj"
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "no rule with id {id}"
@@ -22598,6 +22937,12 @@ msgstr "doar propriile calendare pot fi puse într-un mesaj"
 msgid "optional"
 msgstr "opțional"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "sau"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22693,6 +23038,34 @@ msgstr "selectați întâi o sarcină"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selectați întâi o programare"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "Confidențial"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "Normal"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "Personal"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Privat"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -23140,6 +23513,24 @@ msgstr "dosarul este deja gol"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "dosarul în care copiază e-mailurile este în alt cont"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "dosarul în care copiază e-mailurile este pe acest computer"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "dosarul în care copiază e-mailurile nu este pe server"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it moves mail to is in another account"
 msgstr "dosarul în care mută e-mailurile este în alt cont"
 
@@ -23414,6 +23805,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "expeditorul nu are o adresă de e-mail utilizabilă"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "adresa expeditorului este mai lungă decât caută o regulă ({n} caractere)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series \"{title}\" doesn't happen on {date}"
@@ -23476,14 +23873,50 @@ msgstr "serverul a cerut mai mult decât conținea comanda"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "serverul nu poate șterge un marcaj"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "serverul nu poate goli categoriile"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "serverul nu poate marca e-mailuri"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "serverul nu poate păstra regulile în această ordine: o regulă pe care nu o lasă să fie modificată nu lasă loc liber pentru ele"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "serverul nu poate verifica ziua în care a sosit e-mailul"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "serverul nu poate verifica dacă ați semnalizat mesajul"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "serverul nu poate elimina mesaje individuale (nu oferă UIDPLUS)"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "serverul nu poate afișa o alertă pe desktop"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -24023,6 +24456,12 @@ msgstr "categoriile acestui cont nu sunt sincronizate cu niciun server"
 #, fuzzy
 msgid "this account's categories aren't kept in step with its server"
 msgstr "categoriile acestui cont nu sunt sincronizate cu serverul său"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "această versiune nu se poate dezabona cu un clic"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -25108,6 +25547,15 @@ msgstr[0] "{n} corp sau atașament lipsește din dosarul de conținut al cutiei 
 msgstr[1] "{n} corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 msgstr[2] "{n} de corpuri sau atașamente lipsesc din dosarul de conținut al cutiei poștale sau sunt deteriorate."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} printr-un mesaj din contul dvs., prin Mesaje de trimis:"
+msgstr[1] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis:"
+msgstr[2] "{n} prin câte un mesaj din contul dvs., prin Mesaje de trimis:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -25385,6 +25833,15 @@ msgstr[1] "{n} ore înainte"
 msgstr[2] "{n} de ore înainte"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} cu un clic: serverului ei i se trimite adresa dată, nimic altceva."
+msgstr[1] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
+msgstr[2] "{n} cu un clic: serverului fiecărei liste i se trimite adresa dată, nimic altceva, pe rând."
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
@@ -25493,7 +25950,7 @@ msgstr[1] "{n} mesaje arhivate"
 msgstr[2] "{n} de mesaje arhivate"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -25563,15 +26020,6 @@ msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} mesaj este deja aici și este omis"
 msgstr[1] "{n} mesaje sunt deja aici și sunt omise"
 msgstr[2] "{n} de mesaje sunt deja aici și sunt omise"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} mesaj găsit"
-msgstr[1] "{n} mesaje găsite"
-msgstr[2] "{n} de mesaje găsite"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
@@ -25722,6 +26170,15 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} minut înainte"
 msgstr[1] "{n} minute înainte"
 msgstr[2] "{n} de minute înainte"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Încă {n} prin e-mail nu este trimisă acum: selectați mai puține mesaje pentru a o vedea."
+msgstr[1] "Încă {n} prin e-mail nu sunt trimise acum: selectați mai puține mesaje pentru a le vedea."
+msgstr[2] "Încă {n} de cereri prin e-mail nu sunt trimise acum: selectați mai puține mesaje pentru a le vedea."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -26009,6 +26466,15 @@ msgstr[1] "{n} selectate"
 msgstr[2] "{n} selectate"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} expeditor este lăsat deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+msgstr[1] "{n} expeditori sunt lăsați deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+msgstr[2] "{n} de expeditori sunt lăsați deoparte: mesaje pentru care serverul nu garantează, din E-mail nedorit, cu un avertisment despre expeditor sau care nu spun cum."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -26097,6 +26563,15 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "{n} necitit pe server"
 msgstr[1] "{n} necitite pe server"
 msgstr[2] "{n} necitite pe server"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} se dezabonează pe pagina proprie: deschideți mesajul pentru a o face acolo."
+msgstr[1] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
+msgstr[2] "{n} se dezabonează pe pagina proprie: deschideți fiecare dintre aceste mesaje pentru a o face acolo."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -26391,6 +26866,12 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” nu a fost găsit pe server, deci nu poate fi redirecționat ca atașament"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• către {to}, subiect „{subject}”"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "−Bin"
@@ -26401,6 +26882,28 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "Se elimină și {n} regulă a lui; cea păstrată de serverul lui rămâne acolo."
+#~ msgstr[1] "Se elimină și cele {n} reguli ale lui; cele păstrate de serverul lui rămân acolo."
+#~ msgstr[2] "Se elimină și cele {n} de reguli ale lui; cele păstrate de serverul lui rămân acolo."
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă."
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "o regulă nu poate muta e-mailuri în Mesaje de trimis: le-ar trimite"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} mesaj găsit"
+#~ msgstr[1] "{n} mesaje găsite"
+#~ msgstr[2] "{n} de mesaje găsite"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"

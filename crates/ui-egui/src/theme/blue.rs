@@ -163,7 +163,7 @@ impl Tokens {
             hover_subtle: hover.linear_multiply(0.6),
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
-            rule: hex(0x252C38),
+            rule: hex(0x3A4353),
             border_faint: hex(0x222934),
             track: hex(0x364052),
             lane: panel,

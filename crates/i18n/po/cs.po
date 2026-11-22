@@ -231,6 +231,12 @@ msgid "+ condition"
 msgstr "+ podmínka"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "+ exception"
+msgstr "+ výjimka"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "+Bin"
@@ -431,6 +437,12 @@ msgstr "Kalendář kolegy podle jeho adresy, s vaším pracovním nebo školním
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "A condition, or the exceptions of one kind together, can look for at most 20 words or addresses."
+msgstr "Podmínka nebo výjimky jednoho druhu dohromady mohou hledat nejvýše 20 slov nebo adres."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "Karta kontaktu uchovává nejvýše 32 certifikátů a klíčů"
 
@@ -457,6 +469,12 @@ msgstr "Nejprve se vedle ní jako vždy uloží kopie celé poštovní schránky
 #, fuzzy
 msgid "A date"
 msgstr "Datum"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+msgstr "Upozornění na ploše na poštu, na kterou toto pravidlo při příchodu působí, když MailCraft není okno v popředí, i když je upozornění na novou poštu vypnuté v Soubor › Možnosti"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -656,6 +674,12 @@ msgstr "Vedle vaší poštovní schránky se zapíše zpráva."
 msgid "A rule needs a name, and something to look for."
 msgstr "Pravidlo potřebuje název a něco, co má hledat."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule needs something to do: an action, or a desktop alert."
+msgstr "Pravidlo musí něco dělat: akci, nebo upozornění na ploše."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -721,6 +745,12 @@ msgstr "Krátká poznámka s odkazem na tu stránku, kterou vložíte do pošty 
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Webová adresa, e-mailová adresa, telefonní číslo (tel:) nebo jiná adresa, například ms-settings:network-vpn. Když není nic vybráno, adresa se vloží tak, jak je."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A word to look for is at most 200 characters."
+msgstr "Hledané slovo může mít nejvýše 200 znaků."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1189,6 +1219,12 @@ msgstr ""
 #, fuzzy
 msgid "Address:"
 msgstr "Adresa:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Addresses"
+msgstr "Adresy"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2083,6 +2119,12 @@ msgstr "Podle adresy lze otevřít nejvýše {n} kalendářů: nejprve jeden ode
 #, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Odebírat lze nejvýše {n} kalendářů: nejprve jeden přestaňte odebírat."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "At most {n} requests by mail go at once."
+msgstr "Najednou lze odeslat nejvýše {n} žádostí e-mailem."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -3399,6 +3441,12 @@ msgstr "Vymazat formátování"
 msgid "Clear Recent Searches"
 msgstr "Vymazat nedávná hledání"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Vymazat kategorie"
+
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
@@ -3422,6 +3470,12 @@ msgstr "Vymazat hledání"
 #, fuzzy
 msgid "Clear search (Esc)"
 msgstr "Vymazat hledání (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Zrušit příznak"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -3866,6 +3920,12 @@ msgstr "Zkopíruje verzi, platformu a konec vlastního záznamu MailCraftu pro v
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Copy to Folder"
+msgstr "Kopírovat do složky"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy to folder"
 msgstr "Kopírovat do složky"
 
 #. interface
@@ -5093,6 +5153,12 @@ msgid "Each account's signature goes at the end of its new messages, replies and
 msgstr "Podpis každého účtu se přidá na konec jeho nových zpráv, odpovědí a přeposlání. Nechte prázdné, pokud podpis nechcete."
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Each condition and exception needs something to look for."
+msgstr "Každá podmínka a výjimka musí mít, co hledat."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
@@ -5524,6 +5590,12 @@ msgstr "Vše uložené v tomto telefonu bylo odstraněno."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Vše, co rozhraní dělá, je příkaz: je jich {commands} a pokrývají {percent} % katalogu funkcí. Příkazový řádek, řídicí kanál i server MCP spouštějí stejné příkazy."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Except if"
+msgstr "Kromě případů, kdy"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6238,7 +6310,7 @@ msgid "Friday"
 msgstr "pátek"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
 msgid "From"
 msgstr "Od"
@@ -6260,6 +6332,12 @@ msgstr "Od odesílatele"
 #, fuzzy
 msgid "From a mailing list."
 msgstr "Z e-mailové konference."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "Od a Odesláno komu berou celé adresy, například someone@example.org."
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -6735,6 +6813,12 @@ msgstr "Obsahuje přílohu"
 msgid "Has attachments"
 msgstr "Obsahuje přílohy"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Has the category"
+msgstr "Má kategorii"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -6746,6 +6830,12 @@ msgstr "Odpovědi posílat na"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Odpovědi posílat na jiné adresy"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Height"
+msgstr "Výška"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -7554,6 +7644,24 @@ msgstr "Pozvat účastníky"
 msgid "Invite attendees"
 msgstr "Pozvat účastníky"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is a meeting invitation or update"
+msgstr "Je pozvánka na schůzku nebo její aktualizace"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is an automatic reply"
+msgstr "Je automatická odpověď"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Is flagged"
+msgstr "Má příznak"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -7735,6 +7843,15 @@ msgid "Its messages, attachments, settings and remembered sign-in go with it, an
 msgstr "Odstraní se s ním jeho zprávy, přílohy, nastavení a zapamatované přihlášení a také kalendář, kontakty, úkoly a pracovní doba, které přišly z jeho serveru."
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Odstraní se i jeho pravidlo; pokud ho má jeho server, zůstane tam."
+msgstr[1] "Odstraní se i jeho {n} pravidla; ta, která má jeho server, tam zůstanou."
+msgstr[2] "Odstraní se i jeho {n} pravidel; ta, která má jeho server, tam zůstanou."
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Its subject: “{subject}”. Its text: “{body}”."
@@ -7745,15 +7862,6 @@ msgstr "Předmět: „{subject}“. Text: „{body}“."
 #, fuzzy
 msgid "Its text is replaced"
 msgstr "Její text se nahradí"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Odstraní se i jeho {n} pravidlo; pokud ho uchovává jeho server, zůstane tam."
-msgstr[1] "Odstraní se i jeho {n} pravidla; ta, která uchovává jeho server, tam zůstanou."
-msgstr[2] "Odstraní se i jeho {n} pravidel; ta, která uchovává jeho server, tam zůstanou."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7862,6 +7970,12 @@ msgstr "Nevyžádaná pošta"
 #, fuzzy
 msgid "Just This One"
 msgstr "Jen tento"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "KB"
+msgstr "KB"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -8538,6 +8652,12 @@ msgstr "Pošta v tomto telefonu"
 #, fuzzy
 msgid "Mail only"
 msgstr "Jen pošta"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "Pošta, na kterou platí kterákoli výjimka, zůstane beze změny"
 
 #. command label, interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -9668,6 +9788,12 @@ msgstr "Přesunout do kalendáře vašeho účtu"
 msgid "Move to folder"
 msgstr "Přesunout do složky"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move to folder and Copy to folder need a folder; Categorize needs a category."
+msgstr "Přesunout do složky a Kopírovat do složky potřebují složku; Zařadit do kategorie potřebuje kategorii."
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -9709,6 +9835,30 @@ msgstr "Moje kalendáře"
 #, fuzzy
 msgid "My Tasks"
 msgstr "Moje úkoly"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in Cc"
+msgstr "Moje adresa je v poli Kopie"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To"
+msgstr "Moje adresa je v poli Komu"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address is in To or Cc"
+msgstr "Moje adresa je v poli Komu nebo Kopie"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "My address isn't in To"
+msgstr "Moje adresa není v poli Komu"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -10027,8 +10177,8 @@ msgstr "Nová pošta"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Nová pošta, kterou Gmail zařadí do kategorií Sociální sítě, Reklamy, Aktualizace nebo Fóra, přichází bez upozornění."
+msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+msgstr "Nová pošta, kterou Gmail zařadí do Sociálních sítí, Reklam, Aktualizací nebo Fór, přijde bez upozornění, pokud pro ni některé vaše pravidlo upozornění nezobrazí."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
@@ -10124,8 +10274,8 @@ msgstr "Příští měsíc"
 msgid "Next Page"
 msgstr "Další stránka"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Next Week"
 msgstr "Příští týden"
@@ -10161,7 +10311,7 @@ msgid "No Color"
 msgstr "Bez barvy"
 
 #. interface, name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "No Date"
 msgstr "Bez data"
@@ -10673,6 +10823,12 @@ msgstr "Neodpovídá nikdo, nebo více vašich kontaktů: {names}"
 #, fuzzy
 msgid "None"
 msgstr "Žádné"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "None of these messages can be unsubscribed from here."
+msgstr "Z žádné z těchto zpráv se odsud nelze odhlásit."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -12132,11 +12288,23 @@ msgstr "Zvolte poslední den"
 msgid "Picture"
 msgstr "Obrázek"
 
+#. ribbon location
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Format"
+msgstr "Formát obrázku"
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Picture Layout"
 msgstr "Rozložení obrázku"
+
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Velikost obrázku"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -12155,6 +12323,12 @@ msgstr "Obrázek nad textem"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Obrázek vedle textu"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Velikost obrázku"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -12695,6 +12869,18 @@ msgstr "Načítám vaše automatické odpovědi ze serveru…"
 msgid "Real name"
 msgstr "Skutečné jméno"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Přijato mezi"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "Přijato mezi bere jeden nebo dva dny (RRRR-MM-DD), dřívější první."
+
 #. what a command says
 #: crates/engine/src/cmd/graph_down.rs
 #, fuzzy
@@ -12746,6 +12932,12 @@ msgstr "Nedávná pošta"
 #, fuzzy
 msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
 msgstr "Nedávná pošta se uchovává v tomto telefonu a starší pošta zůstává na poštovním serveru. Ze serveru se nic neodstraňuje."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "Příjemce obsahuje"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -13112,6 +13304,12 @@ msgid "Remove this condition"
 msgstr "Odebrat tuto podmínku"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove this exception"
+msgstr "Odebrat tuto výjimku"
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
@@ -13348,6 +13546,12 @@ msgid ""
 msgstr ""
 "Obnovit\n"
 "zobrazení"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Reset Size"
+msgstr "Obnovit velikost"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -14264,6 +14468,12 @@ msgstr ""
 msgid "Select the message before previewing its attachment."
 msgstr "Před náhledem přílohy vyberte zprávu."
 
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Select {n} messages at most to unsubscribe from."
+msgstr "Vyberte nejvýše {n} zpráv, ze kterých se chcete odhlásit."
+
 #. android, command label, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -14686,6 +14896,12 @@ msgstr "Odesílám…"
 msgid "Sends the report to the MailCraft team, as this window shows it."
 msgstr "Odešle hlášení týmu MailCraftu tak, jak ho ukazuje toto okno."
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sensitivity is"
+msgstr "Citlivost je"
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -14703,6 +14919,12 @@ msgstr "Odeslaná pošta"
 #, fuzzy
 msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
 msgstr "Odesílá se tak, jak je napsán, bez čehokoli, co se spouští nebo sleduje. Obrázky se načítají ze své webové adresy a programy příjemců rozhodnou, zda je načtou. Zpráva, kterou píšete, ukazuje zjednodušenou kopii tohoto podpisu; pokud ji tam upravíte, odešle se místo něj tato kopie."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sent only to me"
+msgstr "Odesláno jen mně"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -14805,6 +15027,30 @@ msgstr "Nastavení"
 #, fuzzy
 msgid "Settings…"
 msgstr "Nastavení…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Více adres: oddělte je středníkem (;). Stačí kterákoli z nich."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several texts: set them apart with a semicolon (;). Any one of them is enough."
+msgstr "Více textů: oddělte je středníkem (;). Stačí kterýkoli z nich."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Shade\n"
+"Rows"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view/display.rs
+msgid "Shade Alternate Rows"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15011,6 +15257,12 @@ msgid "Show Training"
 msgstr "Zobrazit školení"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Show a desktop alert"
+msgstr "Zobrazit upozornění na ploše"
+
+#. interface
 #: crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert for reminders"
@@ -15151,6 +15403,12 @@ msgstr "Zobrazit podokno složek"
 #, fuzzy
 msgid "Show the messages of this conversation"
 msgstr "Zobrazit zprávy této konverzace"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Show the picture at its own size"
+msgstr "Zobrazit obrázek v jeho vlastní velikosti"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -15540,11 +15798,23 @@ msgstr "Zjednodušený pás karet"
 msgid "Single Line"
 msgstr "Jeden řádek"
 
-#. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Velikost"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between"
+msgstr "Velikost je mezi"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Size is between takes two sizes in KB, the smaller first."
+msgstr "Velikost je mezi bere dvě velikosti v KB, menší první."
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/sync_panel.rs
@@ -15941,6 +16211,12 @@ msgstr "Předmět"
 #, fuzzy
 msgid "Subject contains"
 msgstr "Předmět obsahuje"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Subject or body contains"
+msgstr "Předmět nebo text zprávy obsahuje"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -17653,6 +17929,12 @@ msgstr "Služba hlášení právě nefunguje. Zkuste to později znovu, nebo ho 
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Odpověď služby hlášení nebyla taková, jakou MailCraft rozumí, takže hlášení možná dorazilo. Zkuste to později znovu, nebo ho otevřete na GitHubu."
 
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Pravidla nechávají poštu sdílené poštovní schránky beze změny: ta má svá vlastní pravidla."
+
 #. interface
 #: crates/ui-egui/src/rule_sync.rs
 #, fuzzy
@@ -18408,8 +18690,8 @@ msgstr "Uloží se do souboru, který zvolíte a který připojíte k problému 
 msgid "They share {what}."
 msgstr "Sdílejí: {what}."
 
-#. name, ribbon
-#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Tento týden"
@@ -19930,6 +20212,27 @@ msgstr "Zrušit odběr kalendáře"
 msgid "Unsubscribe from Internet Calendar"
 msgstr "Zrušit odběr internetového kalendáře"
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Unsubscribe from Their Lists"
+msgstr "Odhlásit odběr jejich seznamů"
+
+#. command label
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from the Selected Messages"
+msgstr "Odhlásit odběr vybraných zpráv"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Odhlásit odběr {n} seznamu."
+msgstr[1] "Odhlásit odběr {n} seznamů."
+msgstr[2] "Odhlásit odběr {n} seznamů."
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -19941,6 +20244,12 @@ msgstr "Odhlaste odběr na stránce konference v prohlížeči."
 #, fuzzy
 msgid "Unsubscribed."
 msgstr "Odběr odhlášen."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Odhlašování: {click} jedním kliknutím, {mail} e-mailem, {pages} k provedení na vlastní stránce, {left} vynecháno."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -20544,7 +20853,7 @@ msgid "Who signed this message, and the certificate"
 msgstr "Kdo tuto zprávu podepsal a certifikát"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Width"
 msgstr "Šířka"
@@ -21445,8 +21754,8 @@ msgstr "odpověď může mít nejvýše {most} znaků"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "pravidlo nemůže přesunout poštu do složky Pošta k odeslání: odeslala by se"
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "pravidlo nemůže přesunout ani zkopírovat poštu do složky Pošta k odeslání: tím by ji odeslalo"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21525,6 +21834,12 @@ msgstr "sdílená poštovní schránka má vlastní pravidla: tato verze je nevy
 #, fuzzy
 msgid "a signature is open: add its pictures with signature.picture.add"
 msgstr "je otevřený podpis: jeho obrázky přidejte pomocí signature.picture.add"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "je otevřený podpis: velikost jeho obrázků nastavte pomocí signature.picture.set"
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -21738,6 +22053,12 @@ msgstr "nepodařilo se spojit s {host}: {reason}"
 #, fuzzy
 msgid "day"
 msgstr "den"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "termín"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs crates/proto/src/imap/password.rs
@@ -21963,6 +22284,12 @@ msgstr "mění možnosti, podpisy nebo pravidla"
 msgid "it clicks or types in the window"
 msgstr "kliká nebo píše v okně"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it copies mail to more than one folder"
+msgstr "kopíruje poštu do více než jedné složky"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -21986,6 +22313,12 @@ msgstr "odejde na server při dalším připojení"
 #, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "má dvě podmínky jednoho druhu a server by přijal kteroukoli z nich, ne obě"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "má dvě výjimky jednoho druhu, které hledají různé věci, a server přijme jen jednu"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -22336,6 +22669,12 @@ msgid "no picture {id} in this signature"
 msgstr "v tomto podpisu není obrázek {id}"
 
 #. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "no picture {id} was put in this message"
+msgstr "do této zprávy nebyl vložen obrázek {id}"
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "no rule with id {id}"
@@ -22573,6 +22912,12 @@ msgstr "do zprávy lze vložit jen vaše vlastní kalendáře"
 msgid "optional"
 msgstr "nepovinné"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "or"
+msgstr "nebo"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22668,6 +23013,34 @@ msgstr "nejprve vyberte úkol"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "nejprve vyberte událost"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Confidential"
+msgstr "Důvěrné"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Normal"
+msgstr "Normální"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Personal"
+msgstr "Osobní"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Soukromé"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -23115,6 +23488,24 @@ msgstr "složka už je prázdná"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the folder it copies mail to is in another account"
+msgstr "složka, do které kopíruje poštu, je v jiném účtu"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to is on this computer"
+msgstr "složka, do které kopíruje poštu, je v tomto počítači"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it copies mail to isn't on the server"
+msgstr "složka, do které kopíruje poštu, není na serveru"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the folder it moves mail to is in another account"
 msgstr "složka, do které přesouvá poštu, je v jiném účtu"
 
@@ -23389,6 +23780,12 @@ msgid "the sender has no usable e-mail address"
 msgstr "odesílatel nemá použitelnou e-mailovou adresu"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "adresa odesílatele je delší, než pravidlo hledá ({n} znaků)"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "the series \"{title}\" doesn't happen on {date}"
@@ -23451,14 +23848,50 @@ msgstr "server žádal víc, než příkaz obsahoval"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "the server can't clear a flag"
+msgstr "server neumí zrušit příznak"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't clear categories"
+msgstr "server neumí vymazat kategorie"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "the server can't flag mail"
 msgstr "server neumí označovat poštu příznakem"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "server nemůže uchovat pravidla v tomto pořadí: pravidlo, které nedovolí změnit, pro ně nenechává volné místo"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at the day mail came"
+msgstr "server neumí sledovat den, kdy pošta přišla"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't look at whether you flagged mail"
+msgstr "server neumí sledovat, zda jste poštu označili příznakem"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server can't remove single messages (it doesn't offer UIDPLUS)"
 msgstr "server neumí odebírat jednotlivé zprávy (nenabízí UIDPLUS)"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't show a desktop alert"
+msgstr "server neumí zobrazit upozornění na ploše"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
@@ -23998,6 +24431,12 @@ msgstr "tento účet nemá kategorie synchronizované se serverem"
 #, fuzzy
 msgid "this account's categories aren't kept in step with its server"
 msgstr "kategorie tohoto účtu nejsou synchronizované s jeho serverem"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "this build can't unsubscribe in one click"
+msgstr "tato verze neumí odhlásit odběr jedním kliknutím"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -25083,6 +25522,15 @@ msgstr[0] "{n} tělo zprávy nebo příloha ve složce obsahu poštovní schrán
 msgstr[1] "{n} těla zpráv nebo přílohy ve složce obsahu poštovní schránky chybí, nebo jsou poškozené."
 msgstr[2] "{n} těl zpráv nebo příloh ve složce obsahu poštovní schránky chybí, nebo je poškozeno."
 
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} zprávou z vašeho účtu přes Poštu k odeslání:"
+msgstr[1] "{n} vždy zprávou z vašeho účtu přes Poštu k odeslání:"
+msgstr[2] "{n} vždy zprávou z vašeho účtu přes Poštu k odeslání:"
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy
@@ -25357,6 +25805,15 @@ msgstr[1] "{n} hodiny předem"
 msgstr[2] "{n} hodin předem"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} jedním kliknutím: jeho server dostane jen adresu, kterou uvedl, nic jiného."
+msgstr[1] "{n} jedním kliknutím: server každého seznamu dostane jen adresu, kterou uvedl, nic jiného, jeden po druhém."
+msgstr[2] "{n} jedním kliknutím: server každého seznamu dostane jen adresu, kterou uvedl, nic jiného, jeden po druhém."
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{n} item"
@@ -25465,7 +25922,7 @@ msgstr[1] "{n} zprávy archivovány"
 msgstr[2] "{n} zpráv archivováno"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/lib.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message changed"
 msgid_plural "{n} messages changed"
@@ -25535,15 +25992,6 @@ msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} zpráva už tu je a vynechá se"
 msgstr[1] "{n} zprávy už tu jsou a vynechají se"
 msgstr[2] "{n} zpráv už tu je a vynechá se"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} zpráva odpovídá"
-msgstr[1] "{n} zprávy odpovídají"
-msgstr[2] "{n} zpráv odpovídá"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
@@ -25694,6 +26142,15 @@ msgid_plural "{n} minutes before"
 msgstr[0] "{n} minutu předem"
 msgstr[1] "{n} minuty předem"
 msgstr[2] "{n} minut předem"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "Další {n} e-mailem se teď neodešle: vyberte méně zpráv, abyste ji viděli."
+msgstr[1] "Další {n} e-mailem se teď neodešlou: vyberte méně zpráv, abyste je viděli."
+msgstr[2] "Dalších {n} e-mailem se teď neodešle: vyberte méně zpráv, abyste je viděli."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -25981,6 +26438,15 @@ msgstr[1] "{n} vybrány"
 msgstr[2] "{n} vybráno"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} odesílatel je vynechán: pošta, za kterou váš server neručí, v Nevyžádané poště, s varováním o odesílateli, nebo která neříká jak."
+msgstr[1] "{n} odesílatelé jsou vynecháni: pošta, za kterou váš server neručí, v Nevyžádané poště, s varováním o odesílateli, nebo která neříká jak."
+msgstr[2] "{n} odesílatelů je vynecháno: pošta, za kterou váš server neručí, v Nevyžádané poště, s varováním o odesílateli, nebo která neříká jak."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} stays on this computer"
@@ -26069,6 +26535,15 @@ msgid_plural "{n} unread on the server"
 msgstr[0] "{n} nepřečtená na serveru"
 msgstr[1] "{n} nepřečtené na serveru"
 msgstr[2] "{n} nepřečtených na serveru"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} se odhlašuje na vlastní stránce: otevřete jeho zprávu a udělejte to tam."
+msgstr[1] "{n} se odhlašují na vlastní stránce: otevřete každou z těch zpráv a udělejte to tam."
+msgstr[2] "{n} se odhlašuje na vlastní stránce: otevřete každou z těch zpráv a udělejte to tam."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -26363,6 +26838,12 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}“ nebyla nalezena na serveru, takže ji nelze přeposlat jako přílohu"
 
 #. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "• to {to}, subject “{subject}”"
+msgstr "• komu: {to}, předmět „{subject}“"
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "−Bin"
@@ -26373,6 +26854,28 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Its {n} rule goes too; one its server keeps stays there."
+#~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
+#~ msgstr[0] "Odstraní se i jeho {n} pravidlo; pokud ho uchovává jeho server, zůstane tam."
+#~ msgstr[1] "Odstraní se i jeho {n} pravidla; ta, která uchovává jeho server, tam zůstanou."
+#~ msgstr[2] "Odstraní se i jeho {n} pravidel; ta, která uchovává jeho server, tam zůstanou."
+
+#, fuzzy
+#~ msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
+#~ msgstr "Nová pošta, kterou Gmail zařadí do kategorií Sociální sítě, Reklamy, Aktualizace nebo Fóra, přichází bez upozornění."
+
+#, fuzzy
+#~ msgid "a rule can't move mail to an Outbox: that would send it"
+#~ msgstr "pravidlo nemůže přesunout poštu do složky Pošta k odeslání: odeslala by se"
+
+#, fuzzy
+#~ msgid "{n} message matched"
+#~ msgid_plural "{n} messages matched"
+#~ msgstr[0] "{n} zpráva odpovídá"
+#~ msgstr[1] "{n} zprávy odpovídají"
+#~ msgstr[2] "{n} zpráv odpovídá"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
