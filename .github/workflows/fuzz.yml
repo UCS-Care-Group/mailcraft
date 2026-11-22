@@ -58,7 +58,7 @@ jobs:
               mime) echo crates/mime/ crates/mime-model/ ;;
               openpgp) echo crates/openpgp/ crates/ber/ ;;
               smime) echo crates/smime/ crates/model/ crates/ber/ ;;
-              svg) echo crates/ui-egui/src/reading/svg.rs ;;
+              svg) echo crates/ui-egui/src/reading/svg.rs crates/html/src/data.rs ;;
               tnef) echo crates/tnef/ ;;
               pkcs12) echo crates/smime/ crates/ber/ ;;
               *) echo / ;; # ponytail: a target not listed here runs on any change; add its crates
