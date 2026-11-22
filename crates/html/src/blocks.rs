@@ -136,24 +136,34 @@ pub(crate) struct Seen {
     /// Text the pane shows in place of what a token holds, written after it: Outlook's
     /// written-out list marker, as the pane makes it again (a number, a label or a bullet).
     pub after: Vec<(usize, String)>,
-    /// The `<img>` tokens whose picture the pane drew, in order, each with the picture written
-    /// into the message it decoded (none for one it couldn't, or that isn't written in).
-    pub drawn: Vec<(usize, Option<data::Picture>)>,
+    /// The `<img>` tokens whose picture the pane drew, in order: each with whether it took it in
+    /// the pictures written into a message that are decoded (always, for one on the web or
+    /// attached), and the bytes it decoded of it, when it decoded.
+    pub drawn: Vec<(usize, Drew)>,
 }
 
-/// [`Seen`] of `html` read for a pane of the width and theme `env`, as the pane reads it (its
-/// pictures decoded too, within the same budget).
-pub(crate) fn seen(html: &str, env: &Env) -> Seen {
-    // lean: decodes what the pane decodes (at most MAX_DATA_PICTURES_BYTES a look, MAX_MEDIA_ENVS
-    // looks for a message no pane said how it read).
-    build_with(html, true, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
+/// A picture the pane drew ([`Seen::drawn`]).
+#[derive(Clone, Default)]
+pub(crate) struct Drew {
+    /// Within the budget of the pictures written into a message (one on the web or attached is).
+    pub taken: bool,
+    /// What it decoded, when the reading decoded.
+    pub picture: Option<data::Picture>,
 }
 
-/// [`Seen`] of `html` as each of the panes `envs` shows it: what is shown in every one of them.
+/// [`Seen`] of `html` read for a pane of the width and theme `env`, as the pane reads it; the
+/// pictures written into it decoded when `decode` (else only counted, as the pane counts them).
+pub(crate) fn seen(html: &str, env: &Env, decode: bool) -> Seen {
+    // lean: decoding, what the pane decodes (at most MAX_DATA_PICTURES_BYTES), in one look only.
+    build_with(html, decode, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
+}
+
+/// [`Seen`] of `html` as each of the panes `envs` shows it: what is shown in every one of them,
+/// the pictures decoded in the first when `decode`.
 /// With none, in each look its `@media` gives it ([`crate::media_envs`]), for a message no pane
 /// has said how it read; `None` when it has more looks than are told apart (what one of the
 /// others shows can't be known).
-pub(crate) fn seen_everywhere(html: &str, envs: &[Env]) -> Option<Seen> {
+pub(crate) fn seen_everywhere(html: &str, envs: &[Env], decode: bool) -> Option<Seen> {
     let looks_of_media;
     let envs = if envs.is_empty() {
         let (looks, every) = crate::media::envs(&crate::media_lists(html));
@@ -165,7 +175,7 @@ pub(crate) fn seen_everywhere(html: &str, envs: &[Env]) -> Option<Seen> {
     } else {
         envs
     };
-    let mut looks = envs.iter().map(|env| seen(html, env));
+    let mut looks = envs.iter().enumerate().map(|(n, env)| seen(html, env, decode && n == 0));
     let Some(mut out) = looks.next() else { return Some(Seen::default()) };
     for other in looks {
         let (short, long) = if other.shown.len() < out.shown.len() { (other, out) } else { (out, other) };
@@ -185,15 +195,17 @@ pub(crate) fn seen_everywhere(html: &str, envs: &[Env]) -> Option<Seen> {
     Some(out)
 }
 
-/// The pictures drawn in both `a` and `b`, in token order, walked side by side once: with the
-/// picture decoded only when both decoded it.
-fn drawn_in_both(a: Vec<(usize, Option<data::Picture>)>, b: &[(usize, Option<data::Picture>)]) -> Vec<(usize, Option<data::Picture>)> {
+/// The pictures drawn in both `a` and `b`, in token order, walked side by side once: taken when
+/// both took it, with what either decoded of it then.
+fn drawn_in_both(a: Vec<(usize, Drew)>, b: &[(usize, Drew)]) -> Vec<(usize, Drew)> {
     let mut b = b.iter().peekable();
     let mut out = Vec::new();
-    for (at, picture) in a {
+    for (at, drew) in a {
         while b.next_if(|other| other.0 < at).is_some() {}
-        if let Some(other) = b.next_if(|other| other.0 == at) {
-            out.push((at, picture.filter(|_| other.1.is_some())));
+        if let Some((_, other)) = b.next_if(|other| other.0 == at) {
+            let taken = drew.taken && other.taken;
+            let picture = drew.picture.or_else(|| other.picture.clone()).filter(|_| taken);
+            out.push((at, Drew { taken, picture }));
         }
     }
     out
@@ -243,6 +255,7 @@ fn build_with(
 ) -> Built {
     let mut builder = Builder::new(decode);
     builder.seen = record.then(Seen::default);
+    builder.count_only = record && !decode;
     builder.own_link = own_link;
     builder.compose_tables = compose_tables;
     builder.unseen = keep_hidden.then(String::new);
@@ -856,8 +869,11 @@ struct Builder {
     copies: usize,
     /// What is shown of each token read, when it is asked for ([`seen`]).
     seen: Option<Seen>,
-    /// The picture of the `<img>` being read was drawn (with what it decoded), for `seen`.
-    drew: Option<Option<data::Picture>>,
+    /// The picture of the `<img>` being read was drawn, for `seen`.
+    drew: Option<Drew>,
+    /// The pictures written into the message are counted as the pane counts them, not decoded
+    /// (a `seen` that doesn't decode).
+    count_only: bool,
     /// Where in `seen` the written-out marker being read starts; once read, there and the
     /// marker the pane makes of it, until its item's text shows it.
     marker_at: Option<usize>,
@@ -915,6 +931,7 @@ impl Builder {
             copies: COPY_FLOOR,
             seen: None,
             drew: None,
+            count_only: false,
             marker_at: None,
             marker_due: None,
             foreign: Vec::new(),
@@ -931,8 +948,8 @@ impl Builder {
         let Some(seen) = self.seen.as_mut() else { return };
         let at = seen.shown.len();
         seen.shown.push(if text { shown } else { self.hidden == 0 && self.template == 0 });
-        if let Some(picture) = self.drew.take() {
-            seen.drawn.push((at, picture));
+        if let Some(drew) = self.drew.take() {
+            seen.drawn.push((at, drew));
         }
         // A written-out marker in nothing else hidden starts here.
         if capture == 0 && self.capture > 0 && self.hidden == self.capture && self.template == 0 {
@@ -1443,6 +1460,12 @@ impl Builder {
     fn bg_decoded(&mut self, pending: Option<Box<BgPicture>>) -> Option<Box<BgPicture>> {
         let mut picture = pending?;
         if data::is_data(&picture.src) && picture.data.is_none() {
+            if self.count_only {
+                // (Counted only: kept when taken, whether its bytes are a picture or not.)
+                let (src, taken) = data::counted(&picture.src, &mut self.budget);
+                picture.src = src;
+                return taken.then_some(picture);
+            }
             let (src, data) = data::picture(&picture.src, self.decode, &mut self.budget);
             picture.src = src;
             picture.data = Some(data?);
@@ -1464,8 +1487,18 @@ impl Builder {
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
         let raw = tag.attr("src");
+        let mut taken = true;
         let picture = match raw.as_deref().filter(|src| data::is_data(src)) {
-            Some(written) => Some(data::picture(written, self.decode, &mut self.budget)),
+            Some(written) if self.count_only => {
+                let (src, counted) = data::counted(written, &mut self.budget);
+                taken = counted;
+                Some((src, None))
+            }
+            Some(written) => {
+                let (src, took, data) = data::picture_taken(written, self.decode, &mut self.budget);
+                taken = took;
+                Some((src, data))
+            }
             None => picture_url(raw).map(|src| (src, None)),
         };
         match picture {
@@ -1489,7 +1522,7 @@ impl Builder {
                 } else {
                     None
                 };
-                let drew = self.seen.is_some().then(|| data.clone());
+                let drew = self.seen.is_some().then(|| Drew { taken, picture: data.clone() });
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
                 // A picture where the message says its text reads from the right stands where
@@ -1555,7 +1588,7 @@ impl Builder {
 
     /// Keep the composer's original cap when no pictures are being decoded.
     fn max_font_px(&self) -> u8 {
-        if self.decode { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
+        if self.decode || self.count_only { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
     }
 
     /// Close the node at `index` and what is open inside it. Formatting elements opened inside

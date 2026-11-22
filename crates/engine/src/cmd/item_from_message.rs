@@ -99,7 +99,9 @@ fn minute(at: DateTime) -> String {
 pub fn text_of(s: &Session, m: &Message) -> String {
     match super::compose::as_shown(s, m, crate::ReadIn::Pane) {
         (Some(html), envs) => {
-            let shown = mailcraft_html::quotable_with_pictures(html, &mut |_, _| None, &envs);
+            // (What every look shows, when the message has more than are told apart, may be
+            // nothing: then nothing, never the text part instead.)
+            let shown = mailcraft_html::quotable_in(html, &envs);
             clean_text(&mailcraft_html::quote_to_text(&shown), MAX_TEXT)
         }
         (None, _) => clean_text(&m.body.text, MAX_TEXT),

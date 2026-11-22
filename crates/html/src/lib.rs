@@ -57,7 +57,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
+pub use quote::{WrittenPicture, quotable, quotable_in, quotable_with_pictures};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
 pub use text::{blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
 

@@ -499,6 +499,28 @@ fn text_the_pane_shows_at_its_largest_size_is_quoted() {
 proptest::proptest! {
     #![proptest_config(proptest::prelude::ProptestConfig::with_cases(512))]
 
+    /// A reading that decodes the pictures written into the message and one that only counts
+    /// them agree on what is shown, token by token, and on which pictures are drawn and taken.
+    #[test]
+    fn decoding_or_counting_the_pictures_the_pane_shows_the_same(
+        parts in proptest::collection::vec(
+            proptest::prop_oneof![2 => proptest::sample::select(pictures()), 1 => proptest::sample::select(soup())],
+            0..40,
+        ),
+        width in 1.0f32..2400.0,
+        dark in proptest::prelude::any::<bool>(),
+    ) {
+        let html: String = parts.concat();
+        let env = Env::for_pane(width, dark);
+        let (decoded, counted) = (blocks::seen(&html, &env, true), blocks::seen(&html, &env, false));
+        proptest::prop_assert_eq!(&decoded.shown, &counted.shown, "{:?}", html);
+        proptest::prop_assert_eq!(decoded.cut, counted.cut, "{:?}", html);
+        proptest::prop_assert_eq!(&decoded.after, &counted.after, "{:?}", html);
+        let marks = |s: &blocks::Seen| s.drawn.iter().map(|(at, d)| (*at, d.taken)).collect::<Vec<_>>();
+        proptest::prop_assert_eq!(marks(&decoded), marks(&counted), "{:?}", html);
+        proptest::prop_assert!(counted.drawn.iter().all(|(_, d)| d.picture.is_none()));
+    }
+
     /// With pictures in it, on the web or written into the message, sized by a style sheet, in
     /// buttons: the quote carries only pictures the pane drew, and no words it didn't show.
     #[test]
@@ -608,6 +630,10 @@ fn pictures() -> Vec<String> {
         "<style>img.z{height:0}</style>".to_string(),
         "<button>".to_string(),
         "</button>".to_string(),
+        "<img src=\"data:image/png;base64,AAAA\" alt=\"K\">".to_string(),
+        "<div style=\"background-image:url(data:image/png;base64,AAAA)\">".to_string(),
+        format!("<div style=\"background-image:url({})\">", png()),
+        "</div>".to_string(),
     ]);
     parts
 }

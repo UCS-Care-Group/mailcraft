@@ -6,10 +6,10 @@
 //! so [`quotable`] writes it anew from its tokens and keeps only its look: the elements and
 //! attributes that lay out and dress text, tables and pictures, by list. Nothing that runs, embeds
 //! another document, sends a form or sets a style for the whole message is carried, nor anything
-//! the sender hid, nor a picture too small to see. Pictures in the message (`cid:`) and ordinary
-//! pictures on the web stay: the recipient's program decides whether to fetch those. A picture
-//! written into the message (`data:`) is left out by [`quotable`]; [`quotable_with_pictures`]
-//! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
+//! the sender hid, nor a picture the reading pane didn't draw. Pictures in the message (`cid:`)
+//! and ordinary pictures on the web that it drew stay: the recipient's program decides whether to
+//! fetch those. A picture written into the message (`data:`) is left out by [`quotable`];
+//! [`quotable_with_pictures`] hands each one the reading pane drew (as it decoded it) to its caller, to go as a
 //! part of its own, and refers to it by the Content-ID the caller gives it (#602).
 
 use crate::blocks::{self, css_of, picture_url};
@@ -203,15 +203,21 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// hidden, by a style sheet too, in a template, too small to read, or past what it reads), ended
 /// where the pane ends it. Left out alone: every other element not on the list, every attribute
 /// not on the list (`on…` handlers, `srcset`, `background`, `ping`, `formaction`, and `title`,
-/// a tooltip the pane never shows, among them), a
-/// link to anything but `http`, `https`, `mailto`, `tel` or `cid`, a picture from anywhere but
-/// the message itself or the web, a picture on the web 2 pixels or less across or high, and a
-/// `style` that loads or runs something. Text is escaped again, tags left open are closed at the end, and nesting deeper
+/// `summary` and `abbr`, which the pane never shows, among them; and the `alt` of a picture in the
+/// message, which the pane draws), a link to anything but `http`, `https`, `mailto`, `tel` or
+/// `cid`, a picture the pane didn't draw (too small to see, hidden, past its caps) or from
+/// anywhere but the message itself or the web, and a `style` that loads or runs something. Text is escaped again, tags left open are closed at the end, and nesting deeper
 /// than a limit keeps its text and loses its tags. Takes any string, never panics, reads what the
 /// reading pane reads (at most [`MAX_INPUT`](crate::MAX_INPUT) bytes besides the pictures written
 /// into the message) and is linear in it.
 pub fn quotable(html: &str) -> String {
     quote(html, None, &[Env::default()])
+}
+
+/// [`quotable`], read as the panes `envs` read it, as [`quotable_with_pictures`] reads them,
+/// without the pictures written into the message (nothing of them is decoded).
+pub fn quotable_in(html: &str, envs: &[Env]) -> String {
+    quote(html, None, envs)
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -238,10 +244,12 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> 
     let html = truncate(html, MAX_INPUT_WITH_PICTURES);
     // What the reading pane shows, token by token: nothing it leaves out is carried, and it is
     // read as far as the pane reads it.
+    // (Decoded once, in one look, and only when the pictures written into it go somewhere.)
+    let decode = written.is_some();
     let seen = match envs {
-        [env] => blocks::seen(html, env),
+        [env] => blocks::seen(html, env, decode),
         // lean: a message whose looks can't all be told is not quoted at all.
-        _ => match blocks::seen_everywhere(html, envs) {
+        _ => match blocks::seen_everywhere(html, envs, decode) {
             Some(seen) => seen,
             None => return String::new(),
         },
@@ -273,7 +281,7 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> 
             break;
         }
         while drawn.next_if(|(i, _)| *i < at).is_some() {}
-        q.drawn = drawn.next_if(|(i, _)| *i == at).map(|(_, picture)| picture.clone());
+        q.drawn = drawn.next_if(|(i, _)| *i == at).map(|(_, drew)| drew.clone());
         q.token(token);
         q.drawn = None;
         while let Some((_, text)) = after.next_if(|(i, _)| *i == at) {
@@ -289,7 +297,7 @@ struct Quoter<'a, 'w> {
     written: Option<&'a mut WrittenPicture<'w>>,
     /// The `<img>` being written was drawn by the reading pane, with the picture written into the
     /// message it decoded: the only pictures carried ([`blocks::Seen::drawn`]).
-    drawn: Option<Option<Picture>>,
+    drawn: Option<blocks::Drew>,
     out: String,
     /// Kept elements open in what is written, outermost first.
     open: Vec<&'static str>,
@@ -447,7 +455,7 @@ impl Quoter<'_, '_> {
         let drawn = self.drawn.take()?;
         let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_src(tag.attr("src")) };
         let written = self.written.as_mut()?;
-        let bytes = drawn?;
+        let bytes = drawn.picture.filter(|_| drawn.taken)?;
         let (kept, _) = data::picture(&src, false, &mut Budget::default());
         let mime = kept.strip_prefix("data:").unwrap_or_default();
         let cid = written(mime, &bytes)?;
