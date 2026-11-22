@@ -253,6 +253,13 @@ fn a_message_with_more_looks_than_are_told_is_quoted_as_read_or_not_at_all() {
             for said in [&q.html, &q.text, &c.body.plain()] {
                 assert!(!said.contains("Padded") && !said.contains("SENDER") && !said.contains("Hello Avery"), "{command} {text}: {said}");
             }
+            // Nor in what is sent.
+            run(&mut s, "compose.set", json!({"to": "maya@example.org"}));
+            let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+            let body = &s.mailbox.message(sent).unwrap().body;
+            for said in [&body.text, body.html.as_ref().unwrap_or(&String::new())] {
+                assert!(!said.contains("Padded") && !said.contains("SENDER"), "{command} {text}: {said}");
+            }
             // Read in a window of its own only, answered from the list.
             let mut s = session();
             let id = message(&mut s, &padded(), text);
@@ -272,5 +279,31 @@ fn a_message_with_more_looks_than_are_told_is_quoted_as_read_or_not_at_all() {
             let q = compose(&s).quote.clone().unwrap();
             assert!(!q.html.contains("Padded") && !q.text.contains("Padded") && !q.html.contains("Hello Avery"), "{command}: {}", q.html);
         }
+    }
+}
+
+/// One place showed the text part and another the HTML: a reply asked for where it wasn't read
+/// quotes the HTML (the owner saw it) with only what every place's width and theme shows, and
+/// never the text part beside it.
+#[test]
+fn a_reply_from_where_it_wasnt_read_quotes_no_more_than_the_place_that_showed_html() {
+    for command in ["mail.reply", "mail.forward"] {
+        let mut s = session();
+        let id = message(&mut s, LOOKS, "TEXT ONLY");
+        s.read_at(id, ReadIn::Pane, mailcraft_html::Env::for_pane(800.0, false), true);
+        s.read_at(id, ReadIn::Window(7), mailcraft_html::Env::for_pane(1600.0, false), false);
+        assert_eq!(quoted_looks(&mut s, command, json!({"id": id, "window": 8})), ["Hello Avery,", "Light only"], "{command}");
+        let c = compose(&s).clone();
+        assert!(!c.body.plain().contains("TEXT ONLY") && !c.quote.unwrap().text.contains("TEXT ONLY"), "{command}");
+        // The same width and theme in both.
+        let mut s = session();
+        let id = message(&mut s, "<p>HTML ONLY</p>", "TEXT ONLY");
+        s.read_at(id, ReadIn::Pane, mailcraft_html::Env::default(), true);
+        s.read_at(id, ReadIn::Window(7), mailcraft_html::Env::default(), false);
+        run(&mut s, command, json!({"id": id, "window": 8}));
+        let c = compose(&s).clone();
+        let q = c.quote.clone().unwrap();
+        assert!(q.html.contains("HTML ONLY") && !q.html.contains("TEXT ONLY") && !q.text.contains("TEXT ONLY"), "{command}: {}", q.html);
+        assert!(!c.body.plain().contains("TEXT ONLY"), "{command}");
     }
 }

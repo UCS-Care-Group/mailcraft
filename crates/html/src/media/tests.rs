@@ -568,7 +568,16 @@ fn feature_text() -> impl proptest::strategy::Strategy<Value = String> {
     use proptest::prelude::*;
     let length = (0u32..3_000, prop_oneof![Just("px"), Just("em"), Just("pt"), Just("rem"), Just(""), Just("PX")])
         .prop_map(|(n, unit)| if unit == "em" || unit == "rem" { format!("{}{unit}", n as f32 / 16.0) } else { format!("{n}{unit}") });
-    let name = prop_oneof![4 => Just("min-width"), 4 => Just("max-width"), 1 => Just("width"), 1 => Just("min-device-width"), 1 => Just("Max-Width"), 1 => Just("height")];
+    let name = prop_oneof![
+        4 => Just("min-width"),
+        4 => Just("max-width"),
+        1 => Just("width"),
+        1 => Just("min-device-width"),
+        1 => Just("max-device-width"),
+        1 => Just("device-width"),
+        1 => Just("Max-Width"),
+        1 => Just("height"),
+    ];
     prop_oneof![
         4 => (name.clone(), length.clone()).prop_map(|(n, l)| format!("({n}:{l})")),
         3 => (name, length).prop_map(|(n, l)| format!("({n}: /**/{l}/* c */)")),
@@ -584,7 +593,8 @@ fn list_text() -> impl proptest::strategy::Strategy<Value = String> {
         prop_oneof![4 => Just(""), 2 => Just("screen and "), 1 => Just("only screen and "), 1 => Just("not screen and "), 1 => Just("print and ")],
         proptest::collection::vec(feature_text(), 1..3),
     )
-        .prop_map(|(head, features)| format!("{head}{}", features.join(" and ")));
+        .prop_map(|(head, features)| format!("{head}{}", features.join(" and ")))
+        .boxed();
     // A query of junk features first, at times: what comes after it is read all the same.
     let junk = prop_oneof![2 => Just(String::new()), 1 => (1usize..80).prop_map(|n| format!("{}(x), ", "(x) and ".repeat(n)))];
     let loose = proptest::collection::vec(
@@ -600,7 +610,7 @@ fn list_text() -> impl proptest::strategy::Strategy<Value = String> {
         0..16,
     )
     .prop_map(|p| p.concat());
-    prop_oneof![3 => (junk, proptest::collection::vec(query, 1..4)).prop_map(|(j, q)| format!("{j}{}", q.join(", "))), 1 => loose]
+    prop_oneof![3 => (junk, prop_oneof![3 => proptest::collection::vec(query.clone(), 1..4), 1 => proptest::collection::vec(query, 7..12)]).prop_map(|(j, q)| format!("{j}{}", q.join(", "))), 1 => loose]
 }
 
 proptest::proptest! {
@@ -620,5 +630,21 @@ proptest::proptest! {
                 }
             }
         }
+    }
+}
+
+/// A message with as many media lists as are gathered is not said to have every look found:
+/// those past them (after 400 under a false `@media` or `<style media>`) may be tested by the pane.
+#[test]
+fn as_many_lists_as_are_gathered_are_not_every_look() {
+    let junk: String = (0..400).map(|n| format!("@media (a{n}){{}}")).collect();
+    for html in [
+        format!("<style>@media print{{{junk}}} @media (max-width:600px){{.x{{display:none}}}}</style><p>A</p><p class=x>XXX</p><p>C</p>"),
+        format!("<style media=print>{junk}</style><style>@media (max-width:600px){{.x{{display:none}}}}</style><p>A</p><p class=x>XXX</p><p>C</p>"),
+    ] {
+        assert_eq!(crate::blocks_to_text(&parse_in(&html, &at(375.0, false)).blocks).replace('\n', ""), "AC");
+        assert!(!envs(&crate::media_lists(&html)).1);
+        let carried = crate::quotable_with_pictures(&html, &mut |_, _| None, &[]);
+        assert!(!carried.contains("XXX"), "{carried}");
     }
 }

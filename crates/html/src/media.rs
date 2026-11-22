@@ -98,9 +98,10 @@ pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
     if lists.is_empty() {
         return (out, true);
     }
-    // Each width once; more than are tried, and some look may be missed.
+    // Each width once; more than are tried, and some look may be missed. (So may one with as many
+    // lists as are read: what [`crate::media_lists`] gathers may not be all the pane tests.)
     let mut widths: Vec<u16> = vec![0];
-    let mut every = true;
+    let mut every = lists.len() < MAX_LISTS;
     for list in lists {
         thresholds(list, &mut widths);
         widths.sort_unstable();
@@ -111,6 +112,8 @@ pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
             break;
         }
     }
+    // lean: the looks are still found when not every one can be (≈170 ms at the caps): the
+    // sender warnings judge links in each of those it has; a reply's quote doesn't use them.
     let mut seen = vec![verdicts(lists, &Env::default())];
     let candidates = std::iter::once(Env { width: WIDEST, dark: true })
         .chain(widths.iter().flat_map(|width| [false, true].map(|dark| Env { width: *width, dark })));
@@ -162,8 +165,24 @@ fn thresholds(list: &str, widths: &mut Vec<u16>) {
 fn width_of(part: &str) -> Option<f32> {
     let inner = part.strip_prefix('(')?.strip_suffix(')')?;
     let (name, value) = inner.split_once(':')?;
-    match name.trim() {
-        "min-width" | "min-device-width" | "max-width" | "max-device-width" | "width" | "device-width" => length(value.trim()),
+    width_test(name.trim())?;
+    length(value.trim())
+}
+
+/// How a feature named `name` holds against the pane's width, when it is a width feature: the one
+/// list of them, for [`feature`] and for the widths [`envs`] tries.
+#[derive(Clone, Copy)]
+enum WidthTest {
+    AtLeast,
+    AtMost,
+    Is,
+}
+
+fn width_test(name: &str) -> Option<WidthTest> {
+    match name {
+        "min-width" | "min-device-width" => Some(WidthTest::AtLeast),
+        "max-width" | "max-device-width" => Some(WidthTest::AtMost),
+        "width" | "device-width" => Some(WidthTest::Is),
         _ => None,
     }
 }
@@ -282,17 +301,23 @@ fn feature(part: &str, env: &Env) -> Option<(bool, bool)> {
     let inner = part.strip_prefix('(')?.strip_suffix(')')?;
     let (name, value) = inner.split_once(':')?;
     let (name, value) = (name.trim(), value.trim());
-    match name {
-        "prefers-color-scheme" => match value {
+    if name == "prefers-color-scheme" {
+        return match value {
             "dark" => Some((env.dark, true)),
             "light" => Some((!env.dark, false)),
             _ => None,
-        },
-        "min-width" | "min-device-width" => Some((f32::from(env.width) >= length(value)?, false)),
-        "max-width" | "max-device-width" => Some((f32::from(env.width) <= length(value)?, false)),
-        "width" | "device-width" => Some(((f32::from(env.width) - length(value)?).abs() < 0.5, false)),
-        _ => None,
+        };
     }
+    let width = f32::from(env.width);
+    let px = length(value)?;
+    Some((
+        match width_test(name)? {
+            WidthTest::AtLeast => width >= px,
+            WidthTest::AtMost => width <= px,
+            WidthTest::Is => (width - px).abs() < 0.5,
+        },
+        false,
+    ))
 }
 
 /// A length in pixels: `600px`, `37.5em`, `0`.
