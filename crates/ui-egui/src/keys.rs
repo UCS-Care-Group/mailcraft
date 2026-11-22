@@ -703,10 +703,11 @@ pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
     hits.into_iter().find(|c| (c.enabled)(&app.session).is_none()).map(|c| c.id)
 }
 
-/// The same key in the other modules: Delete on a selected event, contact or task.
+/// The same key in the other modules: Delete on a selected event (or a set of them), contact or
+/// task.
 fn module_delete(app: &MailApp) -> Option<&'static str> {
     match app.session.view.module {
-        Module::Calendar if app.session.sel.event.is_some() => Some("calendar.delete"),
+        Module::Calendar if app.session.sel.event.is_some() || !app.session.sel.events.is_empty() => Some("calendar.delete"),
         Module::People if app.session.sel.contact.is_some() => Some("people.delete"),
         Module::Tasks if app.session.sel.task.is_some() => Some("tasks.delete"),
         _ => None,
@@ -828,7 +829,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if k == "Delete"
             && let Some(id) = module_delete(app)
         {
-            let _ = app.run(id, json!({}));
+            // A typed set of more than one is deleted as that set, never as the one series its
+            // focus might name: the occurrence scope keeps its one accurate question.
+            let params = if id == "calendar.delete" && app.session.sel.events.len() > 1 { json!({ "scope": "occurrence" }) } else { json!({}) };
+            let _ = app.run(id, params);
             continue;
         }
         // In a message that is being read (the pointer last went down in it, or is over it),

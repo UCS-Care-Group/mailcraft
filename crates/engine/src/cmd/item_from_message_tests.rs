@@ -126,3 +126,25 @@ fn asking_changes_nothing() {
     // An agent may ask: it reads, and makes nothing.
     assert_eq!(classify(&s, "mail.itemFromMessage", &json!({"id": id, "as": "task"})), Access::Safe);
 }
+
+/// The text an item starts with is what the reading pane showed: at the width and in the theme it
+/// read the message at (what its `@media` hid there left out), without the description of a
+/// picture it drew; read nowhere, what every look shows, never the text part instead.
+#[test]
+fn an_items_text_is_what_the_pane_showed_of_the_message() {
+    let html = "<style>@media (max-width:999px){.w{display:none}}</style><p>Agenda</p><p class=w>Wide words</p>\
+                <img src=\"cid:logo@example.org\" alt=\"Logo words\">";
+    for (read, wide) in [(Some(1600.0), true), (Some(800.0), false), (None, false)] {
+        let mut s = session();
+        let id = message(&mut s, "Plan", Body { text: "the sender's other text".into(), html: Some(html.into()) });
+        if let Some(width) = read {
+            s.read_at(id, crate::ReadIn::Pane, mailcraft_html::Env::for_pane(width, false), false);
+        }
+        for (kind, field) in [("appointment", "description"), ("task", "notes")] {
+            let got = run(&mut s, json!({"id": id, "as": kind}));
+            let text = got[field].as_str().unwrap();
+            assert!(text.contains("Agenda") && text.contains("Wide words") == wide, "{read:?} {kind}: {text}");
+            assert!(!text.contains("Logo words") && !text.contains("other text"), "{read:?} {kind}: {text}");
+        }
+    }
+}
