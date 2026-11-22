@@ -38,12 +38,8 @@ fn session() -> Session {
 
 /// Whether `m` has its file listed: in the list, `has:attachment` and a rule's "has an attachment".
 fn listed(m: &Message) -> bool {
-    let all = [
-        m.listed_attachments().count() == 1,
-        m.has_attachments(),
-        Query::parse("has:attachment").matches(m, 0),
-        Condition::HasAttachment.matches_as(m, false),
-    ];
+    let all =
+        [m.listed_attachments().count() == 1, m.has_attachments(), Query::parse("has:attachment").matches(m, 0), Condition::HasAttachment.matches(m)];
     assert!(all.iter().all(|x| *x == all[0]), "{all:?}");
     all[0]
 }

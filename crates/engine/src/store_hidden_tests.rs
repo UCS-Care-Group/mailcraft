@@ -67,7 +67,7 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
     assert!(s.mailbox.message(id).unwrap().hidden_text.is_empty());
     let loaded = s.loaded_message_where(id, |_| false).unwrap();
     assert!(mailcraft_model::search::Query::parse(NEEDLE).matches(&loaded, 0));
-    assert!(mailcraft_model::Condition::BodyContains(NEEDLE.into()).matches(&loaded));
+    assert!(mailcraft_model::Condition::BodyContains(vec![NEEDLE.into()]).matches(&loaded));
 
     // Thinned: it goes with the body, and the content file is no longer named by the message.
     let mut thin = Message::clone(whole(&path).message(id).unwrap());
