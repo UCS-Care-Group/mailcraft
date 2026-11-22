@@ -171,10 +171,23 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above, and like it never from a last clause
   cut off at 4,000 characters or left open) says `dmarc=fail` for the sender's domain, or, with no
-  DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
-  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
-  labels as the letters they stand for, and only labels that write back to exactly themselves are
-  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  DMARC verdict at all, `spf=fail` for it (the sender's domain is read from whatever its address
+  is written in, `xn--` labels as the letters they stand for, and only labels that write back to
+  exactly themselves are read so), unless Exchange Online's `compauth=pass` overrides it, or, for
+  a sender outside the account's own domain, its `compauth=none reason=905` does: Exchange Online
+  says it didn't enforce DMARC because the mail came through another service first, such as a
+  filtering gateway in front of it (#1568). Only that code: the other `compauth=none` codes, an
+  allow list among them, leave the failure standing, and the gateway's own verdict below the edge
+  hop is still not read, so such mail is not vouched for either. Exchange gives that code from how
+  the tenant's mail is routed, not from the message, so it gives it as well to mail sent straight
+  to Microsoft 365 past the gateway ("direct send"). A sender at the account's own domain (the
+  same registrable part as the account's address: the domain, a name under it, or one above it)
+  therefore keeps its warning, and a spoof of a colleague sent that way still gets the red banner.
+  The limit: in a tenant behind a gateway, the warning can't catch such a spoof of an outside
+  domain, nor of another domain of the organisation that the account's address isn't at; only
+  the tenant's administrator can close that path (a connector that takes mail only from the
+  gateway, or Enhanced Filtering for Connectors). Or
+  the sender's name carries another address, or is a contact's or the owner's own
   name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
   whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
   which asks for nothing to be done about mail that fails; the sender's domain is one character
@@ -413,11 +426,12 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Mail from an `.eml` or `.mbox` file is never put in an Outbox or a folder under one: with an
   Outbox in view it goes to the account's Drafts (as drafts, not queued), else its Inbox; naming an
   Outbox is refused (`crates/engine/src/io.rs`).
-- Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
-  now, and puts addresses the owner has written to (Sent Items) above those that only wrote. The
-  people the search box offers after `from:`, `to:` and `cc:` (#308) come from it, so the same
-  holds for them (and then the owner's own addresses, which it leaves out); nothing is asked of
-  a server for them.
+- Autocomplete (`compose.suggest`) skips Junk E-mail and Drafts, counts a date after now as now,
+  and ranks by how often each address was sent to from Sent Items or the Outbox, without trusting
+  an incoming `From:` (a sender writes that line). When nobody was written to, contacts come ahead
+  of people only seen in mail that arrived. A new message's suggestions include the owner's own
+  addresses; the people the search box offers after `from:`, `to:` and `cc:` (#308) come from the
+  same ranking and then offer those addresses last. Nothing is asked of a server for them.
 - A reply, forward or reopened draft quotes an HTML original as its HTML reads
   (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner
   never saw.
@@ -456,7 +470,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   accounts, rules or signatures of before. The question shows the call in full: one too long to
   show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
   it writes to. `ui.copyDiagnostics` is not available to agents.
-  Undo and redo swap the whole mailbox, so they are classed by what the step would bring back or
+  Undo and redo put back what the step changed (mail, contacts and events that downloads changed
+  since stay as they are now: #605, #1674), so they are classed by what the step would bring back or
   remove, strongest first: accounts, a meeting change that writes to people (`send`), contacts,
   events, tasks, calendars, categories or messages removed (`delete`), rules and signatures (`settings`).
   On a Microsoft account whose categories are kept in step with Outlook, an agent is asked

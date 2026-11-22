@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 use super::find::{Place, moved};
-use super::{Format, ListKind, MAX_CHARS, RichText, Style};
+use super::{Format, ListKind, MAX_CHARS, MAX_FIND, RichText, Style, clean_line};
 use crate::ModelError;
 
 /// Most undo steps one message keeps.
@@ -51,6 +51,17 @@ impl Selection {
 struct Step {
     text: RichText,
     selection: Selection,
+    /// A picture's width this step puts back, kept beside the text by its holder.
+    mark: Option<Mark>,
+}
+
+/// The width a picture is shown at, as a step of undo puts it back: the picture is kept beside
+/// the text (a message's pictures), so only its holder can set it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Mark {
+    pub picture: u32,
+    /// `None`: its own width.
+    pub width: Option<u16>,
 }
 
 /// The owner's text in a message being written, with its selection and its own undo.
@@ -196,7 +207,18 @@ impl RichBody {
     }
 
     fn push_undo(&mut self) {
-        self.undo.push(Step { text: self.text.clone(), selection: self.selection });
+        self.push_step(None);
+    }
+
+    /// A step of its own that changes no text: undoing it puts `mark` back (a picture's width
+    /// before its holder changed it).
+    pub fn push_mark(&mut self, mark: Mark) {
+        self.push_step(Some(mark));
+        self.typing = None;
+    }
+
+    fn push_step(&mut self, mark: Option<Mark>) {
+        self.undo.push(Step { text: self.text.clone(), selection: self.selection, mark });
         self.redo.clear();
         let mut kept: usize = self.undo.iter().map(|s| s.text.len()).sum();
         // Snapshots share a table's immutable allocation, so charge it once across the history.
@@ -434,6 +456,43 @@ impl RichBody {
         Ok(())
     }
 
+    /// Replace the expected text at an exact position, as one undo step. The text
+    /// keeps the formatting of its unchanged edges, and the caret goes just after it.
+    pub fn replace_exact(&mut self, place: Place, expected: &str, with: &str) -> Result<(), ModelError> {
+        let (from, to) = place;
+        let valid_line = |text: &str| text.len() <= 4 * MAX_FIND && text.chars().count() <= MAX_FIND && clean_line(text) == text;
+        if from >= to || to - from > MAX_FIND || !valid_line(expected) || !valid_line(with) {
+            return Err(ModelError::Invalid("expected and replacement must be on one line".into()));
+        }
+        if to - from != expected.chars().count() || self.text.slice(from, to)?.text() != expected {
+            return Err(ModelError::Invalid("the text has changed at the place to replace".into()));
+        }
+        let prefix = expected.chars().zip(with.chars()).take_while(|(a, b)| a == b).count();
+        let suffix = expected
+            .chars()
+            .rev()
+            .zip(with.chars().rev())
+            .take((to - from - prefix).min(with.chars().count() - prefix))
+            .take_while(|(a, b)| a == b)
+            .count();
+        let with_chars = with.chars().count();
+        let changed: String = with.chars().skip(prefix).take(with_chars - prefix - suffix).collect();
+        let (start, end) = (from + prefix, to - suffix);
+        self.edit(false, |text, selection| {
+            if start < end {
+                text.replace_places(&[(start, end)], &changed)?;
+            } else if !changed.is_empty() {
+                let style = text.style_at(start + usize::from(prefix == 0));
+                text.insert(start, &changed, &style)?;
+            }
+            *selection = Selection::caret(from + with_chars);
+            Ok(())
+        })?;
+        self.pending = None;
+        self.typing = None;
+        Ok(())
+    }
+
     /// Turn something on or off for the selection: on unless all of it has it already. With
     /// nothing selected it is the next typed character's. Whether it is on now.
     fn toggle(&mut self, has: fn(&Style) -> bool, set: fn(bool) -> Format) -> Result<bool, ModelError> {
@@ -538,8 +597,9 @@ impl RichBody {
         Ok(now)
     }
 
-    /// Move the list items the selection touches a level deeper (`by` 1) or shallower (-1); an
-    /// item at the outermost level that goes shallower leaves its list. Whether anything changed.
+    /// Move the paragraphs the selection touches a level deeper (`by` 1) or shallower (-1): a list
+    /// item in its list (one at the outermost level that goes shallower leaves its list), an
+    /// ordinary paragraph in from the left or back (#1658). Whether anything changed.
     pub fn indent(&mut self, by: i8) -> Result<bool, ModelError> {
         let sel = self.selection;
         let before = self.text.clone();
@@ -575,23 +635,39 @@ impl RichBody {
         Ok(())
     }
 
-    /// Back one step. Whether there was one.
+    /// Back one step. Whether there was one. A step's [`Mark`] is left as it is: see
+    /// [`RichBody::undo_with`].
     pub fn undo(&mut self) -> bool {
-        let Some(step) = self.undo.pop() else { return false };
-        let now = Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection) };
-        self.redo.push(now);
-        self.pending = None;
-        self.typing = None;
-        true
+        self.undo_with(|mark| mark)
     }
 
     /// Forward one step. Whether there was one.
     pub fn redo(&mut self) -> bool {
+        self.redo_with(|mark| mark)
+    }
+
+    /// Back one step, `swap` putting back the [`Mark`] the step has and answering the one it
+    /// replaced, which redo puts back in turn. Whether there was a step.
+    pub fn undo_with(&mut self, swap: impl FnOnce(Mark) -> Mark) -> bool {
+        let Some(step) = self.undo.pop() else { return false };
+        let now = self.take_step(step, swap);
+        self.redo.push(now);
+        true
+    }
+
+    /// Forward one step, as [`RichBody::undo_with`].
+    pub fn redo_with(&mut self, swap: impl FnOnce(Mark) -> Mark) -> bool {
         let Some(step) = self.redo.pop() else { return false };
-        let now = Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection) };
+        let now = self.take_step(step, swap);
         self.undo.push(now);
+        true
+    }
+
+    /// Put `step` in place: the step that brings back what was there.
+    fn take_step(&mut self, step: Step, swap: impl FnOnce(Mark) -> Mark) -> Step {
+        let mark = step.mark.map(swap);
         self.pending = None;
         self.typing = None;
-        true
+        Step { text: std::mem::replace(&mut self.text, step.text), selection: std::mem::replace(&mut self.selection, step.selection), mark }
     }
 }

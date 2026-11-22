@@ -31,6 +31,11 @@
 //! that shape). The recipients of each page's messages are then asked with `GetItem`, a hundred to
 //! a request; a page goes on without the recipients the server won't give.
 //!
+//! **Recipients left out** (#1151): Exchange 2013 to 2019 take the recipients in the shape of
+//! `SyncFolderItems` and answer without them, saying nothing. Whatever the shape, the messages of a
+//! page that came with neither a To nor a Cc are asked with `GetItem` as above, so that Sent
+//! Items says who each message went to.
+//!
 //! **The lines of trouble** name no folder, no address and nothing a server said.
 
 use std::collections::{HashMap, HashSet};
@@ -65,8 +70,8 @@ const MAX_HIERARCHY_PAGES: usize = 20;
 const MAX_FETCH: usize = 100;
 /// After this many folders in a row that couldn't be read, the run ends.
 const MAX_IN_A_ROW: usize = 3;
-/// The most `GetItem`s for recipients one page asks ([`Shape::Bare`]): a page of the most changes
-/// the model takes in, at a hundred to a request.
+/// The most `GetItem`s for recipients one page asks: a page of the most changes the model takes in,
+/// at a hundred to a request.
 const MAX_RECIPIENT_ASKS: usize = 20;
 
 /// Why a request didn't give an answer: the run has to stop, or the server answered with a code.
@@ -683,9 +688,7 @@ impl<E: HttpExchange> Run<'_, E> {
             };
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
-            if self.shape == Shape::Bare {
-                self.recipients(&mut messages).await?;
-            }
+            self.recipients(&mut messages).await?;
             messages.iter_mut().for_each(|m| m.server.folder = folder.to_owned());
             let last = page.last;
             // (The page carries the state it was read from and the one that goes on from it, so that
@@ -717,13 +720,18 @@ impl<E: HttpExchange> Run<'_, E> {
 }
 
 impl<E: HttpExchange> Run<'_, E> {
-    /// The recipients of `messages`, asked with `GetItem` ([`GetItemRecipients`]) for a server whose
-    /// `SyncFolderItems` won't give them. What stops the run stops it here too (the page is then
-    /// not taken in, and is read again); anything else the server says leaves those messages
-    /// without recipients, said once a run.
+    /// The recipients of the `messages` that came without any, asked with `GetItem`
+    /// ([`GetItemRecipients`]): every message of a server whose `SyncFolderItems` won't give them
+    /// ([`Shape::Bare`]), and those a server left them out of (#1151). What stops the run stops it
+    /// here too (the page is then not taken in, and is read again); anything else the server says
+    /// leaves those messages without recipients, said once a run.
     async fn recipients(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
+        let without = |m: &&GraphMessage| m.to.is_empty() && m.cc.is_empty();
+        let ids: Vec<String> = messages.iter().filter(without).map(|m| m.server.id.clone()).collect();
+        if ids.is_empty() {
+            return Ok(());
+        }
         let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
-        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
         let mut short = false;
         for some in ids.chunks(MAX_RECIPIENTS_ASKED).take(MAX_RECIPIENT_ASKS) {
             let op = GetItemRecipients::new(some);

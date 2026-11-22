@@ -90,7 +90,7 @@ pub(crate) fn add_picture(app: &mut MailApp, params: serde_json::Value) {
     }
 }
 
-fn refuse(app: &mut MailApp, why: String) {
+pub(crate) fn refuse(app: &mut MailApp, why: String) {
     app.signature_note = Some(Note { text: why, error: true });
 }
 

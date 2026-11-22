@@ -37,6 +37,7 @@ mod table;
 
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
+use crate::spelling;
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -45,9 +46,11 @@ pub const BASE_SIZE: f32 = 13.0;
 /// How far a list item's text stands in for each level, its bullet or number in the last step.
 const INDENT: f32 = 28.0;
 
-/// How far the text of a paragraph stands in: list items by their level.
+/// How far the text of a paragraph stands in: a list item by its level and its bullet or number,
+/// an ordinary paragraph by its level alone (Increase Indent, #1658).
 fn indent_of(p: &Paragraph) -> f32 {
-    if p.list == ListKind::None { 0.0 } else { INDENT * (f32::from(p.level) + 1.0) }
+    let marker = if p.list == ListKind::None { 0.0 } else { 1.0 };
+    INDENT * (f32::from(p.level) + marker)
 }
 
 /// Longest text an input method is shown composing.
@@ -193,10 +196,24 @@ struct Para {
     start: usize,
     top: f32,
     pictures: Vec<PictureBox>,
+    spelling: Option<spelling::Checked>,
+    spelling_retry_at: f64,
     tables: Vec<TableBox>,
 }
 
 impl Para {
+    fn needs_spelling(&self, locale: &str, now: f64) -> bool {
+        self.spelling.as_ref().is_none_or(|checked| checked.locale != locale || (!checked.available && now >= self.spelling_retry_at))
+    }
+
+    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str, now: f64) -> &[spelling::Issue] {
+        if self.needs_spelling(locale, now) {
+            self.spelling = Some(spelling::check(host, locale, &self.source));
+            self.spelling_retry_at = now + 5.0;
+        }
+        self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
+    }
+
     fn indent(&self) -> f32 {
         indent_of(&self.source)
     }
@@ -389,7 +406,18 @@ impl Layout {
                 }
             }
         }
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, tables: grids }
+        Para {
+            chars: p.chars(),
+            source: p.clone(),
+            number,
+            galley,
+            start: 0,
+            top: 0.0,
+            pictures,
+            tables: grids,
+            spelling: None,
+            spelling_retry_at: 0.0,
+        }
     }
 
     /// Characters in the text.
@@ -571,11 +599,25 @@ fn class(c: char) -> u8 {
 /// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width the
 /// owner gave it or its own, its height in proportion.
 fn size_of(ctx: &egui::Context, p: &Picture, room: f32) -> Vec2 {
-    let frame = crate::reading::images::frame(ctx);
-    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
-    let [w, h] = own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32]);
+    let [w, h] = own_size(ctx, p);
     let width = p.width.map_or(w, f32::from).min(room).max(8.0);
     vec2(width, (width * h / w).clamp(4.0, 2000.0))
+}
+
+/// A picture's own size in pixels, or a stand-in when it can't be read; never zero.
+pub(super) fn own_size(ctx: &egui::Context, p: &Picture) -> [f32; 2] {
+    let frame = crate::reading::images::frame(ctx);
+    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
+    own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32])
+}
+
+/// The widest the corner of picture `id` makes it, in a body `room` wide; `None` when it has no
+/// corner there: a signature's pictures are sized in File › Signatures, even in a message.
+fn widest(which: Which, id: u32, room: f32) -> Option<f32> {
+    match which {
+        Which::Signature => Some(f32::from(mailcraft_model::signature::MAX_WIDTH)),
+        Which::Message => (id >= mailcraft_model::pictures::FIRST_ID).then(|| room.min(f32::from(mailcraft_model::pictures::MAX_SHOWN_WIDTH))),
+    }
 }
 
 /// A short fingerprint of the pictures' ids and widths, so that the layout follows them.
@@ -593,6 +635,26 @@ fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
     ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
+pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str) -> Option<(spelling::Issue, usize)> {
+    let (selection, _) = now(app, Which::Message)?;
+    let store = store(ctx, id(app));
+    let layout = store.lock().ok()?;
+    let paragraph = layout.para_at(selection.start())?;
+    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale)?;
+    let start = paragraph.start;
+    let issue = checked.issues.iter().find(|issue| start + issue.span.start == selection.start() && start + issue.span.end == selection.end())?;
+    Some((issue.clone(), start))
+}
+
+#[cfg(test)]
+pub(crate) fn preedit(app: &MailApp, ctx: &egui::Context) -> String {
+    ctx.data(|data| data.get_temp::<State>(id(app).with("state"))).map_or_else(String::new, |state| state.preedit)
+}
+
+pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
+}
+
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
 pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
@@ -602,6 +664,8 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
+    spelling_menu: Option<spelling::Suggestions>,
+    spelling_typed_until: f64,
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
     /// What the pointer took where it went down, for dragging a selection from there.
@@ -725,27 +789,44 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     if editable && (take_focus || (which == Which::Message && app.take_body_focus()) || (which == Which::Signature && app.take_signature_focus())) {
         resp.request_focus();
     }
-    let mut reveal = false;
+    let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
+    let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
+    let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture of a signature is made wider or narrower by its corner.
-    if which == Which::Signature
+    // A selected picture is made wider or narrower by its corner: only its outline follows the
+    // pointer (every paragraph is laid out again for a new width), and the width is set once
+    // the button is let go.
+    if editable
         && let Some((sel, _)) = now(app, which)
         && let Some((pid, r)) = layout.selected_picture(sel)
+        && let Some(most) = widest(which, pid, width)
     {
         let r = r.translate(origin.to_vec2());
         let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
+        let handle = ui.interact(corner, id.with(("corner", pid)), Sense::drag());
+        app.hit.add("pictureCorner", u64::from(pid), corner);
         if handle.hovered() || handle.dragged() {
             ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
         }
         if handle.dragged() {
             let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, f32::from(mailcraft_model::signature::MAX_WIDTH))));
+            st.resizing = Some((pid, w.clamp(8.0, most)));
         }
         if handle.drag_stopped()
             && let Some((i, w)) = st.resizing.take()
+            && (w.round() - r.width().round()).abs() >= 1.0
         {
-            let _ = app.run("signature.picture.set", json!({"id": i, "width": w.round() as u16}));
+            let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
+            let _ = app.run(command, json!({"id": i, "width": w.round() as u16}));
+        }
+    }
+    // The drag is kept while its picture stays selected, so letting go still sets the width
+    // on a frame that did not move the corner. A command that moves the selection while the
+    // corner is held drops it, and a click in the text places the caret again.
+    if let Some((pid, _)) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == pid);
+        if !still {
+            st.resizing = None;
         }
     }
 
@@ -830,6 +911,20 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // A right click: the caret goes where it is, unless that is on the selection; then the text's
     // menu, whose items do what their keys do (`crate::text_menu`).
     if editable {
+        let secondary = resp.secondary_clicked();
+        if secondary {
+            st.spelling_menu = (|| {
+                let locale = spelling_locale.as_deref()?;
+                let host = app.services.spelling.as_deref()?;
+                let pointer = ui.input(|input| input.pointer.interact_pos())?;
+                let at = layout.char_under(pointer - origin)?;
+                let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
+                let p = layout.paras.get_mut(index)?;
+                let start = p.start;
+                let issue = p.spelling(host, locale, spelling_time).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                Some(spelling::Suggestions::new(host, locale, issue, start))
+            })();
+        }
         if resp.hovered()
             && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
             && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
@@ -841,7 +936,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
+        let mut chosen = None;
+        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+            st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
+        });
+        if let Some(word) = chosen
+            && let Some(suggestions) = st.spelling_menu.take()
+        {
+            suggestions.apply(app, word);
+            resp.request_focus();
+            resync(&mut layout, app);
+        }
     }
 
     // The keyboard.
@@ -853,9 +958,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let seen = |to: bool| i.events.iter().any(|e| matches!(e, Event::WindowFocused(f) if *f == to));
         (seen(false), seen(true))
     });
-    if left || came_back {
+    if !focused || left || came_back {
         st.preedit.clear();
     }
+    let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
             m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
@@ -874,6 +980,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 Event::Ime(egui::ImeEvent::Preedit { text, .. }) => {
                     st.preedit = text.chars().take(MAX_PREEDIT).collect();
+                    ime_composition |= !st.preedit.is_empty();
                     None
                 }
                 Event::Copy | Event::Cut if !sel.is_empty() => {
@@ -898,7 +1005,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
                 // a picture alone), else as that text; into a signature, a picture on the
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
-                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
+                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`);
+                // its Paste Text Only read no HTML, and the text comes alone.
                 Event::Paste(text) => {
                     let (html, image) = match crate::text_menu::taken_paste(&ctx, id) {
                         Some(found) => (found.html, None),
@@ -960,14 +1068,22 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
         resync(&mut layout, app);
-    } else {
-        st.preedit.clear();
     }
 
+    if which == Which::Message {
+        // A pending review must not move the caret beneath an IME candidate.
+        let review_locale = if ime_composition { None } else { spelling_locale.as_deref() };
+        spelling::advance_review(app, &ctx, review_locale);
+    }
+    let typing = focused && spelling_time < st.spelling_typed_until;
+    if typing {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(st.spelling_typed_until - spelling_time));
+    }
     // Paint what is in view.
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
@@ -975,7 +1091,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);
-    for p in layout.paras.iter().skip(first) {
+    let mut checks = 0;
+    for p in layout.paras.iter_mut().skip(first) {
         if origin.y + p.top > clip.max.y {
             break;
         }
@@ -984,6 +1101,28 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
+            if p.needs_spelling(locale, spelling_time) {
+                if checks < 8 {
+                    p.spelling(host, locale, spelling_time);
+                    checks += 1;
+                } else {
+                    ctx.request_repaint();
+                }
+            }
+            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+                if !checked.available {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f64((p.spelling_retry_at - spelling_time).max(0.0)));
+                }
+                let mut row_cursor = (0, 0);
+                for issue in &checked.issues {
+                    let is_typing = typing && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
+                    if !is_typing {
+                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
+                    }
+                }
+            }
+        }
         for table in &p.tables {
             let rect = table.rect.translate(at.to_vec2());
             table.grid.paint(painter, rect.min, &t);
@@ -1051,7 +1190,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
-        if which == Which::Signature {
+        if editable && widest(which, pid, width).is_some() {
             painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
         }
     }
@@ -1152,6 +1291,38 @@ fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selec
         let x1 = row.pos.x + row.x_offset(CharIndex(hi.saturating_sub(rs))) + if breaks && last { 5.0 } else { 0.0 };
         let r = Rect::from_min_max(pos2(x0, row.min_y()), pos2(x1, row.max_y())).translate(at.to_vec2());
         painter.rect_filled(r, 0.0, fill);
+    }
+}
+
+fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32, cursor: &mut (usize, usize)) {
+    let (mut row_index, mut start) = *cursor;
+    for row in p.galley.rows.iter().skip(row_index) {
+        let end = start + row.char_count_including_newline().0;
+        if end <= span.start {
+            row_index += 1;
+            start = end;
+            *cursor = (row_index, start);
+            continue;
+        }
+        let (lo, hi) = (span.start.max(start), span.end.min(end));
+        if lo < hi {
+            let x = at.x + row.pos.x;
+            let left = x + row.x_offset(CharIndex(lo - start));
+            let right = x + row.x_offset(CharIndex(hi - start));
+            let y = at.y + row.max_y() - 1.0;
+            if left < right {
+                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
+                    .chain(std::iter::once(right))
+                    .enumerate()
+                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
+                    .collect();
+                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
+            }
+        }
+        start = end;
+        if start >= span.end {
+            break;
+        }
     }
 }
 
