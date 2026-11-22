@@ -247,6 +247,42 @@ fn change_all_leaves_tehran_and_one_undo_restores_the_body() {
 }
 
 #[test]
+fn change_all_leaves_a_misspelling_in_the_quoted_original() {
+    let mut app = hosted();
+    let id = plain_note(&mut app, "Please fix teh typo");
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    app.execute("compose.type", json!({"text": "See teh note"})).unwrap();
+    let before = plain(&app);
+    assert!(before.contains("-----Original Message-----") && before.matches("teh").count() >= 2, "{before}");
+    let mut h = window(app);
+    h.state_mut().run("review.spelling", json!({})).unwrap();
+    h.run_steps(12);
+    assert_eq!(word(h.state()), "teh");
+    click_label(&mut h, "Change All");
+    let after = plain(h.state());
+    assert!(after.contains("See the note"), "{after}");
+    assert!(after.contains("Please fix teh typo"), "the quoted original is not rewritten: {after}");
+}
+
+fn plain_note(app: &mut MailApp, text: &str) -> u64 {
+    use mailcraft_model::{Address, Message};
+    let inbox = app.session.mailbox.inbox().unwrap();
+    let account = app.session.mailbox.accounts[0].id;
+    app.session
+        .mailbox
+        .add_message(Message {
+            account,
+            folder: inbox,
+            from: Address::new("Sam Rivera", "sam@rivera.example"),
+            to: vec![Address::new("Avery Quinn", "avery@lumen.example")],
+            subject: "Notes".into(),
+            body: mailcraft_model::Body { text: text.into(), html: None },
+            ..Default::default()
+        })
+        .unwrap()
+}
+
+#[test]
 fn change_all_and_the_signature() {
     let mut app = hosted();
     message(&mut app, "Hello", "Hello teh friend");

@@ -1771,6 +1771,12 @@ impl Session {
     /// The message the reading pane shows.
     /// The text being edited and whether it is plain: a signature open in the options, else the
     /// message being written.
+    /// Where the text the owner edits ends: the signature block is inside it, and a plain-text
+    /// quoted original is not.
+    pub fn edit_reach(&self) -> usize {
+        crate::cmd::format::reach(self)
+    }
+
     pub fn doc(&self) -> Option<(&RichBody, bool)> {
         match (&self.signature_edit, &self.compose) {
             (Some(e), _) => Some((&e.body, false)),

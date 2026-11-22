@@ -394,7 +394,7 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Put `with` at each span, when that span is exactly `text`, as one undo step. A span that is
-/// not that text, or not a place in the text, changes nothing.
+/// not that text, or not a place in the text, or past the owner's text, changes nothing.
 fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdResult {
     let Some(list) = spans.as_array() else {
         return Err(bad("`spans` is a list of {from, to}"));
@@ -406,6 +406,7 @@ fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdR
         return Err(fail("no message is being written"));
     };
     let plain = body.plain();
+    let end = reach(s);
     let mut places = Vec::with_capacity(list.len());
     for item in list {
         let from = item.get("from").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
@@ -417,6 +418,9 @@ fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdR
             return Err(bad("`spans` is a list of {from, to}"));
         }
         places.push((from, to));
+    }
+    if places.iter().any(|&(_, to)| to > end) {
+        return Err(fail("the text has changed at the place to replace"));
     }
     places.sort_by_key(|place| place.0);
     if !spans_match(&plain, text, &places) {

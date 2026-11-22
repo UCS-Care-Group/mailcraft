@@ -250,15 +250,16 @@ impl SpellingDialog {
             self.origin = 0;
         }
         let mut origin = self.origin;
+        let end_at = app.session.edit_reach();
         let mut out = Vec::new();
         for (index, paragraph) in paragraphs.iter().enumerate().skip(start) {
-            if out.len() >= budget {
+            if origin >= end_at || out.len() >= budget {
                 break;
             }
             out.push((index, origin, paragraph.clone()));
             origin = origin.saturating_add(paragraph.chars()).saturating_add(1);
         }
-        let end = out.last().is_none_or(|(index, _, _)| index.saturating_add(1) >= paragraphs.len());
+        let end = origin >= end_at || out.last().is_none_or(|(index, _, _)| index.saturating_add(1) >= paragraphs.len());
         (out, end)
     }
 
@@ -609,16 +610,21 @@ fn subject_replacement(app: &MailApp, locale: &str, subject: &str, word: &str, w
 }
 
 /// Character ranges in the open document (the signature being edited, or the message) where the
-/// spelling check flags `word`. A signature paragraph of a message is not among them.
+/// spelling check flags `word`. The walk stops where the owner's text ends, so a quoted original
+/// is not among them. The signature block is inside that text.
 fn flagged_body(app: &MailApp, locale: &str, word: &str) -> Result<Vec<(usize, usize)>, String> {
     let Some((body, _)) = app.session.doc() else {
         return Ok(Vec::new());
     };
+    let end_at = app.session.edit_reach();
     let paragraphs = body.text().paragraphs();
     let last = paragraphs.len().saturating_sub(1);
     let mut origin = 0usize;
     let mut places = Vec::new();
     for (index, paragraph) in paragraphs.iter().enumerate() {
+        if origin >= end_at {
+            break;
+        }
         let report = spelling::check_in(app, locale, paragraph);
         if !report.available {
             return Err(tl!("The spelling dictionary is unavailable").to_string());

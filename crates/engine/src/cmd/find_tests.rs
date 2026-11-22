@@ -318,6 +318,37 @@ fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
 }
 
 #[test]
+fn a_span_in_the_quoted_original_is_refused_and_changes_nothing() {
+    let mut s = session();
+    let id = plain_note(&mut s, "Please fix teh typo");
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let before = compose(&s).body.plain();
+    assert!(before.contains("-----Original Message-----"), "{before}");
+    let byte = before.find("teh").expect("the original misspells teh");
+    let from = before[..byte].chars().count();
+    let err = s.run("edit.replace", &json!({"text": "teh", "with": "the", "spans": [{"from": from, "to": from + 3}]})).unwrap_err();
+    assert!(err.to_string().contains("changed"), "{err}");
+    assert_eq!(compose(&s).body.plain(), before, "a span past the owner's text changes nothing");
+}
+
+fn plain_note(s: &mut Session, text: &str) -> u64 {
+    use mailcraft_model::{Address, Message};
+    let inbox = s.mailbox.inbox().unwrap();
+    let account = s.mailbox.accounts[0].id;
+    s.mailbox
+        .add_message(Message {
+            account,
+            folder: inbox,
+            from: Address::new("Sam Rivera", "sam@rivera.example"),
+            to: vec![Address::new("Avery Quinn", "avery@lumen.example")],
+            subject: "Notes".into(),
+            body: mailcraft_model::Body { text: text.into(), html: None },
+            ..Default::default()
+        })
+        .unwrap()
+}
+
+#[test]
 fn a_range_past_the_owners_text_is_kept_to_it() {
     let mut s = writing("abc");
     let len = compose(&s).body.text().len();

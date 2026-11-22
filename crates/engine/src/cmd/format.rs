@@ -130,9 +130,21 @@ pub(super) fn position(v: &Value, key: &str) -> Result<Option<usize>, CmdError> 
 }
 
 /// Where the text the owner edits ends in the message being written (or the signature open): its
-/// end. Find, Replace and the formats keep within it.
-pub(super) fn reach(s: &Session) -> usize {
-    s.doc().map_or(0, |(b, _)| b.text().len())
+/// end. Find, Replace and the formats keep within it. A signature block is inside it. A plain-text
+/// quoted original, which sits in the body after its opening line, is not; an HTML original is
+/// kept beside the body and is not in this length either.
+pub(crate) fn reach(s: &Session) -> usize {
+    let Some((body, _)) = s.doc() else { return 0 };
+    let len = body.text().len();
+    if s.signature_edit.is_some() {
+        return len;
+    }
+    if s.compose.as_ref().is_some_and(|c| c.quote.is_none())
+        && let Some(at) = super::compose::plain_quote_start(&body.plain())
+    {
+        return at.min(len);
+    }
+    len
 }
 
 /// Select what `from` and `to` name, when the params name something, within `reach`.

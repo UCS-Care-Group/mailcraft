@@ -341,6 +341,20 @@ pub(super) fn prefixed(prefix: &str, subject: &str) -> String {
 /// (`-----Message d'origine-----`), which a draft reopening knows too.
 const ORIGINAL: &str = "-----Original Message-----";
 
+/// Where a plain-text quoted original starts, in characters: the blank line before its opening
+/// line, in whichever interface language wrote it. `None` when the text has no such line. An HTML
+/// original is not in the body, so this is only for a quote written into the text.
+pub(super) fn plain_quote_start(text: &str) -> Option<usize> {
+    let mut best: Option<usize> = None;
+    for lang in mailcraft_i18n::Lang::ALL {
+        let marker = format!("\n\n{}", lang.t(ORIGINAL));
+        let Some(byte) = text.find(&marker) else { continue };
+        let chars = text.get(..byte).map_or(0, |head| head.chars().count());
+        best = Some(best.map_or(chars, |so_far| so_far.min(chars)));
+    }
+    best
+}
+
 /// The names of the header lines above a quoted original, with their colons, in the interface
 /// language: the recipient reads them as the owner's program wrote them (French puts a narrow
 /// no-break space before the colon: `De\u{202f}:`).
