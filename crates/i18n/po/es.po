@@ -27124,11 +27124,3 @@ msgstr "−Líneas"
 #~ msgstr[0] "{n} mensaje se eliminará de forma definitiva."
 #~ msgstr[1] "{n} mensajes se eliminarán de forma definitiva."
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Haga clic para ver una vista previa de {name}; doble clic para abrirlo"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Haga doble clic para abrir {name}; clic con el botón derecho para guardarlo"
-

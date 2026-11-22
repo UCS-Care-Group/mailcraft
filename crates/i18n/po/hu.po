@@ -26970,11 +26970,3 @@ msgstr "−Sorok"
 #~ msgid "This build has no application id to sign in with."
 #~ msgstr "A MailCraft ezen verziójában nincs alkalmazásazonosító a bejelentkezéshez."
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Kattintson ide a {name} előnézetéhez; kattintson duplán a megnyitásához"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Dupla kattintással nyitható meg a {name}; jobb kattintással menthető"
-

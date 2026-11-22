@@ -26518,11 +26518,3 @@ msgstr "−Regels"
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Klik om {name} te bekijken; dubbelklik om het te openen"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te slaan"
-

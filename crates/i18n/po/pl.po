@@ -27154,11 +27154,3 @@ msgstr "−Wiersze"
 #~ msgid "the mailbox has no calendar"
 #~ msgstr "skrzynka pocztowa nie ma kalendarza"
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Kliknij, aby wyświetlić podgląd: {name}; kliknij dwukrotnie, aby otworzyć"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Kliknij dwukrotnie, aby otworzyć {name}; kliknij prawym przyciskiem, aby zapisać"
-

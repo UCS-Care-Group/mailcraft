@@ -26820,11 +26820,3 @@ msgstr "−行"
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "草稿保留在“草稿”中。{why}"
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "单击可预览 {name}；双击可打开"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "双击打开 {name}；右键单击可保存"
-

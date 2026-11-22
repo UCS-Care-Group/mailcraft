@@ -27106,10 +27106,3 @@ msgstr "−Righe"
 #~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 #~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Un clic per vedere l’anteprima di {name}, doppio clic per aprirlo"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Doppio clic per aprire {name}; clic destro per salvarlo"
-

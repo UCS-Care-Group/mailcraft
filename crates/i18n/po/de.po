@@ -25567,10 +25567,3 @@ msgstr "−Zeilen"
 #~ msgstr[0] "{n} Nachricht wird endgültig gelöscht."
 #~ msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
 
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Klicken Sie auf {name}, um eine Vorschau anzuzeigen; doppelklicken Sie, um die Datei zu öffnen"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Doppelklicken, um {name} zu öffnen; rechtsklicken, um es zu speichern"
-

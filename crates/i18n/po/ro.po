@@ -27182,11 +27182,3 @@ msgstr "−Linii"
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "Ciorna rămâne în Ciorne. {why}"
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Clic pentru previzualizarea {name}; dublu clic pentru deschidere"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Dublu clic pentru a deschide {name}; clic dreapta pentru a-l salva"
-

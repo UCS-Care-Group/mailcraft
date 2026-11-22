@@ -27099,11 +27099,3 @@ msgstr "−Řádky"
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 #~ msgstr "Zobrazit oznámení, když nastane čas připomenutí v kalendáři. Pokud je vypnuto, nezobrazí se žádné; samotná připomenutí zůstávají v kalendáři."
 
-#, fuzzy
-#~ msgid "Click to preview {name}; double-click to open it"
-#~ msgstr "Kliknutím zobrazíte náhled {name}; poklepáním ho otevřete"
-
-#, fuzzy
-#~ msgid "Double-click to open {name}; right-click to save it"
-#~ msgstr "Poklepáním otevřete {name}; kliknutím pravým tlačítkem ho uložíte"
-
