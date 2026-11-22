@@ -168,6 +168,11 @@ fn window_commands_validate() {
     a.services.system_locale = Some("ka-GE".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ka");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Georgian);
+    // Japanese too, and Automatic in Japan follows it.
+    assert_eq!(a.execute("ui.language", json!({"language": "ja"})).unwrap()["inForce"], "ja");
+    a.services.system_locale = Some("ja-JP".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ja");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Japanese);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
