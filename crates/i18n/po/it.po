@@ -1791,7 +1791,7 @@ msgid "Anything still waiting to go to the server goes first: mail in the Outbox
 msgstr "Tutto ciò che è ancora in attesa di andare al server parte per primo: la posta in Posta in uscita e i contrassegni e gli spostamenti fatti offline. Se MailCraft non riesce a raggiungere il server, il passaggio attende finché non ci riesce."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/oauth_settings.rs
 #, fuzzy
 msgid "Application (client) ID"
 msgstr "ID applicazione (client)"
@@ -2377,7 +2377,7 @@ msgid "AutoArchive"
 msgstr "AutoArchiviazione"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
+#: crates/ui-egui/src/account_setup/oauth_settings.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatico"
@@ -16716,7 +16716,7 @@ msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check
 msgstr "Racconta agli autori di MailCraft cosa è andato storto, su GitHub o via e-mail. Controlli tu la segnalazione e la invii tu stesso."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
 #, fuzzy
 msgid "Tenant"
 msgstr "Tenant"
@@ -17925,7 +17925,7 @@ msgid "The notes are too long to edit here."
 msgstr "Le note sono troppo lunghe per modificarle qui."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
 #, fuzzy
 msgid "The one in File › Options"
 msgstr "Quello in File › Opzioni"
@@ -27736,4 +27736,249 @@ msgstr ""
 #. name
 #: crates/model/src/mailbox.rs
 msgid "your identity provider"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Agree to the addresses outside your identity provider's domain, or enter others"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Asked for besides openid email offline_access"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Automatic (OAUTHBEARER, else XOAUTH2)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Client ID"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Client secret (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Discover"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Extra scopes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Find the sign-in and token addresses from the identity provider's address. Only that address is sent."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Find your identity provider's addresses with Discover, or enter them"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Finding the addresses stopped unexpectedly"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Forget the client secret"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Found: sign-in at {signIn}, tokens from {token}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Google (built in)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "I trust these addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Identity provider"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Identity provider (issuer)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Keep the built-in settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Kept: type a new one to replace it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Mechanism"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Microsoft 365 or Outlook.com (built in)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "No addresses found: {reason}"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "OAuth Built-in Settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "OAuth settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Only if your provider gave one"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Redirect port"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Register http://127.0.0.1 with any port (or the one above) as the redirect address."
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+msgid "Restore Default OAuth Settings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Revocation address (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Scopes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Sign in with your identity provider (OAuth 2.0) instead"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Sign-in address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "The client secret can only be letters, digits and punctuation"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "The one registered for MailCraft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "The redirect port is a number from 1 to 65535, or empty for any free one"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "The sign-in is only sent to: {servers}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "These addresses are outside your identity provider's domain: {hosts}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Token address"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Use a password instead"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Use it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Use my own identity provider"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Use your own identity provider instead…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Wait for your identity provider's addresses"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Your domain names {issuer} for signing in."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "Your own identity provider"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "the incoming and outgoing servers above"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
 msgstr ""

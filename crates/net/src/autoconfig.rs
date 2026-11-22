@@ -45,6 +45,10 @@ pub(crate) struct ClientConfig {
     /// empty when it says none, or names no incoming server that is taken. (An account has one
     /// user name, the one it reads its mail with: the outgoing server's is not read for it.)
     pub(crate) username: String,
+    /// The identity provider the document names (`oAuth2`'s `issuer`, as an `https://` address)
+    /// when the incoming server taken signs in with OAuth 2.0 (`authentication` `OAuth2`); empty
+    /// otherwise. Only ever offered to the owner: nothing signs in by itself because of it.
+    pub(crate) oauth_issuer: String,
 }
 
 /// The document isn't one this reads.
@@ -74,6 +78,11 @@ enum Tag {
     Port,
     SocketType,
     Username,
+    /// `authentication` of a server: how it signs in (`password-cleartext`, `OAuth2`).
+    Authentication,
+    /// `clientConfig/oAuth2`, and its `issuer`.
+    OAuth2,
+    OAuthIssuer,
     Other,
 }
 
@@ -84,6 +93,8 @@ struct Listed {
     port: String,
     socket_type: String,
     username: String,
+    /// It lists `OAuth2` among the ways it signs in.
+    oauth2: bool,
 }
 
 impl Listed {
@@ -119,6 +130,8 @@ struct Walk {
     server: Option<(Listed, bool)>,
     incoming: Vec<Listed>,
     outgoing: Vec<Listed>,
+    /// The text of `oAuth2`'s `issuer`.
+    issuer: String,
 }
 
 impl Walk {
@@ -136,13 +149,17 @@ impl Walk {
             ([.., Tag::Server(_)], "port") => Tag::Port,
             ([.., Tag::Server(_)], "socketType") => Tag::SocketType,
             ([.., Tag::Server(_)], "username") => Tag::Username,
+            ([.., Tag::Server(_)], "authentication") => Tag::Authentication,
+            ([Tag::ClientConfig], "oAuth2") => Tag::OAuth2,
+            ([Tag::ClientConfig, Tag::OAuth2], "issuer") => Tag::OAuthIssuer,
             _ => Tag::Other,
         };
         if let Tag::Server(incoming) = tag {
             self.server = Some((Listed::default(), incoming));
         }
         self.stack.push(tag);
-        if matches!(tag, Tag::Hostname | Tag::Port | Tag::SocketType | Tag::Username) && self.field.is_none() {
+        if matches!(tag, Tag::Hostname | Tag::Port | Tag::SocketType | Tag::Username | Tag::Authentication | Tag::OAuthIssuer) && self.field.is_none()
+        {
             self.field = Some((String::new(), self.stack.len()));
             self.spoiled = false;
         }
@@ -155,6 +172,14 @@ impl Walk {
         if self.field.as_ref().is_some_and(|(_, at)| *at == depth) {
             let text = self.field.take().map(|(text, _)| text).unwrap_or_default();
             let text = if self.spoiled { String::new() } else { text.trim().to_string() };
+            if tag == Tag::OAuthIssuer && self.issuer.is_empty() {
+                self.issuer = text.clone();
+            }
+            if tag == Tag::Authentication
+                && let Some((server, _)) = &mut self.server
+            {
+                server.oauth2 |= text.eq_ignore_ascii_case("OAuth2");
+            }
             // (The first of a field is the one taken.)
             if let Some((server, _)) = &mut self.server {
                 let field = match tag {
@@ -213,7 +238,8 @@ pub(crate) fn read(xml: &[u8]) -> Result<Option<ClientConfig>, Malformed> {
     let mut reader = Reader::from_str(&xml);
     let config = reader.config_mut();
     (config.check_end_names, config.allow_unmatched_ends, config.expand_empty_elements) = (true, false, false);
-    let mut walk = Walk { stack: Vec::new(), field: None, spoiled: false, server: None, incoming: Vec::new(), outgoing: Vec::new() };
+    let mut walk =
+        Walk { stack: Vec::new(), field: None, spoiled: false, server: None, incoming: Vec::new(), outgoing: Vec::new(), issuer: String::new() };
     // Every event takes at least a byte of the document, which bounds the loop.
     for _ in 0..=xml.len() {
         match reader.read_event().map_err(|_| Malformed)? {
@@ -242,7 +268,26 @@ pub(crate) fn read(xml: &[u8]) -> Result<Option<ClientConfig>, Malformed> {
     }
     // The user name is the incoming server's, and goes with it alone.
     let username = incoming.as_ref().map(|(_, listed)| listed.username.clone()).unwrap_or_default();
-    Ok(Some(ClientConfig { incoming: incoming.map(|(server, _)| server), outgoing: outgoing.map(|(server, _)| server), username }))
+    // The identity provider, for an incoming server that signs in with it, as an address.
+    let oauth2 = incoming.as_ref().is_some_and(|(_, listed)| listed.oauth2);
+    let oauth_issuer = if oauth2 { issuer_address(&walk.issuer) } else { String::new() };
+    Ok(Some(ClientConfig { incoming: incoming.map(|(server, _)| server), outgoing: outgoing.map(|(server, _)| server), username, oauth_issuer }))
+}
+
+/// `issuer` as an identity provider's address: as written when it is an `https://` one, a bare
+/// host name made one; empty when it is neither, or isn't one that can be used.
+fn issuer_address(issuer: &str) -> String {
+    let issuer = issuer.trim();
+    let address = if issuer.contains("://") {
+        issuer.to_string()
+    } else {
+        match domain_name(issuer) {
+            Some(host) => format!("https://{host}"),
+            None => return String::new(),
+        }
+    };
+    let usable = address.starts_with("https://") && !address.contains(['?', '#']) && mailcraft_model::oauth::endpoint(&address).is_ok();
+    if usable { address } else { String::new() }
 }
 
 #[cfg(test)]

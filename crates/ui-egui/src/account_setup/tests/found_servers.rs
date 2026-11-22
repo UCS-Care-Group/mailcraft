@@ -33,6 +33,7 @@ fn servers_found_in_the_domains_records_are_shown_to_check_and_said_to_be_found(
         incoming: found("mail.lumen.example", 993, Security::Tls, Via::Srv),
         outgoing: found("mail.lumen.example", 587, Security::StartTls, Via::Srv),
         username: String::new(),
+        oauth_issuer: String::new(),
     };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
@@ -75,6 +76,7 @@ fn a_server_outside_the_domain_is_named_before_the_password_goes_there() {
             incoming: found(incoming, 993, Security::Tls, Via::Srv),
             outgoing: found(outgoing, 465, Security::Tls, Via::Srv),
             username: String::new(),
+            oauth_issuer: String::new(),
         };
         let mut h = with_found(a, discovered);
         assert_eq!(wizard(&h).map(|w| w.found), Some(Some(Via::Srv)));
@@ -113,6 +115,7 @@ fn a_host_the_owner_typed_is_their_own_and_what_is_not_found_is_said_to_be_a_gue
         incoming: found("imap.hosted.example", 993, Security::Tls, Via::Srv),
         outgoing: None,
         username: String::new(),
+        oauth_issuer: String::new(),
     };
     let mut h = with_found(a, discovered);
     let w = wizard(&h).unwrap();
@@ -140,6 +143,7 @@ fn servers_from_a_published_document_or_the_isp_database_say_so_and_sign_in_as_i
             incoming: found("mail.lumen.example", 993, Security::Tls, via),
             outgoing: found("mail.lumen.example", 465, Security::Tls, via),
             username: "%EMAILLOCALPART%".into(),
+            oauth_issuer: String::new(),
         };
         let mut h = with_found(a, discovered);
         let w = wizard(&h).unwrap();
@@ -164,6 +168,7 @@ fn a_server_outside_the_domain_is_named_whatever_named_it() {
             incoming: found("imap.hosted.example", 993, Security::Tls, via),
             outgoing: found("smtp.hosted.example", 465, Security::Tls, via),
             username: "%EMAILADDRESS%".into(),
+            oauth_issuer: String::new(),
         };
         let mut h = with_found(a, discovered);
         assert_eq!(wizard(&h).map(|w| (w.found, w.username.clone())), Some((Some(via), "noor@lumen.example".to_string())));
@@ -192,6 +197,7 @@ fn each_server_is_said_to_come_from_the_source_that_named_it() {
         incoming: found("imap.lumen.example", 993, Security::Tls, Via::Autoconfig),
         outgoing: found("smtp.hosted.example", 465, Security::Tls, Via::Ispdb),
         username: String::new(),
+        oauth_issuer: String::new(),
     };
     let mut h = with_found(a, discovered);
     assert_eq!(wizard(&h).map(|w| (w.found, w.guessed)), Some((Some(Via::Autoconfig), false)));

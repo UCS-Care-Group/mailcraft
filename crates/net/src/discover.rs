@@ -121,6 +121,7 @@ fn take(found: &mut Discovered, config: autoconfig::ClientConfig, via: Via) {
     {
         found.incoming = Some(FoundServer { server, via });
         found.username = config.username;
+        found.oauth_issuer = config.oauth_issuer;
     }
     if found.outgoing.is_none()
         && let Some(server) = config.outgoing

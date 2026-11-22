@@ -1123,6 +1123,7 @@ fn services(
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let autodiscover_ctx = ctx.clone();
+    let oauth_discover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
@@ -1245,6 +1246,19 @@ fn services(
         })),
         discover: Some(Box::new(move |domain| {
             background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
+        })),
+        oauth_discover: Some(Box::new(move |issuer: String| {
+            background(&oauth_discover_ctx, "identity provider discovery", move || {
+                mailcraft_net::oauth::discovery::discover(&issuer)
+                    .map(|found| mailcraft_ui_egui::OAuthFound {
+                        no_refresh: found.lacks_offline_access(),
+                        authorize: found.authorize,
+                        token: found.token,
+                        revoke: found.revoke,
+                        outside: found.outside,
+                    })
+                    .map_err(|e| e.to_string())
+            })
         })),
         lookup_autodiscover: Some(Box::new(move |domain| {
             background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))

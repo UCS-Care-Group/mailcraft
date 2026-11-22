@@ -450,6 +450,9 @@ pub struct Discovered {
     /// How the owner signs in, as the servers' source wrote it: the address or one of its
     /// parts, `%EMAILADDRESS%`, `%EMAILLOCALPART%` or `%EMAILDOMAIN%`; empty for the address.
     pub username: String,
+    /// The identity provider the incoming server's document names for an OAuth 2.0 sign-in, as
+    /// an `https://` address; empty when it names none. Offered to the owner, never followed by itself.
+    pub oauth_issuer: String,
 }
 
 /// The hosts are the organisation's own: not for a log.

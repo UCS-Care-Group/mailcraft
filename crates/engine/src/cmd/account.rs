@@ -16,7 +16,7 @@ use mailcraft_model::sync::{
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
-    Pending, Queued, Rgb, Security, Server, clean_name,
+    Pending, Queued, Rgb, SaslChoice, Security, Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -33,9 +33,14 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.move", "Move Account", "Folder Pane", move_account).params(r#"{"id": number, "before"?: number | null} — puts the account in another place in the folder pane, as dragging its name there does (#702): right before the account `before` names, or last without one. The shared mailboxes opened through it move with it; a shared mailbox can't be moved by itself, nor named as `before`. The order is kept in the mailbox and followed by the folder pane, File › Info, the From list of a new message, the list of calendars, Junk E-mail Options, Signatures, Rules and Alerts, the accounts of Tasks, account.list, folder.list, file.account and file.info (Send/Receive keeps the order the accounts were added in); the default account, which new mail is written from, stays the one it was. Answers {"moved": bool, "order": [id] (the accounts as the folder pane lists them, shared mailboxes included)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
+        CommandSpec::new("account.oauthDefaults", "OAuth Built-in Settings", "File › Info", oauth_defaults)
+            .pure()
+            .params(r#"{"provider": "microsoft"|"google"|"custom", "tenant"?: string} — the values a sign-in with that provider uses when an account says nothing else: its identity provider (issuer), sign-in, token and revocation addresses, scopes, SASL mechanism, whether the client id is the build's own, and the mail servers its token is for (none for custom: an own provider's token goes to the account's own servers). For the OAuth Settings dialog and agents. Never a secret. Changes nothing. Answers {"provider", "issuer", "authorizeUrl", "tokenUrl", "revokeUrl", "scopes", "mechanism", "builtInClient", "hosts"}"#),
+        CommandSpec::new("account.oauthRestoreDefaults", "Restore Default OAuth Settings", "File › Info", oauth_restore_defaults)
+            .params(r#"{"id": number} — an account that signs in on its provider's page goes back to the values built in: a Microsoft or Google account to the build's client id and any free redirect port (its tenant stays); an account with its own identity provider to no extra scopes, the mechanism chosen by what the server offers and any free redirect port (its addresses and client id stay). Answers {"id": id, "oauth": the settings}"#),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
-            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (the found incoming server's, as its source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts; taken only with an incoming server found by autoconfig or ispdb)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
+            .params(r#"{"email": string, "provider"?: "microsoft"|"google", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up), "found"?: {"incoming"?: {"host": string, "port"?: number, "security": "tls"|"starttls", "via": "srv"|"autoconfig"|"ispdb"}, "outgoing"?: same, "username"?: string (the found incoming server's, as its source wrote it: %EMAILADDRESS%, %EMAILLOCALPART% or %EMAILDOMAIN% stand for the address or its parts; taken only with an incoming server found by autoconfig or ispdb), "oauthIssuer"?: string (the identity provider the found incoming server's document names for an OAuth 2.0 sign-in: answered back as `oauthIssuer` for the owner to confirm, never signed in with by itself)} (what the host found for the domain: its SRV records (RFC 6186, #1063), the autoconfig document it publishes, or Mozilla's ISP database (#1112); taken only when the domain and its exchangers name no provider this program knows, and a server without encryption is never taken)} — answers the servers and sign-in an address usually takes, with `via` saying where they came from (domain, mx, asked, srv, autoconfig, ispdb, or guess), `known` whether they are a provider's own, and `outside` on a server that was found and isn't in the address's own domain (the owner is asked before a password goes there, #1063, #1112); what is found or guessed is for the owner to confirm; changes nothing"#),
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
@@ -48,7 +53,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google"|"custom" (custom: the owner's own identity provider, an OpenID Connect or OAuth 2.0 server in front of their own IMAP and SMTP servers; an IMAP account only), "clientId"?: string (required for custom: the client registered there for MailCraft), "tenant"?: string, "issuer"?: string|null (custom: the identity provider's https:// address, from which its sign-in addresses are found), "authorizeUrl"?: string|null, "tokenUrl"?: string|null, "revokeUrl"?: string|null (custom: its sign-in, token and revocation addresses, https:// ones, as found from the issuer or typed), "scopes"?: string|null (custom: what the tokens are asked for besides openid email offline_access, separated by spaces), "mechanism"?: "auto"|"oauthbearer"|"xoauth2" (custom: how the mail servers are given the token; auto: OAUTHBEARER when the server offers it, else XOAUTH2), "redirectPort"?: number|null (the port on this computer the provider's page sends the owner back to; null: any free one), "hasSecret"?: bool (custom: whether a client secret for it is kept in the system's credential store; the window sets it with the secret), "asCustom"?: bool (with an address, scopes or a mechanism for a Microsoft or Google account: set it up for an own identity provider instead, starting from the values it had; without it such a change is refused), — a client secret is never a parameter, nor is any token: they are kept in the system's credential store, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -103,18 +108,38 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         }
         Some(_) => return Err(bad("`auth` is password or oauth2")),
     }
+    // A secret is never a setting: it is kept in the system's credential store, set in the window.
+    if v.get("clientSecret").is_some() {
+        return Err(bad(
+            "the client secret is never a parameter: it is entered in the window's OAuth Settings and kept in the system's credential store",
+        ));
+    }
     let provider = match p::str(v, "provider") {
-        // (An own identity provider is set up with its own fields, which this doesn't take yet.)
-        Some(name) => {
-            Some(OAuthProvider::parse(name).filter(|p| *p != OAuthProvider::Custom).ok_or_else(|| bad("`provider` is microsoft or google"))?)
-        }
+        Some(name) => Some(OAuthProvider::parse(name).ok_or_else(|| bad("`provider` is microsoft, google or custom"))?),
         None => None,
     };
     let (client_id, tenant) = (word("clientId", 200)?, word("tenant", 64)?);
     let directory = directory_of(v)?;
+    let own = own_provider_fields(v)?;
+    let as_custom = match v.get("asCustom") {
+        None => false,
+        Some(Value::Bool(yes)) => *yes,
+        Some(_) => return Err(bad("`asCustom` is true or false")),
+    };
     if let Some(o) = a.oauth.as_mut() {
         if let Some(provider) = provider {
             o.provider = provider;
+            // (An own identity provider's addresses are none of Microsoft's or Google's.)
+            if provider != OAuthProvider::Custom {
+                *o = OAuth {
+                    provider,
+                    client_id: std::mem::take(&mut o.client_id),
+                    tenant: std::mem::take(&mut o.tenant),
+                    directory: o.directory,
+                    redirect_port: o.redirect_port,
+                    ..OAuth::default()
+                };
+            }
         }
         if let Some(client_id) = client_id {
             o.client_id = client_id;
@@ -125,8 +150,169 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         if let Some(directory) = directory {
             o.directory = directory;
         }
+        if let Some(port) = own.redirect_port {
+            o.redirect_port = port;
+        }
+        if own.changes_built_in() && o.provider != OAuthProvider::Custom {
+            // Microsoft's and Google's addresses, scopes and mechanism are built in: an account
+            // with its own is set up for an own identity provider, and only when asked to be
+            // (the window asks the owner first), with the values it had as a start.
+            if !as_custom {
+                return Err(bad(format!(
+                    "{}'s addresses, scopes and mechanism are built in: to use others, set up the account for your own identity provider (`asCustom`: true)",
+                    o.provider.label()
+                )));
+            }
+            let used = o.effective();
+            let extra = used
+                .scopes
+                .split_ascii_whitespace()
+                .filter(|s| !mailcraft_model::oauth::CUSTOM_SCOPE.split(' ').any(|c| c == *s))
+                .collect::<Vec<_>>()
+                .join(" ");
+            *o = OAuth {
+                provider: OAuthProvider::Custom,
+                client_id: used.client_id,
+                issuer: used.issuer,
+                authorize: used.authorize,
+                token: used.token,
+                revoke: used.revoke,
+                scopes: extra,
+                mechanism: used.mechanism,
+                redirect_port: o.redirect_port,
+                ..OAuth::default()
+            };
+        }
+        own.apply(o);
+        o.check().map_err(|why| bad(why.to_string()))?;
+    } else if own.changes_built_in() || provider.is_some() && provider != Some(OAuthProvider::Microsoft) {
+        return Err(bad("these settings are for an account that signs in on its provider's page (`auth`: \"oauth2\")"));
     }
     Ok(())
+}
+
+/// What a command says of an own identity provider's settings: each `None` when it doesn't say.
+#[derive(Default)]
+struct OwnProvider {
+    issuer: Option<String>,
+    authorize: Option<String>,
+    token: Option<String>,
+    revoke: Option<String>,
+    scopes: Option<String>,
+    mechanism: Option<SaslChoice>,
+    redirect_port: Option<Option<u16>>,
+    has_secret: Option<bool>,
+}
+
+impl OwnProvider {
+    /// Whether it says anything that Microsoft's and Google's accounts have built in.
+    fn changes_built_in(&self) -> bool {
+        self.issuer.is_some()
+            || self.authorize.is_some()
+            || self.token.is_some()
+            || self.revoke.is_some()
+            || self.scopes.is_some()
+            || self.mechanism.is_some()
+    }
+
+    fn apply(self, o: &mut OAuth) {
+        for (given, field) in [
+            (self.issuer, &mut o.issuer),
+            (self.authorize, &mut o.authorize),
+            (self.token, &mut o.token),
+            (self.revoke, &mut o.revoke),
+            (self.scopes, &mut o.scopes),
+        ] {
+            if let Some(given) = given {
+                *field = given;
+            }
+        }
+        if let Some(mechanism) = self.mechanism {
+            o.mechanism = mechanism;
+        }
+        if let Some(has_secret) = self.has_secret {
+            o.has_secret = has_secret;
+        }
+    }
+}
+
+/// An own identity provider's settings from a command's params, each checked as text (what can
+/// be used is for [`OAuth::check`] to say once they are all in).
+fn own_provider_fields(v: &Value) -> Result<OwnProvider, CmdError> {
+    let text = |key: &str, max: usize| -> Result<Option<String>, CmdError> {
+        match v.get(key) {
+            None => Ok(None),
+            Some(Value::Null) => Ok(Some(String::new())),
+            Some(Value::String(text)) if text.len() <= max => Ok(Some(text.trim().to_string())),
+            Some(_) => Err(bad(format!("`{key}` is a string of at most {max} bytes, or null for none"))),
+        }
+    };
+    let mechanism = match p::str(v, "mechanism") {
+        Some(name) => Some(SaslChoice::parse(name).ok_or_else(|| bad("`mechanism` is auto, oauthbearer or xoauth2"))?),
+        None if v.get("mechanism").is_some_and(|m| !m.is_null()) => return Err(bad("`mechanism` is auto, oauthbearer or xoauth2")),
+        None => None,
+    };
+    let redirect_port = match v.get("redirectPort") {
+        None => None,
+        Some(Value::Null) => Some(None),
+        Some(port) => match port.as_u64() {
+            Some(port @ 1..=65_535) => Some(Some(port as u16)),
+            _ => return Err(bad("`redirectPort` is a port from 1 to 65535, or null for any free one")),
+        },
+    };
+    let max = mailcraft_model::oauth::MAX_ENDPOINT;
+    Ok(OwnProvider {
+        issuer: text("issuer", max)?,
+        authorize: text("authorizeUrl", max)?,
+        token: text("tokenUrl", max)?,
+        revoke: text("revokeUrl", max)?,
+        scopes: text("scopes", mailcraft_model::oauth::MAX_SCOPES)?,
+        mechanism,
+        redirect_port,
+        has_secret: match v.get("hasSecret") {
+            None => None,
+            Some(Value::Bool(has)) => Some(*has),
+            Some(_) => return Err(bad("`hasSecret` is true or false")),
+        },
+    })
+}
+
+/// `account.oauthDefaults`: what a provider's sign-in uses when the account says nothing else.
+fn oauth_defaults(_: &mut Session, v: &Value) -> CmdResult {
+    let provider = OAuthProvider::parse(p::req_str(v, "provider")?).ok_or_else(|| bad("`provider` is microsoft, google or custom"))?;
+    let tenant: String = p::str(v, "tenant").unwrap_or_default().chars().take(64).collect();
+    let used = provider.defaults(&tenant);
+    Ok(json!({
+        "provider": provider.code(),
+        "issuer": used.issuer,
+        "authorizeUrl": used.authorize,
+        "tokenUrl": used.token,
+        "revokeUrl": used.revoke,
+        "scopes": used.scopes,
+        "mechanism": used.mechanism.code(),
+        "builtInClient": used.built_in_client,
+        "hosts": used.hosts,
+    }))
+}
+
+/// `account.oauthRestoreDefaults`: an account's sign-in back to the values built in.
+fn oauth_restore_defaults(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::req_id(v, "id")?;
+    let a = s.mailbox.account_mut(id)?;
+    let o = a.oauth.as_mut().ok_or_else(|| bad("the account signs in with a password: it has no OAuth settings"))?;
+    match o.provider {
+        OAuthProvider::Microsoft | OAuthProvider::Google => {
+            o.client_id.clear();
+            o.redirect_port = None;
+        }
+        OAuthProvider::Custom => {
+            o.scopes.clear();
+            o.mechanism = SaslChoice::Auto;
+            o.redirect_port = None;
+        }
+    }
+    let oauth = o.clone();
+    Ok(json!({"id": id, "oauth": oauth}))
 }
 
 /// Which kind of Microsoft account a command says it is (`directory`), when it says.
@@ -190,6 +376,14 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
             username = found_username(p::str(records, "username").unwrap_or_default(), &email, &domain);
         }
     }
+    // The identity provider a domain's document names for its incoming server, offered for the
+    // owner to confirm (an own provider's sign-in starts only when they ask for it).
+    let oauth_issuer = v
+        .get("found")
+        .and_then(|records| p::str(records, "oauthIssuer"))
+        .map(str::trim)
+        .filter(|issuer| !known && issuer.starts_with("https://") && !issuer.contains(['?', '#']) && mailcraft_model::oauth::endpoint(issuer).is_ok())
+        .map(|issuer| issuer.chars().take(mailcraft_model::oauth::MAX_ENDPOINT).collect::<String>());
     let preset = found.unwrap_or_else(|| provider::guess(&domain));
     let via_of = |server: &Option<(Server, Via)>| server.as_ref().map(|(_, via)| via.code()).unwrap_or("guess");
     let (incoming_via, outgoing_via) = (via_of(&incoming), via_of(&outgoing));
@@ -214,6 +408,7 @@ fn preset(_: &mut Session, v: &Value) -> CmdResult {
         "incoming": server(incoming.as_ref().map(|(s, _)| s).unwrap_or(&preset.incoming), if known { via } else { incoming_via }),
         "outgoing": server(outgoing.as_ref().map(|(s, _)| s).unwrap_or(&preset.outgoing), if known { via } else { outgoing_via }),
         "note": preset.note,
+        "oauthIssuer": oauth_issuer,
     }))
 }
 
@@ -385,6 +580,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
                 a.dav = None;
             }
         }
+    }
+    // An own identity provider is for an IMAP account's servers alone.
+    if a.signs_in_with_own_provider() && a.kind != AccountKind::Imap {
+        return Err(bad("only an account with IMAP and SMTP servers signs in with your own identity provider"));
     }
     // Only an account with an outgoing server that signs in with a password has the choice.
     if a.oauth.is_some() || a.outgoing.is_none() {

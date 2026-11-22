@@ -463,6 +463,10 @@ pub struct Services {
     /// records, RFC 6186, #1063; what it publishes for mail programs; Mozilla's ISP database,
     /// #1112), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
+    /// Desktop: find an own identity provider's sign-in, token and revocation addresses from its
+    /// issuer, on a background thread (OpenID Connect Discovery, RFC 8414). Only the issuer's
+    /// address goes out; only when the owner presses Discover.
+    pub oauth_discover: Option<Box<dyn Fn(String) -> Receiver<Result<OAuthFound, String>>>>,
     /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
     /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
     /// so account setup can tell an address on an Exchange server from one on an IMAP server.
@@ -799,6 +803,19 @@ pub trait PictureCache {
     fn forget(&self, url: &str);
     /// Forget them all.
     fn clear(&self) -> Result<(), String>;
+}
+
+/// What an own identity provider says of itself ([`Services::oauth_discover`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OAuthFound {
+    pub authorize: String,
+    pub token: String,
+    /// Empty when it names none.
+    pub revoke: String,
+    /// The hosts of those addresses outside the issuer's own domain, for the owner to agree to.
+    pub outside: Vec<String>,
+    /// It says it hands out no refresh tokens: the owner signs in again each time a token runs out.
+    pub no_refresh: bool,
 }
 
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the

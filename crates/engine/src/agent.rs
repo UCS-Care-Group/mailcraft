@@ -413,6 +413,8 @@ const SAFE: &[&str] = &[
     "account.senderAddresses",
     "account.offlineSize",
     "account.preset",
+    // The values built in for a provider's sign-in: read only, never a secret.
+    "account.oauthDefaults",
     // What Send/Receive is doing, or did: read only.
     "sync.progress",
     // Calls off the run under way; nothing is sent or lost by it.
@@ -519,6 +521,8 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // An account's sign-in settings back to what is built in: where it signs in is the owner's.
+    "account.oauthRestoreDefaults",
     // Who the owner's mail can say it is from (#797).
     "account.setSenderAddresses",
     // Calendar and contacts servers (#209): choosing where an account's calendars and contacts
@@ -3536,12 +3540,28 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 };
                 // The tick of a relay that takes mail without a sign-in (#836) is named: it decides
                 // whether the password is shown to the outgoing server.
-                match new.map(|new| new.outgoing_without_sign_in) {
+                match new.as_ref().map(|new| new.outgoing_without_sign_in) {
                     Some(true) if !account.outgoing_without_sign_in => {
                         text.push_str("; the outgoing server needs no sign-in (the password is never sent to it)");
                     }
                     Some(false) if account.outgoing_without_sign_in => text.push_str("; MailCraft signs in to the outgoing server again"),
                     _ => {}
+                }
+                // Where it signs in is named when that changes: that is where the owner's sign-in goes.
+                let signs_in_at = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().map(|o| {
+                        let used = o.effective();
+                        (o.provider, clip(&used.authorize, 120), clip(&used.token, 120), clip(&used.client_id, 80))
+                    })
+                };
+                if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != signs_in_at(account)) {
+                    match now {
+                        Some((mailcraft_model::OAuthProvider::Custom, page, token, _)) => {
+                            text.push_str(&format!("; it signs in with its own identity provider, on the page {page}, with tokens from {token}"));
+                        }
+                        Some((provider, ..)) => text.push_str(&format!("; it signs in with {}", provider.label())),
+                        None => text.push_str("; it signs in with a password"),
+                    }
                 }
                 text.push_str(&rules);
                 text.push_str(&reads);

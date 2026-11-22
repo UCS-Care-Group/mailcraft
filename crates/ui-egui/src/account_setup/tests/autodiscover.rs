@@ -325,6 +325,7 @@ fn imap_after_the_question_takes_the_servers_the_domain_s_own_records_name() {
         incoming: server("imap.lumen.example", 993, Security::Tls),
         outgoing: server("smtp.lumen.example", 465, Security::Tls),
         username: String::new(),
+        oauth_issuer: String::new(),
     };
     discoveries(&mut a, Some(Ok(discovered)));
     autodiscovers(&mut a, Some(Ok(vec![HOSTED_AUTODISCOVER])));
