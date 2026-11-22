@@ -35,9 +35,9 @@ fn search_finds_what_the_sender_hid() {
 #[test]
 fn a_rule_on_the_body_matches_what_the_sender_hid() {
     let m = newsletter();
-    assert!(Condition::BodyContains("open day".into()).matches(&m));
-    assert!(Condition::BodyContains("THREE NEW".into()).matches(&m));
-    assert!(!Condition::BodyContains("lighthouse".into()).matches(&m));
+    assert!(Condition::BodyContains(vec!["open day".into()]).matches(&m));
+    assert!(Condition::BodyContains(vec!["THREE NEW".into()]).matches(&m));
+    assert!(!Condition::BodyContains(vec!["lighthouse".into()]).matches(&m));
 }
 
 #[test]

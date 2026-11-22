@@ -1,0 +1,1 @@
+- The Rules dialog says why it refused a rule in the window's language, as the status bar does; it said it in English before ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

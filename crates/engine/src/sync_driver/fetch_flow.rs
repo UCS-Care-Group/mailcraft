@@ -85,6 +85,9 @@ pub enum NowNext {
 pub struct NowAnswered {
     /// What came wasn't taken in: said in the status bar.
     pub refused: Option<String>,
+    /// What taking it in said, when it was taken in ([`apply_fetch`]): for the window, the
+    /// messages a rule's desktop alert waited for (`alerts`, #566).
+    pub taken: Option<Value>,
     pub next: NowNext,
 }
 
@@ -179,11 +182,11 @@ impl Session {
     /// fetch. Another command runs once its own message is here, whatever else of the batch it
     /// came in didn't come.
     pub fn fetch_now_answered(&mut self, messages: &[Id], opening: u64, mut result: GraphFetchResult) -> NowAnswered {
-        let nothing = |refused| NowAnswered { refused, next: NowNext::Nothing };
+        let nothing = |refused, taken| NowAnswered { refused, taken, next: NowNext::Nothing };
         // Asked for in a mailbox that another has taken the place of: it is nobody's here (nor is
         // a command that waits for it).
         if opening != self.openings() {
-            return nothing(None);
+            return nothing(None, None);
         }
         // What came is judged for the messages the command that waits waits for.
         let judged: Vec<Id> = match &self.driver.fetch.then {
@@ -198,17 +201,21 @@ impl Session {
         let account = result.account;
         // What came for a save, out of the answer before it is taken in (#1561).
         let for_save = self.copy_for_save(messages, &mut result);
-        let mut refused = if account != 0 { apply_fetch(self, result).err() } else { None };
+        let (taken, mut refused) = match (account != 0).then(|| apply_fetch(self, result)) {
+            Some(Ok(said)) => (Some(said), None),
+            Some(Err(e)) => (None, Some(e)),
+            None => (None, None),
+        };
         if let Some(copy) = for_save {
             self.answered_for_save(copy, refused.is_none() && account != 0);
         }
         let said = refused.as_ref().map(ToString::to_string);
         let whole = |s: &Session, m: &Id| s.mailbox.message(*m).is_some_and(|m| !m.unfetched);
-        let Some(then) = self.driver.fetch.then.take() else { return nothing(said) };
+        let Some(then) = self.driver.fetch.then.take() else { return nothing(said, taken) };
         // Asked of a mailbox that another has taken the place of: the message it names is not
         // this one's, whatever has that id here.
         if then.opening != self.openings() {
-            return nothing(said);
+            return nothing(said, taken);
         }
         let Waiting { command, params, opening, tried, waits } = then;
         let next = if let Some(mut tried) = tried {
@@ -238,7 +245,7 @@ impl Session {
         } else {
             NowNext::Note(NowNote::NotHere)
         };
-        NowAnswered { refused: said, next }
+        NowAnswered { refused: said, taken, next }
     }
 
     /// The owner's fetch of `now` took the place of `before`, which is called off: the message
