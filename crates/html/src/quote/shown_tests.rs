@@ -281,6 +281,21 @@ fn a_message_with_more_looks_than_are_told_is_quoted_as_read_or_not_at_all() {
     assert_eq!(shown(&carried), "AWIDE");
 }
 
+/// A message whose `@media` hides words at every real width, written so that a second reading of
+/// the lists might miss it (comments in the features), read nowhere: the words are not quoted.
+#[test]
+fn what_every_real_pane_hides_is_not_quoted_however_its_media_is_written() {
+    let html = "<style>@media (min-width:/**/200px) and (max-width:/**/1279px){.x{display:none}}@media (min-width:/**/1281px){.x{display:none}}</style>\
+                <p>A</p><p class=x>XXX</p><p>C</p>";
+    for width in [320.0, 800.0, 1000.0, 1600.0, 1920.0] {
+        for dark in [false, true] {
+            assert_eq!(shown_in(html, &Env::for_pane(width, dark)), "AC", "{width}");
+        }
+    }
+    let carried = quotable_with_pictures(html, &mut |_, _| None, &[]);
+    assert!(!carried.contains("XXX"), "{carried}");
+}
+
 /// The markers two looks both show are found in one walk: many of them take no longer than a
 /// few, give or take.
 #[test]
