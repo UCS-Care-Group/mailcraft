@@ -204,6 +204,11 @@ fn identity_edits_with_the_switch_off_leave_zimbra_unchanged() {
     assert!(said(s.run("account.edit", &json!({"id":id,"email":"other@example.org"}))).contains(SWITCHED_OFF));
     assert_eq!(s.mailbox.account(id).unwrap().email, "ada@example.org");
     s.run("account.edit", &json!({"id":id,"displayName":"Ada"})).unwrap();
+    // The address as it is, sent back with the rest (what `account.list` hands out, and a
+    // settings form), changes nothing of the account's identity.
+    s.run("account.edit", &json!({"id":id,"email":"ada@example.org","displayName":"Ada L."})).unwrap();
+    let a = s.mailbox.account(id).unwrap();
+    assert_eq!((a.email.as_str(), a.display_name.as_str()), ("ada@example.org", "Ada L."));
 }
 
 #[test]

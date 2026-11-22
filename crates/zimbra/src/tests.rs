@@ -297,6 +297,27 @@ fn what_is_left_out_of_a_listed_message_is_said() {
     assert!(over.categories_cut && !over.cut && over.server.categories.len() == 50);
 }
 
+#[test]
+fn what_is_to_go_up_is_refused_not_passed_over() {
+    // Nothing here sends a change made on this computer, a draft or a message: a run asked to
+    // must say so and move no token, not read mail down over what it left unsent. (Refused before
+    // the server is asked anything: the wrong password is never tried.)
+    let up = [
+        ZimbraMailRequest { messages: vec![mailcraft_model::sync::MessageChange::Delete { id: "257".into() }], ..request("") },
+        ZimbraMailRequest { drafts: vec![Default::default()], ..request("") },
+        ZimbraMailRequest { sends: vec![Default::default()], ..request("") },
+    ];
+    for request in up {
+        let server = StandIn::new();
+        server.deliver(2, "Kept", "");
+        let pieces = run(&server, &request, "not the password");
+        let all = whole(&pieces);
+        assert_eq!(pieces.len(), 1);
+        assert!(all.errors.iter().any(|e| e.contains("can't be sent to a Zimbra server yet")), "{:?}", all.errors);
+        assert!(!all.whole && all.token.is_empty() && all.pages.is_empty() && all.listing.is_none() && !all.auth_refused);
+    }
+}
+
 struct Edited {
     server: StandIn,
     edit: Box<dyn Fn(&mut serde_json::Value)>,
