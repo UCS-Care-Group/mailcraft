@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-17 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-20 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -151,6 +151,7 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-20 | minor | New interface texts in a pull request are translated in every catalogue and marked `#, fuzzy`; left empty, they don't block a review |
 | 2026-11-17 | patch | The merge queue runs the whole suite on Linux alone; the push to `main` runs every system |
 | 2026-11-16 | minor | Continuous integration: the tiers, the cheap checks first in `quick`, a pull request's tests chosen from the packages it changes, and the `full-ci` label that runs the whole suite |
 | 2026-11-15 | patch | `cargo xtask ci` lists all its steps (i18n --check, release-notes, docs-log) |

@@ -3,7 +3,7 @@
 //! The attachment verdict by file name (AU3-V3, AU3-V4): one table of names and what is done
 //! with them, so that the lists in `opening` can't drift from what is tested.
 
-use crate::opening::{BLOCKED, Verdict, verdict};
+use crate::opening::{BLOCKED, Chooser, Verdict, verdict_for};
 use Verdict::{Blocked, Macros, Open, Scripts};
 
 /// (name, verdict). Every `BLOCKED` entry has a row of its own.
@@ -99,6 +99,10 @@ const TABLE: &[(&str, Verdict)] = &[
     ("a.crt", Blocked),
     ("a.cer", Blocked),
     ("a.der", Blocked),
+    ("a.p7r", Blocked),
+    ("a.sst", Blocked),
+    ("a.stl", Blocked),
+    ("a.spc", Blocked),
     ("a.udl", Blocked),
     ("a.printerexport", Blocked),
     ("a.settingcontent-ms", Blocked),
@@ -274,8 +278,9 @@ const TABLE: &[(&str, Verdict)] = &[
 
 #[test]
 fn names_get_their_verdicts() {
+    // Where the computer goes by the name alone (Linux and the BSDs: `opening_kind_tests`).
     for (name, want) in TABLE {
-        assert_eq!(verdict(name), *want, "{name:?}");
+        assert_eq!(verdict_for(name, Chooser::Name), *want, "{name:?}");
     }
 }
 
