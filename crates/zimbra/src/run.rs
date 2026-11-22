@@ -158,6 +158,16 @@ pub async fn sync_mail<E: HttpExchange>(
     emit: &mut dyn FnMut(ZimbraMailResult),
 ) {
     let mut last = blank(request);
+    // What is to go up is not sent by this run yet. Asked to, it says so before the server is
+    // asked anything: read down and called whole, it would move the token past changes it left
+    // unsent, and the server's state would be read back over them.
+    if !(request.changes.is_empty() && request.messages.is_empty() && request.drafts.is_empty() && request.sends.is_empty()) {
+        last.errors.push(
+            "Couldn't send and receive with the Zimbra server: what was changed or written here can't be sent to a Zimbra server yet".to_string(),
+        );
+        emit(last);
+        return;
+    }
     match run(exchange, request, password, cancel, emit).await {
         Ok(done) => {
             (last.token, last.resume, last.whole) = (done.token, Some(done.resume), done.whole);
