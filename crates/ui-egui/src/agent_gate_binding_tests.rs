@@ -139,6 +139,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.react", r#"{"id": $message, "emoji": "👍"}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
     ("ui.unsubscribe", "{}", Setup::None),
+    ("ui.unsubscribeMany", r#"{"ids": [$message]}"#, Setup::None),
     ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),

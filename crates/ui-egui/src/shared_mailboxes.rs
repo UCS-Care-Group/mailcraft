@@ -440,7 +440,7 @@ impl MailApp {
             Ok(()) => {
                 self.shared_checking.remove(&shared);
                 if ours {
-                    self.dialog = None;
+                    self.set_dialog(None);
                 }
             }
             Err(said) => {

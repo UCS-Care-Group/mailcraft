@@ -966,6 +966,10 @@ pub struct Prefs {
     /// The rows of the message list stand closer together (`view.density`).
     #[serde(skip_serializing_if = "is_false")]
     pub tight_spacing: bool,
+    /// Every other row of the message list wears a faint band, so that where one message ends
+    /// and the next begins is seen at a glance (`view.shadeRows`, #1657).
+    #[serde(skip_serializing_if = "is_false")]
+    pub shade_rows: bool,
     /// How large the text of the message being read is, in percent (`view.zoom`): read through
     /// [`Prefs::zoom_percent`], which keeps it in range whatever the settings file says.
     pub zoom: u16,
@@ -1015,6 +1019,7 @@ impl Default for Prefs {
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
             tight_spacing: false,
+            shade_rows: false,
             zoom: Prefs::ZOOM_DEFAULT,
             recent_searches: Vec::new(),
             offline: false,
@@ -3782,6 +3787,11 @@ impl Session {
         if !self.undo_makes_categories(redo).is_empty() {
             return Some(Class::Send);
         }
+        // And one that has a server give its own mail and events another name (#851), as the
+        // rename asks.
+        if !self.undo_renames_on_server(redo).is_empty() {
+            return Some(Class::Send);
+        }
         // And one the rules it puts back give mail, as the rule calls ask.
         if !self.undo_rules_make_categories(redo).is_empty() {
             return Some(Class::Send);
@@ -3874,6 +3884,28 @@ impl Session {
                 if !going && !self.mailbox.category_is_local(*owner, &name) && !out.iter().any(|(n, _)| same(n, &name)) {
                     out.push((name, made));
                 }
+            }
+        }
+        out
+    }
+
+    /// The renames of categories that undoing (`redo`: redoing) would have a server carry out on
+    /// its own mail and events (#851): a rename taken back after its new name reached the server,
+    /// as the account, the old name and the one given again in its place. Also while the list may
+    /// not be changed on its server just now: the rename waits, and goes when it may again.
+    pub fn undo_renames_on_server(&self, redo: bool) -> Vec<(Id, String, String)> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        if self.mailbox.synced_categories.is_empty() && step.mailbox.synced_categories.is_empty() {
+            return Vec::new();
+        }
+        let (back, _) = crate::undo::keep_in_step(step.mailbox.clone(), &step.touched, &self.mailbox, self.interface_language);
+        let mut out = Vec::new();
+        for (owner, sweeps) in &back.category_sweeps {
+            // (Only what waits now: one that stopped waiting and is kept until the list's next
+            // job starts again with the undo.)
+            let now = self.mailbox.standing_sweeps(*owner);
+            for s in sweeps.iter().filter(|s| !now.iter().any(|n| n.from == s.from && n.to == s.to)) {
+                out.push((*owner, s.from.clone(), s.to.clone()));
             }
         }
         out

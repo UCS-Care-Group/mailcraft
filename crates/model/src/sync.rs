@@ -1225,6 +1225,11 @@ pub struct GraphMailRequest {
     /// with the same filter. `None`, a computer's: everything.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub since: Option<Timestamp>,
+    /// A category renamed here, for the mail on the server that isn't kept here (#851): after the
+    /// rest of the run, the server is asked for the messages that carry the old name and each is
+    /// given the new one ([`crate::Mailbox::mail_rename`]). Never for a shared mailbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rename: Option<crate::remote::CategoryRename>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1608,6 +1613,21 @@ pub struct GraphMailResult {
     /// ([`GraphMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<ThreadOf>,
+    /// What the server made of the run's rename of a category ([`GraphMailRequest::rename`], #851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renamed: Option<crate::remote::CategoryRenamed>,
+    /// How far the rename has got, on a piece of a run: how many of the messages found with the
+    /// old name were answered for, of how many this run found (#851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renaming: Option<RenameProgress>,
+}
+
+/// How far a run's rename of a category has got ([`GraphMailResult::renaming`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RenameProgress {
+    pub done: u32,
+    pub total: u32,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1647,6 +1667,9 @@ impl GraphMailResult {
             self.listing = piece.listing;
         }
         self.threads.extend(piece.threads);
+        if piece.renamed.is_some() {
+            self.renamed = piece.renamed;
+        }
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);

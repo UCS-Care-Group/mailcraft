@@ -499,6 +499,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         }
         // Unsubscribing from a list (#1207): what is sent, to whom, or what opens.
         "ui.unsubscribe" => crate::reading::unsubscribe::question(app, params),
+        // (Several messages' question asks the engine what goes: `MailApp::run` asks it.)
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -945,6 +946,7 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
         // The message the question was about, not whatever is selected when the owner says yes
         // (#1207); `null` reads as the selection there too.
         "ui.unsubscribe" if params.get("message").is_none_or(Value::is_null) => sel.focus().map(|m| ("message", json!(m))),
+        "ui.unsubscribeMany" if params.get("ids").is_none_or(Value::is_null) => Some(("ids", json!(sel.messages))),
         _ => None,
     };
     if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {
@@ -2083,7 +2085,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
             let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
-                ui.label(ask.text.as_str());
+                // A long question (the requests by mail of a selection, #1207) scrolls: its
+                // buttons stay on screen.
+                egui::ScrollArea::vertical().id_salt("question_text").max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
+                    ui.label(ask.text.as_str());
+                });
                 if let Some((_, note, hint)) = &mut ask.note {
                     let field = ui
                         .add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
@@ -2344,12 +2350,16 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         app.dialog = Some(dialog);
         return;
     }
+    // Closed. The window that opened it does not keep the next dialog: one opened below, or by
+    // the main window in the rest of this frame, belongs to whoever opens it.
+    app.windows.dialog_for = None;
     // Command search hands over the command it picked.
     if let Some(Dialog::Commands { query: id, selected: usize::MAX }) = reopen {
         let id = match id.as_str() {
             "sync.request" => "ui.sync".to_string(),
             // Its question says what will be sent or opened before anything happens (#1207).
             "mail.unsubscribe" => "ui.unsubscribe".to_string(),
+            "mail.unsubscribeMany" => "ui.unsubscribeMany".to_string(),
             // Asked on its page, which says what the switch does.
             "account.graphSwitch" => "ui.graphSwitch".to_string(),
             _ => id,

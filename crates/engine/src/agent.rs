@@ -164,6 +164,7 @@ const SAFE: &[&str] = &[
     "compose.followUp",
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
+    "mail.unsubscribeMany",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -210,6 +211,7 @@ const SAFE: &[&str] = &[
     "compose.attachItem",
     "insert.businessCard",
     "insert.picture",
+    "compose.picture.set",
     "compose.removeAttachment",
     "compose.signature",
     "compose.signatureAsText",
@@ -318,6 +320,7 @@ const SAFE: &[&str] = &[
     "view.timeZone",
     "view.changeView",
     "view.density",
+    "view.shadeRows",
     "view.zoom",
     "view.zoomIn",
     "view.zoomOut",
@@ -478,6 +481,7 @@ const SEND: &[&str] = &[
     "ui.downloadPictures",
     // Unsubscribes from a list: one click reaches its server, by mail writes to it.
     "ui.unsubscribe",
+    "ui.unsubscribeMany",
     "ui.retryPictures",
     "ui.joinMeeting",
     "ui.reportProblem",
@@ -1452,6 +1456,20 @@ fn taken(params: &Value) -> Vec<Id> {
     p::ids_strict(params).ok().flatten().unwrap_or_default()
 }
 
+/// Where unsubscribing from message `id` by mail writes, and with what subject, when its list
+/// unsubscribes by mail (as its headers say: data, never instructions).
+fn unsubscribe_mail(s: &Session, id: Id) -> Option<String> {
+    let m = s.mailbox.message(id)?;
+    match mailcraft_model::unsubscribe::way(s.mailbox.account(m.account), m)? {
+        mailcraft_model::unsubscribe::Way::Mail { to, subject, .. } => {
+            let subject = if subject.trim().is_empty() { "Unsubscribe".to_string() } else { subject };
+            // Whole: what is written is what is shown (the address bounds both: 254 and 200).
+            Some(format!("to {} with the subject \u{201c}{}\u{201d}", clip(&to, 254), clip(&subject, 200)))
+        }
+        _ => None,
+    }
+}
+
 /// Commands that destroy, move, send from or open messages, or are costly: an agent names the
 /// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
 /// have changed a moment ago (#620). The owner's own runs keep the selection.
@@ -1478,6 +1496,8 @@ pub const NEEDS_IDS: &[&str] = &[
     "mail.sendAgain",
     "mail.cancelSend",
     "mail.setSendTime",
+    // Reaches every list of the messages it names (#1207): named by `ids`, never the selection.
+    "ui.unsubscribeMany",
 ];
 
 /// The commands of [`NEEDS_IDS`] that act on one message ([`p::message_strict`]).
@@ -1533,6 +1553,7 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
                 s.undo_sends_items(redo)
                     || !s.undo_sends_categories(redo).is_empty()
                     || !s.undo_makes_categories(redo).is_empty()
+                    || !s.undo_renames_on_server(redo).is_empty()
                     || !s.undo_rules_make_categories(redo).is_empty()
             };
             if class == Class::Accounts && sends() {
@@ -1954,7 +1975,21 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let key = if id == "ui.unsubscribe" { "message" } else { "id" };
             let from = p::id(params, key).or_else(|| if id == "ui.unsubscribe" { s.sel.focus() } else { s.sel.messages.last().copied() });
             let sender = from.and_then(|m| s.mailbox.message(m)).map_or_else(|| "the selected message".to_string(), |m| clip(&m.from.email, 80));
-            format!("unsubscribe from the mail of {sender}, which reaches the list by its server or by mail")
+            // By mail, where it is written and what it says go into the question (#1207).
+            match from.and_then(|m| unsubscribe_mail(s, m)) {
+                Some(mail) => format!("unsubscribe from the mail of {sender} by writing {mail}"),
+                None => format!("unsubscribe from the mail of {sender}, which reaches the list by its server"),
+            }
+        }
+        "mail.unsubscribeMany" | "ui.unsubscribeMany" => {
+            let named = taken(params);
+            let ids = if named.is_empty() { s.sel.messages.clone() } else { named };
+            // Only `ui.unsubscribeMany` writes, and only to the requests by mail it names (`mail`),
+            // read as it reads them: each named is shown, or the call is refused (at most 20).
+            let mails: Vec<String> = taken(&json!({"ids": params.get("mail")})).into_iter().filter_map(|m| unsubscribe_mail(s, m)).collect();
+            let writes =
+                if id == "ui.unsubscribeMany" && !mails.is_empty() { format!(", and writing {}", some(&mails, mails.len())) } else { String::new() };
+            format!("unsubscribe from the lists of {} by their servers{writes}", messages_text(s, &ids))
         }
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             let who = invitees(s, params);
@@ -2034,13 +2069,22 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             format!("delete the category {}{whose}{there}, taking it off everything that has it{shared}", quoted(st("name")))
         }
         "category.rename" if shared_category(s, id, params) || renames_in_outlook(s, params) => {
-            // In Outlook too (#661): the new name is made there, the items there take it, and the
-            // old one is deleted there.
+            // In Outlook too (#661): the new name is made there, the items there take it (those
+            // that aren't kept on this computer too, #851), and the old one is deleted there.
             // Whose Outlook, as `category.remove` says: two accounts may both have the name.
             let outlook = renames_in_outlook(s, params);
             let owner = p::id(params, "account").and_then(|a| s.mailbox.category_list_owner(a));
             let whose = owner.filter(|_| outlook).and_then(|a| s.mailbox.account(a)).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
-            let there = if outlook { " in Outlook too: the new name is made there and the old one deleted there" } else { "" };
+            // (Other letters alone: the mail and events that aren't kept here keep the old spelling.)
+            // (Compared as the rename itself compares them: the new name cleaned and cut to size.)
+            let letters = mailcraft_model::clean_name(st("to")).is_some_and(|to| mailcraft_model::sync::same_category(st("from").trim(), &to));
+            let there = if outlook && letters {
+                " in Outlook too: the new spelling is made there, and the old one is deleted there"
+            } else if outlook {
+                " in Outlook too: the new name is made there, the mail and events there that have the old one get it, and the old one is deleted there"
+            } else {
+                ""
+            };
             let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
             format!("rename the category {}{whose} to {}{there}{shared}", quoted(st("from")), quoted(st("to")))
         }
@@ -2123,6 +2167,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 [] => {}
                 [one] => does.push(format!("makes the category {one} in Outlook")),
                 many => does.push(format!("makes the categories {} in Outlook", some(many, 3))),
+            }
+            // A rename taken back after it reached Outlook: the mail and events there that were
+            // given the one name get the other again (#851).
+            for (owner, from, to) in s.undo_renames_on_server(redo).iter().take(3) {
+                // (Whose Outlook, as the question for the rename says: two accounts may have the name.)
+                let whose = s.mailbox.account(*owner).map(|a| format!(" of {}", quoted(&a.email))).unwrap_or_default();
+                does.push(format!("gives the mail and events in Outlook{whose} that have the category {} the name {}", quoted(from), quoted(to)));
             }
             let colored: Vec<String> = colored.iter().map(|(n, _)| quoted(n)).collect();
             match colored.as_slice() {
