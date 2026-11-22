@@ -1783,6 +1783,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Letöltött feladatok alkalmazása"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "IMAP-letöltés alkalmazása"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2797,6 +2803,12 @@ msgstr "Hívás"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Itt nem nyitható meg. Mentse, ha meg szeretné tartani."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "A(z) „{folder}” mappa nem exportálható teljes egészében. Letöltendő üzenetek: {n}. Nyissa meg őket, amikor újra online van (vagy állítsa be az összes levél offline megőrzését a fiókban), majd exportáljon újra."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3991,7 +4003,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "A(z) „{name}” mappából nem sikerült törölni az üzeneteket"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Nem tudtam letölteni egy üzenetet a \"{name}\"-ról."
@@ -4001,6 +4013,12 @@ msgstr "Nem tudtam letölteni egy üzenetet a \"{name}\"-ról."
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "A(z) „{name}” mappából nem sikerült újra letölteni egy üzenetet"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Az üzenetet nem sikerült letölteni"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -4057,7 +4075,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Nem tudtam az üzeneteket a \"{name}\"-ra mozgatni: a mappa már nincs a kiszolgálón"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "Nem sikerült megnyitni: „{name}”"
@@ -4111,10 +4129,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Nem tudtam elolvasni Gmail \"{name}\" kategóriáit."
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Nem sikerült elolvasni a mappákat"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Nem sikerült beolvasni az üzenetek méretét ebben a mappában: „{name}”"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -4133,6 +4157,12 @@ msgstr "A \"{subject}\" vázlatot nem sikerült megmenteni a szerveren: a szerve
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Nem menthette meg a postafiókát: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "Nem sikerült elküldeni: „{subject}”, mert még nincs letöltve"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -7054,6 +7084,12 @@ msgstr "Felelős vagyok: jóváhagyja MailCraft az én szervezetem számára"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Ügyvezető vagyok: hagyja jóvá a szervezetem számára."
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "IMAP-letöltési kérés"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14492,7 +14528,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -17926,6 +17962,14 @@ msgstr "A riport nem működik, próbáld meg később, vagy nyisd ki GitHub-on.
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "A jelentés nem MailCraft által értett válasz volt, tehát a jelentés talán megérkezett. Próbálja meg később, vagy nyissa ki a GitHub."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "A(z) „{rule}” szabály nem tudott áthelyezni {n} üzenetet: {why}"
+msgstr[1] "A(z) „{rule}” szabály nem tudott áthelyezni {n} üzenetet. Az első ok: {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22459,17 +22503,17 @@ msgstr "Gmail-fiókra van szüksége"
 msgid "never"
 msgstr "Soha"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "nincs {id} azonosítójú IMAP-fiók"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "a IMAP nem tart lépést Microsoft-fiókkal"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "nincs Microsoft vagy Exchange szerver fiókja, amely offline módon kezelné a leveleket"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -22507,6 +22551,12 @@ msgstr "nincs fiókkapcsolat a levelező szerverrel"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "egyetlen fiók sem kapcsolódik levelezési kiszolgálóhoz (Fájl › Fiók hozzáadása)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "egyetlen fiók sincs IMAP-kiszolgálóhoz csatlakoztatva"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -22519,6 +22569,12 @@ msgstr "nem tartják számon JMAP felett"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "nincs fiókot lépésben tartani a Microsoft Graph"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "egyetlen fiók sem tart levélablakot ezen a számítógépen"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -22526,7 +22582,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -22628,7 +22684,7 @@ msgid "no message with id {id}"
 msgstr "nincs ilyen azonosítójú üzenet: {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "a(z) „{name}” mappában nincs ilyen azonosítójú üzenet: {id}"
@@ -24314,7 +24370,7 @@ msgid "there is nothing to take in"
 msgstr "Nincs mit bevinni."
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "ezek az üzenetek másik fiókhoz tartoznak. A jelenlegi fiók: {name}"
@@ -24516,6 +24572,18 @@ msgstr "Ez az üzenet nem tárgya, hogy keresse"
 #, fuzzy
 msgid "this message is in the Snoozed folder already"
 msgstr "Ez az üzenet már a Snoozed mappában van."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "ez az üzenet még nincs letöltve: nyissa meg, ha online van, majd válaszoljon rá vagy továbbítsa"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "ez az üzenet még nincs letöltve: nyissa meg, ha online van, majd mentse el"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25254,12 +25322,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "A {name} nem Microsoft-fiók, amit IMAP vezetett."
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "A {name} nem Microsoft vagy Exchange szerver fiók"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -25302,6 +25364,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} nincs kapcsolatban a postaszerverrel."
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} nincs IMAP-kiszolgálóhoz csatlakoztatva"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -25318,6 +25386,12 @@ msgstr "A {name} nem halad át a Microsoft Graph-on"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} nem várja, hogy a Send/Receive"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} minden levelét ezen a számítógépen tartja: csak a Microsoft-, az Exchange-kiszolgáló- vagy az IMAP-fiók tart belőlük ablakot"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -26679,6 +26753,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "„{subject}” még nincs letöltve: nyissa meg, majd küldje el újra"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -27012,4 +27092,16 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "This build has no application id to sign in with."
 #~ msgstr "A MailCraft ezen verziójában nincs alkalmazásazonosító a bejelentkezéshez."
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "„{folder}” mappában {n} üzenet még nincs letöltve, ezért a mappa nem exportálható teljesen: nyissa meg őket, ha online van (vagy tartsa offline az összes levelet a fiók beállításaiban), majd exportáljon újra"
+
+#, fuzzy
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "nincs Microsoft vagy Exchange szerver fiókja, amely offline módon kezelné a leveleket"
+
+#, fuzzy
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "A {name} nem Microsoft vagy Exchange szerver fiók"
 

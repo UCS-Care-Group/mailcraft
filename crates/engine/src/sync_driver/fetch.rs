@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::{FETCH_IDLE_MS, fetch_backoff_ms};
 use crate::Session;
-use crate::cmd::{compose, ews_mail, graph_mail, jmap_mail};
+use crate::cmd::{compose, ews_mail, graph_mail, imap_fetch, jmap_mail};
 
 /// Most messages one fetch asks for (and one forward takes at a time).
 pub const BATCH: usize = 10;
@@ -199,7 +199,7 @@ pub fn to_fetch(s: &Session, id: &str, message: Id) -> Option<Id> {
     // One whose server's copy went before it could be fetched never will be: Forward as Attachment
     // says so itself (the others have no word of their own for it, and wait as they did).
     let never = |m: &mailcraft_model::Message| m.incomplete && id == "mail.forwardAsAttachment";
-    s.mailbox.message(message).filter(|m| m.unfetched && !never(m) && m.server.is_some()).map(|m| m.id)
+    s.mailbox.message(message).filter(|m| s.mailbox.fetchable(m) && !never(m)).map(|m| m.id)
 }
 
 /// The messages a forward takes, as the engine takes them, and the one in focus. `None` for
@@ -229,7 +229,7 @@ pub fn forward_of(command: &str, params: &Value) -> Option<(Vec<Id>, Option<Id>,
 /// (a delta gives no sizes), so a forward of more than 64 MB together is found out after at most
 /// that many more have come.
 pub fn still_to_fetch(s: &Session, ids: &[Id], tried: &[Id]) -> Vec<Id> {
-    let waiting = |m: &&mailcraft_model::Message| m.unfetched && m.server.is_some() && !tried.contains(&m.id);
+    let waiting = |m: &&mailcraft_model::Message| s.mailbox.fetchable(m) && !tried.contains(&m.id);
     let mut waiting = ids.iter().filter_map(|id| s.mailbox.message(*id)).filter(waiting);
     let Some(first) = waiting.next() else { return Vec::new() };
     let account = first.account;
@@ -244,6 +244,8 @@ pub fn apply_fetch(s: &mut Session, result: GraphFetchResult) -> Result<Value, c
         jmap_mail::apply_jmap_fetch(s, result)
     } else if kind == Some(AccountKind::Exchange) {
         ews_mail::apply_ews_fetch(s, result)
+    } else if kind == Some(AccountKind::Imap) {
+        imap_fetch::apply_imap_fetch(s, result)
     } else {
         graph_mail::apply_graph_fetch(s, result)
     }
@@ -274,11 +276,15 @@ impl Came {
         let missing: HashSet<&str> = result.missing.iter().map(String::as_str).collect();
         let failed: HashSet<&str> = result.failed.iter().map(String::as_str).collect();
         let mut came = Came { why: result.errors.first().cloned(), ..Default::default() };
+        let mb = &s.mailbox;
         for m in messages {
-            let Some(on_server) = s.mailbox.message(*m).and_then(|m| m.server.as_ref()).map(|s| s.id.as_str()) else {
+            // By its server id, or an IMAP account's by its mailbox and UID (#653).
+            let on_server = mb.message(*m).and_then(|m| m.server.as_ref().map(|s| s.id.clone()).or_else(|| mb.imap_key(m).map(|k| k.write())));
+            let Some(on_server) = on_server else {
                 came.answered.push(*m);
                 continue;
             };
+            let on_server = on_server.as_str();
             if missing.contains(on_server) || failed.contains(on_server) {
                 came.not_sent = came.not_sent.or(Some((*m, missing.contains(on_server))));
             } else if fetched.contains(on_server) {

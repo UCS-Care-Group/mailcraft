@@ -187,7 +187,9 @@ pub fn twins(mb: &Mailbox, folder: Option<Id>) -> Found {
     // whole here, nor one whose text couldn't be read back: the copy here may be all there is.
     let mut theirs: HashMap<(Id, &str), Vec<&Message>> = HashMap::new();
     for m in mb.messages.values().filter(|m| in_scope(m.folder) && on_server(m) && identity(m).is_some()) {
-        if m.incomplete || m.parts_removed || m.kept.as_deref().is_some_and(|k| k.failed) {
+        // A preview (#653), too large to download, or lost in part is not the mail: the copy here
+        // may be all there is of it.
+        if !whole(m) {
             continue;
         }
         theirs.entry((m.folder, m.message_id.as_str())).or_default().push(m.as_ref());

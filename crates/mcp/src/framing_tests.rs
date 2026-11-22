@@ -958,7 +958,11 @@ fn every_param_that_takes_text_is_reviewed() {
             let key = &after[..end];
             let tail = after[end + 1..].trim_start_matches('?').trim_start_matches(':').trim_start();
             let text = tail.starts_with("string") || tail.starts_with("[string");
-            let reviewed = crate::tools::NAMING_PARAMS.contains(&key) || WRITTEN_PARAMS.contains(&key);
+            // Fetch keys and server errors arrive from the host, behind the Never gate.
+            let imap_fetch_result = spec.id == "sync.applyImapFetch"
+                && matches!(key, "missing" | "failed" | "errors")
+                && matches!(mailcraft_engine::agent::access(spec.id), Some(mailcraft_engine::agent::Access::Never));
+            let reviewed = crate::tools::NAMING_PARAMS.contains(&key) || WRITTEN_PARAMS.contains(&key) || imap_fetch_result;
             if !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric()) && text && !reviewed {
                 unreviewed.insert(format!("{key} ({})", spec.id));
             }

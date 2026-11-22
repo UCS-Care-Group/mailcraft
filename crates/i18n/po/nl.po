@@ -1728,6 +1728,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Gedownloade to-do's toepassen"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "IMAP-ophaalactie toepassen"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Apply Results from the Server"
 msgstr "Resultaten van de server toepassen"
@@ -2706,6 +2712,12 @@ msgstr "Bellen"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Kan hier niet worden geopend. Sla het op om het te bewaren."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "‘{folder}’ kan niet volledig worden geëxporteerd. Nog te downloaden berichten: {n}. Open ze zodra u online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer opnieuw."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3848,7 +3860,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Berichten in \"{name}\" konden niet worden verwijderd"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
@@ -3858,6 +3870,12 @@ msgstr "Een bericht uit \"{name}\" kon niet worden gedownload"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Een bericht uit \"{name}\" kon niet opnieuw worden gedownload"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Het bericht kon niet worden gedownload"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3914,7 +3932,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Berichten konden niet naar \"{name}\" worden verplaatst: de map staat niet meer op de server"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "\"{name}\" kon niet worden geopend"
@@ -3968,10 +3986,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Kon de Gmail-categorieën van \"{name}\" niet lezen"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "De lijst met mappen kon niet worden gelezen"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "De grootte van de berichten in ‘{name}’ kon niet worden gelezen"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3990,6 +4014,12 @@ msgstr "Kan het concept '{subject}' niet opslaan op de server: de server meldt {
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Kan het postvak niet opslaan: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "Kan ‘{subject}’ niet verzenden omdat het bericht nog niet is gedownload."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6786,6 +6816,12 @@ msgstr "Ik ben beheerder: MailCraft voor mijn organisatie goedkeuren"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Ik ben beheerder: het voor mijn organisatie goedkeuren"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "IMAP-ophaalverzoek"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13989,7 +14025,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
 
@@ -17363,6 +17399,14 @@ msgstr "De rapportservice werkt op dit moment niet. Probeer het later opnieuw, o
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Het antwoord van de rapportservice was er een die MailCraft niet begrijpt, dus het rapport is mogelijk aangekomen. Probeer het later opnieuw, of open het op GitHub."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "De regel ‘{rule}’ kon {n} bericht niet verplaatsen: {why}"
+msgstr[1] "De regel ‘{rule}’ kon {n} berichten niet verplaatsen. Eerste reden: {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21843,17 +21887,17 @@ msgstr "heeft een Gmail-account nodig"
 msgid "never"
 msgstr "nooit"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "geen IMAP-account met id {id}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "geen Microsoft-account wordt via IMAP bijgehouden"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "geen Microsoft- of Exchange-serveraccount bewaart e-mail offline"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -21891,6 +21935,12 @@ msgstr "geen account is verbonden met een e-mailserver"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "geen account is verbonden met een e-mailserver (Bestand › Account toevoegen)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "geen account is met een IMAP-server verbonden"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -21903,6 +21953,12 @@ msgstr "geen account wordt via JMAP bijgehouden"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "geen account wordt via Microsoft Graph bijgehouden"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "geen account bewaart slechts een periode van zijn e-mail op deze computer"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
@@ -21910,7 +21966,7 @@ msgid "no account with id {account}"
 msgstr "geen account met id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
@@ -22012,7 +22068,7 @@ msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
@@ -23694,7 +23750,7 @@ msgid "there is nothing to take in"
 msgstr "er is niets om op te nemen"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "deze berichten waren voor een ander account, niet voor {name}"
@@ -23896,6 +23952,18 @@ msgstr "dit bericht heeft geen onderwerp om naar te zoeken"
 #, fuzzy
 msgid "this message is in the Snoozed folder already"
 msgstr "dit bericht staat al in de map Uitgesteld"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "dit bericht is nog niet gedownload: open het zodra je online bent en beantwoord of doorstuur het dan"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "dit bericht is nog niet gedownload: open het zodra je online bent en sla het dan op"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24631,12 +24699,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} is geen Microsoft-account dat via IMAP wordt bijgehouden"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-#, fuzzy
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} is geen Microsoft- of Exchange-serveraccount"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -24679,6 +24741,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} is niet verbonden met een e-mailserver"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} is niet met een IMAP-server verbonden"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "{name} isn't kept in step over JMAP"
@@ -24695,6 +24763,12 @@ msgstr "{name} wordt niet via Microsoft Graph bijgehouden"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} wacht niet op zijn beurt in een Verzenden/ontvangen"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} bewaart alle e-mail op deze computer. Alleen Microsoft-, Exchange-server- en IMAP-accounts kunnen de bewaarperiode beperken."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -26056,6 +26130,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr "„{subject}” is nog niet gedownload: open het zodra u online bent en sla het daarna op"
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "‘{subject}’ is nog niet gedownload. Open het bericht en verzend het daarna opnieuw."
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -26560,4 +26640,16 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "Scheduling Assistant"
 #~ msgstr "Planningassistent"
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "{n} van de berichten in “{folder}” zijn nog niet gedownload, dus de map kan niet volledig worden geëxporteerd: open ze zodra je online bent (of bewaar alle e-mail offline in de accountinstellingen) en exporteer dan opnieuw"
+
+#, fuzzy
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "geen Microsoft- of Exchange-serveraccount bewaart e-mail offline"
+
+#, fuzzy
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "{name} is geen Microsoft- of Exchange-serveraccount"
 

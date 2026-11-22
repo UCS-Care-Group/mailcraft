@@ -1689,6 +1689,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Heruntergeladene Aufgaben übernehmen"
 
 #. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "Apply IMAP Fetch"
+msgstr "IMAP-Abruf übernehmen"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2643,6 +2649,12 @@ msgstr "Anrufen"
 #, fuzzy
 msgid "Can't be opened here. Save it to keep it."
 msgstr "Kann hier nicht geöffnet werden. Speichern Sie die Datei, um sie zu behalten."
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again."
+msgstr "„{folder}“ kann nicht vollständig exportiert werden. Noch herunterzuladende Nachrichten: {n}. Öffnen Sie diese Nachrichten, sobald Sie online sind (oder behalten Sie alle Nachrichten in den Kontoeinstellungen offline), und exportieren Sie erneut."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3785,7 +3797,7 @@ msgid "Couldn't delete messages from \"{name}\""
 msgstr "Nachrichten in „{name}“ konnten nicht gelöscht werden"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\""
 msgstr "Eine Nachricht aus „{name}“ konnte nicht heruntergeladen werden"
@@ -3795,6 +3807,12 @@ msgstr "Eine Nachricht aus „{name}“ konnte nicht heruntergeladen werden"
 #, fuzzy
 msgid "Couldn't download a message from \"{name}\" again"
 msgstr "Eine Nachricht aus „{name}“ konnte nicht erneut heruntergeladen werden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't download the message"
+msgstr "Die Nachricht konnte nicht heruntergeladen werden"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -3851,7 +3869,7 @@ msgid "Couldn't move messages to \"{name}\": the folder is no longer on the serv
 msgstr "Nachrichten konnten nicht nach „{name}“ verschoben werden: Der Ordner ist nicht mehr auf dem Server"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't open \"{name}\""
 msgstr "„{name}“ konnte nicht geöffnet werden"
@@ -3902,10 +3920,16 @@ msgid "Couldn't read Gmail's categories of \"{name}\""
 msgstr "Die Gmail-Kategorien von \"{name}\" konnten nicht gelesen werden"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/imap_fetch.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Die Liste der Ordner konnte nicht gelesen werden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/imap_fetch.rs
+#, fuzzy
+msgid "Couldn't read the sizes of the messages in \"{name}\""
+msgstr "Die Größen der Nachrichten in „{name}“ konnten nicht gelesen werden"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -3924,6 +3948,12 @@ msgstr "Der Entwurf „{subject}“ konnte nicht auf dem Server gespeichert werd
 #, fuzzy
 msgid "Couldn't save the mailbox: {error}"
 msgstr "Das Postfach konnte nicht gespeichert werden: {error}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't send \"{subject}\": it isn't downloaded yet"
+msgstr "„{subject}“ konnte nicht gesendet werden. Die Nachricht wurde noch nicht heruntergeladen."
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -6647,6 +6677,12 @@ msgstr "Ich bin Administrator: MailCraft für meine Organisation genehmigen"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Ich bin Administrator: für meine Organisation genehmigen"
+
+#. command label
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "IMAP Fetch Request"
+msgstr "IMAP-Abrufanfrage"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13618,7 +13654,7 @@ msgid "Send & Receive"
 msgstr "Senden und Empfangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Senden/Empfangen"
@@ -16852,6 +16888,14 @@ msgstr "Der Meldedienst funktioniert derzeit nicht. Versuchen Sie es später ern
 #: crates/ui-egui/src/report_problem.rs
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Die Antwort des Meldedienstes konnte von MailCraft nicht verstanden werden, daher ist der Bericht möglicherweise eingegangen. Versuchen Sie es später erneut oder öffnen Sie ihn auf GitHub."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "The rule \"{rule}\" couldn't move {n} message: {why}"
+msgid_plural "The rule \"{rule}\" couldn't move {n} messages. First reason: {why}"
+msgstr[0] "Die Regel „{rule}“ konnte {n} Nachricht nicht verschieben: {why}"
+msgstr[1] "Die Regel „{rule}“ konnte {n} Nachrichten nicht verschieben. Erster Grund: {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -21126,15 +21170,16 @@ msgstr "erfordert ein Gmail-Konto"
 msgid "never"
 msgstr "niemals"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no IMAP account with id {id}"
+msgstr "kein IMAP-Konto mit der ID {id}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr "kein Microsoft-Konto wird über IMAP auf dem neuesten Stand gehalten"
-
-#. why a command can't run
-#: crates/engine/src/cmd/offline.rs
-msgid "no Microsoft or Exchange server account keeps mail offline"
-msgstr "kein Microsoft- oder Exchange-Server-Konto hält E-Mails offline verfügbar"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs crates/engine/src/digital_signature.rs
@@ -21168,6 +21213,12 @@ msgstr "kein Konto ist mit einem Mailserver verbunden"
 msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "kein Konto ist mit einem Mailserver verbunden (Datei › Konto hinzufügen)"
 
+#. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "no account is connected to an IMAP server"
+msgstr "kein Konto ist mit einem IMAP-Server verbunden"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "no account is kept in step over JMAP"
@@ -21179,13 +21230,19 @@ msgstr "kein Konto wird über JMAP auf dem neuesten Stand gehalten"
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "kein Konto wird über Microsoft Graph auf dem neuesten Stand gehalten"
 
+#. why a command can't run
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "no account keeps a window of mail on this computer"
+msgstr "kein Konto hält nur einen Zeitraum seiner E-Mails auf diesem Computer vor"
+
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 msgid "no account with id {account}"
 msgstr "kein Konto mit der ID {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "kein Konto mit der ID {id}"
@@ -21282,7 +21339,7 @@ msgid "no message with id {id}"
 msgstr "keine Nachricht mit der ID {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "keine Nachricht mit der ID {id} in {name}"
@@ -22897,7 +22954,7 @@ msgid "there is nothing to take in"
 msgstr "es gibt nichts zu importieren"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/imap_fetch.rs
 #, fuzzy
 msgid "these messages were for another account, not for {name}"
 msgstr "diese Nachrichten waren für ein anderes Konto, nicht für {name}"
@@ -23085,6 +23142,18 @@ msgstr "diese Nachricht hat keinen Betreff, nach dem gesucht werden kann"
 #: crates/model/src/mailbox_snooze.rs
 msgid "this message is in the Snoozed folder already"
 msgstr "diese Nachricht befindet sich bereits im Ordner für zurückgestellte Nachrichten"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then reply to it or forward it"
+msgstr "diese Nachricht ist noch nicht heruntergeladen: öffnen Sie sie, sobald Sie online sind, und antworten Sie dann darauf oder leiten Sie sie weiter"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then save it"
+msgstr "diese Nachricht ist noch nicht heruntergeladen: öffnen Sie sie, sobald Sie online sind, und speichern Sie sie dann"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23782,11 +23851,6 @@ msgid "{name} isn't a Microsoft account kept in step by IMAP"
 msgstr "{name} ist kein über IMAP synchronisiertes Microsoft-Konto"
 
 #. what a command says
-#: crates/engine/src/cmd/offline.rs
-msgid "{name} isn't a Microsoft or Exchange server account"
-msgstr "{name} ist kein Microsoft- oder Exchange-Server-Konto"
-
-#. what a command says
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
@@ -23824,6 +23888,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} ist mit keinem Mailserver verbunden"
 
 #. what a command says
+#: crates/engine/src/cmd/imap_fetch.rs
+#, fuzzy
+msgid "{name} isn't connected to an IMAP server"
+msgstr "{name} ist nicht mit einem IMAP-Server verbunden"
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} isn't kept in step over JMAP"
 msgstr "{name} wird nicht über JMAP auf dem neuesten Stand gehalten"
@@ -23838,6 +23908,12 @@ msgstr "{name} wird nicht über Microsoft Graph auf dem neuesten Stand gehalten"
 #, fuzzy
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} wartet in keinem Senden/Empfangen auf seine Reihe"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} keeps all its mail on this computer: only a Microsoft, an Exchange server or an IMAP account keeps a window of it"
+msgstr "{name} behält alle E-Mails auf diesem Computer. Nur Microsoft-, Exchange-Server- und IMAP-Konten begrenzen den Zeitraum."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -25127,6 +25203,12 @@ msgid "“{subject}” isn't downloaded yet: open it once you're online, then sa
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it, then send it again"
+msgstr "„{subject}“ wurde noch nicht heruntergeladen. Öffnen Sie die Nachricht und senden Sie sie danach erneut."
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
@@ -25609,4 +25691,14 @@ msgstr "−Zeilen"
 #~ msgid_plural "{n} messages will be deleted for good."
 #~ msgstr[0] "{n} Nachricht wird endgültig gelöscht."
 #~ msgstr[1] "{n} Nachrichten werden endgültig gelöscht."
+
+#, fuzzy
+#~ msgid "{n} of the messages in “{folder}” aren't downloaded yet, so it can't be exported whole: open them once you're online (or keep all mail offline in the account's settings), then export again"
+#~ msgstr "{n} der Nachrichten in „{folder}“ sind noch nicht heruntergeladen, daher kann der Ordner nicht vollständig exportiert werden: öffnen Sie sie, sobald Sie online sind (oder behalten Sie in den Kontoeinstellungen alle E-Mails offline), und exportieren Sie dann erneut"
+
+#~ msgid "no Microsoft or Exchange server account keeps mail offline"
+#~ msgstr "kein Microsoft- oder Exchange-Server-Konto hält E-Mails offline verfügbar"
+
+#~ msgid "{name} isn't a Microsoft or Exchange server account"
+#~ msgstr "{name} ist kein Microsoft- oder Exchange-Server-Konto"
 

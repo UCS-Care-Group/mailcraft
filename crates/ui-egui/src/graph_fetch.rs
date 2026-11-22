@@ -19,11 +19,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::{ews_mail, graph_mail, jmap_mail};
+use mailcraft_engine::cmd::{ews_mail, graph_mail, imap_fetch, jmap_mail};
 use mailcraft_engine::sync_driver::fetch::apply_fetch as take_in_fetch;
 use mailcraft_engine::sync_driver::fetch_flow::{FirstNote, NowNext, NowNote, Waiting};
 use mailcraft_engine::sync_driver::{FETCH_BATCH, FetchProgress};
-use mailcraft_model::sync::GraphFetchResult;
+use mailcraft_model::sync::{GraphFetchResult, ImapFetchRequest};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
@@ -33,6 +33,9 @@ use crate::{MailApp, now_ms};
 
 /// Messages asked for at a time: in the background, and for a forward of several (#360).
 const BATCH: usize = FETCH_BATCH;
+/// Most messages of an IMAP account one background request asks for (the server is signed in to
+/// once for them, and a request brings at most 64 MB).
+const IMAP_BATCH: usize = 100;
 // How long the background waits before looking again when there was nothing to fetch, and how
 // long at most after batches that brought nothing, one after another, are the engine's
 // ([`mailcraft_engine::sync_driver::fetch`]), as are the decisions about which messages a command
@@ -42,6 +45,17 @@ use mailcraft_engine::sync_driver::FETCH_IDLE_MS as IDLE_MS;
 
 /// What the host is asked to fetch ([`crate::Services::graph_fetch`]).
 pub use mailcraft_host::fetch::GraphFetchJob;
+
+/// What the host is asked to fetch of an IMAP account ([`crate::Services::imap_fetch`], #653):
+/// messages its mail to keep offline left as their headers and preview.
+pub struct ImapFetchJob {
+    pub request: ImapFetchRequest,
+    pub language: mailcraft_i18n::Lang,
+    /// The password, or the access token of an account that signs in with OAuth: what its
+    /// Send/Receive goes with. Never logged.
+    pub secret: String,
+    pub cancel: Arc<AtomicBool>,
+}
 
 /// The state of fetching, in the window.
 #[derive(Default)]
@@ -92,10 +106,23 @@ enum Way {
     Graph(String),
     Jmap(String),
     Ews(String),
+    Imap(String),
+}
+
+/// The secret an IMAP account's fetch goes with (#653): a token of this session that is still
+/// good for a while, for an account that signs in with OAuth (none is asked for here: the next
+/// Send/Receive signs in), else the password typed this session or remembered.
+fn imap_secret(app: &MailApp, account: Id) -> Option<String> {
+    let a = app.session.mailbox.account(account)?;
+    if a.oauth.is_some() {
+        return app.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone());
+    }
+    app.passwords.get(&account).cloned().or_else(|| app.remembered("password", account))
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
     match app.session.mailbox.account(account)?.kind {
+        AccountKind::Imap if app.services.imap_fetch.is_some() => imap_secret(app, account).map(Way::Imap),
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
@@ -110,6 +137,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
         AccountKind::Exchange => app.services.ews_fetch.is_some(),
+        AccountKind::Imap => app.services.imap_fetch.is_some(),
         _ => false,
     }
 }
@@ -237,6 +265,11 @@ impl MailApp {
                 let request = asked(messages, |m| ews_mail::ews_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(EwsFetchJob { request, secret, cancel }))
             }
+            Way::Imap(secret) => {
+                let fetch = self.services.imap_fetch.as_ref()?;
+                let request = asked(messages, |m| imap_fetch::imap_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
+                Some(fetch(ImapFetchJob { request, language: self.session.interface_language, secret, cancel }))
+            }
         }
     }
 
@@ -262,7 +295,10 @@ impl MailApp {
         for account in self.session.fetch_background_accounts(|kind| self.fetched_kind(kind), now) {
             let Some(way) = way(self, account) else { continue };
             let cancel = Arc::new(AtomicBool::new(false));
-            let Some(answer) = self.hand_over(account, way, &[], BATCH, cancel.clone()) else { continue };
+            // An IMAP request signs in once for all it brings: more at a time, so that a long
+            // window isn't thousands of sign-ins (#653). What it brings is capped by size too.
+            let most = if matches!(way, Way::Imap(_)) { IMAP_BATCH } else { BATCH };
+            let Some(answer) = self.hand_over(account, way, &[], most, cancel.clone()) else { continue };
             self.fetching.cancel = cancel;
             self.fetching.background = Some((account, self.session.openings(), answer));
             return;
@@ -379,6 +415,9 @@ fn asked<R>(messages: &[Id], request: impl Fn(Option<Id>) -> Option<R>, ids: fn(
 
 #[cfg(test)]
 mod forward_several_tests;
+
+#[cfg(test)]
+mod imap_tests;
 
 #[cfg(test)]
 mod let_go_tests;

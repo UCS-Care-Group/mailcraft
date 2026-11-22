@@ -296,7 +296,7 @@ impl Session {
         if shown == self.driver.fetch.opened {
             return None;
         }
-        let to_fetch = shown.and_then(|m| self.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id));
+        let to_fetch = shown.and_then(|m| self.mailbox.message(m)).filter(|m| self.mailbox.fetchable(m)).map(|m| (m.account, m.id));
         match to_fetch {
             Some((_, m)) if self.fetch_after_batch(m, batch) => None,
             Some((account, m)) => {

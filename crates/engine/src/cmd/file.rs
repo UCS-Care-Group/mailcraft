@@ -162,12 +162,15 @@ impl AfterOpening {
 ///   (#185), and that of IMAP accounts by UID at the next Send/Receive (#650).
 /// - Mail an earlier version put back empty after a refused delete for good is fetched again
 ///   before anything can move it (#793).
+/// - IMAP accounts from before their mail kept to a window keep all of it (#653).
 pub fn after_opening(s: &mut Session) -> AfterOpening {
     let favorites_now_graph = s.mailbox.take_retired_favorites_choices();
     let unreadable = super::graph_down::refetch_unreadable(&mut s.mailbox).saturating_add(super::imap_again::mark_unreadable(&mut s.mailbox));
     let hollow = super::graph_down::refetch_hollow(&mut s.mailbox);
+    // IMAP accounts from before their mail kept to a window keep all of it (#653).
+    let windowed = s.mailbox.keep_imap_mail_as_it_was();
     let after = AfterOpening { favorites_now_graph, unreadable, hollow };
-    if after.favorites_now_graph > 0 || after.fetched_again() > 0 {
+    if after.favorites_now_graph > 0 || after.fetched_again() > 0 || windowed > 0 {
         s.mailbox_changed();
     }
     after
@@ -373,6 +376,11 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Whole: what the mailbox keeps outside memory goes into the file.
     let m = s.loaded_message(id)?;
+    // A preview is not the message (#653): the window fetches it first when it can; where it
+    // can't (offline, a headless run, no UID after a move), nothing is written in its place.
+    if m.unfetched || m.incomplete {
+        return Err(fail("this message isn't downloaded yet: open it once you're online, then save it"));
+    }
     // (A message kept from before #30 had only a note of it kept when it was too large.)
     if super::compose::not_downloaded(&m) {
         let subject = super::compose::subject_of(&m);
@@ -407,6 +415,16 @@ fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
     for m in s.mailbox.messages_in(id) {
         whole.push(s.loaded_message(m.id)?);
+    }
+    // A preview is not the message (#653): a folder kept as a backup and then deleted on its
+    // server would leave stubs. Nothing is written, and the owner is told how many are missing.
+    let stubs = whole.iter().filter(|m| m.unfetched || m.incomplete).count();
+    if stubs > 0 {
+        return Err(failed!(
+            "Can't export “{folder}” whole. Messages still to download: {n}. Open those messages once you're online (or keep all mail offline in the account's settings), then export again.",
+            n = stubs,
+            folder = folder.name.clone()
+        ));
     }
     whole.sort_by_key(|m| (m.date, m.id));
     let messages: Vec<&mailcraft_model::Message> = whole.iter().map(|m| m.as_ref()).collect();

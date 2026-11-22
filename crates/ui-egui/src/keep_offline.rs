@@ -119,7 +119,7 @@ pub(crate) fn step_slider(ui: &mut egui::Ui, index: &mut usize, count: usize) ->
 }
 
 /// "Mail to keep offline" for `account` (a Microsoft account of its own: a shared mailbox
-/// follows it), as a slider over Outlook's steps from 3 days to All, with the step in words.
+/// follows it; or an IMAP account, #653), as a slider over Outlook's steps from 3 days to All, with the step in words.
 /// Moving it runs `ui.keepOffline` once it is let go (a shorter window asks first); while it is
 /// dragged it only shows where it is. Answers the step it shows.
 pub(crate) fn slider(app: &mut MailApp, ui: &mut egui::Ui, account: mailcraft_model::Id, now: KeepOffline) -> KeepOffline {

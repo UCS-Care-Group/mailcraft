@@ -50,6 +50,8 @@ mod ews_down;
 pub mod ews_mail;
 mod ews_up;
 #[cfg(test)]
+mod export_preview_tests;
+#[cfg(test)]
 mod failing_messages_tests;
 #[cfg(test)]
 mod favorites_tests;
@@ -95,6 +97,9 @@ mod hidden_quote_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
+pub mod imap_fetch;
+#[cfg(test)]
+mod imap_fetch_tests;
 #[cfg(test)]
 mod imap_outbox_tests;
 pub mod imported_dupes;
@@ -158,6 +163,8 @@ pub mod remote;
 mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
+#[cfg(test)]
+mod respond_preview_tests;
 pub mod rules;
 #[cfg(test)]
 mod rules_holds_tests;
@@ -267,6 +274,7 @@ pub fn registry() -> Registry {
     v.extend(signature::specs());
     v.extend(senders::specs());
     v.extend(graph_mail::specs());
+    v.extend(imap_fetch::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());
     v.extend(dav_account::specs());
