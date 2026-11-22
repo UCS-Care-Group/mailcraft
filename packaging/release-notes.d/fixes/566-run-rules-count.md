@@ -1,1 +1,0 @@
-- Run Rules Now no longer counts among the messages it changed one its rules left as it was: already read, say, or already in the folder a rule moves it to ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

@@ -47,14 +47,15 @@ pub(crate) fn sniff(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// The message's blocks for a pane: its HTML when it reads to something, else its text.
-fn read(message: &Message, env: &Env) -> (Vec<mailcraft_html::Block>, bool) {
+/// The message's blocks for a pane: its HTML when it reads to something, else its text; and
+/// whether they are its text part's.
+fn read(message: &Message, env: &Env) -> (Vec<mailcraft_html::Block>, bool, bool) {
     let read = message.body.html.as_deref().map(|html| mailcraft_html::parse_in(html, env));
     match read {
         Some(r) if mailcraft_html::has_text(&r.blocks) || !mailcraft_html::images(&r.blocks).is_empty() || message.body.text.trim().is_empty() => {
-            (r.blocks, r.dark_design)
+            (r.blocks, r.dark_design, false)
         }
-        _ => (mailcraft_html::text_blocks(&message.body.text), false),
+        _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
     }
 }
 
@@ -76,7 +77,11 @@ impl Core {
         let (env, width) = pane(width, dark);
         self.call(move |s| {
             let m = load(s, id)?;
-            let (blocks, dark_design) = read(&m, &env);
+            let (blocks, dark_design, from_text) = read(&m, &env);
+            // A reply or forward of it quotes it as it is read here: at this width and in this
+            // theme, its HTML or its text part, as shown (a choice only beside HTML: one read
+            // before its body came is not quoted as text once the HTML is there).
+            s.read_at(m.id, mailcraft_engine::ReadIn::Pane, env, from_text && m.body.html.is_some());
             let has_part = |src: &str| attachment_of(&m, src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });
             let remote_pictures = mailcraft_html::images(&blocks)
@@ -128,7 +133,7 @@ impl Core {
                 let width: f32 =
                     parts.next().and_then(|n| n.parse::<u16>().ok()).map(f32::from).ok_or_else(|| bad("that is not a picture of the message"))?;
                 let dark = parts.next() == Some("1");
-                let (blocks, _) = read(&m, &Env::for_pane(width, dark));
+                let (blocks, _, _) = read(&m, &Env::for_pane(width, dark));
                 let picture = mailcraft_html::images(&blocks)
                     .into_iter()
                     .filter_map(|b| match &b.kind {

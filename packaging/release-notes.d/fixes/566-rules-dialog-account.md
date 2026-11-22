@@ -1,1 +1,0 @@
-- The Rules dialog names the account of the folder that a rule for every account moves mail to, and `rules.fromMessage` refuses a parameter it doesn't take, such as a misspelt `server`, instead of ignoring it ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

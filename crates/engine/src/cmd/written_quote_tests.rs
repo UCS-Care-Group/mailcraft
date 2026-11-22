@@ -82,7 +82,7 @@ fn reply_reply_all_and_forward_carry_the_pictures_written_into_the_original() {
         assert!(pic.inline && pic.mime == "image/png" && pic.data.as_slice() == png(40, 2).as_slice(), "{command}: {pic:?}");
         assert!(pic.content_id.ends_with("@mailcraft.invalid") && !pic.content_id.contains("lumen") && !pic.content_id.contains("avery"), "{pic:?}");
         assert!(pic.name.ends_with(".png") && !pic.name.is_empty());
-        assert!(q.html.contains(&format!("<img src=\"cid:{}\" alt=\"Chart\" width=\"64\">", pic.content_id)), "{command}: {}", q.html);
+        assert!(q.html.contains(&format!("<img src=\"cid:{}\" width=\"64\">", pic.content_id)), "{command}: {}", q.html);
         assert!(!q.html.contains("data:") && q.html.contains("<p>Regards, Rowan</p>"), "{command}: {}", q.html);
         // The attached logo is carried as before: with the quote for an answer, as an
         // attachment of the forward.

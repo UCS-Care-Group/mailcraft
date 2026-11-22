@@ -587,21 +587,26 @@ pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
     unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
 }
 
-/// What an agent's command that takes appointments away would lose (#494): the windows of those
-/// it takes, with changes that aren't saved, close with them ([`show`]). `calendar.delete` takes
-/// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
-/// step brings back as it was.
+/// What an agent's command would affect while appointments have unsaved changes (#494): a
+/// Delete or cut names every member of its set, conservatively including its whole series;
+/// removing a calendar takes its appointments, an undo or redo what the step brings back.
 pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
     unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
 }
 
-/// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
+/// Whether `calendar.delete`, a cut `calendar.paste`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
 /// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
 pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
     // As the command reads it (#553): `12.0` is 12, and one named wrongly (0, null, text) takes nothing away.
     let named = |selected: Option<Id>| mailcraft_engine::p::id_strict(p, "id").ok().and_then(|n| n.or(selected));
     let sel = &app.session.sel;
     match id {
+        "calendar.delete" if mailcraft_engine::cmd::calendar::delete_form(sel, p).ok() != Some(mailcraft_engine::cmd::calendar::DeleteForm::One) => {
+            mailcraft_engine::cmd::calendar::delete_items(&app.session, p).is_ok_and(|items| items.iter().any(|selected| selected.id == item))
+        }
+        "calendar.paste" if p.get("cut").and_then(Value::as_bool) == Some(true) => {
+            mailcraft_engine::cmd::calendar::selected_items(&app.session, p).is_ok_and(|items| items.iter().any(|selected| selected.id == item))
+        }
         "calendar.delete" => named(sel.event) == Some(item),
         "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == named(None)),
         "people.delete" => named(sel.contact) == Some(item),
@@ -1436,12 +1441,12 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
             let scope = app.hit.scope(id);
             crate::attachment_preview::follow_message(app, id, Some(m.id));
             if crate::ribbon::show_attachment_window(app, ui, id, m.id) {
-                close = actions(app, ui, &m, own_keys, false);
+                close = actions(app, ui, &m, id, own_keys, false);
             } else {
                 egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
                     .resizable(false)
                     .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
-                    .show(ui, |ui| close = actions(app, ui, &m, own_keys, true));
+                    .show(ui, |ui| close = actions(app, ui, &m, id, own_keys, true));
             }
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
@@ -1499,7 +1504,7 @@ enum Action {
 
 /// A message window's action keys and, when visible, its toolbar. Returns `true` if the action
 /// deleted the message and the window should close.
-fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool, toolbar: bool) -> bool {
+fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, id: u64, own_keys: bool, toolbar: bool) -> bool {
     let flagged = m.flag == FlagStatus::Flagged;
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
@@ -1573,7 +1578,8 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool, too
             // Replying and forwarding are written in a window of their own (#286); at the bound
             // of windows, in the main window's reading pane.
             app.windows.place = Some(Opens::Window { behind: false });
-            let r = app.run(command, json!({"id": m.id}));
+            // The original is quoted as this window read it.
+            let r = app.run(command, json!({"id": m.id, "window": id}));
             app.windows.place = None;
             if let Ok(answer) = r {
                 let windowed = answer.get("compose").and_then(Value::as_u64).is_some_and(|c| app.windows.of_compose(c).is_some());

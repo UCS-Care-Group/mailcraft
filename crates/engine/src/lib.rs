@@ -50,6 +50,8 @@ pub mod mark;
 mod mark_tests;
 pub mod opening;
 #[cfg(test)]
+mod opening_kind_tests;
+#[cfg(test)]
 mod opening_tests;
 #[cfg(test)]
 mod openpgp_signature_tests;
@@ -84,9 +86,9 @@ pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BarParts, BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane,
-    Part, PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, TasksCalendarBar, ViewState,
-    WordIndex,
+    BarParts, BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, MAX_SELECTED_EVENTS,
+    Missing, Module, Pane, Part, PeopleSort, Prefs, Quote, ReadIn, Scope, SelectedEvent, Selection, Session, SignatureEdit, SortBy, Stays,
+    TaskFilter, TaskSort, TasksCalendarBar, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps

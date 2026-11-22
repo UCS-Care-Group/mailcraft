@@ -9,7 +9,7 @@ use mailcraft_time::DateTime;
 use serde_json::{Value, json};
 
 use super::{bad, fail, remote};
-use crate::{CalView, CmdResult, CommandSpec, Module, Session, p};
+use crate::{CalView, CmdError, CmdResult, CommandSpec, Module, Session, p};
 
 /// The time scales the calendar's hours can be drawn at: the minutes one row stands for.
 pub const TIME_SCALES: [u8; 6] = [60, 30, 15, 10, 6, 5];
@@ -52,18 +52,31 @@ pub fn days_shown(s: &Session) -> i64 {
     i64::from(s.view.days.clamp(1, MAX_DAYS))
 }
 
-/// A copy of an event (of one occurrence, for a series) at another time: an appointment of its
-/// own, which doesn't repeat and to which nobody is invited, in the original's calendar unless
-/// another is named. In a calendar that a server keeps, the server is to have it too.
-fn copy(s: &mut Session, v: &Value) -> CmdResult {
-    let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
-    let source = s.mailbox.event(id).cloned().ok_or_else(|| failed!("no event with id {id}", id))?;
+/// Whether an item can be copied from here, refused with the reason when it can't. Copy Event and
+/// a batch paste of copies (`calendar.paste` with `items`) both ask it, so that a rule for copying
+/// one item holds for every item of a batch too.
+pub(crate) fn copyable(s: &Session, source: &Event) -> Result<(), CmdError> {
+    // A calendar that only says when its owner is busy holds blocks, not appointments: there is
+    // nothing in one to copy.
+    if s.mailbox.calendar(source.calendar).is_some_and(|c| c.rights == mailcraft_model::Rights::FreeBusy) {
+        return Err(fail("A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."));
+    }
     // Its files stay on its server: a copy made from here would be without them (#1664).
     if source.has_attachments {
         return Err(fail(
             "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here.",
         ));
     }
+    Ok(())
+}
+
+/// A copy of an event (of one occurrence, for a series) at another time: an appointment of its
+/// own, which doesn't repeat and to which nobody is invited, in the original's calendar unless
+/// another is named. In a calendar that a server keeps, the server is to have it too.
+fn copy(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::id_strict(v, "id")?.or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
+    let source = s.mailbox.event(id).cloned().ok_or_else(|| failed!("no event with id {id}", id))?;
+    copyable(s, &source)?;
     let start = p::datetime(v, "start")?.ok_or_else(|| bad("`start` is required"))?;
     let end = p::datetime(v, "end")?;
     let all_day = p::bool(v, "allDay").unwrap_or(source.all_day);
@@ -109,8 +122,8 @@ fn copy(s: &mut Session, v: &Value) -> CmdResult {
     };
     let made = s.mailbox.add_event(copy)?;
     remote::note_created(s, made)?;
-    s.sel.event = Some(made);
-    s.sel.event_day = Some(start.date);
+    // A copy is the selection, and it replaces whatever typed set stood before.
+    super::calendar::focus(s, made);
     Ok(json!({"id": made, "copyOf": id}))
 }
 

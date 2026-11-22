@@ -32,14 +32,16 @@ mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
-pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
 pub(crate) mod images;
 #[cfg(test)]
 mod images_tests;
 mod invitation;
-mod layout;
+// Readable from `crate::fonts`' tests, which lay a message out to see what it is drawn in.
+#[cfg(test)]
+mod font_faces_tests;
+pub(crate) mod layout;
 pub(crate) mod react;
 #[cfg(test)]
 mod react_tests;
@@ -86,7 +88,12 @@ use crate::{MailApp, icons};
 pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
     view::Store::let_go(ctx);
     app.remote_pictures.let_go(ctx);
-    fonts::let_go(ctx);
+    // A message being written keeps the faces its fonts were read for: it is laid out again with
+    // every keystroke, and a face dropped under it would be read all over again (#1493).
+    if app.session.composing_count() > 0 || app.session.signature_edit.is_some() {
+        return;
+    }
+    crate::fonts::let_go(ctx);
 }
 
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
