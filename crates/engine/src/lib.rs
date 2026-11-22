@@ -85,7 +85,7 @@ pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
     BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane, Part,
-    PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    PeopleSort, Prefs, Quote, ReadIn, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps

@@ -25,13 +25,13 @@ fn shown_in(html: &str, env: &Env) -> String {
 /// and its plain text, without and with the pictures written into the message carried.
 fn quoted(html: &str) -> [String; 4] {
     let plain = quotable(html);
-    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), &Env::default());
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), Some(&Env::default()));
     [shown(&plain), caps(&quote_to_text(&plain)), shown(&carried), caps(&quote_to_text(&carried))]
 }
 
 /// The quote of a message read in a pane of the width and theme `env`, as HTML and as text.
 fn quoted_in(html: &str, env: &Env) -> [String; 2] {
-    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), env);
+    let carried = quotable_with_pictures(html, &mut |_, _| Some("p@example.org".into()), Some(env));
     [shown(&carried), caps(&quote_to_text(&carried))]
 }
 
@@ -225,6 +225,77 @@ fn what_media_hid_in_the_pane_read_in_is_not_quoted() {
     }
 }
 
+/// A message no pane has said how it read is quoted as every look its `@media` gives it shows:
+/// nothing any pane would hide.
+#[test]
+fn a_message_read_nowhere_is_quoted_as_every_pane_shows_it() {
+    for rule in [
+        "@media (max-width:1279px){.x{display:none}}",
+        "@media (min-width:1280px){.x{display:none}}",
+        "@media (prefers-color-scheme:dark){.x{display:none}}",
+        "@media (prefers-color-scheme:dark) and (max-width:800px){.x{display:none}}",
+    ] {
+        let html = format!("<style>{rule}</style><p>A</p><p class=x>BBB</p><p>C</p>");
+        let carried = quotable_with_pictures(&html, &mut |_, _| None, None);
+        for q in [shown(&carried), caps(&quote_to_text(&carried))] {
+            assert_eq!(q, "AC", "{html}");
+            for env in envs() {
+                assert!(within(&q, &shown_in(&html, &env)), "{html} {env:?}");
+            }
+        }
+    }
+    // Without `@media`, as any pane.
+    let carried = quotable_with_pictures("<p>A</p><p hidden>B</p><p>C</p>", &mut |_, _| None, None);
+    assert_eq!(shown(&carried), "AC");
+}
+
+/// `<svg/>` and `<math/>` are written closed; a `/` at the end of an unquoted value is the
+/// value's (`<svg x=b/>` is open).
+#[test]
+fn only_a_tag_written_closed_is_self_closing() {
+    use crate::tokenizer::{Token, Tokenizer};
+    for (tag, closed) in [
+        ("<svg/>", true),
+        ("<svg data-x=b />", true),
+        ("<svg data-x=\"b\"/>", true),
+        ("<svg data-x='b'/>", true),
+        ("<svg hidden/>", true),
+        ("<svg data-x=b/>", false),
+        ("<svg data-x=b>", false),
+        ("<svg>", false),
+        ("<math/>", true),
+        ("<math data-x=b/>", false),
+    ] {
+        let Some(Token::Open(t)) = Tokenizer::new(tag).next() else { panic!("{tag}") };
+        assert_eq!(t.self_closing, closed, "{tag}");
+    }
+    // An open SVG keeps a template in it from being one; a closed one doesn't.
+    assert_eq!(shown("A<svg data-x=b/>B<template>C</template></svg>D<template>E</template>F"), "ABCDF");
+    assert_eq!(shown("A<svg data-x=b />B<template>C</template>D"), "ABD");
+}
+
+/// `</svg>` ends the innermost SVG element and what is open in it, `</math>` the MathML one, and
+/// an HTML element with no place in them ends them both, as in a browser; the quote ends them
+/// where the pane does.
+#[test]
+fn svg_and_math_end_where_a_browser_ends_them() {
+    for (html, both) in [
+        ("A<svg><math></svg><template>B</template>C", "AC"),
+        ("A<math><svg></math><template>B</template>C", "AC"),
+        ("A<svg><p>X<template>B</template>C", "AXC"),
+        ("A<math><div>X</div><template>B</template>C", "AXC"),
+        ("A<svg><font color=red>X<template>B</template>C", "AXC"),
+        ("A<svg><svg><span>X</span><template>B</template>C", "AXC"),
+    ] {
+        assert_eq!(shown(html), both, "{html}");
+        assert!(quoted(html).iter().all(|q| q == both), "{html}: {:?}", quoted(html));
+    }
+    // An end tag of the other kind ends nothing: what follows is still in the MathML.
+    for html in ["A<math></svg><template>B</template>C", "A<svg><font>X<template>B</template>C"] {
+        assert_never_more(html);
+    }
+}
+
 /// A `<template>` inside SVG or MathML is no template, and one inside what is hidden ends with
 /// it: what comes after is shown, and quoted.
 #[test]
@@ -260,7 +331,7 @@ fn tooltips_and_the_alt_text_of_drawn_pictures_are_not_quoted() {
     let carried = quotable_with_pictures(
         &format!("<img src=\"data:image/png;base64,{}\" alt=\"CHART\">", crate::data_tests::b64(&crate::data_tests::PNG)),
         &mut |_, _| Some("p@example.org".into()),
-        &Env::default(),
+        Some(&Env::default()),
     );
     assert!(carried.contains("CHART") && !quote_to_text(&carried).contains("CHART"), "{carried}");
 }

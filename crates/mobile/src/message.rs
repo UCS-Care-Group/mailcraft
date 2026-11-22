@@ -79,8 +79,9 @@ impl Core {
             let m = load(s, id)?;
             let (blocks, dark_design, from_text) = read(&m, &env);
             // A reply or forward of it quotes it as it is read here: at this width and in this
-            // theme, its HTML or its text part, as shown.
-            s.read_at(m.id, env, from_text);
+            // theme, its HTML or its text part, as shown (a choice only beside HTML: one read
+            // before its body came is not quoted as text once the HTML is there).
+            s.read_at(m.id, mailcraft_engine::ReadIn::Pane, env, from_text && m.body.html.is_some());
             let has_part = |src: &str| attachment_of(&m, src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });
             let remote_pictures = mailcraft_html::images(&blocks)

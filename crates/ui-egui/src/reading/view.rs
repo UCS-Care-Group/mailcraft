@@ -482,10 +482,16 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     #[cfg(not(test))]
     let _ = made;
     let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
-    // A reply or forward of it quotes it as it is read here: at this width and in this theme, its
-    // HTML or its text part, as shown.
-    if matches!(place, Place::Pane | Place::Window(_)) {
-        app.session.read_at(message.id, env, entry.doc.from_text);
+    // A reply or forward asked for here quotes it as it is read here: at this width and in this
+    // theme, its HTML or its text part, as shown. (Its text part is a choice only beside HTML: one
+    // drawn before its body came is not quoted as text once the HTML is there.)
+    let here = match place {
+        Place::Pane => Some(mailcraft_engine::ReadIn::Pane),
+        Place::Window(n) => Some(mailcraft_engine::ReadIn::Window(n)),
+        Place::Quote | Place::Preview => None,
+    };
+    if let Some(here) = here {
+        app.session.read_at(message.id, here, env, entry.doc.from_text && message.body.html.is_some());
     }
     if entry.doc.blocks.is_empty() {
         ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));

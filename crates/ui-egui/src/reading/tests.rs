@@ -4853,6 +4853,30 @@ fn a_reply_quotes_the_message_as_the_pane_read_it() {
     }
 }
 
+/// A message drawn before its body came (no HTML yet: its text is all there is) is not taken
+/// for one shown as its text part: the HTML that comes later is quoted, not the text beside it,
+/// even with no frame drawn in between.
+#[test]
+fn a_reply_after_the_body_came_quotes_its_html_not_the_text_drawn_before() {
+    let m = message(0, ("Rui Sousa", "rui@example.org"), "Later", None, "Preview words".into());
+    let (app, ids) = app_with(vec![m]);
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(false));
+    // The body comes, HTML and a text part that says something else; no frame.
+    harness.state_mut().session.mailbox.message_mut(ids[0]).unwrap().body =
+        Body { text: "SENDER ALTERNATIVE".into(), html: Some("<p>Shown words</p>".into()) };
+    for command in ["mail.reply", "mail.forward"] {
+        harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
+        let c = harness.state().session.compose.clone().unwrap();
+        let q = c.quote.clone().unwrap_or_else(|| panic!("{command}: quoted as text"));
+        assert!(q.html.contains("Shown words") && !q.text.contains("SENDER ALTERNATIVE"), "{command}: {}", q.html);
+        assert!(!c.body.plain().contains("SENDER ALTERNATIVE"), "{command}");
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+    }
+}
+
 /// A reply or forward quotes the message as the pane showed it, its HTML or its text part,
 /// whatever the HTML holds: a picture the pane finds however its address is written, one it
 /// hasn't got, one on the web, one written into the message, or nothing at all.
@@ -4878,7 +4902,7 @@ fn a_reply_quotes_the_html_or_the_text_part_as_the_pane_showed_it() {
         let m = harness.state().session.mailbox.message(ids[0]).unwrap().clone();
         let can_download = super::remote::available(harness.state());
         let from_text = Doc::of_in(&m, can_download, mailcraft_html::Env::default()).from_text;
-        assert_eq!(harness.state().session.read_as_text(ids[0]), Some(from_text), "{html}");
+        assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(from_text), "{html}");
         for command in ["mail.reply", "mail.forward"] {
             harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
             let c = harness.state().session.compose.clone().unwrap();

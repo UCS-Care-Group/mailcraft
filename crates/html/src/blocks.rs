@@ -143,6 +143,30 @@ pub(crate) fn seen(html: &str, env: &Env) -> Seen {
     build_with(html, false, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
 }
 
+/// [`Seen`] of `html` as every pane shows it: what is shown in each look its `@media` gives it
+/// ([`crate::media_envs`]), for a message no pane has said how it read.
+pub(crate) fn seen_everywhere(html: &str) -> Seen {
+    // lean: at most MAX_MEDIA_ENVS looks; a message with more is read in those it has.
+    let (envs, _) = crate::media::envs(&crate::media_lists(html));
+    let mut looks = envs.iter().map(|env| seen(html, env));
+    let Some(mut out) = looks.next() else { return Seen::default() };
+    for other in looks {
+        let (short, long) = if other.shown.len() < out.shown.len() { (other, out) } else { (out, other) };
+        let cut = match (short.cut, long.cut) {
+            (Some(a), Some(b)) if short.shown.len() == long.shown.len() => Some(a.min(b)),
+            (a, b) if short.shown.len() == long.shown.len() => a.or(b),
+            (a, _) => a,
+        };
+        let mut shown = short.shown;
+        for (s, l) in shown.iter_mut().zip(&long.shown) {
+            *s &= *l;
+        }
+        let after = short.after.into_iter().filter(|a| long.after.contains(a)).collect();
+        out = Seen { shown, cut, after };
+    }
+    out
+}
+
 /// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
 /// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
 /// reading rule ([`is_safe_url`]). Never for received mail.
@@ -792,8 +816,9 @@ struct Builder {
     marker_at: Option<usize>,
     marker_due: Option<(usize, String)>,
     /// Open `<svg>` and `<math>`, whose `<template>` is none (foreign content, as in a browser):
-    /// for each, how many nodes were open when it was, so that it ends with what holds it.
-    foreign: Vec<usize>,
+    /// for each, how many nodes were open when it was (so that it ends with what holds it), and
+    /// whether it is a `<math>`.
+    foreign: Vec<(usize, bool)>,
 }
 
 impl Builder {
@@ -879,12 +904,16 @@ impl Builder {
                 // where it would have ended without it. (An SVG or MathML element ends with what
                 // holds it, if not before.)
                 let open = self.nodes.len();
-                self.foreign.retain(|at| *at <= open);
+                self.foreign.retain(|(at, _)| *at <= open);
+                // (An HTML element that can't be in SVG or MathML ends them, as in a browser.)
+                if breaks_out_of_foreign(&tag) {
+                    self.foreign.clear();
+                }
                 if tag.name == "template" && (self.template > 0 || (self.hidden == 0 && self.foreign.is_empty())) {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
                     if matches!(tag.name.as_str(), "svg" | "math") && !tag.self_closing && self.foreign.len() < MAX_FOREIGN {
-                        self.foreign.push(open);
+                        self.foreign.push((open, tag.name == "math"));
                     }
                     self.open(&tag);
                 }
@@ -895,8 +924,11 @@ impl Builder {
                 if name == "template" && self.template > 0 {
                     self.template -= 1;
                 } else if self.template == 0 {
-                    if matches!(name.as_str(), "svg" | "math") {
-                        self.foreign.pop();
+                    // (`</svg>` ends the innermost SVG element and what is open inside it.)
+                    if matches!(name.as_str(), "svg" | "math")
+                        && let Some(at) = self.foreign.iter().rposition(|(_, math)| *math == (name == "math"))
+                    {
+                        self.foreign.truncate(at);
                     }
                     self.end(&name);
                 }
@@ -3341,6 +3373,58 @@ pub(crate) fn canon(name: &str) -> &str {
         "xmp" | "listing" => "pre",
         name => name,
     }
+}
+
+/// Whether a start tag ends the SVG or MathML it is in, as a browser reads it (the HTML standard's
+/// rules for foreign content): an HTML element that has no place there.
+pub(crate) fn breaks_out_of_foreign(tag: &Tag<'_>) -> bool {
+    const OUT: [&str; 44] = [
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strong",
+        "strike",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    ];
+    OUT.contains(&tag.name.as_str()) || (tag.name == "font" && ["color", "face", "size"].iter().any(|a| tag.has(a)))
 }
 
 /// Elements that start on a new line and carry no meaning of their own here.

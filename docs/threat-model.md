@@ -44,8 +44,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   plain-text view and a reply's quoted original leave out what a message hides, and the quote
   follows the reading pane's own reading of where that starts and ends, whatever it is nested in
   (a template, a hidden block, an element the quote leaves out whole), at the width and in the
-  theme the message was read at (what its `@media` hid there), so it never carries what the pane
-  didn't show; the words of it
+  theme of the pane or window the reply was started from (what its `@media` hid there; a message
+  not read there carries only what every width and theme shows), so it never carries what the
+  pane didn't show; the words of it
   (`Message::hidden_text`, 16 KB at most, worked out when the message is read) are in the owner's
   search, rules and what an agent reads (`hiddenText` of `mail.get`), so that nothing a sender
   tucked away is out of reach of the owner's tools. For an agent it is message text like any

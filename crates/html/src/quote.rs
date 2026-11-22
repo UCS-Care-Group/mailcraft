@@ -214,7 +214,7 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 /// reading pane reads (at most [`MAX_INPUT`](crate::MAX_INPUT) bytes besides the pictures written
 /// into the message) and is linear in it.
 pub fn quotable(html: &str) -> String {
-    quote(html, None, &Env::default())
+    quote(html, None, Some(&Env::default()))
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -229,16 +229,22 @@ pub fn quotable(html: &str) -> String {
 /// pane): the caller keeps only those the result refers to.
 ///
 /// The message is read as the pane read it, at its width and in its theme (`env`, as for
-/// [`parse_in`](crate::parse_in)): what its `@media` hid there is left out.
-pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, env: &Env) -> String {
+/// [`parse_in`](crate::parse_in)): what its `@media` hid there is left out. With no `env` (no
+/// pane said how it read it), only what every look its `@media` gives it shows is carried.
+pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, env: Option<&Env>) -> String {
     quote(html, Some(written), env)
 }
 
-fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, env: &Env) -> String {
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, env: Option<&Env>) -> String {
     let html = truncate(html, MAX_INPUT_WITH_PICTURES);
     // What the reading pane shows, token by token: nothing it leaves out is carried, and it is
     // read as far as the pane reads it.
-    let seen = blocks::seen(html, env);
+    let seen = match env {
+        Some(env) => blocks::seen(html, env),
+        None => blocks::seen_everywhere(html),
+    };
+    let env = env.copied().unwrap_or_default();
+    let env = &env;
     let last = seen.shown.len().checked_sub(1);
     let mut after = seen.after.iter().peekable();
     let mut q = Quoter { written, ..Quoter::default() };
@@ -325,6 +331,11 @@ impl Quoter<'_, '_> {
         match token {
             Token::Text(_) => true,
             Token::Open(tag) => {
+                if matches!(skip.name.as_str(), "svg" | "math") && blocks::breaks_out_of_foreign(tag) {
+                    // `<svg><p>`: an HTML element ends the SVG it is in (as in the reading pane).
+                    self.skip = None;
+                    return false;
+                }
                 if skip.nested == 0 && ends_itself && closed_by(&skip.name, &tag.name) {
                     // `<p hidden>a<p>b`: the second paragraph ends the first.
                     self.skip = None;
