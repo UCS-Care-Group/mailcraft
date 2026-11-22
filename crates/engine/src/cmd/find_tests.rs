@@ -272,6 +272,26 @@ fn spans_replace_inside_a_word_when_whole_word_is_set() {
 }
 
 #[test]
+fn whole_word_keeps_a_joiner_between_letters_inside_the_word() {
+    for joiner in ['\u{200C}', '\u{200D}'] {
+        let joined = format!("cat{joiner}dog");
+        let mut s = writing(&joined);
+        assert_eq!(run(&mut s, "edit.find", json!({"text": "cat", "wholeWord": true}))["found"], false, "{joined}");
+        let r = run(&mut s, "edit.replace", json!({"text": "cat", "with": "dog", "all": true, "wholeWord": true}));
+        assert_eq!(r["replaced"], 0, "{joined}");
+        assert_eq!(mine(&s), joined);
+        let apart = format!("cat{joiner} dog");
+        let mut s = writing(&apart);
+        let r = run(&mut s, "edit.find", json!({"text": "cat", "wholeWord": true}));
+        assert_eq!((r["found"].as_bool(), r["from"].as_u64(), r["to"].as_u64()), (Some(true), Some(0), Some(3)), "{apart}");
+    }
+    let mut s = writing("cat dog");
+    let r = run(&mut s, "edit.replace", json!({"text": "cat", "with": "dog", "all": true, "wholeWord": true}));
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(mine(&s), "dog dog");
+}
+
+#[test]
 fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
     let mut s = writing("see teh and teh@example.org");
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "spans": [{"from": 4, "to": 7}]}));

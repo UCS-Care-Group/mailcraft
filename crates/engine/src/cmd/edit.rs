@@ -143,6 +143,11 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '\'' | '’')
 }
 
+/// U+200C (ZWNJ) or U+200D (ZWJ). Between two word characters it is inside the word.
+fn is_word_joiner(c: char) -> bool {
+    matches!(c, '\u{200C}' | '\u{200D}')
+}
+
 /// A combining mark (general category Mn, Mc or Me): part of the word it follows.
 fn is_combining_mark(c: char) -> bool {
     matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
@@ -232,6 +237,7 @@ impl<'a> Scanned<'a> {
     /// The character before `start` and the character after `end` are not part of the same word.
     /// A combining mark after the place keeps it inside the word, as does a word character with
     /// only marks between it and the place, and a place that itself starts on a mark.
+    /// A ZWNJ or ZWJ joins the word only when a word character sits on its other side.
     fn is_whole_word(&self, start: usize, end: usize) -> bool {
         if start >= end {
             return false;
@@ -240,18 +246,41 @@ impl<'a> Scanned<'a> {
         if is_combining_mark(first) {
             return false;
         }
+        !self.joins_word_before(start) && !self.joins_word_after(end)
+    }
+
+    fn joins_word_before(&self, start: usize) -> bool {
         let mut i = start;
         while i > 0 {
             let Some(c) = self.char_at(i.saturating_sub(1)) else { break };
-            if !is_combining_mark(c) {
-                if is_word_char(c) {
-                    return false;
-                }
-                break;
+            if is_combining_mark(c) || is_word_joiner(c) {
+                i = i.saturating_sub(1);
+                continue;
             }
-            i = i.saturating_sub(1);
+            return is_word_char(c);
         }
-        !self.char_at(end).is_some_and(|c| is_word_char(c) || is_combining_mark(c))
+        false
+    }
+
+    fn joins_word_after(&self, end: usize) -> bool {
+        let mut i = end;
+        let mut crossed_joiner = false;
+        loop {
+            let Some(c) = self.char_at(i) else { return false };
+            if is_word_joiner(c) {
+                crossed_joiner = true;
+                i = i.saturating_add(1);
+                continue;
+            }
+            if is_combining_mark(c) {
+                if !crossed_joiner {
+                    return true;
+                }
+                i = i.saturating_add(1);
+                continue;
+            }
+            return is_word_char(c);
+        }
     }
 }
 
