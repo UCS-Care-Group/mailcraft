@@ -18037,6 +18037,12 @@ msgid "To me"
 msgstr "An mich"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Bevor MailCraft einen Anhang öffnet, fragt es die Arbeitsumgebung, welche Art von Datei er ist, und weder gio (aus GLib) noch kmimetypefinder (aus KDE) ist installiert. Installieren Sie eines davon oder speichern Sie den Anhang mit Speichern unter."
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 #, fuzzy
 msgid ""

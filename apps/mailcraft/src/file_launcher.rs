@@ -24,8 +24,12 @@
 //! shell. Anything else is refused.
 
 use std::ffi::OsStr;
+use std::io::Read as _;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+use mailcraft_engine::opening;
 
 use mailcraft_ui_egui::data_removal::FolderTrouble;
 
@@ -146,20 +150,21 @@ fn said_kind(output: &[u8]) -> String {
 /// Open `path` with the first of [`TYPED`]'s openers that is installed, once its desktop has said
 /// it takes the file for one of `kinds` (`output` runs a typer and gives what it wrote, `spawn`
 /// starts the opener: the tests' stand-ins). A file it takes for anything else is refused
-/// (`InvalidData`) and nothing is started.
+/// (`InvalidData`) and nothing is started; with no typer installed nothing is started either
+/// (`Unsupported`).
 fn open_typed<T>(
     path: &Path,
     kinds: &[&str],
     mut output: impl FnMut(&mut Command) -> std::io::Result<Vec<u8>>,
     mut spawn: impl FnMut(&mut Command) -> std::io::Result<T>,
 ) -> std::io::Result<T> {
-    let mut last = std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an absolute path");
+    if !absolute_for(Opener::XdgOpen, path) {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an absolute path"));
+    }
+    let mut last = std::io::Error::new(std::io::ErrorKind::Unsupported, "no program says what kind a file is");
     for (mut typer, mut opener) in typers_for(path).into_iter().zip(commands_for(Opener::XdgOpen, Target::File, path)) {
         let said = match output(&mut typer) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                last = e;
-                continue;
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             said => said?,
         };
         let kind = said_kind(&said);
@@ -174,22 +179,63 @@ fn open_typed<T>(
     Err(last)
 }
 
-/// What a typer wrote, when it ran and said yes.
+/// How long a typer may take before the file is refused (it answers in milliseconds; a desktop
+/// whose session is stuck would otherwise hold the window).
+const TYPER_DEADLINE: Duration = Duration::from_secs(5);
+
+/// The most of a typer's answer that is read (it writes a few lines).
+const MAX_SAID: u64 = 64 * 1024;
+
+/// What a typer wrote, when it ran and said yes within [`TYPER_DEADLINE`].
 fn typer_output(command: &mut Command) -> std::io::Result<Vec<u8>> {
-    // lean: waits for the typer (a local program, quick); a deadline if one is ever seen to hang.
-    let out = command.output()?;
-    if out.status.success() { Ok(out.stdout) } else { Err(std::io::Error::other("the desktop couldn't say what kind the file is")) }
+    typer_output_within(command, TYPER_DEADLINE)
+}
+
+/// [`typer_output`] with the deadline given; a typer still running then is ended (`TimedOut`).
+fn typer_output_within(command: &mut Command, deadline: Duration) -> std::io::Result<Vec<u8>> {
+    let mut child = command.stdout(Stdio::piped()).spawn()?;
+    let started = Instant::now();
+    loop {
+        if let Some(status) = child.try_wait()? {
+            let mut said = Vec::new();
+            if let Some(out) = child.stdout.take() {
+                out.take(MAX_SAID).read_to_end(&mut said)?;
+            }
+            return if status.success() { Ok(said) } else { Err(std::io::Error::other("the desktop couldn't say what kind the file is")) };
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "the desktop took too long to say what kind the file is"));
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Whether MailCraft runs in a Flatpak sandbox, where `gio open` hands the file to the portal,
+/// which types it again outside, by the computer's own database.
+fn in_flatpak() -> bool {
+    std::env::var_os("FLATPAK_ID").is_some() || Path::new("/.flatpak-info").exists()
+}
+
+/// The types the desktop may give the file `name` for it to be opened ([`opening::desktop_types`]);
+/// none, inside a Flatpak sandbox, for a kind whose name has several types ([`opening::SEVERAL`]),
+/// which the computer outside may tell apart by what is in the file.
+fn kinds_for(name: &str, sandboxed: bool) -> &'static [&'static str] {
+    let ext = opening::extension(name);
+    if sandboxed && opening::SEVERAL.contains(&ext.as_str()) { &[] } else { opening::desktop_types(&ext) }
 }
 
 /// Open the file at `path` with the system's program and leave it running on its own. On Linux
 /// and the BSDs only when the desktop takes it for a kind of its name ([`open_typed`]); a file
-/// it takes for another kind is refused with `InvalidData`.
+/// it takes for another kind is refused with `InvalidData`, and with no program to say what kind
+/// it is, `Unsupported`.
 pub(crate) fn open_detached(path: &Path) -> std::io::Result<()> {
     if Opener::this_platform() != Opener::XdgOpen {
         return start_detached(Target::File, path);
     }
     let name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-    let kinds = mailcraft_engine::opening::desktop_types(&mailcraft_engine::opening::extension(name));
+    let kinds = kinds_for(name, in_flatpak());
     open_typed(path, kinds, typer_output, Command::spawn).map(reap)
 }
 

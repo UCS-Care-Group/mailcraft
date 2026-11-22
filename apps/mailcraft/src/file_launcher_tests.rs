@@ -103,10 +103,43 @@ fn a_file_the_desktop_takes_for_its_kind_is_opened_by_the_same_desktop() {
     // KDE's typer says a program: refused.
     let (r, _) = typed(PNG, |p| if p == "gio" { Err(not_found()) } else { Ok(b"application/x-ms-dos-executable\n".to_vec()) });
     assert_eq!(r.unwrap_err().kind(), std::io::ErrorKind::InvalidData);
-    // No typer installed: nothing is started.
+    // No typer installed: nothing is started, and the owner is told what is missing.
     let (r, ran) = typed(PNG, |_| Err(not_found()));
-    assert_eq!(r.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(r.unwrap_err().kind(), std::io::ErrorKind::Unsupported);
     assert_eq!(ran, ["gio", "kmimetypefinder", "kmimetypefinder5"]);
+    let told = mailcraft_ui_egui::no_kind_teller_text();
+    assert!(told.contains("gio") && told.contains("kmimetypefinder") && told.contains("Save As"), "{told}");
+    // A typer that takes too long is no yes either.
+    let (r, ran) = typed(PNG, |_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "slow")));
+    assert_eq!((r.unwrap_err().kind(), ran), (std::io::ErrorKind::TimedOut, vec!["gio".to_string()]));
+}
+
+#[test]
+fn inside_flatpak_a_kind_of_several_types_is_not_opened() {
+    // The portal types the file again outside, by the computer's own database.
+    for name in ["x.png", "x.json", "x.ogg", "x.html", "x.md"] {
+        assert!(kinds_for(name, true).is_empty(), "{name}");
+        assert!(!kinds_for(name, false).is_empty(), "{name}");
+    }
+    assert_eq!(kinds_for("x.pdf", true), kinds_for("x.pdf", false));
+    assert!(kinds_for("x.pdf", true).contains(&"application/pdf"));
+    assert!(kinds_for("x.qzx", false).is_empty() && kinds_for("noext", false).is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_typer_past_its_deadline_is_ended_and_refused() {
+    // `sleep` stands in for a typer that hangs (no desktop program is run).
+    let begun = std::time::Instant::now();
+    let mut slow = Command::new("sleep");
+    slow.arg("30").stdin(Stdio::null()).stderr(Stdio::null());
+    assert_eq!(typer_output_within(&mut slow, std::time::Duration::from_millis(100)).unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+    assert!(begun.elapsed() < std::time::Duration::from_secs(10));
+    // One that answers in time is read; one that fails is no answer.
+    let mut quick = Command::new("echo");
+    quick.arg("image/png");
+    assert_eq!(said_kind(&typer_output_within(&mut quick, std::time::Duration::from_secs(5)).unwrap()), "image/png");
+    assert!(typer_output_within(&mut Command::new("false"), std::time::Duration::from_secs(5)).is_err());
 }
 
 #[test]
@@ -142,7 +175,20 @@ fn nothing_else_opens_a_file() {
             && !path.ends_with("src/browser_tests.rs")
         {
             let text = std::fs::read_to_string(&path).unwrap();
-            if text.contains(concat!("open", "_detached(")) || text.contains(concat!("\"gio", "\"")) || text.contains(concat!("\"kde", "-open")) {
+            let openers = [
+                concat!("open", "_detached("),
+                concat!("\"gio", "\""),
+                concat!("\"kde", "-open"),
+                concat!("\"xdg", "-open"),
+                concat!("\"exo", "-open"),
+                concat!("\"gnome", "-open"),
+                concat!("\"mime", "open"),
+                concat!("\"hand", "lr"),
+                concat!("open", "::that"),
+                concat!("opener", "::open"),
+                concat!("web", "browser::"),
+            ];
+            if openers.iter().any(|o| text.contains(o)) {
                 offenders.push(path);
             }
         }

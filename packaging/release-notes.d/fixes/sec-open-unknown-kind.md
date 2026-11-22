@@ -1,1 +1,1 @@
-- On Linux and the BSDs, an attachment opens only when it is of a kind the desktop knows by name and the desktop agrees the file is that kind; any other attachment can be saved with Save As.
+- On Linux and the BSDs, an attachment opens only when it is of a kind the desktop knows by name (documents, pictures, sound and video, archives, mail, calendars, cards, signatures and keys) and the desktop agrees the file is that kind; MailCraft asks it with gio or kmimetypefinder, and says so when neither is installed. Any other attachment can be saved with Save As.

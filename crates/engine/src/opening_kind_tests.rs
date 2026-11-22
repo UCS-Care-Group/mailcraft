@@ -3,7 +3,7 @@
 //! Linux and the BSDs type a file by what is in it when they don't know its name: there only a
 //! kind the desktop knows by name ([`KNOWN`]) is opened, whatever else the lists say.
 
-use crate::opening::{BLOCKED, Chooser, KNOWN, MACROS, SCRIPTS, Verdict, desktop_types, verdict, verdict_for};
+use crate::opening::{BLOCKED, Chooser, KNOWN, MACROS, SCRIPTS, SEVERAL, Verdict, desktop_types, verdict, verdict_for};
 
 /// Every kind the lists name, every kind of [`KNOWN`], and every kind of one to three letters.
 fn every_kind() -> Vec<String> {
@@ -75,18 +75,103 @@ fn this_computer_is_judged_its_own_way() {
     }
 }
 
-/// Where this computer has the shared MIME database, every type it gives a known kind's name is
-/// one the host accepts for it, so that a file that is what its name says is never refused.
+/// Types a kind's name, a doubled kind ending in it, or a more particular type of its types can
+/// be given, which are refused on purpose: PostScript, a compressed drawing that runs scripts, a
+/// disk image, an HTML application, fonts, packages and the like, and a game cartridge's `.md`.
+const REFUSED_ON_PURPOSE: &[&str] = &[
+    "image/x-gzeps",
+    "image/x-bzeps",
+    "application/x-gzpostscript",
+    "application/x-bzpostscript",
+    "image/svg+xml-compressed",
+    "application/x-raw-disk-image-xz-compressed",
+    "application/hta",
+    "application/x-mozilla-bookmarks",
+    "application/x-ipynb+json",
+    "application/x-uml",
+    "application/x-qtiplot",
+    "application/x-font-pcf",
+    "application/x-font-snf",
+    "application/x-gz-font-linux-psf",
+    "application/vnd.kde.fontspackage",
+    "application/x-gzdvi",
+    "application/x-bzdvi",
+    "text/vnd.kde.kcrash-report",
+    "application/x-freedesktop-appstream-component",
+    "application/x-freedesktop-appstream-releases",
+    "application/x-gerber-job",
+    "model/gltf+json",
+    "application/x-genesis-rom",
+    "application/x-sega-pico-rom",
+];
+
+#[test]
+fn what_is_refused_on_purpose_is_never_accepted() {
+    for (kind, types) in KNOWN {
+        for t in *types {
+            assert!(!REFUSED_ON_PURPOSE.iter().any(|r| r.eq_ignore_ascii_case(t)), "{kind}: {t}");
+        }
+    }
+    let has = |kind: &str, t: &str| desktop_types(kind).contains(&t);
+    // Doubled kinds: a compressed tar file is typed by the longer name.
+    assert!(
+        has("gz", "application/x-compressed-tar") && has("bz2", "application/x-bzip2-compressed-tar") && has("xz", "application/x-xz-compressed-tar")
+    );
+    // An Opus `.ogg`, which GIO types by what is in it.
+    assert!(has("ogg", "audio/x-opus+ogg") && has("oga", "audio/x-opus+ogg"));
+    assert!(!has("xz", "application/x-raw-disk-image-xz-compressed") && !has("md", "application/x-genesis-rom"));
+    for kind in SEVERAL {
+        assert!(!desktop_types(kind).is_empty(), "{kind} is not known");
+    }
+}
+
+/// Where this computer has the shared MIME database, every type it can give a file of a known kind
+/// is one the host accepts for it (or one refused on purpose), so that a file that is what its
+/// name says is never refused: the types of `*.kind`, of every doubled `*.x.kind`, and, for a name
+/// with several types (which GIO tells apart by what is in the file, [`SEVERAL`]), every more
+/// particular type of those.
 #[test]
 fn the_known_types_cover_what_this_desktop_says() {
     let Ok(globs) = std::fs::read_to_string("/usr/share/mime/globs2") else { return };
+    let subclasses = std::fs::read_to_string("/usr/share/mime/subclasses").unwrap_or_default();
+    let globs: Vec<(&str, String)> = globs
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| {
+            let mut parts = l.split(':').skip(1);
+            Some((parts.next()?, parts.next()?.to_ascii_lowercase()))
+        })
+        .collect();
+    let plain = |p: &str| p.chars().all(|c| c.is_ascii_alphanumeric() || "._+-".contains(c));
     for (kind, types) in KNOWN {
-        let glob = format!("*.{kind}");
-        for line in globs.lines().filter(|l| !l.starts_with('#')) {
-            let mut parts = line.split(':');
-            let (_, ty, pattern) = (parts.next(), parts.next().unwrap_or_default(), parts.next().unwrap_or_default());
-            if pattern.eq_ignore_ascii_case(&glob) {
-                assert!(types.iter().any(|t| t.eq_ignore_ascii_case(ty)), "{kind}: {ty} is missing");
+        let accepted = |t: &str| types.iter().chain(REFUSED_ON_PURPOSE).any(|k| k.eq_ignore_ascii_case(t));
+        let own: std::collections::BTreeSet<&str> = globs.iter().filter(|(_, p)| *p == format!("*.{kind}")).map(|(t, _)| *t).collect();
+        for t in &own {
+            assert!(accepted(t), "{kind}: {t} is missing");
+        }
+        let suffix = format!(".{kind}");
+        for (t, p) in &globs {
+            if let Some(stem) = p.strip_prefix("*.").and_then(|r| r.strip_suffix(suffix.as_str()))
+                && !stem.is_empty()
+                && plain(stem)
+            {
+                assert!(accepted(t), "{kind}: {t} ({p}) is missing");
+            }
+        }
+        if own.len() > 1 {
+            assert!(SEVERAL.contains(kind), "{kind} has several types: {own:?}");
+            let mut parents: Vec<&str> = own.iter().copied().filter(|t| *t != "text/plain").collect();
+            let mut seen = std::collections::BTreeSet::new();
+            while let Some(parent) = parents.pop() {
+                for line in subclasses.lines() {
+                    if let Some((child, p)) = line.split_once(' ')
+                        && p == parent
+                        && seen.insert(child)
+                    {
+                        assert!(accepted(child), "{kind}: {child} (a {parent}) is missing");
+                        parents.push(child);
+                    }
+                }
             }
         }
     }

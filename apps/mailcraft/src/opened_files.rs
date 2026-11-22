@@ -75,9 +75,12 @@ impl Opened {
     pub fn open(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.write(name, bytes)?;
         crate::file_launcher::open_detached(&path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::InvalidData {
+            match e.kind() {
                 // The desktop takes it for a kind other than its name says (Linux and the BSDs).
-                return opening::blocked_message(name);
+                std::io::ErrorKind::InvalidData => return opening::blocked_message(name),
+                // Nothing to ask what kind it is (Linux and the BSDs).
+                std::io::ErrorKind::Unsupported => return mailcraft_ui_egui::no_kind_teller_text(),
+                _ => {}
             }
             log::warn!("couldn't open an attachment with the system's program ({:?})", e.kind());
             "No program could be started to open the attachment: save it with Save As instead.".to_string()

@@ -335,12 +335,14 @@ impl Chooser {
         if cfg!(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))) { Chooser::NameOrContent } else { Chooser::Name };
 }
 
-/// Kinds the shared MIME database of Linux and the BSDs has long known by name, each with the
-/// types (and their older names) the desktop may say a file of that kind is: with
-/// [`Chooser::NameOrContent`] no other kind is opened, and the host opens a file only when the
-/// desktop types it as one of these, since where a name has two types (a `.png` can be `image/png`
-/// or `image/apng`) GIO decides by what is in the file. The kinds of [`MACROS`] and [`SCRIPTS`]
-/// here still ask first.
+/// Kinds the shared MIME database of Linux and the BSDs knows by name, each with the types (and
+/// their older names) the desktop may say a file of that kind is: the kind's own, those of the
+/// doubled kinds that end in it (`.tar.gz`, `.pdf.xz`) and, where the name has two types (a
+/// `.png` can be `image/png` or `image/apng`) and GIO decides by what is in the file, the more
+/// particular types of those (an Opus `.ogg`). With [`Chooser::NameOrContent`] no other kind is
+/// opened, and the host opens a file only when the desktop types it as one of these, so a doubled
+/// kind left out (a disk image `.img.xz`, a compressed PostScript or drawing) is refused. The
+/// kinds of [`MACROS`] and [`SCRIPTS`] here still ask first.
 pub const KNOWN: &[(&str, &[&str])] = &[
     // Documents and text.
     ("pdf", &["application/pdf", "application/acrobat", "application/nappdf", "application/x-pdf", "image/pdf"]),
@@ -367,20 +369,68 @@ pub const KNOWN: &[(&str, &[&str])] = &[
     ("epub", &["application/epub+zip"]),
     ("tex", &["text/x-tex", "application/x-tex"]),
     ("log", &["text/x-log"]),
-    ("json", &["application/json", "application/schema+json"]),
+    (
+        "json",
+        &[
+            "application/json",
+            "application/schema+json",
+            "application/har+json",
+            "application/jrd+json",
+            "application/vnd.cyclonedx+json",
+            "application/ld+json",
+            "application/json-patch+json",
+            "application/spdx+json",
+            "application/geo+json",
+            "application/vnd.geo+json",
+        ],
+    ),
     ("yaml", &["application/yaml", "application/x-yaml", "text/x-yaml", "text/yaml"]),
     ("yml", &["application/yaml", "application/x-yaml", "text/x-yaml", "text/yaml"]),
     ("xps", &["application/vnd.ms-xpsdocument", "application/xps"]),
     ("djvu", &["image/vnd.djvu", "image/x-djvu", "image/x.djvu", "image/vnd.djvu+multipage"]),
     ("fb2", &["application/x-fictionbook+xml", "application/x-fictionbook"]),
     ("markdown", &["text/markdown", "text/x-markdown"]),
+    ("md", &["text/markdown", "text/x-markdown"]),
+    ("patch", &["text/x-patch", "text/x-diff"]),
+    ("diff", &["text/x-patch", "text/x-diff"]),
     // Mail, calendars and cards.
     ("eml", &["message/rfc822"]),
     ("mbox", &["application/mbox"]),
+    ("msg", &["application/vnd.ms-outlook"]),
     ("ics", &["text/calendar", "application/ics", "text/x-vcalendar"]),
     ("vcs", &["text/calendar", "application/ics", "text/x-vcalendar"]),
     ("vcf", &["text/vcard", "text/directory", "text/x-vcard"]),
     ("vcard", &["text/vcard", "text/directory", "text/x-vcard"]),
+    // Signatures, keys and certificates (shown, never run).
+    ("p7m", &["application/pkcs7-mime", "application/x-pkcs7-certificates"]),
+    ("p7s", &["application/pkcs7-signature"]),
+    ("asc", &["application/pgp-encrypted", "application/pgp", "application/pgp-keys", "application/pgp-signature", "text/plain"]),
+    ("sig", &["application/pgp-signature"]),
+    (
+        "pem",
+        &[
+            "application/pkcs10",
+            "application/pkcs12",
+            "application/x-pkcs12",
+            "application/pkcs7-mime",
+            "application/x-pkcs7-certificates",
+            "application/pkcs7-signature",
+            "application/pkcs8",
+            "application/pkcs8-encrypted",
+            "application/pkix-cert",
+            "application/x-x509-ca-cert",
+            "application/x-x509-user-cert",
+            "application/pkix-crl",
+            "application/x-pem-file",
+            "application/pkcs12+pem",
+            "application/pkcs7-mime+pem",
+            "application/pkcs8+pem",
+            "application/pkcs10+pem",
+            "application/x-pem-key",
+            "application/pkix-crl+pem",
+            "application/pkix-cert+pem",
+        ],
+    ),
     // Pictures.
     ("jpg", &["image/jpeg", "image/pjpeg"]),
     ("jpeg", &["image/jpeg", "image/pjpeg"]),
@@ -394,6 +444,7 @@ pub const KNOWN: &[(&str, &[&str])] = &[
     ("heic", &["image/heif", "image/heic", "image/heic-sequence", "image/heif-sequence"]),
     ("heif", &["image/heif", "image/heic", "image/heic-sequence", "image/heif-sequence"]),
     ("avif", &["image/avif", "image/avif-sequence"]),
+    ("jxl", &["image/jxl"]),
     ("ico", &["image/vnd.microsoft.icon", "application/ico", "image/ico", "image/icon", "image/x-ico", "image/x-icon", "text/ico"]),
     (
         "psd",
@@ -434,6 +485,9 @@ pub const KNOWN: &[(&str, &[&str])] = &[
             "video/x-ogg",
             "video/x-theora+ogg",
             "video/x-theora",
+            "video/x-ogm+ogg",
+            "video/x-ogm",
+            "audio/x-opus+ogg",
         ],
     ),
     (
@@ -447,9 +501,23 @@ pub const KNOWN: &[(&str, &[&str])] = &[
             "audio/x-vorbis+ogg",
             "audio/vorbis",
             "audio/x-vorbis",
+            "audio/x-opus+ogg",
         ],
     ),
-    ("opus", &["audio/ogg", "audio/x-ogg", "audio/x-opus+ogg"]),
+    (
+        "opus",
+        &[
+            "audio/ogg",
+            "audio/x-ogg",
+            "audio/x-opus+ogg",
+            "audio/x-vorbis+ogg",
+            "audio/vorbis",
+            "audio/x-vorbis",
+            "audio/x-flac+ogg",
+            "audio/x-oggflac",
+            "audio/x-speex+ogg",
+        ],
+    ),
     ("flac", &["audio/flac", "audio/x-flac"]),
     ("wav", &["audio/vnd.wave", "audio/wav", "audio/x-wav"]),
     ("wma", &["audio/x-ms-wma", "audio/wma"]),
@@ -466,15 +534,51 @@ pub const KNOWN: &[(&str, &[&str])] = &[
     ("mpg", &["video/mpeg", "video/mpeg-system", "video/x-mpeg", "video/x-mpeg-system", "video/x-mpeg2"]),
     ("mpeg", &["video/mpeg", "video/mpeg-system", "video/x-mpeg", "video/x-mpeg-system", "video/x-mpeg2"]),
     ("ogv", &["video/ogg", "video/x-ogg"]),
-    // Archives.
-    ("zip", &["application/zip", "application/x-zip", "application/x-zip-compressed"]),
+    (
+        "3gp",
+        &[
+            "video/3gpp",
+            "audio/3gpp",
+            "audio/3gpp-encrypted",
+            "audio/x-rn-3gpp-amr",
+            "audio/x-rn-3gpp-amr-encrypted",
+            "audio/x-rn-3gpp-amr-wb",
+            "audio/x-rn-3gpp-amr-wb-encrypted",
+            "video/3gp",
+            "video/3gpp-encrypted",
+        ],
+    ),
+    // Archives (with the compressed tar files and documents their doubled kinds name).
+    ("zip", &["application/zip", "application/x-zip", "application/x-zip-compressed", "application/x-zip-compressed-fb2"]),
     ("7z", &["application/x-7z-compressed"]),
     ("rar", &["application/vnd.rar", "application/x-rar", "application/x-rar-compressed"]),
     ("tar", &["application/x-tar", "application/x-gtar"]),
-    ("gz", &["application/gzip", "application/x-gzip"]),
+    (
+        "gz",
+        &[
+            "application/gzip",
+            "application/x-gzip",
+            "application/x-abiword",
+            "application/x-compressed-tar",
+            "application/x-cpio-compressed",
+            "application/x-gzpdf",
+            "image/x-compressed-xcf",
+        ],
+    ),
     ("tgz", &["application/x-compressed-tar"]),
-    ("bz2", &["application/x-bzip2", "application/bzip2", "application/x-bzip"]),
-    ("xz", &["application/x-xz"]),
+    (
+        "bz2",
+        &[
+            "application/x-bzip2",
+            "application/bzip2",
+            "application/x-bzip",
+            "application/x-bzip2-compressed-tar",
+            "application/x-bzip-compressed-tar",
+            "application/x-bzpdf",
+            "image/x-compressed-xcf",
+        ],
+    ),
+    ("xz", &["application/x-xz", "application/x-xz-compressed-tar", "application/x-xzpdf"]),
     // Office files that can carry macros (they ask first).
     ("doc", &["application/msword", "application/vnd.ms-word", "application/x-msword"]),
     ("dot", &["application/msword-template", "text/vnd.graphviz"]),
@@ -514,9 +618,14 @@ pub const KNOWN: &[(&str, &[&str])] = &[
     ("mht", &["application/x-mimearchive"]),
     ("mhtml", &["application/x-mimearchive"]),
     ("svg", &["image/svg+xml"]),
-    ("xml", &["application/xml", "text/xml"]),
+    ("xml", &["application/xml", "text/xml", "application/vnd.cyclonedx+xml"]),
     ("xsl", &["application/xslt+xml"]),
 ];
+
+/// The kinds of [`KNOWN`] whose name the shared MIME database gives two types or more, which GIO
+/// tells apart by what is in the file. Inside a Flatpak sandbox the file is typed again outside it,
+/// by the computer's own database, which can tell them apart otherwise: there they are not opened.
+pub const SEVERAL: &[&str] = &["png", "json", "ogg", "oga", "opus", "md", "htm", "html", "djvu", "dot", "pot", "pub", "asc", "pem"];
 
 /// The types the desktop may give a file of kind `ext` ([`KNOWN`]); none for a kind not there.
 pub fn desktop_types(ext: &str) -> &'static [&'static str] {

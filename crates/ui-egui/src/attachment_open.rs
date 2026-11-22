@@ -49,6 +49,13 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, Stri
     Some((tl!("Opening Mail Attachment").to_string(), text, tl!("Open").to_string()))
 }
 
+/// What the owner is told when an attachment isn't opened on Linux or a BSD because neither
+/// program that says what kind of file it is (`gio`, `kmimetypefinder`) is installed: the host
+/// opens a file only once the desktop has said it is the kind its name says.
+pub fn no_kind_teller_text() -> String {
+    tl!("To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As.").to_string()
+}
+
 /// `mail.openAttachment` from the window, the control channel or a test.
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
     if id != OPEN {

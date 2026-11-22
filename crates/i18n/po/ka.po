@@ -19158,6 +19158,12 @@ msgid "To me"
 msgstr "ჩემთვის"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "დანართის გასახსნელად MailCraft ჯერ სამუშაო გარემოს ეკითხება, რა ტიპის ფაილია, მაგრამ არც gio (GLib-იდან) და არც kmimetypefinder (KDE-დან) არ არის დაყენებული. დააყენეთ ერთ-ერთი, ან შეინახეთ დანართი ბრძანებით „შენახვა როგორც“."
+
+#. interface
 #: crates/ui-egui/src/server_sync.rs
 msgid ""
 "To read and send from the shared mailboxes you open with {address}, and to show the calendars shared with you, MailCraft needs your permission. Microsoft's page opens in your browser to ask you, once, for everything MailCraft uses that you haven't allowed yet.\n"

@@ -443,8 +443,14 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   `kmimetypefinder`), takes the written file for that kind; anything else can only be saved
   (`apps/mailcraft/src/file_launcher.rs`). The desktop types a file by its first bytes when it
   doesn't know the name, or knows two kinds for it, so what is in the file never chooses the
-  program. A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
-  the bytes alone.
+  program. The types accepted for a kind include those of the doubled kinds ending in it
+  (`.tar.gz`), less some refused on purpose (a disk image `.img.xz`, compressed PostScript or
+  drawings). A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
+  the bytes alone. The desktop has five seconds to answer; with no answer, or neither program
+  installed, nothing is opened. Inside a Flatpak sandbox the portal types the file again with the
+  computer's own database, so a kind whose name has several types there (`opening::SEVERAL`) is
+  not opened at all; a computer whose database knows more types for a name than the sandbox's
+  remains a limit of the portal.
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).
