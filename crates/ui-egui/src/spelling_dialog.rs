@@ -184,6 +184,14 @@ impl SpellingDialog {
 
     /// `true` when the host has no dictionary for this language.
     fn scan_some(&mut self, app: &mut MailApp, locale: &str) -> bool {
+        // Snapshot when the scan starts. `inputs` stays empty until a mistake is shown, so a
+        // change while the walk is between paragraphs would otherwise keep a stale origin.
+        if self.inputs.is_none() {
+            self.remember(app, locale);
+        } else if self.inputs_changed(app, locale) {
+            self.restart();
+            self.remember(app, locale);
+        }
         let mut budget = REVIEW_PARAGRAPHS_PER_FRAME;
         if self.step == Step::Subject {
             budget = budget.saturating_sub(1);

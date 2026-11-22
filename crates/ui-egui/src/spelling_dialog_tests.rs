@@ -373,6 +373,55 @@ fn spelling_off_or_missing_is_said_and_opens_nothing() {
 }
 
 #[test]
+fn the_walk_restarts_when_the_body_changes_before_a_mistake_is_shown() {
+    let fillers = 30;
+    let mut lines = vec!["Hello".to_string()];
+    lines.extend(std::iter::repeat_with(|| "Ok".to_string()).take(fillers));
+    lines.push("teh".to_string());
+    let original = lines.join("\n");
+    lines[0] = "Hello teh@example.org".to_string();
+    let edited = lines.join("\n");
+
+    let mut app = hosted();
+    message(&mut app, "Hello", &original);
+    let mut h = window(app);
+    h.state_mut().run("review.spelling", json!({})).unwrap();
+    let mut started = false;
+    for _ in 0..6 {
+        h.run_steps(1);
+        let dialog = spelling(h.state());
+        if dialog.current.as_ref().is_some_and(|mistake| mistake.word == "teh") || dialog.complete {
+            panic!("the scan reached the mistake before the body changed");
+        }
+        if matches!(dialog.step, super::Step::Body(n) if n > 0) {
+            started = true;
+            break;
+        }
+    }
+    assert!(started, "the scan did not leave the subject");
+    h.state_mut().execute("compose.set", json!({"body": edited})).unwrap();
+    for _ in 0..20 {
+        h.run_steps(1);
+        let dialog = spelling(h.state());
+        if dialog.current.is_some() || dialog.complete {
+            break;
+        }
+    }
+    assert_eq!(word(h.state()), "teh");
+    let text = plain(h.state());
+    let want = text.rfind("\nteh").map(|at| at + 1).expect("the word is still its own paragraph");
+    let mistake = spelling(h.state()).current.as_ref().expect("a mistake is shown");
+    assert_eq!(mistake.from, want, "the offset follows the body as it is now");
+    let selected: String = text.chars().skip(mistake.from).take(mistake.to.saturating_sub(mistake.from)).collect();
+    assert_eq!(selected, "teh");
+    click_label(&mut h, "Change");
+    let after = plain(h.state());
+    assert!(after.contains("teh@example.org"), "{after}");
+    assert!(after.contains("\nthe"), "{after}");
+    assert!(!after.contains("\nteh"), "{after}");
+}
+
+#[test]
 fn the_walk_restarts_when_the_subject_changes_under_it() {
     let mut app = hosted();
     message(&mut app, "teh", "Hello");
