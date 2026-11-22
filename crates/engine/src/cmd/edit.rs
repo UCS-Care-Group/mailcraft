@@ -419,18 +419,8 @@ fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdR
         places.push((from, to));
     }
     places.sort_by_key(|place| place.0);
-    let mut last = 0usize;
-    for (from, to) in &places {
-        if *from < last {
-            return Err(fail("the text has changed at the place to replace"));
-        }
-        let Some(slice) = char_slice(&plain, *from, *to) else {
-            return Err(fail("the text has changed at the place to replace"));
-        };
-        if slice != text {
-            return Err(fail("the text has changed at the place to replace"));
-        }
-        last = *to;
+    if !spans_match(&plain, text, &places) {
+        return Err(fail("the text has changed at the place to replace"));
     }
     if !places.is_empty() {
         edit(s, &json!({}), |b| b.replace_places(&places, with))?;
@@ -438,13 +428,37 @@ fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdR
     Ok(json!({"replaced": places.len(), "found": false}))
 }
 
-/// Characters `from..to` of `text`, when both ends fall on character boundaries inside it.
-fn char_slice(text: &str, from: usize, to: usize) -> Option<String> {
-    if from >= to {
-        return None;
+/// Sorted `places` do not overlap, and each one is exactly `text`. One walk of `plain`,
+/// comparing borrowed slices, so a long list does not re-read the draft for every place.
+/// `false` leaves the text unchanged: the caller has not edited yet.
+fn spans_match(plain: &str, text: &str, places: &[(usize, usize)]) -> bool {
+    let mut chars = plain.char_indices().peekable();
+    let mut index = 0usize;
+    let mut last = 0usize;
+    for &(from, to) in places {
+        if from < last || to <= from {
+            return false;
+        }
+        while index < from {
+            if chars.next().is_none() {
+                return false;
+            }
+            index = index.saturating_add(1);
+        }
+        let start_byte = chars.peek().map(|(byte, _)| *byte).unwrap_or(plain.len());
+        while index < to {
+            if chars.next().is_none() {
+                return false;
+            }
+            index = index.saturating_add(1);
+        }
+        let end_byte = chars.peek().map(|(byte, _)| *byte).unwrap_or(plain.len());
+        if plain.get(start_byte..end_byte) != Some(text) {
+            return false;
+        }
+        last = to;
     }
-    let slice: String = text.chars().skip(from).take(to.saturating_sub(from)).collect();
-    (slice.chars().count() == to.saturating_sub(from)).then_some(slice)
+    true
 }
 
 #[cfg(test)]

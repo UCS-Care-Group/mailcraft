@@ -292,6 +292,20 @@ fn whole_word_keeps_a_joiner_between_letters_inside_the_word() {
 }
 
 #[test]
+fn replace_spans_checks_many_places_quickly() {
+    let count = 100_000usize;
+    let body = "teh ".repeat(count);
+    let mut s = writing(&body);
+    let spans: Vec<Value> = (0..count).map(|n| json!({"from": n * 4, "to": n * 4 + 3})).collect();
+    let started = std::time::Instant::now();
+    let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "spans": spans}));
+    let elapsed = started.elapsed();
+    assert!(elapsed.as_millis() < 1_500, "checking {count} places took {elapsed:?}");
+    assert_eq!(r["replaced"], count);
+    assert!(mine(&s).starts_with("the the the "));
+}
+
+#[test]
 fn replace_spans_changes_only_those_places_and_undoes_in_one_step() {
     let mut s = writing("see teh and teh@example.org");
     let r = run(&mut s, "edit.replace", json!({"text": "teh", "with": "the", "spans": [{"from": 4, "to": 7}]}));
