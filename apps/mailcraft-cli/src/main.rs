@@ -559,7 +559,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 }
                             };
                             let tokens = signed_in.map_err(|e| format!("sync: {e}"))?;
-                            if tokens.someone_else(&request.account.email, &request.account.username) {
+                            // (As the window judges it: an own provider's names needn't be the
+                            // account's; the mail servers judge its token, #1844 review.)
+                            if mailcraft_engine::sync_driver::signed_in_as_other(&request.account, &tokens) {
                                 return Err(SOMEONE_ELSE.to_string().into());
                             }
                             tokens.access

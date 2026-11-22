@@ -163,7 +163,9 @@ fn judge_issued(request: &[u8], state: &str, issuer: &str, required: bool) -> (&
     // nor shown (#1844 review).
     if let Some((_, error)) = fields.iter().find(|(name, _)| name == "error").filter(|(_, error)| !error.is_empty()) {
         log::info!("the identity provider's page came back with a no");
-        return (&FAILED, Some(Err(Refused::from(refused(error)))));
+        // (The owner's own no, `access_denied` or `consent_required`, stays theirs: Declined.)
+        let declined = matches!(error.trim().to_ascii_lowercase().as_str(), "access_denied" | "consent_required");
+        return (&FAILED, Some(Err(Refused { declined, ..Refused::from(refused(error)) })));
     }
     match code_of(&fields) {
         Ok(code) => (&DONE, Some(Ok(code))),

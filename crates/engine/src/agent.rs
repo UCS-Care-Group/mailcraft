@@ -3556,9 +3556,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         (o.provider, used.authorize, used.token, used.client_id, used.revoke)
                     })
                 };
-                if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != signs_in_at(account)) {
+                let was = signs_in_at(account);
+                if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != was) {
                     match now {
-                        Some((mailcraft_model::OAuthProvider::Custom, page, token, ..)) => {
+                        Some((mailcraft_model::OAuthProvider::Custom, page, token, client, revoke)) => {
                             // (Each from its start and its end, so that two that differ late are
                             // told apart.)
                             let said = |address: &str| {
@@ -3574,6 +3575,19 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                                 said(&page),
                                 said(&token)
                             ));
+                            // (What else changed is named too: where the refresh token goes when
+                            // the account is removed, and the client, #1844 review.)
+                            let before = was.as_ref().filter(|w| w.0 == mailcraft_model::OAuthProvider::Custom);
+                            if before.is_none_or(|w| w.4 != revoke) {
+                                if revoke.trim().is_empty() {
+                                    text.push_str("; it names no revocation address");
+                                } else {
+                                    text.push_str(&format!("; the refresh token is given back to {} when the account is removed", said(&revoke)));
+                                }
+                            }
+                            if before.is_none_or(|w| w.3 != client) {
+                                text.push_str(&format!("; as the client \u{201c}{}\u{201d}", clip(&client, 80)));
+                            }
                         }
                         Some((provider, ..)) => text.push_str(&format!("; it signs in with {}", provider.label())),
                         None => text.push_str("; it signs in with a password"),

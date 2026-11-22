@@ -215,5 +215,7 @@ fn an_agent_is_told_of_a_sign_in_change_however_late_in_the_address() {
     let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "tokenUrl": other}));
     assert!(said.contains("its own identity provider") && said.contains("/two"), "{said}");
     let revoke = crate::agent::describe(&s, "account.edit", &json!({"id": id, "revokeUrl": "https://elsewhere.example.org/revoke"}));
-    assert!(revoke.contains("its own identity provider"), "{revoke}");
+    assert!(revoke.contains("its own identity provider") && revoke.contains("elsewhere.example.org/revoke"), "{revoke}");
+    let client = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientId": "other-client"}));
+    assert!(client.contains("other-client"), "{client}");
 }

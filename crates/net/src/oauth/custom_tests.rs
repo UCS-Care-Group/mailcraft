@@ -374,3 +374,18 @@ fn a_no_from_the_page_is_said_in_fixed_words_never_the_providers() {
     let error = sign_in_custom(&own(&server), "", "", &open, &AtomicBool::new(false)).unwrap_err();
     assert!(!format!("{error} {error:?}").contains("Private"), "{error}");
 }
+
+/// The owner's own no on the provider's page is still the owner's: Declined, in fixed words
+/// (#1844 review).
+#[test]
+fn the_owners_no_on_the_page_is_declined() {
+    for code in ["access_denied", "consent_required"] {
+        let server = FakeHttp::answering(good("r"));
+        let (open, _) = browser_adding(true, &format!("&error={code}&error_description=Private"));
+        let end = sign_in_custom_explained(&own(&server), "", "", &open, &AtomicBool::new(false)).unwrap_err();
+        assert!(matches!(end, SignInEnd::Declined), "{code}: {end:?}");
+    }
+    let server = FakeHttp::answering(good("r"));
+    let (open, _) = browser_adding(true, "&error=server_error");
+    assert!(!matches!(sign_in_custom_explained(&own(&server), "", "", &open, &AtomicBool::new(false)), Err(SignInEnd::Declined)));
+}

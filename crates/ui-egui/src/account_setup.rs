@@ -1723,6 +1723,8 @@ impl AccountSetup {
             self.error = problem;
             return false;
         }
+        // (As it was: a client secret kept under settings that change goes with them, #1844 review.)
+        let before = app.session.mailbox.account(id).cloned();
         if let Some((command, params)) = self.edit_command()
             && let Err(e) = app.execute(command, params)
         {
@@ -1730,6 +1732,9 @@ impl AccountSetup {
             return false;
         }
         self.keep_client_secret(app, id);
+        if let Some(before) = before {
+            app.drop_stale_client_secret(&before);
+        }
         if let Some((_, ask)) = self.ask_conversation.filter(|(was, ask)| was != ask) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "askBeforeDeletingConversation": ask})) {
                 self.error = e;

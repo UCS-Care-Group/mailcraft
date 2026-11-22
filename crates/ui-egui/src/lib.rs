@@ -3732,6 +3732,27 @@ impl MailApp {
         }
     }
 
+    /// Forget, in the credential store, the client secret kept for `before` (the account as it was
+    /// before its settings were saved) under names it no longer has: its own provider's settings
+    /// changed, or it signs in otherwise now. A secret is kept under the settings it is for, so
+    /// one under old settings would never be found again, only left behind (#1844 review).
+    pub(crate) fn drop_stale_client_secret(&mut self, before: &mailcraft_model::Account) {
+        if !before.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Custom && o.has_secret) {
+            return;
+        }
+        let now = self.session.mailbox.account(before.id).map(|a| Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, a)).unwrap_or_default();
+        let stale: Vec<String> =
+            Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, before).into_iter().filter(|k| !now.contains(k)).collect();
+        for key in &stale {
+            self.secret_cache.remove(key);
+        }
+        if let Some(store) = &self.services.secrets {
+            for key in stale {
+                store.delete(&key);
+            }
+        }
+    }
+
     /// Hand an own identity provider's refresh token for `gone`, an account being removed, to the
     /// host to give back (`Services::revoke_sign_in`), with its client secret. Nothing when it
     /// names nowhere to give it back, or there is none.
@@ -4848,7 +4869,9 @@ impl MailApp {
             Ok(tokens) => {
                 self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
-                if let Err(e) = self.start_sync(&json!({"account": account})) {
+                // (A renewal nobody asked for goes on as quietly as it began: no page opens for
+                // the run after it, #1844 review.)
+                if let Err(e) = self.start_sync(&json!({"account": account, "quiet": !asked_for})) {
                     if self.token_retried == Some(account) {
                         self.token_retried = None;
                     }

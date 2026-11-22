@@ -140,3 +140,25 @@ fn a_public_client_needs_no_secret() {
     assert_eq!(*asked.lock().unwrap(), 1);
     assert!(a.session.sync_status.contains("browser"), "{}", a.session.sync_status);
 }
+
+/// A client secret kept under settings that then change isn't left behind in the credential
+/// store, where it would never be found again (#1844 review).
+#[test]
+fn a_secret_kept_under_settings_that_changed_is_taken_out_of_the_store() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let id = own_account(&mut a);
+    a.set_client_secret(id, SECRET);
+    let before = a.session.mailbox.account(id).cloned().unwrap();
+    let old = MailApp::secret_key(OAUTH_CLIENT, &before);
+    assert!(store.get(&old).is_some());
+    a.execute("account.edit", json!({"id": id, "tokenUrl": format!("{ISSUER}/other-token")})).unwrap();
+    a.drop_stale_client_secret(&before);
+    assert!(store.get(&old).is_none(), "left behind under the old settings");
+    // Unchanged settings keep it.
+    a.set_client_secret(id, SECRET);
+    let kept = a.session.mailbox.account(id).cloned().unwrap();
+    a.execute("account.edit", json!({"id": id, "displayName": "Alice"})).unwrap();
+    a.drop_stale_client_secret(&kept);
+    assert!(store.get(&MailApp::secret_key(OAUTH_CLIENT, &kept)).is_some());
+}
