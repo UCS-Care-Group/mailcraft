@@ -1329,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 29,
-        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 28,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), the font faces test, header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -4830,4 +4830,87 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     // A script or an agent is never asked: the command does what it is told.
     assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
     assert!(harness.state().dialog.is_none());
+}
+
+/// A reply to a message read in the dark theme quotes it as the pane read it: what its style sheet
+/// hides in a dark window is not in the quote.
+#[test]
+fn a_reply_quotes_the_message_as_the_pane_read_it() {
+    let html = "<style>@media (prefers-color-scheme:dark){.d{display:none}}</style><p>Shown words</p><p class=d>Light only words</p>";
+    let (app, ids) = app_with(vec![message(0, ("Rui Sousa", "rui@example.org"), "Minutes", Some(html.into()), String::new())]);
+    let mut harness = window(app, (1280.0, 800.0));
+    for (theme, light_only) in [("dark", false), ("light", true)] {
+        harness.state_mut().execute("ui.theme", json!({"value": theme})).unwrap();
+        harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+        harness.run_steps(4);
+        harness.state_mut().execute("mail.reply", json!({"id": ids[0]})).unwrap();
+        let q = harness.state().session.compose.as_ref().and_then(|c| c.quote.clone()).unwrap();
+        assert!(q.html.contains("Shown words"), "{theme}: {}", q.html);
+        assert_eq!(q.html.contains("Light only words"), light_only, "{theme}: {}", q.html);
+        assert_eq!(q.text.contains("Light only words"), light_only, "{theme}: {}", q.text);
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+        harness.run_steps(2);
+    }
+}
+
+/// A message drawn before its body came (no HTML yet: its text is all there is) is not taken
+/// for one shown as its text part: the HTML that comes later is quoted, not the text beside it,
+/// even with no frame drawn in between.
+#[test]
+fn a_reply_after_the_body_came_quotes_its_html_not_the_text_drawn_before() {
+    let m = message(0, ("Rui Sousa", "rui@example.org"), "Later", None, "Preview words".into());
+    let (app, ids) = app_with(vec![m]);
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(false));
+    // The body comes, HTML and a text part that says something else; no frame.
+    harness.state_mut().session.mailbox.message_mut(ids[0]).unwrap().body =
+        Body { text: "SENDER ALTERNATIVE".into(), html: Some("<p>Shown words</p>".into()) };
+    for command in ["mail.reply", "mail.forward"] {
+        harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
+        let c = harness.state().session.compose.clone().unwrap();
+        let q = c.quote.clone().unwrap_or_else(|| panic!("{command}: quoted as text"));
+        assert!(q.html.contains("Shown words") && !q.text.contains("SENDER ALTERNATIVE"), "{command}: {}", q.html);
+        assert!(!c.body.plain().contains("SENDER ALTERNATIVE"), "{command}");
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+    }
+}
+
+/// A reply or forward quotes the message as the pane showed it, its HTML or its text part,
+/// whatever the HTML holds: a picture the pane finds however its address is written, one it
+/// hasn't got, one on the web, one written into the message, or nothing at all.
+#[test]
+fn a_reply_quotes_the_html_or_the_text_part_as_the_pane_showed_it() {
+    let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+    let data = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+    for html in [
+        "<img src=\"cid:logo%40news.example\">".to_string(),
+        "<img src=\"cid:<logo@news.example>\">".to_string(),
+        "<img src=\"cid:missing@news.example\">".to_string(),
+        "<img src=\"https://pics.example/a.png\" alt=\"ALTWORDS\">".to_string(),
+        format!("<img src=\"{data}\">"),
+        "<script>x()</script>".to_string(),
+    ] {
+        let mut m = message(0, ("Rui Sousa", "rui@example.org"), "Logo", Some(html.clone()), "SENDER ALTERNATIVE".into());
+        m.attachments =
+            vec![Attachment { content_id: "logo@news.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", png.to_vec()) }];
+        let (app, ids) = app_with(vec![m]);
+        let mut harness = window(app, (1280.0, 800.0));
+        harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+        harness.run_steps(4);
+        let m = harness.state().session.mailbox.message(ids[0]).unwrap().clone();
+        let can_download = super::remote::available(harness.state());
+        let from_text = Doc::of_in(&m, can_download, mailcraft_html::Env::default()).from_text;
+        assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(from_text), "{html}");
+        for command in ["mail.reply", "mail.forward"] {
+            harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
+            let c = harness.state().session.compose.clone().unwrap();
+            assert_eq!(c.quote.is_none(), from_text, "{html} {command}");
+            assert_eq!(c.body.plain().contains("SENDER ALTERNATIVE"), from_text, "{html} {command}");
+            assert!(c.quote.is_none_or(|q| !q.text.contains("SENDER ALTERNATIVE")), "{html} {command}");
+            harness.state_mut().execute("compose.close", json!({})).unwrap();
+            harness.run_steps(2);
+        }
+    }
 }

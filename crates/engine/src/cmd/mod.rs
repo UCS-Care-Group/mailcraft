@@ -93,6 +93,8 @@ pub mod graph_switch;
 pub mod graph_up;
 pub mod help;
 #[cfg(test)]
+mod hidden_quote_tests;
+#[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
 pub mod imap_fetch;
