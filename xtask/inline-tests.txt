@@ -6,7 +6,6 @@ apps/mailcraft/src/clipboard.rs
 apps/mailcraft/src/control_server.rs
 apps/mailcraft/src/desktop_theme.rs
 apps/mailcraft/src/diagnostics.rs
-apps/mailcraft/src/graphics.rs
 apps/mailcraft/src/logging.rs
 apps/mailcraft/src/opened_files.rs
 apps/mailcraft/src/picture_cache.rs
