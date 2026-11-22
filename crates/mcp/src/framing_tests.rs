@@ -666,3 +666,96 @@ fn a_name_copied_back_from_an_answer_names_the_same_thing() {
     let half = format!("x {}", category.as_str().unwrap());
     assert!(exec(&mut h, &pol, "mail.list", json!({"folder": half, "query": ""})).is_err());
 }
+
+#[test]
+fn a_screenshot_always_says_it_is_untrusted() {
+    let pol = Policy { allow: mailcraft_engine::agent::Class::ALL.to_vec(), ..Policy::default() };
+    let r = call_tool(&mut Answering(json!({"data": "iVBORw0KGgo=", "width": 800, "height": 600})), &pol, "screenshot", &json!({}));
+    assert_eq!(r.content[0]["type"], "image");
+    let info: Value = serde_json::from_str(r.content[1]["text"].as_str().unwrap()).unwrap();
+    assert_eq!((&info["untrusted"], &info["width"]), (&json!(true), &json!(800)), "{info}");
+}
+
+/// Text that is hard to frame and give back: look-alike brackets, invisible characters between
+/// them, the escapes themselves.
+const AWKWARD: &[&str] = &[
+    "\u{2039}\u{2039}x\u{203a}\u{203a}",
+    "<<x>>",
+    "\u{2039}<x>\u{203a}",
+    "\u{ff1c}\u{ff1c}end\u{ff1e}\u{ff1e}",
+    "\u{fe64}\u{fe64}end\u{fe65}\u{fe65}",
+    "<\u{200b}<end>\u{2060}>",
+    "&lt;&lt;end&gt;&gt; &amp; &#x3c; &#xZZ; & &",
+    "Tom & Jerry <tom@example.org>",
+    "\u{00ab}\u{00ab}quote\u{00bb}\u{00bb} \u{3008}\u{3008}x\u{3009}\u{3009}",
+    "",
+];
+
+#[test]
+fn what_a_frame_holds_reads_as_no_marker_and_comes_back_exactly() {
+    let opens = ['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}'];
+    let closes = ['>', '\u{ff1e}', '\u{fe65}', '\u{203a}', '\u{00bb}', '\u{232a}', '\u{3009}', '\u{27e9}', '\u{276f}', '\u{276d}'];
+    for t in AWKWARD {
+        let e = crate::tools::escape(t);
+        assert_eq!(crate::tools::unescape(&e), *t, "{e}");
+        // Nothing that shows two brackets of one way side by side, invisible characters aside.
+        let shown: Vec<char> = e.chars().filter(|c| !mailcraft_names::is_format(*c) && !mailcraft_names::is_ignorable(*c)).collect();
+        for w in shown.windows(2) {
+            assert!(!(opens.contains(&w[0]) && opens.contains(&w[1]) || closes.contains(&w[0]) && closes.contains(&w[1])), "{t:?} -> {e:?}");
+        }
+    }
+    // Plain text keeps its look.
+    assert_eq!(crate::tools::escape("Tom & Jerry <tom@example.org>"), "Tom & Jerry <tom@example.org>");
+}
+
+#[test]
+fn names_that_differ_only_in_their_brackets_come_back_apart() {
+    let mut f = fixture();
+    let message = f.message;
+    let mut h = Headless::new(std::mem::replace(&mut f.session, Session::empty()), Vec::new());
+    let pol = Policy::default();
+    for name in ["\u{2039}\u{2039}x\u{203a}\u{203a}", "<<x>>"] {
+        exec(&mut h, &pol, "mail.clearCategories", json!({"ids": [message]})).unwrap();
+        exec(&mut h, &pol, "mail.categorize", json!({"ids": [message], "category": name, "value": true})).unwrap();
+        let framed = exec(&mut h, &pol, "mail.get", json!({"id": message})).unwrap()["categories"][0].clone();
+        exec(&mut h, &pol, "mail.clearCategories", json!({"ids": [message]})).unwrap();
+        exec(&mut h, &pol, "mail.categorize", json!({"ids": [message], "category": framed, "value": true})).unwrap();
+        assert_eq!(h.session.mailbox.message(message).unwrap().categories, vec![name.to_string()], "{framed}");
+    }
+}
+
+#[test]
+fn a_plain_key_is_plain_only_for_a_word_of_the_program_s() {
+    let v = frame(json!({"color": MARKS, "id": "Hostile name", "kind": "inbox", "date": "2026-10-14T09:30:00Z"}));
+    let mut bare = Vec::new();
+    bare_marks(&v, "", &mut bare);
+    assert!(bare.is_empty(), "{bare:?}");
+    assert!(v["id"].as_str().unwrap().starts_with(UNTRUSTED_OPEN), "{v}");
+    assert_eq!((&v["kind"], &v["date"]), (&json!("inbox"), &json!("2026-10-14T09:30:00Z")));
+}
+
+#[test]
+fn a_key_made_of_outside_text_is_framed() {
+    let v = frame(json!({"byName": {MARKS: 1, "plainKey": 2}}));
+    let mut bare = Vec::new();
+    bare_marks(&v, "", &mut bare);
+    assert!(bare.is_empty() && v["untrusted"] == json!(true), "{bare:?} {v}");
+    assert_eq!(v["byName"]["plainKey"], 2);
+}
+
+#[test]
+fn the_name_of_a_mailbox_being_opened_is_framed() {
+    let r = call_tool(&mut Answering(json!({"mailbox": "opening", "opening": {"name": MARKS, "done": 3}})), &Policy::default(), "status", &json!({}));
+    let v: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
+    let mut bare = Vec::new();
+    bare_marks(&v, "", &mut bare);
+    assert!(bare.is_empty(), "{bare:?}");
+    assert_eq!(v["mailbox"], "opening");
+}
+
+#[test]
+fn a_list_always_comes_in_the_same_shape() {
+    assert_eq!(frame(json!([])), json!({"items": []}));
+    assert_eq!(frame(json!([1, 2])), json!({"items": [1, 2]}));
+    assert_eq!(frame(json!(["x"]))["items"][0].as_str().map(|t| t.starts_with(UNTRUSTED_OPEN)), Some(true));
+}

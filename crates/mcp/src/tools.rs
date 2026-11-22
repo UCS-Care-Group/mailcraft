@@ -67,14 +67,106 @@ pub(crate) const PLAIN_KEYS: &[&str] = &[
     "color",
 ];
 
+/// Characters that read as `<` or `>`: the frame's markers can't be written with them either.
+const OPENS: &[char] = &['<', '\u{ff1c}', '\u{fe64}', '\u{2039}', '\u{00ab}', '\u{2329}', '\u{3008}', '\u{27e8}', '\u{276e}', '\u{276c}'];
+const CLOSES: &[char] = &['>', '\u{ff1e}', '\u{fe65}', '\u{203a}', '\u{00bb}', '\u{232a}', '\u{3009}', '\u{27e9}', '\u{276f}', '\u{276d}'];
+
+/// A character that shows nothing (a zero-width space, a bidirectional mark…).
+fn invisible(c: char) -> bool {
+    mailcraft_names::is_format(c) || mailcraft_names::is_ignorable(c)
+}
+
+/// `t` as it stands in a frame: two characters that read as `<` (or `>`) side by side, with only
+/// invisible ones between them, are written `&lt;` or `&#x…;`, and so are those invisible ones,
+/// so nothing inside can read as a marker; an `&` that would read as such an escape is `&amp;`.
+/// [`unescape`] gives `t` back exactly.
+pub(crate) fn escape(t: &str) -> String {
+    let chars: Vec<char> = t.chars().collect();
+    let kind = |c: char| {
+        if OPENS.contains(&c) {
+            1
+        } else if CLOSES.contains(&c) {
+            2
+        } else {
+            0
+        }
+    };
+    // The nearest visible neighbour on either side.
+    let neighbour = |i: usize, back: bool| -> Option<char> {
+        let mut j = i;
+        loop {
+            j = if back { j.checked_sub(1)? } else { j.checked_add(1)? };
+            let c = *chars.get(j)?;
+            if !invisible(c) {
+                return Some(c);
+            }
+        }
+    };
+    let paired = |i: usize, k: u8| k != 0 && [neighbour(i, true), neighbour(i, false)].into_iter().flatten().any(|c| kind(c) == k);
+    let mut out = String::with_capacity(t.len());
+    for (i, &c) in chars.iter().enumerate() {
+        let near_angle = || [neighbour(i, true), neighbour(i, false)].into_iter().flatten().any(|c| kind(c) != 0);
+        let k = kind(c);
+        if k != 0 && paired(i, k) || invisible(c) && near_angle() {
+            match c {
+                '<' => out.push_str("&lt;"),
+                '>' => out.push_str("&gt;"),
+                c => out.push_str(&format!("&#x{:x};", u32::from(c))),
+            }
+        } else if c == '&'
+            && ["lt;", "gt;", "amp;", "#x"].iter().any(|e| chars.get(i + 1..).is_some_and(|r| r.iter().take(e.len()).copied().eq(e.chars())))
+        {
+            out.push_str("&amp;");
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// What [`escape`] wrote, as it was.
+pub(crate) fn unescape(t: &str) -> String {
+    let mut out = String::with_capacity(t.len());
+    let mut rest = t;
+    while let Some(at) = rest.find('&') {
+        out.push_str(rest.get(..at).unwrap_or_default());
+        let tail = rest.get(at..).unwrap_or_default();
+        let hex = tail.strip_prefix("&#x").and_then(|h| h.split_once(';')).and_then(|(h, r)| {
+            let c = (h.len() <= 6).then(|| u32::from_str_radix(h, 16).ok()).flatten().and_then(char::from_u32)?;
+            Some((c, r))
+        });
+        let (c, next) = if let Some(r) = tail.strip_prefix("&lt;") {
+            ('<', r)
+        } else if let Some(r) = tail.strip_prefix("&gt;") {
+            ('>', r)
+        } else if let Some(r) = tail.strip_prefix("&amp;") {
+            ('&', r)
+        } else if let Some((c, r)) = hex {
+            (c, r)
+        } else {
+            ('&', tail.get(1..).unwrap_or_default())
+        };
+        out.push(c);
+        rest = next;
+    }
+    out.push_str(rest);
+    out
+}
+
 fn wrap_text(t: &str) -> String {
     // The text can't end the frame early.
-    format!("{UNTRUSTED_OPEN}{}{UNTRUSTED_CLOSE}", t.replace("<<", "\u{2039}\u{2039}").replace(">>", "\u{203a}\u{203a}"))
+    format!("{UNTRUSTED_OPEN}{}{UNTRUSTED_CLOSE}", escape(t))
+}
+
+/// A short word of the program's own: a value under one of [`PLAIN_KEYS`] is left plain only
+/// when it is one, and a key of an answer is left as it is only when it is one.
+fn token(t: &str) -> bool {
+    !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_alphanumeric() || "_:+./#-".contains(c))
 }
 
 fn frame_in(v: Value, plain: bool, framed: &mut bool) -> Value {
     match v {
-        Value::String(t) if !plain && !t.is_empty() => {
+        Value::String(t) if !(plain && token(&t)) && !t.is_empty() => {
             *framed = true;
             Value::String(wrap_text(&t))
         }
@@ -84,11 +176,21 @@ fn frame_in(v: Value, plain: bool, framed: &mut bool) -> Value {
                 .map(|(k, x)| {
                     // An item's own bytes: they can't be framed and stay whole, but the answer
                     // says they are untrusted.
-                    if k == "data" && x.is_string() {
-                        *framed = true;
-                    }
                     let plain = PLAIN_KEYS.contains(&k.as_str());
-                    (k, frame_in(x, plain, framed))
+                    let x = if k == "data" && x.is_string() {
+                        *framed = true;
+                        x
+                    } else {
+                        frame_in(x, plain, framed)
+                    };
+                    // A key that isn't a word of the program's (a name a map is keyed by).
+                    let k = if token(&k) {
+                        k
+                    } else {
+                        *framed = true;
+                        wrap_text(&k)
+                    };
+                    (k, x)
                 })
                 .collect(),
         ),
@@ -96,19 +198,19 @@ fn frame_in(v: Value, plain: bool, framed: &mut bool) -> Value {
     }
 }
 
-/// Mark what came from outside as untrusted (defence in depth: the gate is what protects). An
-/// answer with text framed says so (`untrusted`), a list of them in an object of its own
-/// (`items`); one with none is left as it was.
+/// Mark what came from outside as untrusted (defence in depth: the gate is what protects). A list
+/// always comes in an object of its own (`items`), and so does framed text; an answer with text
+/// framed says so (`untrusted`); one with none is left as it was.
 pub fn frame(v: Value) -> Value {
     let mut framed = false;
-    let v = frame_in(v, false, &mut framed);
+    let mut v = match frame_in(v, false, &mut framed) {
+        a @ Value::Array(_) => json!({"items": a}),
+        t @ Value::String(_) if framed => json!({"items": t}),
+        other => other,
+    };
     if !framed {
         return v;
     }
-    let mut v = match v {
-        Value::Object(o) => Value::Object(o),
-        other => json!({"items": other}),
-    };
     if let Some(o) = v.as_object_mut() {
         o.insert("untrusted".into(), json!(true));
         o.insert("untrustedNote".into(), json!(UNTRUSTED_NOTE));
@@ -121,9 +223,7 @@ pub fn frame(v: Value) -> Value {
 fn unframe(v: Value) -> Value {
     match v {
         Value::String(t) => match t.strip_prefix(UNTRUSTED_OPEN).and_then(|t| t.strip_suffix(UNTRUSTED_CLOSE)) {
-            Some(inner) if !inner.contains("<<") && !inner.contains(">>") => {
-                Value::String(inner.replace("\u{2039}\u{2039}", "<<").replace("\u{203a}\u{203a}", ">>"))
-            }
+            Some(inner) if !inner.contains("<<") && !inner.contains(">>") => Value::String(unescape(inner)),
             _ => Value::String(t),
         },
         Value::Array(a) => Value::Array(a.into_iter().map(unframe).collect()),
@@ -510,7 +610,13 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             wrap(exec(b, "tasks.list", params))
         }
         "parity" => wrap(b.call("ui.parity", json!({}))),
-        "status" => wrap(b.call("app.status", json!({}))),
+        "status" => wrap(b.call("app.status", json!({})).map(|mut v| {
+            // The name of the mailbox file being opened, which may have come from anywhere.
+            if let Some(opening) = v.get_mut("opening").filter(|o| !o.is_null()) {
+                *opening = frame(opening.take());
+            }
+            v
+        })),
         "screenshot" => {
             if !b.has_ui() {
                 return ToolResult::error(format!("`ui.screenshot` {}", crate::NEEDS_APP));
@@ -518,7 +624,15 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
             // The picture comes back in the answer: nothing is written anywhere.
             match b.call("ui.screenshot", json!({"inline": true})) {
                 Ok(mut info) => match info.as_object_mut().and_then(|o| o.remove("data")) {
-                    Some(Value::String(png)) => ToolResult::image(png, &frame(info)),
+                    Some(Value::String(png)) => {
+                        // The picture shows subjects, senders and the message open: always untrusted.
+                        let mut info = frame(info);
+                        if let Some(o) = info.as_object_mut() {
+                            o.insert("untrusted".into(), json!(true));
+                            o.insert("untrustedNote".into(), json!(UNTRUSTED_NOTE));
+                        }
+                        ToolResult::image(png, &info)
+                    }
                     _ => ToolResult::error("the window gave no picture"),
                 },
                 Err(e) => ToolResult::error(e),

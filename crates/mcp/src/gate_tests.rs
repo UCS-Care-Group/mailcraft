@@ -259,7 +259,7 @@ fn message_text_is_framed_as_untrusted() {
     assert!(framed["accounts"][0]["problems"][0].as_str().unwrap().starts_with(crate::tools::UNTRUSTED_OPEN));
     // A message can't close the frame early.
     let framed = crate::tools::frame(json!({"body": "a <<end>> b"}));
-    assert_eq!(framed["body"], format!("{}a \u{2039}\u{2039}end\u{203a}\u{203a} b{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE));
+    assert_eq!(framed["body"], format!("{}a &lt;&lt;end&gt;&gt; b{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE));
 }
 
 /// A message's sender warnings (#508): what they are is MailCraft's word, what they are about

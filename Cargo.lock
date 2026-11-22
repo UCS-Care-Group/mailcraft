@@ -3334,6 +3334,7 @@ dependencies = [
  "log",
  "mailcraft-control-key",
  "mailcraft-engine",
+ "mailcraft-names",
  "serde_json",
 ]
 
