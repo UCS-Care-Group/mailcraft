@@ -277,6 +277,9 @@ pub(crate) struct Layout {
     /// Paragraphs checked in the last paint, and squiggles drawn, for tests.
     spelling_checks: usize,
     spelling_marks: usize,
+    /// The scroll area's visible clip from the last paint, in screen coordinates.
+    /// `None` until the body has been painted.
+    visible: Option<Rect>,
 }
 
 impl Layout {
@@ -705,7 +708,8 @@ pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
 }
 
 /// Where `[from, to)` sits on screen, from the layout painted this frame. `None` when that text
-/// is not on screen (a Subject word, or the body has not been drawn yet).
+/// is not on screen (a Subject word, the body has not been drawn yet, or the span is scrolled
+/// out of the body's visible clip).
 pub(crate) fn spelling_selection_rect(app: &MailApp, ctx: &egui::Context, from: usize, to: usize) -> Option<Rect> {
     if to <= from {
         return None;
@@ -716,7 +720,8 @@ pub(crate) fn spelling_selection_rect(app: &MailApp, ctx: &egui::Context, from: 
     let kept = store(ctx, which.id(app));
     let layout = kept.lock().unwrap_or_else(|e| e.into_inner());
     let rect = layout.caret(from).union(layout.caret(to)).translate(body.min.to_vec2());
-    (rect.height() >= 1.0).then_some(rect)
+    let shown = rect.intersect(layout.visible?);
+    (shown.height() >= 1.0).then_some(shown)
 }
 
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
@@ -1168,6 +1173,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
     let clip = ui.clip_rect();
+    layout.visible = Some(clip);
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);

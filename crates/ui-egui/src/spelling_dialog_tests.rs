@@ -583,6 +583,34 @@ fn a_window_smaller_than_the_dialog_or_a_broken_rect_never_panics() {
 }
 
 #[test]
+fn a_word_scrolled_out_of_the_body_has_no_selection_rect() {
+    let mut body = String::from("teh\n");
+    for _ in 0..120 {
+        body.push_str("a line of the message stays here\n");
+    }
+    let mut h = window(hosted());
+    message(h.state_mut(), "Hello", &body);
+    h.run_steps(6);
+    let on = crate::compose::editor::spelling_selection_rect(h.state(), &h.ctx, 0, 3);
+    let on = on.expect("the word at the top is on screen");
+    h.event(egui::Event::PointerMoved(on.center()));
+    h.step();
+    for _ in 0..8 {
+        h.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -400.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+            source: egui::MouseWheelSource::Unknown,
+        });
+        h.step();
+    }
+    h.run_steps(8);
+    let off = crate::compose::editor::spelling_selection_rect(h.state(), &h.ctx, 0, 3);
+    assert!(off.is_none(), "a word scrolled out of view is not placed at the screen edge: {off:?}");
+}
+
+#[test]
 fn suggestion_rows_are_whole_and_the_word_stays_visible() {
     let mut h = window(hosted());
     message(h.state_mut(), "Notes", "Please check teh spelling here.");
