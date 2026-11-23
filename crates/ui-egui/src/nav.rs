@@ -457,7 +457,11 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
             // Its owner's, while the owner has it hidden: the way back (#1834 review).
             if archive_hidden(&app.session.mailbox, id) {
                 if ui.add(egui::Button::new(tl!("Show Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
-                    let _ = app.run("account.archive.show", json!({"account": id}));
+                    // (Then a run of the owner's, as Refresh starts one: the server is asked now,
+                    // and the archive comes back with its answer, #1834 review.)
+                    if app.run("account.archive.show", json!({"account": id})).is_ok() {
+                        let _ = app.run("ui.sync", json!({"account": id}));
+                    }
                     ui.close();
                 }
                 ui.separator();

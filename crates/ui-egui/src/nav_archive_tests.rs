@@ -175,7 +175,8 @@ fn a_run_that_read_well_keeps_what_it_said() {
 }
 
 /// Hidden, the archive's heading is gone: its owner's heading menu offers Show Online Archive,
-/// which runs the command, and the next run's yes brings it back (#1834 review).
+/// which runs the command and starts a run of the owner's, whose yes brings it back (#1834
+/// review).
 #[test]
 fn hidden_its_owners_menu_brings_it_back() {
     let (mut app, owner, archive) = app();
@@ -188,14 +189,23 @@ fn hidden_its_owners_menu_brings_it_back() {
     use egui_kittest::kittest::Queryable as _;
     let mut h =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 1600.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
+            // (The window without its logic: no run starts by itself here, only what is clicked.)
+            |ui, app: &mut MailApp| app.ui(ui),
             app,
         );
     h.run_steps(4);
+    // A host for the runs from here on that says what each was asked (and never answers).
+    h.state_mut().passwords.insert(owner, "an invented password".into());
+    let asked: std::sync::Arc<std::sync::Mutex<Vec<(Id, bool)>>> = Default::default();
+    let seen = asked.clone();
+    let held: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<mailcraft_model::sync::EwsMailResult>>>> = Default::default();
+    let keep = held.clone();
+    h.state_mut().services.ews = Some(Box::new(move |job: crate::ews_mail::EwsJob| {
+        seen.lock().unwrap().push((job.request.account, job.request.probe_archive));
+        let (tx, rx) = std::sync::mpsc::channel();
+        keep.lock().unwrap().push(tx);
+        rx
+    }));
     let pos = h.state().hit.rect("folderHeading", owner).expect("the owner's heading is on screen").center();
     h.event(egui::Event::PointerMoved(pos));
     h.step();
@@ -204,12 +214,16 @@ fn hidden_its_owners_menu_brings_it_back() {
         h.step();
     }
     h.run_steps(2);
+    assert!(asked.lock().unwrap().is_empty(), "nothing started before the click: {:?}", asked.lock().unwrap());
     h.get_by_label("Show Online Archive").click();
     h.run_steps(3);
     let app = h.state_mut();
     assert!(!archive_hidden(&app.session.mailbox, owner));
     let request = mailcraft_engine::cmd::ews_mail::ews_mail_request(&app.session, owner, false).unwrap();
     assert!(request.probe_archive, "the server is asked again");
+    // And a run of the owner's starts at once, as Refresh starts one, asking the server about
+    // the archive (#1834 review).
+    assert_eq!(asked.lock().unwrap().as_slice(), [(owner, true)], "one run of the owner's, asking about the archive");
 }
 
 /// The folders a move or a copy is offered are those the engine takes it into (#1834 review):

@@ -75,7 +75,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"account": number (the online archive, or the Exchange server account it belongs to)} — takes the account's online archive off the folder pane, and the server isn't asked about it again until account.archive.show; nothing of it was kept on this computer, and nothing on the server changes. Answers {"hidden": owner id}"#)
             .when(available),
         CommandSpec::new("account.archive.show", "Show Online Archive", "Folder Pane", show_archive)
-            .params(r#"{"account": number (an Exchange server account)} — shows the account's online archive again: the next Send/Receive asks the server, and adds it when there is one. For an archive the setup found kept in Exchange Online, the account's own server is asked once: one there is shown; none, and it is taken to be in Exchange Online again (said once more). Answers {"shown": owner id, "askingAgain": bool}"#)
+            .params(r#"{"account": number (an Exchange server account)} — shows the account's online archive again: takes effect at the next Send/Receive of the account (this starts none), which asks the server and adds it when there is one. For an archive the setup found kept in Exchange Online, the account's own server is asked once: one there is shown; none, and it is taken to be in Exchange Online again (said once more). Answers {"shown": owner id, "askingAgain": bool}"#)
             .when(available),
     ]
 }
