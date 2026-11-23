@@ -251,10 +251,14 @@ const KNOWN: [(DistinguishedFolder, Option<FolderKind>); 7] = [
     (DistinguishedFolder::Outbox, None),
 ];
 
-/// The archive's distinguished folders asked for together (#1818): both came with Exchange 2010
-/// SP1, as the archive did. Its Inbox has a later schema's name ([`ARCHIVE_INBOX`]).
-const KNOWN_ARCHIVE: [(DistinguishedFolder, Option<FolderKind>); 2] =
-    [(DistinguishedFolder::ArchiveMessageRoot, None), (DistinguishedFolder::ArchiveDeletedItems, Some(FolderKind::Deleted))];
+/// The top of the archive's mail (#1818), asked for by itself: a run of the archive needs it. The
+/// others are asked for each in a request of its own ([`ARCHIVE_DELETED`], [`ARCHIVE_INBOX`]).
+const KNOWN_ARCHIVE: [(DistinguishedFolder, Option<FolderKind>); 1] = [(DistinguishedFolder::ArchiveMessageRoot, None)];
+
+/// The archive's Deleted Items, asked for by itself (#1834 review): a server whose schema hasn't
+/// the name (one that isn't Exchange, say) refuses the whole request, and the archive is read
+/// without it, its Deleted Items then a folder like any other.
+const ARCHIVE_DELETED: [DistinguishedFolder; 1] = [DistinguishedFolder::ArchiveDeletedItems];
 
 /// The archive's Inbox, asked for by itself: a server whose schema hasn't the name refuses the
 /// whole request, and an archive needn't have an Inbox at all.
@@ -387,14 +391,18 @@ impl<E: HttpExchange> Run<'_, E> {
             }
         }
         if self.store == Store::Archive {
-            // (Anything but what ends the run is "no Inbox there": an archive needn't have one.)
-            let get = GetFolder::new(&ARCHIVE_INBOX);
-            match self.ask(&get.element(), &|reply| get.answer(reply)).await {
-                Ok(answers) => {
-                    found.extend(answers.into_iter().flatten().map(|info| (DistinguishedFolder::ArchiveInbox, Some(FolderKind::Inbox), info)))
+            // (Each by itself, and anything but what ends the run is "not there": an archive
+            // needn't have an Inbox, and a server needn't know every name.)
+            for (names, folder, kind) in [
+                (&ARCHIVE_DELETED, DistinguishedFolder::ArchiveDeletedItems, FolderKind::Deleted),
+                (&ARCHIVE_INBOX, DistinguishedFolder::ArchiveInbox, FolderKind::Inbox),
+            ] {
+                let get = GetFolder::new(names);
+                match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+                    Ok(answers) => found.extend(answers.into_iter().flatten().map(|info| (folder, Some(kind), info))),
+                    Err(stop) if ends_the_run(&stop) => return Err(stop),
+                    Err(_) => log::info!("ews folders: one of the archive's folders wasn't given by its name; its folders are read without it"),
                 }
-                Err(stop) if ends_the_run(&stop) => return Err(stop),
-                Err(_) => log::info!("ews folders: the archive's Inbox wasn't given; its folders are read without it"),
             }
         }
         let mut out = Specials::default();

@@ -203,6 +203,31 @@ fn an_archive_without_an_inbox_or_a_name_for_it_is_read_all_the_same() {
     assert!(result.folders.as_ref().unwrap().changed.iter().any(|f| f.id == old));
 }
 
+/// A server that has the archive but not the name of its Deleted Items (one that isn't Exchange,
+/// say) refuses a request that asks for it: asked for by itself, the archive is read all the
+/// same, its Deleted Items a folder like any other (#1834 review).
+#[test]
+fn an_archive_whose_deleted_items_has_no_name_there_is_read_all_the_same() {
+    let standin = StandIn::new();
+    let (_, old) = both(&standin, true);
+    standin.state().unknown_names = vec!["archivedeleteditems".into()];
+    let result = run(&standin, Store::Archive, &request());
+    assert!(result.errors.is_empty() && result.whole, "{:?}", result.errors);
+    let folders = result.folders.as_ref().unwrap();
+    assert!(folders.changed.iter().any(|f| f.id == old));
+    let kind = |name: &str| folders.changed.iter().find(|f| f.name == name).map(|f| f.kind);
+    assert_eq!(kind("Inbox"), Some(FolderKind::Inbox), "the others named as ever");
+    assert!(kind("Deleted Items").is_some(), "still listed");
+    assert!(result.pages.iter().flat_map(|p| &p.messages).any(|m| m.subject == "Budget 2019"), "its mail is read");
+    // Neither of the two names makes the run fail.
+    let standin = StandIn::new();
+    let (_, old) = both(&standin, true);
+    standin.state().unknown_names = vec!["archivedeleteditems".into(), "archiveinbox".into()];
+    let result = run(&standin, Store::Archive, &request());
+    assert!(result.errors.is_empty() && result.whole, "{:?}", result.errors);
+    assert!(result.folders.as_ref().unwrap().changed.iter().any(|f| f.id == old));
+}
+
 #[test]
 fn a_run_of_an_archive_the_server_doesnt_have_says_so_and_reads_nothing() {
     let standin = StandIn::new();
