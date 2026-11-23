@@ -361,7 +361,7 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::To
             Some(Note::Refused(why)) => tl!(&why).to_string(),
             _ => String::new(),
         };
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.add_space(24.0);
             let link = ui.link(tl!("Connect Outlook's Favorites")).on_hover_text(tl!(
                 "Sign in with Microsoft once more to let MailCraft read the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is."

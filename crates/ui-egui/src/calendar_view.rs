@@ -505,9 +505,9 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
         ui.memory_mut(|m| m.request_focus(entry));
     }
     let inner = Rect::from_min_max(pos2(field.min.x + 4.0, field.min.y), pos2(field.max.x - 2.0, field.min.y + BAR_H.max(20.0)));
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(crate::rtl::start_to_end(egui::Align::Center)));
     let edit =
-        egui::TextEdit::singleline(text).id(entry).frame(egui::Frame::NONE).desired_width(inner.width()).font(semibold(11.5)).char_limit(MAX_TITLE);
+        crate::rtl::singleline(text).id(entry).frame(egui::Frame::NONE).desired_width(inner.width()).font(semibold(11.5)).char_limit(MAX_TITLE);
     let resp = crate::text_menu::field(child.add(edit));
     if crate::text_menu::left(&resp) {
         let title = text.trim().to_string();
@@ -1145,7 +1145,7 @@ impl Blocks {
 fn side_pane(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let width = if app.ui.folder_pane_width.is_finite() { app.ui.folder_pane_width.clamp(200.0, 360.0) } else { 230.0 };
-    let panel = egui::Panel::left("calendar_side")
+    let panel = crate::rtl::start_panel("calendar_side")
         .default_size(width)
         .size_range(200.0..=360.0)
         .resizable(true)

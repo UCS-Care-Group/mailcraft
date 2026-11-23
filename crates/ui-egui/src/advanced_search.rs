@@ -251,7 +251,7 @@ fn panel_id() -> Id {
 
 /// A field of the panel, named by `label` for screen readers; Enter in it searches.
 fn field(ui: &mut Ui, label: egui::Id, id: &str, value: &mut String, width: f32, hint: &str, enter: &mut bool) -> Response {
-    let resp = ui.add(egui::TextEdit::singleline(value).id_salt(id).desired_width(width).hint_text(hint.to_owned())).labelled_by(label);
+    let resp = ui.add(crate::rtl::singleline(value).id_salt(id).desired_width(width).hint_text(hint.to_owned())).labelled_by(label);
     let resp = crate::text_menu::field(resp);
     if resp.lost_focus() && crate::keys::enter(ui.ctx(), ui.layer_id()) {
         *enter = true;
@@ -288,7 +288,7 @@ fn row(ui: &mut Ui, label_w: Option<f32>, label: &str, add: impl FnOnce(&mut Ui,
         ui.add_space(4.0);
         return;
     };
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         let id = ui.add_sized(vec2(label_w, 22.0), egui::Label::new(label).halign(egui::Align::LEFT)).id;
         add(ui, id);
     });
@@ -388,7 +388,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                         };
                         let (first, last) = (tl!("Pick the first day"), tl!("Pick the last day"));
                         if one_line {
-                            ui.horizontal(|ui| {
+                            crate::rtl::horizontal(ui, |ui| {
                                 ui.spacing_mut().item_spacing.x = 2.0;
                                 day(ui, "advanced_received_from", &mut panel.received_from, problems.0, side, first);
                                 ui.add_space(4.0);
@@ -401,7 +401,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                                 ("advanced_received_from", &mut panel.received_from, problems.0, first),
                                 ("advanced_received_to", &mut panel.received_to, problems.1, last),
                             ] {
-                                ui.horizontal(|ui| {
+                                crate::rtl::horizontal(ui, |ui| {
                                     ui.spacing_mut().item_spacing.x = 2.0;
                                     day(ui, id, text, problem, (field_w - button).max(60.0), name);
                                 });
@@ -458,7 +458,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                 });
             });
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.menu_button(format!("+ {}", tl!("Add filters")), |ui| {
                     for (label, which) in [(tl!("Cc"), Filter::Cc), (tl!("Read status"), Filter::Read), (tl!("Importance"), Filter::Importance)] {
                         let mut on = panel.shows(filters, which);
@@ -472,7 +472,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                         }
                     }
                 });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     clear = ui.add(egui::Button::new(tl!("Clear filters")).min_size(vec2(0.0, 26.0))).clicked();
                     search = crate::widgets::primary_button(ui, tl!("Search"), ok).clicked();
                 });

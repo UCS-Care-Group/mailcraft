@@ -305,7 +305,7 @@ pub(crate) fn section(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ))
         .color(t.text_dim),
     );
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         if let Some(shown) = app.data_folder_shown(false) {
             let path = shown.path().to_string_lossy().to_string();
             let (label, tip) = match &shown {

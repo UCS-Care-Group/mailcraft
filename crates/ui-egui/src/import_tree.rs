@@ -184,7 +184,7 @@ impl ImportTree {
         if let Some(importing) = importing {
             // Working off the window's thread: say how far it is, and let the owner stop it.
             crate::software::repaint_after(ui.ctx(), std::time::Duration::from_millis(100));
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                 ui.label(self.progress_text(importing));
             });
@@ -225,8 +225,8 @@ impl ImportTree {
                     for f in folders.iter().take(LISTED) {
                         let path = f.get("path").and_then(Value::as_str).unwrap_or("");
                         let n = f.get("added").and_then(Value::as_u64).unwrap_or(0);
-                        ui.horizontal(|ui| {
-                            ui.allocate_ui_with_layout(vec2(WIDTH - 130.0, 18.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        crate::rtl::horizontal(ui, |ui| {
+                            ui.allocate_ui_with_layout(vec2(WIDTH - 130.0, 18.0), crate::rtl::start_to_end(egui::Align::Center), |ui| {
                                 ui.add(egui::Label::new(path).truncate());
                             });
                             ui.label(RichText::new(tln!(n, "{n} message", "{n} messages")).color(t.text_dim));

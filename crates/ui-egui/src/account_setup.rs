@@ -26,7 +26,7 @@ mod senders;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
-use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
+use egui::{Align, Align2, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
 use mailcraft_model::provider::{Discovered, Via};
 use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Rgb, Security, Server, is_within, provider};
 use serde_json::{Map, Value, json};
@@ -2062,7 +2062,7 @@ impl AccountSetup {
             let gap = ui.spacing().item_spacing.x;
             let half = ((ui.available_width() - gap) / 2.0).max(40.0);
             for pair in Kind::tiles().chunks(2) {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     for kind in pair {
                         if tile(ui, *kind, half, &t).clicked() {
                             action = Some(Action::Pick(*kind));
@@ -2198,7 +2198,7 @@ impl AccountSetup {
                 note(ui, tl!("Or is it one of these?"), t.text_dim);
                 let gap = ui.spacing().item_spacing.x;
                 let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     for kind in [Kind::Microsoft365, Kind::Exchange] {
                         if tile(ui, kind, half, &t).clicked() {
                             offered = Some(kind);
@@ -2368,7 +2368,7 @@ impl AccountSetup {
         let (mut done, mut another) = (false, false);
         strip(ui, self.page, |ui| {
             done = button(ui, tl!("Done"), true, true).clicked();
-            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+            ui.with_layout(crate::rtl::start_to_end(Align::Center), |ui| {
                 ui.add_space(f32::from(PAD));
                 another = ui.link(tl!("Add another account")).clicked();
             });
@@ -2480,7 +2480,7 @@ impl AccountSetup {
             }
             if let Some((_, keep)) = self.keep_offline.as_mut() {
                 caption(ui, tl!("Mail to keep offline"), &t);
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     let steps = KeepOffline::STEPS;
                     let last = steps.len().saturating_sub(1);
                     let mut index = steps.iter().position(|k| k == keep).unwrap_or(last);
@@ -2713,7 +2713,7 @@ fn field(ui: &mut Ui, pass: &mut Pass, key: &'static str, label: &str, value: &m
 /// ports with and without TLS from the first byte, shown as the hint.
 fn server_row(ui: &mut Ui, pass: &mut Pass, label: &str, key: &'static str, server: &mut ServerFields, host_hint: &str, ports: (u16, u16)) {
     caption(ui, label, &pass.t);
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         let mut choices = vec![(Security::Tls, "TLS"), (Security::StartTls, "STARTTLS")];
         // An account that came with an unencrypted server (one on this computer) shows it.
         if server.security == Security::None {
@@ -2805,7 +2805,7 @@ fn problem(ui: &mut Ui, message: &str) {
 /// has the keyboard doesn't hand it to the next page's.
 fn strip(ui: &mut Ui, page_in_view: Page, add: impl FnOnce(&mut Ui)) {
     ui.add_space(6.0);
-    ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 30.0), Layout::right_to_left(Align::Center), |ui| {
+    ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 30.0), crate::rtl::end_to_start(Align::Center), |ui| {
         ui.add_space(f32::from(PAD));
         ui.push_id(page_in_view, add);
     });

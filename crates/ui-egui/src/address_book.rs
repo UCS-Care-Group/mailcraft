@@ -273,7 +273,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+    crate::rtl::start_panel("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
         crate::nav::module_foot(app, ui);
         list(app, ui);
     });
@@ -317,7 +317,7 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
     };
     let mut picked = None;
     ui.add_space(2.0);
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.add_space(10.0);
         let width = (ui.available_width() - 10.0).max(60.0);
         egui::ComboBox::from_id_salt("people_book").width(width).selected_text(label(current)).truncate().show_ui(ui, |ui| {
@@ -410,7 +410,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         }
         if more {
             ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 ui.add_space(12.0);
                 ui.label(
                     RichText::new(crate::i18n::fmt(
@@ -501,7 +501,7 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 28, right: 28, top: 24, bottom: 28 }).show(ui, |ui| {
             ui.set_max_width(ui.available_width().min(CARD_W));
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
                 widgets::avatar(ui, r.center(), 40.0, &person.address());
                 ui.add_space(12.0);
@@ -521,7 +521,7 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
                 });
             });
             ui.add_space(12.0);
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
                 if widgets::primary_button(ui, tl!("Email"), true).clicked() {
                     new_email(app, &person);

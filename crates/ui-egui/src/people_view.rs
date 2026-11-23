@@ -41,7 +41,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     keep_picked(app);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+    crate::rtl::start_panel("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
         crate::nav::module_foot(app, ui);
         list(app, ui, &layout);
     });
@@ -799,7 +799,7 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
 /// The avatar, the name, what they do and where, and the categories.
 fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let t = Tokens::get(ui.ctx());
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
         crate::sender_images::contact_avatar(app, ui, r.center(), 40.0, &avatar_address(c));
         ui.add_space(12.0);
@@ -829,7 +829,7 @@ fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
 /// The category chips of an item of `account`, wrapping onto more lines when they don't fit on
 /// one.
 pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[String]) {
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         for name in categories.iter().take(40) {
             let shown = one_line(name, 40);
@@ -842,7 +842,7 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
 
 fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let id = c.id;
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
         if c.address().is_some() && widgets::primary_button(ui, tl!("Email"), true).clicked() {
             let _ = app.run("people.email", json!({"id": id}));

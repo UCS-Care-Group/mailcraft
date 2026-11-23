@@ -267,7 +267,7 @@ fn name_link(ui: &mut egui::Ui, c: &Contributor, names: NameMode) {
 pub fn contributors_ui(ui: &mut egui::Ui, t: &Tokens) {
     let id = egui::Id::unique("credits_view");
     let mut v = ui.data_mut(|d| d.get_temp::<View>(id)).unwrap_or_default();
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         if ui.button(tl!(v.names.label())).on_hover_text(tl!("Show usernames, display names or real names")).clicked() {
             v.names = v.names.next();
         }
@@ -305,7 +305,7 @@ pub fn contributors_ui(ui: &mut egui::Ui, t: &Tokens) {
         } else if v.table {
             table(ui, &list, &mut v, t);
         } else {
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 for (i, c) in list.iter().enumerate() {
                     if i > 0 {
                         ui.label(RichText::new("·").color(t.text_dim));
@@ -327,7 +327,7 @@ pub fn testers_ui(ui: &mut egui::Ui, t: &Tokens) {
     );
     ui.separator();
     egui::ScrollArea::vertical().auto_shrink([false, true]).max_height(340.0).show(ui, |ui| {
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             if TESTERS.is_empty() {
                 ui.label(RichText::new(tl!("No testers credited yet.")).color(t.text_dim));
                 if ui.link(tl!("Want to be one? Sign up in #11")).on_hover_text(TESTERS_SIGN_UP).clicked() {

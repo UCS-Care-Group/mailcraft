@@ -316,7 +316,7 @@ pub(crate) mod kit {
 
     /// A labelled row: the label on the left, the control after it.
     pub fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             label_cell(ui, label);
             add(ui);
         });
@@ -433,7 +433,7 @@ pub(crate) mod kit {
 
         /// A one-line text field `width` points wide (infinity: the rest of the row).
         pub fn text(&mut self, ui: &mut Ui, key: impl Hash + Debug, value: &mut String, width: f32, hint: &str) -> Response {
-            let resp = ui.add(egui::TextEdit::singleline(value).id(field_id(key)).desired_width(width.max(16.0)).hint_text(hint.to_owned()));
+            let resp = ui.add(crate::rtl::singleline(value).id(field_id(key)).desired_width(width.max(16.0)).hint_text(hint.to_owned()));
             let resp = crate::text_menu::field(resp);
             self.field(&resp);
             resp
@@ -443,7 +443,7 @@ pub(crate) mod kit {
         /// field is wrong only when `required`.
         pub fn date_text(&mut self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> Response {
             let resp = ui.add(
-                egui::TextEdit::singleline(text)
+                crate::rtl::singleline(text)
                     .id(field_id(key))
                     .desired_width(100.0)
                     .char_limit(10)
@@ -499,11 +499,8 @@ pub(crate) mod kit {
         pub fn time(&mut self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool, after: Option<u32>) -> bool {
             let before = text.clone();
             let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 2.0);
-            let resp = ui.add(egui::TextEdit::singleline(text).id(field_id(key)).desired_width(64.0).char_limit(11).hint_text(time_short(
-                9,
-                0,
-                self.twelve,
-            )));
+            let resp =
+                ui.add(crate::rtl::singleline(text).id(field_id(key)).desired_width(64.0).char_limit(11).hint_text(time_short(9, 0, self.twelve)));
             let resp = crate::text_menu::field(resp);
             self.field(&resp);
             if crate::text_menu::left(&resp)
@@ -623,7 +620,7 @@ pub(crate) mod kit {
     /// A multi-line text field of `rows` lines; a longer text scrolls inside it.
     pub fn multiline(ui: &mut Ui, key: impl Hash + Debug + Copy, value: &mut String, rows: usize) -> Response {
         let room = rows as f32 * 36.0 + 12.0;
-        let edit = egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(rows).desired_width(f32::INFINITY);
+        let edit = crate::rtl::multiline(value).id(field_id(key)).desired_rows(rows).desired_width(f32::INFINITY);
         // Its own room, also when the field is below what the form shows without scrolling.
         ui.allocate_ui(vec2(ui.available_width().max(0.0), room), |ui| {
             egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
@@ -643,8 +640,7 @@ pub(crate) mod kit {
         let left = left.min(4000.0);
         // Down to the last point of it: whole lines first, then the rest of the height.
         let lines = (((left - 12.0) / line).floor() as usize).clamp(rows, 400);
-        let edit =
-            egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(lines).desired_width(f32::INFINITY).min_size(vec2(0.0, left - 8.0));
+        let edit = crate::rtl::multiline(value).id(field_id(key)).desired_rows(lines).desired_width(f32::INFINITY).min_size(vec2(0.0, left - 8.0));
         ui.allocate_ui(vec2(ui.available_width().max(0.0), left), |ui| {
             egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
@@ -746,7 +742,7 @@ pub(crate) mod kit {
             ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
             return;
         }
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
             for (name, color) in chips {
                 let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
@@ -788,7 +784,7 @@ pub(crate) mod kit {
             out.cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked();
             out.ok = primary_button(ui, ok_label, ok_enabled).clicked();
             if delete {
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::start_to_end(egui::Align::Center), |ui| {
                     out.delete = ui.add(egui::Button::new(egui::RichText::new(tl!("Delete")).color(t.red)).min_size(vec2(72.0, 26.0))).clicked();
                 });
             }
@@ -807,7 +803,7 @@ pub(crate) mod kit {
     /// so the buttons stay right under the fields however much room the window has left.
     fn strip(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
         ui.add_space(4.0);
-        ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), add);
+        ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), crate::rtl::end_to_start(egui::Align::Center), add);
     }
 
     /// The fields of a JSON object; none for anything else.
@@ -1451,7 +1447,7 @@ mod event {
             }
         });
         let mut as_names = |ui: &Ui, _: &dyn egui::TextBuffer, _: f32| ui.painter().layout_job(names.clone().unwrap_or_default());
-        let mut edit = egui::TextEdit::singleline(text).id(id).desired_width(f32::INFINITY).hint_text(hint.to_owned());
+        let mut edit = crate::rtl::singleline(text).id(id).desired_width(f32::INFINITY).hint_text(hint.to_owned());
         if reading {
             edit = edit.layouter(&mut as_names);
         }
@@ -1766,7 +1762,7 @@ mod event {
                         if ui.radio(self.repeat.ends == Ends::Never, tl!("No end date")).clicked() {
                             self.repeat.ends = Ends::Never;
                         }
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
                                 self.repeat.ends = Ends::After;
                             }
@@ -1776,7 +1772,7 @@ mod event {
                             // (The number is in the box before it: only the word follows it.)
                             ui.label(tln!(self.repeat.count, "time", "times"));
                         });
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
                                 self.repeat.ends = Ends::Until;
                             }
@@ -1811,7 +1807,7 @@ mod event {
                 }
                 enter = pass.submit;
                 ui.add_space(4.0);
-                ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.allocate_ui_with_layout(vec2(ui.available_width().max(0.0), 26.0), crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
                         left = Some(Left::Cancel);
                     }
@@ -1819,7 +1815,7 @@ mod event {
                         left = Some(Left::Ok);
                     }
                     if self.had_rule {
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.with_layout(crate::rtl::start_to_end(egui::Align::Center), |ui| {
                             if ui.add(egui::Button::new(tl!("Remove Recurrence")).min_size(vec2(72.0, 26.0))).clicked() {
                                 left = Some(Left::Remove);
                             }
@@ -1887,7 +1883,7 @@ mod event {
                 Freq::Daily => tall_row(ui, "", |ui| {
                     let weekdays = self.repeat.days.len() == WEEKDAYS.len() && WEEKDAYS.iter().all(|day| self.repeat.days.contains(day));
                     let chosen = !self.repeat.days.is_empty() && !weekdays;
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         if ui.radio(self.repeat.days.is_empty(), tl!("Every")).clicked() {
                             self.repeat.days.clear();
                         }
@@ -1899,7 +1895,7 @@ mod event {
                     }
                     // A rule from elsewhere that keeps to other days stays what it is.
                     if chosen {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             let _ = ui.radio(true, tl!("Only on"));
                             ui.spacing_mut().item_spacing.x = 4.0;
                             self.day_chips(ui, week_start);
@@ -1918,7 +1914,7 @@ mod event {
                     });
                 }
                 Freq::Monthly => tall_row(ui, "", |ui| {
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         if ui.radio(self.repeat.nth.is_none(), tl!("Day")).clicked() {
                             self.repeat.nth = None;
                         }
@@ -1928,7 +1924,7 @@ mod event {
                         ui.label(tl!("of every"));
                         every(ui, &mut self.repeat.interval);
                     });
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         let mut nth = self.repeat.nth.unwrap_or_else(|| Date::parse_iso(&self.start).map_or(1, |day| nth_weekday(day).0));
                         let (before, weekday) = (nth, self.weekday);
                         if ui.radio(self.repeat.nth.is_some(), tl!("The")).clicked() {
@@ -1949,7 +1945,7 @@ mod event {
                         every(ui, &mut self.repeat.interval);
                     });
                     tall_row(ui, "", |ui| {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             if ui.radio(self.repeat.nth.is_none(), tl!("On")).clicked() {
                                 self.repeat.nth = None;
                             }
@@ -1958,7 +1954,7 @@ mod event {
                                 self.repeat.nth = None;
                             }
                         });
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             let mut nth = self.repeat.nth.unwrap_or_else(|| Date::parse_iso(&self.start).map_or(1, |day| nth_weekday(day).0));
                             let (before, weekday) = (nth, self.weekday);
                             if ui.radio(self.repeat.nth.is_some(), tl!("On the")).clicked() {
@@ -2930,7 +2926,7 @@ mod event {
                     }
                     for (name, color) in &categories {
                         let on = self.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name));
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(r.shrink(1.0), 3.0, *color);
                             if on {
@@ -3101,7 +3097,7 @@ mod event {
             } else if !self.categories.is_empty() {
                 // The categories it has, each taken off with a click (the bar adds them).
                 tall_row(ui, tl!("Categories"), |ui| {
-                    ui.horizontal_wrapped(|ui| {
+                    crate::rtl::horizontal_wrapped(ui, |ui| {
                         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                         let mut off = None;
                         for name in self.categories.iter().take(100) {
@@ -3767,7 +3763,7 @@ mod contact {
                     let t = crate::theme::Tokens::get(ui.ctx());
                     let mut gone = None;
                     for (i, k) in self.keys.iter().enumerate() {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             if ui.small_button(tl!("Remove")).on_hover_text(tl!("Take this key off the card")).clicked() {
                                 gone = Some(i);
                             }
@@ -4287,7 +4283,7 @@ mod categories {
             let mut ask_sync = None;
             body(ui, |ui| {
                 if lists.len() > 1 {
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         ui.label(tl!("Account"));
                         let now = lists.iter().find(|(id, _)| *id == self.account).map(|(_, name)| name.clone()).unwrap_or_default();
                         egui::ComboBox::from_id_salt("categories_account").selected_text(now).width(280.0).show_ui(ui, |ui| {
@@ -4302,7 +4298,7 @@ mod categories {
                 }
                 // A list MailCraft may not change on its server is read-only here, and says so.
                 if let Some((line, allow)) = &read_only {
-                    ui.horizontal_wrapped(|ui| {
+                    crate::rtl::horizontal_wrapped(ui, |ui| {
                         ui.label(egui::RichText::new(line).color(t.text_dim));
                         let tip = tl!("Microsoft's page opens in your browser to ask for your permission, once.");
                         if *allow && ui.button(tl!("Allow")).on_hover_text(tip).clicked() {
@@ -4312,7 +4308,7 @@ mod categories {
                     ui.add_space(6.0);
                 }
                 for (i, c) in list.iter().enumerate() {
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         ui.add_enabled_ui(editable, |ui| {
                             if let Some(color) = swatch(ui, c.color, palette) {
                                 run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
@@ -4322,7 +4318,7 @@ mod categories {
                                 _ => c.name.clone(),
                             };
                             let width = (ui.available_width() - 44.0).max(40.0);
-                            let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                            let resp = ui.add(crate::rtl::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
                             let resp = crate::text_menu::field(resp);
                             if resp.changed() {
                                 self.editing = Some((c.name.clone(), text));
@@ -4340,11 +4336,13 @@ mod categories {
                         });
                     });
                     if not_outlooks.get(i).copied().unwrap_or(false) {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             ui.add_space(ROW_H + ui.spacing().item_spacing.x);
                             match synced {
                                 Some(owner) => {
-                                    let kept = tl!("Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour");
+                                    let kept = tl!(
+                                        "Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour"
+                                    );
                                     ui.label(egui::RichText::new(tl!("Kept on this computer only")).small().color(t.text_dim)).on_hover_text(kept);
                                     let tip = tl!("Add this category to Outlook's list, in the nearest of Outlook's colours");
                                     if read_only.is_none() && ui.small_button(tl!("Add to Outlook")).on_hover_text(tip).clicked() {
@@ -4363,13 +4361,13 @@ mod categories {
                 }
                 ui.separator();
                 ui.add_enabled_ui(editable, |ui| {
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         if let Some(color) = swatch(ui, self.new_color, palette) {
                             self.new_color = color;
                         }
                         let width = (ui.available_width() - 80.0).max(40.0);
                         let resp = ui.add(
-                            egui::TextEdit::singleline(&mut self.new_name)
+                            crate::rtl::singleline(&mut self.new_name)
                                 .id(field_id("new_category"))
                                 .desired_width(width)
                                 .hint_text(tl!("New category")),
@@ -4925,7 +4923,7 @@ pub(crate) mod rules {
     /// The button at the right end of a builder row that takes the row out. `true` when it was
     /// clicked.
     fn remove_button(ui: &mut Ui, tip: &str) -> bool {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| icon_button(ui, "close", tip, 10.0, true).clicked()).inner
+        ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| icon_button(ui, "close", tip, 10.0, true).clicked()).inner
     }
 
     /// The accounts the dialog shows the rules of (#566): every account but a shared mailbox and
@@ -5184,7 +5182,7 @@ pub(crate) mod rules {
         } else {
             Vec::new()
         };
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let mut on = r.enabled;
             let tip = if fixed { tl!("The server doesn't let this rule be changed") } else { tl!("Run this rule on mail as it arrives") };
             if ui.add_enabled(!fixed, egui::Checkbox::without_text(&mut on)).on_hover_text(tip).on_disabled_hover_text(tip).changed() {
@@ -5219,7 +5217,9 @@ pub(crate) mod rules {
                 }
                 [(only, address)] => {
                     let tip = crate::i18n::fmt(
-                        tl!("Keep this rule on the server of {address}: it then runs there whether MailCraft is open or not, for that account's mail"),
+                        tl!(
+                            "Keep this rule on the server of {address}: it then runs there whether MailCraft is open or not, for that account's mail"
+                        ),
                         &[("address", &shown(address, 80))],
                     );
                     if icon_button(ui, "server", &tip, 14.0, true).clicked() {
@@ -5227,7 +5227,9 @@ pub(crate) mod rules {
                     }
                 }
                 several => {
-                    let tip = tl!("Keep this rule on an account's server: choose which. It then runs there whether MailCraft is open or not, for that account's mail");
+                    let tip = tl!(
+                        "Keep this rule on an account's server: choose which. It then runs there whether MailCraft is open or not, for that account's mail"
+                    );
                     let resp = icon_button(ui, "server", tip, 14.0, true);
                     egui::Popup::menu(&resp).show(|ui| {
                         for (id, address) in several {
@@ -5536,7 +5538,7 @@ pub(crate) mod rules {
                 if there.is_empty() && here.is_empty() {
                     ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
                 }
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
                     let any = !(there.is_empty() && here.is_empty()) && reach;
                     let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);

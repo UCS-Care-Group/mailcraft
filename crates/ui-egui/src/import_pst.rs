@@ -311,9 +311,9 @@ impl ImportPst {
                 if *needs {
                     ui.add_space(4.0);
                     ui.label(tl!("This file has a password. Nothing is imported without it."));
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         ui.label(tl!("Password:"));
-                        ui.add(egui::TextEdit::singleline(&mut self.password).password(true).desired_width(220.0));
+                        ui.add(crate::rtl::singleline(&mut self.password).password(true).desired_width(220.0));
                     });
                     if self.wrong_password {
                         ui.label(RichText::new(tl!("That isn't the password of this file.")).color(t.red));
@@ -327,7 +327,7 @@ impl ImportPst {
         let name = mailcraft_engine::import_pst::folder_name(&self.path);
         ui.radio_value(&mut self.under, None, crate::i18n::fmt(tl!("In a new folder called {name} on this computer"), &[("name", &name)]));
         let folders = Self::local_folders(app);
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let mut picked = self.under.is_some();
             if ui.radio(picked, tl!("Under a folder on this computer:")).clicked() && !picked {
                 picked = true;
@@ -349,7 +349,7 @@ impl ImportPst {
         ui.label(RichText::new(tl!("Put the calendar items")).strong());
         let calendars = Self::local_calendars(app);
         ui.radio_value(&mut self.calendar, None, tl!("In a new calendar named after the file on this computer"));
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let mut picked = self.calendar.is_some();
             if ui.add_enabled(!calendars.is_empty(), egui::RadioButton::new(picked, tl!("In this calendar:"))).clicked() && !picked {
                 picked = true;
@@ -388,7 +388,7 @@ impl ImportPst {
         crate::software::repaint_after(ui.ctx(), std::time::Duration::from_millis(100));
         let p = &self.progress;
         let (done, total) = (p.done.load(Relaxed), p.total.load(Relaxed));
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             crate::software::spinner(ui, ui.spacing().interact_size.y, None);
             let folder = p.folder();
             ui.add(

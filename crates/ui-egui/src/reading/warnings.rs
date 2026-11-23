@@ -184,11 +184,11 @@ pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, 
     let shown = notice(hue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r.shrink(1.0), "warning", hue, hue);
             ui.add(egui::Label::new(egui::RichText::new(lead).font(semibold(11.5)).color(t.text)).wrap());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                 let (label, tip) = if dismissed {
                     (tl!("Hide"), tl!("Hide this message's warning again"))
                 } else {
@@ -207,7 +207,7 @@ pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, 
             let (title, why) = said(w, m, links);
             // Under the lead, every line of it.
             egui::Frame::NONE.inner_margin(egui::Margin { left: 22, right: 0, top: 0, bottom: 0 }).show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
                     ui.add(egui::Label::new(egui::RichText::new(title).font(semibold(11.5)).color(t.text)).wrap());
                     ui.add(egui::Label::new(egui::RichText::new(why).font(regular(11.5)).color(t.text_dim)).wrap());
@@ -233,7 +233,7 @@ fn slim(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, hue: egui::Co
     let shown = notice(hue, t).inner_margin(egui::Margin { left: 8, right: 8, top: 2, bottom: 2 }).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
             icons::paint(ui.painter(), r, "warning", hue, hue);
             ui.add(egui::Label::new(egui::RichText::new(lead).font(semibold(11.5)).color(t.text)).selectable(false).truncate());

@@ -199,7 +199,7 @@ fn draft_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
     let id = m.id;
     let r = egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin { left: 20, right: 20, top: 6, bottom: 6 }).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             ui.label(egui::RichText::new(tl!("This message hasn't been sent.")).font(crate::theme::regular(12.0)).color(t.text));
             if ui.button(tl!("Continue editing")).clicked() {
@@ -264,7 +264,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
         let id = m.id;
         egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin { left: 20, right: 20, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 // The pane lays its header out without gaps; the words and the button need them.
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(egui::RichText::new(tl!("Held:")).font(crate::theme::regular(12.0)).strong().color(t.text));
@@ -374,7 +374,7 @@ fn unreadable_line(ui: &mut Ui, m: &Message, text_shown: bool, t: &Tokens, windo
     }
     remote::notice(t.blue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
             let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r.shrink(1.0), "info", t.text, t.blue);
@@ -517,9 +517,9 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            ui.with_layout(crate::rtl::end_to_start(egui::Align::Min), |ui| {
                 ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                 if place == Place::Pane {
                     for (icon, tip, id) in ACTIONS.iter().rev() {
@@ -533,14 +533,14 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         }
                     }
                 }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.with_layout(crate::rtl::start_to_end(egui::Align::Min), |ui| {
                     fields.add(ui, select::Field::Subject, egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap());
                 });
             });
         });
         ui.add_space(4.0);
         // Who and when.
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
             if m.id == 0 {
                 // (Not in the mailbox: nothing is asked of the web for its sender.)
@@ -603,9 +603,9 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
 
                     if address_on_own_line {
                         name_label(fields, ui, room);
-                        ui.horizontal(|ui| address_and_tag(fields, ui));
+                        crate::rtl::horizontal(ui, |ui| address_and_tag(fields, ui));
                     } else {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             name_label(fields, ui, if has_address { name_width } else { room - tag_room });
                             if has_address {
                                 ui.add_space(ADDRESS_GAP);
@@ -618,8 +618,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                     sender(app, &mut fields, ui);
                     date_label(&mut fields, ui);
                 } else {
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    crate::rtl::horizontal(ui, |ui| {
+                        ui.with_layout(crate::rtl::end_to_start(egui::Align::Min), |ui| {
                             ui.add_space(8.0);
                             date_label(&mut fields, ui);
                             ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| sender(app, &mut fields, ui));
@@ -681,7 +681,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         lines.push(("forward", tl!("You forwarded this message.").to_string()));
     }
     for (icon, text) in lines {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r.shrink(1.0), icon, t.text_dim, t.accent);
             ui.add(egui::Label::new(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim)).wrap());
@@ -701,7 +701,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     // (Worked out once per change to the mailbox, not at every frame.)
     let thread = app.session.conversation(m.id);
     if thread.len() > 1 {
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);
             ui.spacing_mut().button_padding = vec2(10.0, 4.0);
             ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
@@ -742,7 +742,7 @@ fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     if labels.is_empty() {
         return;
     }
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         for label in &labels {
             let text = crate::widgets::label_tag_text(ui.painter(), mailcraft_model::gmail::label_leaf(label), 10.5, crate::widgets::LABEL_TAG_MAX);
@@ -768,7 +768,7 @@ pub(crate) fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Pl
     // Which of them are shown as pictures, when the owner has them so (#834).
     let sizes = attachment_pictures::looks(app, ui.ctx(), m, place, &files);
     ui.add_space(2.0);
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for ((index, a), look) in files.iter().zip(&sizes) {
             match look {

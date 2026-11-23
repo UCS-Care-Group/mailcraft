@@ -109,7 +109,7 @@ impl Senders {
         );
         let mut gone = None;
         for (at, row) in self.rows.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 let gap = ui.spacing().item_spacing.x;
                 let room = (ui.available_width() - 150.0 - 28.0 - 3.0 * gap).max(160.0);
                 let email = TextEdit::singleline(&mut row.email)

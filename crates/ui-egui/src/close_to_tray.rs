@@ -47,7 +47,7 @@ pub(crate) fn show(ctx: &Context, app: &mut MailApp) {
             "Mail and reminders will keep running. To bring the window back, click MailCraft's system tray icon and choose Show MailCraft. On Windows, the icon may be under the arrow for hidden icons beside the clock. On macOS, use the menu-bar icon or click MailCraft in the Dock. Choose Quit MailCraft from the icon's menu to exit."
         ));
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             hide = ui.button(tl!("Continue in tray")).clicked();
             cancel = ui.button(tl!("Cancel")).clicked();
         });

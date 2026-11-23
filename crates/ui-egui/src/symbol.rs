@@ -63,7 +63,7 @@ impl Symbol {
             }
         });
         ui.label(tl!("Character code"));
-        let resp = ui.add(egui::TextEdit::singleline(&mut self.code).hint_text("U+2192").char_limit(10).desired_width(f32::INFINITY));
+        let resp = ui.add(crate::rtl::singleline(&mut self.code).hint_text("U+2192").char_limit(10).desired_width(f32::INFINITY));
         app.hit.add("symbolCode", 0, crate::text_menu::field(resp).rect);
         ui.label(RichText::new(tl!("A code point written U+2192 or 2192, or a decimal number after #.")).color(t.text_dim).size(11.0));
         if !self.error.is_empty() {

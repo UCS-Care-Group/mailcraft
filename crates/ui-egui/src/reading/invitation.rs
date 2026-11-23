@@ -567,7 +567,7 @@ fn button(ui: &mut Ui, t: &Tokens, icon: &str, label: &str, checked: bool, menu:
 
 /// One line of the bar that says something: an icon and words.
 fn says(ui: &mut Ui, t: &Tokens, icon: &str, text: &str, strong: bool) {
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
         let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
         icons::paint(ui.painter(), r.shrink(1.0), icon, t.text_dim, t.accent);
@@ -935,7 +935,7 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place
                 says(ui, &t, icon, &text, strong);
             }
             if waiting {
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), r.shrink(1.0), "sync", t.text_dim, t.accent);
@@ -967,7 +967,7 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place
             // What can be done.
             let request = info.kind == "request";
             if request || info.kind == "cancellation" || info.kind == "counter" {
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                     if request && info.answerable {
                         answers(app, ui, &t, m.id, &info, place, native);

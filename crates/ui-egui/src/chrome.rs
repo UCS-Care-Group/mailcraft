@@ -182,7 +182,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         drawn = if mail_search { crate::search_pills::pills(text.as_str(), cursor) } else { Vec::new() };
         ui.fonts_mut(|f| f.layout_job(crate::search_pills::layout(text.as_str(), &drawn, font.clone(), &t)))
     };
-    let edit = egui::TextEdit::singleline(&mut app.search_text)
+    let edit = crate::rtl::singleline(&mut app.search_text)
         .id(id)
         .frame(egui::Frame::NONE)
         .hint_text(hint)
@@ -361,7 +361,7 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                 let redo = crate::i18n::fmt(tl!("Redo {what}"), &[("what", tl!(app.session.redo_label().unwrap_or("")))]);
                 qat_button(ui, app, "redo", redo.trim(), "edit.redo");
                 qat_end = ui.min_rect().max.x;
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     // The account in use.
                     let me = app
                         .session
@@ -514,7 +514,7 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     app.hit.add("statusMessage", 0, shown.rect);
                     ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing = vec2(4.0, 0.0);
                     // Reading pane: right, bottom, off.
                     if app.session.view.module == Module::Mail {

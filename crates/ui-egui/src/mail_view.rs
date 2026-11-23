@@ -148,7 +148,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         }
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
-        let shown = egui::Panel::left("message_list")
+        let shown = crate::rtl::start_panel("message_list")
             .default_size(app.ui.list_width.min(max))
             .size_range(240.0..=max)
             .resizable(true)

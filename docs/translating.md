@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-20 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Arabic (right to left: the whole window is mirrored). Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
+Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Arabic (written from the right; offered on desktop only until the browser has an Arabic font). Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
 Simplified Chinese is offered on desktop only until the browser build has a CJK font.
 File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.

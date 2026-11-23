@@ -518,7 +518,7 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
             }
         });
         ui.separator();
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let mut minutes = ui.data(|d| d.get_temp::<u64>(egui::Id::unique("reminder_snooze"))).unwrap_or(5);
             if ui.button(tl!("Snooze")).on_hover_text(tl!("Remind me again later")).clicked() {
                 done.push(Action::Snooze(minutes));
@@ -529,7 +529,7 @@ fn paint(ui: &mut egui::Ui, class: egui::ViewportClass, shared: &Mutex<Shared>) 
                 }
             });
             ui.data_mut(|d| d.insert_temp(egui::Id::unique("reminder_snooze"), minutes));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                 if ui.button(tl!("Dismiss All")).clicked() {
                     done.push(Action::DismissAll);
                 }

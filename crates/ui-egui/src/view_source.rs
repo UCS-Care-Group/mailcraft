@@ -51,11 +51,11 @@ pub(crate) fn show(ui: &mut Ui, source: &Source, t: &Tokens) -> bool {
         egui::ScrollArea::both().max_height(420.0).auto_shrink([false, false]).show(ui, |ui| {
             // Read only, selectable, and never a link.
             let mut text = source.text.as_str();
-            ui.add(egui::TextEdit::multiline(&mut text).code_editor().desired_width(f32::INFINITY).frame(egui::Frame::NONE));
+            ui.add(crate::rtl::multiline(&mut text).code_editor().desired_width(f32::INFINITY).frame(egui::Frame::NONE));
         });
     });
     ui.add_space(4.0);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
         if ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked() {
             close = true;
         }

@@ -576,7 +576,7 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
             let place = app.security.listing.as_ref().map(|l| l.smime).unwrap_or_default();
             let watch = app.secret_watch();
             let open = window(ctx, title, 460.0, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     ui.label(RichText::new(tl!("File:")).font(semibold(12.5)));
                     ui.add(egui::Label::new(d.name.as_str()).wrap());
                 });
@@ -613,7 +613,7 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
                     ui.add(egui::Label::new(RichText::new(d.error.as_str()).color(t.red)).wrap());
                 }
                 if d.busy {
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                         ui.label(tl!("Importing…"));
                     });
@@ -633,7 +633,7 @@ pub(crate) fn show_dialog(app: &mut MailApp, ctx: &egui::Context, dialog: &mut S
         SecurityDialog::Verify(v) => {
             let mut close = false;
             let open = window(ctx, tl!("Verify a Public Key"), 480.0, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     ui.label(RichText::new(tl!("Address:")).font(semibold(12.5)));
                     ui.add(egui::Label::new(crate::own_keys::clip(&v.address)).wrap());
                 });
@@ -715,7 +715,7 @@ fn own_keys(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if app.security.listing.is_none() {
         request_list(app);
     }
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         if ui
             .button(tl!("Import a certificate (.p12)…"))
             .on_hover_text(tl!("An S/MIME certificate with its private key, in a .p12 or .pfx file"))
@@ -800,12 +800,12 @@ fn own_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, key: &OwnKey, t: &Token
     egui::Frame::NONE.fill(t.panel).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(5.0).inner_margin(8.0).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             badge(ui, format_name(key.format), t);
             let who = if key.name.is_empty() { key.addresses.first().cloned().unwrap_or_default() } else { key.name.clone() };
             ui.add(egui::Label::new(RichText::new(crate::own_keys::clip(&who)).font(semibold(12.5)).color(t.text)).truncate());
             if key.place == KeyPlace::Imported {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     let r = ui.small_button(tl!("Remove")).on_hover_text(tl!("Delete this key from this computer"));
                     app.hit.add("removeOwnKey", i as u64, r.rect);
                     // (Not for a click the control channel injected.)
@@ -828,7 +828,7 @@ fn own_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, key: &OwnKey, t: &Token
         if !key.can_sign {
             facts.push(tl!("Can't sign").to_string());
         }
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.label(RichText::new(facts.join(" · ")).color(if key.expired { t.red } else { t.text_dim }).size(11.5));
             ui.label(RichText::new(short(&key.fingerprint)).font(egui::FontId::monospace(11.0)).color(t.text_dim))
                 .on_hover_text(key.fingerprint.as_str());
@@ -859,7 +859,7 @@ fn public_keys(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             public_key_row(app, ui, i, address, key, t);
         }
         if pages > 1 {
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 if ui.add_enabled(page > 0, egui::Button::new(tl!("Previous")).small()).clicked() {
                     page = page.saturating_sub(1);
                 }
@@ -884,7 +884,7 @@ fn verified_said(format: SignatureFormat, verified: bool, t: &Tokens) -> (&'stat
 }
 
 fn public_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, address: &str, key: &mailcraft_model::public_keys::PublicKey, t: &Tokens) {
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
         ui.add(egui::Label::new(RichText::new(crate::own_keys::clip(address)).font(semibold(12.0)).color(t.text)).truncate());
         badge(ui, format_name(key.format), t);
@@ -922,7 +922,7 @@ fn public_key_row(app: &mut MailApp, ui: &mut Ui, i: usize, address: &str, key: 
 /// One of a contact card's keys, in a line: its kind, who it is for and its fingerprint; a key
 /// by address is shown as the address and never fetched.
 pub(crate) fn card_key_line(app: &MailApp, ui: &mut Ui, key: &ContactKey, t: &Tokens) {
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
         let facts = mailcraft_engine::cmd::keys::card_key_facts(key);
         match &key.kind {
@@ -968,7 +968,7 @@ pub(crate) fn kept_key_lines(app: &MailApp, ui: &mut Ui, addresses: &[String], t
         let address = address.trim().to_lowercase();
         for key in app.session.mailbox.public_keys.of(&address) {
             n += 1;
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
                 badge(ui, format_name(key.format), t);
                 ui.label(RichText::new(tl!("Kept Public key")).color(t.text).size(12.0));

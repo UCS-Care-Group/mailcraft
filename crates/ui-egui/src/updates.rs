@@ -633,7 +633,7 @@ pub(crate) fn about(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if let Some(release) = app.newer_release() {
         let color = if release.security { t.red } else { t.accent_text };
         ui.label(egui::RichText::new(notice(&release)).font(crate::theme::semibold(13.0)).color(color));
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.label(tl!("What's new and how to get it:"));
             let shown = release.page.trim_start_matches("https://");
             // Opened in the browser when clicked, and at no other time.
@@ -642,7 +642,7 @@ pub(crate) fn about(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
         if let Some(version) = app.update_ready().filter(|v| **v == release.version).cloned() {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.label(ready_text(app, &version));
                 let restart = primary_button(ui, tl!("Restart to update"), true);
                 app.hit.add("aboutRestartToUpdate", 0, restart.rect);

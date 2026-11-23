@@ -622,7 +622,7 @@ impl AccountSetup {
             ui.add_space(4.0);
             let gap = ui.spacing().item_spacing.x;
             let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 if super::tile(ui, Kind::Exchange, half, &t).clicked() {
                     action = Some(Action::Pick(Kind::Exchange));
                 }

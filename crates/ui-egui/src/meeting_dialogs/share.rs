@@ -286,7 +286,7 @@ impl SearchCalendar {
         let t = Tokens::get(ui.ctx());
         let mut pass = Pass::new(ui, &app.session, &mut self.focus);
         let mut go = false;
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let width = ui.available_width() - 90.0;
             pass.text(ui, "calendar_search", &mut self.query, width, tl!("Words, from:, to:, category:, on:…"));
             let button = primary_button(ui, tl!("Search"), !self.query.trim().is_empty());

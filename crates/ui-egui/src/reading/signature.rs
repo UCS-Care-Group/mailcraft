@@ -111,14 +111,14 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: 
     let shown = notice(hue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let (r, resp) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r, seal(d.verdict), t.icon, t.accent);
             let name = verdict_name(d.verdict);
             resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, name));
             resp.on_hover_text(name);
             ui.add(egui::Label::new(egui::RichText::new(&lead).font(semibold(11.5)).color(t.text)).wrap());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                 let label = if open { tl!("Hide Details") } else { tl!("Details") };
                 let resp = ui.add(egui::Button::new(egui::RichText::new(label).font(regular(11.0)).color(t.text)).small().frame(false));
                 toggle = resp.on_hover_text(tl!("Who signed this message, and the certificate")).clicked();
@@ -177,7 +177,7 @@ fn verifiable(app: &MailApp, d: &DigitalSignature, m: &Message) -> Option<(Strin
 
 fn indented(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     egui::Frame::NONE.inner_margin(egui::Margin { left: 22, right: 0, top: 0, bottom: 0 }).show(ui, |ui| {
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
             add(ui);
         });

@@ -201,7 +201,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
     // (Close together: they belong to the card above.)
     ui.spacing_mut().item_spacing.y = 2.0;
     let line = |ui: &mut egui::Ui, text: String| {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.add_space(36.0);
             ui.label(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim));
         });
@@ -212,7 +212,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
     let how = app.ews_sign_in_words(a.id).map_or_else(|| tl!("not known until the first Send/Receive").to_string(), str::to_string);
     line(ui, crate::i18n::fmt(tl!("Signs in with: {how}"), &[("how", &how)]));
     if !server.trusted.is_empty() {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.add_space(36.0);
             ui.label(egui::RichText::new(tl!("Trusted certificate (SHA-256 fingerprint):")).font(regular(11.5)).color(t.text_dim));
             let tip = tl!(
@@ -222,7 +222,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
                 let _ = app.run("account.forgetEwsCertificate", json!({"id": a.id}));
             }
         });
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.add_space(36.0);
             // (A mailbox file can say anything: only 64 hexadecimal digits are set out in pairs.)
             let text = if mailcraft_model::EwsServer::check_fingerprint(&server.trusted).is_ok() {
@@ -234,7 +234,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
         });
     }
     if app.ews_certificate.contains_key(&a.id) {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.add_space(36.0);
             ui.label(egui::RichText::new(tl!("The server shows a certificate that needs your say.")).font(regular(11.5)).color(t.orange));
             let tip = tl!("Look at the certificate the server shows now. Nothing is signed in while you decide.");

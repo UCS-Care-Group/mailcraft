@@ -65,7 +65,7 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
     let name = if m.from.name.trim().is_empty() { address.clone() } else { m.from.name.trim().to_string() };
     egui::Frame::NONE.fill(t.panel).inner_margin(egui::Margin { left: 20, right: 12, top: 8, bottom: 9 }).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
             let line = if there {
                 crate::i18n::fmt(tl!("{name} shared a calendar with you. It is in your calendar list."), &[("name", &name)])

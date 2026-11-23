@@ -307,7 +307,7 @@ impl AccountSetup {
                 ui.label(RichText::new(tl!("If that page says you need admin approval")).font(semibold(13.0)).color(t.text));
                 note(ui, tl!(WAITING_HELP), t.text);
                 action = self.approval_steps(app, ui, &t, false);
-                ui.horizontal_wrapped(|ui| {
+                crate::rtl::horizontal_wrapped(ui, |ui| {
                     let more = ui.link(tl!("More about this"));
                     app.hit.add("signInApprovalHelp", self.existing, more.rect);
                     if more.clicked() {

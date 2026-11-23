@@ -120,7 +120,7 @@ impl AddReminder {
             ui.radio_value(&mut self.no_reply, true, tl!("Only if nobody replies"));
         }
         if self.no_reply {
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 for d in DAYS {
                     ui.selectable_value(&mut self.days, d, tln!(d, "{n} day", "{n} days"));
                 }
@@ -136,13 +136,13 @@ impl AddReminder {
         }
         let mut submitted = false;
         if !self.no_reply || self.days == 0 {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.label(tl!("Date"));
-                let date = ui.add(egui::TextEdit::singleline(&mut self.date).hint_text("YYYY-MM-DD").char_limit(FIELD_MAX).desired_width(110.0));
+                let date = ui.add(crate::rtl::singleline(&mut self.date).hint_text("YYYY-MM-DD").char_limit(FIELD_MAX).desired_width(110.0));
                 let date = crate::text_menu::field(date);
                 crate::text_menu::hold(&date);
                 ui.label(tl!("Time"));
-                let time = ui.add(egui::TextEdit::singleline(&mut self.time).hint_text("HH:MM").char_limit(FIELD_MAX).desired_width(70.0));
+                let time = ui.add(crate::rtl::singleline(&mut self.time).hint_text("HH:MM").char_limit(FIELD_MAX).desired_width(70.0));
                 let time = crate::text_menu::field(time);
                 crate::text_menu::hold(&time);
             });

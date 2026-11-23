@@ -162,7 +162,7 @@ fn copying(app: &MailApp, account: Id) -> bool {
 fn show_copying(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
     let whose = address(app, account);
     let open = window(ctx, tl!("Switch to Microsoft Graph"), 520.0, |ui| {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             crate::software::spinner(ui, 18.0, None);
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tl!("Saving a copy of your mailbox before the switch…")).font(semibold(13.0)));

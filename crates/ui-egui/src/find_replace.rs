@@ -44,7 +44,7 @@ impl FindReplace {
         let t = Tokens::get(ui.ctx());
         let mut done = false;
         ui.label(tl!("Find what"));
-        let resp = ui.add(egui::TextEdit::singleline(&mut self.text).char_limit(MAX_FIND).desired_width(f32::INFINITY));
+        let resp = ui.add(crate::rtl::singleline(&mut self.text).char_limit(MAX_FIND).desired_width(f32::INFINITY));
         let resp = crate::text_menu::field(resp);
         app.hit.add("findText", 0, resp.rect);
         if !resp.has_focus() && ui.memory(|m| m.focused().is_none()) {
@@ -52,7 +52,7 @@ impl FindReplace {
         }
         if self.replace {
             ui.label(tl!("Replace with"));
-            let resp = ui.add(egui::TextEdit::singleline(&mut self.with).char_limit(MAX_FIND).desired_width(f32::INFINITY));
+            let resp = ui.add(crate::rtl::singleline(&mut self.with).char_limit(MAX_FIND).desired_width(f32::INFINITY));
             app.hit.add("replaceText", 0, crate::text_menu::field(resp).rect);
         }
         let case = ui.checkbox(&mut self.match_case, tl!("Match case"));

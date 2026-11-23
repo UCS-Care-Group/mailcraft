@@ -223,9 +223,9 @@ impl Lang {
     }
 
     /// A catalogue can be used for the interface when its glyphs are available on the target.
-    /// The browser has no system CJK fallback font yet.
+    /// The browser has no system CJK or Arabic fallback font yet.
     fn supported_on(self, browser: bool) -> bool {
-        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+        self.has_catalogue() && !(browser && matches!(self, Lang::ChineseSimplified | Lang::Arabic))
     }
 
     fn supported(self) -> bool {
@@ -524,6 +524,8 @@ mod tests {
         assert_eq!(Lang::from_pref("auto", Some("ar-EG")), Lang::Arabic);
         assert_eq!(Lang::from_pref("ar", None), Lang::Arabic);
         assert!(Lang::Arabic.is_rtl() && !Lang::English.is_rtl() && !Lang::Georgian.is_rtl());
+        // The browser has no Arabic face yet, as it has no Chinese one: desktop only.
+        assert!(Lang::Arabic.supported_on(false) && !Lang::Arabic.supported_on(true));
     }
 
     #[test]

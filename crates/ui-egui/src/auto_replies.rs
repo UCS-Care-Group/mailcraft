@@ -755,7 +755,7 @@ impl Draft {
                 self.on = true;
             }
             ui.add_enabled_ui(self.on, |ui| {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     ui.add_space(22.0);
                     ui.checkbox(&mut self.ranged, tl!("Only send during this time range:"));
                 });
@@ -764,7 +764,7 @@ impl Draft {
                         (tl!("Start time:"), "start", &mut self.start_date, &mut self.start_time),
                         (tl!("End time:"), "end", &mut self.end_date, &mut self.end_time),
                     ] {
-                        ui.horizontal(|ui| {
+                        crate::rtl::horizontal(ui, |ui| {
                             ui.add_space(44.0);
                             let (r, _) = ui.allocate_exact_size(vec2(70.0, kit::ROW_H), egui::Sense::hover());
                             ui.painter().text(r.left_center(), egui::Align2::LEFT_CENTER, label, regular(13.0), t.text);
@@ -775,7 +775,7 @@ impl Draft {
                 });
                 ui.add_space(4.0);
                 ui.label(tl!("Each sender gets one automatic reply, with the message below:"));
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     if ui.selectable_label(self.tab == Tab::Inside, tl!("Inside My Organization")).clicked() {
                         self.tab = Tab::Inside;
                     }
@@ -792,7 +792,7 @@ impl Draft {
                     Tab::Outside => {
                         ui.checkbox(&mut self.outside, tl!("Reply to people outside my organization"));
                         ui.add_enabled_ui(self.outside, |ui| {
-                            ui.horizontal(|ui| {
+                            crate::rtl::horizontal(ui, |ui| {
                                 ui.add_space(22.0);
                                 if ui.radio(self.contacts_only, tl!("Only my contacts")).clicked() {
                                     self.contacts_only = true;

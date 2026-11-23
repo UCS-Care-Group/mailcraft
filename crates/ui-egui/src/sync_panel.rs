@@ -278,9 +278,9 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
             ui.set_width(width);
             ui.spacing_mut().item_spacing = vec2(8.0, 4.0);
             // The heading, with Stop while a run goes on, and the way out.
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.label(RichText::new(tl!("Send/Receive Progress")).font(semibold(14.0)).color(t.text));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                     let shut = crate::widgets::icon_button(ui, "close", tl!("Close"), 12.0, true);
                     app.hit.add("syncPanelClose", 0, shut.rect);
                     close |= shut.clicked();
