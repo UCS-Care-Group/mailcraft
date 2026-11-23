@@ -4919,10 +4919,10 @@ impl MailApp {
         if self.sync_rx.is_some() || self.graph_rx.is_some() || self.offline() {
             return;
         }
-        log::info!("send/receive, account {account}: the server refused the access token; renewing it and trying once more");
+        log::info!("send/receive: the server refused the access token; renewing it and trying once more");
         self.token_retried = Some(account);
         if let Err(e) = self.begin_sign_in(account, oauth, &address, refresh, quiet, false) {
-            log::warn!("send/receive, account {account}: the renewal after a refused token didn't start ({e})");
+            log::warn!("send/receive: the renewal after a refused token didn't start ({e})");
             self.token_retried = None;
         }
     }

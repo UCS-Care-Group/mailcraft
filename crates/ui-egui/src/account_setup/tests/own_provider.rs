@@ -180,6 +180,8 @@ fn a_google_account_becomes_one_with_its_own_provider_only_after_the_question() 
     assert_eq!(page(&h), Some(Page::Settings));
     // Its built-in values are shown.
     assert!(says(&h, "Google (built in)") && says(&h, "https://oauth2.googleapis.com/token"));
+    // Where a built-in provider's token goes isn't only the mail servers: no list claims so.
+    assert!(!says(&h, "The sign-in is only sent to"));
     click(&mut h, "Use your own identity provider instead…");
     assert!(says(&h, "will no longer be Google's"));
     click(&mut h, "Keep the built-in settings");
@@ -195,6 +197,17 @@ fn a_google_account_becomes_one_with_its_own_provider_only_after_the_question() 
     click(&mut h, "Save");
     let oauth = h.state().session.mailbox.account(id).unwrap().oauth.clone().unwrap();
     assert_eq!((oauth.provider, oauth.client_id.as_str(), oauth.mechanism), (OAuthProvider::Custom, "my-own-client", SaslChoice::XOAuth2));
+}
+
+/// A Microsoft account kept in step through Microsoft Graph has no mail servers, and its token goes
+/// to Graph: its settings never say the sign-in goes only to some mail servers (#1844 review).
+#[test]
+fn a_microsoft_account_on_graph_names_no_servers_its_sign_in_is_only_sent_to() {
+    let mut a = app(false);
+    let id = a.execute("account.add", json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let h = open_tall(a, json!({"id": id}));
+    assert_eq!(page(&h), Some(Page::Settings));
+    assert!(!says(&h, "The sign-in is only sent to"));
 }
 
 #[test]

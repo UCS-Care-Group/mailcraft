@@ -275,20 +275,18 @@ impl AccountSetup {
         let t = pass.t;
         let Some(provider) = self.oauth.as_ref().map(|o| o.provider) else { return };
         caption(ui, tl!("OAuth settings"), &t);
-        match provider {
-            OAuthProvider::Custom => self.own_provider_fields(app, ui, pass),
-            built_in => self.built_in_fields(ui, pass, built_in),
+        if provider != OAuthProvider::Custom {
+            // (No list of where its token goes: Microsoft's and Google's also go to their own
+            // services besides the mail servers, Microsoft Graph for one, #1844 review.)
+            self.built_in_fields(ui, pass, provider);
+            return;
         }
-        // The servers the token is for: never chosen here, they follow the server settings.
-        let servers: Vec<String> = match provider {
-            OAuthProvider::Custom => {
-                let mut hosts: Vec<String> =
-                    [self.incoming.host.trim(), self.outgoing.host.trim()].into_iter().filter(|h| !h.is_empty()).map(|h| shown(h, 80)).collect();
-                hosts.dedup();
-                hosts
-            }
-            other => other.defaults("").hosts,
-        };
+        self.own_provider_fields(app, ui, pass);
+        // The servers an own provider's token is for: never chosen here, they follow the server
+        // settings, and it is sent nowhere else.
+        let mut servers: Vec<String> =
+            [self.incoming.host.trim(), self.outgoing.host.trim()].into_iter().filter(|h| !h.is_empty()).map(|h| shown(h, 80)).collect();
+        servers.dedup();
         let servers = if servers.is_empty() { tl!("the incoming and outgoing servers above").to_string() } else { servers.join(", ") };
         note(ui, &fmt(tl!("The sign-in is only sent to: {servers}"), &[("servers", &servers)]), t.text_dim);
     }
