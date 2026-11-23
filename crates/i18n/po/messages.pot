@@ -53,6 +53,11 @@ msgstr ""
 msgid "\"{line}\" is not an SMTP reply"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "\"{name}\" can't be used as a script name"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "\"{name}\" has changes that aren't saved. Save them?"
@@ -386,6 +391,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 msgid "A JMAP account's mail can't be snoozed yet."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
 msgstr ""
 
 #. interface
@@ -2857,6 +2867,16 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Check spelling with a local dictionary"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "Check the Sieve server (Automatic Replies) in Account Settings, and that your mail server has ManageSieve switched on."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "Check the Sieve server (Automatic Replies) in Account Settings: ManageSieve is usually on port 4190 of the incoming mail server."
 msgstr ""
 
 #. interface
@@ -7476,6 +7496,11 @@ msgstr ""
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "MailCraft connected to {at}, but the server said nothing"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 msgid "MailCraft couldn't open a browser for Microsoft's page."
@@ -7614,6 +7639,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "MailCraft signs in only over an encrypted connection, so it didn't sign in there: your password would cross the network unencrypted. Ask the server's administrator to turn on TLS for ManageSieve."
 msgstr ""
 
 #. interface
@@ -7766,6 +7796,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 msgid "Manage Task"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "ManageSieve starts unencrypted and switches to encryption with STARTTLS, so MailCraft doesn't sign in there. On Dovecot, set ssl = no on the sieve listener (the connection is still encrypted, by STARTTLS), or name another port in Account Settings › Sieve server (Automatic Replies)."
 msgstr ""
 
 #. android
@@ -9638,6 +9673,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "Nothing was sent to it. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator about its certificate."
 msgstr ""
 
 #. interface
@@ -13299,6 +13339,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "Side-by-Side"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "Sieve scripts are only read from and written to the account's own mail server"
 msgstr ""
 
 #. interface
@@ -18475,6 +18520,11 @@ msgstr ""
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "a POP3 server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "a calendar named \"{name}\" already exists"
@@ -18635,6 +18685,11 @@ msgstr ""
 msgid "a sender address has no e-mail address"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "a server that encrypts from the first byte"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
@@ -18695,6 +18750,11 @@ msgstr ""
 msgid "a task needs a title"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "a web server"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 msgid "add an Exchange server account first: its organisation's address list is searched"
@@ -18730,9 +18790,24 @@ msgstr ""
 msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "an IMAP server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/digital_signature.rs
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "an SMTP server"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "an SSH server"
 msgstr ""
 
 #. what a command says
@@ -18893,6 +18968,11 @@ msgid "copy it to {folder} - {who}"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "couldn't make a secure connection to {at}: {reason}"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr ""
@@ -18918,12 +18998,12 @@ msgid "due"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 msgid "enter a password to sign in"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 msgid "enter a user name to sign in"
 msgstr ""
 
@@ -19670,6 +19750,11 @@ msgstr ""
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "nothing answers at {at} ({reason})"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/format.rs
 msgid "nothing is selected in the message"
@@ -19994,6 +20079,16 @@ msgstr ""
 msgid "someone@example.org or @example.org"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "something answers at {at}, but it isn't a ManageSieve server"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "something answers at {at}, but it isn't a ManageSieve server: it looks like {what}"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "subject contains {words}"
@@ -20124,13 +20219,18 @@ msgstr ""
 msgid "the Inbox of this account hasn't been read yet"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "the ManageSieve server at {at} doesn't offer STARTTLS"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs
 msgid "the account has no incoming server"
 msgstr ""
 
@@ -20150,7 +20250,7 @@ msgid "the account has no usable e-mail address to send from"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/net/src/send.rs crates/net/src/sync.rs
+#: crates/net/src/send.rs crates/net/src/sieve.rs crates/net/src/sync.rs
 msgid "the account has no user name or e-mail address to sign in with"
 msgstr ""
 
@@ -20250,7 +20350,7 @@ msgid "the check stopped unexpectedly"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 msgid "the command was refused"
 msgstr ""
 
@@ -20559,6 +20659,11 @@ msgstr ""
 msgid "the same calendar item is named twice; nothing was changed"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the script is larger than the {kb} KB MailCraft sends"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "the search can't look for this sender's address as a whole address"
@@ -20620,17 +20725,17 @@ msgid "the server answered {status}"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 msgid "the server asked for more than a sign-in has"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the server asked for more than a user name and access token"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the server asked for more than a user name and password"
 msgstr ""
 
@@ -20705,8 +20810,18 @@ msgid "the server didn't end IDLE properly"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server didn't greet like a ManageSieve server"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the server didn't greet like an IMAP server"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server didn't send the script"
 msgstr ""
 
 #. interface
@@ -20740,17 +20855,17 @@ msgid "the server ended the command early"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 msgid "the server ended the session"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 msgid "the server ended the session: {reason}"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 msgid "the server greeted with a refusal: {reason}"
 msgstr ""
 
@@ -20765,12 +20880,12 @@ msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the server offers no way to sign in with a password"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the server offers no way to sign in with an access token"
 msgstr ""
 
@@ -20805,6 +20920,11 @@ msgid "the server said: {reason}"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server sent MailCraft to another server for the Sieve scripts, which it doesn't follow"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/line.rs
 msgid "the server sent a line longer than {kb} KB"
 msgstr ""
@@ -20815,7 +20935,7 @@ msgid "the server sent a web page instead of a picture"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the server sent data before the secure connection started"
 msgstr ""
 
@@ -20830,7 +20950,12 @@ msgid "the server sent nothing"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/managesieve/parse.rs
+msgid "the server sent something that isn't a ManageSieve response"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 msgid "the server sent too many responses to one command"
 msgstr ""
 
@@ -20845,7 +20970,7 @@ msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailC
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/line.rs crates/proto/src/managesieve/parse.rs
 msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
 msgstr ""
 
@@ -20875,7 +21000,7 @@ msgid "the server's reply has too many lines"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 msgid "the server's response has too many parts"
 msgstr ""
 
@@ -20885,7 +21010,7 @@ msgid "the server's response is nested too deeply"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 msgid "the server's response is too long"
 msgstr ""
 
@@ -20950,12 +21075,12 @@ msgid "the user name or access token is too long to be sent"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 msgid "the user name or password has a character that can't be sent"
 msgstr ""
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 msgid "the user name or password is too long"
 msgstr ""
 
@@ -21548,6 +21673,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "{answer}: more ways to answer"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "{at} closed the connection without a word"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "{at} expects an encrypted connection from the start, which ManageSieve doesn't use"
 msgstr ""
 
 #. interface

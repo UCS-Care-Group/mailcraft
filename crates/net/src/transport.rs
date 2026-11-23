@@ -54,6 +54,8 @@ pub(crate) const STOPPED: &str = "Send/Receive was stopped";
 pub(crate) enum Service {
     Imap,
     Smtp,
+    /// A server of Sieve scripts (ManageSieve, RFC 5804).
+    ManageSieve,
     /// A web server: the token endpoint of an OAuth sign-in, a name server that answers over HTTPS.
     Http,
 }
@@ -162,6 +164,22 @@ impl<'a> Stream<'a> {
         }
     }
 
+    /// The first bytes the server sent, left where they are for the protocol to read, waiting
+    /// `wait` at most for them (the connection waits as it did before afterwards): before a
+    /// protocol that waits for the server to speak first starts, to tell a server that says
+    /// nothing from one that says something else. Only on a connection that isn't encrypted yet.
+    pub(crate) fn peek_first(&mut self, buf: &mut [u8], wait: Duration) -> std::io::Result<usize> {
+        if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
+            return Err(std::io::Error::other(STOPPED));
+        }
+        let Io::Plain(tcp) = &self.io else { return Err(ErrorKind::Unsupported.into()) };
+        let before = tcp.read_timeout()?.unwrap_or(IO_TIMEOUT);
+        tcp.set_read_timeout(Some(wait.min(IO_TIMEOUT).max(Duration::from_millis(1))))?;
+        let peeked = tcp.peek(buf);
+        tcp.set_read_timeout(Some(before.min(IO_TIMEOUT).max(Duration::from_millis(1))))?;
+        peeked
+    }
+
     /// What every read and write begins with: the flag, and the time the command has had.
     fn before(&mut self, writing: bool) -> std::io::Result<()> {
         if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
@@ -218,6 +236,8 @@ pub(crate) fn port(server: &Server, service: Service) -> u16 {
         (0, Service::Imap, _) => 143,
         (0, Service::Smtp, Security::Tls) => 465,
         (0, Service::Smtp, _) => 587,
+        // RFC 5804 §1.8: the one port, encrypted by STARTTLS.
+        (0, Service::ManageSieve, _) => crate::sieve::PORT,
         (0, Service::Http, Security::Tls) => 443,
         (0, Service::Http, _) => 80,
         (port, _, _) => port,
@@ -279,6 +299,39 @@ pub(crate) fn open_with<'a>(
 /// or write `io`.
 pub(crate) fn open_within<'a>(server: &Server, service: Service, connect: Duration, io: Duration) -> Result<(Stream<'a>, String), NetError> {
     open(server, service, &Patience { connect, io, ..Patience::default() })
+}
+
+/// The first bytes `server` answers a TLS handshake's first message (the ClientHello) with, on a
+/// connection of its own: for saying why a server that should have spoken first said nothing (it
+/// may be waiting for encryption from the first byte). Nothing but that hello is sent: no
+/// sign-in, nothing of the owner's; the connection is closed whatever comes back, and never used
+/// for anything else. Empty when nothing came within `wait`, or the server couldn't be reached.
+pub(crate) fn answer_to_hello(server: &Server, service: Service, connect: Duration, wait: Duration) -> Vec<u8> {
+    let probe = || -> Option<Vec<u8>> {
+        let host = checked_host(server).ok()?;
+        let wait = wait.min(IO_TIMEOUT);
+        let mut tcp = dial(&host, port(server, service), server.security == Security::None, connect.min(CONNECT_TIMEOUT), wait).ok()?;
+        let name = ServerName::try_from(host).ok()?;
+        let mut hello = ClientConnection::new(tls_config().ok()?, name).ok()?;
+        let mut first = Vec::new();
+        // The hello is all there is to write before the server answers (a few hundred bytes).
+        while hello.wants_write() && first.len() < 64 * 1024 {
+            if hello.write_tls(&mut first).ok()? == 0 {
+                break;
+            }
+        }
+        tcp.write_all(&first).ok()?;
+        let mut answer = [0u8; 16];
+        let n = tcp.read(&mut answer).ok()?;
+        Some(answer.get(..n).unwrap_or_default().to_vec())
+    };
+    probe().unwrap_or_default()
+}
+
+/// Whether `bytes` begin a TLS record: a handshake message or an alert, of TLS 1.0 to 1.3 (all
+/// of which write 3 as the major version on the wire).
+pub(crate) fn is_tls_record(bytes: &[u8]) -> bool {
+    matches!(bytes, [0x15 | 0x16, 0x03, ..])
 }
 
 /// Wrap a connection in TLS after the server agreed to STARTTLS. It goes on as it was set up.

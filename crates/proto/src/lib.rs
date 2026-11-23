@@ -3,7 +3,8 @@
 //! MailCraft mail protocols without sockets.
 //!
 //! [`smtp::Smtp`] and [`imap::Imap`] speak SMTP (RFC 5321, 3207, 4954) and IMAP4rev1 (RFC 3501,
-//! 4315, 4959, 6154, 6851) over any `Read + Write` stream: a TLS socket on the desktop (`mailcraft-net`), a scripted
+//! 4315, 4959, 6154, 6851), and [`managesieve::ManageSieve`] keeps a server's Sieve scripts (RFC
+//! 5804), over any `Read + Write` stream: a TLS socket on the desktop (`mailcraft-net`), a scripted
 //! transcript in the tests. Everything a server sends is treated as hostile: lines, literals and
 //! response counts are capped, and nothing here panics on junk.
 //!
@@ -17,6 +18,7 @@ use mailcraft_i18n::{Arg, Text, said};
 
 pub mod imap;
 mod line;
+pub mod managesieve;
 pub use line::DamagedStream;
 pub mod smtp;
 

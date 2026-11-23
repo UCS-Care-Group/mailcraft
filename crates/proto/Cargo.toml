@@ -3,7 +3,7 @@ name = "mailcraft-proto"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MailCraft mail protocols without sockets: IMAP4rev1 and SMTP clients over any Read + Write stream"
+description = "MailCraft mail protocols without sockets: IMAP4rev1, SMTP and ManageSieve clients over any Read + Write stream"
 
 [lints]
 workspace = true

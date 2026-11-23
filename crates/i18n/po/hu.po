@@ -66,6 +66,12 @@ msgstr "A \"{line}\" nem IMAP válasz."
 msgid "\"{line}\" is not an SMTP reply"
 msgstr "A \"{line}\" nem SMTP válasz."
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "\"{name}\" can't be used as a script name"
+msgstr "A(z) „{name}” nem használható szkriptnévként"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -467,6 +473,12 @@ msgstr "A .pst fájlt importálják: próbálja újra, ha kész"
 #, fuzzy
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "Egy JMAP-fiók levele még nem szivároghat ki."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
+msgstr "A ManageSieve-kiszolgáló a csatlakozás után azonnal köszön. Lehet, hogy ez a port kezdettől titkosított kapcsolatot vár (Dovecotban ssl = yes a sieve figyelőn), amit a ManageSieve nem használ: titkosítatlanul indul, és STARTTLS-sel vált titkosításra. Vagy a kiszolgáló előtti proxy vár valamire, amit a MailCraft nem küld. Ellenőrizze a Sieve-kiszolgálót (automatikus válaszok) a fiókbeállításokban, vagy kérdezze meg a kiszolgáló rendszergazdáját."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -3439,6 +3451,18 @@ msgstr "Új verziók ellenőrzése"
 #, fuzzy
 msgid "Check spelling with a local dictionary"
 msgstr "Helyesírás ellenőrzése helyi szótárral"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Check the Sieve server (Automatic Replies) in Account Settings, and that your mail server has ManageSieve switched on."
+msgstr "Ellenőrizze a Sieve-kiszolgálót (automatikus válaszok) a fiókbeállításokban, és hogy a levelezőkiszolgálón be van-e kapcsolva a ManageSieve."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Check the Sieve server (Automatic Replies) in Account Settings: ManageSieve is usually on port 4190 of the incoming mail server."
+msgstr "Ellenőrizze a Sieve-kiszolgálót (automatikus válaszok) a fiókbeállításokban: a ManageSieve általában a bejövő levelek kiszolgálójának 4190-es portján van."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8998,6 +9022,12 @@ msgstr "A MailCraft még nem tud bejelentkezni erre a szerverre (a Kerberos-t ak
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "A MailCraft az alábbi szoftvereket tartalmazza. A mag Rust-könyvtárai a verziószámukkal együtt a forráskód-tárolóban vannak felsorolva."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "MailCraft connected to {at}, but the server said nothing"
+msgstr "A MailCraft csatlakozott ide: {at}, de a kiszolgáló nem mondott semmit"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -9165,6 +9195,12 @@ msgstr "MailCraft a kulcsot jelszó nélkül olvassa, és a fájlt, még mindig 
 #, fuzzy
 msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
 msgstr "A MailCraft {host} számára elküldi a lista által a leiratkozáshoz megadott címet, amely azonosíthatja Önt, és semmi mást: sem sütiket, sem bejelentkezést. Mint minden kapcsolat, ez is felfedi az internetcímét."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "MailCraft signs in only over an encrypted connection, so it didn't sign in there: your password would cross the network unencrypted. Ask the server's administrator to turn on TLS for ManageSieve."
+msgstr "A MailCraft csak titkosított kapcsolaton jelentkezik be, ezért ott nem jelentkezett be: a jelszava titkosítatlanul menne át a hálózaton. Kérje meg a kiszolgáló rendszergazdáját, hogy kapcsolja be a TLS-t a ManageSieve-hez."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -9347,6 +9383,12 @@ msgstr "Szabályok kezelése…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "Feladat kezelése"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "ManageSieve starts unencrypted and switches to encryption with STARTTLS, so MailCraft doesn't sign in there. On Dovecot, set ssl = no on the sieve listener (the connection is still encrypted, by STARTTLS), or name another port in Account Settings › Sieve server (Automatic Replies)."
+msgstr "A ManageSieve titkosítatlanul indul, és STARTTLS-sel vált titkosításra, ezért a MailCraft ott nem jelentkezik be. Dovecotban állítsa a sieve figyelőn ssl = no értékre (a kapcsolat továbbra is titkosított, STARTTLS-sel), vagy adjon meg másik portot: Fiókbeállítások › Sieve-kiszolgáló (automatikus válaszok)."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -11610,6 +11652,12 @@ msgstr "Semmi sem történt: amire rákérdeztünk, azóta megváltozott. Prób�
 #, fuzzy
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
 msgstr "Semmit sem küldtek a Microsoftnak, és a jelszavad nincs meg."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Nothing was sent to it. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator about its certificate."
+msgstr "Semmi sem lett elküldve neki. Ellenőrizze a Sieve-kiszolgálót (automatikus válaszok) a fiókbeállításokban, vagy kérdezze meg a kiszolgáló rendszergazdáját a tanúsítványáról."
 
 #. interface
 #: crates/ui-egui/src/sending.rs
@@ -16031,6 +16079,12 @@ msgstr ""
 #, fuzzy
 msgid "Side-by-Side"
 msgstr "Oldalsó"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Sieve scripts are only read from and written to the account's own mail server"
+msgstr "A Sieve-szkripteket csak a fiók saját levelezőszerveréről olvassa és oda írja a program"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22253,6 +22307,12 @@ msgstr "A Microsoft- vagy Exchange-fiók csak annyi más címről küldhet, amen
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "a Microsoft-bejelentkezés csak a Microsoft saját levelezőszervereivel használható: ez a fiók egy másik kiszolgálót nevez meg"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a POP3 server"
+msgstr "egy POP3-kiszolgáló"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -22445,6 +22505,12 @@ msgstr "A szerverre váró szabály azok után megy, amit ott kell megtenni; a s
 msgid "a sender address has no e-mail address"
 msgstr "egy feladócímhez nem tartozik e-mail-cím"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a server that encrypts from the first byte"
+msgstr "egy kiszolgáló, amely az első bájttól titkosít"
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -22517,6 +22583,12 @@ msgstr "az aláírás képei PNG, JPEG vagy GIF (sok levelezőprogram nem mutath
 msgid "a task needs a title"
 msgstr "a feladatnak címre van szüksége"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a web server"
+msgstr "egy webkiszolgáló"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -22559,11 +22631,29 @@ msgstr "HTML aláírás csak a webcímükről mutat képeket: először távolí
 msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
 msgstr "HTML aláírás képeket mutat a webcímükről: váltsd át gazdag szövegre, hogy hozzáadj egyet"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an IMAP server"
+msgstr "egy IMAP-kiszolgáló"
+
 #. what a command says
 #: crates/engine/src/digital_signature.rs
 #, fuzzy
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
 msgstr "a S/MIME tanúsítvány megbízható a hitelesítési hatóság és nincs jelölve"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an SMTP server"
+msgstr "egy SMTP-kiszolgáló"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an SSH server"
+msgstr "egy SSH-kiszolgáló"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -22753,6 +22843,12 @@ msgid "copy it to {folder} - {who}"
 msgstr "másolás ide: {folder} - {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "couldn't make a secure connection to {at}: {reason}"
+msgstr "nem sikerült biztonságos kapcsolatot létesíteni ide: {at}: {reason}"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't make a secure connection to {host}: {reason}"
@@ -22783,13 +22879,13 @@ msgid "due"
 msgstr "esedékes"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "enter a password to sign in"
 msgstr "jelszót kell megadnia a bejelentkezéshez"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "enter a user name to sign in"
 msgstr "beírandó felhasználónév"
@@ -23683,6 +23779,12 @@ msgstr "nem ismert az első Küldés/fogadóig"
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
 msgstr "nem küldte el: {why}. Küldje a \"confirmed\": true értékkel, hogy mindenképp elmenjen, vagy a \"moveToBcc\": true értékkel, hogy a szervezeten kívüli személyek előbb titkos másolatba kerüljenek"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "nothing answers at {at} ({reason})"
+msgstr "a(z) {at} címen semmi sem válaszol ({reason})"
+
 #. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
@@ -24070,6 +24172,18 @@ msgstr "a méret {min} KB és {max} KB között van"
 msgid "someone@example.org or @example.org"
 msgstr "someone@ example.org or @ example.org"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "something answers at {at}, but it isn't a ManageSieve server"
+msgstr "a(z) {at} címen valami válaszol, de az nem ManageSieve-kiszolgáló"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "something answers at {at}, but it isn't a ManageSieve server: it looks like {what}"
+msgstr "a(z) {at} címen valami válaszol, de az nem ManageSieve-kiszolgáló: úgy tűnik, ez {what}"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -24225,6 +24339,12 @@ msgstr "a .pst fájl olvasója megállt, mielőtt megtörtént volna"
 msgid "the Inbox of this account hasn't been read yet"
 msgstr "A fiókfiókot még nem olvasták el."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "the ManageSieve server at {at} doesn't offer STARTTLS"
+msgstr "a(z) {at} ManageSieve-kiszolgálója nem kínál STARTTLS-t"
+
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -24232,7 +24352,7 @@ msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "A OpenPGP kulcs nagyobb, mint egy nyilvános kulcs."
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "the account has no incoming server"
 msgstr "a fiókhoz nincs beállítva bejövő levelek kiszolgálója"
@@ -24256,7 +24376,7 @@ msgid "the account has no usable e-mail address to send from"
 msgstr "a fiókhoz nincs használható feladói e-mail-cím"
 
 #. why a mail server couldn't be used
-#: crates/net/src/send.rs crates/net/src/sync.rs
+#: crates/net/src/send.rs crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "the account has no user name or e-mail address to sign in with"
 msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e-mail-cím"
@@ -24376,7 +24496,7 @@ msgid "the check stopped unexpectedly"
 msgstr "az ellenőrzés váratlanul leállt"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the command was refused"
 msgstr "a parancsot elutasították"
@@ -24747,6 +24867,12 @@ msgstr "az eredmény {why}"
 msgid "the same calendar item is named twice; nothing was changed"
 msgstr "ugyanaz a naptárelem kétszer van megadva; semmi sem változott"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the script is larger than the {kb} KB MailCraft sends"
+msgstr "a szkript nagyobb a MailCraft által küldhető {kb} KB-nál"
+
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -24820,19 +24946,19 @@ msgid "the server answered {status}"
 msgstr "A szerver válaszolt {status}"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server asked for more than a sign-in has"
 msgstr "a kiszolgáló többre kérte, mint egy bejelentkezés"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server asked for more than a user name and access token"
 msgstr "a kiszolgáló több felhasználónevet és token-hozzáférést kért"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server asked for more than a user name and password"
 msgstr "a kiszolgáló többre kérte a felhasználó nevét és jelszavát"
@@ -24922,10 +25048,22 @@ msgid "the server didn't end IDLE properly"
 msgstr "a kiszolgáló nem fejezte be megfelelően az IDLE-t"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server didn't greet like a ManageSieve server"
+msgstr "a szerver nem úgy köszönt, mint egy ManageSieve-szerver"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
 msgstr "A szerver nem úgy köszönt, mint egy IMAP szerver."
+
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server didn't send the script"
+msgstr "a szerver nem küldte el a szkriptet"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24964,19 +25102,19 @@ msgid "the server ended the command early"
 msgstr "a kiszolgáló korábban befejezte a parancsot"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server ended the session"
 msgstr "a kiszolgáló befejezte a munkamenetet"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "a szerver befejezte a munkamenetet: {reason}"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "a szerver nem fogadta el: {reason}"
@@ -24994,13 +25132,13 @@ msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "a kiszolgáló megtartja ezt a mappát: nem lehet átnevezni, áthelyezni vagy törölni"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server offers no way to sign in with a password"
 msgstr "a kiszolgáló nem tud jelszóval beiratkozni"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "a szerver nem tud bejelentkezni egy token-hozzáféréssel"
@@ -25042,6 +25180,12 @@ msgid "the server said: {reason}"
 msgstr "A szerver azt mondta: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server sent MailCraft to another server for the Sieve scripts, which it doesn't follow"
+msgstr "a szerver a Sieve-szkriptekhez egy másik szerverhez irányította a MailCraftot, ezt a MailCraft nem követi"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/line.rs
 #, fuzzy
 msgid "the server sent a line longer than {kb} KB"
@@ -25054,7 +25198,7 @@ msgid "the server sent a web page instead of a picture"
 msgstr "a szerver egy weboldalt küldött kép helyett"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server sent data before the secure connection started"
 msgstr "a kiszolgáló a biztonságos kapcsolat megkezdése előtt küldött adatokat"
@@ -25072,7 +25216,13 @@ msgid "the server sent nothing"
 msgstr "a szerver nem küldött semmit"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/managesieve/parse.rs
+#, fuzzy
+msgid "the server sent something that isn't a ManageSieve response"
+msgstr "a szerver olyasmit küldött, ami nem ManageSieve-válasz"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "a kiszolgáló túl sok választ küldött egy parancsra"
@@ -25090,7 +25240,7 @@ msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailC
 msgstr "a szerver egy darabban küldte {claimed} bájtokat, több mint amit a {mb} MB MailCraft elfogad"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/line.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
 msgstr "a szerver egy darabban küldte a {n} bájtokat, többet, mint amennyit MailCraft elfogad"
@@ -25126,7 +25276,7 @@ msgid "the server's reply has too many lines"
 msgstr "a kiszolgáló válasza túl sok sort tartalmaz"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server's response has too many parts"
 msgstr "a szerver válasza túl sok alkatrészt tartalmaz"
@@ -25138,7 +25288,7 @@ msgid "the server's response is nested too deeply"
 msgstr "A szerver válasza túl mélyen van elrejtve."
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server's response is too long"
 msgstr "a szerver válasza túl hosszú"
@@ -25215,13 +25365,13 @@ msgid "the user name or access token is too long to be sent"
 msgstr "a felhasználó neve vagy hozzáférése túl hosszú ahhoz, hogy elküldjék"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the user name or password has a character that can't be sent"
 msgstr "a felhasználónév vagy jelszó olyan karakterrel rendelkezik, amelyet nem lehet elküldeni"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "a felhasználónév vagy jelszó túl hosszú"
@@ -25931,6 +26081,18 @@ msgstr "{address}: {error}. Lásd a fájlt › Info."
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}: több módja van a válaszadásnak"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "{at} closed the connection without a word"
+msgstr "a(z) {at} szó nélkül bontotta a kapcsolatot"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "{at} expects an encrypted connection from the start, which ManageSieve doesn't use"
+msgstr "a(z) {at} kezdettől titkosított kapcsolatot vár, amit a ManageSieve nem használ"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

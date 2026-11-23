@@ -10,7 +10,8 @@
 //! token (SASL XOAUTH2) instead of a password, and [`lookup_mx`] finds out where a domain's mail
 //! goes, which tells its provider. [`graph`] asks Microsoft Graph for what a Microsoft 365
 //! account has that IMAP and SMTP don't reach: sending where SMTP is switched off, the calendar,
-//! the contacts, and which folders the owner keeps under Favorites in Outlook. [`report`] sends
+//! the contacts, and which folders the owner keeps under Favorites in Outlook. [`sieve`] reads and
+//! writes the Sieve scripts an IMAP account's server keeps, through ManageSieve. [`report`] sends
 //! a problem report the owner wrote to the project's report relay, on their click. All of them
 //! block, so a host calls them on a background thread; every connection has timeouts.
 //!
@@ -71,6 +72,8 @@ pub mod report;
 #[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod sieve;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod subscription;
 #[cfg(not(target_arch = "wasm32"))]
 mod sync;
@@ -89,6 +92,9 @@ mod xml_text;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod fake;
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod fake_sieve;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod tests;
@@ -305,6 +311,10 @@ mod report_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod said_tests;
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod sieve_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "tls_test_support_tests.rs"]

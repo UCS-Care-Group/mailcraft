@@ -63,6 +63,12 @@ msgstr "„{line}“ IMAP-ის პასუხი არ არის"
 msgid "\"{line}\" is not an SMTP reply"
 msgstr "„{line}“ SMTP-ის პასუხი არ არის"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "\"{name}\" can't be used as a script name"
+msgstr "„{name}“ სკრიპტის სახელად ვერ გამოდგება"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -462,6 +468,12 @@ msgstr ".pst ფაილის იმპორტი მიმდინარ�
 #, fuzzy
 msgid "A JMAP account's mail can't be snoozed yet."
 msgstr "JMAP ანგარიშის ფოსტის გადადება ჯერ შეუძლებელია."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
+msgstr "ManageSieve სერვერი მისალმებას დაკავშირებისთანავე აგზავნის. შესაძლოა ეს პორტი თავიდანვე დაშიფრულ კავშირს ელის (Dovecot-ში ssl = yes sieve listener-ზე), რომელსაც ManageSieve არ იყენებს: ის დაუშიფრავად იწყება და STARTTLS-ით გადადის დაშიფვრაზე. ან სერვერის წინ მდგარი პროქსი ელის რაღაცას, რასაც MailCraft არ აგზავნის. შეამოწმეთ Sieve სერვერი (ავტომატური პასუხები) ანგარიშის პარამეტრებში, ან ჰკითხეთ სერვერის ადმინისტრატორს."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -3429,6 +3441,18 @@ msgstr "ახალი ვერსიების შემოწმება"
 #, fuzzy
 msgid "Check spelling with a local dictionary"
 msgstr "მართლწერის შემოწმება ადგილობრივი ლექსიკონით"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Check the Sieve server (Automatic Replies) in Account Settings, and that your mail server has ManageSieve switched on."
+msgstr "შეამოწმეთ Sieve სერვერი (ავტომატური პასუხები) ანგარიშის პარამეტრებში და ჩართულია თუ არა ManageSieve თქვენს ფოსტის სერვერზე."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Check the Sieve server (Automatic Replies) in Account Settings: ManageSieve is usually on port 4190 of the incoming mail server."
+msgstr "შეამოწმეთ Sieve სერვერი (ავტომატური პასუხები) ანგარიშის პარამეტრებში: ManageSieve ჩვეულებრივ შემომავალი ფოსტის სერვერის 4190 პორტზეა."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8979,6 +9003,12 @@ msgstr "MailCraft ამ სერვერზე ამ გზით შეს�
 msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
 msgstr "MailCraft შეიცავს ქვემოთ ჩამოთვლილ პროგრამებს. მისი ბირთვის Rust ბიბლიოთეკები ვერსიებით ჩამოთვლილია წყაროს რეპოზიტორიაში."
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "MailCraft connected to {at}, but the server said nothing"
+msgstr "MailCraft დაუკავშირდა {at}-ს, მაგრამ სერვერმა არაფერი თქვა"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
@@ -9146,6 +9176,12 @@ msgstr "MailCraft გასაღებს მისი საიდუმლო
 #, fuzzy
 msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
 msgstr "MailCraft სერვერს {host} უგზავნის მხოლოდ იმ მისამართს, რომელიც ამ სიამ გამოწერის გასაუქმებლად მიუთითა და რომელმაც შეიძლება სიას თქვენი ვინაობა გაუმხილოს, სხვას არაფერს: არც ქუქი-ფაილებს, არც შესვლას. ნებისმიერი კავშირის მსგავსად, ის თქვენს ინტერნეტ-მისამართსაც აჩვენებს."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "MailCraft signs in only over an encrypted connection, so it didn't sign in there: your password would cross the network unencrypted. Ask the server's administrator to turn on TLS for ManageSieve."
+msgstr "MailCraft შედის მხოლოდ დაშიფრული კავშირით, ამიტომ იქ არ შესულა: თქვენი პაროლი ქსელში დაუშიფრავად გაივლიდა. სთხოვეთ სერვერის ადმინისტრატორს ManageSieve-სთვის TLS-ის ჩართვა."
 
 #. interface
 #: crates/ui-egui/src/opening.rs
@@ -9327,6 +9363,12 @@ msgstr "წესების მართვა…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "დავალების მართვა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "ManageSieve starts unencrypted and switches to encryption with STARTTLS, so MailCraft doesn't sign in there. On Dovecot, set ssl = no on the sieve listener (the connection is still encrypted, by STARTTLS), or name another port in Account Settings › Sieve server (Automatic Replies)."
+msgstr "ManageSieve დაუშიფრავად იწყება და STARTTLS-ით გადადის დაშიფვრაზე, ამიტომ MailCraft იქ არ შედის. Dovecot-ში sieve listener-ზე დააყენეთ ssl = no (კავშირი მაინც დაშიფრული რჩება, STARTTLS-ით), ან მიუთითეთ სხვა პორტი: ანგარიშის პარამეტრები › Sieve სერვერი (ავტომატური პასუხები)."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -11583,6 +11625,12 @@ msgstr "არაფერი გაკეთებულა: ის, რაზ�
 #, fuzzy
 msgid "Nothing was sent to Microsoft, and your password isn't kept."
 msgstr "Microsoft-ს არაფერი გაეგზავნა და თქვენი პაროლი არ ინახება."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Nothing was sent to it. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator about its certificate."
+msgstr "მას არაფერი გაეგზავნა. შეამოწმეთ Sieve სერვერი (ავტომატური პასუხები) ანგარიშის პარამეტრებში, ან ჰკითხეთ სერვერის ადმინისტრატორს მის სერტიფიკატზე."
 
 #. interface
 #: crates/ui-egui/src/sending.rs
@@ -15975,6 +16023,12 @@ msgstr ""
 #, fuzzy
 msgid "Side-by-Side"
 msgstr "გვერდიგვერდ"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "Sieve scripts are only read from and written to the account's own mail server"
+msgstr "Sieve-ის სკრიპტები მხოლოდ ანგარიშის საკუთარ საფოსტო სერვერზე იკითხება და იწერება"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22181,6 +22235,12 @@ msgstr "Microsoft-ის ან Exchange-ის ანგარიში სხ�
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "Microsoft-ით შესვლა მხოლოდ Microsoft-ის საკუთარ საფოსტო სერვერებთან გამოიყენება: ეს ანგარიში სხვა სერვერს ასახელებს"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a POP3 server"
+msgstr "POP3 სერვერს"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -22369,6 +22429,12 @@ msgstr "სერვერზე გასაგზავნად მომლ�
 msgid "a sender address has no e-mail address"
 msgstr "გამგზავნის მისამართს ელფოსტის მისამართი არ აქვს"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a server that encrypts from the first byte"
+msgstr "სერვერს, რომელიც პირველივე ბაიტიდან შიფრავს"
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -22441,6 +22507,12 @@ msgstr "ხელმოწერის სურათები არის PNG
 msgid "a task needs a title"
 msgstr "დავალებას სათაური სჭირდება"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "a web server"
+msgstr "ვებსერვერს"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -22483,11 +22555,29 @@ msgstr "HTML ხელმოწერა სურათებს მხოლ�
 msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
 msgstr "HTML ხელმოწერა სურათებს მათი ვებმისამართიდან აჩვენებს: სურათის დასამატებლად გადართეთ ფორმატირებულ ტექსტზე"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an IMAP server"
+msgstr "IMAP სერვერს"
+
 #. what a command says
 #: crates/engine/src/digital_signature.rs
 #, fuzzy
 msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
 msgstr "S/MIME სერტიფიკატი სანდოა თავისი სასერტიფიკაციო ცენტრის მეშვეობით და დადასტურებულად არ მოინიშნება"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an SMTP server"
+msgstr "SMTP სერვერს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "an SSH server"
+msgstr "SSH სერვერს"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -22677,6 +22767,12 @@ msgid "copy it to {folder} - {who}"
 msgstr "დაკოპირება: {folder} - {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "couldn't make a secure connection to {at}: {reason}"
+msgstr "{at}-თან უსაფრთხო კავშირის დამყარება ვერ მოხერხდა: {reason}"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't make a secure connection to {host}: {reason}"
@@ -22707,13 +22803,13 @@ msgid "due"
 msgstr "ვადა"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "enter a password to sign in"
 msgstr "შესასვლელად შეიყვანეთ პაროლი"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "enter a user name to sign in"
 msgstr "შესასვლელად შეიყვანეთ მომხმარებლის სახელი"
@@ -23607,6 +23703,12 @@ msgstr "უცნობია პირველ „გაგზავნა/მ
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
 msgstr "არ გაიგზავნა: {why}. გაგზავნეთ პარამეტრით \"confirmed\": true, რომ მაინც გაიგზავნოს, ან \"moveToBcc\": true, რომ ორგანიზაციის გარეთ მყოფი ადამიანები ჯერ ფარულ ასლში გადავიდნენ"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "nothing answers at {at} ({reason})"
+msgstr "{at}-ზე არაფერი პასუხობს ({reason})"
+
 #. what a command says
 #: crates/engine/src/cmd/format.rs
 #, fuzzy
@@ -23994,6 +24096,18 @@ msgstr "ზომა არის {min} KB-დან {max} KB-მდე"
 msgid "someone@example.org or @example.org"
 msgstr "someone@example.org ან @example.org"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "something answers at {at}, but it isn't a ManageSieve server"
+msgstr "{at}-ზე რაღაც პასუხობს, მაგრამ ეს ManageSieve სერვერი არ არის"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "something answers at {at}, but it isn't a ManageSieve server: it looks like {what}"
+msgstr "{at}-ზე რაღაც პასუხობს, მაგრამ ეს ManageSieve სერვერი არ არის: ის ჰგავს {what}"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -24149,6 +24263,12 @@ msgstr ".pst ფაილის წამკითხველი დასრ�
 msgid "the Inbox of this account hasn't been read yet"
 msgstr "ამ ანგარიშის „შემოსულები“ ჯერ არ წაკითხულა"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "the ManageSieve server at {at} doesn't offer STARTTLS"
+msgstr "ManageSieve სერვერი {at}-ზე STARTTLS-ს არ გვთავაზობს"
+
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -24156,7 +24276,7 @@ msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "OpenPGP გასაღები იმაზე დიდია, რაც საჯარო გასაღებისთვის ინახება"
 
 #. why a mail server couldn't be used
-#: crates/net/src/sync.rs
+#: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "the account has no incoming server"
 msgstr "ანგარიშს შემომავალი სერვერი არ აქვს"
@@ -24180,7 +24300,7 @@ msgid "the account has no usable e-mail address to send from"
 msgstr "ანგარიშს გასაგზავნად გამოსადეგი ელფოსტის მისამართი არ აქვს"
 
 #. why a mail server couldn't be used
-#: crates/net/src/send.rs crates/net/src/sync.rs
+#: crates/net/src/send.rs crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
 msgid "the account has no user name or e-mail address to sign in with"
 msgstr "ანგარიშს შესასვლელად მომხმარებლის სახელი ან ელფოსტის მისამართი არ აქვს"
@@ -24300,7 +24420,7 @@ msgid "the check stopped unexpectedly"
 msgstr "შემოწმება მოულოდნელად შეწყდა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the command was refused"
 msgstr "ბრძანება უარყოფილია"
@@ -24669,6 +24789,12 @@ msgstr "შედეგი {why}"
 msgid "the same calendar item is named twice; nothing was changed"
 msgstr "კალენდრის ერთი და იგივე ელემენტი ორჯერაა მითითებული; არაფერი შეცვლილა"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the script is larger than the {kb} KB MailCraft sends"
+msgstr "სკრიპტი აღემატება {kb} KB-ს, რასაც MailCraft აგზავნის"
+
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -24742,19 +24868,19 @@ msgid "the server answered {status}"
 msgstr "სერვერის პასუხი: {status}"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server asked for more than a sign-in has"
 msgstr "სერვერმა იმაზე მეტი მოითხოვა, ვიდრე შესვლას აქვს"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server asked for more than a user name and access token"
 msgstr "სერვერმა მომხმარებლის სახელსა და წვდომის ტოკენზე მეტი მოითხოვა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server asked for more than a user name and password"
 msgstr "სერვერმა მომხმარებლის სახელსა და პაროლზე მეტი მოითხოვა"
@@ -24844,10 +24970,22 @@ msgid "the server didn't end IDLE properly"
 msgstr "სერვერმა IDLE სწორად არ დაასრულა"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server didn't greet like a ManageSieve server"
+msgstr "სერვერი ManageSieve სერვერივით არ მოგვესალმა"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the server didn't greet like an IMAP server"
 msgstr "სერვერი IMAP სერვერივით არ მოგვესალმა"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server didn't send the script"
+msgstr "სერვერმა სკრიპტი არ გამოგზავნა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24886,19 +25024,19 @@ msgid "the server ended the command early"
 msgstr "სერვერმა ბრძანება ნაადრევად დაასრულა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/status.rs
+#: crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server ended the session"
 msgstr "სერვერმა სესია დაასრულა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server ended the session: {reason}"
 msgstr "სერვერმა სესია დაასრულა: {reason}"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "სერვერი უარით მოგვესალმა: {reason}"
@@ -24916,13 +25054,13 @@ msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "ამ საქაღალდეს სერვერი ინახავს: მისი სახელის შეცვლა, გადატანა ან წაშლა შეუძლებელია"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server offers no way to sign in with a password"
 msgstr "სერვერი პაროლით შესვლის საშუალებას არ გვთავაზობს"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/smtp.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server offers no way to sign in with an access token"
 msgstr "სერვერი წვდომის ტოკენით შესვლის საშუალებას არ გვთავაზობს"
@@ -24964,6 +25102,12 @@ msgid "the server said: {reason}"
 msgstr "სერვერის პასუხი: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+#, fuzzy
+msgid "the server sent MailCraft to another server for the Sieve scripts, which it doesn't follow"
+msgstr "სერვერმა MailCraft Sieve-ის სკრიპტებისთვის სხვა სერვერზე გადაამისამართა, რასაც MailCraft არ მიჰყვება"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/line.rs
 #, fuzzy
 msgid "the server sent a line longer than {kb} KB"
@@ -24976,7 +25120,7 @@ msgid "the server sent a web page instead of a picture"
 msgstr "სერვერმა სურათის ნაცვლად ვებგვერდი გამოგზავნა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the server sent data before the secure connection started"
 msgstr "სერვერმა მონაცემები უსაფრთხო კავშირის დაწყებამდე გამოგზავნა"
@@ -24994,7 +25138,13 @@ msgid "the server sent nothing"
 msgstr "სერვერმა არაფერი გამოგზავნა"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs
+#: crates/proto/src/managesieve/mod.rs crates/proto/src/managesieve/parse.rs
+#, fuzzy
+msgid "the server sent something that isn't a ManageSieve response"
+msgstr "სერვერმა გამოგზავნა რაღაც, რაც ManageSieve-ის პასუხი არ არის"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/idle.rs crates/proto/src/imap/mod.rs crates/proto/src/imap/status.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the server sent too many responses to one command"
 msgstr "სერვერმა ერთ ბრძანებაზე ზედმეტად ბევრი პასუხი გამოგზავნა"
@@ -25012,7 +25162,7 @@ msgid "the server sent {claimed} bytes in one piece, more than the {mb} MB MailC
 msgstr "სერვერმა ერთ ნაწილად {claimed} ბაიტი გამოგზავნა, იმ {mb} მბ-ზე მეტი, რასაც MailCraft იღებს"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/line.rs
+#: crates/proto/src/line.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server sent {n} bytes in one piece, more than MailCraft accepts"
 msgstr "სერვერმა ერთ ნაწილად {n} ბაიტი გამოგზავნა, იმაზე მეტი, რასაც MailCraft იღებს"
@@ -25048,7 +25198,7 @@ msgid "the server's reply has too many lines"
 msgstr "სერვერის პასუხს ზედმეტად ბევრი სტრიქონი აქვს"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server's response has too many parts"
 msgstr "სერვერის პასუხს ზედმეტად ბევრი ნაწილი აქვს"
@@ -25060,7 +25210,7 @@ msgid "the server's response is nested too deeply"
 msgstr "სერვერის პასუხი ზედმეტად ღრმადაა ჩადგმული"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/parse.rs
 #, fuzzy
 msgid "the server's response is too long"
 msgstr "სერვერის პასუხი ზედმეტად გრძელია"
@@ -25137,13 +25287,13 @@ msgid "the user name or access token is too long to be sent"
 msgstr "მომხმარებლის სახელი ან წვდომის ტოკენი გასაგზავნად ზედმეტად გრძელია"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/mod.rs crates/proto/src/smtp.rs
+#: crates/proto/src/imap/mod.rs crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
 #, fuzzy
 msgid "the user name or password has a character that can't be sent"
 msgstr "მომხმარებლის სახელში ან პაროლში ისეთი სიმბოლოა, რომლის გაგზავნაც შეუძლებელია"
 
 #. why a mail server couldn't be used
-#: crates/proto/src/imap/password.rs
+#: crates/proto/src/imap/password.rs crates/proto/src/managesieve/mod.rs
 #, fuzzy
 msgid "the user name or password is too long"
 msgstr "მომხმარებლის სახელი ან პაროლი ზედმეტად გრძელია"
@@ -25848,6 +25998,18 @@ msgstr "{address}: {error}. იხილეთ ფაილი › ინფო�
 #, fuzzy
 msgid "{answer}: more ways to answer"
 msgstr "{answer}: პასუხის სხვა გზები"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "{at} closed the connection without a word"
+msgstr "{at}-მ კავშირი უსიტყვოდ დახურა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+#, fuzzy
+msgid "{at} expects an encrypted connection from the start, which ManageSieve doesn't use"
+msgstr "{at} თავიდანვე დაშიფრულ კავშირს ელის, რომელსაც ManageSieve არ იყენებს"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

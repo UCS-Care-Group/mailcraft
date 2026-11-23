@@ -444,7 +444,7 @@ pub(crate) type FakeSmtp = Fake<SmtpWorld>;
 
 impl<W: Send + 'static> Fake<W> {
     /// Listen on a free loopback port and serve every connection on its own thread.
-    fn start(world: W, serve: fn(TcpStream, Arc<Mutex<W>>)) -> Fake<W> {
+    pub(crate) fn start(world: W, serve: fn(TcpStream, Arc<Mutex<W>>)) -> Fake<W> {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let world = Arc::new(Mutex::new(world));
@@ -486,7 +486,7 @@ impl Fake<SmtpWorld> {
 }
 
 /// The next line without its line ending; `None` when the client is gone.
-fn read_line<S: Read>(reader: &mut BufReader<S>) -> Option<String> {
+pub(crate) fn read_line<S: Read>(reader: &mut BufReader<S>) -> Option<String> {
     let mut line = Vec::new();
     match reader.read_until(b'\n', &mut line) {
         Ok(n) if n > 0 => Some(String::from_utf8_lossy(&line).trim_end_matches(['\r', '\n']).to_string()),
@@ -495,7 +495,7 @@ fn read_line<S: Read>(reader: &mut BufReader<S>) -> Option<String> {
 }
 
 /// Agree to STARTTLS, then answer the client's handshake with something that isn't one.
-fn pretend_tls(out: &mut TcpStream, reader: &mut BufReader<TcpStream>, go_ahead: &str) {
+pub(crate) fn pretend_tls(out: &mut TcpStream, reader: &mut BufReader<TcpStream>, go_ahead: &str) {
     let _ = out.write_all(go_ahead.as_bytes());
     let _ = reader.fill_buf();
     let _ = out.write_all(b"this is no handshake\r\n");
