@@ -1,1 +1,0 @@
-- A rule on this computer no longer moves new mail into another account past a rule made in Outlook that MailCraft can't show whole and that stops the rules after it ([#566](https://github.com/GITHUB_REPOSITORY/issues/566)).

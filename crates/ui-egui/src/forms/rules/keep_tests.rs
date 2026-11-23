@@ -332,7 +332,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     assert_eq!(
         describe(&s.mailbox, rule),
         "When from \"news@club.example\" and subject or body contains \"meeting\" or \"agenda\" and my address is in To or Cc and \
-         size is 0 KB to 512 KB and received on or after 2026-10-01, except if sensitivity is private or category is \"Red category\": \
+         size is 0 KB to 512 KB and received on or after Oct 1, 2026, except if sensitivity is private or category is \"Red category\": \
          copy it to Receipts, flag it for tomorrow, clear its categories, show a desktop alert"
     );
     // The rest: a plain flag, clearing it, deleting, and the other conditions that

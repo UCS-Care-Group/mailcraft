@@ -436,6 +436,55 @@ fn reply_from_a_messages_window_opens_a_window_of_its_own() {
     assert!(h.state().windows.of_message(message).is_some(), "the message's window stays");
 }
 
+/// A message open in the reading pane and in a window of its own at another width: a reply asked
+/// for in each quotes it as that one reads it, whichever was drawn last, with what its `@media`
+/// hides there left out.
+#[test]
+fn a_reply_quotes_the_message_as_the_place_it_was_asked_for_reads_it() {
+    use mailcraft_engine::ReadIn;
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "mail.select", json!({"id": message}));
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let win = h.state().windows.of_message(message).unwrap();
+    let width = |h: &Harness, place| h.state().session.read_as(message, place).map(|r| r.0.width()).unwrap();
+    let (pane, own) = (width(&h, ReadIn::Pane), width(&h, ReadIn::Window(win)));
+    assert!(pane.abs_diff(own) > 2, "pane {pane}, window {own}");
+    let mid = pane.min(own) + pane.abs_diff(own) / 2;
+    let html = format!(
+        "<style>@media (max-width:{mid}px){{.w{{display:none}}}}@media (min-width:{}px){{.n{{display:none}}}}</style>\
+         <p>Both</p><p class=w>WIDE WORDS</p><p class=n>NARROW WORDS</p>",
+        mid + 1
+    );
+    let m = h.state_mut().session.mailbox.message_mut(message).unwrap();
+    m.body = mailcraft_model::Body { text: String::new(), html: Some(html) };
+    h.run_steps(4);
+    let words = |pane_wider: bool| if pane_wider { ("WIDE WORDS", "NARROW WORDS") } else { ("NARROW WORDS", "WIDE WORDS") };
+    let quoted = |h: &Harness| {
+        let c = h.state().session.all_composing().find(|c| c.source == Some(message)).unwrap();
+        (c.id, c.quote.clone().unwrap())
+    };
+    // From the main window's ribbon: as the pane reads it.
+    owner(&mut h, "mail.reply", json!({}));
+    let (compose, q) = quoted(&h);
+    let (kept, gone) = words(pane > own);
+    assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "pane: {}", q.html);
+    assert!(q.text.contains(kept) && !q.text.contains(gone), "pane: {}", q.text);
+    script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    let _ = h.state_mut().execute("compose.close", json!({"discard": true}));
+    h.run_steps(3);
+    // From the message's window: as the window reads it.
+    for kind in ["windowReply", "windowForward"] {
+        let rect = h.state().hit.rect(kind, message).unwrap_or_else(|| panic!("no {kind}"));
+        click(&mut h, rect.center());
+        let (compose, q) = quoted(&h);
+        let (kept, gone) = words(own > pane);
+        assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "{kind}: {}", q.html);
+        assert!(q.text.contains(kept) && !q.text.contains(gone), "{kind}: {}", q.text);
+        script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    }
+}
+
 #[test]
 fn insert_link_in_a_forwards_window_comes_up_over_that_window() {
     let mut h = window(app());

@@ -300,6 +300,13 @@ pub struct ViewState {
     /// Gmail's categories as a row of tabs above a Gmail Inbox's list, in place of the five
     /// folders under it in the folder pane (#911; `view.gmailCategories`). Off: as folders.
     pub gmail_tabs: bool,
+    /// Every account's folder of this kind in one list (#625; `view.allAccounts`): All Inboxes and
+    /// the like, over the accounts' own folders, nothing copied. Only while the folder in view is
+    /// a top-level folder of that kind ([`crate::unified::of`]); `folder.select` leaves it.
+    /// Kept with the view's settings, so that the window opens on it again (read leniently: a
+    /// value that isn't a kind is none).
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_kind")]
+    pub unified: Option<mailcraft_model::FolderKind>,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -338,6 +345,13 @@ pub struct ViewState {
     pub people_book: Option<Id>,
 }
 
+/// [`ViewState::unified`] from saved settings: a kind of folder, or none for anything else, so a
+/// damaged or newer value never loses the rest of the settings.
+fn lenient_kind<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<mailcraft_model::FolderKind>, D::Error> {
+    let value = <Value as Deserialize>::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
+}
+
 impl Default for ViewState {
     fn default() -> Self {
         ViewState {
@@ -350,6 +364,7 @@ impl Default for ViewState {
             filter: Filter::All,
             gmail: None,
             gmail_tabs: false,
+            unified: None,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
@@ -484,6 +499,8 @@ pub struct Stays {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ListOf {
     folder: Id,
+    /// Every account's folder of a kind (#625).
+    unified: Option<mailcraft_model::FolderKind>,
     filter: Filter,
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
@@ -500,7 +517,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, unified: view.unified, filter: view.filter, gmail: view.gmail, search, when }
     }
 }
 
@@ -1018,14 +1035,17 @@ impl Default for Prefs {
 }
 
 impl Prefs {
-    /// The waits Undo Send offers, in seconds (0 is off).
-    pub const UNDO_SEND_CHOICES: [u8; 6] = [0, 5, 10, 15, 20, 30];
+    /// The waits Undo Send offers, in seconds (0 is off), up to two minutes (#1799). Each fits a
+    /// `u8`, so a settings file stays readable by an older version (which reads more than 30 as 30).
+    pub const UNDO_SEND_CHOICES: [u8; 8] = [0, 5, 10, 15, 20, 30, 60, 120];
+    /// The longest wait offered.
+    pub const UNDO_SEND_MOST: u8 = 120;
 
     /// The seconds to wait before a message goes, 0 for none (a settings file may say anything:
-    /// a value the choice doesn't offer is read as the nearest one it does, never more than 30).
+    /// a value the choice doesn't offer is read as the next one up, never more than the most).
     pub fn undo_send(&self) -> u8 {
-        let n = self.undo_send_secs.min(30);
-        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(30)
+        let n = self.undo_send_secs.min(Self::UNDO_SEND_MOST);
+        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(Self::UNDO_SEND_MOST)
     }
 
     /// The zoom of the message being read, in percent: the least, the most, and as it comes.
@@ -1141,6 +1161,9 @@ pub struct Session {
     /// The messages said to wait for the bytes they came as (#30), each said once
     /// ([`Session::first_told_held`]).
     told_held: std::sync::Mutex<HashSet<(Id, Held)>>,
+    /// Who the owner sent mail to, as of the revision, opening and message count it was counted
+    /// at (`cmd::compose::suggest`, #1803). In memory only.
+    pub(crate) send_counts: std::sync::Mutex<Option<((u64, u64, usize), std::sync::Arc<crate::cmd::compose::SendCounts>)>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -1344,6 +1367,14 @@ pub struct Session {
     /// reads `MAILCRAFT_DAV=1` and sets it; off, their commands are disabled and the window offers
     /// nothing. Ships off until the feature is ready. Never saved.
     pub dav_enabled: bool,
+    /// The width and theme each message was last read at in each place (the reading pane, a window
+    /// of its own), whether its text part was shown instead of its HTML, and when it was last said
+    /// ([`Session::read_at`]): a reply or forward quotes it as it was read where it was asked for,
+    /// with what its `@media` hid there left out. A message not read there is quoted with only
+    /// what every pane would show of it.
+    read_at: HashMap<(Id, ReadIn), (mailcraft_html::Env, bool, u64)>,
+    /// How many times [`Session::read_at`] was told something: the age of what it keeps.
+    read_count: u64,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -1387,7 +1418,48 @@ impl Swaps {
     }
 }
 
+/// Most places and messages whose reading width and theme are kept ([`Session::read_at`]); the
+/// one said longest ago goes first. (One forgotten is quoted with what every pane shows.)
+const MAX_READ_AT: usize = 1024;
+
+/// Where a message is read: the main window's reading pane (or a phone's message view), or a
+/// window of its own, by the window's number. A reply asked for there quotes it as read there.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ReadIn {
+    #[default]
+    Pane,
+    Window(u64),
+}
+
 impl Session {
+    /// Message `id` was read in `place` at the width and in the theme `env`, its text part shown
+    /// instead of its HTML when `as_text` (the host says so each time it shows it, and only when
+    /// it had HTML to choose from).
+    pub fn read_at(&mut self, id: Id, place: ReadIn, env: mailcraft_html::Env, as_text: bool) {
+        self.read_count = self.read_count.saturating_add(1);
+        if self.read_at.len() >= MAX_READ_AT && !self.read_at.contains_key(&(id, place)) {
+            // lean: a walk of the 1024 at the cap; an ordered map if it is ever felt.
+            if let Some(oldest) = self.read_at.iter().min_by_key(|(_, r)| r.2).map(|(k, _)| *k) {
+                self.read_at.remove(&oldest);
+            }
+        }
+        self.read_at.insert((id, place), (env, as_text, self.read_count));
+    }
+
+    /// How message `id` was last read in each place it is remembered in ([`Session::read_as`]).
+    pub fn read_elsewhere(&self, id: Id) -> Vec<(mailcraft_html::Env, bool)> {
+        let mut out: Vec<_> = self.read_at.iter().filter(|((of, _), _)| *of == id).map(|(_, r)| (r.0, r.1)).collect();
+        // In one order, whatever the map's.
+        out.sort_by_key(|(env, as_text)| (env.width(), env.dark(), *as_text));
+        out
+    }
+
+    /// The width and theme message `id` was last read at in `place`, and whether as its text part
+    /// ([`Session::read_at`]); `None` when it wasn't read there (or was forgotten).
+    pub fn read_as(&self, id: Id, place: ReadIn) -> Option<(mailcraft_html::Env, bool)> {
+        self.read_at.get(&(id, place)).map(|r| (r.0, r.1))
+    }
+
     pub fn new(mailbox: Mailbox) -> Self {
         Session::with_clock(mailbox, Clock::default())
     }
@@ -1401,6 +1473,7 @@ impl Session {
             sel: Selection::default(),
             lost_originals: std::sync::Mutex::default(),
             told_held: std::sync::Mutex::default(),
+            send_counts: std::sync::Mutex::default(),
             compose: None,
             composing: Vec::new(),
             compose_seq: 0,
@@ -1469,6 +1542,8 @@ impl Session {
             date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             dav_enabled: false,
+            read_at: HashMap::new(),
+            read_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };

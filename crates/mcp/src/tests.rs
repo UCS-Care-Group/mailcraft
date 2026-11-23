@@ -45,7 +45,8 @@ fn agent_triages_mail_and_books_a_meeting() {
     let mut s = Server::new(Box::new(Headless::new(mailcraft_engine::Session::empty(), allow)));
     tool(&mut s, "open_mailbox", json!({"sample": true}));
     let folders = tool(&mut s, "list_folders", json!({}));
-    assert_eq!(folders["accounts"][0]["folders"][0]["name"], "Inbox");
+    // A folder's name is the server's: framed like message text.
+    assert_eq!(plain(&folders["accounts"][0]["folders"][0]["name"]), "Inbox");
     let unread = tool(&mut s, "list_messages", json!({"folder": "Inbox", "query": "is:unread"}));
     let messages = unread["messages"].as_array().unwrap();
     assert_eq!(messages.len(), 4);

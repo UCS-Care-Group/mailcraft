@@ -246,6 +246,7 @@ const SAFE: &[&str] = &[
     "format.clear",
     "format.indent",
     "format.outdent",
+    "format.align",
     "edit.copy",
     "edit.cut",
     "edit.paste",
@@ -283,6 +284,8 @@ const SAFE: &[&str] = &[
     "view.tasks",
     "view.readingPane",
     "view.gmailCategories",
+    // Every account's folder of a kind in one list (#625): only what the window shows.
+    "view.allAccounts",
     "view.folderPane",
     "view.navigationBar",
     "view.conversations",
@@ -747,6 +750,11 @@ pub fn access(id: &str) -> Option<Access> {
     } else {
         return None;
     })
+}
+
+/// Every id an agent may run (with the owner's yes or without): the engine's and the window's.
+pub fn runnable() -> impl Iterator<Item = &'static str> {
+    [SAFE, SEND, DELETE, ACCOUNTS, MAILBOX, SETTINGS].into_iter().flatten().copied()
 }
 
 /// How a command uses a param that names a file on disk.

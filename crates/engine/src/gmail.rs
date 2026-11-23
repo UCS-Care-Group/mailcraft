@@ -85,7 +85,8 @@ pub fn offered(s: &Session) -> Option<&'static str> {
 /// is tabs (`view.gmailCategories`), Mail is in front, and the folder in view is a Gmail Inbox
 /// whose categories are listed ([`listed_under`]). The folder pane then lists none under it.
 pub fn tabs_shown(s: &mut Session) -> bool {
-    s.view.gmail_tabs && s.view.module == crate::Module::Mail && listed_under(s, s.view.folder)
+    // (Not over every account's Inbox, #625: the tabs are one account's.)
+    s.view.gmail_tabs && s.view.module == crate::Module::Mail && crate::unified::of(s).is_none() && listed_under(s, s.view.folder)
 }
 
 /// Whether the folder pane lists the five under `folder`: [`has_categories`], and Gmail put at
