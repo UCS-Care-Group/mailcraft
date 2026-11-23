@@ -59,7 +59,9 @@ fn switching_from_a_long_signature_to_a_short_one_leaves_no_blank_lines() {
     h.state_mut().run("compose.signature", json!({"name": "Short"})).unwrap();
     h.run_steps(3);
     let short = rect(&h, "composeBody");
-    assert!(short.height() < long - 4.0 * LINE, "the body is as tall as its text: {} after {long}", short.height());
+    // Three lines (the empty ones before it and the signature) where there were nine: the body
+    // follows its text, whatever a line's height is on this system.
+    assert!(short.height() * 2.0 <= long, "the body is as tall as its text: {} after {long}", short.height());
     assert!((0.0..=LINE).contains(&gap(&h)), "the original follows the short signature: {}", gap(&h));
 }
 
