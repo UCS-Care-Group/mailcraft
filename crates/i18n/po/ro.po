@@ -15320,7 +15320,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Afișați o alertă pe desktop pentru mementouri"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afișați o alertă pe desktop când sosește un e-mail nou"

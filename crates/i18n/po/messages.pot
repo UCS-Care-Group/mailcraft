@@ -12664,7 +12664,7 @@ msgid "Show a desktop alert for reminders"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 msgid "Show a desktop alert when new mail arrives"
 msgstr ""
 
