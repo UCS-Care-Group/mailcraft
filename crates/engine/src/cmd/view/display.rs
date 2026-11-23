@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! How the mail looks on screen: the list's ready-made views, its tighter spacing, the zoom of the
-//! message being read, and the searches run lately. All of it is this computer's settings
-//! ([`crate::Prefs`]) and the view: nothing here changes the mailbox or goes to a server.
+//! How the mail looks on screen: the list's ready-made views, its tighter spacing and shaded
+//! rows, the zoom of the message being read, and the searches run lately. All of it is this
+//! computer's settings ([`crate::Prefs`]) and the view: nothing here changes the mailbox or goes
+//! to a server.
 
 use serde_json::{Value, json};
 
@@ -17,6 +18,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.density", "Tighter Spacing", "View › Messages", density)
             .reads()
             .params(r#"{"value"?: bool} (default: toggle) — the message list's rows closer together"#),
+        CommandSpec::new("view.shadeRows", "Shade Alternate Rows", "View › Messages", shade_rows)
+            .reads()
+            .params(r#"{"value"?: bool} (default: toggle) — every other row of the message list wears a faint band (#1657)"#),
         CommandSpec::new("view.zoom", "Zoom", "View › Zoom", zoom).reads().params(
             r#"{"value"?: 50-300 (percent), "step"?: "in"|"out"|"reset"} — how large the text of the message being read is (in the reading pane and in a window of its own); omit both to read it"#,
         ),
@@ -107,6 +111,11 @@ fn change_view(s: &mut Session, v: &Value) -> CmdResult {
 fn density(s: &mut Session, v: &Value) -> CmdResult {
     s.prefs.tight_spacing = p::bool(v, "value").unwrap_or(!s.prefs.tight_spacing);
     Ok(json!({"value": s.prefs.tight_spacing}))
+}
+
+fn shade_rows(s: &mut Session, v: &Value) -> CmdResult {
+    s.prefs.shade_rows = p::bool(v, "value").unwrap_or(!s.prefs.shade_rows);
+    Ok(json!({"value": s.prefs.shade_rows}))
 }
 
 /// The zooms In and Out step through, in percent.

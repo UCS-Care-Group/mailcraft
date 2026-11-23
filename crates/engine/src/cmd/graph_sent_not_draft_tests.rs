@@ -512,3 +512,46 @@ fn drafts_read_afresh_with_a_draft_sent_here_and_filed_leaves_it_sent() {
     assert_eq!(mb.messages_in(drafts).count(), 0);
     assert_eq!(moves(&mb), 0);
 }
+
+/// A draft sent from another device, listed in Sent Items without a change key to compare (as a
+/// server that gives none lists it): it waits for its new version, and its size is the listing's,
+/// not the draft's, which no rule may go by (#566).
+#[test]
+fn a_draft_sent_elsewhere_waits_for_its_new_version_without_its_old_size() {
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    let mut draft = page("FD", "AAkD1", Some(true));
+    draft.messages[0].server.size = 5_000;
+    take_page(&mut mb, &mut index, account, &draft, &mut Down::default());
+    let id = only_in(&mb, account, "FD").id;
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkD1", b"From: avery@mail.example\r\nSubject: Quarterly figures\r\n\r\nDraft.\r\n"));
+    assert!(!mb.message(id).unwrap().stale);
+    let mut sent = page("FS", "AAkD1", Some(false));
+    sent.messages[0].server.change_key = String::new();
+    take_page(&mut mb, &mut index, account, &sent, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(!m.draft && m.unfetched && m.stale, "{m:?}");
+    assert_eq!(m.server.as_ref().map(|s| s.size), Some(0), "the draft's size kept");
+}
+
+/// A message taken for sent in Sent Items, fetched whole, and listed in Drafts as a draft again:
+/// it waits for what it is now, with the listing's size (#566).
+#[test]
+fn a_message_that_is_a_draft_again_waits_for_its_new_version_without_its_old_size() {
+    let (mut mb, account) = mailbox();
+    let mut index = ServerIndex::default();
+    let mut first = page("FS", "AAkD1", Some(true));
+    first.messages[0].server.size = 5_000;
+    take_page(&mut mb, &mut index, account, &first, &mut Down::default());
+    let id = only_in(&mb, account, "FS").id;
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkD1", b"From: avery@mail.example\r\nSubject: Quarterly figures\r\n\r\nSent.\r\n"));
+    assert!(!mb.message(id).unwrap().draft && !mb.message(id).unwrap().stale);
+    let mut gone = MessagePage { folder: "FS".into(), removed: vec!["AAkD1".into()], ..Default::default() };
+    gone.link = "next".into();
+    take_page(&mut mb, &mut index, account, &gone, &mut Down::default());
+    let back = page("FD", "AAkD1", Some(true));
+    take_page(&mut mb, &mut index, account, &back, &mut Down::default());
+    let m = mb.message(id).unwrap();
+    assert!(m.draft && m.unfetched && m.stale, "{m:?}");
+    assert_eq!(m.server.as_ref().map(|s| s.size), Some(0), "the old size kept");
+}

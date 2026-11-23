@@ -21,6 +21,13 @@
 //! - for a Gmail account whose owner asked for alerts for Primary alone (#911), mail Gmail put in
 //!   another of its categories.
 //!
+//! But a message a rule that shows a desktop alert acted on as it arrived counts in whichever
+//! folder of its account the rule put it (not once moved out of the account), read or not
+//! ([`Arrival::rule`]; `Message::rule_alert`), as long as its account's Inbox had been read from
+//! its server before: an account's first download tells of nothing.
+//! So does one such a rule acted on only once it was fetched whole, after the run that brought it
+//! (#566): the fetch names it, and [`alerted`] says who it is from.
+//!
 //! Nothing here shows anything: it only says which messages, and who they are from. The text is
 //! the message's own, hostile, and the window cleans it before it goes anywhere.
 
@@ -42,11 +49,15 @@ pub struct InboxMark {
 pub struct Arrival {
     pub message: Id,
     pub account: Id,
-    /// The Inbox it is in.
+    /// The folder it is in: an Inbox, or where a rule that asked for its alert put it.
     pub folder: Id,
     /// Who it is from: the sender's name, or the address when there is no name.
     pub sender: String,
     pub subject: String,
+    /// A rule asked for its alert (Outlook's "display a Desktop Alert"): it is told of when new
+    /// mail isn't, as in Outlook, where the owner who wants alerts for some mail alone turns them
+    /// off and has a rule show them.
+    pub rule: bool,
 }
 
 /// How many arrivals one run reports at most: the window shows a few, and only counts the rest.
@@ -72,7 +83,9 @@ fn own(mailbox: &Mailbox, account: Id) -> bool {
     mailbox.account(account).is_some_and(|a| !a.is_shared() && a.kind.has_server())
 }
 
-/// What arrived in the Inboxes since `before` was marked, oldest first; at most [`MOST`].
+/// What arrived in the Inboxes since `before` was marked, oldest first; at most [`MOST`], the
+/// mail a rule shows an alert for kept before other new mail, which another account can bring a
+/// flood of while alerts for new mail are off.
 pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
     let Some(from) = before.last_id.checked_add(1) else { return Vec::new() };
     // An Inbox that was read from its server before, and that the server didn't number anew.
@@ -80,20 +93,48 @@ pub fn arrivals(mailbox: &Mailbox, before: &InboxMark) -> Vec<Arrival> {
         let Some((_, validity)) = before.inboxes.iter().find(|(id, _)| *id == folder) else { return false };
         mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox && (*validity == 0 || f.uid_validity == *validity))
     };
-    mailbox
-        .messages
-        .range(from..)
-        .map(|(_, m)| m)
-        .filter(|m| !m.read && !m.draft && watched(m.folder) && own(mailbox, m.account) && alerted(mailbox, m))
-        .take(MOST)
-        .map(|m| Arrival { message: m.id, account: m.account, folder: m.folder, sender: m.from.display().to_string(), subject: m.subject.clone() })
-        .collect()
+    // An account whose Inbox was read before: a rule's alert for its mail is told of.
+    let known = |account: Id| before.inboxes.iter().any(|(id, _)| mailbox.folder(*id).is_some_and(|f| f.account == account));
+    let (mut ruled, mut new) = (Vec::new(), Vec::new());
+    for m in mailbox.messages.range(from..).map(|(_, m)| &**m).filter(|m| !m.draft && own(mailbox, m.account)) {
+        if m.rule_alert && known(m.account) {
+            ruled.push(m);
+            if ruled.len() == MOST {
+                break;
+            }
+        } else if new.len() < MOST && !m.read && watched(m.folder) && alerts_for(mailbox, m) {
+            new.push(m);
+        }
+    }
+    new.truncate(MOST - ruled.len());
+    let mut all: Vec<&mailcraft_model::Message> = ruled.into_iter().chain(new).collect();
+    all.sort_by_key(|m| m.id);
+    all.into_iter().map(arrival).collect()
 }
 
-/// Whether `m` is mail its account alerts for: any, but for a Gmail account that alerts for
+/// Of `ids`, the messages a rule shows a desktop alert for that are still here, in the owner's
+/// own accounts, in the order given; at most [`MOST`]. (A fetch names them: a rule that waited for
+/// them to be here whole acted on them, [`crate::cmd::graph_mail::apply_graph_fetch`].)
+pub fn alerted(mailbox: &Mailbox, ids: &[Id]) -> Vec<Arrival> {
+    ids.iter().filter_map(|id| mailbox.message(*id)).filter(|m| m.rule_alert && !m.draft && own(mailbox, m.account)).take(MOST).map(arrival).collect()
+}
+
+fn arrival(m: &mailcraft_model::Message) -> Arrival {
+    Arrival {
+        message: m.id,
+        account: m.account,
+        folder: m.folder,
+        sender: m.from.display().to_string(),
+        subject: m.subject.clone(),
+        rule: m.rule_alert,
+    }
+}
+
+/// Whether `m` is new mail its account alerts for: any, but for a Gmail account that alerts for
 /// Primary alone (#911), mail Gmail put in another category. One whose category isn't known yet
-/// is alerted for: better told once too often than not at all.
-fn alerted(mailbox: &Mailbox, m: &mailcraft_model::Message) -> bool {
+/// is alerted for: better told once too often than not at all. (A rule's alert is the owner's own
+/// ask, and is told of whatever the category.)
+fn alerts_for(mailbox: &Mailbox, m: &mailcraft_model::Message) -> bool {
     let primary_only = mailbox.account(m.account).is_some_and(|a| a.is_gmail() && a.alert_primary_only);
     !primary_only || m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)
 }

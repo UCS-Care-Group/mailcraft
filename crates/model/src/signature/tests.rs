@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 
 use super::*;
-use crate::rich::{Font, Format, OBJECT};
+use crate::rich::{Align, Built, Font, Format, ListKind, OBJECT};
 
 /// The smallest PNG signature there is, and some bytes after it.
 fn png(extra: usize) -> Vec<u8> {
@@ -24,7 +24,7 @@ fn a_rich_signature_with_pictures_round_trips_and_keeps_its_words_for_earlier_ve
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1F6FEB".into()))).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
     sig.set_body(body).unwrap();
     let logo = sig.add_picture("lumen-logo.png", png(100), None, Some(0)).unwrap();
     let badge = sig.add_picture("badge.gif", b"GIF89a....".to_vec(), Some("Certified"), None).unwrap();
@@ -138,6 +138,72 @@ fn an_html_signature_has_no_pictures_of_its_own_and_stays_in_its_cap() {
     assert!(sig.html().is_none());
 }
 
+#[test]
+fn the_details_hash_of_an_unaligned_signature_is_what_earlier_versions_wrote() {
+    // Both captured from 0.8.2, before paragraphs could be aligned: a signature made from its
+    // details then must still read as made from them, not as edited by hand.
+    let text = RichText::from_paragraphs(vec![
+        Paragraph::new(vec![Run::new("Avery Quinn", Style { bold: true, size: Some(12), ..Style::default() })], ListKind::None),
+        Paragraph::new(vec![Run::new("Lumen Studio", Style::default())], ListKind::None),
+        Paragraph::new(vec![Run::new("Open on weekdays", Style::default())], ListKind::Bullet).at_level(2),
+    ]);
+    assert_eq!(text_hash(&text), 17041695867897178267);
+    let mut sig = Signature::plain_text("Work", "");
+    sig.lay_out(Details { name: "Avery Quinn".into(), title: "Designer".into(), phone: "+44 (0)20 7946 0018".into(), ..Details::default() }).unwrap();
+    assert_eq!(sig.details.as_ref().unwrap().made, 5909568395201533491);
+    assert_eq!(text_hash(sig.body()), 5909568395201533491);
+    assert!(!sig.hand_edited());
+}
+
+#[test]
+fn a_centred_line_counts_as_editing_a_details_signature() {
+    let mut sig = Signature::plain_text("Work", "");
+    sig.lay_out(Details { name: "Avery Quinn".into(), title: "Designer".into(), ..Details::default() }).unwrap();
+    let mut body = sig.body().clone();
+    body.set_align(0, 0, Align::Center).unwrap();
+    sig.set_body(body).unwrap();
+    assert!(sig.hand_edited());
+    // Left again, it is what the details made.
+    let mut body = sig.body().clone();
+    body.set_align(0, 0, Align::Left).unwrap();
+    sig.set_body(body).unwrap();
+    assert!(!sig.hand_edited());
+}
+
+#[test]
+fn removing_a_picture_keeps_the_alignment_of_its_paragraph() {
+    let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
+    let logo = sig.add_picture("logo.png", png(10), None, Some(0)).unwrap();
+    let badge = sig.add_picture("badge.png", png(10), None, Some(13)).unwrap();
+    let mut body = sig.body().clone();
+    body.set_align(0, 0, Align::Center).unwrap();
+    body.set_align(14, 14, Align::Right).unwrap();
+    sig.set_body(body).unwrap();
+    sig.remove_picture(logo).unwrap();
+    assert_eq!(sig.plain(), "Avery Quinn\n[badge]Lumen Studio");
+    assert_eq!(sig.body().paragraphs().iter().map(|p| p.align).collect::<Vec<_>>(), [Align::Center, Align::Right]);
+    // A picture the signature doesn't hold is left out of the text, and its line stays aligned.
+    let mut body = sig.body().clone();
+    body.insert_rich(0, &RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(99, Style::default())], ListKind::None)])).unwrap();
+    sig.set_body(body).unwrap();
+    assert_eq!(sig.body().pictures(), [badge]);
+    assert_eq!(sig.body().paragraphs().iter().map(|p| p.align).collect::<Vec<_>>(), [Align::Center, Align::Right]);
+}
+
+#[test]
+fn a_stored_signature_with_an_unknown_align_keeps_its_pictures() {
+    // A later version's file: a value this one doesn't know must not cost the owner the logo.
+    let data = mailcraft_charset::base64::STANDARD.encode(png(10));
+    let json = serde_json::json!({"name": "Work", "text": "Avery Quinn", "body": {"paragraphs": [
+        {"runs": [{"text": OBJECT.to_string(), "picture": 1}, {"text": "Avery Quinn"}], "align": "middle"},
+        {"runs": [{"text": "Lumen Studio"}], "align": "right"}
+    ]}, "pictures": [{"id": 1, "name": "logo.png", "mime": "image/png", "data": data, "alt": "Lumen"}]});
+    let sig: Signature = serde_json::from_value(json).unwrap();
+    assert_eq!(sig.pictures().len(), 1);
+    assert_eq!(sig.plain(), "[Lumen]Avery Quinn\nLumen Studio");
+    assert_eq!(sig.body().paragraphs().iter().map(|p| p.align).collect::<Vec<_>>(), [Align::Left, Align::Right]);
+}
+
 proptest! {
     /// Whatever pictures and text a file holds, what opens agrees with itself and stays in the caps.
     #[test]
@@ -163,18 +229,18 @@ proptest! {
 
 #[test]
 fn a_signature_in_a_font_this_version_doesnt_know_keeps_the_rest_of_its_look() {
-    // A signature saved by a later version, in a font this one doesn't know, keeps its colour and
-    // bold, and loses only the font (#969, a review point on #1327).
+    // A signature saved by a later version, in a font this one doesn't know, keeps its colour, its
+    // bold and the name of the font it asks for (#969, a review point on #1327; #1493).
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1F6FEB".into()))).unwrap();
     body.format(0, 11, &Format::Bold(true)).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
     sig.set_body(body).unwrap();
-    let saved = serde_json::to_string(&sig).unwrap().replace("\"georgia\"", "\"aFontFromLater\"");
+    let saved = serde_json::to_string(&sig).unwrap().replace("\"georgia,serif\"", "\"aFontFromLater\"");
     assert!(saved.contains("aFontFromLater"), "{saved}");
     let back: Signature = serde_json::from_str(&saved).unwrap();
     let style = back.body().style_at(3);
-    assert_eq!((style.color.as_deref(), style.bold, style.font), (Some("#1f6feb"), true, None));
+    assert_eq!((style.color.as_deref(), style.bold, style.font), (Some("#1f6feb"), true, Font::parse("aFontFromLater")));
     assert_eq!(back.plain(), "Avery Quinn\nLumen Studio");
 }

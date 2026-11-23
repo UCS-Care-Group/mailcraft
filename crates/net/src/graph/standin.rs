@@ -490,6 +490,10 @@ pub struct State {
     pub broken_lists: Vec<String>,
     /// A server that won't take a `$batch` at all (400): a client asks one request at a time.
     pub refuse_batches: bool,
+    /// What is changed on the server right after it next answers a list of what carries a
+    /// category (#851): each message or event named gets these categories, as when the owner
+    /// changes them elsewhere while a client works through the list.
+    pub meanwhile: Vec<(String, Vec<String>)>,
     /// Every request of a batch for a message's `conversationId` alone is answered with this
     /// status (403 for a mailbox that may not be read so, 429 for a busy one; #795).
     pub conversations_answer: Option<u16>,
@@ -2193,6 +2197,8 @@ impl State {
             }
             ["messages"] if method == "POST" => self.create_message(asked),
             ["messages"] if method == "GET" && asked.param("$search").is_some() => self.search_messages(asked, None),
+            // What carries a category, in the whole mailbox (#851): the owner's own alone.
+            ["messages"] if method == "GET" && asked.param("$filter").is_some() => self.messages_with_category(asked),
             ["sendMail"] if method == "POST" => self.send_mail(asked),
             ["messages", id, "send"] if method == "POST" => self.send_draft(asked, id),
             ["messages", id, "$value"] if method == "GET" => self.message_value(id),
@@ -2309,6 +2315,27 @@ impl State {
                 let made = self.json_of(&event, &look);
                 self.events.push(event);
                 Ok((201, Some(made)))
+            }
+            // The calendar's single events and series themselves ("List events"), those that
+            // carry a category when one is asked for (#851).
+            ("GET", []) => {
+                let home = calendar.map(str::to_string).unwrap_or_else(|| self.main_calendar());
+                let name = match asked.param("$filter") {
+                    None => None,
+                    Some(text) => Some(
+                        changes::category_filter(text)
+                            .ok_or_else(|| bad("The only filter this stand-in answers here is categories/any(c:c eq '…')."))?,
+                    ),
+                };
+                let listed = |event: &&Stored| {
+                    event.calendar == home && event.series.is_empty() && name.as_ref().is_none_or(|name| event.categories.contains(name))
+                };
+                let list = self.events.iter().filter(listed).map(|event| self.json_of(event, &look)).collect();
+                let page = self.page(asked, list);
+                if name.is_some() {
+                    self.changed_meanwhile();
+                }
+                page
             }
             ("GET", [id]) => match self.find(calendar, id) {
                 Ok(at) => Ok((200, self.events.get(at).map(|event| self.json_of(event, &look)))),
@@ -2512,6 +2539,17 @@ impl State {
                 Err(refuse(405, "MethodNotAllowed", "The method is not allowed on this resource."))
             }
             (_, [_, other, ..]) => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{other}'."))),
+        }
+    }
+
+    /// [`State::meanwhile`], done.
+    fn changed_meanwhile(&mut self) {
+        for (id, categories) in std::mem::take(&mut self.meanwhile) {
+            if let Some(message) = self.mailbox.messages.get_mut(&id) {
+                message.categories = categories;
+            } else if let Some(event) = self.events.iter_mut().find(|event| event.id == id) {
+                event.categories = categories;
+            }
         }
     }
 

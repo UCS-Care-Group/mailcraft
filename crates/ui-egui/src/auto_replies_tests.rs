@@ -380,7 +380,7 @@ fn the_question_is_not_put_over_another_window() {
     app.dialog = Some(Dialog::Confirm {
         command: "ui.nothing".into(),
         params: json!({}),
-        ask: crate::dialogs::Question {
+        ask: Box::new(crate::dialogs::Question {
             title: String::new(),
             text: String::new(),
             action: String::new(),
@@ -389,7 +389,10 @@ fn the_question_is_not_put_over_another_window() {
             note: None,
             cancel: None,
             tick: None,
-        },
+            calendar: None,
+            cut: None,
+            listing: None,
+        }),
     });
     let before = jobs.lock().unwrap().len();
     let refused = app.execute("account.setAutomaticReplies", json!({"account": owner, "status": "disabled"})).unwrap_err();
@@ -422,7 +425,7 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
             app.dialog = Some(Dialog::Confirm {
                 command: "ui.nothing".into(),
                 params: json!({}),
-                ask: crate::dialogs::Question {
+                ask: Box::new(crate::dialogs::Question {
                     title: String::new(),
                     text: String::new(),
                     action: String::new(),
@@ -431,7 +434,10 @@ fn a_change_the_owner_cant_be_asked_about_now_is_dropped_and_said() {
                     note: None,
                     cancel: None,
                     tick: None,
-                },
+                    calendar: None,
+                    cut: None,
+                    listing: None,
+                }),
             });
         } else {
             app.run("ui.connectMicrosoft", json!({"account": owner})).unwrap();

@@ -220,7 +220,7 @@ fn draft(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         return Err(tl!("Another window is open: the report wasn't filled in.").to_string());
     }
     let draft = Draft::new(app, p);
-    app.dialog = Some(crate::dialogs::Dialog::ReportProblem(Box::new(draft)));
+    app.set_dialog(Some(crate::dialogs::Dialog::ReportProblem(Box::new(draft))));
     app.sync_panel = None;
     Ok(json!({"via": "send", "draft": true, "sent": false}))
 }

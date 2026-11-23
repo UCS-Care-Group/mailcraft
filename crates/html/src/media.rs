@@ -98,18 +98,22 @@ pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
     if lists.is_empty() {
         return (out, true);
     }
-    let mut widths: Vec<u16> = Vec::new();
+    // Each width once; more than are tried, and some look may be missed. (So may one with as many
+    // lists as are read: what [`crate::media_lists`] gathers may not be all the pane tests.)
+    let mut widths: Vec<u16> = vec![0];
+    let mut every = lists.len() < MAX_LISTS;
     for list in lists {
         thresholds(list, &mut widths);
-        if widths.len() >= MAX_WIDTHS {
+        widths.sort_unstable();
+        widths.dedup();
+        if widths.len() > MAX_WIDTHS {
+            every = false;
+            widths.truncate(MAX_WIDTHS);
             break;
         }
     }
-    let mut every = widths.len() < MAX_WIDTHS;
-    widths.truncate(MAX_WIDTHS);
-    widths.push(0);
-    widths.sort_unstable();
-    widths.dedup();
+    // lean: the looks are still found when not every one can be (≈170 ms at the caps): the
+    // sender warnings judge links in each of those it has; a reply's quote doesn't use them.
     let mut seen = vec![verdicts(lists, &Env::default())];
     let candidates = std::iter::once(Env { width: WIDEST, dark: true })
         .chain(widths.iter().flat_map(|width| [false, true].map(|dark| Env { width: *width, dark })));
@@ -127,30 +131,59 @@ pub fn envs(lists: &[String]) -> (Vec<Env>, bool) {
     (out, every)
 }
 
-/// The widths around each length a list's width features name, where a verdict may turn.
+/// The widths around each length a list's width features name, where a verdict may turn: the
+/// list read exactly as [`test`] reads it (the same comments, queries, words and features, to the
+/// same bounds), so that no length it tests is missed. At most `MAX_QUERIES × MAX_FEATURES × 4`.
 fn thresholds(list: &str, widths: &mut Vec<u16>) {
-    let lower = list.to_ascii_lowercase();
-    let mut rest = lower.as_str();
-    let mut features = 0usize;
-    while let Some(open) = rest.find('(') {
-        features += 1;
-        if features > MAX_QUERIES * MAX_FEATURES || widths.len() >= MAX_WIDTHS {
-            return;
+    let without;
+    let list = if list.contains("/*") {
+        without = strip_comments(list);
+        without.as_str()
+    } else {
+        list
+    };
+    let list = list.trim();
+    if list.is_empty() || list.len() > MAX_QUERY_BYTES {
+        // `all`, or false: the same at every width.
+        return;
+    }
+    for query in list.split(',').take(MAX_QUERIES) {
+        let lower = query.trim().to_ascii_lowercase();
+        // (A query with more features than are read is false at every width.)
+        for part in Parts::new(&lower).filter(|p| p.starts_with('(')).take(MAX_FEATURES) {
+            let Some(px) = width_of(part) else { continue };
+            let px = px.min(MAX_WIDTH);
+            let (low, high) = (px.floor(), px.ceil());
+            for w in [low - 1.0, low, high, high + 1.0] {
+                widths.push(w.clamp(0.0, MAX_WIDTH) as u16);
+            }
         }
-        let after = rest.get(open + 1..).unwrap_or("");
-        let close = after.find(')').unwrap_or(after.len());
-        let inner = after.get(..close).unwrap_or("");
-        rest = after.get(close..).unwrap_or("");
-        let Some((name, value)) = inner.split_once(':') else { continue };
-        if !name.trim().ends_with("width") {
-            continue;
-        }
-        let Some(px) = length(value) else { continue };
-        let px = px.min(MAX_WIDTH);
-        let (low, high) = (px.floor(), px.ceil());
-        for w in [low - 1.0, low, high, high + 1.0] {
-            widths.push(w.clamp(0.0, MAX_WIDTH) as u16);
-        }
+    }
+}
+
+/// The length a width feature (`(max-width: 600px)`) names, as [`feature`] reads it.
+fn width_of(part: &str) -> Option<f32> {
+    let inner = part.strip_prefix('(')?.strip_suffix(')')?;
+    let (name, value) = inner.split_once(':')?;
+    width_test(name.trim())?;
+    length(value.trim())
+}
+
+/// How a feature named `name` holds against the pane's width, when it is a width feature: the one
+/// list of them, for [`feature`] and for the widths [`envs`] tries.
+#[derive(Clone, Copy)]
+enum WidthTest {
+    AtLeast,
+    AtMost,
+    Is,
+}
+
+fn width_test(name: &str) -> Option<WidthTest> {
+    match name {
+        "min-width" | "min-device-width" => Some(WidthTest::AtLeast),
+        "max-width" | "max-device-width" => Some(WidthTest::AtMost),
+        "width" | "device-width" => Some(WidthTest::Is),
+        _ => None,
     }
 }
 
@@ -268,17 +301,23 @@ fn feature(part: &str, env: &Env) -> Option<(bool, bool)> {
     let inner = part.strip_prefix('(')?.strip_suffix(')')?;
     let (name, value) = inner.split_once(':')?;
     let (name, value) = (name.trim(), value.trim());
-    match name {
-        "prefers-color-scheme" => match value {
+    if name == "prefers-color-scheme" {
+        return match value {
             "dark" => Some((env.dark, true)),
             "light" => Some((!env.dark, false)),
             _ => None,
-        },
-        "min-width" | "min-device-width" => Some((f32::from(env.width) >= length(value)?, false)),
-        "max-width" | "max-device-width" => Some((f32::from(env.width) <= length(value)?, false)),
-        "width" | "device-width" => Some(((f32::from(env.width) - length(value)?).abs() < 0.5, false)),
-        _ => None,
+        };
     }
+    let width = f32::from(env.width);
+    let px = length(value)?;
+    Some((
+        match width_test(name)? {
+            WidthTest::AtLeast => width >= px,
+            WidthTest::AtMost => width <= px,
+            WidthTest::Is => (width - px).abs() < 0.5,
+        },
+        false,
+    ))
 }
 
 /// A length in pixels: `600px`, `37.5em`, `0`.
