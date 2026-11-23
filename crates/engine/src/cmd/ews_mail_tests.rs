@@ -1115,3 +1115,34 @@ fn an_archive_folder_listed_part_way_keeps_what_the_listing_didnt_reach() {
     end(&mut s, archive, false);
     assert!(here(&s, archive, "M2").is_some(), "not reached by the listing, not taken away");
 }
+
+/// A change made to mail moved into the archive whose move hasn't gone up isn't lost when the
+/// archive is hidden: put back, the message is its owner's again with the server's record of it,
+/// and the owner's next run carries the change (it is worked out from the message, not queued
+/// with the archive, #1834 review).
+#[test]
+fn a_change_to_mail_moved_into_the_archive_goes_up_with_its_owner_once_hidden() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    // Hiding is taken: the move is put back, and the flag with it.
+    s.run("account.archive.hide", &json!({"account": archive})).unwrap();
+    let back = s.mailbox.message(m).unwrap();
+    assert_eq!((back.account, back.folder), (account, inbox));
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(
+        request.messages.iter().any(|c| matches!(c, MessageChange::Update { message, flag: Some(_), .. } if *message == m)),
+        "the flag goes up with the owner's next run: {:?}",
+        request.messages
+    );
+}
