@@ -662,8 +662,12 @@ impl<E: HttpExchange> Run<'_, E> {
                         out.blocked.push(folder.clone());
                     }
                 }
-                Err(_) => {
+                Err(other) => {
                     out.incomplete = true;
+                    // Say which folder and what the server answered with: without it the owner
+                    // has one line for the whole run and nothing to chase (#1784's Kerio names
+                    // one folder of eight, every five minutes, forever).
+                    log::warn!("ews mail: the changes of a folder couldn't be read: {} ({})", folder, match &other { Asked::Code(code) => code.to_string(), _ => "an answer this program can't read".to_string() });
                     out.line("Some folders couldn't be read from the server");
                     failed_in_a_row = failed_in_a_row.saturating_add(1);
                     if failed_in_a_row >= MAX_IN_A_ROW {
