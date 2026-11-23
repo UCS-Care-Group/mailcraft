@@ -211,7 +211,7 @@ fn an_answer_made_with_create_reply_writes_none_of_its_own() {
 }
 
 #[test]
-fn ids_that_cant_be_in_a_header_are_left_out_and_a_long_chain_keeps_its_newest() {
+fn ids_that_cant_be_in_a_header_are_left_out_and_a_long_chain_keeps_its_root_and_newest() {
     let server = StandIn::start().unwrap();
     let mut references: Vec<String> = (0..40).map(|i| format!("part-{i}@example.org")).collect();
     references.insert(3, "two words@example.org".into());
@@ -232,5 +232,47 @@ fn ids_that_cant_be_in_a_header_are_left_out_and_a_long_chain_keeps_its_newest()
     assert!(!chain.contains('\r') && !chain.contains('\n') && !chain.contains("words") && !chain.contains("<<"), "{chain}");
     let ids: Vec<&str> = chain.split(' ').collect();
     assert_eq!(ids.len(), 32);
-    assert_eq!((ids.first().copied(), ids.last().copied()), (Some("<part-8@example.org>"), Some("<part-39@example.org>")));
+    // The root, then the newest 31: what threads it is kept whatever is cut between.
+    assert_eq!(ids.get(..2), Some(&["<part-0@example.org>", "<part-9@example.org>"][..]));
+    assert_eq!(ids.last().copied(), Some("<part-39@example.org>"));
+}
+
+#[test]
+fn a_chain_of_long_ids_keeps_its_root_and_stays_one_line() {
+    let server = StandIn::start().unwrap();
+    let long = |i: usize| format!("{i:03}{}@example.org", "x".repeat(235));
+    let references: Vec<String> = (0..10).map(long).collect();
+    assert!(references.iter().all(|id| id.len() == 250));
+    let up = DraftUp { message: 12, marker: "mailcraft-draft-12".into(), in_reply_to: long(9), references, ..Default::default() };
+    let there = made_by_itself(&server, up);
+    let chain = property(&there, "String 0x1039").unwrap();
+    // A header line is at most 998 bytes, its name with it (RFC 5322 2.1.1).
+    assert!(format!("References: {chain}").len() <= 998, "{}", chain.len());
+    let ids: Vec<&str> = chain.split(' ').collect();
+    assert_eq!(ids, [format!("<{}>", long(0)), format!("<{}>", long(8)), format!("<{}>", long(9))]);
+}
+
+#[test]
+fn a_draft_refused_for_what_it_answers_is_made_without() {
+    // Should Exchange refuse a thread property, the draft is still made: only what it answers is
+    // left out.
+    let server = StandIn::start().unwrap();
+    server.state().mailbox.refuse_thread_properties = true;
+    let up = DraftUp {
+        message: 13,
+        marker: "mailcraft-draft-13".into(),
+        subject: Some("Re: Agenda".into()),
+        in_reply_to: "agenda-2@example.org".into(),
+        ..Default::default()
+    };
+    let there = made_by_itself(&server, up);
+    assert!(property(&there, "String 0x1042").is_none() && property(&there, "String 0x1039").is_none());
+    assert!(property(&there, "String {6d1c4e3a-8f2b-4c5d-9e0a-1b2c3d4e5f60} Name MailCraftMarker").is_some());
+
+    // One that answers nothing writes no such property, and is made at once.
+    let server = StandIn::start().unwrap();
+    server.state().mailbox.refuse_thread_properties = true;
+    let up = DraftUp { message: 14, marker: "mailcraft-draft-14".into(), subject: Some("Hello".into()), ..Default::default() };
+    let all = run(&server, vec![up], Vec::new());
+    assert!(all.drafts.first().is_some_and(|d| !d.id.is_empty()), "{all:?}");
 }

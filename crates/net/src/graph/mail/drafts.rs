@@ -57,12 +57,13 @@ const MAX_LISTED: usize = 500;
 const MAX_RECIPIENTS: usize = 500;
 const MAX_MARKER: usize = 100;
 /// The MAPI properties behind `In-Reply-To` and `References` (MS-OXPROPS `PidTagInReplyToId`,
-/// `PidTagInternetReferences`), and the most of a `References` chain written: its newest ids, at
-/// most this many, and at most this many bytes together.
+/// `PidTagInternetReferences`), and the most of a `References` chain written: its root and its
+/// newest ids, at most this many, and at most this many bytes together: a line's 998 (RFC 5322
+/// 2.1.1) less `References: `, so that the header is one line however Exchange writes it.
 const IN_REPLY_TO: &str = "String 0x1042";
 const REFERENCES: &str = "String 0x1039";
 const MAX_REFERENCES: usize = 32;
-const MAX_REFERENCES_BYTES: usize = 998;
+const MAX_REFERENCES_BYTES: usize = 998 - "References: ".len();
 /// Longest `Message-ID` written into one of them, without its angle brackets.
 const MAX_MESSAGE_ID: usize = 250;
 
@@ -270,9 +271,22 @@ fn make(graph: &Graph<'_>, d: &DraftUp) -> Result<Made, NetError> {
             other => return Ok(other),
         }
     }
+    let thread = thread_properties(d);
+    match by_itself(graph, d, &thread)? {
+        // Refused with what it answers: not made, so made again without, rather than not at all.
+        Made::Refused(400) if !thread.is_empty() => {
+            log::info!("graph drafts: a draft made with what it answers was refused; it is made without");
+            by_itself(graph, d, &[])
+        }
+        other => Ok(other),
+    }
+}
+
+/// Make the draft from its fields, its marker and `thread` written with it.
+fn by_itself(graph: &Graph<'_>, d: &DraftUp, thread: &[Value]) -> Result<Made, NetError> {
     let mut body = fields(d);
     let mut properties = vec![json!({"id": MARKER, "value": d.marker})];
-    properties.extend(thread_properties(d));
+    properties.extend_from_slice(thread);
     body.insert("singleValueExtendedProperties".into(), Value::Array(properties));
     let body = Value::Object(body).to_string();
     let url = graph.url(&messages(graph));
@@ -317,12 +331,12 @@ fn recipients(list: &[Address]) -> Value {
     )
 }
 
-/// The fields a draft names, as Graph writes a message.
 /// What a draft made by itself answers, as the two extended properties that become its
 /// `In-Reply-To` and `References` headers (#1814). Only ids that can be a header's are written
 /// (no space, control, angle bracket, nor more than [`MAX_MESSAGE_ID`] bytes): what comes from a
-/// message is hostile, and a line break would be a header of its own. A chain is cut to its newest
-/// ids; one that names none, when the draft answers a message, is that message.
+/// message is hostile, and a line break would be a header of its own. A long chain keeps its root
+/// and its newest ids, as an answer's own are kept (`compose::references_of`); one that names
+/// none, when the draft answers a message, is that message.
 fn thread_properties(d: &DraftUp) -> Vec<Value> {
     let fit = |id: &&String| !id.is_empty() && id.len() <= MAX_MESSAGE_ID && id.bytes().all(|b| b.is_ascii_graphic() && b != b'<' && b != b'>');
     let answers = Some(&d.in_reply_to).filter(fit);
@@ -332,27 +346,32 @@ fn thread_properties(d: &DraftUp) -> Vec<Value> {
     {
         chain.push(id);
     }
-    let mut newest = Vec::new();
-    let mut bytes = 0usize;
-    for id in chain.into_iter().rev().take(MAX_REFERENCES) {
-        let more = id.len().saturating_add(3);
+    // Each id as `<id>` and a space between: a root's is at most MAX_MESSAGE_ID + 3, well under.
+    let cost = |id: &String| id.len().saturating_add(3);
+    let (root, rest) = chain.split_first().map_or((None, &[][..]), |(root, rest)| (Some(*root), rest));
+    let mut bytes = root.map_or(0, cost);
+    let mut kept = Vec::new();
+    for id in rest.iter().rev().take(MAX_REFERENCES.saturating_sub(1)) {
+        let more = cost(id);
         if bytes.saturating_add(more) > MAX_REFERENCES_BYTES {
             break;
         }
         bytes = bytes.saturating_add(more);
-        newest.push(format!("<{id}>"));
+        kept.push(format!("<{id}>"));
     }
-    newest.reverse();
+    kept.extend(root.map(|id| format!("<{id}>")));
+    kept.reverse();
     let mut out = Vec::new();
     if let Some(id) = answers {
         out.push(json!({"id": IN_REPLY_TO, "value": format!("<{id}>")}));
     }
-    if !newest.is_empty() {
-        out.push(json!({"id": REFERENCES, "value": newest.join(" ")}));
+    if !kept.is_empty() {
+        out.push(json!({"id": REFERENCES, "value": kept.join(" ")}));
     }
     out
 }
 
+/// The fields a draft names, as Graph writes a message.
 fn fields(d: &DraftUp) -> Map<String, Value> {
     let mut out = Map::new();
     if let Some(subject) = &d.subject {

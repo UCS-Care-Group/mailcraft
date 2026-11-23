@@ -317,6 +317,9 @@ pub struct Mail {
     pub foreign_next: bool,
     /// The top of every folder's delta is refused (`400 ErrorInvalidRequest`), whatever it asks.
     pub refuse_delta: bool,
+    /// A new message written with the property behind `In-Reply-To` or `References` is refused
+    /// (`400 ErrorInvalidProperty`), as Exchange might one day (#1814).
+    pub refuse_thread_properties: bool,
     /// A change of nothing but a message's read state comes in the next round as its id and
     /// `isRead` alone, as Exchange Online reports one (see the top of this file).
     pub read_alone: bool,

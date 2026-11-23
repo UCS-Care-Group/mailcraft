@@ -347,6 +347,11 @@ impl State {
                 }
             }
         }
+        if self.mailbox.refuse_thread_properties
+            && extended.iter().any(|(id, _): &(String, String)| THREAD_PROPERTIES.iter().any(|t| id.eq_ignore_ascii_case(t)))
+        {
+            return Err(refuse(400, "ErrorInvalidProperty", "The extended property is not valid."));
+        }
         Ok(self.draft_of(|m| {
             written.apply(m);
             if let Some(importance) = importance {
