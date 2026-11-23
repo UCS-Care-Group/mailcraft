@@ -521,14 +521,21 @@ pub async fn sync_mail<E: HttpExchange>(
 impl<E: HttpExchange> Run<'_, E> {
     /// The signature the server keeps in the owner's options ([`GetUserOptions`]), or none: the
     /// server has none, refuses to say, or was not asked for now. Whatever goes wrong is told in
-    /// the log alone; a signature is a convenience. What stops a run (a busy server, Cancel, a
-    /// password turned down) stops it here too, and is said in `outcome` as for any request.
+    /// the log alone; a signature is a convenience. A server too busy to say is told in the log
+    /// too, and the run goes on as whole: all its mail was read, and a server that kept turning
+    /// down only this request would otherwise keep every run from being whole, and mail removed
+    /// on the server would stay here. Cancel or a password turned down still stops the run here,
+    /// and is said in `outcome` as for any request.
     async fn signature(&mut self, outcome: &mut Outcome) -> Option<EwsSignature> {
         let op = GetUserOptions;
         match self.ask(&op.element(), &|reply| op.answer(reply)).await {
             Ok(found) => {
                 log::info!("ews mail: the server {}", if found.is_some() { "has a signature" } else { "has no signature" });
                 found
+            }
+            Err(Asked::Stop(Stop::Busy(seconds))) => {
+                log::info!("ews mail: the server was too busy to say the signature (it asked for {seconds} s); a later run asks again");
+                None
             }
             Err(Asked::Stop(why)) => {
                 outcome.stop(why);

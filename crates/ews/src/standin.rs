@@ -213,6 +213,9 @@ pub struct State {
     /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
     /// a client does when only that request is refused.
     pub refuse_names: Option<(Vec<String>, u16)>,
+    /// Every request of one of these operations (`GetUserConfiguration`) is answered with this
+    /// HTTP status and nothing else (401: a password turned down at that request alone).
+    pub refuse_ops: Option<(Vec<String>, u16)>,
     /// The server behaves as an organisation's own Exchange 2010 SP3 does (#1349): it knows no
     /// version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`, a fault, HTTP 500); its
     /// schema has neither `item:Preview` nor `item:Flag` (a schema fault, HTTP 500, when
@@ -310,6 +313,7 @@ impl Default for State {
             user_options: None,
             unknown_names: Vec::new(),
             refuse_names: None,
+            refuse_ops: None,
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
@@ -584,10 +588,16 @@ impl State {
         Ok((200, first, response("GetFolder", &messages)))
     }
 
-    /// The status [`State::refuse_names`] answers `request` with, when it names one of them.
+    /// The status [`State::refuse_names`] answers `request` with, when it names one of them, or
+    /// [`State::refuse_ops`], when it is one of those operations.
     fn refused_name(&self, request: &HttpRequest) -> Option<u16> {
-        let (names, status) = self.refuse_names.as_ref()?;
         let body = String::from_utf8_lossy(request.body());
+        if let Some((ops, status)) = self.refuse_ops.as_ref() {
+            if ops.iter().any(|op| body.contains(&format!(":{op} ")) || body.contains(&format!(":{op}>"))) {
+                return Some(*status);
+            }
+        }
+        let (names, status) = self.refuse_names.as_ref()?;
         (body.contains("GetFolder") && names.iter().any(|name| body.contains(&format!("Id=\"{name}\"")))).then_some(*status)
     }
 

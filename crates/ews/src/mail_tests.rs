@@ -760,13 +760,23 @@ fn a_run_that_was_stopped_does_not_ask_for_it() {
 }
 
 #[test]
-fn a_busy_server_asked_for_the_signature_says_so_in_the_run() {
-    // (The mail was read; the server asked to be left alone at the signature: the run says how long.)
+fn a_server_too_busy_to_say_the_signature_leaves_the_run_whole() {
+    // (The mail was read; the server asked to be left alone at the signature alone. A server that
+    // kept doing that must not keep every run from being whole, or mail removed there stays here.)
     let standin = with_signature();
     standin.state().busy = (0, 30_000);
     standin.state().busy_ops = vec!["GetUserConfiguration".into()];
     let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
     assert!(last(&pieces).signature.is_none());
-    assert!(last(&pieces).busy_for.is_some(), "{:?}", last(&pieces));
-    assert!(!last(&pieces).whole);
+    assert!(last(&pieces).busy_for.is_none() && last(&pieces).whole, "{:?}", last(&pieces));
+    assert_eq!(asked_for_the_signature(&standin), 1, "asked once, and left for a later run");
+}
+
+#[test]
+fn a_password_turned_down_at_the_signature_still_stops_the_run() {
+    let standin = with_signature();
+    standin.state().refuse_ops = Some((vec!["GetUserConfiguration".into()], 401));
+    let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
+    assert!(last(&pieces).signature.is_none());
+    assert!(last(&pieces).auth_refused && !last(&pieces).whole, "{:?}", last(&pieces));
 }
