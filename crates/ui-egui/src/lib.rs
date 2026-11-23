@@ -130,6 +130,7 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+pub mod signature_files;
 
 /// The fonts of this computer that text is drawn in: what a message asks for and what the
 /// composer offers, the index of what is installed and the faces read for it.
@@ -954,6 +955,8 @@ pub struct UiState {
     /// The address of the account whose contacts People showed (`view.people_account`), for the
     /// same reason (#631).
     pub people_account_address: String,
+    /// Trusted local paths, scoped to the mailbox and named signature, never imported with mail.
+    pub signature_files: std::collections::HashMap<String, signature_files::Setting>,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// The message list's height with the reading pane at the bottom, as the owner dragged it
@@ -1072,6 +1075,7 @@ impl Default for UiState {
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
+            signature_files: Default::default(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             list_height: 0.0,
@@ -1136,6 +1140,18 @@ const SYNC_BATCH_MESSAGES: usize = 500;
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
 pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
+    (
+        "ui.signatureFile",
+        "Signature from File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default), "enabled"?: bool, "path"?: string} — desktop owner only; keeps the saved signature as fallback"#,
+    ),
+    (
+        "ui.chooseSignatureFile",
+        "Choose Signature File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default)} — desktop owner only; opens the system file picker"#,
+    ),
     ("ui.tab", "Show Ribbon Tab", "Ribbon", r#"{"tab": "Home"|"Send / Receive"|"Folder"|"View"|"Help"}"#),
     ("ui.backstage", "File", "Ribbon", r#"{"value"?: bool, "page"?: "info"|"open"|"options"|"about"}"#),
     ("ui.collapseRibbon", "Collapse the Ribbon", "Ribbon", r#"{"value"?: bool}"#),
@@ -1657,6 +1673,7 @@ pub struct MailApp {
     signatures_shown: bool,
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
+    pub(crate) signature_file_preview: Option<(String, String, Result<mailcraft_model::Signature, String>)>,
     /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
     signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
@@ -2041,6 +2058,7 @@ impl MailApp {
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
+            signature_file_preview: None,
             signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
@@ -2246,6 +2264,15 @@ impl MailApp {
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);
+        self.ui.signature_files.retain(|key, value| {
+            key.len() <= 8192
+                && value.path.len() <= 4096
+                && !value.path.contains('\0')
+                && (value.path.is_empty() || std::path::Path::new(&value.path).is_absolute())
+        });
+        if self.ui.signature_files.len() > 200 {
+            self.ui.signature_files.clear();
+        }
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
         self.session.prefs = self.ui.options.clone();
@@ -2622,7 +2649,23 @@ impl MailApp {
             return Err(e);
         }
         let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
+        let signature_key = matches!(id, "signature.rename" | "signature.remove")
+            .then(|| params.get("name").and_then(Value::as_str).and_then(|name| signature_files::key_for_name(self, name)))
+            .flatten();
+        signature_files::prepare(self);
         let r = self.session.run(id, &params);
+        if r.is_ok()
+            && let Some(old) = signature_key
+            && let Some(source) = self.ui.signature_files.remove(&old)
+        {
+            if id == "signature.rename"
+                && let Some(new) = params.get("to").and_then(Value::as_str)
+                && let Some(key) = signature_files::key_for_name(self, new)
+            {
+                self.ui.signature_files.insert(key, source);
+            }
+            self.signature_file_preview = None;
+        }
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
@@ -2762,6 +2805,9 @@ impl MailApp {
     }
 
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
+        if let Some(result) = signature_files::command(self, id, p) {
+            return Some(result);
+        }
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         if let Some(r) = security::command(self, id, p) {

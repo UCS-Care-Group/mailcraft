@@ -235,6 +235,10 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     let Some(c) = Shown::of(app) else { return };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
+    if let Some(warning) = app.session.compose.as_ref().map(|c| c.signature_file_warning.clone()).filter(|w| !w.is_empty()) {
+        ui.colored_label(t.orange, warning);
+    }
+
     // In the reading pane, what this is and the actions; a window of its own has them in its
     // ribbon, and Send beside the lines, as a message's window has it (#286).
     if window.is_none() {

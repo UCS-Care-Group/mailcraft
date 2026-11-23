@@ -31,11 +31,18 @@ pub enum FileDialogRequest {
 
 /// What to do with the path picked in a dialog.
 pub(crate) enum AfterPick {
+    SignatureFile {
+        name: String,
+        key: String,
+    },
     /// Open the picked mailbox, bring the picked file in, or attach it (by purpose), to the
     /// message being written that asked for it (#286: the keyboard may be elsewhere by then).
     Open(String, Option<u64>),
     /// Run this command with the picked path as `path`.
-    Export { command: String, params: Value },
+    Export {
+        command: String,
+        params: Value,
+    },
     /// Show what is in the picked folder, ready to import ([`crate::import_tree`]).
     Tree,
     /// Ask for the picked .pst file's password and place, then import it ([`crate::import_pst`]).
@@ -183,7 +190,7 @@ pub(crate) fn open(app: &mut MailApp, purpose: &str) {
     let _ = ask(app, FileDialogRequest::Open { purpose: purpose.to_string() }, AfterPick::Open(purpose.to_string(), asking));
 }
 
-fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Value, String> {
+pub(crate) fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Value, String> {
     if app.file_dialog.is_some() {
         app.status(tl!("A file dialog is already open."));
         return Ok(json!({"pending": "fileDialog"}));
@@ -247,6 +254,13 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         path = with_extension(path, ext);
     }
     let r = match d.after {
+        AfterPick::SignatureFile { name, key } => {
+            if crate::signature_files::key_for_name(app, &name).as_deref() != Some(key.as_str()) {
+                Err(tl!("The signature changed while the signature file picker was open.").to_string())
+            } else {
+                app.execute("ui.signatureFile", json!({"name": name, "path": path}))
+            }
+        }
         AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),
         AfterPick::Pst => app.run("ui.dialog", json!({"name": "importPst", "path": path})),

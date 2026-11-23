@@ -188,6 +188,14 @@ still opening"}`, whatever it is; ask `app.status` and try again once it says `o
 
 A command that asks the owner something when a person runs it (deleting for good, changing your copy of someone else's meeting, one occurrence or the whole series) asks nothing through this channel: it does what its parameters say, and a repeating item is taken as the whole series unless `"scope": "occurrence"` and `"occurrence"` name one day. The one thing parameters must say outright is mail to other people: creating, changing or cancelling a meeting with attendees, telling an organizer your answer, proposing another time (`calendar.propose`) and forwarding a meeting (`calendar.forward`) are refused without `"send": true`.
 
+### Local signature files
+
+`ui.signatureFile {"name": string, "enabled"?: bool, "path"?: string}` configures the named signature's external file in this installation's settings. Alternatively, `account` names the account whose default signature is configured. Disabling it retains the path and restores the saved signature contents. `path` must be an absolute local path. `ui.chooseSignatureFile {"name": string}` opens the desktop's system file picker; cancellation changes nothing. Both commands are for the desktop owner only and unavailable to agents and the browser build. The picker stays bound to the mailbox and signature that opened it.
+
+The Signatures page exposes `signatureFileTab` and `signatureFileChoose`, each with id 0 for the selected signature, in `ui.inspect`. Selecting File enables the file source; selecting Rich text or HTML disables it while retaining the path.
+
+See [Signature files](signature-files.md) for formats, limits, fallback and draft behavior.
+
 ## Several messages being written
 
 More than one message can be written at once (#286), at most 13. Each has an id: the commands that

@@ -209,10 +209,28 @@ fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
 /// own (#797; a signature that is gone is passed over), else the account's for new messages, or
 /// for replies and forwards when `reply`; `None` when that is none, or one with nothing in it.
 fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, reply: bool) -> Option<Signature> {
+    if let Ok(mut warning) = s.signature_file_warning.lock() {
+        *warning = None;
+    }
     let a = s.mailbox.account(account);
     let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| s.mailbox.signature(n).is_some());
     let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
+    if let Some(load) = &s.signature_file {
+        match load(&name) {
+            Ok(Some(signature)) => return Some(signature),
+            Ok(None) => {}
+            Err(why) => {
+                if let Ok(mut warning) = s.signature_file_warning.lock() {
+                    *warning = Some(why);
+                }
+            }
+        }
+    }
     s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
+}
+
+fn signature_file_warning(s: &Session) -> String {
+    s.signature_file_warning.lock().ok().and_then(|mut w| w.take()).unwrap_or_default()
 }
 
 /// Put `sig` in the message as its signature (in place of the one there, else at `at`), or take
@@ -283,6 +301,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     let sig = chosen_signature(s, account, &from, None, false);
     let mut c = Compose {
         mode: ComposeMode::New,
+        signature_file_warning: signature_file_warning(s),
         account,
         from,
         to: text("to", link.to.join("; ")),
@@ -654,6 +673,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
     let mut c = Compose {
         mode,
+        signature_file_warning: signature_file_warning(s),
         source: Some(m.id),
         account: m.account,
         from,
@@ -795,6 +815,7 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
     let sig = chosen_signature(s, account, &from, None, true);
     let mut c = Compose {
         mode: ComposeMode::Forward,
+        signature_file_warning: signature_file_warning(s),
         source: Some(focus),
         also: ids.iter().copied().filter(|id| *id != focus).collect(),
         as_attachment: true,
@@ -1201,10 +1222,12 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         }
         _ => None,
     };
+    let warning = swap.as_ref().map(|_| signature_file_warning(s));
     let c = compose_mut(s)?;
     let before = c.clone();
     if let Some(sig) = swap {
         put_signature(c, sig.as_ref(), 0)?;
+        c.signature_file_warning = warning.unwrap_or_default();
     }
     for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("replyTo", &mut c.reply_to), ("subject", &mut c.subject)] {
         if let Some(text) = p::str(v, key) {
@@ -1273,10 +1296,12 @@ fn signature(s: &mut Session, v: &Value) -> CmdResult {
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
     let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply)
         .ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
+    let warning = signature_file_warning(s);
     let c = compose_mut(s)?;
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
     put_signature(c, Some(&sig), at)?;
+    c.signature_file_warning = warning;
     c.dirty = true;
     done()
 }

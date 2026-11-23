@@ -691,6 +691,9 @@ pub struct Quote {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Compose {
+    /// A local signature file could not be read; the normal signature was used instead.
+    #[serde(skip)]
+    pub signature_file_warning: String,
     pub mode: ComposeMode,
     /// The message replied to or forwarded.
     pub source: Option<Id>,
@@ -1128,6 +1131,10 @@ pub(crate) struct Undo {
 }
 
 pub struct Session {
+    /// Trusted host settings only, never loaded from a mailbox or exposed as command parameters.
+    /// Called afresh when a message chooses its account's default signature.
+    pub signature_file: Option<Box<dyn Fn(&str) -> Result<Option<mailcraft_model::Signature>, String> + Send + Sync>>,
+    pub(crate) signature_file_warning: std::sync::Mutex<Option<String>>,
     pub mailbox: Mailbox,
     pub view: ViewState,
     pub sel: Selection,
@@ -1441,6 +1448,8 @@ impl Session {
     /// mailbox is looked at: what zone its times are in is settled by it, [`Session::settle_zone`].)
     pub fn with_clock(mailbox: Mailbox, clock: Clock) -> Self {
         let mut s = Session {
+            signature_file: None,
+            signature_file_warning: Default::default(),
             mailbox,
             view: ViewState::default(),
             sel: Selection::default(),

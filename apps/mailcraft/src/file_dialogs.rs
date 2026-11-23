@@ -88,6 +88,7 @@ impl Launcher {
 /// or anything at all to attach.
 fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog {
     match purpose {
+        "signatureFile" => signature_directory(d).add_filter("Signature files", &["txt", "text", "htm", "html", "png", "jpg", "jpeg", "gif"]),
         "mailbox" => d.add_filter("MailCraft mailbox", &["mailcraft", "json"]).add_filter("All files", &["*"]),
         "import" => d
             .add_filter("Mail, calendar and contact files", &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"])
@@ -108,3 +109,18 @@ fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog 
         _ => d,
     }
 }
+
+fn signature_directory(dialog: rfd::AsyncFileDialog) -> rfd::AsyncFileDialog {
+    match signature_home(std::env::var_os("HOME"), std::env::var_os("USERPROFILE"), cfg!(target_os = "windows")) {
+        Some(home) => dialog.set_directory(home),
+        None => dialog,
+    }
+}
+
+fn signature_home(home: Option<std::ffi::OsString>, profile: Option<std::ffi::OsString>, windows: bool) -> Option<std::path::PathBuf> {
+    (if windows { profile } else { home }).filter(|p| !p.is_empty()).map(std::path::PathBuf::from)
+}
+
+#[cfg(test)]
+#[path = "file_dialogs_tests.rs"]
+mod tests;
