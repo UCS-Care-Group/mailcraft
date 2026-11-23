@@ -305,6 +305,63 @@ fn a_piece_for_what_is_no_zimbra_account_cuts_no_other_run() {
 }
 
 #[test]
+fn work_offline_asks_the_zimbra_server_for_nothing() {
+    let (mut s, account) = session();
+    s.run("sync.offline", &json!({"value": true})).unwrap();
+    for id in ["sync.zimbraRequest", "sync.zimbraFetchRequest"] {
+        match s.run(id, &json!({"account": account})) {
+            Err(CmdError::Disabled(why)) => assert_eq!(why, crate::cmd::send_receive::OFFLINE, "{id}"),
+            other => panic!("{id} wasn't refused: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_folder_whose_saved_cursor_is_no_cursor_is_read_from_its_start() {
+    let (mut s, id) = session();
+    s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap().resume =
+        vec![ZimbraResume { folder: "2".into(), cursor: "25\u{0}7".into(), sort: 9 }];
+    let request = s.run("sync.zimbraRequest", &json!({"account": id})).unwrap();
+    assert_eq!(request["resume"], json!([{"folder": "2", "sort": 0}]));
+}
+
+#[test]
+fn a_piece_that_cant_be_read_cuts_its_accounts_run() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    let mut removal = result(account, "4711");
+    removal.partial = true;
+    removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+    apply(&mut s, removal);
+    let mut odd = serde_json::to_value(result(account, "4711")).unwrap();
+    odd["pages"] = json!(7);
+    assert!(s.run("sync.applyZimbra", &json!({"result": odd})).is_err());
+    assert!(s.ews_run_cut.contains(&account));
+    let mut end = result(account, "4711");
+    (end.token, end.whole, end.resume) = ("4712".into(), true, Some(Vec::new()));
+    apply(&mut s, end);
+    assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
+    assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+}
+
+#[test]
+fn a_saved_half_read_folder_holds_off_removal_until_its_read_ends() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    s.mailbox.account_mut(account).unwrap().zimbra.as_mut().unwrap().resume =
+        vec![ZimbraResume { folder: "2".into(), cursor: "257".into(), sort: 1 }];
+    let mut removal = result(account, "4711");
+    removal.partial = true;
+    removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+    apply(&mut s, removal);
+    // The run's end says it went well but brings no token, so no list of half-read folders either.
+    let mut end = result(account, "4711");
+    end.whole = true;
+    apply(&mut s, end);
+    assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+}
+
+#[test]
 fn the_request_goes_on_from_no_more_folders_than_a_listing_holds() {
     let (mut s, id) = session();
     let most = mailcraft_model::sync::MAX_LISTED_FOLDERS;
@@ -424,6 +481,27 @@ fn a_piece_from_another_token_or_server_is_refused_and_a_cut_run_keeps_no_token(
     apply(&mut s, failed);
     assert_eq!(s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap().token, "4711");
     assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+}
+
+#[test]
+fn a_piece_names_the_account_and_server_it_is_for_whatever_their_case() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    let before = s.mailbox.clone();
+    let mut no_email = result(account, "4711");
+    no_email.email.clear();
+    no_email.pages = vec![ZimbraMessagePage { removed: vec!["257".into()], last: true, ..Default::default() }];
+    assert!(s.run("sync.applyZimbra", &json!({"result": no_email})).is_err());
+    let mut no_server = result(account, "4711");
+    no_server.url.clear();
+    no_server.pages = vec![ZimbraMessagePage { removed: vec!["257".into()], last: true, ..Default::default() }];
+    assert!(s.run("sync.applyZimbra", &json!({"result": no_server})).is_err());
+    assert_eq!(s.mailbox, before);
+    // The same server written in other capitals, and with a slash at its end, is the same server.
+    let mut same = result(account, "4711");
+    same.url = "HTTPS://Zimbra.Example.org/".into();
+    same.email = ME.to_uppercase();
+    assert!(s.run("sync.applyZimbra", &json!({"result": same})).is_ok());
 }
 
 #[test]

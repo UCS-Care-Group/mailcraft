@@ -21,7 +21,7 @@
 //! sizes ([`mailcraft_model::sync::ZimbraMailResult::check`]), then [`super::zimbra_down::bounded`]
 //! cuts its text to what is shown and passes over what has an id that is no id.
 
-use mailcraft_model::sync::{GraphFetchResult, ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult};
+use mailcraft_model::sync::{GraphFetchResult, ZimbraFetchRequest, ZimbraMailRequest, ZimbraMailResult, ZimbraResume};
 use mailcraft_model::{Account, AccountKind, FolderKind, Id, Mailbox, ZimbraServer};
 use serde_json::{Value, json};
 
@@ -95,16 +95,20 @@ fn zimbra_account(mb: &Mailbox, account: Id) -> Result<(&Account, &ZimbraServer)
 pub fn zimbra_mail_request(s: &Session, account: Id) -> Result<ZimbraMailRequest, CmdError> {
     let (a, server) = zimbra_account(&s.mailbox, account)?;
     // A token that may not be one is not gone on from: the mailbox is read afresh. The same holds
-    // for where a folder's fresh read stopped: an entry that can't be one is simply not gone on
-    // from, and the folder is read from its start.
+    // for where a folder's fresh read stopped: a cursor that can't be one is not gone on from, and
+    // the folder is read from its start (an entry for no folder there can be is left out).
     let token = if ZimbraServer::token_ok(&server.token) { server.token.clone() } else { String::new() };
     let resume = server
         .resume
         .iter()
-        .filter(|e| mailcraft_model::sync::zimbra_id_ok(&e.folder) && (e.cursor.is_empty() || mailcraft_model::sync::zimbra_id_ok(&e.cursor)))
+        .filter(|e| mailcraft_model::sync::zimbra_id_ok(&e.folder))
         // (No more of them than a listing holds folders: the list comes from the mailbox's file.)
         .take(mailcraft_model::sync::MAX_LISTED_FOLDERS)
-        .cloned()
+        .map(|e| match e.cursor.is_empty() || mailcraft_model::sync::zimbra_id_ok(&e.cursor) {
+            true => e.clone(),
+            // Left out, the folder's unread tail would never be read: it is read again whole.
+            false => ZimbraResume { folder: e.folder.clone(), ..ZimbraResume::default() },
+        })
         .collect();
     Ok(ZimbraMailRequest {
         account,
@@ -178,8 +182,18 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     }
     // What comes back is hostile: read as the type says, or refused, whatever it holds.
     let result = v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?;
-    let result: ZimbraMailResult = serde_json::from_value(result).map_err(|_| fail("`result` isn't a Zimbra Send/Receive result"))?;
-    apply_zimbra_mail(s, result)
+    let account = p::id(&result, "account");
+    match serde_json::from_value::<ZimbraMailResult>(result) {
+        Ok(result) => apply_zimbra_mail(s, result),
+        Err(_) => {
+            // A piece that can't be read is a piece lost as much as one refused: its account's
+            // run removes nothing at its end, nor goes on from its token.
+            if let Some(account) = account.filter(|id| s.mailbox.account(*id).is_some_and(|a| a.kind == AccountKind::Zimbra)) {
+                s.ews_run_cut.insert(account);
+            }
+            Err(fail("`result` isn't a Zimbra Send/Receive result"))
+        }
+    }
 }
 
 fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
@@ -192,16 +206,20 @@ fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// The account a result is for, when it may take it in: a Zimbra account, the one the run was for,
-/// at the server the run read when the result says which. Answers its name.
-fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str, username: Option<&str>) -> Result<String, CmdError> {
+/// at the server the run read when the result says which (a Send/Receive piece always does: a
+/// fetch result names none). Answers its name.
+fn receiving(mb: &Mailbox, account: Id, email: &str, url: Option<&str>, username: Option<&str>) -> Result<String, CmdError> {
     let (a, server) = zimbra_account(mb, account)?;
     let login = if server.username.trim().is_empty() { a.email.trim() } else { server.username.trim() };
-    if (!email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()))
+    // A Send/Receive piece names both its account and its server (a run's pieces all carry its
+    // request's): one that names neither can't be told apart from one for another mailbox.
+    if (url.is_some() && email.trim().is_empty())
+        || (!email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()))
         || username.is_some_and(|name| name.trim().to_lowercase() != login.to_lowercase())
     {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
-    if !url.is_empty() && server.base() != url.trim().trim_end_matches('/') {
+    if url.is_some_and(|url| url.trim().is_empty() || !server.base().eq_ignore_ascii_case(url.trim().trim_end_matches('/'))) {
         return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
     }
     Ok(a.name.clone())
@@ -226,7 +244,7 @@ pub fn apply_zimbra_mail(s: &mut Session, result: ZimbraMailResult) -> CmdResult
 fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
-    let name = receiving(&s.mailbox, account, &result.email, &result.url, Some(&result.username))?;
+    let name = receiving(&s.mailbox, account, &result.email, Some(&result.url), Some(&result.username))?;
     // A piece of a run that went on from another token than the account's: the mailbox has moved
     // on, or back, since the run began, and the piece would carry it past what was lost.
     let at = s
@@ -245,7 +263,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         s.note_saved();
     }
     let mut taken = Taken::default();
-    let mut down = Down::default();
+    let mut down = Down::of_run(s, account);
     if let Some(listing) = &result.listing {
         let mut additions = listing.clone();
         additions.complete = false;
@@ -256,6 +274,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
         cut |= !zimbra_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     if down.left > 0 {
         s.forget_history();
     }
@@ -270,8 +289,14 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     // in one step, when it went well. With a folder left half-read (`resume`), nothing marked gone
     // is gone yet — the tail of that folder's read is still to come — so nothing is removed until
     // a run leaves no folder half-read.
+    // (The folders left half-read are the piece's, when it says, else the ones the account was
+    // left at: a piece that brings no token leaves those as they were.)
+    let half_read = match &result.resume {
+        Some(resume) => !resume.is_empty(),
+        None => s.mailbox.account(account).and_then(|a| a.zimbra.as_ref()).is_some_and(|z| !z.resume.is_empty()),
+    };
     if !result.partial && !run_cut {
-        if result.whole && result.resume.as_ref().is_none_or(Vec::is_empty) {
+        if result.whole && !half_read {
             if let Some(listing) = &result.listing {
                 down.removed += zimbra_down::take_folders(&mut s.mailbox, account, listing, &result.well_known, &mut taken);
             }
@@ -330,7 +355,7 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
 /// for the account they were fetched for.
 pub fn apply_zimbra_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
     let account = result.account;
-    receiving(&s.mailbox, account, &result.email, "", None)?;
+    receiving(&s.mailbox, account, &result.email, None, None)?;
     let result = super::ews_down::bounded_fetch(result);
     let missing: Vec<(Id, String)> = result.missing.iter().map(|id| (account, id.clone())).collect();
     let answer = graph_mail::apply_graph_fetch(s, result)?;

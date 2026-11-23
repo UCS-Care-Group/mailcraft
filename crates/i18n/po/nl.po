@@ -20870,8 +20870,9 @@ msgstr "Zimbra-accounts worden getest: start MailCraft met MAILCRAFT_ZIMBRA=1 om
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
-msgstr ""
+msgstr "Zimbra-accounts verzenden en ontvangen via de webservice van Zimbra, niet zoals een IMAP-account"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23820,8 +23821,9 @@ msgstr "deze Verzenden/ontvangen was voor de eerder genoemde server {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
-msgstr ""
+msgstr "deze Verzenden/ontvangen ging verder vanaf waar het account niet meer is: de volgende leest opnieuw"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs

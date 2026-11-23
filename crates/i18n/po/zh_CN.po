@@ -21464,8 +21464,9 @@ msgstr "Zimbra 账户正在测试中：使用 MAILCRAFT_ZIMBRA=1 启动 MailCraf
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
-msgstr ""
+msgstr "Zimbra 账户通过 Zimbra 的 Web 服务发送和接收，而不是像 IMAP 账户那样"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24421,8 +24422,9 @@ msgstr "此次发送/接收针对的是之前指定的服务器 {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
-msgstr ""
+msgstr "此次发送/接收从账户已不在的位置继续：下一次将重新读取"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs

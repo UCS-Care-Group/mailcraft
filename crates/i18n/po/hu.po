@@ -21480,8 +21480,9 @@ msgstr "A Zimbra-fiókok tesztelés alatt állnak: indítsa a MailCraftot MAILCR
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
-msgstr ""
+msgstr "A Zimbra-fiókok a Zimbra webszolgáltatásán keresztül küldenek és fogadnak, nem úgy, mint egy IMAP-fiók"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24440,8 +24441,9 @@ msgstr "Ez a Send/Receive a {name} nevű kiszolgálónak volt."
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
-msgstr ""
+msgstr "ez a küldés és fogadás onnan folytatódott, ahol a fiók már nem tart: a következő újra beolvas"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs

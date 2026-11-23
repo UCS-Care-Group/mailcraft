@@ -20211,8 +20211,9 @@ msgstr "Zimbra-Konten werden getestet: Starten Sie MailCraft mit MAILCRAFT_ZIMBR
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
-msgstr ""
+msgstr "Zimbra-Konten senden und empfangen über den Webdienst von Zimbra, nicht wie ein IMAP-Konto"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23017,8 +23018,9 @@ msgstr "dieses Senden/Empfangen war für den zuvor angegebenen Server {name}"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
-msgstr ""
+msgstr "dieses Senden/Empfangen setzte dort an, wo das Konto nicht mehr steht: das nächste liest neu"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs

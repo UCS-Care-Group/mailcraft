@@ -21408,8 +21408,9 @@ msgstr "Zimbra-ის ანგარიშები მოწმდება: �
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
-msgstr ""
+msgstr "Zimbra ანგარიშები აგზავნის და იღებს Zimbra-ს ვებსერვისით და არა როგორც IMAP ანგარიში"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -24362,8 +24363,9 @@ msgstr "ეს „გაგზავნა/მიღება“ იყო ს�
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
-msgstr ""
+msgstr "ეს „გაგზავნა/მიღება“ იქიდან გაგრძელდა, სადაც ანგარიში აღარ არის: შემდეგი თავიდან წაიკითხავს"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
