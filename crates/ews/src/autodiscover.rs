@@ -701,7 +701,7 @@ impl Autodiscover {
                 // (An answer from a host the sign-in may go to vouches for the mail server's
                 // host in the domain; one from any other host doesn't, AU3-V1.)
                 let vouched = host_of(url).is_some_and(|host| self.sign_in_allowed(&host));
-                match read_answer(response.body()) {
+                match read_answer(response.body(), &self.email) {
                     Answer::Settings(found) => self.settings(found, vouched),
                     Answer::RedirectUrl(next) => self.follow(&next),
                     Answer::RedirectAddr(email) => self.restart(&email),
@@ -962,10 +962,26 @@ fn mail_address(text: &str) -> Option<String> {
     (!local.is_empty() && !local.contains('@') && is_name(&domain)).then(|| format!("{local}@{domain}"))
 }
 
-/// The first `AlternativeMailbox` of `Type` `Archive` in `account`: its `DisplayName`,
-/// `SmtpAddress` and `Server`, each checked; nothing else of it is read.
-fn read_archive(account: &Node) -> Option<ArchiveMailbox> {
-    let archive = account.all("AlternativeMailbox").find(|mailbox| mailbox.text_of("Type").eq_ignore_ascii_case("Archive"))?;
+/// Whether an `AlternativeMailbox` is the mailbox's own, not another user's ([MS-OXDSCLI]
+/// 2.2.4.1.1.2.5.6: `OwnerSmtpAddress` is given for a mailbox owned by another user, a delegated
+/// one say): it names no owner, or names one of `own`, the addresses the mailbox was looked up
+/// by and the one the answer says is its own (case aside). An owner that isn't an address is
+/// nobody's own.
+fn is_own(mailbox: &Node, own: &[&str]) -> bool {
+    let owner = mailbox.text_of("OwnerSmtpAddress").trim();
+    if owner.is_empty() {
+        return true;
+    }
+    let Some(owner) = mail_address(owner) else { return false };
+    own.iter().filter_map(|a| mail_address(a)).any(|a| a.eq_ignore_ascii_case(&owner))
+}
+
+/// The first `AlternativeMailbox` of `Type` `Archive` in `account` that is the mailbox's own
+/// ([`is_own`]; another user's archive is passed over, #1834): its `DisplayName`, `SmtpAddress`
+/// and `Server`, each checked; nothing else of it is read.
+fn read_archive(account: &Node, own: &[&str]) -> Option<ArchiveMailbox> {
+    let archive =
+        account.all("AlternativeMailbox").find(|mailbox| mailbox.text_of("Type").eq_ignore_ascii_case("Archive") && is_own(mailbox, own))?;
     let display_name: String = archive.text_of("DisplayName").chars().filter(|c| !c.is_control()).take(MAX_ARCHIVE_NAME).collect();
     let address = mail_address(archive.text_of("SmtpAddress"));
     let server = archive.text_of("Server").trim_end_matches('.').to_ascii_lowercase();
@@ -976,8 +992,9 @@ fn read_archive(account: &Node) -> Option<ArchiveMailbox> {
 
 /// Reads an answer body. Takes `Action`, `RedirectUrl`, `RedirectAddr`, from `Protocol`
 /// elements of type `EXCH` (internal) and `EXPR` (external) `EwsUrl` and `Server`, and the
-/// archive's name, address and server ([`read_archive`]): nothing else.
-fn read_answer(body: &[u8]) -> Answer {
+/// archive's name, address and server ([`read_archive`], the archive of `email`'s mailbox, and
+/// `User`'s `AutoDiscoverSMTPAddress` to know it by): nothing else.
+fn read_answer(body: &[u8], email: &str) -> Answer {
     let Ok(root) = xml::parse(body) else { return Answer::Unreadable };
     if root.name != "Autodiscover" || *root.namespace != *ANSWER_SCHEMA {
         return Answer::Unreadable;
@@ -1015,7 +1032,9 @@ fn read_answer(body: &[u8]) -> Answer {
             server = is_name(&name).then_some(name);
         }
     }
-    Answer::Settings(Discovered { external, internal, server, archive: read_archive(account) })
+    // (The mailbox's own addresses: the one it was looked up by, and the one the answer gives.)
+    let given = response.child("User").map_or("", |user| user.text_of("AutoDiscoverSMTPAddress"));
+    Answer::Settings(Discovered { external, internal, server, archive: read_archive(account, &[email, given]) })
 }
 
 #[cfg(test)]
