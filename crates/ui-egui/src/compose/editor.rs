@@ -1023,8 +1023,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     None
                 }
                 // What is pasted comes as HTML when the clipboard has some (reduced to the set
-                // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
-                // a picture alone), else as that text; into a signature, a picture on the
+                // by `edit.paste`, which takes the text egui read instead in a plain-text message
+                // and when the HTML comes to no text, a picture alone), else as that text; into a signature, a picture on the
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
                 // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`);
                 // its Paste Text Only read no HTML, and the text comes alone.
