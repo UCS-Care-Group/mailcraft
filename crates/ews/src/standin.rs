@@ -218,6 +218,9 @@ pub struct State {
     /// …and one that answers the naming with a dropped connection instead of an answer
     /// (measured on Kerio, twice: refused at 15:41, dead at 16:15 — both worlds ship).
     pub kills_extended: bool,
+    /// …and one whose delta answers (any read that carries a state) outweigh the reader no
+    /// matter how small the page: the state carries more than the socket can tell (#1784).
+    pub oversized_deltas: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -336,6 +339,7 @@ impl Default for State {
             refuses_extended: false,
             refuses_extended_as_schema: false,
             kills_extended: false,
+            oversized_deltas: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,

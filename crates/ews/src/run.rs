@@ -932,6 +932,21 @@ impl<E: HttpExchange> Run<'_, E> {
                 // their number, and this folder then asks its list over the light base shape,
                 // from the usual page again, headers being light (#1784). A folder still
                 // outweighed there costs its one problem, as any answer that can't be read.)
+                // (A delta that outweighs the reader even at the smallest page is a server that
+                // can't say what happened since the state in anything this program can read:
+                // measured on Kerio at 21:29, where the heavy folders' deltas — ten thousand
+                // read-flag changes deep — outweigh the reader however small the page is asked,
+                // while their afresh listings page fine. A state that can't be told is a state
+                // lost, whatever the words were; the folder is read afresh, once, before it
+                // costs its one problem (#1784).)
+                Err(Asked::TooLarge) if !lost && !state.is_empty() && self.page == MIN_PAGE => {
+                    (state, afresh, lost) = (String::new(), true, true);
+                    self.ids = false;
+                    self.page = PAGE;
+                    heavy = 0;
+                    log::info!("ews mail: the server can't tell what changed; the folder is read afresh");
+                    continue;
+                }
                 Err(Asked::TooLarge) => {
                     if self.ids {
                         // (Half as many again, from the fresh page: headers being few and light,

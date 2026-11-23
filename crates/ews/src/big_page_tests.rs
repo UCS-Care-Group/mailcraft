@@ -899,3 +899,47 @@ fn a_run_that_earns_the_lesson_asks_the_whole_mailbox_without_the_naming() {
         "the whole mailbox, read clean"
     );
 }
+
+/// Measured at 21:29: the heavy folders' deltas outweigh the reader however small the page —
+/// the backlog of read-flag changes is the answer, and MaxChangesReturned doesn't shrink it —
+/// while their afresh listings page fine. A state that can't be told is a state lost: the
+/// folder is read afresh once instead of costing the run its problem, and the mail comes.
+#[test]
+fn a_delta_that_cant_be_told_is_a_state_lost_and_is_read_afresh() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "First", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .find(|page| page.messages.iter().any(|m| m.subject == "First"))
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("a state to carry");
+    {
+        let mut s = standin.state();
+        s.oversized_deltas = true;
+        s.deliver("inbox", "Fresh one", false);
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        states: vec![mailcraft_model::sync::EwsFolderState { folder, state }],
+        ..Default::default()
+    };
+    let cancel = AtomicBool::new(false);
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "the untellable state cost an afresh read, not a problem: {:?}", piece.errors);
+    }
+    assert!(again.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Fresh one"), "and the mail came");
+    let state = standin.state();
+    assert!(
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").any(|a| !a.body.contains("<m:SyncState>S")),
+        "the folder was asked afresh, from nothing"
+    );
+}

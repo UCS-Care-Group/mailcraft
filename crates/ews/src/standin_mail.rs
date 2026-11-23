@@ -776,9 +776,14 @@ impl State {
                 (self.state_text(&["d", &folder.id, &reached.to_string()]), !more)
             }
         };
-        let inner = format!(
+        let mut inner = format!(
             "<m:SyncState>{state}</m:SyncState><m:IncludesLastItemInRange>{last}</m:IncludesLastItemInRange><m:Changes>{changes}</m:Changes>"
         );
+        if self.oversized_deltas && parts.get(2).is_some_and(|carried| carried.is_some()) {
+            // …and one whose delta answers simply outweigh the reader, however small they are
+            // asked: whitespace between the tags, an XML answer of megabytes saying nothing.
+            inner.push_str(&" ".repeat(17 * 1024 * 1024));
+        }
         Ok((200, "NoError".into(), response("SyncFolderItems", &ok_message("SyncFolderItems", &inner))))
     }
 
