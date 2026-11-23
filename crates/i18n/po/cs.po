@@ -1346,6 +1346,12 @@ msgstr "Když v poště přijmete, předběžně přijmete nebo odmítnete žád
 msgid "Agenda"
 msgstr "Agenda"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Agree to the addresses outside your identity provider's domain, or enter others"
+msgstr "Odsouhlaste adresy mimo doménu vašeho zprostředkovatele identity, nebo zadejte jiné"
+
 #. command label
 #: crates/engine/src/cmd/format.rs
 msgid "Align Text"
@@ -2168,6 +2174,12 @@ msgid "Asked first"
 msgstr "Nejdřív se zeptat"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Asked for besides openid email offline_access"
+msgstr "Požadované kromě openid email offline_access"
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Asking about other people's time stopped unexpectedly"
@@ -2377,6 +2389,12 @@ msgstr "Automatická archivace"
 #, fuzzy
 msgid "Automatic"
 msgstr "Automaticky"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Automatic (OAUTHBEARER, else XOAUTH2)"
+msgstr "Automaticky (OAUTHBEARER, jinak XOAUTH2)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3613,6 +3631,24 @@ msgstr "Zrušit příznak"
 #, fuzzy
 msgid "Click to select {name}; double-click to open it"
 msgstr "Kliknutím vyberete {name}; dvojitým kliknutím jej otevřete"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Client ID"
+msgstr "ID klienta"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Client secret (optional)"
+msgstr "Tajný klíč klienta (nepovinné)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Client secret sent"
+msgstr "Odeslání tajného klíče klienta"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -4860,6 +4896,12 @@ msgstr "Směrovat odpovědi na"
 msgid "Discard"
 msgstr "Zahodit"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Discover"
+msgstr "Zjistit"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
@@ -5838,6 +5880,12 @@ msgid "External"
 msgstr "Externí"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Extra scopes"
+msgstr "Další obory"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "FAILED"
@@ -5998,10 +6046,28 @@ msgid "Find next spelling error"
 msgstr "Najít další pravopisnou chybu"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Find the sign-in and token addresses from the identity provider's address. Only that address is sent."
+msgstr "Zjistí adresy pro přihlášení a tokeny z adresy zprostředkovatele identity. Odešle se jen tato adresa."
+
+#. interface
 #: crates/ui-egui/src/find_replace.rs
 #, fuzzy
 msgid "Find what"
 msgstr "Najít"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Find your identity provider's addresses with Discover, or enter them"
+msgstr "Zjistěte adresy svého zprostředkovatele identity tlačítkem Zjistit, nebo je zadejte"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Finding the addresses stopped unexpectedly"
+msgstr "Hledání adres se neočekávaně zastavilo"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -6315,6 +6381,12 @@ msgstr "Zapomenout stažený kalendář a kontakty"
 msgid "Forget Trusted Certificate"
 msgstr "Zapomenout důvěryhodný certifikát"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Forget the client secret"
+msgstr "Zapomenout tajný klíč klienta"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -6426,6 +6498,12 @@ msgid_plural "Found {n} folders"
 msgstr[0] "Nalezena {n} složka"
 msgstr[1] "Nalezeny {n} složky"
 msgstr[2] "Nalezeno {n} složek"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Found: sign-in at {signIn}, tokens from {token}."
+msgstr "Nalezeno: přihlášení na {signIn}, tokeny z {token}."
 
 #. name
 #: crates/model/src/calendar.rs
@@ -6781,6 +6859,12 @@ msgstr "Zlatá"
 #, fuzzy
 msgid "Google"
 msgstr "Google"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Google (built in)"
+msgstr "Google (integrované)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -7195,6 +7279,12 @@ msgstr "Jak se opakuje, určuje organizátor."
 msgid "How many messages each folder holds and the space they take"
 msgstr "Kolik zpráv obsahuje každá složka a kolik místa zabírají"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "I trust these addresses"
+msgstr "Těmto adresám důvěřuji"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -7212,6 +7302,18 @@ msgstr "Jsem správce: schválit ho pro mou organizaci"
 #, fuzzy
 msgid "Icons"
 msgstr "Ikony"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Identity provider"
+msgstr "Zprostředkovatel identity"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Identity provider (issuer)"
+msgstr "Zprostředkovatel identity (vydavatel)"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -7272,6 +7374,12 @@ msgstr "Pokud ne, nic se tam neodešle a hledání pokračuje jinde, nebo skonč
 #, fuzzy
 msgid "If you don't, nothing is sent, and you can change the servers in Server settings."
 msgstr "Pokud ne, nic se neodešle a servery můžete změnit v Nastavení serveru."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
+msgstr "Pokud budete pokračovat, přihlásíte se na stránce svého zprostředkovatele identity a přístupový token, který vydá, se odešle na {hosts}. Pokračujte, jen pokud víte, že patří vašemu zprostředkovateli."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7571,6 +7679,12 @@ msgid "In line with text"
 msgstr "Na řádku s textem"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "In the Authorization header (client_secret_basic)"
+msgstr "V hlavičce Authorization (client_secret_basic)"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "In the Outbox: it is on its way"
@@ -7587,6 +7701,12 @@ msgstr "Ve složce Pošta k odeslání: čeká na svůj čas"
 #, fuzzy
 msgid "In the folder pane's order"
 msgstr "V pořadí podokna složek"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "In the form (client_secret_post)"
+msgstr "Ve formuláři (client_secret_post)"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7845,6 +7965,12 @@ msgstr "Na server se dostane, jakmile MailCraft smí měnit pravidla na serveru 
 #, fuzzy
 msgid "It goes with the next Send/Receive; the list then takes you off it."
 msgstr "Odejde při dalším Odeslat/přijmout; konference vás pak ze seznamu odebere."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."
+msgstr "Nevydává žádné obnovovací tokeny: pokaždé, když přihlášení vyprší, budete vyzváni k novému přihlášení."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8198,6 +8324,12 @@ msgid "Keep on the server of {address}"
 msgstr "Uchovávat na serveru účtu {address}"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Keep the built-in settings"
+msgstr "Zachovat integrované nastavení"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Keep the notes and journal entries"
@@ -8276,6 +8408,12 @@ msgid "Kept in this browser's storage, saved as you go. Use Open & Export to kee
 msgstr "Uchováváno v úložišti tohoto prohlížeče, ukládá se průběžně. Chcete-li kopii jako soubor, použijte Otevřít a exportovat."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."
+msgstr "Uchováno v úložišti přihlašovacích údajů vašeho systému, nikdy v poštovní schránce. Desktopový program ho před vámi nedokáže skutečně utajit."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
@@ -8292,6 +8430,12 @@ msgstr "Uchováváno jen v tomto počítači"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Uchováváno jen v tomto počítači: pozvánky a opakované události se zatím na server neodesílají"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Kept: type a new one to replace it"
+msgstr "Uchováno: zadejte nový, chcete-li ho nahradit"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -9328,6 +9472,12 @@ msgstr "Rozlišovat velká a malá písmena"
 msgid "May"
 msgstr "května"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Mechanism"
+msgstr "Mechanismus"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9524,6 +9674,12 @@ msgstr "Microsoft 365"
 #, fuzzy
 msgid "Microsoft 365 mail is added as a Microsoft account: you sign in on Microsoft's own page in your browser, and MailCraft never sees your password."
 msgstr "Pošta Microsoft 365 se přidává jako účet Microsoft: přihlásíte se na vlastní stránce Microsoftu v prohlížeči a MailCraft vaše heslo nikdy neuvidí."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Microsoft 365 or Outlook.com (built in)"
+msgstr "Microsoft 365 nebo Outlook.com (integrované)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -10548,6 +10704,12 @@ msgstr "Zatím žádný účet: Soubor › Přidat účet"
 msgid "No account's server keeps a calendar here yet, so there is nowhere to move these to."
 msgstr "Server žádného účtu zde zatím neuchovává kalendář, takže je není kam přesunout."
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "No addresses found: {reason}"
+msgstr "Nebyly nalezeny žádné adresy: {reason}"
+
 #. android, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/mobile/src/attachments.rs
 #, fuzzy
@@ -11391,6 +11553,18 @@ msgstr "Číslovaný seznam"
 msgid "Numbering"
 msgstr "Číslování"
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "OAuth Built-in Settings"
+msgstr "Integrované nastavení OAuth"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "OAuth settings"
+msgstr "Nastavení OAuth"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -11624,6 +11798,12 @@ msgstr "Jen tentokrát, a odeslat"
 #, fuzzy
 msgid "Only if nobody replies"
 msgstr "Jen pokud nikdo neodpoví"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Only if your provider gave one"
+msgstr "Jen pokud vám ho zprostředkovatel poskytl"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13159,6 +13339,12 @@ msgstr "Opakování"
 msgid "Red category"
 msgstr "Červená kategorie"
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Redirect port"
+msgstr "Port přesměrování"
+
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -13188,6 +13374,12 @@ msgstr "Aktualizovat"
 #, fuzzy
 msgid "Refresh Your Certificates and Keys"
 msgstr "Aktualizovat vaše certifikáty a klíče"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Register http://127.0.0.1 with any port (or the one above) as the redirect address."
+msgstr "Zaregistrujte jako adresu přesměrování http://127.0.0.1 s libovolným portem (nebo s tím uvedeným výše)."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13581,6 +13773,12 @@ msgstr "Přejmenování kategorie na serveru: {done} z {total} zpráv"
 msgid "Renewing the sign-in…"
 msgstr "Obnovuji přihlášení…"
 
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser."
+msgstr "Obnovuje se přihlášení… Pokud ho nejde obnovit, přihlaste se na stránce, která se otevře v prohlížeči."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -13797,6 +13995,12 @@ msgstr "Restartovat a aktualizovat"
 msgid "Restart to update is the owner's click."
 msgstr "Restartovat a aktualizovat musí kliknout vlastník."
 
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Restore Default OAuth Settings"
+msgstr "Obnovit výchozí nastavení OAuth"
+
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
@@ -13860,6 +14064,12 @@ msgstr "Revize"
 #, fuzzy
 msgid "Review certificate…"
 msgstr "Zkontrolovat certifikát…"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Revocation address (optional)"
+msgstr "Adresa pro odvolání (nepovinné)"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -14401,6 +14611,12 @@ msgstr "Souhlaste, jen pokud jste o to agenta požádali. Text ve zprávě můž
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Říká, co můžete udělat vy a správce vaší organizace, a umožňuje správci odsud schválit MailCraft na stránce Microsoftu."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Scopes"
+msgstr "Obory"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -15861,6 +16077,18 @@ msgstr "Nejprve se přihlaste pomocí Odeslat/přijmout, pak změňte automatick
 #, fuzzy
 msgid "Sign in with Send/Receive to see when other people are busy."
 msgstr "Chcete-li vidět, kdy jsou ostatní zaneprázdněni, přihlaste se pomocí Odeslat/přijmout."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Sign in with your identity provider (OAuth 2.0) instead"
+msgstr "Přihlásit se místo toho u svého zprostředkovatele identity (OAuth 2.0)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Sign-in address"
+msgstr "Adresa pro přihlášení"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17445,6 +17673,24 @@ msgid "The certificate wasn't issued by a certification authority this computer 
 msgstr "Certifikát nevydala certifikační autorita, které tento počítač důvěřuje."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret can only be letters, digits and punctuation"
+msgstr "Tajný klíč klienta smí obsahovat jen písmena, číslice a interpunkci"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"
+msgstr "Tajný klíč klienta pro {account} není v tomto počítači uložen: zadejte ho znovu v Nastavení účtu (Soubor › Informace)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Tajný klíč klienta je uložen pro původní nastavení: chcete-li ho použít s tímto, zadejte ho znovu, jinak bude při uložení zapomenut."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
@@ -17976,6 +18222,12 @@ msgid "The one in File › Options"
 msgstr "Ten v Soubor › Možnosti"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The one registered for MailCraft"
+msgstr "Ten, který je zaregistrovaný pro MailCraft"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The one this build came with"
@@ -18082,6 +18334,12 @@ msgstr "Rozsah potřebuje den, kterým končí"
 #, fuzzy
 msgid "The range needs a day to start on"
 msgstr "Rozsah potřebuje den, kterým začíná"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The redirect port is a number from 1 to 65535, or empty for any free one"
+msgstr "Port přesměrování je číslo od 1 do 65535, nebo prázdné pro libovolný volný port"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -18539,6 +18797,12 @@ msgstr "Přihlášení neprošlo."
 msgid "The sign-in didn't work. Try again."
 msgstr "Přihlášení nefungovalo. Zkuste to znovu."
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The sign-in is only sent to: {servers}"
+msgstr "Přihlášení se odesílá jen na: {servers}"
+
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -18815,6 +19079,12 @@ msgid "Thesaurus"
 msgstr "Synonyma"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "These addresses are outside your identity provider's domain: {hosts}"
+msgstr "Tyto adresy jsou mimo doménu vašeho zprostředkovatele identity: {hosts}"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
@@ -18843,6 +19113,12 @@ msgstr "Tyto kontakty zde nelze sloučit: méně než dva z nich lze změnit."
 #, fuzzy
 msgid "These could not be removed. Remove them yourself:"
 msgstr "Tyto nešlo odstranit. Odstraňte je sami:"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
+msgstr "Toto nastavení už nebude patřit {provider}: MailCraft bude s tímto účtem zacházet jako s účtem s vlastním zprostředkovatelem identity, počínaje hodnotami výše, a znovu se přihlásíte."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -20123,6 +20399,12 @@ msgstr "Dnes"
 msgid "Today could not be read."
 msgstr "Dnešek se nepodařilo přečíst."
 
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Token address"
+msgstr "Adresa tokenů"
+
 #. android, interface, name, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -20607,6 +20889,12 @@ msgid "Use a Google app password, not your everyday Google account password."
 msgstr "Použijte heslo aplikace Google, ne každodenní heslo k účtu Google."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Use a password instead"
+msgstr "Použít místo toho heslo"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Use an app password"
@@ -20625,6 +20913,18 @@ msgid "Use https:// instead"
 msgstr "Místo toho použijte https://"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Use it"
+msgstr "Použít"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Use my own identity provider"
+msgstr "Použít vlastního zprostředkovatele identity"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Use my own working hours"
@@ -20641,6 +20941,12 @@ msgstr "Podle nastavení systému"
 #, fuzzy
 msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
 msgstr "Podle nastavení systému se řídí efekty animací v nastavení Windows. Kde MailCraft zatím nastavení systému přečíst neumí, animace se přehrávají, dokud nezvolíte Nikdy nepřehrávat."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Use your own identity provider instead…"
+msgstr "Použít místo toho vlastního zprostředkovatele identity…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -20787,6 +21093,12 @@ msgid "Wait for the other attachment preview to finish."
 msgstr "Počkejte, až skončí náhled jiné přílohy."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Wait for your identity provider's addresses"
+msgstr "Počkejte na adresy svého zprostředkovatele identity"
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Waiting"
@@ -20803,6 +21115,12 @@ msgstr "Čeká se na registraci MailCraftu u Googlu"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Čekání na schválení se nečekaně zastavilo"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Waiting for the system's credential store…"
+msgstr "Čeká se na úložiště přihlašovacích údajů systému…"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -21456,6 +21774,12 @@ msgid "Your data was removed"
 msgstr "Vaše data byla odstraněna"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Your domain names {issuer} for signing in."
+msgstr "Vaše doména pro přihlášení uvádí {issuer}."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
@@ -21670,6 +21994,12 @@ msgstr "Pravidla vaší organizace to pro váš účet nedovolují. Jde o zásad
 #, fuzzy
 msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
 msgstr "Vaše vlastní certifikáty a klíče používá desktopový program MailCraftu: zde se digitální podpisy ověřují a nic se nepodepisuje ani nedešifruje."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "Your own identity provider"
+msgstr "Váš vlastní zprostředkovatel identity"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -22055,6 +22385,24 @@ msgstr "adresu sdílené poštovní schránky nelze změnit: odeberte ji a přid
 msgid "a shared mailbox's rules are its own: this version doesn't make them"
 msgstr "sdílená poštovní schránka má vlastní pravidla: tato verze je nevytváří"
 
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers"
+msgstr "přihlášení u vašeho zprostředkovatele identity se nikdy neodesílá na poštovní servery Microsoftu ani Googlu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a sign-in with your identity provider is only sent to a mail server on this computer in a test"
+msgstr "přihlášení u vašeho zprostředkovatele identity se odesílá na poštovní server v tomto počítači jen při testu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a sign-in with your identity provider is only used with this account's own mail servers"
+msgstr "přihlášení u vašeho zprostředkovatele identity se používá jen s vlastními poštovními servery tohoto účtu"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22364,6 +22712,12 @@ msgstr "k přihlášení zadejte heslo"
 msgid "enter a user name to sign in"
 msgstr "k přihlášení zadejte uživatelské jméno"
 
+#. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "enter the client id registered for MailCraft at your identity provider"
+msgstr "zadejte ID klienta zaregistrované pro MailCraft u vašeho zprostředkovatele identity"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -22375,6 +22729,12 @@ msgstr "všichni na @{domain}"
 #, fuzzy
 msgid "expected and replacement must be on one line"
 msgstr "hledaný i náhradní text musí být na jednom řádku"
+
+#. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "find your identity provider's sign-in addresses (Discover), or enter them"
+msgstr "zjistěte adresy pro přihlášení u svého zprostředkovatele identity (Zjistit), nebo je zadejte"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23933,6 +24293,12 @@ msgstr "změněný výskyt už neexistuje"
 msgid "the check stopped unexpectedly"
 msgstr "kontrola se nečekaně zastavila"
 
+#. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "the client id can only be letters, digits and punctuation, at most 200 of them"
+msgstr "ID klienta smí obsahovat jen písmena, číslice a interpunkci, nejvýše 200 znaků"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -24096,6 +24462,12 @@ msgid "the folder was numbered anew while it was being read"
 msgstr "složka byla během čtení přečíslována"
 
 #. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "the identity provider (issuer) address can't have a query or a fragment"
+msgstr "adresa zprostředkovatele identity (vydavatele) nesmí obsahovat dotaz ani fragment"
+
+#. what a command says
 #: crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "the import couldn't account for every item of {path}"
@@ -24112,6 +24484,12 @@ msgstr "import nemá složku, do které by dal poštu"
 #, fuzzy
 msgid "the import was stopped"
 msgstr "import byl zastaven"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "the incoming and outgoing servers above"
+msgstr "příchozí a odchozí servery uvedené výše"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
@@ -24131,17 +24509,17 @@ msgstr "poslední Odeslat/přijmout mělo potíže"
 msgid "the last calendar can't be deleted"
 msgstr "poslední kalendář nelze odstranit"
 
-#. why a mail server couldn't be used
-#: crates/proto/src/oauthbearer.rs
-#, fuzzy
-msgid "the mail server's name can't be sent with a sign-in"
-msgstr "název poštovního serveru nelze odeslat s přihlášením"
-
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
 msgid "the list shows every account's folder: open one account's folder, or name the folder"
 msgstr "seznam zobrazuje složky všech účtů: otevřete složku jednoho účtu, nebo složku pojmenujte"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/oauthbearer.rs
+#, fuzzy
+msgid "the mail server's name can't be sent with a sign-in"
+msgstr "název poštovního serveru nelze odeslat s přihlášením"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -24280,6 +24658,12 @@ msgstr "platforma odmítla nebo selhala"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "navržený konec není po navrženém začátku"
+
+#. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "the redirect port must be between 1 and 65535, or automatic"
+msgstr "port přesměrování musí být mezi 1 a 65535, nebo automatický"
 
 #. what a command says
 #: crates/model/src/mailbox_followup.rs
@@ -25192,6 +25576,12 @@ msgstr "zadejte adresu, například nekdo@example.org, nebo doménu, například
 msgid "unexpected server response: {reason}"
 msgstr "neočekávaná odpověď serveru: {reason}"
 
+#. what a command says
+#: crates/model/src/oauth.rs
+#, fuzzy
+msgid "use common, consumers, organizations, or a directory's id or domain as the tenant"
+msgstr "jako tenanta použijte common, consumers, organizations nebo ID či doménu adresáře"
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -25351,6 +25741,12 @@ msgstr "přihlásili jste se jako někdo jiný"
 #, fuzzy
 msgid "you@example.org"
 msgstr "vy@example.org"
+
+#. name
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "your identity provider"
+msgstr "váš zprostředkovatel identity"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -25540,6 +25936,12 @@ msgstr "{days} (celý den)"
 #, fuzzy
 msgid "{day} at {time}"
 msgstr "{day} v {time}"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
+msgstr "{domain} uvádí, že se její pošta přihlašuje přes zprostředkovatele identity (OAuth 2.0)."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs crates/ui-egui/src/sync_panel.rs
@@ -27686,404 +28088,3 @@ msgstr "−Řádky"
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 #~ msgstr "Zobrazit oznámení, když nastane čas připomenutí v kalendáři. Pokud je vypnuto, nezobrazí se žádné; samotná připomenutí zůstávají v kalendáři."
 
-#. why a mail server couldn't be used
-#: crates/net/src/sync.rs
-#, fuzzy
-msgid "a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers"
-msgstr "přihlášení u vašeho zprostředkovatele identity se nikdy neodesílá na poštovní servery Microsoftu ani Googlu"
-
-#. why a mail server couldn't be used
-#: crates/net/src/sync.rs
-#, fuzzy
-msgid "a sign-in with your identity provider is only sent to a mail server on this computer in a test"
-msgstr "přihlášení u vašeho zprostředkovatele identity se odesílá na poštovní server v tomto počítači jen při testu"
-
-#. why a mail server couldn't be used
-#: crates/net/src/sync.rs
-#, fuzzy
-msgid "a sign-in with your identity provider is only used with this account's own mail servers"
-msgstr "přihlášení u vašeho zprostředkovatele identity se používá jen s vlastními poštovními servery tohoto účtu"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "enter the client id registered for MailCraft at your identity provider"
-msgstr "zadejte ID klienta zaregistrované pro MailCraft u vašeho zprostředkovatele identity"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "find your identity provider's sign-in addresses (Discover), or enter them"
-msgstr "zjistěte adresy pro přihlášení u svého zprostředkovatele identity (Zjistit), nebo je zadejte"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "the client id can only be letters, digits and punctuation, at most 200 of them"
-msgstr "ID klienta smí obsahovat jen písmena, číslice a interpunkci, nejvýše 200 znaků"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "the identity provider (issuer) address can't have a query or a fragment"
-msgstr "adresa zprostředkovatele identity (vydavatele) nesmí obsahovat dotaz ani fragment"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "the redirect port must be between 1 and 65535, or automatic"
-msgstr "port přesměrování musí být mezi 1 a 65535, nebo automatický"
-
-#. what a command says
-#: crates/model/src/oauth.rs
-#, fuzzy
-msgid "use common, consumers, organizations, or a directory's id or domain as the tenant"
-msgstr "jako tenanta použijte common, consumers, organizations nebo ID či doménu adresáře"
-
-#. name
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "your identity provider"
-msgstr "váš zprostředkovatel identity"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Agree to the addresses outside your identity provider's domain, or enter others"
-msgstr "Odsouhlaste adresy mimo doménu vašeho zprostředkovatele identity, nebo zadejte jiné"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Asked for besides openid email offline_access"
-msgstr "Požadované kromě openid email offline_access"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Automatic (OAUTHBEARER, else XOAUTH2)"
-msgstr "Automaticky (OAUTHBEARER, jinak XOAUTH2)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Client ID"
-msgstr "ID klienta"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Client secret (optional)"
-msgstr "Tajný klíč klienta (nepovinné)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Discover"
-msgstr "Zjistit"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Extra scopes"
-msgstr "Další obory"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Find the sign-in and token addresses from the identity provider's address. Only that address is sent."
-msgstr "Zjistí adresy pro přihlášení a tokeny z adresy zprostředkovatele identity. Odešle se jen tato adresa."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Find your identity provider's addresses with Discover, or enter them"
-msgstr "Zjistěte adresy svého zprostředkovatele identity tlačítkem Zjistit, nebo je zadejte"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Finding the addresses stopped unexpectedly"
-msgstr "Hledání adres se neočekávaně zastavilo"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Forget the client secret"
-msgstr "Zapomenout tajný klíč klienta"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Found: sign-in at {signIn}, tokens from {token}."
-msgstr "Nalezeno: přihlášení na {signIn}, tokeny z {token}."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Google (built in)"
-msgstr "Google (integrované)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "I trust these addresses"
-msgstr "Těmto adresám důvěřuji"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Identity provider"
-msgstr "Zprostředkovatel identity"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Identity provider (issuer)"
-msgstr "Zprostředkovatel identity (vydavatel)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."
-msgstr "Nevydává žádné obnovovací tokeny: pokaždé, když přihlášení vyprší, budete vyzváni k novému přihlášení."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Keep the built-in settings"
-msgstr "Zachovat integrované nastavení"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."
-msgstr "Uchováno v úložišti přihlašovacích údajů vašeho systému, nikdy v poštovní schránce. Desktopový program ho před vámi nedokáže skutečně utajit."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Kept: type a new one to replace it"
-msgstr "Uchováno: zadejte nový, chcete-li ho nahradit"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Mechanism"
-msgstr "Mechanismus"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Microsoft 365 or Outlook.com (built in)"
-msgstr "Microsoft 365 nebo Outlook.com (integrované)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "No addresses found: {reason}"
-msgstr "Nebyly nalezeny žádné adresy: {reason}"
-
-#. command label
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "OAuth Built-in Settings"
-msgstr "Integrované nastavení OAuth"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "OAuth settings"
-msgstr "Nastavení OAuth"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Only if your provider gave one"
-msgstr "Jen pokud vám ho zprostředkovatel poskytl"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Redirect port"
-msgstr "Port přesměrování"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Register http://127.0.0.1 with any port (or the one above) as the redirect address."
-msgstr "Zaregistrujte jako adresu přesměrování http://127.0.0.1 s libovolným portem (nebo s tím uvedeným výše)."
-
-#. command label
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "Restore Default OAuth Settings"
-msgstr "Obnovit výchozí nastavení OAuth"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Revocation address (optional)"
-msgstr "Adresa pro odvolání (nepovinné)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Scopes"
-msgstr "Obory"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Sign in with your identity provider (OAuth 2.0) instead"
-msgstr "Přihlásit se místo toho u svého zprostředkovatele identity (OAuth 2.0)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Sign-in address"
-msgstr "Adresa pro přihlášení"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "The client secret can only be letters, digits and punctuation"
-msgstr "Tajný klíč klienta smí obsahovat jen písmena, číslice a interpunkci"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "The one registered for MailCraft"
-msgstr "Ten, který je zaregistrovaný pro MailCraft"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "The redirect port is a number from 1 to 65535, or empty for any free one"
-msgstr "Port přesměrování je číslo od 1 do 65535, nebo prázdné pro libovolný volný port"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "The sign-in is only sent to: {servers}"
-msgstr "Přihlášení se odesílá jen na: {servers}"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "These addresses are outside your identity provider's domain: {hosts}"
-msgstr "Tyto adresy jsou mimo doménu vašeho zprostředkovatele identity: {hosts}"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
-msgstr "Toto nastavení už nebude patřit {provider}: MailCraft bude s tímto účtem zacházet jako s účtem s vlastním zprostředkovatelem identity, počínaje hodnotami výše, a znovu se přihlásíte."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Token address"
-msgstr "Adresa tokenů"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "Use a password instead"
-msgstr "Použít místo toho heslo"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Use it"
-msgstr "Použít"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Use my own identity provider"
-msgstr "Použít vlastního zprostředkovatele identity"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Use your own identity provider instead…"
-msgstr "Použít místo toho vlastního zprostředkovatele identity…"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Wait for your identity provider's addresses"
-msgstr "Počkejte na adresy svého zprostředkovatele identity"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Your domain names {issuer} for signing in."
-msgstr "Vaše doména pro přihlášení uvádí {issuer}."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Your own identity provider"
-msgstr "Váš vlastní zprostředkovatel identity"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "the incoming and outgoing servers above"
-msgstr "příchozí a odchozí servery uvedené výše"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "{domain} says its mail signs in with an identity provider (OAuth 2.0)."
-msgstr "{domain} uvádí, že se její pošta přihlašuje přes zprostředkovatele identity (OAuth 2.0)."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "Client secret sent"
-msgstr "Odeslání tajného klíče klienta"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "In the Authorization header (client_secret_basic)"
-msgstr "V hlavičce Authorization (client_secret_basic)"
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "In the form (client_secret_post)"
-msgstr "Ve formuláři (client_secret_post)"
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser."
-msgstr "Obnovuje se přihlášení… Pokud ho nejde obnovit, přihlaste se na stránce, která se otevře v prohlížeči."
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"
-msgstr "Tajný klíč klienta pro {account} není v tomto počítači uložen: zadejte ho znovu v Nastavení účtu (Soubor › Informace)"
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Waiting for the system's credential store…"
-msgstr "Čeká se na úložiště přihlašovacích údajů systému…"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
-msgstr "Pokud budete pokračovat, přihlásíte se na stránce svého zprostředkovatele identity a přístupový token, který vydá, se odešle na {hosts}. Pokračujte, jen pokud víte, že patří vašemu zprostředkovateli."
-
-#. interface
-#: crates/ui-egui/src/account_setup/oauth_settings.rs
-#, fuzzy
-msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
-msgstr "Tajný klíč klienta je uložen pro původní nastavení: chcete-li ho použít s tímto, zadejte ho znovu, jinak bude při uložení zapomenut."
