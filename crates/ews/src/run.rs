@@ -71,6 +71,17 @@ const MAX_PAGES: usize = 5_000;
 const MAX_HIERARCHY_PAGES: usize = 20;
 /// The most messages one fetch asks for.
 const MAX_FETCH: usize = 100;
+/// The last ask of a folder that outweighed the reader, said in full: which shape, which list,
+/// how many at a time, afresh or from a state, afresh spent or not — the measurements of a death
+/// are worth more than the theory of one (#1784, the folder that dies at five to the hour).
+fn run_out_of_asking(shape: &Shape, ids: bool, page: u32, state: &str, lost: bool) {
+    log::warn!(
+        "ews mail: nothing lighter to ask: shape {shape:?}, ids {ids}, {page} at a time, {}, {}",
+        if state.is_empty() { "afresh" } else { "carrying a state" },
+        if lost { "afresh spent" } else { "afresh unused" }
+    );
+}
+
 /// After this many folders in a row that couldn't be read, the run ends.
 const MAX_IN_A_ROW: usize = 3;
 /// The most `GetItem`s for recipients one page asks: a page of the most changes the model takes in,
@@ -954,6 +965,7 @@ impl<E: HttpExchange> Run<'_, E> {
                         if self.page > MIN_PAGE {
                             self.page = (self.page / 2).max(MIN_PAGE);
                         } else {
+                            run_out_of_asking(&self.shape, self.ids, self.page, &state, lost);
                             return Err(Asked::TooLarge);
                         }
                     } else {
@@ -977,6 +989,7 @@ impl<E: HttpExchange> Run<'_, E> {
                             // where the ids lesson would have taken over.)
                             self.page = (self.page / 2).max(MIN_PAGE);
                         } else {
+                            run_out_of_asking(&self.shape, self.ids, self.page, &state, lost);
                             return Err(Asked::TooLarge);
                         }
                     }
