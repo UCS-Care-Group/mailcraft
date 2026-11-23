@@ -592,10 +592,10 @@ impl State {
     /// [`State::refuse_ops`], when it is one of those operations.
     fn refused_name(&self, request: &HttpRequest) -> Option<u16> {
         let body = String::from_utf8_lossy(request.body());
-        if let Some((ops, status)) = self.refuse_ops.as_ref() {
-            if ops.iter().any(|op| body.contains(&format!(":{op} ")) || body.contains(&format!(":{op}>"))) {
-                return Some(*status);
-            }
+        if let Some((ops, status)) = self.refuse_ops.as_ref()
+            && ops.iter().any(|op| body.contains(&format!(":{op} ")) || body.contains(&format!(":{op}>")))
+        {
+            return Some(*status);
         }
         let (names, status) = self.refuse_names.as_ref()?;
         (body.contains("GetFolder") && names.iter().any(|name| body.contains(&format!("Id=\"{name}\"")))).then_some(*status)
