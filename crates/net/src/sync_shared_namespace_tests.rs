@@ -358,3 +358,26 @@ fn a_tie_to_anothers_mailbox_is_not_followed() {
     assert_eq!(kind("shared/alice/Trash"), Some(FolderKind::Custom));
     assert_eq!(kind("Sent"), Some(FolderKind::Sent));
 }
+
+/// A server that offers NAMESPACE and refuses it is read as one without NAMESPACE was before
+/// (#1863): every folder listed is taken as the account's own, and nothing is said. One whose
+/// connection fails at NAMESPACE says so, naming that question, not the list of folders.
+#[test]
+fn a_refused_or_failed_namespace_question() {
+    let mut world = dovecot('/');
+    world.refuse = vec!["NAMESPACE".into()];
+    let imap = Fake::imap(world);
+    let result = sync(&request(&imap));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(!result.listed.iter().any(|f| f.remote == "shared/alice"), "nothing is made above others' folders");
+    assert!(result.listed.iter().any(|f| f.remote == "shared/alice/INBOX" && f.parent.is_empty()));
+    assert!(result.folders.iter().any(|f| f.remote == "shared/alice/INBOX"));
+
+    let mut world = dovecot('/');
+    world.hang_up_on = Some("NAMESPACE".into());
+    let imap = Fake::imap(world);
+    let result = sync(&request(&imap));
+    assert_eq!(result.errors.len(), 1, "{:?}", result.errors);
+    assert!(result.errors.iter().all(|e| e.starts_with("Couldn't ask the server which folders are other people's")), "{:?}", result.errors);
+    assert!(result.listed.is_empty());
+}

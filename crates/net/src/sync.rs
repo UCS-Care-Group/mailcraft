@@ -755,12 +755,13 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     // Which of them are others' (RFC 2342): another user's Inbox is not this account's.
     let others = match imap.namespaces() {
         Ok(namespaces) => Others::of(&namespaces),
+        // As a server without NAMESPACE: every folder listed is taken for the account's own.
         Err(ProtoError::Rejected(_)) => {
-            log::debug!("namespaces refused: no folder is taken for another's");
+            log::debug!("NAMESPACE refused: without the server's namespaces, every folder listed is taken as the account's own, as before");
             Others::default()
         }
         Err(e) => {
-            let alive = run.failed(said!("Couldn't read the list of folders"), &e.into());
+            let alive = run.failed(said!("Couldn't ask the server which folders are other people's"), &e.into());
             run.out.unfiled.extend(owed);
             return alive.then_some(imap);
         }

@@ -4064,6 +4064,11 @@ msgid "Could not open Google sign-in"
 msgstr "Google-ით შესვლის გახსნა ვერ მოხერხდა"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "Couldn't ask the server which folders are other people's"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/net/src/push.rs
 #, fuzzy
 msgid "Couldn't bring \"{name}\" up to date"
