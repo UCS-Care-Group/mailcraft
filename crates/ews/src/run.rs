@@ -832,6 +832,13 @@ impl<E: HttpExchange> Run<'_, E> {
                         self.extended_said = true;
                         log::info!("ews mail: a page asked with the read state named the MAPI way died on the way back; not naming it again");
                     }
+                    // (Measured at 16:41: the re-asked page died too, 50ms later — a servlet
+                    // killed mid-answer needs a moment to come back, and a connection that
+                    // dies again right away was never about the naming. Three seconds, once
+                    // per run, before the network is believed.)
+                    if !(self.wait)(3000) {
+                        return Err(Asked::Stop(Stop::Cancelled));
+                    }
                     continue;
                 }
                 // (A refusal in SOAP's own words, from a page asked from nothing, is the
