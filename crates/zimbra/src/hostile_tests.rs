@@ -397,12 +397,12 @@ fn a_page_in_place_of_a_message_is_no_message() {
 
 #[test]
 fn a_deleted_note_is_a_typed_deletion_that_removes_no_mail() {
-    // `notes` is one of the types `SyncResponse`'s `deleted` breaks down by: unread, a delta that
-    // deletes a note would never be gone on from.
-    let only = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "notes": [{"ids": "500"}]}]}}}));
+    // `note` (Zimbra's `MailConstants.E_NOTE`) is one of the types `SyncResponse`'s `deleted`
+    // breaks down by: unread, a delta that deletes a note would never be gone on from.
+    let only = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "note": [{"ids": "500"}]}]}}}));
     let delta = delta::answer(&only, false).unwrap();
     assert!(delta.deleted.is_empty() && delta.token == "6");
-    let odd = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "notes": [{"ids": "5 00"}]}]}}}));
+    let odd = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "note": [{"ids": "5 00"}]}]}}}));
     assert_eq!(delta::answer(&odd, false), Err(Error::Unreadable));
 }
 
