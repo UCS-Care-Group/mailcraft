@@ -48,6 +48,8 @@ macro_rules! tl_later {
 
 #[cfg(test)]
 mod accent_custom_tests;
+#[cfg(test)]
+mod account_card_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
