@@ -909,7 +909,12 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
     // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
     row(ui, tl!("Wait before sending"), |ui| {
-        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        let wait = |n: u8| match n {
+            0 => tl!("Off").to_string(),
+            // (A whole number of minutes from a minute on, #1799.)
+            n if n >= 60 && n % 60 == 0 => tln!(u64::from(n / 60), "{n} minute", "{n} minutes"),
+            n => tln!(u64::from(n), "{n} second", "{n} seconds"),
+        };
         egui::ComboBox::from_id_salt("opt_wait_before_sending")
             .selected_text(wait(prefs.undo_send()))
             .show_ui(ui, |ui| {
