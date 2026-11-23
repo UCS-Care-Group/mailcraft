@@ -395,7 +395,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
 /// lose (#1834 review): of its folders, or of its mail; not a move into it of mail its owner's
 /// server still has, which is put back where the server has it ([`Mailbox::remove_archive`]),
 /// with what was changed in it.
-fn archive_changes_wait(s: &Session, archive: Id) -> bool {
+pub(crate) fn archive_changes_wait(s: &Session, archive: Id) -> bool {
     use mailcraft_model::sync::MessageChange;
     let mb = &s.mailbox;
     let Some(owner) = mb.archive_owner(archive).map(|o| o.id) else { return false };

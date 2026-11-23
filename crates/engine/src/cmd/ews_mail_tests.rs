@@ -988,6 +988,36 @@ fn a_move_the_server_gives_no_new_id_for_leaves_no_stale_copy() {
     assert!(here(&s, account, "M1").is_none());
 }
 
+/// Hide Online Archive isn't taken while a change made in the archive waits to go up: nothing of
+/// it is kept here, so it would be lost; once it has gone up, it is (#1834 review).
+#[test]
+fn hiding_waits_for_the_archives_changes_to_go_up() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M9", "Budget 2019", 1_600_000_000)], true, true), "S1");
+    let m = here(&s, archive, "M9").unwrap().id;
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    let said = s.run("account.archive.hide", &json!({"account": archive})).unwrap_err().to_string();
+    assert!(said.contains("Send/Receive first, then hide it"), "{said}");
+    assert!(s.mailbox.archive_of(account).is_some(), "nothing changed");
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().archive_hidden);
+    // The flag goes up; then it is hidden.
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Update { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: "M9".into() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], ..piece(archive) }).unwrap();
+    assert!(ews_mail_request(&s, archive, false).unwrap().messages.is_empty(), "nothing waits now");
+    s.run("account.archive.hide", &json!({"account": archive})).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+}
+
 #[test]
 fn the_archive_commands_take_only_an_exchange_server_account() {
     let (mut s, _) = session();

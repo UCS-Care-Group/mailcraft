@@ -23635,6 +23635,11 @@ msgid "the occurrence was not changed; nothing was moved"
 msgstr "het exemplaar is niet gewijzigd; er is niets verplaatst"
 
 #. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
 msgstr ""

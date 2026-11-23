@@ -92,10 +92,16 @@ fn archive_holder(s: &Session, v: &Value) -> Result<Id, CmdError> {
 
 fn hide_archive(s: &mut Session, v: &Value) -> CmdResult {
     let owner = archive_holder(s, v)?;
+    let archive = s.mailbox.archive_of(owner).map(|a| a.id);
+    // Not while a change made in it waits to go up: nothing of it is kept here, so it would be
+    // lost (#1834 review). (Its moves the server hasn't made go back where the server has the mail.)
+    if archive.is_some_and(|archive| super::account::archive_changes_wait(s, archive)) {
+        return Err(fail("the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"));
+    }
     if let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
         server.archive_hidden = true;
     }
-    if let Some(archive) = s.mailbox.archive_of(owner).map(|a| a.id) {
+    if let Some(archive) = archive {
         s.mailbox.remove_archive(archive).map_err(|e| fail(e.to_string()))?;
     }
     if s.mailbox.folder(s.view.folder).is_none() {
