@@ -478,8 +478,9 @@ msgstr "Upozornění na ploše na poštu, na kterou toto pravidlo při příchod
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "A dictionary word is letters, digits, apostrophes and hyphens, up to 64 characters."
-msgstr ""
+msgstr "Slovo ve slovníku tvoří písmena, číslice, apostrofy a spojovníky, nejvýše 64 znaků."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -1152,8 +1153,9 @@ msgstr "Přidat do kontaktů"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Add to Dictionary"
-msgstr ""
+msgstr "Přidat do slovníku"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -3036,8 +3038,9 @@ msgstr "Certifikáty"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change"
-msgstr ""
+msgstr "Nahradit"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3051,8 +3054,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change All"
-msgstr ""
+msgstr "Nahradit vše"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3128,8 +3132,9 @@ msgstr "Změnit název tohoto účtu, přihlášení a poštu uchovávanou offli
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change to"
-msgstr ""
+msgstr "Nahradit čím"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3245,8 +3250,9 @@ msgstr "Zkontrolovat příjemce"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Check Spelling…"
-msgstr ""
+msgstr "Zkontrolovat pravopis…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3286,8 +3292,9 @@ msgstr "Kontrolovat nové verze"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Check spelling as you type"
-msgstr ""
+msgstr "Kontrolovat pravopis při psaní"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3321,8 +3328,9 @@ msgstr "Hledám novou verzi…"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Checking spelling…"
-msgstr ""
+msgstr "Kontroluji pravopis…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4263,8 +4271,9 @@ msgstr "Aktuální zobrazení"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Custom Dictionary…"
-msgstr ""
+msgstr "Vlastní slovník…"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
@@ -4273,8 +4282,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Custom dictionary"
-msgstr ""
+msgstr "Vlastní slovník"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4450,8 +4460,9 @@ msgstr "Výchozí"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Default spelling language"
-msgstr ""
+msgstr "Výchozí jazyk kontroly pravopisu"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5461,8 +5472,9 @@ msgstr "Končí v určitý den"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "English (United States, built-in)"
-msgstr ""
+msgstr "Angličtina (Spojené státy, vestavěná)"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -7228,28 +7240,33 @@ msgstr "Pokud ho máte, vložte sem jeho ID aplikace (klienta). Pochází z regi
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore All"
-msgstr ""
+msgstr "Ignorovat vše"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Ignore All is full."
-msgstr ""
+msgstr "Seznam „Ignorovat vše“ je plný."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore Once"
-msgstr ""
+msgstr "Ignorovat jednou"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words in UPPERCASE"
-msgstr ""
+msgstr "Ignorovat slova psaná VELKÝMI PÍSMENY"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words that contain numbers"
-msgstr ""
+msgstr "Ignorovat slova obsahující čísla"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -8489,8 +8506,9 @@ msgstr "Vypsat kontakty"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "List Dictionary"
-msgstr ""
+msgstr "Vypsat slovník"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10839,8 +10857,9 @@ msgstr "Takový účet neexistuje"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "No suggestions"
-msgstr ""
+msgstr "Žádné návrhy"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11076,8 +11095,9 @@ msgstr "Není v seznamu Outlooku: tam bez barvy"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Not in dictionary"
-msgstr ""
+msgstr "Není ve slovníku"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13374,8 +13394,9 @@ msgstr "Odebrat z kalendáře"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Remove from Dictionary"
-msgstr ""
+msgstr "Odebrat ze slovníku"
 
 #. interface
 #: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -13545,8 +13566,9 @@ msgstr "Nahradit vše"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Replace Subject Text"
-msgstr ""
+msgstr "Nahradit text předmětu"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -16131,13 +16153,15 @@ msgstr "Pravopis a gramatika"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Spelling Options"
-msgstr ""
+msgstr "Možnosti pravopisu"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Spelling is off for this message"
-msgstr ""
+msgstr "Kontrola pravopisu je pro tuto zprávu vypnutá"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -16429,8 +16453,9 @@ msgstr "Navrhovat příjemce"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Suggestions"
-msgstr ""
+msgstr "Návrhy"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -16980,8 +17005,9 @@ msgstr "To přihlášení patří poštovní schránce někoho jiného, ne tohot
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "That word isn't in the custom dictionary."
-msgstr ""
+msgstr "Toto slovo není ve vlastním slovníku."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16991,8 +17017,9 @@ msgstr "To je maximum, které unese odkaz na GitHub: zbytek doplňte na GitHubu,
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "That's the same word."
-msgstr ""
+msgstr "To je stejné slovo."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17462,8 +17489,9 @@ msgstr "Zprávy konverzací v jiných složkách zůstanou, kde jsou."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "The custom dictionary is full."
-msgstr ""
+msgstr "Vlastní slovník je plný."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18597,13 +18625,15 @@ msgstr "Místo, které vlastní zprávy složky zabírají v tomto počítači"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete."
-msgstr ""
+msgstr "Kontrola pravopisu je hotová."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete. Some of the message was not checked."
-msgstr ""
+msgstr "Kontrola pravopisu je hotová. Část zprávy nebyla zkontrolována."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -21109,8 +21139,9 @@ msgstr "Slova, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Words, separated by commas or spaces"
-msgstr ""
+msgstr "Slova oddělená čárkami nebo mezerami"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
@@ -23527,8 +23558,9 @@ msgstr "prohlížeč neumí číst složky podle cesty"
 
 #. what a command says
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "the built-in dictionary is unavailable"
-msgstr ""
+msgstr "vestavěný slovník není dostupný"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -26781,11 +26813,12 @@ msgstr[2] "{n} týdnů předem"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "{n} word"
 msgid_plural "{n} words"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} slovo"
+msgstr[1] "{n} slova"
+msgstr[2] "{n} slov"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs

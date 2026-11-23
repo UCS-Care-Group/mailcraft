@@ -482,8 +482,9 @@ msgstr "Asztali értesítés azokról az érkező levelekről, amelyekre ez a sz
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "A dictionary word is letters, digits, apostrophes and hyphens, up to 64 characters."
-msgstr ""
+msgstr "A szótári szó betűkből, számjegyekből, aposztrófokból és kötőjelekből áll, legfeljebb 64 karakter."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -1156,8 +1157,9 @@ msgstr "Hozzáadás a névjegyekhez"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Add to Dictionary"
-msgstr ""
+msgstr "Hozzáadás a szótárhoz"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -3042,8 +3044,9 @@ msgstr "Tanúsítványok"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change"
-msgstr ""
+msgstr "Csere"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3055,8 +3058,9 @@ msgstr "Nézetváltás"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change All"
-msgstr ""
+msgstr "Az összes cseréje"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3132,8 +3136,9 @@ msgstr "A fiók nevének, bejelentkezési módjának és a kapcsolat nélkül el
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change to"
-msgstr ""
+msgstr "Csere erre"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3249,8 +3254,9 @@ msgstr "Címzettek ellenőrzése"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Check Spelling…"
-msgstr ""
+msgstr "Helyesírás ellenőrzése…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3290,8 +3296,9 @@ msgstr "Új verziók ellenőrzése"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Check spelling as you type"
-msgstr ""
+msgstr "Helyesírás ellenőrzése gépelés közben"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3325,8 +3332,9 @@ msgstr "Új verzió keresése…"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Checking spelling…"
-msgstr ""
+msgstr "A helyesírás ellenőrzése…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4266,8 +4274,9 @@ msgstr "Jelenlegi nézet"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Custom Dictionary…"
-msgstr ""
+msgstr "Egyéni szótár…"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
@@ -4276,8 +4285,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Custom dictionary"
-msgstr ""
+msgstr "Egyéni szótár"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4451,8 +4461,9 @@ msgstr "Alapértelmezett"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Default spelling language"
-msgstr ""
+msgstr "A helyesírás-ellenőrzés alapértelmezett nyelve"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5456,8 +5467,9 @@ msgstr "Egy napon ér véget"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "English (United States, built-in)"
-msgstr ""
+msgstr "Angol (Egyesült Államok, beépített)"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -7207,28 +7219,33 @@ msgstr "Ha már van saját alkalmazásregisztrációja, illessze be az alkalmaz�
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore All"
-msgstr ""
+msgstr "Összes mellőzése"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Ignore All is full."
-msgstr ""
+msgstr "Az összes mellőzése megtelt."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore Once"
-msgstr ""
+msgstr "Egyszeri mellőzés"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words in UPPERCASE"
-msgstr ""
+msgstr "NAGYBETŰS szavak mellőzése"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words that contain numbers"
-msgstr ""
+msgstr "Számot tartalmazó szavak mellőzése"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -8466,8 +8483,9 @@ msgstr "Listakapcsolatok"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "List Dictionary"
-msgstr ""
+msgstr "Szótár listázása"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10813,8 +10831,9 @@ msgstr "Nincs ilyen fiók"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "No suggestions"
-msgstr ""
+msgstr "Nincs javaslat"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11052,8 +11071,9 @@ msgstr "Az Outlookban nincs ilyen kategória, ezért ott szín nélkül jelenik 
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Not in dictionary"
-msgstr ""
+msgstr "Nincs a szótárban"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13350,8 +13370,9 @@ msgstr "Törlés a naptárból"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Remove from Dictionary"
-msgstr ""
+msgstr "Törlés a szótárból"
 
 #. interface
 #: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -13519,8 +13540,9 @@ msgstr "Az összes helyettesítése"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Replace Subject Text"
-msgstr ""
+msgstr "Tárgyszöveg cseréje"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -16101,13 +16123,15 @@ msgstr "Helyesírás és nyelvhelyesség"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Spelling Options"
-msgstr ""
+msgstr "Helyesírási beállítások"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Spelling is off for this message"
-msgstr ""
+msgstr "A helyesírás-ellenőrzés ki van kapcsolva ennél az üzenetnél"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -16399,8 +16423,9 @@ msgstr "Ajánlás címzetteknek"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Suggestions"
-msgstr ""
+msgstr "Javaslatok"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -16950,8 +16975,9 @@ msgstr "Másik postafiókhoz jelentkezett be. A MailCraft nem mentette a bejelen
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "That word isn't in the custom dictionary."
-msgstr ""
+msgstr "Ez a szó nincs az egyéni szótárban."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16961,8 +16987,9 @@ msgstr "Ez annyi, mint egy link GitHub tudja hordozni: hozzáadni a többi GitHu
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "That's the same word."
-msgstr ""
+msgstr "Ez ugyanaz a szó."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17432,8 +17459,9 @@ msgstr "A beszélgetések üzenetei más mappákban maradnak, ahol vannak."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "The custom dictionary is full."
-msgstr ""
+msgstr "Az egyéni szótár megtelt."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18560,13 +18588,15 @@ msgstr "A könyvtár saját üzeneteinek helye, amit a számítógépen használ
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete."
-msgstr ""
+msgstr "A helyesírás-ellenőrzés kész."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete. Some of the message was not checked."
-msgstr ""
+msgstr "A helyesírás-ellenőrzés kész. Az üzenet egy része nem lett ellenőrizve."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -21054,8 +21084,9 @@ msgstr "Szavak, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Words, separated by commas or spaces"
-msgstr ""
+msgstr "Szavak, vesszővel vagy szóközzel elválasztva"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
@@ -23469,8 +23500,9 @@ msgstr "a böngésző nem tud a mappákat útirányban olvasni"
 
 #. what a command says
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "the built-in dictionary is unavailable"
-msgstr ""
+msgstr "a beépített szótár nem érhető el"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -26601,10 +26633,11 @@ msgstr[1] "{n} héttel korábban"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "{n} word"
 msgid_plural "{n} words"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} szó"
+msgstr[1] "{n} szó"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs

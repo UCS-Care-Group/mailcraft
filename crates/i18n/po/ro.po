@@ -479,8 +479,9 @@ msgstr "O alertă pe desktop pentru e-mailurile asupra cărora acționează acea
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "A dictionary word is letters, digits, apostrophes and hyphens, up to 64 characters."
-msgstr ""
+msgstr "Un cuvânt din dicționar este format din litere, cifre, apostrofuri și cratime, până la 64 de caractere."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -1153,8 +1154,9 @@ msgstr "Adăugare la Contacte"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Add to Dictionary"
-msgstr ""
+msgstr "Adăugare la dicționar"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -3043,8 +3045,9 @@ msgstr "Certificate"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change"
-msgstr ""
+msgstr "Înlocuire"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3058,8 +3061,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change All"
-msgstr ""
+msgstr "Înlocuire tot"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3135,8 +3139,9 @@ msgstr "Modificați numele, conectarea și e-mailul păstrat offline pentru aces
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change to"
-msgstr ""
+msgstr "Înlocuire cu"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3252,8 +3257,9 @@ msgstr "Verifică destinatarii"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Check Spelling…"
-msgstr ""
+msgstr "Verificare ortografie…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3293,8 +3299,9 @@ msgstr "Verificare versiuni noi"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Check spelling as you type"
-msgstr ""
+msgstr "Verifică ortografia în timpul tastării"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3328,8 +3335,9 @@ msgstr "Se caută o versiune nouă…"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Checking spelling…"
-msgstr ""
+msgstr "Se verifică ortografia…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4271,8 +4279,9 @@ msgstr "Vizualizarea curentă"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Custom Dictionary…"
-msgstr ""
+msgstr "Dicționar personalizat…"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
@@ -4281,8 +4290,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Custom dictionary"
-msgstr ""
+msgstr "Dicționar personalizat"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4458,8 +4468,9 @@ msgstr "Implicit"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Default spelling language"
-msgstr ""
+msgstr "Limba implicită a verificării ortografice"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5470,8 +5481,9 @@ msgstr "Se termină într-o zi"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "English (United States, built-in)"
-msgstr ""
+msgstr "Engleză (Statele Unite, încorporat)"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -7237,28 +7249,33 @@ msgstr "Dacă aveți unul, lipiți aici ID-ul aplicației (client). Provine dint
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore All"
-msgstr ""
+msgstr "Ignorare tot"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Ignore All is full."
-msgstr ""
+msgstr "Lista „Ignorare tot” este plină."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore Once"
-msgstr ""
+msgstr "Ignorare o dată"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words in UPPERCASE"
-msgstr ""
+msgstr "Ignoră cuvintele cu MAJUSCULE"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words that contain numbers"
-msgstr ""
+msgstr "Ignoră cuvintele care conțin cifre"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -8498,8 +8515,9 @@ msgstr "Listare contacte"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "List Dictionary"
-msgstr ""
+msgstr "Listare dicționar"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10851,8 +10869,9 @@ msgstr "Contul nu există"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "No suggestions"
-msgstr ""
+msgstr "Nicio sugestie"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11090,8 +11109,9 @@ msgstr "Nu este în lista Outlook: acolo nu are culoare"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Not in dictionary"
-msgstr ""
+msgstr "Nu este în dicționar"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13392,8 +13412,9 @@ msgstr "Eliminare din calendar"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Remove from Dictionary"
-msgstr ""
+msgstr "Eliminare din dicționar"
 
 #. interface
 #: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -13563,8 +13584,9 @@ msgstr "Înlocuire peste tot"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Replace Subject Text"
-msgstr ""
+msgstr "Înlocuiește textul subiectului"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -16153,13 +16175,15 @@ msgstr "Ortografie și gramatică"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Spelling Options"
-msgstr ""
+msgstr "Opțiuni de ortografie"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Spelling is off for this message"
-msgstr ""
+msgstr "Verificarea ortografică este dezactivată pentru acest mesaj"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -16451,8 +16475,9 @@ msgstr "Sugerare destinatari"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Suggestions"
-msgstr ""
+msgstr "Sugestii"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -17002,8 +17027,9 @@ msgstr "Acea autentificare este pentru cutia poștală altcuiva, nu pentru acest
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "That word isn't in the custom dictionary."
-msgstr ""
+msgstr "Acel cuvânt nu este în dicționarul personalizat."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -17013,8 +17039,9 @@ msgstr "Atât poate duce un link spre GitHub: adăugați restul pe GitHub după 
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "That's the same word."
-msgstr ""
+msgstr "Este același cuvânt."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17486,8 +17513,9 @@ msgstr "Mesajele conversațiilor din alte dosare rămân unde sunt."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "The custom dictionary is full."
-msgstr ""
+msgstr "Dicționarul personalizat este plin."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18621,13 +18649,15 @@ msgstr "Spațiul pe care îl ocupă pe acest computer mesajele proprii ale dosar
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete."
-msgstr ""
+msgstr "Verificarea ortografică s-a încheiat."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete. Some of the message was not checked."
-msgstr ""
+msgstr "Verificarea ortografică s-a încheiat. O parte a mesajului nu a fost verificată."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -21133,8 +21163,9 @@ msgstr "Cuvinte, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Words, separated by commas or spaces"
-msgstr ""
+msgstr "Cuvinte, separate prin virgule sau spații"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
@@ -23552,8 +23583,9 @@ msgstr "browserul nu poate citi dosare după cale"
 
 #. what a command says
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "the built-in dictionary is unavailable"
-msgstr ""
+msgstr "dicționarul încorporat nu este disponibil"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -26809,11 +26841,12 @@ msgstr[2] "{n} de săptămâni înainte"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "{n} word"
 msgid_plural "{n} words"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} cuvânt"
+msgstr[1] "{n} cuvinte"
+msgstr[2] "{n} de cuvinte"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs

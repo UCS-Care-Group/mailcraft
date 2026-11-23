@@ -479,8 +479,9 @@ msgstr "Una alerta de escritorio para el correo sobre el que actúa esta regla a
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "A dictionary word is letters, digits, apostrophes and hyphens, up to 64 characters."
-msgstr ""
+msgstr "Una palabra del diccionario se compone de letras, dígitos, apóstrofos y guiones, hasta 64 caracteres."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
@@ -1152,8 +1153,9 @@ msgstr "Agregar a Contactos"
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Add to Dictionary"
-msgstr ""
+msgstr "Agregar al diccionario"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -3041,8 +3043,9 @@ msgstr "Certificados"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change"
-msgstr ""
+msgstr "Reemplazar"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3056,8 +3059,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change All"
-msgstr ""
+msgstr "Reemplazar todo"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3132,8 +3136,9 @@ msgstr "Cambiar el nombre, el inicio de sesión y el correo para conservar sin c
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Change to"
-msgstr ""
+msgstr "Reemplazar por"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3249,8 +3254,9 @@ msgstr "Comprobar destinatarios"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Check Spelling…"
-msgstr ""
+msgstr "Revisar la ortografía…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3290,8 +3296,9 @@ msgstr "Buscar nuevas versiones"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Check spelling as you type"
-msgstr ""
+msgstr "Revisar la ortografía mientras se escribe"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3325,8 +3332,9 @@ msgstr "Buscando una nueva versión…"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Checking spelling…"
-msgstr ""
+msgstr "Revisando la ortografía…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4266,8 +4274,9 @@ msgstr "Vista actual"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Custom Dictionary…"
-msgstr ""
+msgstr "Diccionario personalizado…"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
@@ -4276,8 +4285,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Custom dictionary"
-msgstr ""
+msgstr "Diccionario personalizado"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4453,8 +4463,9 @@ msgstr "Predeterminado"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Default spelling language"
-msgstr ""
+msgstr "Idioma predeterminado de revisión ortográfica"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5462,8 +5473,9 @@ msgstr "Termina un día"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "English (United States, built-in)"
-msgstr ""
+msgstr "Inglés (Estados Unidos, integrado)"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -7212,28 +7224,33 @@ msgstr "Si tiene uno, pegue aquí su id. de aplicación (cliente). Procede de un
 
 #. command label, interface
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore All"
-msgstr ""
+msgstr "Omitir todo"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "Ignore All is full."
-msgstr ""
+msgstr "La lista «Omitir todo» está llena."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Ignore Once"
-msgstr ""
+msgstr "Omitir una vez"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words in UPPERCASE"
-msgstr ""
+msgstr "Omitir palabras en MAYÚSCULAS"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ignore words that contain numbers"
-msgstr ""
+msgstr "Omitir palabras que contienen números"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
@@ -8471,8 +8488,9 @@ msgstr "Enumerar contactos"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "List Dictionary"
-msgstr ""
+msgstr "Enumerar el diccionario"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10821,8 +10839,9 @@ msgstr "No existe esa cuenta"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "No suggestions"
-msgstr ""
+msgstr "No hay sugerencias"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
@@ -11060,8 +11079,9 @@ msgstr "No está en la lista de Outlook: allí no tiene color"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Not in dictionary"
-msgstr ""
+msgstr "No está en el diccionario"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13359,8 +13379,9 @@ msgstr "Quitar del calendario"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Remove from Dictionary"
-msgstr ""
+msgstr "Quitar del diccionario"
 
 #. interface
 #: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -13530,8 +13551,9 @@ msgstr "Reemplazar todo"
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Replace Subject Text"
-msgstr ""
+msgstr "Reemplazar el texto del asunto"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -16109,13 +16131,15 @@ msgstr "Ortografía y gramática"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Spelling Options"
-msgstr ""
+msgstr "Opciones de ortografía"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Spelling is off for this message"
-msgstr ""
+msgstr "La revisión ortográfica está desactivada para este mensaje"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -16407,8 +16431,9 @@ msgstr "Sugerir destinatarios"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "Suggestions"
-msgstr ""
+msgstr "Sugerencias"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -16957,8 +16982,9 @@ msgstr "Ese inicio de sesión es del buzón de otra persona, no de esta cuenta. 
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "That word isn't in the custom dictionary."
-msgstr ""
+msgstr "Esa palabra no está en el diccionario personalizado."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -16968,8 +16994,9 @@ msgstr "Es todo lo que puede llevar un enlace a GitHub: agregue el resto en GitH
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "That's the same word."
-msgstr ""
+msgstr "Es la misma palabra."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17439,8 +17466,9 @@ msgstr "Los mensajes de las conversaciones en otras carpetas se quedan donde est
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
+#, fuzzy
 msgid "The custom dictionary is full."
-msgstr ""
+msgstr "El diccionario personalizado está lleno."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18566,13 +18594,15 @@ msgstr "El espacio que ocupan en este equipo los mensajes de la propia carpeta"
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete."
-msgstr ""
+msgstr "La revisión ortográfica ha terminado."
 
 #. interface
 #: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
 msgid "The spelling check is complete. Some of the message was not checked."
-msgstr ""
+msgstr "La revisión ortográfica ha terminado. Parte del mensaje no se revisó."
 
 #. interface
 #: crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
@@ -21059,8 +21089,9 @@ msgstr "Palabras, from:, to:, category:, on:…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Words, separated by commas or spaces"
-msgstr ""
+msgstr "Palabras, separadas por comas o espacios"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
@@ -23474,8 +23505,9 @@ msgstr "el navegador no puede leer carpetas por ruta"
 
 #. what a command says
 #: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
 msgid "the built-in dictionary is unavailable"
-msgstr ""
+msgstr "el diccionario integrado no está disponible"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -26604,10 +26636,11 @@ msgstr[1] "{n} semanas antes"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "{n} word"
 msgid_plural "{n} words"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} palabra"
+msgstr[1] "{n} palabras"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
