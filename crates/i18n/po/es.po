@@ -6146,12 +6146,12 @@ msgstr "De contiene"
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "From outside your organisation."
-msgstr ""
+msgstr "Desde fuera de su organización."
 
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From starts with"
-msgstr "Desde fuera de su organización."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs

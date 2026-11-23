@@ -5788,12 +5788,12 @@ msgstr "Von enthält"
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "From outside your organisation."
-msgstr ""
+msgstr "Von außerhalb Ihrer Organisation."
 
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From starts with"
-msgstr "Von außerhalb Ihrer Organisation."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs

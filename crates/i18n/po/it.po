@@ -6142,12 +6142,12 @@ msgstr "Da contiene"
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "From outside your organisation."
-msgstr ""
+msgstr "Dall'esterno della sua organizzazione."
 
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From starts with"
-msgstr "Dall'esterno della sua organizzazione."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs

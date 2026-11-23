@@ -6119,12 +6119,12 @@ msgstr "L'expéditeur contient"
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "From outside your organisation."
-msgstr ""
+msgstr "De l'extérieur de votre organisation."
 
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From starts with"
-msgstr "De l'extérieur de votre organisation."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
