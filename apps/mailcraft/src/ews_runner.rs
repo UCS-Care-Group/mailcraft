@@ -518,10 +518,23 @@ impl Lap {
 
 /// [`run_mail`] on this thread: every piece through `emit`.
 /// A server that won't have the read state named the MAPI way, learned the hard way: one page
-/// refused or one page dead per server per session, and no page after that pays it again. The
-/// live Kerio's servlet dies on the ask — every run that tried cost the server a restart and
-/// the mailbox a folder's worth of reading (#1784). Dies with the process; a restart probes once.
+/// refused or one page dead per server, and no page after that pays it again. The live Kerio's
+/// servlet dies on the ask — every run that tried cost the server a restart and the mailbox a
+/// folder's worth of reading, and a lesson that died with the process meant paying that death
+/// first thing at every launch (#1784). So it is remembered per server in a marker beside the
+/// mailbox, and a launch that knows doesn't probe at all; deleting the marker re-probes once.
 static NAMING_REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The marker for this server: `naming-refused.<host>` in the settings folder, beside the
+/// mailbox. Its existence is the whole message.
+fn naming_marker(url: &str) -> Option<std::path::PathBuf> {
+    let host = url.split("//").nth(1).unwrap_or(url).split(['/', '?']).next().unwrap_or("");
+    let host: String = host.chars().map(|c| if c.is_alphanumeric() { c } else { '.' }).collect();
+    if host.is_empty() {
+        return None;
+    }
+    mailcraft_control_key::settings_dir().map(|d| d.join(format!("naming-refused.{host}")))
+}
 
 pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &AtomicBool, emit: &mut dyn FnMut(EwsMailResult)) {
     let client = match client(&request.url, &request.username, &request.email, password) {
@@ -529,14 +542,17 @@ pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &A
         Err(why) => return emit(mailcraft_ews::failed_run(request, why)),
     };
     let mut request = request.clone();
-    request.naming_refused = NAMING_REFUSED.load(std::sync::atomic::Ordering::Relaxed);
+    request.naming_refused = NAMING_REFUSED.load(std::sync::atomic::Ordering::Relaxed)
+        || naming_marker(&request.url).is_some_and(|p| p.exists());
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
     let mut pause = |ms: u32| wait(cancel, ms);
     let mut lap = Lap::start(transport.requests_asked());
     crate::block_on::block_on(mailcraft_ews::sync_mail(&client, &transport, &request, cancel, &mut pause, &mut |piece| {
-        if piece.naming_refused {
-            NAMING_REFUSED.store(true, std::sync::atomic::Ordering::Relaxed);
-            log::info!("ews: this server won't have the read state named the MAPI way; not asking again this session");
+        if piece.naming_refused && !NAMING_REFUSED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            if let Some(p) = naming_marker(&request.url) {
+                let _ = std::fs::write(p, b"refused: the page carrying PR_IS_READ as an extended property was refused or died (#1784); delete this file to try once again\n");
+            }
+            log::info!("ews: this server won't have the read state named the MAPI way; not asking again");
         }
         let mut piece = settled(piece, transport.problem().as_ref(), transport.auth_problem());
         piece.timings = lap.take(phase_of(request.inbox_pass, &piece, lap.phase), transport.requests_asked());
