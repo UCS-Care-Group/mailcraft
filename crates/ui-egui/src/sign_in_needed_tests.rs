@@ -457,3 +457,46 @@ fn an_owner_who_signs_in_again_for_a_shared_mailbox_is_signed_in() {
     settle(&mut a);
     assert!(!needed(&a, owner));
 }
+
+/// A Microsoft account with the mark, and the one page for an older sign-in, opened from the
+/// Tasks (`ui.allowTasks`, as the Rules and Automatic Replies pages open it too), answered with
+/// `who`'s tokens.
+fn signed_in_on_the_sync_page(who: &str) -> (MailApp, Id) {
+    let mut a = MailApp::new(Session::empty(), Services::default());
+    a.autosave = false;
+    a.session.driver.set_auto_sync(false);
+    let owner = a.execute("account.add", json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    a.tokens.insert(owner, tokens("ms-1"));
+    a.note_sign_in_needed(owner, true);
+    // (No run that starts after it ever answers: what the sign-in did is all that is looked at.)
+    a.services.graph = Some(Box::new(|_req: GraphRequest| {
+        let (tx, rx) = mpsc::channel::<GraphResult>();
+        std::mem::forget(tx);
+        rx
+    }));
+    a.services.sync = Some(Box::new(|_req: SyncRequest| {
+        let (tx, rx) = mpsc::channel::<SyncResult>();
+        std::mem::forget(tx);
+        rx
+    }));
+    let (answers, _) = sign_in_host(&mut a);
+    answers.lock().unwrap().push_back(Ok(Tokens { email: who.into(), ..tokens("ms-2") }));
+    a.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
+    settle(&mut a);
+    (a, owner)
+}
+
+/// Signed in as the account on that page: the mark goes, as for any other sign-in that goes
+/// through.
+#[test]
+fn a_sign_in_on_the_page_the_tasks_rules_and_automatic_replies_open_takes_the_mark_away() {
+    let (a, owner) = signed_in_on_the_sync_page("noor@example.org");
+    assert!(!needed(&a, owner));
+}
+
+/// Signed in there as somebody else: those tokens are nobody's here (#103), so the mark stays.
+#[test]
+fn somebody_else_signed_in_on_that_page_leaves_the_mark() {
+    let (a, owner) = signed_in_on_the_sync_page("someone.else@example.org");
+    assert!(needed(&a, owner));
+}

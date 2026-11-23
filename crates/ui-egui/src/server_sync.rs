@@ -272,6 +272,10 @@ impl MailApp {
                 return;
             }
             Ok(tokens) => {
+                // The owner signed in as themselves on the page: the account is signed in (#1556),
+                // whatever the page then allows, and whichever page asked (a shared mailbox to be
+                // read, the tasks, the rules, the automatic replies).
+                self.note_sign_in_needed(account, false);
                 if !tokens.refresh.is_empty() {
                     self.remember("refresh", account, &tokens.refresh);
                     if let Some(kept) = self.tokens.get_mut(&account) {
