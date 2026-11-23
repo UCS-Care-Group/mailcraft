@@ -102,6 +102,13 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
                     }
                     rule(ui, &t);
                 }
+                // The keys that scroll a message (the arrows, Page Up and Page Down, Home and
+                // End) after a click in one of the column's: they scroll the column, which is
+                // what scrolls here.
+                let ours = |p: &Place| *p == Place::Pane || matches!(p, Place::Thread(id) if listed.contains(id));
+                if let Some(place) = app.text_selection.focus().filter(ours) {
+                    super::keyed_scroll(app, ui, place);
+                }
             },
         );
     });

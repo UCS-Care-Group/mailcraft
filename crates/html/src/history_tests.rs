@@ -113,13 +113,25 @@ fn a_picture_or_a_table_after_the_quote_is_the_senders_own() {
 
 #[test]
 fn a_message_longer_than_what_is_looked_at_is_shown_whole() {
-    // Its own text, a long quote, and an answer past the blocks looked at.
-    let mut html = String::from("<p>Mine.</p>");
-    for _ in 0..crate::history::MAX_BLOCKS {
-        html.push_str("<blockquote><p>q</p></blockquote>");
-    }
-    html.push_str("<p>Answer at the end.</p>");
-    assert_eq!(start(&parse(&html)), None);
+    use crate::history::MAX_BLOCKS;
+    // Its own text, `fill` paragraphs, then an Outlook header: `blocks` blocks in all.
+    let message = |fill: usize| {
+        let mut html = String::from("<p>Mine.</p>");
+        for _ in 0..fill {
+            html.push_str("<p>x</p>");
+        }
+        html.push_str("<p>From: Ada</p><p>Sent: Monday</p><p>To: Ben</p>");
+        parse(&html)
+    };
+    let fill = MAX_BLOCKS - message(0).len();
+    // At the limit, the header is found where it is.
+    let at = message(fill);
+    assert_eq!(at.len(), MAX_BLOCKS);
+    assert_eq!(start(&at), Some(MAX_BLOCKS - 3));
+    // One block more, and the message is shown whole.
+    let over = message(fill + 1);
+    assert_eq!(over.len(), MAX_BLOCKS + 1);
+    assert_eq!(start(&over), None);
 }
 
 #[test]

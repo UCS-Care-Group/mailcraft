@@ -336,7 +336,11 @@ impl Store {
     fn entry(&mut self, message: &Arc<Message>, place: Place, frame: u64, can_download: bool, env: Env) -> Option<&mut Entry> {
         let shows = |e: &Entry| {
             // Flagging or filing a message makes a new one of it; its body is still the same.
-            Arc::ptr_eq(&e.message, message) || (e.message.id == message.id && same_body(&e.message, message))
+            // (Nor a reply that became a forward, or back: a forward's history isn't cut, #1778.)
+            Arc::ptr_eq(&e.message, message)
+                || (e.message.id == message.id
+                    && same_body(&e.message, message)
+                    && mailcraft_html::history::is_forward(&e.message.subject) == mailcraft_html::history::is_forward(&message.subject))
         };
         let index = match self.entries.iter().position(|e| e.place == place && shows(e)) {
             Some(index) => index,
@@ -577,6 +581,9 @@ pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Pl
             _ => entry.doc.blocks.len(),
         },
     };
+    // Other blocks shown than before (the quoted history shown or hidden): what was selected in
+    // them is not what is shown now.
+    let range_changed = entry.key.is_some_and(|old| old.upto != key.upto);
     if entry.key == Some(key) {
         entry.next = None;
     } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, ..old } == key) {
@@ -624,6 +631,9 @@ pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Pl
     }
     drop(pictures);
     let mut state = app.text_selection.state(place);
+    if range_changed && let Some(state) = state.as_deref_mut() {
+        state.body_range_changed();
+    }
     // A copy that waited for the layout to be whole is due now.
     let due = state.as_deref_mut().and_then(|state| state.bind(&entry.doc, entry.laid.done));
     let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged, stacked);

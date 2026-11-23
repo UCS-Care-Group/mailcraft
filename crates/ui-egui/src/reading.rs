@@ -945,6 +945,11 @@ pub(crate) fn attachment_key(id: u64, index: usize) -> u64 {
 /// Each entry is greyed when its command can't run, and the command keeps its own refusals.
 pub(super) fn attachment_menu(ui: &mut Ui, app: &mut MailApp, id: u64, index: usize) {
     if crate::attachment_preview::available(app, id, index) && ui.button(tl!("Preview Attachment")).clicked() {
+        // From a message stacked beside the selected one (#1778): it is selected first, so that
+        // the pane shows it with its preview, as it shows the selected message's.
+        if ui.ctx().viewport_id() == egui::ViewportId::ROOT && app.session.sel.focus() != Some(id) {
+            let _ = app.run("mail.select", json!({"id": id}));
+        }
         if let Err(error) = crate::attachment_preview::open(app, ui.ctx().viewport_id(), id, index) {
             app.status(error);
         }

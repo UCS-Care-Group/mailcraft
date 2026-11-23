@@ -469,3 +469,58 @@ fn two_selections_before_a_frame_open_what_each_read() {
     assert!(read(older) && read(reply));
     assert!(drawn(&w, "conversationCard", older) && drawn(&w, "conversationCard", reply), "a message one of the selections read is closed");
 }
+
+#[test]
+fn a_reply_that_becomes_a_forward_shows_what_it_carries() {
+    use std::sync::Arc;
+    let ctx = egui::Context::default();
+    let body = mailcraft_model::Body {
+        text: "Done.
+
+-----Original Message-----
+From: Ada
+Sent: Monday
+To: Ben
+Subject: Plan
+
+Old text
+"
+        .into(),
+        html: None,
+    };
+    let reply = Arc::new(mailcraft_model::Message { id: 7, subject: "RE: Plan".into(), body: body.clone(), ..Default::default() });
+    assert!(view::doc(&ctx, &reply, Place::Pane).history.is_some());
+    // The same message, its subject changed by its server into a forward's: made again, not cut.
+    let forward = Arc::new(mailcraft_model::Message { id: 7, subject: "FW: Plan".into(), body, ..Default::default() });
+    assert!(view::doc(&ctx, &forward, Place::Pane).history.is_none());
+}
+
+#[test]
+fn showing_the_quoted_text_lets_go_of_what_was_selected() {
+    let (mut w, _, _, reply) = release_checklist();
+    click(&mut w, "conversationRow", reply);
+    w.state_mut().execute("ui.selectAllInMessage", json!({"thread": reply})).unwrap();
+    w.run_steps(2);
+    let selected = |w: &testing::Window| super::selection_inspect(w.state(), &w.ctx).to_string().contains(&format!("{{\"thread\":{reply}}}"));
+    assert!(selected(&w));
+    // What is shown changes: nothing hidden when it was selected may be copied.
+    click(&mut w, "conversationQuoted", reply);
+    w.run_steps(3);
+    assert!(!selected(&w), "the selection outlived the quoted text being shown");
+}
+
+#[test]
+fn page_down_after_a_click_in_a_stacked_message_scrolls_the_column() {
+    let (mut w, ids) = long_conversation(60, None);
+    w.state_mut().execute("mail.select", json!({"id": *ids.last().unwrap()})).unwrap();
+    w.run_steps(3);
+    // The keys are for a stacked message once its text is selected (as a click in it does).
+    let card = ids.iter().copied().rev().find(|id| drawn(&w, "conversationCard", *id)).unwrap();
+    w.state_mut().execute("ui.selectAllInMessage", json!({"thread": card})).unwrap();
+    w.run_steps(2);
+    let top = |w: &testing::Window| w.state().hit.rect("conversationCard", card).map(|r| r.min.y);
+    let before = top(&w);
+    testing::key(&mut w, egui::Key::PageUp);
+    w.run_steps(3);
+    assert_ne!(top(&w), before, "Page Up didn't scroll the column");
+}

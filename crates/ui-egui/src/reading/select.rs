@@ -656,6 +656,19 @@ impl PlaceState {
         self.copy_when_laid = false;
     }
 
+    /// The body shows other blocks than when its text was selected (#1778: the quoted history
+    /// shown or hidden): what was selected in it, a drag going on there and a copy waiting for it
+    /// are let go of, so that nothing hidden when it was selected is copied.
+    pub(super) fn body_range_changed(&mut self) {
+        self.no_body();
+        if self.pressed.as_ref().is_some_and(|(zone, _)| *zone == Zone::Body) {
+            self.pressed = None;
+        }
+        if self.dragging == Some(Zone::Body) {
+            self.dragging = None;
+        }
+    }
+
     /// Do to the selection what the pointer did in the text of `zone`: a drag selects from where
     /// it went down, with Shift it moves the end of what is selected; two clicks take a word and
     /// three a paragraph as the button goes down, and a drag from there goes on by words or
@@ -801,7 +814,7 @@ impl Selections {
         self.places.iter().find(|s| s.place == place).and_then(|s| s.selection.as_ref()).map(|s| (s.zone, s.anchor, s.head))
     }
 
-    #[cfg(test)]
+    /// The place the keys are for: the one the pointer last went down in.
     pub(crate) fn focus(&self) -> Option<Place> {
         self.focus
     }
