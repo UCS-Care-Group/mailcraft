@@ -280,3 +280,21 @@ fn without_a_password_it_says_how_to_read_it_with_its_folders_here_too() {
     assert!(shown.iter().any(|t| t == "2019"), "{shown:?}");
     assert!(!app.syncing(), "nothing started by itself");
 }
+
+/// A folder of the archive named like one of its owner's (both have an Inbox), as a Favorite or a
+/// row of a search of every mailbox, is told apart by the archive's name in the interface's
+/// words, never by the name it is kept under (#1834 review).
+#[test]
+fn an_archive_folder_named_like_its_owners_is_told_apart_by_the_archives_name() {
+    let (mut app, owner, archive) = app();
+    app.session.mailbox.accounts.iter_mut().find(|a| a.id == archive).unwrap().name = "Kept under this name".into();
+    let inbox = app.session.mailbox.add_folder(archive, None, "Inbox").unwrap();
+    assert!(app.session.mailbox.folder_of_kind(owner, mailcraft_model::FolderKind::Inbox).is_some());
+    let mb = &app.session.mailbox;
+    assert_eq!(result_folder_label(mb, mb.folder(inbox).unwrap()), "Inbox - Online Archive – ada@corp.example");
+    // As a Favorite, drawn in the pane.
+    app.session.mailbox.folder_mut(inbox).unwrap().favorite = true;
+    let shown = texts(&mut app);
+    assert!(shown.iter().any(|t| t == "Inbox - Online Archive – ada@corp.example"), "{shown:?}");
+    assert!(!shown.iter().any(|t| t.contains("Kept under this name")), "{shown:?}");
+}

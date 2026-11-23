@@ -86,6 +86,15 @@ const WRITES: &[&str] = &[
     "MarkAllItemsAsRead",
 ];
 
+/// What a request for a folder by its name meets instead of an answer (#1834 review).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameTrouble {
+    /// An answer that isn't XML, with a status that says all is well.
+    Garbage,
+    /// The connection is dropped: no answer at all.
+    Dropped,
+}
+
 /// A way of answering that no service should have, for a client that has to take anything.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hostile {
@@ -208,6 +217,9 @@ pub struct State {
     /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
     /// a client does when only that request is refused.
     pub refuse_names: Option<(Vec<String>, u16)>,
+    /// Every `GetFolder` that names one of these distinguished names gets this trouble instead of
+    /// an answer: one that isn't XML, or a connection dropped (#1834 review).
+    pub trouble_names: Option<(Vec<String>, NameTrouble)>,
     /// The server behaves as an organisation's own Exchange 2010 SP3 does (#1349): it knows no
     /// version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`, a fault, HTTP 500); its
     /// schema has neither `item:Preview` nor `item:Flag` (a schema fault, HTTP 500, when
@@ -303,6 +315,7 @@ impl Default for State {
             class_only_when_asked: false,
             unknown_names: Vec::new(),
             refuse_names: None,
+            trouble_names: None,
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
@@ -335,7 +348,12 @@ impl StandIn {
 
 impl HttpExchange for StandIn {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
-        ready(Ok(self.state().respond(request)))
+        let mut state = self.state();
+        ready(match state.name_trouble(request) {
+            Some(NameTrouble::Dropped) => Err(TransportError::Other),
+            Some(NameTrouble::Garbage) => Ok(HttpResponse::new(200, b"<html><body>Not a service</body></html>".to_vec())),
+            None => Ok(state.respond(request)),
+        })
     }
 }
 
@@ -574,6 +592,13 @@ impl State {
             }
         }
         Ok((200, first, response("GetFolder", &messages)))
+    }
+
+    /// The trouble [`State::trouble_names`] meets `request` with, when it names one of them.
+    fn name_trouble(&self, request: &HttpRequest) -> Option<NameTrouble> {
+        let (names, trouble) = self.trouble_names.as_ref()?;
+        let body = String::from_utf8_lossy(request.body());
+        (body.contains("GetFolder") && names.iter().any(|name| body.contains(&format!("Id=\"{name}\"")))).then_some(*trouble)
     }
 
     /// The status [`State::refuse_names`] answers `request` with, when it names one of them.

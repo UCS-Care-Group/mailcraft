@@ -11,7 +11,7 @@ use mailcraft_model::sync::{ChangeOutcome, EwsMailRequest, EwsMailResult, Folder
 
 use crate::changes::{CreateFolder, MoveFolder};
 use crate::run::sync_store;
-use crate::standin::{AUTHORIZATION, Hostile, StandIn, block_on};
+use crate::standin::{AUTHORIZATION, Hostile, NameTrouble, StandIn, block_on};
 use crate::*;
 
 const URL: &str = "https://mail.example.org/EWS/Exchange.asmx";
@@ -226,6 +226,30 @@ fn an_archive_whose_deleted_items_has_no_name_there_is_read_all_the_same() {
     let result = run(&standin, Store::Archive, &request());
     assert!(result.errors.is_empty() && result.whole, "{:?}", result.errors);
     assert!(result.folders.as_ref().unwrap().changed.iter().any(|f| f.id == old));
+}
+
+/// A request for the archive's Deleted Items or Inbox by name that meets garbage or a dropped
+/// connection fails no run: the archive is read all the same, the folder listed as a folder like
+/// any other for this run. (A kind it has already stays: the engine never takes one away for a
+/// listing that says none, `ews_mail_tests::a_listing_that_names_no_special_folder_takes_no_kind_away`,
+/// #1834 review.)
+#[test]
+fn a_failed_ask_for_a_special_folder_of_the_archive_fails_no_run() {
+    for trouble in [NameTrouble::Garbage, NameTrouble::Dropped] {
+        for name in ["archivedeleteditems", "archiveinbox"] {
+            let standin = StandIn::new();
+            let (_, old) = both(&standin, true);
+            standin.state().trouble_names = Some((vec![name.into()], trouble));
+            let result = run(&standin, Store::Archive, &request());
+            assert!(result.errors.is_empty() && result.whole, "{trouble:?} {name}: {:?}", result.errors);
+            let folders = result.folders.as_ref().unwrap();
+            assert!(folders.changed.iter().any(|f| f.id == old), "{trouble:?} {name}: read all the same");
+            for listed in ["Deleted Items", "Inbox"] {
+                assert!(folders.changed.iter().any(|f| f.name == listed), "{trouble:?} {name}: {listed} still listed");
+            }
+            assert!(result.pages.iter().flat_map(|p| &p.messages).any(|m| m.subject == "Budget 2019"));
+        }
+    }
 }
 
 #[test]

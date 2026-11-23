@@ -1319,8 +1319,16 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
     let twin = || mb.folders.iter().any(|o| o.account != f.account && own(o.account) && o.name.eq_ignore_ascii_case(&f.name));
     match mb.account(f.account) {
         Some(a) if !shared && twin() => {
-            let account = if a.name.trim().is_empty() { a.email.trim() } else { a.name.trim() };
-            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", account)])
+            // (An online archive by the name the interface gives it, never the one it is kept
+            // under, #1834 review.)
+            let account = if a.is_archive() {
+                account_label(a)
+            } else if a.name.trim().is_empty() {
+                a.email.trim().to_owned()
+            } else {
+                a.name.trim().to_owned()
+            };
+            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", &account)])
         }
         _ => folder_label(mb, f),
     }

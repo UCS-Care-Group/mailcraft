@@ -1030,6 +1030,31 @@ fn after_show_a_light_run_asks_about_the_archive_once_answered_it_doesnt() {
     assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "a full run asks as ever");
 }
 
+/// A listing that names a folder as no special one (the run couldn't learn which is: a request
+/// for it by name met garbage or a dropped connection) takes away no kind the folder has here;
+/// one that names it later gives it its kind (#1834 review).
+#[test]
+fn a_listing_that_names_no_special_folder_takes_no_kind_away() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deleted = |kind| folder("AD", "", "Deleted Items", kind);
+    let kind = |s: &Session| s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "Deleted Items").unwrap().kind;
+    let list = |s: &mut Session, kind: FolderKind, state: &str| {
+        let deltas = EwsFolderDeltas { changed: vec![deleted(kind)], afresh: true, ..Default::default() };
+        apply_ews_mail(s, EwsMailResult { folders: Some(deltas), hierarchy: state.into(), ..piece(archive) }).unwrap();
+    };
+    // First listed when its kind couldn't be learned: a folder like any other, for now.
+    list(&mut s, FolderKind::Custom, "AH-1");
+    assert_eq!(kind(&s), FolderKind::Custom);
+    // The next run that learns it gives it its kind.
+    list(&mut s, FolderKind::Deleted, "AH-2");
+    assert_eq!(kind(&s), FolderKind::Deleted);
+    // A run after that which couldn't learn it takes nothing away.
+    list(&mut s, FolderKind::Custom, "AH-3");
+    assert_eq!(kind(&s), FolderKind::Deleted);
+}
+
 /// Hide Online Archive isn't taken while a change made in the archive waits to go up: nothing of
 /// it is kept here, so it would be lost; once it has gone up, it is (#1834 review).
 #[test]
