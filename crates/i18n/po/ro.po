@@ -7086,8 +7086,9 @@ msgstr "Ascundere MailCraft"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Hide Online Archive"
-msgstr ""
+msgstr "Ascundeți arhiva online"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11617,8 +11618,9 @@ msgstr "Online"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Online Archive – {address}"
-msgstr ""
+msgstr "Arhivă online – {address}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15456,8 +15458,9 @@ msgstr "Afișare mesaj"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Show Online Archive"
-msgstr ""
+msgstr "Afișați arhiva online"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18052,8 +18055,9 @@ msgstr "Arhiva online nu a putut fi citită: reîmprospătați pentru a încerca
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "The online archive needs a connection to the server"
-msgstr ""
+msgstr "Arhiva online are nevoie de o conexiune la server"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19553,8 +19557,9 @@ msgstr "Această cutie poștală a fost deschisă dintr-un fișier: confirmați 
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
 msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
-msgstr ""
+msgstr "Arhiva online a acestei cutii poștale este păstrată în Microsoft 365, care necesită conectare Microsoft, deci nu este afișată"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -23407,8 +23412,9 @@ msgstr "doar un mesaj trimis de dvs. poate fi retrimis"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "only an Exchange server account has an online archive here"
-msgstr ""
+msgstr "aici doar un cont de server Exchange are arhivă online"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
@@ -23733,8 +23739,9 @@ msgstr "subiectul sau corpul conține {words}"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "that account isn't an online archive"
-msgstr ""
+msgstr "acel cont nu este o arhivă online"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23923,8 +23930,9 @@ msgstr "contul nu mai există"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the account {name} is the online archive of is gone"
-msgstr ""
+msgstr "contul {name} a cărui arhivă online este aceasta nu mai există"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24336,13 +24344,15 @@ msgstr "apariția nu a fost modificată; nu s-a mutat nimic"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
-msgstr ""
+msgstr "arhiva online are modificări care nu au ajuns încă la server: mai întâi Trimiteți/primiți, apoi ascundeți-o"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
-msgstr ""
+msgstr "arhiva online are modificări care nu au ajuns încă la server: mai întâi Trimiteți/primiți, apoi indicați că este în Exchange Online"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

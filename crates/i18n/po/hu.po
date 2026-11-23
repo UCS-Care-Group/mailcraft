@@ -7056,8 +7056,9 @@ msgstr "MailCraft elrejtése"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Hide Online Archive"
-msgstr ""
+msgstr "Online archívum elrejtése"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11579,8 +11580,9 @@ msgstr "Online"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Online Archive – {address}"
-msgstr ""
+msgstr "Online archívum – {address}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15404,8 +15406,9 @@ msgstr "Üzenet megjelenítése"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Show Online Archive"
-msgstr ""
+msgstr "Online archívum megjelenítése"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -17997,8 +18000,9 @@ msgstr "Az online archívum nem olvasható: a frissítéssel próbálja újra"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "The online archive needs a connection to the server"
-msgstr ""
+msgstr "Az online archívumhoz kapcsolat kell a kiszolgálóval"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19485,8 +19489,9 @@ msgstr "Ez a postafiók fájlból lett megnyitva. Előbb hagyja jóvá a kiszolg
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
 msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
-msgstr ""
+msgstr "A postafiók online archívuma a Microsoft 365-ben van, amihez Microsoft-bejelentkezés kell, ezért nem jelenik meg"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -23324,8 +23329,9 @@ msgstr "Csak egy üzenet küldhető újra"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "only an Exchange server account has an online archive here"
-msgstr ""
+msgstr "itt csak Exchange-kiszolgálófióknak van online archívuma"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
@@ -23650,8 +23656,9 @@ msgstr "a tárgy vagy a szöveg tartalmazza: {words}"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "that account isn't an online archive"
-msgstr ""
+msgstr "ez a fiók nem online archívum"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23840,8 +23847,9 @@ msgstr "a fiók már nincs meg"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the account {name} is the online archive of is gone"
-msgstr ""
+msgstr "a(z) {name} fiók, amelynek ez az online archívuma, már nem létezik"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24253,13 +24261,15 @@ msgstr "az előfordulás nem módosult; semmi sem lett áthelyezve"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
-msgstr ""
+msgstr "az online archívumban olyan módosítások vannak, amelyek még nem értek el a kiszolgálóra: előbb futtassa a Küldés/fogadást, aztán rejtse el"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
-msgstr ""
+msgstr "az online archívumban olyan módosítások vannak, amelyek még nem értek el a kiszolgálóra: előbb futtassa a Küldés/fogadást, aztán adja meg, hogy az Exchange Online-ban van"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

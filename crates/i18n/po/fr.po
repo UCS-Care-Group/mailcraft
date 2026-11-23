@@ -7030,8 +7030,9 @@ msgstr "Masquer MailCraft"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Hide Online Archive"
-msgstr ""
+msgstr "Masquer l'archive en ligne"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11539,8 +11540,9 @@ msgstr "En ligne"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Online Archive – {address}"
-msgstr ""
+msgstr "Archive en ligne – {address}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15341,8 +15343,9 @@ msgstr "Afficher le message"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Show Online Archive"
-msgstr ""
+msgstr "Afficher l'archive en ligne"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -17921,8 +17924,9 @@ msgstr "Impossible de lire l'archive en ligne : actualisez pour réessayer"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "The online archive needs a connection to the server"
-msgstr ""
+msgstr "L'archive en ligne a besoin d'une connexion au serveur"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19407,8 +19411,9 @@ msgstr "Cette boîte aux lettres a été ouverte depuis un fichier : confirmez d
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
 msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
-msgstr ""
+msgstr "L'archive en ligne de cette boîte aux lettres est conservée dans Microsoft 365, qui demande une connexion Microsoft : elle n'est donc pas affichée"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -23232,8 +23237,9 @@ msgstr "seul un message que vous avez envoyé peut être renvoyé"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "only an Exchange server account has an online archive here"
-msgstr ""
+msgstr "seul un compte de serveur Exchange a ici une archive en ligne"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
@@ -23558,8 +23564,9 @@ msgstr "l'objet ou le corps contient {words}"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "that account isn't an online archive"
-msgstr ""
+msgstr "ce compte n'est pas une archive en ligne"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23748,8 +23755,9 @@ msgstr "le compte n'existe plus"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the account {name} is the online archive of is gone"
-msgstr ""
+msgstr "le compte {name} dont c'est l'archive en ligne n'existe plus"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24161,13 +24169,15 @@ msgstr "l'occurrence n'a pas été modifiée ; rien n'a été déplacé"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
-msgstr ""
+msgstr "l'archive en ligne a des modifications qui n'ont pas encore atteint le serveur : envoyez/recevez d'abord, puis masquez-la"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
-msgstr ""
+msgstr "l'archive en ligne a des modifications qui n'ont pas encore atteint le serveur : envoyez/recevez d'abord, puis indiquez qu'elle est dans Exchange Online"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

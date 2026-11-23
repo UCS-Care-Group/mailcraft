@@ -7057,8 +7057,9 @@ msgstr "隐藏 MailCraft"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Hide Online Archive"
-msgstr ""
+msgstr "隐藏在线存档"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11578,8 +11579,9 @@ msgstr "在线"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Online Archive – {address}"
-msgstr ""
+msgstr "在线存档 – {address}"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -15405,8 +15407,9 @@ msgstr "显示邮件"
 
 #. command label, interface
 #: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "Show Online Archive"
-msgstr ""
+msgstr "显示在线存档"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -17993,8 +17996,9 @@ msgstr "无法读取在线存档：请刷新以重试"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "The online archive needs a connection to the server"
-msgstr ""
+msgstr "在线存档需要连接到服务器"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19468,8 +19472,9 @@ msgstr "此邮箱是从文件打开的：请先确认其服务器"
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
 msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
-msgstr ""
+msgstr "此邮箱的在线存档保存在 Microsoft 365 中，需要 Microsoft 登录，因此不显示"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -23305,8 +23310,9 @@ msgstr "只能重新发送您自己发出的邮件"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "only an Exchange server account has an online archive here"
-msgstr ""
+msgstr "此处只有 Exchange 服务器账户才有在线存档"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
@@ -23631,8 +23637,9 @@ msgstr "主题或正文包含 {words}"
 
 #. what a command says
 #: crates/model/src/archive.rs
+#, fuzzy
 msgid "that account isn't an online archive"
-msgstr ""
+msgstr "该账户不是在线存档"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23821,8 +23828,9 @@ msgstr "此账户已不存在"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the account {name} is the online archive of is gone"
-msgstr ""
+msgstr "此在线存档所属的账户 {name} 已不存在"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24234,13 +24242,15 @@ msgstr "单次日程未更改；未移动任何内容"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
-msgstr ""
+msgstr "在线存档有尚未到达服务器的更改：请先发送/接收，然后再隐藏"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
-msgstr ""
+msgstr "在线存档有尚未到达服务器的更改：请先发送/接收，然后再标明它保存在 Exchange Online 中"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
