@@ -175,20 +175,6 @@ pub fn location(loc: &str) -> String {
     mailcraft_i18n::location(current(), loc)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn english_by_default() {
-        // (The window's language is shared by the tests running alongside: only English here.)
-        assert_eq!(t("Reply"), "Reply");
-        assert_eq!(tn(1, "{n} message", "{n} messages"), "1 message");
-        assert_eq!(tn(3, "{n} message", "{n} messages"), "3 messages");
-        assert_eq!(location("Home › Respond"), "Home › Respond");
-    }
-}
-
 /// A category's name as shown: the six a new mailbox starts with are kept in English in the
 /// file (rules and servers match on the name), and read in the interface language here; any
 /// other name is the owner's own and stays as it is.
@@ -203,4 +189,18 @@ pub fn category_label(name: &str) -> String {
         other => return other.to_string(),
     }
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn english_by_default() {
+        // (The window's language is shared by the tests running alongside: only English here.)
+        assert_eq!(t("Reply"), "Reply");
+        assert_eq!(tn(1, "{n} message", "{n} messages"), "1 message");
+        assert_eq!(tn(3, "{n} message", "{n} messages"), "3 messages");
+        assert_eq!(location("Home › Respond"), "Home › Respond");
+    }
 }
