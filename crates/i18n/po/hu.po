@@ -1300,6 +1300,18 @@ msgstr ""
 msgid "All"
 msgstr "Mind"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Minden fiók"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Minden archívum"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1319,10 +1331,34 @@ msgid "All Categories…"
 msgstr "Összes kategória…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Minden törölt elem"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Minden piszkozat"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Minden beérkezett üzenet"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Minden postafiók"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Minden elküldött elem"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22453,6 +22489,12 @@ msgstr "szüksége van a Google-bejelentkezésre"
 msgid "needs a Gmail account"
 msgstr "Gmail-fiókra van szüksége"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "legalább két postafiók szükséges (a megosztott postafiók is számít)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22482,6 +22524,12 @@ msgstr "nincs nyilvános kulcs az ujjlenyomathoz, amit a címhez meg kell őrizn
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "egyik fióknak sincs naptár- és névjegykiszolgálója"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "egyik fióknak sincs ilyen típusú mappája"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23563,6 +23611,12 @@ msgstr "az utolsó Küldés/Fogadás során problémák voltak"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "az utolsó naptár nem törölhető"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "a lista minden fiók mappáját mutatja: nyissa meg egy fiók mappáját, vagy nevezze meg a mappát"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

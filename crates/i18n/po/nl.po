@@ -1268,6 +1268,18 @@ msgstr ""
 msgid "All"
 msgstr "Alle"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Alle accounts"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Alle archieven"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1286,10 +1298,34 @@ msgid "All Categories…"
 msgstr "Alle categorieën…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Alle verwijderde items"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Alle concepten"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Alle Postvakken IN"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Alle postvakken"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Alle verzonden items"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -21837,6 +21873,12 @@ msgstr "heeft aanmelding bij Google nodig"
 msgid "needs a Gmail account"
 msgstr "heeft een Gmail-account nodig"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "vereist ten minste twee postvakken (een gedeeld postvak telt mee)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -21866,6 +21908,12 @@ msgstr "er wordt geen openbare sleutel met die vingerafdruk bewaard voor dat adr
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "geen account heeft een agenda- en contactenserver"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "geen enkel account heeft een map van dat soort"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22947,6 +22995,12 @@ msgstr "de laatste Verzenden/Ontvangen had problemen"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "de laatste agenda kan niet worden verwijderd"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "de lijst toont de map van elk account: open de map van één account, of noem de map"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

@@ -1297,6 +1297,18 @@ msgstr ""
 msgid "All"
 msgstr "全部"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "所有账户"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "所有归档"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1316,10 +1328,34 @@ msgid "All Categories…"
 msgstr "所有类别…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "所有已删除邮件"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "所有草稿"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "所有收件箱"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "所有邮箱"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "所有已发送邮件"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22434,6 +22470,12 @@ msgstr "需要 Google 登录"
 msgid "needs a Gmail account"
 msgstr "需要 Gmail 账户"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "需要至少两个邮箱（共享邮箱也算）"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22463,6 +22505,12 @@ msgstr "该地址没有保存指纹匹配的公钥"
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "没有账户拥有日历和联系人服务器"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "没有账户有这种类型的文件夹"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23544,6 +23592,12 @@ msgstr "上一次发送/接收出现了问题"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "最后一个日历无法删除"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "列表显示每个账户的文件夹：请打开某个账户的文件夹，或指定文件夹"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

@@ -470,7 +470,11 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let counts = app.session.folder_counts();
                         let unread = match mailcraft_engine::gmail::in_view(&app.session) {
                             Some(category) => counts.gmail(folder, category).unread,
-                            None => counts.unread(folder),
+                            // (Every account's folder of a kind, #625: all of theirs.)
+                            None => match mailcraft_engine::unified::in_view(&app.session) {
+                                Some(folders) => folders.iter().map(|f| counts.unread(*f)).sum(),
+                                None => counts.unread(folder),
+                            },
                         };
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);

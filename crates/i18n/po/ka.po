@@ -1295,6 +1295,18 @@ msgstr ""
 msgid "All"
 msgstr "ყველა"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "ყველა ანგარიში"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "ყველა არქივი"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1314,10 +1326,34 @@ msgid "All Categories…"
 msgstr "ყველა კატეგორია…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "ყველა წაშლილი"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "ყველა მონახაზი"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "ყველა შემოსული"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "ყველა საფოსტო ყუთი"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "ყველა გაგზავნილი"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22377,6 +22413,12 @@ msgstr "საჭიროა Google-ით შესვლა"
 msgid "needs a Gmail account"
 msgstr "საჭიროა Gmail ანგარიში"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "საჭიროა მინიმუმ ორი საფოსტო ყუთი (გაზიარებული ყუთიც ითვლება)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22406,6 +22448,12 @@ msgstr "ამ მისამართისთვის ამ ანაბე
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "არცერთ ანგარიშს არ აქვს კალენდრისა და კონტაქტების სერვერი"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "არცერთ ანგარიშს არ აქვს ამ ტიპის საქაღალდე"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23485,6 +23533,12 @@ msgstr "ბოლო „გაგზავნა/მიღებისას“ 
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "ბოლო კალენდრის წაშლა შეუძლებელია"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "სია აჩვენებს ყველა ანგარიშის საქაღალდეს: გახსენით ერთი ანგარიშის საქაღალდე ან დაასახელეთ საქაღალდე"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

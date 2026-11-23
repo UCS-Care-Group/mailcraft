@@ -300,6 +300,13 @@ pub struct ViewState {
     /// Gmail's categories as a row of tabs above a Gmail Inbox's list, in place of the five
     /// folders under it in the folder pane (#911; `view.gmailCategories`). Off: as folders.
     pub gmail_tabs: bool,
+    /// Every account's folder of this kind in one list (#625; `view.allAccounts`): All Inboxes and
+    /// the like, over the accounts' own folders, nothing copied. Only while the folder in view is
+    /// a top-level folder of that kind ([`crate::unified::of`]); `folder.select` leaves it.
+    /// Kept with the view's settings, so that the window opens on it again (read leniently: a
+    /// value that isn't a kind is none).
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_kind")]
+    pub unified: Option<mailcraft_model::FolderKind>,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -338,6 +345,13 @@ pub struct ViewState {
     pub people_book: Option<Id>,
 }
 
+/// [`ViewState::unified`] from saved settings: a kind of folder, or none for anything else, so a
+/// damaged or newer value never loses the rest of the settings.
+fn lenient_kind<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<mailcraft_model::FolderKind>, D::Error> {
+    let value = <Value as Deserialize>::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
+}
+
 impl Default for ViewState {
     fn default() -> Self {
         ViewState {
@@ -350,6 +364,7 @@ impl Default for ViewState {
             filter: Filter::All,
             gmail: None,
             gmail_tabs: false,
+            unified: None,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
@@ -484,6 +499,8 @@ pub struct Stays {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ListOf {
     folder: Id,
+    /// Every account's folder of a kind (#625).
+    unified: Option<mailcraft_model::FolderKind>,
     filter: Filter,
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
@@ -500,7 +517,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, unified: view.unified, filter: view.filter, gmail: view.gmail, search, when }
     }
 }
 

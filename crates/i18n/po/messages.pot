@@ -1078,6 +1078,16 @@ msgstr ""
 msgid "All"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Accounts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Archives"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "All Attendees"
@@ -1094,8 +1104,28 @@ msgid "All Categories…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Deleted Items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Drafts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "All Mailboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Sent Items"
 msgstr ""
 
 #. android, interface
@@ -18641,6 +18671,11 @@ msgstr ""
 msgid "needs a Gmail account"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "never"
@@ -18664,6 +18699,11 @@ msgstr ""
 #. why a command can't run
 #: crates/engine/src/cmd/dav_sync.rs
 msgid "no account has a calendar and contacts server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no account has a folder of that kind"
 msgstr ""
 
 #. what a command says
@@ -19568,6 +19608,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "the last calendar can't be deleted"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
 msgstr ""
 
 #. what a command says

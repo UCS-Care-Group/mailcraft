@@ -1297,6 +1297,18 @@ msgstr ""
 msgid "All"
 msgstr "Toate"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Toate conturile"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Toate arhivele"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1316,10 +1328,34 @@ msgid "All Categories…"
 msgstr "Toate categoriile…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Toate elementele șterse"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Toate ciornele"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Toate mesajele primite"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Toate cutiile poștale"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Toate elementele trimise"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22536,6 +22572,12 @@ msgstr "necesită conectare Google"
 msgid "needs a Gmail account"
 msgstr "necesită un cont Gmail"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "necesită cel puțin două cutii poștale (o cutie partajată se pune la socoteală)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22565,6 +22607,12 @@ msgstr "pentru acea adresă nu e păstrată nicio cheie publică cu această amp
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "niciun cont nu are un server de calendare și contacte"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "niciun cont nu are un dosar de acest fel"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23646,6 +23694,12 @@ msgstr "ultima Trimitere/Primire a avut probleme"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "ultimul calendar nu poate fi șters"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "lista arată dosarul fiecărui cont: deschideți dosarul unui singur cont sau numiți dosarul"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
