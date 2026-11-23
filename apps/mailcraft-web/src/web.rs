@@ -326,7 +326,7 @@ fn load_face(ctx: &egui::Context, file: &'static str) {
     wasm_bindgen_futures::spawn_local(async move {
         match fetch_face(file).await {
             Ok(bytes) => {
-                // Possible lost update: `reading/fonts.rs::install` also reads the definitions and
+                // Possible lost update: `fonts.rs::install` also reads the definitions and
                 // sets them back; if both land before egui applies fonts, the later one wins and
                 // drops the other's faces.
                 let fonts = ctx.fonts(|f| f.definitions().clone());

@@ -224,6 +224,25 @@ pub fn text_and_hidden(html: &str) -> (String, String) {
     (blocks_to_text(&built.blocks), built.hidden)
 }
 
+/// [`to_text`] for the quote of a reply or forward ([`crate::quotable`]): a picture in the
+/// message itself (`cid:`, `data:`), which the reading pane draws, leaves no `[alt text]`, which
+/// the pane didn't show; a picture on the web, which the pane shows as its alt text until it is
+/// downloaded, keeps it.
+pub fn quote_to_text(html: &str) -> String {
+    fn drawn(blocks: &mut [Block]) {
+        for block in blocks {
+            match &mut block.kind {
+                BlockKind::Image { src, .. } if crate::is_embedded(src) => block.spans.clear(),
+                BlockKind::Table(table) => table.rows.iter_mut().flat_map(|r| r.cells.iter_mut()).for_each(|c| drawn(&mut c.blocks)),
+                _ => {}
+            }
+        }
+    }
+    let mut blocks = crate::blocks::parse_text(html);
+    drawn(&mut blocks);
+    blocks_to_text(&blocks)
+}
+
 /// Display blocks as plain text, the way [`to_text`] writes them. Every block is a paragraph of
 /// its own, whatever its `space`. A data table is a line per row with ` | ` between the cells; a
 /// layout table is what its cells hold, one after the other.

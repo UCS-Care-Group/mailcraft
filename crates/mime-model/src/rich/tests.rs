@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::rich::{Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::rich::{
+    Align, Built, Font, Format, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link,
+};
 use mailcraft_model::signature::{Layout, MAX_WIDTH, Signature};
 use proptest::prelude::*;
 
@@ -17,6 +19,8 @@ fn assert_in_set(html: &str) {
         let ok = matches!(
             tag,
             "<div>"
+                | "<div style=\"text-align:center\">"
+                | "<div style=\"text-align:right\">"
                 | "</div>"
                 | "<br>"
                 | "<li>"
@@ -44,10 +48,12 @@ fn assert_in_set(html: &str) {
                 .and_then(|t| t.strip_suffix("\">"))
                 .is_some_and(|url| !url.contains(['"', '<', '>']) && safe_link(&mailcraft_html::unescape(url)).is_some())
             || tag.strip_prefix("<span style=\"color:").and_then(|t| t.strip_suffix("\">")).is_some_and(|c| safe_color(c).as_deref() == Some(c))
-            || tag
-                .strip_prefix("<span style=\"font-family:")
-                .and_then(|t| t.strip_suffix("\">"))
-                .is_some_and(|f| Font::ALL.iter().any(|font| font.css() == f))
+            || tag.strip_prefix("<span style=\"font-family:").and_then(|t| t.strip_suffix("\">")).is_some_and(|f| {
+                // A `font-family` as it comes out of a `Font`: the six's own lists, or the
+                // families named here quoted where they need it, lower case, escaped.
+                let un = mailcraft_html::unescape(f);
+                Built::ALL.iter().any(|font| font.css() == un) || Font::parse(&un).is_some_and(|font| font.css() == un)
+            })
             || is_cid_img(tag)
             || SIGNATURE_TABLE.contains(&tag);
         assert!(ok, "{tag:?} is outside the set in {html:?}");
@@ -99,6 +105,14 @@ fn styled(text: &str, style: Style) -> Run {
     Run::new(text, style)
 }
 
+fn aligned(text: &str, align: Align) -> Paragraph {
+    Paragraph::new(vec![Run::plain(text)], ListKind::None).aligned(align)
+}
+
+fn aligns(t: &RichText) -> Vec<Align> {
+    t.paragraphs().iter().map(|p| p.align).collect()
+}
+
 #[test]
 fn the_set_is_written_as_html() {
     let t = RichText::from_paragraphs(vec![
@@ -111,6 +125,7 @@ fn the_set_is_written_as_html() {
             vec![styled("the <site> & \"more\"", Style { link: Some("https://example.org/?a=1&b=\"2\"".into()), ..Style::default() })],
             ListKind::None,
         ),
+        aligned("in the middle", Align::Center),
     ]);
     let html = to_html(&t);
     assert_eq!(
@@ -118,7 +133,8 @@ fn the_set_is_written_as_html() {
         "<div>Hi <b>Ada</b>,</div>\r\n<div><br></div>\r\n\
          <ul style=\"margin-top:0;margin-bottom:0\"><li><i><u>one</u></i></li>\r\n<li>two</li>\r\n</ul>\
          <ol style=\"margin-top:0;margin-bottom:0\"><li><span style=\"font-size:18pt\">big</span></li>\r\n</ol>\
-         <div><a href=\"https://example.org/?a=1&amp;b=&quot;2&quot;\">the &lt;site&gt; &amp; &quot;more&quot;</a></div>\r\n"
+         <div><a href=\"https://example.org/?a=1&amp;b=&quot;2&quot;\">the &lt;site&gt; &amp; &quot;more&quot;</a></div>\r\n\
+         <div style=\"text-align:center\">in the middle</div>\r\n"
     );
     assert_in_set(&html);
     assert_eq!(from_html(&html), t);
@@ -162,11 +178,108 @@ fn pasted_html_is_reduced_to_the_set() {
     let p = t.paragraphs();
     assert!(p[2].runs.iter().all(|r| r.style.size == Some(24)), "40px is shown at the most, 32px: 24pt");
     assert!(p[2].runs.iter().any(|r| r.style.bold && r.text == "strong"));
+    assert_eq!(p[2].align, Align::Center);
     assert_eq!(p[4].list, ListKind::Numbered);
     assert_eq!(p[5].runs.iter().filter_map(|r| r.style.link.as_deref()).collect::<Vec<_>>(), ["mailto:ada@example.org"]);
     assert_eq!(p[8].list, ListKind::Bullet);
     assert_eq!(p[10].list, ListKind::None);
     assert_in_set(&to_html(&t));
+}
+
+#[test]
+fn alignment_is_read_from_a_style_or_an_align_attribute_and_justify_start_and_end_reduce_to_left_left_and_right() {
+    let t = from_html(
+        r#"<div style="text-align:center">a</div><div align="right">b</div><div style="text-align:justify">c</div>
+        <div style="text-align:start">d</div><div style="text-align:end">e</div><div align=center>f</div><div>g</div>"#,
+    );
+    assert_eq!(t.text(), "a\nb\nc\nd\ne\nf\ng");
+    assert_eq!(aligns(&t), [Align::Center, Align::Right, Align::Left, Align::Left, Align::Right, Align::Center, Align::Left]);
+    assert_in_set(&to_html(&t));
+}
+
+#[test]
+fn a_center_wrapper_or_a_centred_cell_aligns_the_paragraphs_inside_it_but_not_its_list_items() {
+    let t = from_html(
+        r#"<center><div>a</div><ul><li>b<ul><li>c</li></ul></li></ul></center>
+        <table><tr><td align="center">d</td><td align="right"><div>e</div><ol><li>f</li></ol></td></tr></table>"#,
+    );
+    let read: Vec<(String, ListKind, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.list, p.align)).collect();
+    assert_eq!(
+        read,
+        [
+            ("a".to_string(), ListKind::None, Align::Center),
+            ("b".to_string(), ListKind::Bullet, Align::Left),
+            ("c".to_string(), ListKind::Bullet, Align::Left),
+            ("d".to_string(), ListKind::None, Align::Center),
+            ("e".to_string(), ListKind::None, Align::Right),
+            ("f".to_string(), ListKind::Numbered, Align::Left),
+        ]
+    );
+    // Written again, no list item is styled.
+    let html = to_html(&t);
+    assert!(!html.contains("<li style"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn the_further_paragraphs_of_a_list_item_in_a_centred_wrapper_are_left_too() {
+    // A paragraph inside an item, and the text after a list inside one, are part of that item.
+    let t = from_html(
+        r#"<center><ul><li>first<div>second</div></li></ul></center>
+        <div align="right"><ol><li>a<ul><li>b</li></ul>c</li></ol></div>"#,
+    );
+    let read: Vec<(String, ListKind, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.list, p.align)).collect();
+    assert_eq!(
+        read,
+        [
+            ("first".to_string(), ListKind::Bullet, Align::Left),
+            ("second".to_string(), ListKind::None, Align::Left),
+            ("a".to_string(), ListKind::Numbered, Align::Left),
+            ("b".to_string(), ListKind::Bullet, Align::Left),
+            ("c".to_string(), ListKind::None, Align::Left),
+        ]
+    );
+    // Written again, nothing is aligned.
+    let html = to_html(&t);
+    assert!(!html.contains("text-align"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn a_heading_or_preformatted_text_inside_a_list_item_in_a_centred_wrapper_is_left_too() {
+    // They look like a heading and preformatted text, but they are part of the item all the same,
+    // and so is a paragraph in a table inside one.
+    let t = from_html(
+        r#"<center><ul><li>first<pre>second</pre></li><li>third<h2>fourth</h2></li>
+        <li>fifth<table><tr><td>sixth</td><td>seventh</td></tr></table></li></ul></center>"#,
+    );
+    let read: Vec<(String, Align)> = t.paragraphs().iter().filter(|p| !p.is_empty()).map(|p| (p.text(), p.align)).collect();
+    let left = |s: &str| (s.to_string(), Align::Left);
+    assert_eq!(read, [left("first"), left("second"), left("third"), left("fourth"), left("fifth"), left("sixth"), left("seventh")]);
+    // Written again, nothing is aligned.
+    let html = to_html(&t);
+    assert!(!html.contains("text-align"), "{html}");
+    assert_in_set(&html);
+}
+
+#[test]
+fn an_empty_paragraph_is_written_bare_whatever_its_alignment_so_a_blank_lines_alignment_is_not_kept_by_a_draft() {
+    let t = RichText::from_paragraphs(vec![
+        aligned("", Align::Center),
+        aligned("Avery", Align::Center),
+        aligned("", Align::Right),
+        aligned("Lumen", Align::Right),
+        aligned("", Align::Center),
+    ]);
+    let html = to_html(&t);
+    assert_eq!(
+        html,
+        "<div><br></div>\r\n<div style=\"text-align:center\">Avery</div>\r\n<div><br></div>\r\n<div style=\"text-align:right\">Lumen</div>\r\n<div><br></div>\r\n"
+    );
+    // The blank lines come back, left; the lines with text as they were.
+    let back = from_html(&to_html_document(&t, None));
+    assert_eq!(back.text(), "\nAvery\n\nLumen\n");
+    assert_eq!(aligns(&back), [Align::Left, Align::Center, Align::Left, Align::Right, Align::Left]);
 }
 
 #[test]
@@ -222,6 +335,29 @@ fn an_indented_paragraph_is_a_left_margin_and_comes_back_at_its_level() {
     assert_eq!(levels("<div style=\"padding-left:12px\">a</div><div style=\"margin-left:.5in\">b</div>"), [0, 1]);
 }
 
+/// An indented paragraph that is centred or right is written in its margins with `text-align`
+/// on its own `<div>`, and comes back with both (#580, #1658).
+#[test]
+fn an_indented_aligned_paragraph_keeps_its_indent_and_its_alignment() {
+    let t = RichText::from_paragraphs(vec![
+        aligned("in", Align::Center).at_level(1),
+        aligned("further", Align::Right).at_level(2),
+        aligned("back", Align::Left),
+    ]);
+    let html = to_html(&t);
+    let step = "<div style=\"margin-left:40px\">";
+    assert!(
+        html.starts_with(&format!(
+            "{step}<div style=\"text-align:center\">in</div></div>\r\n{step}{step}<div style=\"text-align:right\">further</div></div></div>\r\n"
+        )),
+        "{html}"
+    );
+    assert_in_set(&html);
+    assert_eq!(from_html(&to_html_document(&t, None)), t);
+    let back = from_html("<div style=\"margin-left:40px\"><div style=\"margin-left:40px;text-align:right\">a</div></div>");
+    assert_eq!(back.paragraphs().iter().map(|p| (p.level, p.align)).collect::<Vec<_>>(), [(2, Align::Right)]);
+}
+
 fn arb_style() -> impl Strategy<Value = Style> {
     (
         any::<bool>(),
@@ -240,22 +376,23 @@ fn arb_style() -> impl Strategy<Value = Style> {
             (
                 Just(s),
                 proptest::option::of(prop_oneof![Just("#1f6feb".to_string()), Just("red".to_string()), "\\PC{0,8}"]),
-                proptest::option::of(0usize..Font::ALL.len()),
+                proptest::option::of(prop_oneof![Just("Fira Code".to_string()), Just("Noto Sans".to_string()), Just("Trebuchet MS".to_string())]),
             )
-                .prop_map(|(s, color, font)| Style { color, font: font.and_then(|f| Font::ALL.get(f).copied()), ..s })
+                .prop_map(|(s, color, font)| Style { color, font: font.as_deref().and_then(Font::parse), ..s })
         })
 }
 
 fn arb_text() -> impl Strategy<Value = RichText> {
-    proptest::collection::vec((proptest::collection::vec(("\\PC{0,12}", arb_style()), 0..4), 0u8..3, any::<u8>()), 1..8).prop_map(|ps| {
+    proptest::collection::vec((proptest::collection::vec(("\\PC{0,12}", arb_style()), 0..4), 0u8..3, any::<u8>(), 0usize..3), 1..8).prop_map(|ps| {
         RichText::from_paragraphs(
             ps.into_iter()
-                .map(|(runs, list, level)| {
+                .map(|(runs, list, level, align)| {
                     Paragraph::new(
                         runs.into_iter().map(|(t, s)| Run::new(t, s)).collect(),
                         [ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize],
                     )
                     .at_level(level)
+                    .aligned([Align::Left, Align::Center, Align::Right][align])
                 })
                 .collect(),
         )
@@ -263,7 +400,8 @@ fn arb_text() -> impl Strategy<Value = RichText> {
 }
 
 /// Documents the HTML form can carry exactly: words separated by one space, sizes up to 24pt,
-/// list items with text.
+/// list items with text, and paragraphs with text indented and aligned any way (a blank line is
+/// at the margin and left).
 fn arb_exact() -> impl Strategy<Value = RichText> {
     let style = (
         any::<bool>(),
@@ -274,13 +412,18 @@ fn arb_exact() -> impl Strategy<Value = RichText> {
     )
         .prop_map(|(bold, italic, underline, size, link)| Style { bold, italic, underline, size, link, ..Style::default() })
         .prop_flat_map(|s| (Just(s), proptest::option::of(Just("#1f6feb".to_string()))).prop_map(|(s, color)| Style { color, ..s }));
-    let paragraph = (proptest::collection::vec(("[a-zA-Z0-9&<>\"'é]{1,6}", style), 0..4), 0u8..3, 0..=MAX_LEVEL).prop_map(|(runs, list, level)| {
-        let runs: Vec<Run> = runs.into_iter().enumerate().map(|(i, (t, s))| Run::new(if i == 0 { t } else { format!(" {t}") }, s)).collect();
-        // A blank line is a blank line in HTML: no list, and no indent (#1658).
-        let (list, level) =
-            if runs.is_empty() { (ListKind::None, 0) } else { ([ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize], level) };
-        Paragraph::new(runs, list).at_level(level)
-    });
+    let paragraph = (proptest::collection::vec(("[a-zA-Z0-9&<>\"'é]{1,6}", style), 0..4), 0u8..3, 0..=MAX_LEVEL, 0usize..3).prop_map(
+        |(runs, list, level, align)| {
+            let runs: Vec<Run> = runs.into_iter().enumerate().map(|(i, (t, s))| Run::new(if i == 0 { t } else { format!(" {t}") }, s)).collect();
+            // A blank line is a blank line in HTML: no list, no indent (#1658) and left.
+            let (list, level, align) = if runs.is_empty() {
+                (ListKind::None, 0, Align::Left)
+            } else {
+                ([ListKind::None, ListKind::Bullet, ListKind::Numbered][list as usize], level, [Align::Left, Align::Center, Align::Right][align])
+            };
+            Paragraph::new(runs, list).at_level(level).aligned(align)
+        },
+    );
     proptest::collection::vec(paragraph, 1..8).prop_map(|ps| RichText::from_paragraphs(at_most_three_blank_lines(ps)))
 }
 
@@ -374,7 +517,8 @@ fn logo_signature(layout: Layout) -> Signature {
     let mut sig = Signature::plain_text("Work", "Avery Quinn\nLumen Studio");
     let mut body = sig.body().clone();
     body.format(0, 11, &Format::Color(Some("#1f6feb".into()))).unwrap();
-    body.format(0, 11, &Format::Font(Some(Font::Georgia))).unwrap();
+    body.format(0, 11, &Format::Font(Some(Built::Georgia.font()))).unwrap();
+    body.set_align(12, 12, Align::Right).unwrap();
     sig.set_body(body).unwrap();
     let id = sig.add_picture("lumen-logo.png", png(), Some("Lumen \"Studio\" <logo>"), Some(0)).unwrap();
     sig.set_picture(id, Some(Some(120)), None).unwrap();
@@ -393,6 +537,7 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
         "{inline}"
     );
     assert!(inline.contains("<span style=\"color:#1f6feb\"><span style=\"font-family:Georgia, serif\">Avery Quinn</span></span>"), "{inline}");
+    assert!(inline.contains("<div style=\"text-align:right\">Lumen Studio</div>\r\n"), "{inline}");
     assert_in_set(&inline);
     let left = signature_html(&logo_signature(Layout::PictureLeft), &cid);
     assert!(
@@ -402,6 +547,8 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
         "{left}"
     );
     assert_eq!(left.matches("<img").count(), 1);
+    // A line aligned right is so inside the text's cell.
+    assert!(left.contains("<div style=\"text-align:right\">Lumen Studio</div>\r\n</td>"), "{left}");
     assert_in_set(&left);
     let above = signature_html(&logo_signature(Layout::PictureAbove), &cid);
     assert!(above.starts_with("<div><img") && !above.contains("<table"), "{above}");
@@ -410,6 +557,37 @@ fn a_signature_is_written_with_its_colours_fonts_and_pictures() {
     let back = from_html(&left);
     assert_eq!(back.text(), "Avery Quinn\nLumen Studio");
     assert_eq!(back.style_at(3).color.as_deref(), Some("#1f6feb"));
+    assert_eq!(aligns(&back), [Align::Left, Align::Right]);
+}
+
+#[test]
+fn a_picture_above_the_signature_is_aligned_as_its_paragraph_was() {
+    let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@mailcraft.invalid", p.id);
+    let mut sig = logo_signature(Layout::PictureAbove);
+    let mut body = sig.body().clone();
+    body.set_align(0, 0, Align::Center).unwrap();
+    sig.set_body(body).unwrap();
+    let above = signature_html(&sig, &cid);
+    assert!(above.starts_with("<div style=\"text-align:center\"><img src=\"cid:sig-1@mailcraft.invalid\""), "{above}");
+    assert!(above.contains("</div>\r\n<div style=\"text-align:center\"><span style=\"color:#1f6feb\">"), "{above}");
+    assert_in_set(&above);
+}
+
+#[test]
+fn a_logo_standing_twice_goes_out_beside_the_text_and_once_in_it() {
+    let logo =
+        Picture { id: 1, name: "logo.png".into(), mime: "image/png".into(), data: std::sync::Arc::new(png()), width: None, alt: "Lumen".into() };
+    let body = RichText::from_paragraphs(vec![
+        Paragraph::new(vec![Run::picture(1, Style::default()), Run::plain("Avery Quinn")], ListKind::None),
+        Paragraph::new(vec![Run::plain("Lumen Studio"), Run::picture(1, Style::default())], ListKind::None),
+    ]);
+    let sig = Signature::assemble("Work", body, &[logo], Layout::PictureLeft);
+    let left = signature_html(&sig, &|p| format!("sig-{}@mailcraft.invalid", p.id));
+    // Once on the left, and once where it stood the second time; the first time it is the lead.
+    assert_eq!(left.matches("<img").count(), 2, "{left}");
+    assert!(left.contains("<div>Lumen Studio<img src=\"cid:sig-1@mailcraft.invalid\""), "{left}");
+    assert!(left.contains("<div>Avery Quinn</div>"), "{left}");
+    assert_in_set(&left);
 }
 
 proptest! {
@@ -492,6 +670,33 @@ fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
 }
 
 #[test]
+fn a_family_installed_here_is_written_and_comes_back_through_a_paste() {
+    // #1493: the composer offers what is installed on this computer, so a message carries a family
+    // of its own; a paste keeps the first name of the list it came from.
+    let style = Style { font: Font::parse("Fira Code, monospace"), ..Style::default() };
+    let t = RichText::from_paragraphs(vec![Paragraph::new(vec![styled("code", style)], ListKind::None)]);
+    let html = to_html(&t);
+    assert!(html.contains("<span style=\"font-family:&#39;fira code&#39;, monospace\">code</span>"), "{html}");
+    assert_eq!(from_html(&html), t);
+    // A list that names a family keeps the family and what the list asks for after it; a list that
+    // asks only for a kind of font keeps what MailCraft has for that kind — `monospace` is the one
+    // fixed-width font of the set, so pasted text art keeps its columns (#969).
+    let serif = Style { font: Font::parse("Noto Serif, serif"), ..Style::default() };
+    assert_eq!(
+        from_html("<div><span style=\"font-family:'Noto Serif', serif\">x</span></div>"),
+        RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", serif)], ListKind::None)])
+    );
+    let mono = Style { font: Font::from_css("monospace"), ..Style::default() };
+    assert_eq!(
+        from_html("<div><span style=\"font-family:monospace\">x</span></div>"),
+        RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", mono)], ListKind::None)])
+    );
+    // And one that asks only for a kind with no font of its own keeps nothing.
+    let plain = RichText::from_paragraphs(vec![Paragraph::new(vec![styled("x", Style::default())], ListKind::None)]);
+    assert_eq!(from_html("<div><span style=\"font-family:cursive\">x</span></div>"), plain);
+}
+
+#[test]
 fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
     // #969: a signature drawn with spaces in Courier New comes back as it was written.
     let courier = Style { font: Font::parse("Courier New"), ..Style::default() };
@@ -501,7 +706,7 @@ fn text_art_in_the_fixed_width_font_keeps_its_shape_and_its_font() {
         Paragraph::new(vec![styled("+------+", courier)], ListKind::None),
     ]);
     let html = to_html(&t);
-    assert!(html.contains("<span style=\"font-family:'Courier New', Courier, monospace\">| &nbsp;Hi &nbsp;|</span>"), "{html}");
+    assert!(html.contains("<span style=\"font-family:&#39;Courier New&#39;, Courier, monospace\">| &nbsp;Hi &nbsp;|</span>"), "{html}");
     assert_in_set(&html);
     assert_eq!(from_html(&html), t);
 }

@@ -89,6 +89,7 @@ pub fn to_model(m: mime::Message) -> Message {
         answered,
         draft,
         headers,
+        headers_cut,
         fresh_stamps,
         original,
     } = m;
@@ -130,6 +131,7 @@ pub fn to_model(m: mime::Message) -> Message {
         draft,
         headers,
         header_block,
+        headers_cut,
         fresh_stamps,
         original: original.map(|data| Original { data, kept: None }),
         ..Message::default()
@@ -183,6 +185,7 @@ pub fn from_model(m: &Message) -> mime::Message {
         answered: m.answered,
         draft: m.draft,
         headers: m.all_headers(),
+        headers_cut: m.headers_cut,
         fresh_stamps: m.fresh_stamps,
         original: m.original.as_ref().filter(|o| !o.data.is_empty()).map(|o| o.data.clone()),
     }

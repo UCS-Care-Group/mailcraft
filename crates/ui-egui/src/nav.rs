@@ -169,7 +169,7 @@ fn drop_on(app: &mut MailApp, p: &serde_json::Value) -> Result<serde_json::Value
     } else {
         match crate::dialogs::open_dialog(app, form, &fields) {
             Some(dialog) => {
-                app.dialog = Some(dialog);
+                app.set_dialog(Some(dialog));
                 app.sync_panel = None;
             }
             None => return Ok(json!({"opened": null})),
@@ -760,7 +760,9 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         item(ui, app, tl_later!("Delete Folder"), "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), true);
+        // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+        let ruled = app.session.mailbox.rules_reach(app.session.mailbox.folder(id).map_or(0, |f| f.account));
+        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), ruled);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
             item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);

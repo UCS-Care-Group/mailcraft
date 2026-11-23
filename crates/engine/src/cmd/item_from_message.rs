@@ -54,11 +54,11 @@ fn item_from_message(s: &mut Session, v: &Value) -> CmdResult {
             // Its text, from where the mailbox keeps it when it isn't in memory.
             let m = s.loaded_message_where(mid, |_| false)?;
             let start = super::calendar::next_half_hour(s.local_now());
-            json!({"title": title, "description": text_of(&m), "start": minute(start), "end": minute(start.add_minutes(30))})
+            json!({"title": title, "description": text_of(s, &m), "start": minute(start), "end": minute(start.add_minutes(30))})
         }
         Kind::Task => {
             let m = s.loaded_message_where(mid, |_| false)?;
-            let mut fields = json!({"title": title, "notes": text_of(&m)});
+            let mut fields = json!({"title": title, "notes": text_of(s, &m)});
             if let (Some(place), Some(map)) = (super::tasks::place_of_message(s, &m), fields.as_object_mut()) {
                 map.insert("account".into(), json!(place));
             }
@@ -91,15 +91,21 @@ fn minute(at: DateTime) -> String {
     format!("{}T{:02}:{:02}", at.date.iso(), at.hour, at.minute)
 }
 
-/// The text of a message as the owner saw it, made safe to keep: its HTML read as text (else its
-/// plain text), lines ended by `\n`, without control characters (but the line break and the tab)
+/// The text of a message as the owner saw it, made safe to keep: what the reading pane showed of
+/// its HTML, as a reply quotes it (else its plain text, when that is what the pane showed), lines
+/// ended by `\n`, without control characters (but the line break and the tab)
 /// or the characters that turn text around or show nothing (as names lose them), trimmed, at most [`MAX_TEXT`]
 /// characters.
-pub fn text_of(m: &Message) -> String {
-    // (A page of nothing but scripts and hidden parts reads as empty: then the plain text, which
-    // is what the reading pane shows.)
-    let from_html = m.body.html.as_deref().map(|html| clean_text(&mailcraft_html::to_text(html), MAX_TEXT)).filter(|text| !text.is_empty());
-    from_html.unwrap_or_else(|| clean_text(&m.body.text, MAX_TEXT))
+pub fn text_of(s: &Session, m: &Message) -> String {
+    match super::compose::as_shown(s, m, crate::ReadIn::Pane) {
+        (Some(html), envs) => {
+            // (What every look shows, when the message has more than are told apart, may be
+            // nothing: then nothing, never the text part instead.)
+            let shown = mailcraft_html::quotable_in(html, &envs);
+            clean_text(&mailcraft_html::quote_to_text(&shown), MAX_TEXT)
+        }
+        (None, _) => clean_text(&m.body.text, MAX_TEXT),
+    }
 }
 
 /// `text` without control characters but `\n` and `\t` (`\r\n` and a lone `\r` end a line), nor
