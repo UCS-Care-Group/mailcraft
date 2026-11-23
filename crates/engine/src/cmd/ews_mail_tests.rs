@@ -988,6 +988,24 @@ fn a_move_the_server_gives_no_new_id_for_leaves_no_stale_copy() {
     assert!(here(&s, account, "M1").is_none());
 }
 
+/// The archive goes by its owner's colour and the name people see, edited after it was added; its
+/// address can't go stale, as an Exchange server account's address isn't changed once its mail is
+/// here, and an archive comes only with a run that read it (#1834 review).
+#[test]
+fn the_archive_follows_its_owners_edits() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    s.run("account.edit", &json!({"id": account, "color": "#336699", "displayName": "Ada L."})).unwrap();
+    let (owner, kept) = (s.mailbox.account(account).unwrap().clone(), s.mailbox.account(archive).unwrap().clone());
+    assert!(owner.color.is_some());
+    assert_eq!((kept.color, kept.display_name.as_str(), kept.email.as_str()), (owner.color, "Ada L.", owner.email.as_str()));
+    let said = s.run("account.edit", &json!({"id": account, "email": "ada.lovelace@example.org"})).unwrap_err().to_string();
+    assert!(said.contains("can't be changed once its mail is here"), "{said}");
+    assert_eq!(s.mailbox.account(archive).unwrap().email, owner.email, "the archive's address is its owner's still");
+}
+
 /// Hide Online Archive isn't taken while a change made in the archive waits to go up: nothing of
 /// it is kept here, so it would be lost; once it has gone up, it is (#1834 review).
 #[test]

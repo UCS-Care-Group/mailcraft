@@ -71,6 +71,23 @@ impl Mailbox {
         Ok(id)
     }
 
+    /// Brings what the online archive of `owner` has of its owner (its address, the name it is kept
+    /// under, the name people see and the colour) up to date with the owner, after an edit of the
+    /// owner (#1834 review). Whether anything changed.
+    pub fn refresh_archive_of(&mut self, owner: Id) -> bool {
+        let Some(o) = self.account(owner).filter(|o| !o.is_archive()) else { return false };
+        let (email, display_name, color) = (o.email.trim().to_owned(), o.display_name.clone(), o.color);
+        let name = format!("Online Archive - {email}");
+        let Some(archive) = self.archive_of(owner).map(|a| a.id) else { return false };
+        let Ok(a) = self.account_mut(archive) else { return false };
+        let fresh = (&email, &name, &display_name, color);
+        if (&a.email, &a.name, &a.display_name, a.color) == fresh {
+            return false;
+        }
+        (a.email, a.name, a.display_name, a.color) = (email, name, display_name, color);
+        true
+    }
+
     /// Takes away the archive `archive` and everything held of it. Its owner and the server are
     /// untouched: it is added again when the server next says there is one. Mail moved into it
     /// that its server hasn't moved yet goes back where the server still has it
@@ -116,7 +133,7 @@ impl Mailbox {
     /// is lost when what is held of the archive goes (it is hidden, the server says it is gone,
     /// or the mailbox is written to its file). The move is called off; the owner can move it
     /// again. Whether any was put back.
-    pub fn put_back_moves_into_archives(&mut self) -> bool {
+    pub(crate) fn put_back_moves_into_archives(&mut self) -> bool {
         self.put_back_moves_into(None)
     }
 
@@ -156,7 +173,7 @@ impl Mailbox {
     /// Takes away the folders and mail held of each online archive, and where its folder list
     /// went on from, so that the next run reads it afresh; and an archive whose owner is gone or
     /// can't be one. Whether anything was taken away.
-    pub fn forget_archive_mail(&mut self) -> bool {
+    pub(crate) fn forget_archive_mail(&mut self) -> bool {
         let archives = self.archives();
         if archives.is_empty() {
             return false;

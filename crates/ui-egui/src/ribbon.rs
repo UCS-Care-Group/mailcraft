@@ -1539,7 +1539,7 @@ pub fn folder_menu_all(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut Mai
 }
 
 /// The same for Copy to Folder: the folders the mail selected may be copied into (#1834 review).
-pub fn folder_menu_copy(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+pub(crate) fn folder_menu_copy(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
     folder_menu_scope(ui, app, FolderScope::CopyTargets, pick);
 }
 

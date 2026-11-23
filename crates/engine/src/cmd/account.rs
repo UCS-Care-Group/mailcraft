@@ -727,6 +727,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // are listed afresh, to bring the older mail it now covers.
     let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
+    // Its online archive goes by its address, name and colour (#1834 review).
+    s.mailbox.refresh_archive_of(id);
     if let Some(archive) = archive_goes {
         s.mailbox.remove_archive(archive).map_err(|e| fail(e.to_string()))?;
         if s.mailbox.folder(s.view.folder).is_none() {
