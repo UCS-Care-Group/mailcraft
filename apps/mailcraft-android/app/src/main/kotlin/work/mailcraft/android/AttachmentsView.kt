@@ -138,12 +138,14 @@ internal fun AttachmentLayers(texts: Texts, ui: AttachmentUi, actions: Attachmen
     }
 }
 
-/** What the owner is asked before a file that can carry macros or scripts is opened, in the desktop's words. */
+/** What the owner is asked before a file that can carry macros or scripts, or one its program acts on, is opened, in the desktop's words. */
 internal fun question(texts: Texts, item: AttachmentItem): String {
-    val why = if (item.verdict == OpenVerdict.SCRIPTS) {
-        texts.t("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
-    } else {
-        texts.t("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it.")
+    val why = when (item.verdict) {
+        OpenVerdict.SCRIPTS ->
+            texts.t("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
+        OpenVerdict.ACTIVE ->
+            texts.t("Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it.")
+        else -> texts.t("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it.")
     }
     return texts.t("Open {name}? {why}").replace("{name}", item.name).replace("{why}", why)
 }

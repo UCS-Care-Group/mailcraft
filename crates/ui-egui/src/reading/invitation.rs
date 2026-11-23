@@ -463,6 +463,9 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
         note: Some(("comment", String::new(), tl!("A note to go with it (optional)").to_string())),
         cancel: None,
         tick: None,
+        calendar: None,
+        cut: None,
+        listing: None,
     }))
 }
 
@@ -750,9 +753,9 @@ fn answers(app: &mut MailApp, ui: &mut Ui, t: &Tokens, message: Id, info: &Info,
                     ui.close();
                 }
             };
-            item(ui, "Write a Note with the Response…", info.can_send, json!({}));
-            item(ui, "Send the Response Now", info.can_send, json!({"send": true}));
-            item(ui, "Don't Send a Response", true, json!({"send": false}));
+            item(ui, tl_later!("Write a Note with the Response…"), info.can_send, json!({}));
+            item(ui, tl_later!("Send the Response Now"), info.can_send, json!({"send": true}));
+            item(ui, tl_later!("Don't Send a Response"), true, json!({"send": false}));
         });
         if let Some(with) = chosen {
             let mut params = json!({"message": message, "response": code});

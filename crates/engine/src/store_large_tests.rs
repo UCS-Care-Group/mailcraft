@@ -104,6 +104,79 @@ fn save_single_refuses_to_write_what_open_would_refuse() {
 }
 
 #[test]
+fn a_single_file_export_obeys_the_streaming_readers_message_boundary() {
+    let tmp = Temp::new("export-item-boundary");
+    let path = tmp.file();
+    let mut mb = mailbox(2, 100);
+    let ids: Vec<_> = mb.messages.keys().copied().collect();
+    for id in &ids {
+        let message = mb.message_mut(*id).unwrap();
+        let overhead = serde_json::to_vec(&message).unwrap().len();
+        // The reader's value gate starts just before the colon after the message id.
+        message.body.text = "x".repeat(usize::try_from(stream::MAX_ITEM).unwrap() - overhead - 1);
+    }
+    save_single(&path, &mb).unwrap();
+    let before = fs::read(&path).unwrap();
+    let opened = stream::open(&mut State::default(), &path, before.len() as u64, &OpenProgress::default()).unwrap().unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 2);
+    for id in &ids {
+        let kept = opened.mailbox.message(*id).unwrap().kept.as_ref().unwrap().text.unwrap();
+        assert_eq!(fetch(&path, &kept).unwrap().as_slice(), mb.message(*id).unwrap().body.text.as_bytes());
+    }
+    let entries = fs::read_dir(&tmp.0).unwrap().count();
+    mb.message_mut(ids[0]).unwrap().body.text.push('x');
+    let error = save_single(&path, &mb).unwrap_err();
+    assert!(error.contains("message") && error.contains("nothing was written"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), entries);
+}
+
+#[test]
+fn the_message_export_limit_counts_base64_expansion() {
+    let tmp = Temp::new("export-item-base64");
+    let path = tmp.file();
+    let mut mb = mailbox(1, 100);
+    let id = *mb.messages.keys().next().unwrap();
+    mb.message_mut(id).unwrap().attachments.push(mailcraft_model::Attachment::new(
+        "synthetic.bin",
+        "application/octet-stream",
+        vec![0; usize::try_from(stream::MAX_ITEM * 3 / 4).unwrap()],
+    ));
+    let error = save_single(&path, &mb).unwrap_err();
+    assert!(error.contains("message") && error.contains("nothing was written"), "{error}");
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), 0);
+}
+
+#[test]
+fn a_failed_single_file_export_keeps_the_destination_and_removes_its_temporary_file() {
+    let tmp = Temp::new("export-failure");
+    let path = tmp.file();
+    let before = crate::io::write_mailbox(&mailbox(2, 100)).unwrap();
+    fs::write(&path, &before).unwrap();
+    let mb = mailbox(3, 100);
+    let last = *mb.messages.keys().last().unwrap();
+    let error =
+        save_single_with(
+            &path,
+            &mb,
+            |id| {
+                if id == last { Err("synthetic missing attachment".into()) } else { Ok(mb.messages.get(&id).unwrap().clone()) }
+            },
+        )
+        .unwrap_err();
+    assert!(error.contains("synthetic missing attachment"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), 1);
+
+    // The size limit is checked while writing, not after allocating the whole JSON file.
+    let error = save_single(&path, &mailbox(2_000, 10_000)).unwrap_err();
+    assert!(error.contains("nothing was written"), "{error}");
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read_dir(&tmp.0).unwrap().count(), 1);
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 2);
+}
+
+#[test]
 fn the_log_form_refuses_to_grow_past_what_it_opens_and_keeps_the_file_readable() {
     let tmp = Temp::new("index");
     let path = tmp.file();

@@ -37,6 +37,10 @@ pub const WORKING: &[&str] = &[
     // A mailing list, whose name a member's name may carry (`sender_warnings`).
     "List-Id",
     "List-Post",
+    // Mail a program wrote (RFC 3834) or that goes out in bulk, which a reaction is not sent to
+    // (`react`).
+    "Auto-Submitted",
+    "Precedence",
     // How a list says it is left (`unsubscribe`), and the signatures that say whether those
     // lines are the list's own (RFC 8058, 4).
     "List-Unsubscribe",
@@ -44,9 +48,13 @@ pub const WORKING: &[&str] = &[
     "DKIM-Signature",
     // A request for a read receipt, which an answer never makes.
     "Disposition-Notification-To",
-    // What a .pst file's item said of who sent it and how sensitive it is.
+    // What a .pst file's item said of who sent it and how sensitive it is (a rule's condition
+    // too, #566).
     "Sender",
     "Sensitivity",
+    // An automatic reply, an out-of-office one say (a rule's condition, #566; one in a block kept
+    // before is read there too, `Message::is_automatic_reply`).
+    "Auto-Submitted",
     // The id a message had before Microsoft Graph moved it to another account.
     "X-Microsoft-Original-Message-ID",
     // A sharing invitation for a calendar ([MS-OXSHARE]).

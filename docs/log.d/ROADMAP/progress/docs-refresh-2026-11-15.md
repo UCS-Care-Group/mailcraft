@@ -1,1 +1,0 @@
-| 2026-11-15 | Public documents brought up to date with main: headline numbers recomputed (parity from `cargo xtask parity`, tests from `cargo xtask stats`), the beta run's status, release count, crate list, S/MIME and OpenPGP checking, Hungarian, the Android app under way |

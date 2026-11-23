@@ -262,7 +262,7 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
         for folder in mb.folders.iter_mut().filter(|f| leaving.contains(&f.id)) {
             folder.account = kept.account;
             if tops.contains(&folder.id) {
-                folder.parent = Some(kept.folder);
+                folder.set_parent(Some(kept.folder));
             }
         }
         for m in mb.messages.values_mut().filter(|m| m.folder == kept.folder || leaving.contains(&m.folder)) {
