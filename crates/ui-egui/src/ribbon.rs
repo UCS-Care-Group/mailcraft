@@ -1317,9 +1317,14 @@ fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
 pub(crate) enum FolderScope {
     /// The account in view's folders, as rules, Move Folder and a message file's menu take them.
     ThisAccount,
-    /// Every account's folders, for Move to Folder and Copy to Folder: mail reaches another
-    /// account's server too (#451).
+    /// Every account's folders, for Move to Folder: mail reaches another account's server too
+    /// (#451). Not an online archive's, unless every message selected may go there (#1834
+    /// review: [`mailcraft_model::Mailbox::moves_into`]).
     EveryAccount,
+    /// Every account's folders, for Copy to Folder: those that every message selected may be
+    /// copied into ([`mailcraft_model::Mailbox::copies_into`]): not an online archive's from
+    /// elsewhere, nor another account's for mail in one.
+    CopyTargets,
 }
 
 /// The account in view, else the default one.
@@ -1372,8 +1377,13 @@ pub(crate) fn folder_rows(app: &MailApp, scope: FolderScope) -> (Vec<FolderRow>,
     let in_view = account_in_view(app);
     let mut accounts: Vec<&Account> = match scope {
         FolderScope::ThisAccount => in_view.and_then(|id| mb.account(id)).into_iter().collect(),
-        FolderScope::EveryAccount => {
+        FolderScope::EveryAccount | FolderScope::CopyTargets => {
             let mut all = mb.pane_order();
+            // (Only where the mail selected may go, by the rule a move or a copy is refused by,
+            // so the menu offers nothing that is then refused, #1834 review.)
+            let selected: Vec<&mailcraft_model::Message> = app.session.sel.messages.iter().filter_map(|id| mb.message(*id)).collect();
+            let copy = scope == FolderScope::CopyTargets;
+            all.retain(|a| selected.iter().all(|m| if copy { mb.copies_into(m, a.id) } else { mb.moves_into(m, a.id) }));
             if let Some(at) = all.iter().position(|a| Some(a.id) == in_view) {
                 let a = all.remove(at);
                 all.insert(0, a);
@@ -1522,10 +1532,15 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp
     folder_menu_scope(ui, app, FolderScope::ThisAccount, pick);
 }
 
-/// The same for Move to Folder and Copy to Folder, whose folders are every account's: a message
-/// moved from one mailbox into another is what the target accepts (#451).
+/// The same for Move to Folder, whose folders are every account's: a message moved from one
+/// mailbox into another is what the target accepts (#451).
 pub fn folder_menu_all(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
     folder_menu_scope(ui, app, FolderScope::EveryAccount, pick);
+}
+
+/// The same for Copy to Folder: the folders the mail selected may be copied into (#1834 review).
+pub fn folder_menu_copy(ui: &mut Ui, app: &mut MailApp, pick: impl FnMut(&mut MailApp, Id)) {
+    folder_menu_scope(ui, app, FolderScope::CopyTargets, pick);
 }
 
 /// The accounts of the selected messages, each once.
@@ -1679,7 +1694,7 @@ pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
-                folder_menu_all(ui, app, |app, folder| {
+                folder_menu_copy(ui, app, |app, folder| {
                     let _ = app.run("mail.copy", json!({"folder": folder}));
                 });
             });

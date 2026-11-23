@@ -15458,8 +15458,8 @@ msgstr "Pokaż MailCraft"
 msgid "Show Message"
 msgstr "Pokaż wiadomość"
 
-#. command label
-#: crates/engine/src/cmd/ews_mail.rs
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
 msgid "Show Online Archive"
 msgstr ""
 

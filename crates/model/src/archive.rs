@@ -96,6 +96,21 @@ impl Mailbox {
         self.archive_owner(to).is_some_and(|owner| owner.id == m.account) && on_owners_server
     }
 
+    /// Whether the message `m` may be moved into a folder of the account `to` as far as online
+    /// archives go ([`Mailbox::goes_into_archive`]): what a menu of folders offers for a move and
+    /// what a move is refused by are one rule (#1834 review).
+    pub fn moves_into(&self, m: &Message, to: Id) -> bool {
+        self.goes_into_archive(m, to)
+    }
+
+    /// Whether the message `m` may be copied into a folder of the account `to` as far as online
+    /// archives go: within one account, or between two that aren't archives. A copy into an
+    /// archive from elsewhere, or out of one, no server makes with an id (#1818, #1834 review).
+    pub fn copies_into(&self, m: &Message, to: Id) -> bool {
+        let archive = |id: Id| self.account(id).is_some_and(Account::is_archive);
+        m.account == to || (!archive(to) && !archive(m.account))
+    }
+
     /// Puts each message moved into an online archive that its server hasn't moved there yet
     /// back in the folder of the archive's owner where the server still has it: so that nothing
     /// is lost when what is held of the archive goes (it is hidden, the server says it is gone,

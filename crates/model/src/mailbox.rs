@@ -2617,7 +2617,7 @@ impl Mailbox {
             return Ok(());
         }
         // Into an online archive only what its server moves there (#1818).
-        if !self.goes_into_archive(m, account) {
+        if !self.moves_into(m, account) {
             return Err(invalid(INTO_ARCHIVE));
         }
         // Moved in from another mailbox and not made on this account's server yet, it is mail from
@@ -3101,12 +3101,12 @@ impl Mailbox {
         if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
-        // (A copy within an online archive is made there by its server; none comes in, #1818.)
-        if from_account != to_account && self.account(to_account).is_some_and(Account::is_archive) {
-            return Err(invalid(COPY_INTO_ARCHIVE));
-        }
-        // (Nor out of it: the server says no id for a copy into another mailbox, #1834 review.)
-        if from_account != to_account && self.account(from_account).is_some_and(Account::is_archive) {
+        // (A copy within an online archive is made there by its server; none comes in, #1818. Nor
+        // out of it: the server says no id for a copy into another mailbox, #1834 review.)
+        if !self.copies_into(m, to_account) {
+            if self.account(to_account).is_some_and(Account::is_archive) {
+                return Err(invalid(COPY_INTO_ARCHIVE));
+            }
             return Err(invalid(COPY_OUT_OF_ARCHIVE));
         }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next

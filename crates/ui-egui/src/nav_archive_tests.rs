@@ -173,3 +173,84 @@ fn a_run_that_read_well_keeps_what_it_said() {
     app.archive_run_ended(archive, false, false);
     assert!(app.archive_read_failed(archive));
 }
+
+/// Hidden, the archive's heading is gone: its owner's heading menu offers Show Online Archive,
+/// which runs the command, and the next run's yes brings it back (#1834 review).
+#[test]
+fn hidden_its_owners_menu_brings_it_back() {
+    let (mut app, owner, archive) = app();
+    assert!(!archive_hidden(&app.session.mailbox, owner), "nothing to show while it is shown");
+    app.run("account.archive.hide", serde_json::json!({"account": archive})).unwrap();
+    assert!(app.session.mailbox.archive_of(owner).is_none());
+    assert!(archive_hidden(&app.session.mailbox, owner), "the owner's menu offers the way back");
+    assert!(!archive_hidden(&app.session.mailbox, 9_999));
+    // Its heading's menu, as the window draws it, right-clicked.
+    use egui_kittest::kittest::Queryable as _;
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 1600.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
+    h.run_steps(4);
+    let pos = h.state().hit.rect("folderHeading", owner).expect("the owner's heading is on screen").center();
+    h.event(egui::Event::PointerMoved(pos));
+    h.step();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(2);
+    h.get_by_label("Show Online Archive").click();
+    h.run_steps(3);
+    let app = h.state_mut();
+    assert!(!archive_hidden(&app.session.mailbox, owner));
+    let request = mailcraft_engine::cmd::ews_mail::ews_mail_request(&app.session, owner, false).unwrap();
+    assert!(request.probe_archive, "the server is asked again");
+}
+
+/// The folders a move or a copy is offered are those the engine takes it into (#1834 review):
+/// a copy never into the archive from elsewhere, nor out of it; a move into it only of mail its
+/// owner's server has.
+#[test]
+fn the_folder_menus_offer_the_archive_only_where_mail_may_go() {
+    use crate::ribbon::{FolderScope, folder_rows};
+    use std::sync::Arc;
+    let (mut app, owner, archive) = app();
+    let mb = &mut app.session.mailbox;
+    let year = mb.add_folder(archive, None, "2019").unwrap();
+    // Mail of the owner's mailbox, as a run brings it.
+    let inbox = mb.folder_of_kind(owner, mailcraft_model::FolderKind::Inbox).unwrap();
+    mb.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "INBOX-ID".into(), ..Default::default() });
+    let owners = mb.alloc_id();
+    let server = mailcraft_model::sync::ServerMessage { id: "ITEM-1".into(), folder: "INBOX-ID".into(), ..Default::default() };
+    mb.messages
+        .insert(owners, Arc::new(mailcraft_model::Message { id: owners, account: owner, folder: inbox, server: Some(server), ..Default::default() }));
+    // Mail in the archive.
+    let archived = mb.alloc_id();
+    mb.messages.insert(archived, Arc::new(mailcraft_model::Message { id: archived, account: archive, folder: year, ..Default::default() }));
+    // Mail of another account (the sample's).
+    let other = mb.messages.values().find(|m| m.account != owner && m.account != archive).unwrap().id;
+    let offered = |app: &MailApp, scope: FolderScope, folder: Id| folder_rows(app, scope).0.iter().any(|row| row.id == folder);
+    let other_folder = app.session.mailbox.message(other).unwrap().folder;
+    for (selected, moved, copied, elsewhere_copied) in [
+        (vec![other], false, false, true),
+        (vec![owners], true, false, true),
+        (vec![owners, other], false, false, true),
+        (vec![archived], true, true, false),
+    ] {
+        app.session.sel.messages = selected.clone();
+        assert_eq!(offered(&app, FolderScope::EveryAccount, year), moved, "move {selected:?}");
+        assert_eq!(offered(&app, FolderScope::CopyTargets, year), copied, "copy {selected:?}");
+        assert_eq!(offered(&app, FolderScope::CopyTargets, other_folder), elsewhere_copied, "copy elsewhere {selected:?}");
+        // And the engine says the same of each.
+        let mb = &app.session.mailbox;
+        for id in &selected {
+            let m = mb.message(*id).unwrap();
+            assert_eq!(mb.copies_into(m, archive), m.account == archive);
+        }
+    }
+}

@@ -454,6 +454,14 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
                 }
                 return;
             }
+            // Its owner's, while the owner has it hidden: the way back (#1834 review).
+            if archive_hidden(&app.session.mailbox, id) {
+                if ui.add(egui::Button::new(tl!("Show Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
+                    let _ = app.run("account.archive.show", json!({"account": id}));
+                    ui.close();
+                }
+                ui.separator();
+            }
             if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
                 let _ = app.run("folder.properties", json!({"account": id}));
                 ui.close();
@@ -461,6 +469,12 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
         });
     }
     open
+}
+
+/// Whether `account` is an Exchange server account whose owner hid its online archive
+/// (`account.archive.hide`): its heading's menu offers Show Online Archive (#1834 review).
+pub(crate) fn archive_hidden(mb: &Mailbox, account: Id) -> bool {
+    mb.account(account).is_some_and(|a| !a.is_archive() && a.ews.as_ref().is_some_and(|e| e.archive_hidden))
 }
 
 /// An account being dragged up or down the folder pane by its heading (#702).
