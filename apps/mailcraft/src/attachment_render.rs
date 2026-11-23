@@ -84,10 +84,12 @@ fn executable(variable: &str, product: &str, tool: &str) -> Option<PathBuf> {
 }
 
 /// The helper `name` of `product` under one of the Program Files folders `roots`: where it is
-/// installed by hand (`<root>\<product>`), then where the ArtCraft Launcher installs it
-/// (`<root>\ArtCraft\<product>`, #1383).
+/// installed by hand (`<root>\<product>`) under any of them, then where the ArtCraft Launcher
+/// installs it (`<root>\ArtCraft\<product>`, #1383).
 fn installed_under(roots: &[PathBuf], product: &str, name: &str) -> Option<PathBuf> {
-    roots.iter().flat_map(|root| [root.join(product), root.join("ArtCraft").join(product)]).map(|dir| dir.join(name)).find_map(absolute_file)
+    let by_hand = roots.iter().map(|root| root.join(product));
+    let launcher = roots.iter().map(|root| root.join("ArtCraft").join(product));
+    by_hand.chain(launcher).map(|dir| dir.join(name)).find_map(absolute_file)
 }
 
 /// Canonicalize an absolute file path, requiring an .exe extension on Windows.

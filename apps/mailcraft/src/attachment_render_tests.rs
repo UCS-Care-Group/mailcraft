@@ -11,11 +11,12 @@ fn only_absolute_executables_are_considered() {
 }
 
 /// The ArtCraft Launcher puts the helpers in `Program Files\ArtCraft\<product>` (#1383); one
-/// installed by hand in `Program Files\<product>` is still found, and first.
+/// installed by hand in `Program Files\<product>` is still found, and first, also when it is
+/// under the second Program Files folder (a 32-bit build sees `Program Files (x86)` first).
 #[test]
 fn the_artcraft_launchers_folder_is_searched_after_the_one_installed_by_hand() {
-    let root = tempfile::tempdir().unwrap();
-    let roots = [root.path().to_path_buf()];
+    let (first, second) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let roots = [first.path().to_path_buf(), second.path().to_path_buf()];
     let place = |dir: PathBuf| {
         fs::create_dir_all(&dir).unwrap();
         let file = dir.join("pdfcraft-cli.exe");
@@ -23,9 +24,9 @@ fn the_artcraft_launchers_folder_is_searched_after_the_one_installed_by_hand() {
         file.canonicalize().unwrap()
     };
     assert_eq!(installed_under(&roots, "PdfCraft", "pdfcraft-cli.exe"), None);
-    let launcher = place(root.path().join("ArtCraft").join("PdfCraft"));
+    let launcher = place(first.path().join("ArtCraft").join("PdfCraft"));
     assert_eq!(installed_under(&roots, "PdfCraft", "pdfcraft-cli.exe"), Some(launcher));
-    let by_hand = place(root.path().join("PdfCraft"));
+    let by_hand = place(second.path().join("PdfCraft"));
     assert_eq!(installed_under(&roots, "PdfCraft", "pdfcraft-cli.exe"), Some(by_hand));
     assert_eq!(installed_under(&roots, "PhotoCraft", "photocraft-cli.exe"), None);
 }
