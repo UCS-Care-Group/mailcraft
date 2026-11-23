@@ -757,3 +757,56 @@ fn the_delta_refused_keeps_the_naming_for_the_read_afresh_it_earns() {
         "the read afresh asked the naming every page: {listing_with_tag} of {listing_asks}"
     );
 }
+
+/// Measured, 15:41: Kerio refuses the MAPI naming as a proper schema property, on a page
+/// riding a state and all. A reader that hands that code to the shape's lesson walks the
+/// listing down to the bare shape and starts asking a thousand messages for their
+/// recipients. The naming is the newest thing on the page and the first thing dropped;
+/// the shape keeps what it had, and the refusal teaches nothing else (#1784).
+#[test]
+fn a_naming_refused_as_a_schema_property_costs_the_naming_and_never_the_shape() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "First", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .find(|page| page.messages.iter().any(|m| m.subject == "First"))
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("a state to carry");
+    {
+        let mut s = standin.state();
+        s.refuses_extended_as_schema = true;
+        s.deliver("inbox", "Second", false);
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        list_folders: true,
+        states: vec![mailcraft_model::sync::EwsFolderState { folder, state }],
+        ..Default::default()
+    };
+    let before = standin.state().requests.len();
+    let cancel = AtomicBool::new(false);
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "the naming cost a page, not the mailbox: {:?}", piece.errors);
+    }
+    assert!(again.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Second"), "the mail came");
+    let state = standin.state();
+    let asked: Vec<&crate::standin::Asked> = state.requests.iter().skip(before).filter(|a| a.operation == "SyncFolderItems").collect();
+    let first = asked.first().expect("it was asked");
+    assert!(first.body.contains("ExtendedFieldURI"), "the refused asking carried the naming");
+    let after: Vec<&&crate::standin::Asked> = asked.iter().skip(1).collect();
+    assert!(after.iter().all(|a| !a.body.contains("ExtendedFieldURI")), "dropped, once, for the run");
+    assert!(
+        after.iter().any(|a| a.body.contains("item:Preview")),
+        "and the shape kept what it had: no preview lesson, no thousand asks: {}",
+        after.len()
+    );
+}

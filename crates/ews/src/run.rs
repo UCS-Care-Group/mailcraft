@@ -808,15 +808,20 @@ impl<E: HttpExchange> Run<'_, E> {
                 // drawn from its refusal, and the shape learns its own lesson on the re-ask
                 // that doesn't carry it — one refused page per run at the outside, and it
                 // saves a Kerio from a preview lesson it was never meant to teach.)
-                Err(
-                    Asked::Code(
-                        ResponseCode::InvalidPropertyRequest
-                        | ResponseCode::InvalidPropertyForOperation
-                        | ResponseCode::SchemaValidation
-                        | ResponseCode::Other(_),
-                    ),
-                ) if self.extended && !self.ids && state.is_empty() =>
+                Err(Asked::Code(ResponseCode::InvalidPropertyRequest | ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation))
+                    if self.extended && !self.ids =>
                 {
+                    self.extended = false;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");
+                    }
+                    continue;
+                }
+                // (A refusal in SOAP's own words, from a page asked from nothing, is the
+                // naming's too — the guard on the state is what separates it from the lost
+                // state the afresh answer below is for (#1784, the review).)
+                Err(Asked::Code(ResponseCode::Other(_))) if self.extended && !self.ids && state.is_empty() => {
                     self.extended = false;
                     if !self.extended_said {
                         self.extended_said = true;

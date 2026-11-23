@@ -212,6 +212,9 @@ pub struct State {
     /// Every `SyncFolderItems` naming the read state as an extended property is refused with
     /// the same bare fault — a server that won't be asked MAPI's way.
     pub refuses_extended: bool,
+    /// …or with a proper schema refusal, which is how Kerio was measured answering it: the
+    /// refusal must be read as a refusal of the naming, never of the shape it rode in on.
+    pub refuses_extended_as_schema: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -328,6 +331,7 @@ impl Default for State {
             refuses_ids_barely: false,
             refuses_delta_barely: false,
             refuses_extended: false,
+            refuses_extended_as_schema: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,

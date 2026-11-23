@@ -643,6 +643,15 @@ impl State {
         if self.refuses_extended && extra.iter().any(|e| e == "ext:0E67") {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }
+        if self.refuses_extended_as_schema && extra.iter().any(|e| e == "ext:0E67") {
+            // …and one that refuses it the way Kerio was measured to: a proper per-message
+            // schema refusal, `ErrorInvalidPropertyRequest`, detail and response code and all.
+            return Ok((
+                200,
+                "ErrorInvalidPropertyRequest".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
+            ));
+        }
         if self.refuses_ids_barely && base == "IdOnly" {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }
