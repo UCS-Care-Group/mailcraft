@@ -178,3 +178,52 @@ fn restoring_the_default_oauth_settings_lets_go_of_the_sign_in_for_the_other_cli
     a.execute("account.oauthRestoreDefaults", json!({"id": id})).unwrap();
     assert!(a.tokens.get(&id).is_none_or(|t| t.refresh.is_empty()), "the refresh token for the other client is still held");
 }
+
+/// A client secret typed while setting up an account goes to it only when it was typed for the
+/// settings the account has: one typed for a provider given up on since goes nowhere (#1844
+/// review).
+#[test]
+fn a_setup_secret_typed_for_other_settings_is_not_adopted() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let id = own_account(&mut a);
+    let mut other = a.session.mailbox.account(id).unwrap().oauth.clone().unwrap();
+    other.token = "https://elsewhere.example.org/token".into();
+    a.set_setup_client_secret(&other, SECRET);
+    let tokens = mailcraft_model::sync::Tokens { access: "access".into(), refresh: "refresh".into(), expires_at: NOW + 3_600, ..Default::default() };
+    a.adopt_tokens(id, tokens.clone());
+    assert_eq!(a.client_secret_of(id), "");
+    assert!(!a.client_secrets.contains_key(&0), "the setup secret is let go of either way");
+    assert!(store.get(&MailApp::secret_key(OAUTH_CLIENT, a.session.mailbox.account(id).unwrap())).is_none());
+    // Typed for the settings it has: it is the account's.
+    let own = a.session.mailbox.account(id).unwrap().oauth.clone().unwrap();
+    a.set_setup_client_secret(&own, SECRET);
+    a.adopt_tokens(id, tokens);
+    assert_eq!(a.client_secret_of(id), SECRET);
+}
+
+/// A renewal after a refused token that the owner calls off lets go of its mark, so that the next
+/// run may renew again: the answer that would have cleared it is never read (#1844 review).
+#[test]
+fn a_cancelled_renewal_after_a_refused_token_may_be_tried_again() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let id = own_account(&mut a);
+    let (_kept, rx) = std::sync::mpsc::channel();
+    a.signing_in = Some(crate::SigningIn {
+        graph: false,
+        favorites: false,
+        quiet: true,
+        account: id,
+        snapshot: a.session.mailbox.account(id).cloned(),
+        shared: None,
+        sync: false,
+        browser: true,
+        opening: a.session.openings(),
+        rx,
+        cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    });
+    a.token_retried = Some(id);
+    a.execute("ui.cancelSignIn", json!({})).unwrap();
+    assert_eq!(a.token_retried, None);
+}

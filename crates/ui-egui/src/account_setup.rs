@@ -1200,6 +1200,8 @@ impl AccountSetup {
             (Page::Password, Action::OwnProvider) => {
                 let offered = self.own.offered.clone();
                 self.choose_own_provider(&offered);
+                // (A client secret typed for another provider before is not this one's, #1844 review.)
+                app.client_secrets.remove(&0);
             }
             (Page::Password, Action::PasswordInstead) => {
                 self.oauth = None;

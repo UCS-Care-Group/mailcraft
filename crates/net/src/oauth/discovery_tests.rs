@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Finding an identity provider's addresses from its issuer, against synthetic documents.
 
+use std::time::Duration;
+
 use proptest::prelude::*;
 
 use mailcraft_model::ClientAuth;
 
-use super::discovery::{absolute, addresses, client_auth_of, discover, may_redirect, read};
+use super::discovery::{absolute, addresses, ask_public, client_auth_of, discover, may_redirect, next_hop, read};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -282,4 +284,43 @@ fn a_redirect_from_the_network_to_this_computer_a_private_network_or_http_is_not
     assert!(may_redirect(&from, &url("https://login.example.net/.well-known/openid-configuration")));
     let local = url("http://127.0.0.1:9000/realms/mail");
     assert!(may_redirect(&local, &url("http://localhost:9001/x")) && may_redirect(&local, &url("https://id.example.org/x")));
+}
+
+/// A redirect's address is checked as the issuer's is: outside a test, an `https://` provider on
+/// this computer can't send discovery on to plain `http://` there either (#1844 review).
+#[test]
+fn a_redirect_target_is_checked_as_the_issuer_is() {
+    let url = |text: &str| crate::http::Url::parse(text).unwrap();
+    let first = url("https://127.0.0.1:8443/realms/mail/.well-known/openid-configuration");
+    assert!(matches!(next_hop(&first, &first, "http://127.0.0.1:8080/doc", false), Err(NetError::Config(_))));
+    assert!(next_hop(&first, &first, "http://127.0.0.1:8080/doc", true).is_ok(), "a test's");
+    assert!(next_hop(&first, &first, "https://127.0.0.1:8443/doc", false).is_ok());
+    let public = url("https://id.example.org/.well-known/openid-configuration");
+    assert!(next_hop(&public, &public, "https://10.1.2.3/doc", true).is_err());
+    assert_eq!(next_hop(&public, &public, "/moved", false).unwrap().path, "/moved");
+}
+
+/// An address only a redirect names is asked the way a picture is: its name is looked up here, and
+/// one that leads to this computer or a private network is never connected to (#1844 review).
+#[test]
+fn an_address_a_redirect_names_is_asked_only_on_the_public_internet() {
+    let url = |text: &str| crate::http::Url::parse(text).unwrap();
+    let server = FakeHttp::start(|_, _| json_answer("200 OK", "{}"));
+    let at: std::net::SocketAddr = format!("127.0.0.1:{}", server.port).parse().unwrap();
+    // A name that leads to a private address, or to this computer, is refused before anything is sent.
+    let private = |_: &str, _: u16, _: Duration, _: &crate::pictures::Cancel| vec![std::net::SocketAddr::from(([10, 1, 2, 3], 443))];
+    let reach = crate::pictures::Reach { lookup: &private, stand_ins: &[], dial: None };
+    assert!(matches!(ask_public(&url("https://metadata.example.org/doc"), &reach), Err(NetError::Config(_))));
+    let here = move |_: &str, _: u16, _: Duration, _: &crate::pictures::Cancel| vec![at];
+    let reach = crate::pictures::Reach { lookup: &here, stand_ins: &[], dial: None };
+    assert!(ask_public(&url("https://intranet.example.org/doc"), &reach).is_err());
+    assert_eq!(server.asked(), 0);
+    // One on the public internet (a stand-in for it here) is asked, and nothing of the owner goes along.
+    let allowed = [at];
+    let reach = crate::pictures::Reach { lookup: &here, stand_ins: &allowed, dial: None };
+    let got = ask_public(&url(&server.url("/realms/mail/doc")), &reach).unwrap();
+    assert_eq!((got.status, got.body.as_slice()), (200, b"{}".as_slice()));
+    let request = server.request(0);
+    assert!(request.starts_with("GET /realms/mail/doc HTTP/1.1"), "{request}");
+    assert!(!request.to_ascii_lowercase().contains("cookie") && !request.contains('@'), "{request}");
 }

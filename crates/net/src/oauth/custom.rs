@@ -214,7 +214,7 @@ pub(super) fn provider_url_when(text: &str, plaintext: bool) -> Result<Url, NetE
 /// [`Url::parse`] already holds): in this crate's own tests, and in the tests of the crates on it
 /// that ask for it on their thread (`graph::standin::allow_loopback_tokens`, built with the
 /// `stand-in` feature alone).
-fn plaintext_allowed() -> bool {
+pub(super) fn plaintext_allowed() -> bool {
     #[cfg(any(test, feature = "stand-in"))]
     if crate::graph::standin::loopback_tokens_allowed() {
         return true;

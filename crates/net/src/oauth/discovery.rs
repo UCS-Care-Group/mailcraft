@@ -8,8 +8,9 @@
 //! HTTPS alone (an `http://` address only on this computer, and only in tests:
 //! `custom::provider_url`), following at most [`MAX_REDIRECTS`] redirects, each to an address
 //! that is checked as the first was and that never leads from a provider on the network to this
-//! computer, a private network or plain `http` ([`may_redirect`]); the answer is capped by the
-//! HTTP layer.
+//! computer, a private network or plain `http` ([`may_redirect`]); an address on another server
+//! is asked the way a picture is, its name looked up and every address of it public, and the
+//! connection made to an address that was checked ([`fetch_with`]). The answer is capped.
 //!
 //! The document is hostile. It must name the issuer that was asked for, byte for byte (RFC 8414
 //! §3.3, OpenID Connect Discovery §4.3): a document that names another is refused, so that one
@@ -18,13 +19,14 @@
 //! ([`mailcraft_model::oauth::endpoint`]). A provider that says which PKCE methods it takes and
 //! doesn't list `S256` is refused: `plain` is never sent.
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mailcraft_model::ClientAuth;
 use serde_json::Value;
 
 use crate::NetError;
 use crate::http::{self, Url};
+use crate::pictures::{self, Limits, PictureError, Reach, Sent};
 
 /// How long fetching one document may take.
 const PATIENCE: Duration = Duration::from_secs(10);
@@ -115,32 +117,88 @@ pub(crate) fn addresses(issuer: &str) -> Vec<String> {
     out
 }
 
+/// What one request for a description brought back.
+pub(super) struct Got {
+    pub(super) status: u16,
+    pub(super) body: Vec<u8>,
+    /// Where a redirect leads, as the server wrote it.
+    pub(super) location: Option<String>,
+}
+
+/// Why a redirect isn't followed.
+const ELSEWHERE: &str = "the identity provider sent its description on to an address on this computer, a private network or without https";
+
 /// The body at `address`, following redirects to addresses that are checked as it was.
 /// `Ok(None)` when there is nothing there (a status other than 200 and a redirect).
 fn fetch(address: &str) -> Result<Option<Vec<u8>>, NetError> {
+    fetch_with(address, &Reach::web())
+}
+
+/// [`fetch`], with where names lead and connections may go said.
+///
+/// The issuer the owner typed is asked as it is, wherever it is (an organisation's own provider
+/// may be on its own network), and so is another address on the same server. An address on
+/// another server, which only the provider's redirect names, is asked the way a picture is: its
+/// name is looked up here, every address it has must be on the public internet, and the
+/// connection goes to an address that was checked (`pictures::ask_with`), so that a redirect
+/// never reaches this computer or a private network, by its address or by its name (#1844
+/// review). An issuer on this computer (a test's) may lead anywhere [`may_redirect`] lets it.
+pub(super) fn fetch_with(address: &str, reach: &Reach<'_>) -> Result<Option<Vec<u8>>, NetError> {
     let mut url = super::custom::provider_url(address)?;
     let first = url.clone();
     for _ in 0..=MAX_REDIRECTS {
-        let request =
-            http::Request { method: "GET", headers: &[("Accept", "application/json")], body: None, patience: PATIENCE, max_body: http::MAX_BODY };
-        let answer = http::request(&url, &request)?;
-        match answer.status {
-            200 => return Ok(Some(answer.body)),
+        let got = if crate::transport::is_loopback(&first.host) || url.same_server(&first) { ask(&url)? } else { ask_public(&url, reach)? };
+        match got.status {
+            200 => return Ok(Some(got.body)),
             301 | 302 | 303 | 307 | 308 => {
-                let Some(next) = answer.location.as_deref().map(|to| absolute(&url, to)) else { return Ok(None) };
-                // (`Url::parse` refuses `http://` anywhere but on this computer.)
-                let next = Url::parse(&next)?;
-                if !may_redirect(&first, &next) {
-                    return Err(NetError::Config(
-                        "the identity provider sent its description on to an address on this computer, a private network or without https".into(),
-                    ));
-                }
-                url = next;
+                let Some(location) = got.location else { return Ok(None) };
+                url = next_hop(&first, &url, &location, super::custom::plaintext_allowed())?;
             }
             _ => return Ok(None),
         }
     }
     Err(NetError::Config("the identity provider sent its description on through too many redirects".into()))
+}
+
+/// Where a redirect from `url` to `location` leads, met fetching the description of the issuer at
+/// `first`: checked as the issuer was (`https://` alone, unless `plaintext` and on this computer:
+/// `custom::provider_url`), and by [`may_redirect`] (#1844 review).
+pub(super) fn next_hop(first: &Url, url: &Url, location: &str, plaintext: bool) -> Result<Url, NetError> {
+    let next = super::custom::provider_url_when(&absolute(url, location), plaintext)?;
+    if !may_redirect(first, &next) {
+        return Err(NetError::Config(ELSEWHERE.into()));
+    }
+    Ok(next)
+}
+
+/// One request for a description, as the HTTP layer makes it.
+fn ask(url: &Url) -> Result<Got, NetError> {
+    let request =
+        http::Request { method: "GET", headers: &[("Accept", "application/json")], body: None, patience: PATIENCE, max_body: http::MAX_BODY };
+    let answer = http::request(url, &request)?;
+    Ok(Got { status: answer.status, body: answer.body, location: answer.location })
+}
+
+/// One request for a description at an address a redirect named, to the public internet alone.
+pub(super) fn ask_public(url: &Url, reach: &Reach<'_>) -> Result<Got, NetError> {
+    let limits = Limits { max_bytes: http::MAX_BODY, patience: PATIENCE, ..Limits::default() };
+    let deadline = Instant::now() + PATIENCE;
+    let sent = Sent { accept: "application/json", extra: "" };
+    let answer = pictures::ask_with(url, reach, &limits, http::MAX_BODY, deadline, None, &sent, &pictures::Cancel::new()).map_err(refused)?;
+    let body = match &answer.said.coding {
+        Some(coding) => pictures::unpack(answer.body, coding, http::MAX_BODY).map_err(refused)?,
+        None => answer.body,
+    };
+    Ok(Got { status: answer.status, body, location: answer.said.location })
+}
+
+/// What went wrong asking at an address a redirect named, as discovery says it.
+fn refused(error: PictureError) -> NetError {
+    match error {
+        PictureError::NotPublic | PictureError::Address => NetError::Config(ELSEWHERE.into()),
+        PictureError::Net(error) => error,
+        other => NetError::Config(format!("the identity provider's description couldn't be fetched: {other}").into()),
+    }
 }
 
 /// Whether a redirect met fetching the description of the issuer at `first` may be followed to

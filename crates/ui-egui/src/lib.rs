@@ -3211,6 +3211,11 @@ impl MailApp {
                 Some(s) => {
                     s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                     self.session.sync_status = tl!("Sign-in cancelled").to_string();
+                    // A renewal after a refused token that was called off: the next run may try
+                    // again (its answer, which would have said so, is never read now, #1844 review).
+                    if self.token_retried == Some(s.account) {
+                        self.token_retried = None;
+                    }
                     // The one page for an older sign-in: what waited for it takes it as a no (not
                     // put again by itself), and a shared mailbox being added is taken off again
                     // with the reason, not left checking.
@@ -3307,6 +3312,9 @@ impl MailApp {
         {
             pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             self.session.sync_status.clear();
+            if self.token_retried == Some(account) {
+                self.token_retried = None;
+            }
         }
     }
 
@@ -3894,8 +3902,19 @@ impl MailApp {
         if self.signed_in_as_other(account, &tokens) {
             return;
         }
-        // The client secret typed while it was set up is the account's now.
-        if let Some((_, secret)) = self.client_secrets.remove(&0) {
+        // The client secret typed while it was set up is the account's now, if it was typed for
+        // the settings the account has: one typed for other settings (a provider given up on
+        // since) goes nowhere (#1844 review).
+        let settings = self
+            .session
+            .mailbox
+            .account(account)
+            .and_then(|a| a.oauth.as_ref())
+            .filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom)
+            .map(mailcraft_model::OAuth::binding);
+        if let Some((bound, secret)) = self.client_secrets.remove(&0)
+            && settings.is_some_and(|settings| settings == bound)
+        {
             self.set_client_secret(account, &secret);
         }
         self.remember("refresh", account, &tokens.refresh);
