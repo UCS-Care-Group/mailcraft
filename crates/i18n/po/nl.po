@@ -17771,6 +17771,12 @@ msgstr "De server heeft {total} mappen: één run leest de eerste {max} en laat 
 msgid "The server is busy. Try again in a few minutes."
 msgstr "De server is bezig. Probeer het over een paar minuten opnieuw."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "De server heeft het onlinearchief niet meer: wijzigingen erin die de server nog niet hadden bereikt, zijn verloren"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy

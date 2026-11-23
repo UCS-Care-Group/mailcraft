@@ -18330,6 +18330,12 @@ msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，�
 msgid "The server is busy. Try again in a few minutes."
 msgstr "服务器繁忙。请几分钟后重试。"
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "服务器上已没有在线存档：其中尚未到达服务器的更改已丢失"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy

@@ -17251,6 +17251,12 @@ msgstr "Der Server hat {total} Ordner: Ein Durchlauf liest die ersten {max} und 
 msgid "The server is busy. Try again in a few minutes."
 msgstr "Der Server ist ausgelastet. Versuchen Sie es in einigen Minuten erneut."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "Der Server hat das Onlinearchiv nicht mehr: Änderungen darin, die den Server noch nicht erreicht hatten, gehen verloren"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy

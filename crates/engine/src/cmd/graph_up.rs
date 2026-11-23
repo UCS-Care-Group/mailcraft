@@ -391,7 +391,7 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                 }
             }
             if forget {
-                let _ = mb.forget_message(*message);
+                let _ = mb.forget_message_moved_away(*message);
             }
             true
         }

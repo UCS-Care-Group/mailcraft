@@ -1085,6 +1085,69 @@ fn hiding_waits_for_the_archives_changes_to_go_up() {
     assert!(s.mailbox.archive_of(account).is_none());
 }
 
+/// A to-do made from a message moved into the archive, which the server moves without saying its
+/// new id, keeps its message: the copy the archive's next read brings, found by its Internet
+/// Message-ID, is linked to it again (#1834 review).
+#[test]
+fn a_todo_keeps_its_message_moved_into_the_archive() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let task = s.mailbox.add_task(mailcraft_model::Task { title: "Kickoff".into(), message: Some(m), ..Default::default() });
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    // The move goes up from the archive's run; the server says no new id.
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(archive) }).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "no copy with the old id is kept");
+    // The archive's read brings it under its new id: the to-do is its again.
+    let mut moved = mail("AM1", "Kickoff", 1_700_000_000);
+    moved.message_id = "M1@example.org".into();
+    read(&mut s, archive, page("A1", vec![moved], true, true), "AS1");
+    let copy = here(&s, archive, "AM1").unwrap().id;
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, Some(copy));
+    assert!(s.mailbox.tasks_awaiting_message.is_empty());
+}
+
+/// The server says twice there is no archive: it goes all the same (its changes have nowhere to
+/// go), and a change made in it that hadn't gone up is said to be lost, once (#1834 review).
+#[test]
+fn an_archive_the_server_no_longer_has_goes_saying_what_is_lost() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let gone = |s: &mut Session| apply_ews_mail(s, EwsMailResult { archive: Some(ArchiveSeen::Absent), partial: false, ..piece(account) }).unwrap();
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_some(), "one answer isn't enough");
+    assert!(!said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_none(), "it goes");
+    assert!(said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+    // An archive with nothing waiting goes without a word.
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    gone(&mut s);
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_none());
+    assert!(!said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+}
+
 #[test]
 fn the_archive_commands_take_only_an_exchange_server_account() {
     let (mut s, _) = session();

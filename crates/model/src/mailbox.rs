@@ -1377,6 +1377,12 @@ pub struct Mailbox {
     /// What dates [`Mailbox::categories_found`]: it goes up with each name found.
     #[serde(skip)]
     pub category_stamp: u64,
+    /// The to-dos whose message was moved into another mailbox of the owner's whose server gave
+    /// it no new id (between a mailbox and its online archive, #1834 review), by the message's
+    /// Internet Message-ID: the copy a later read brings is linked to them again
+    /// ([`Mailbox::forget_message_moved_away`]). Not in the file.
+    #[serde(skip)]
+    pub tasks_awaiting_message: BTreeMap<String, Vec<Id>>,
     /// The renames of each Microsoft account's list of categories that its server hasn't the new
     /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
     /// When the server won't make the new name, its old one is kept there; any other deletion
@@ -1469,6 +1475,7 @@ impl Default for Mailbox {
             category_renames: BTreeMap::new(),
             category_sweeps: BTreeMap::new(),
             category_stamp: 0,
+            tasks_awaiting_message: BTreeMap::new(),
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
@@ -1495,6 +1502,9 @@ pub const INTO_ARCHIVE: &str = "Mail goes into an online archive only from its o
 /// Why a copy doesn't go into an online archive from elsewhere (#1818): the server makes no copy
 /// there, and nothing of the archive is kept on this computer.
 pub const COPY_INTO_ARCHIVE: &str = "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox";
+
+/// Most messages whose to-dos wait for their copy at once ([`Mailbox::tasks_awaiting_message`]).
+const MAX_TASKS_AWAITING: usize = 10_000;
 
 /// Why mail in an online archive isn't copied out of it (#1834 review): the server makes the copy
 /// in another mailbox without saying where, and it would come twice.
@@ -2411,7 +2421,14 @@ impl Mailbox {
         self.next_id = self.next_id.max(m.id.saturating_add(1));
         self.take_pending_follow_up(&mut m);
         let id = m.id;
+        // (A to-do whose message went into another mailbox comes back to its copy, #1834 review.)
+        let waiting = if m.message_id.is_empty() { None } else { self.tasks_awaiting_message.remove(&m.message_id) };
         self.messages.insert(id, Arc::new(m));
+        for task in waiting.into_iter().flatten() {
+            if let Some(t) = self.tasks.get_mut(&task).filter(|t| t.message.is_none()) {
+                Arc::make_mut(t).message = Some(id);
+            }
+        }
         Ok(id)
     }
 
@@ -3190,6 +3207,19 @@ impl Mailbox {
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the
     /// server no longer has. A move still waiting for the message is forgotten with it.
+    /// [`Mailbox::forget_message`] for a message moved into another mailbox of the owner's whose
+    /// server gave it no new id (#1834 review): the to-dos linked to it are linked again to the
+    /// copy a later read brings, found by its Internet Message-ID
+    /// ([`Mailbox::tasks_awaiting_message`]).
+    pub fn forget_message_moved_away(&mut self, id: Id) -> Result<Message, ModelError> {
+        let tasks: Vec<Id> = self.tasks.values().filter(|t| t.message == Some(id)).map(|t| t.id).collect();
+        let m = self.forget_message(id)?;
+        if !tasks.is_empty() && !m.message_id.is_empty() && self.tasks_awaiting_message.len() < MAX_TASKS_AWAITING {
+            self.tasks_awaiting_message.entry(m.message_id.clone()).or_default().extend(tasks);
+        }
+        Ok(m)
+    }
+
     pub fn forget_message(&mut self, id: Id) -> Result<Message, ModelError> {
         let m = self.messages.remove(&id).ok_or(not_found("message", id))?;
         for t in self.tasks.values_mut().filter(|t| t.message == Some(id)) {

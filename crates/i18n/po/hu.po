@@ -18334,6 +18334,12 @@ msgstr "A szerverben {total} mappa vannak: az egyik fut az első {max}-t olvassa
 msgid "The server is busy. Try again in a few minutes."
 msgstr "A szerver elfoglalt. Próbálja újra néhány perc múlva."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "A kiszolgálón már nincs online archívum: a benne végzett, a kiszolgálóra még el nem jutott módosítások elvesztek"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy

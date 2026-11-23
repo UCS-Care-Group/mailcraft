@@ -15214,6 +15214,11 @@ msgstr ""
 msgid "The server is busy. Try again in a few minutes."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The server of {account} sends the {n} person invited the invitation by mail."

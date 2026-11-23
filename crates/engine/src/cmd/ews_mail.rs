@@ -453,6 +453,14 @@ fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
             log::info!("ews: the mailbox has an online archive; it is shown");
         }
         (ArchiveSeen::Absent, Some(archive)) if absent >= 2 => {
+            // (Changes made in it that hadn't gone up have nowhere to go now: said once, #1834
+            // review.)
+            if super::account::archive_changes_wait(s, archive) {
+                let lang = s.interface_language;
+                s.graph_said.push(
+                    lang.t("The server no longer has the online archive: changes made in it that hadn't reached the server are lost").to_string(),
+                );
+            }
             changed |= s.mailbox.remove_archive(archive).is_ok();
             log::info!("ews: the server says the mailbox has no online archive; it is no longer shown");
         }

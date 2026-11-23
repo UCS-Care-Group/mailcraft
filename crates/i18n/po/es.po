@@ -18340,6 +18340,12 @@ msgstr "El servidor tiene {total} carpetas: una ejecución lee las primeras {max
 msgid "The server is busy. Try again in a few minutes."
 msgstr "El servidor está ocupado. Inténtelo de nuevo en unos minutos."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "El servidor ya no tiene el archivo en línea: los cambios hechos en él que no habían llegado al servidor se pierden"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
