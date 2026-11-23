@@ -4072,8 +4072,9 @@ msgstr "Přihlášení přes Google nešlo otevřít"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "Nepodařilo se zjistit od serveru, které složky patří jiným lidem"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

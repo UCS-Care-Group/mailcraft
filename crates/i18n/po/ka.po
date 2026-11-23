@@ -4065,8 +4065,9 @@ msgstr "Google-ით შესვლის გახსნა ვერ მო�
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "ვერ მოხერხდა სერვერისთვის კითხვა, რომელი საქაღალდეებია სხვა ადამიანების"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

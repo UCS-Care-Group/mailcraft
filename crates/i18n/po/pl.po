@@ -4082,8 +4082,9 @@ msgstr "Nie udało się otworzyć logowania Google"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "Nie udało się zapytać serwera, które foldery należą do innych osób"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

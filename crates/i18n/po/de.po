@@ -3870,8 +3870,9 @@ msgstr "Google-Anmeldung konnte nicht geöffnet werden"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "Der Server konnte nicht gefragt werden, welche Ordner anderen Personen gehören"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

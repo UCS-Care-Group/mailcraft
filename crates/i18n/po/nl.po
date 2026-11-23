@@ -3932,8 +3932,9 @@ msgstr "Kan de aanmelding met Google niet openen"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "Kon de server niet vragen welke mappen van andere mensen zijn"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

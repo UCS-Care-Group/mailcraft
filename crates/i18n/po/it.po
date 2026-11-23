@@ -4071,8 +4071,9 @@ msgstr "Impossibile aprire la pagina di accesso Google"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "Impossibile chiedere al server quali cartelle appartengono ad altre persone"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs

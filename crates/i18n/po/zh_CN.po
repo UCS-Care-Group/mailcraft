@@ -4076,8 +4076,9 @@ msgstr "无法打开 Google 登录"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
+#, fuzzy
 msgid "Couldn't ask the server which folders are other people's"
-msgstr ""
+msgstr "无法向服务器查询哪些文件夹属于其他人"
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
