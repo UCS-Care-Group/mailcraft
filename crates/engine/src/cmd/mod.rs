@@ -31,7 +31,11 @@ pub mod category;
 mod category_sweep_tests;
 #[cfg(test)]
 mod category_tests;
+#[cfg(test)]
+mod clock_choice_tests;
 pub mod compose;
+#[cfg(test)]
+mod compose_send_counts_tests;
 #[cfg(test)]
 mod compose_trust_tests;
 #[cfg(test)]

@@ -470,7 +470,7 @@ pub enum Action {
 /// A word or a name of a rule in its description, in double quotes, with a quote or a backslash in
 /// it escaped: one that holds `x" or from contains "boss` reads as that text, never as the end of
 /// the word and another part of the rule (#566).
-fn said(t: &str) -> String {
+pub fn said(t: &str) -> String {
     format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
