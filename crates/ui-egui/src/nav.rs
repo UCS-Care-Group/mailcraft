@@ -1116,7 +1116,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 }
             };
             // Every account's Inbox (Drafts, Sent Items…) together, at the top, for an owner with two
-            // accounts at least (#625): each kind that one of them has.
+            // accounts at least, a shared mailbox counting as one (#625): each kind that one of them has.
             if mailcraft_engine::unified::offered(&app.session.mailbox) && head(app, ui, ALL_ACCOUNTS, tl!("All Accounts")) {
                 for kind in mailcraft_engine::unified::KINDS {
                     let folders = mailcraft_engine::unified::folders(&app.session.mailbox, kind);

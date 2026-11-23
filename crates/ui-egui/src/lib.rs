@@ -312,6 +312,8 @@ mod theme_choice_tests;
 mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
+mod unified_restore_tests;
+#[cfg(test)]
 mod update_switches_tests;
 pub mod updates;
 mod view_source;
@@ -2202,6 +2204,8 @@ impl MailApp {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
+        // All Accounts only while it is what the list shows (#625).
+        ui.view.unified = mailcraft_engine::unified::of(&self.session);
         ui.task_account_address = self.choice_address(ui.view.task_account);
         ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
@@ -2269,6 +2273,14 @@ impl MailApp {
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
+        // All Accounts open at quit opens again (#625), where this mailbox still has two mailboxes
+        // to put together and a folder of that kind; else the usual folder.
+        if let Some(kind) = saved.unified.filter(|k| mailcraft_engine::unified::KINDS.contains(k))
+            && mailcraft_engine::unified::offered(mailbox)
+            && let Some(anchor) = mailcraft_engine::unified::anchor(mailbox, kind)
+        {
+            (v.folder, v.unified) = (anchor, Some(kind));
+        }
     }
 
     /// Whether a command exists and is enabled.

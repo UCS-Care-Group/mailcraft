@@ -12,15 +12,16 @@ use crate::Session;
 /// The kinds of folder All Accounts offers, in the order the folder pane lists them.
 pub const KINDS: [FolderKind; 5] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted, FolderKind::Archive];
 
-/// The folders of `kind` the list shows: each of the owner's own accounts' top-level one, in the
-/// folder pane's order. A shared mailbox is someone else's mail and stays out.
+/// The folders of `kind` the list shows: each account's top-level one, shared mailboxes' too, in
+/// the folder pane's order.
 pub fn folders(mb: &Mailbox, kind: FolderKind) -> Vec<Id> {
-    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).filter_map(|a| mb.folder_of_kind(a.id, kind)).collect()
+    mb.accounts_in_order().into_iter().filter_map(|a| mb.folder_of_kind(a.id, kind)).collect()
 }
 
-/// Whether the folder pane offers All Accounts: the owner has two accounts of their own at least.
+/// Whether the folder pane offers All Accounts: two mailboxes at least (accounts, or an account
+/// and a shared mailbox).
 pub fn offered(mb: &Mailbox) -> bool {
-    mb.accounts.iter().filter(|a| !a.is_shared()).take(2).count() == 2
+    mb.accounts.len() >= 2
 }
 
 /// The kind of folder the list shows of every account, when it shows one: while the folder in
@@ -38,6 +39,6 @@ pub fn in_view(s: &Session) -> Option<Vec<Id>> {
 
 /// The folder that stands in view for every account's of `kind` ([`of`]): the default account's,
 /// else the first that has one.
-pub(crate) fn anchor(mb: &Mailbox, kind: FolderKind) -> Option<Id> {
-    mb.default_account().filter(|a| !a.is_shared()).and_then(|a| mb.folder_of_kind(a.id, kind)).or_else(|| folders(mb, kind).first().copied())
+pub fn anchor(mb: &Mailbox, kind: FolderKind) -> Option<Id> {
+    mb.default_account().and_then(|a| mb.folder_of_kind(a.id, kind)).or_else(|| folders(mb, kind).first().copied())
 }

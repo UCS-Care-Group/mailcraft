@@ -34,7 +34,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.allAccounts", "All Accounts", "Folder Pane", all_accounts)
             .reads()
             .when(two_accounts)
-            .params(r#"{"kind"?: "inbox"|"drafts"|"sent"|"deleted"|"archive" (default inbox)} — lists every account's folder of that kind together, newest first, each message in its own account (#625): what is done to one (read, flag, move, delete, reply) is done in that account, as from its own folder. Shared mailboxes stay out. Opening one account's folder (folder.select) leaves it. Answers {"kind", "folders": [id] (the accounts' folders it lists), "messages": n, "unread": n}"#),
+            .params(r#"{"kind"?: "inbox"|"drafts"|"sent"|"deleted"|"archive" (default inbox)} — lists every account's folder of that kind together, newest first, each message in its own account (#625): what is done to one (read, flag, move, delete, reply) is done in that account, as from its own folder. Shared mailboxes are listed with the accounts. The window opens on it again at the next start when it was open at quit. Opening one account's folder (folder.select) leaves it. Answers {"kind", "folders": [id] (the accounts' folders it lists), "messages": n, "unread": n}"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
         CommandSpec::new("view.navigationBar", "Navigation Bar", "View › Layout", navigation_bar)
             .reads()

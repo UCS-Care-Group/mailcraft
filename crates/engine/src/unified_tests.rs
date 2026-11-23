@@ -165,12 +165,18 @@ fn other_kinds_and_refusals() {
     assert!(!crate::unified::offered(&one.mailbox));
 }
 
+/// A shared mailbox's folder is listed with the owner's own (Martin's call): its mail is mail the
+/// owner works through too. Each message still acts in its own mailbox.
 #[test]
-fn a_shared_mailbox_stays_out() {
+fn a_shared_mailbox_is_listed_too() {
     let (mut s, a, b) = two();
     let shared = s.mailbox.accounts.iter().position(|x| x.id == b).unwrap();
     s.mailbox.accounts[shared].shared_of = Some(a);
-    assert_eq!(crate::unified::folders(&s.mailbox, FolderKind::Inbox), vec![inbox(&s, a)]);
+    assert_eq!(crate::unified::folders(&s.mailbox, FolderKind::Inbox), vec![inbox(&s, a), inbox(&s, b)]);
+    // One account of the owner's and a shared mailbox are two mailboxes to put together.
+    assert!(crate::unified::offered(&s.mailbox));
+    s.run("view.allAccounts", &json!({})).unwrap();
+    assert_eq!(subjects(&mut s), ["B new", "A new", "B old", "A old"]);
 }
 
 #[test]
