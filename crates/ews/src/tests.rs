@@ -192,7 +192,8 @@ fn a_folder_id_that_is_not_an_id_is_not_taken() {
     assert!(FolderId::new("AAMk+Tk/Zm9=").is_some());
     assert!(FolderId::new("").is_none());
     assert!(FolderId::new("a\u{1}b").is_none(), "no control character");
-    assert!(FolderId::new("a b<c>&\"d").is_some(), "an id is opaque: any other character does");
+    assert!(FolderId::new("a b<c>\"d").is_none(), "markup and spaces are a leaking template, not an id (#1784)");
+    assert!(FolderId::new("a&A=\"b\"/c+_-.=1").is_some(), "the escaped attribute characters are opaque and do");
     assert!(FolderId::new(&"a".repeat(2_000)).is_none());
 }
 
@@ -204,7 +205,8 @@ fn hostile_answers_are_errors_never_panics() {
         (Hostile::NotXml, Error::Malformed),
         (Hostile::Deep, Error::Malformed),
         (Hostile::Huge, Error::TooLarge),
-        (Hostile::Fault, Error::Server(ResponseCode::Other(String::new()))),
+        // A SOAP fault with no `detail` still names itself by its `faultcode` (#1784).
+        (Hostile::Fault, Error::Server(ResponseCode::Other("Server".into()))),
         (Hostile::TooFew, Error::Unexpected),
     ] {
         let standin = StandIn::new();

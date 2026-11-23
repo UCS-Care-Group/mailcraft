@@ -35,9 +35,13 @@ fn an_item_that_lacks_what_is_not_essential_is_read_with_nothing_said() {
     let one = &got.messages[0];
     assert_eq!((one.server.id.as_str(), one.server.read, one.server.categories.len(), one.subject.as_str()), ("ID1", false, 0, ""));
     assert!(one.preview.is_empty() && one.to.is_empty() && one.received == 0);
-    // An id with any character but a control one is an id (the server's, and opaque).
-    let odd = page(&format!("<t:Create>{}</t:Create>", bare("a b&lt;c&gt;/+=-_")), 10).unwrap();
-    assert_eq!(odd.messages[0].server.id, "a b<c>/+=-_");
+    // An id carrying markup or a space is no id: that's a server's own template leaking, and a
+    // page whose item carries one is not read (#1784, measured on Kerio naming a whole folder
+    // `<id>` and failing it every run). Characters a real id does carry — base64-ish and the
+    // escaped few — are opaque and stay fine.
+    assert_eq!(page(&format!("<t:Create>{}</t:Create>", bare("a b&lt;c&gt;/+=-_")), 10).unwrap_err(), Error::Unreadable);
+    let odd = page(&format!("<t:Create>{}</t:Create>", bare("AAMk+Tk/Zm9=-_1")), 10).unwrap();
+    assert_eq!(odd.messages[0].server.id, "AAMk+Tk/Zm9=-_1");
     // A read-state change that doesn't say which state carries nothing to lose: passed over.
     let none = page("<t:ReadFlagChange><t:ItemId Id=\"ID1\" ChangeKey=\"CK\"/></t:ReadFlagChange>", 10).unwrap();
     assert!(none.read.is_empty() && none.messages.is_empty() && none.read_unsaid == 1);

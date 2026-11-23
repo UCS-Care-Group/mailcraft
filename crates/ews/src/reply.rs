@@ -180,9 +180,26 @@ fn retry_after_ms(value: Option<&str>) -> u32 {
 /// writes `MessageXml` in the types' namespace as often as the errors'.)
 fn read_fault(fault: &Node) -> Error {
     let detail = fault.child("detail");
-    let code = detail
+    // Read the code where the server wrote it: Exchange names it in `detail`, but a SOAP 1.1
+    // fault leaves it in `faultcode` (as `a:ErrorX` — the prefix is none of the code) and a
+    // SOAP 1.2 one in `Code/Value`. Kerio was measured answering with no `detail` at all, and
+    // a reader that only knows the Exchange shape calls every such fault "an unnamed error"
+    // (#1784 — the name is the whole diagnosis).
+    let named = detail
         .and_then(|detail| detail.child("ResponseCode"))
-        .map_or_else(|| ResponseCode::Other(String::new()), |code| ResponseCode::from_name(&code.text));
+        .or_else(|| fault.child("Code").and_then(|code| code.child("Value")))
+        .or_else(|| fault.child("Subcode").and_then(|sub| sub.child("Value")))
+        .or_else(|| fault.child("faultcode"))
+        .map(|code| code.text.rsplit(':').next().unwrap_or(""));
+    let code = named.map_or_else(|| ResponseCode::Other(String::new()), ResponseCode::from_name);
+    if matches!(&code, ResponseCode::Other(s) if s.is_empty()) {
+        let said = fault
+            .child("Reason")
+            .and_then(|reason| reason.child("Text"))
+            .or_else(|| fault.child("faultstring"))
+            .map_or("", |text| text.text.as_str());
+        log::warn!("ews: a fault named no code; it said: {}", &said[..said.len().min(200)]);
+    }
     let (busy, wait) = busy_of(&code, detail.and_then(|detail| detail.child("MessageXml")), None);
     if busy { Error::Busy { back_off_ms: wait.unwrap_or(DEFAULT_BACK_OFF_MS) } } else { Error::Server(code) }
 }

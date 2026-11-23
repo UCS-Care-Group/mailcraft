@@ -450,3 +450,39 @@ fn a_light_page_that_stays_silent_about_the_read_state_reports_silence_not_unrea
         messages.iter().take(3).map(|m| (m.subject.clone(), m.server.read, m.server.read_said)).collect::<Vec<_>>()
     );
 }
+
+/// Kerio's folder listing was measured naming a folder with the id `<id>` — its own template
+/// placeholder, leaked. A client that syncs it back fails on it, faulting with a code nobody
+/// named, every run, forever. Such an id is no id: the folder is not listed and never asked
+/// about; the rest of the mailbox reads as if it never existed.
+#[test]
+fn a_leaked_template_folder_is_never_listed_nor_asked_about() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        let parent = s.folder_id("msgfolderroot").unwrap_or_default();
+        s.rev = s.rev.saturating_add(1);
+        let rev = s.rev;
+        s.folders.push(crate::standin::Folder {
+            distinguished: String::new(),
+            id: "<id>".into(),
+            name: "Broken template".into(),
+            total: 0,
+            unread: 0,
+            parent,
+            class: "IPF.Note".into(),
+        });
+        s.folder_log.push(crate::standin_mail::FolderLog { rev, id: "<id>".into(), kind: "Create" });
+        s.deliver("inbox", "Real mail", true);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let listed: Vec<String> =
+        pieces.iter().filter_map(|p| p.folders.as_ref()).flat_map(|listing| listing.changed.iter()).map(|f| f.id.clone()).collect();
+    assert!(!listed.iter().any(|id| id == "<id>"), "the template-leaked folder is not taken in: {listed:?}");
+    assert!(
+        pieces.iter().all(|p| p.errors.is_empty()),
+        "and the run says nothing about it: {:?}",
+        pieces.iter().flat_map(|p| p.errors.clone()).collect::<Vec<_>>()
+    );
+}
