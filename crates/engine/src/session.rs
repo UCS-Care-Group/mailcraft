@@ -1137,6 +1137,9 @@ pub struct Session {
     /// The messages said to wait for the bytes they came as (#30), each said once
     /// ([`Session::first_told_held`]).
     told_held: std::sync::Mutex<HashSet<(Id, Held)>>,
+    /// Who the owner sent mail to, as of the revision, opening and message count it was counted
+    /// at (`cmd::compose::suggest`, #1803). In memory only.
+    pub(crate) send_counts: std::sync::Mutex<Option<((u64, u64, usize), std::sync::Arc<crate::cmd::compose::SendCounts>)>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -1446,6 +1449,7 @@ impl Session {
             sel: Selection::default(),
             lost_originals: std::sync::Mutex::default(),
             told_held: std::sync::Mutex::default(),
+            send_counts: std::sync::Mutex::default(),
             compose: None,
             composing: Vec::new(),
             compose_seq: 0,
