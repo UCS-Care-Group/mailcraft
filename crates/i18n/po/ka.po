@@ -27480,8 +27480,9 @@ msgstr "მართლწერა და გრამატიკა"
 
 #. interface
 #: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
 msgid "The shared mailbox couldn't be read."
-msgstr ""
+msgstr "საერთო საფოსტო ყუთის წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -27497,28 +27498,33 @@ msgstr "წესი ფოსტას „გასაგზავნებშ�
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
-msgstr ""
+msgstr "საერთო საფოსტო ყუთთან წვდომა ხდება იმ ანგარიშის სერვერის პარამეტრებით, რომლითაც ის იხსნება: შეცვალეთ იმ ანგარიშისა"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
-msgstr ""
+msgstr "Exchange სერვერის ანგარიშს სჭირდება სერვერის მისამართი, რომლითაც საერთო საფოსტო ყუთის გახსნა შეიძლება"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
-msgstr ""
+msgstr "Exchange სერვერის ანგარიშის სერვერისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, სანამ მისით გახსნილი საერთო საფოსტო ყუთის ფოსტა აქაა: ჯერ საერთო საფოსტო ყუთი წაშალეთ"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
+#, fuzzy
 msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
-msgstr ""
+msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით ან Exchange სერვერის ანგარიშით"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
+#, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
-msgstr ""
+msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება ან Exchange სერვერის ანგარიშია"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
