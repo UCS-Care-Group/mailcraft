@@ -210,10 +210,15 @@ fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
         Scope::Folder => (false, here.into_iter().collect()),
         Scope::Subfolders => (false, here.into_iter().flat_map(|f| mb.subtree(f)).collect()),
         Scope::Mailbox => {
-            let account = mb.folder(folder).map(|f| f.account);
-            let hidden = hidden(account);
-            let of_account = mb.folders.iter().filter(|f| account == Some(f.account) && !hidden.contains(&f.id));
-            (false, of_account.map(|f| f.id).collect())
+            // The mailbox in view: the folder's account's, or with every account's folder of a
+            // kind in view (#625), each of theirs.
+            let accounts: HashSet<Id> = match crate::unified::in_view(s) {
+                Some(listed) => listed.iter().filter_map(|f| mb.folder(*f)).map(|f| f.account).collect(),
+                None => mb.folder(folder).map(|f| f.account).into_iter().collect(),
+            };
+            let hidden: HashSet<Id> = accounts.iter().flat_map(|a| hidden(Some(*a))).collect();
+            let of_accounts = mb.folders.iter().filter(|f| accounts.contains(&f.account) && !hidden.contains(&f.id));
+            (false, of_accounts.map(|f| f.id).collect())
         }
         Scope::Everywhere => (true, hidden(None)),
     };

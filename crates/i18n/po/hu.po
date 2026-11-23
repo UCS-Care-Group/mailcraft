@@ -1301,7 +1301,7 @@ msgid "All"
 msgstr "Mind"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "Minden fiók"
@@ -22492,8 +22492,8 @@ msgstr "Gmail-fiókra van szüksége"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "legalább két fiók szükséges"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "legalább két postafiók szükséges (a megosztott postafiók is számít)"
 
 #. name
 #: crates/engine/src/agent.rs

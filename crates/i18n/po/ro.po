@@ -1298,7 +1298,7 @@ msgid "All"
 msgstr "Toate"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "Toate conturile"
@@ -22575,8 +22575,8 @@ msgstr "necesită un cont Gmail"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "necesită cel puțin două conturi"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "necesită cel puțin două cutii poștale (o cutie partajată se pune la socoteală)"
 
 #. name
 #: crates/engine/src/agent.rs

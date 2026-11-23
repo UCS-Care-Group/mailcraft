@@ -2294,6 +2294,9 @@ impl MailApp {
             Some(_) if id == "sync.cancel" => self.syncing(),
             // Run Rules Now over the folder in view: greyed where the rules leave the mail alone (a
             // shared mailbox's), as in the folder's menu and the Rules dialog.
+            // Empty Folder over every account's Deleted Items (#625): which account's, the window
+            // can't say; a folder's own menu names it.
+            Some(_) if id == "folder.empty" && mailcraft_engine::unified::of(&self.session).is_some() => false,
             Some(s) if id == "rules.run" => {
                 let mb = &self.session.mailbox;
                 (s.enabled)(&self.session).is_none() && mb.folder(self.session.view.folder).is_some_and(|f| mb.rules_reach(f.account))

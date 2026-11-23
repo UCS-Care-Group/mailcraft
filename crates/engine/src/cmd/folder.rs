@@ -192,10 +192,9 @@ const FOLDER: &str = r#"{"id"?: number} (default: the folder in view). An `id` t
 pub const FROM_OUTLOOK: &str =
     "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)";
 
+/// (Not refused here while every account's folder of a kind is in view, #625: `folder.empty` that
+/// names its folder empties it then too, and one that names none is refused by [`target`].)
 fn can_empty(s: &Session) -> Option<&'static str> {
-    if crate::unified::of(s).is_some() {
-        return Some(UNIFIED);
-    }
     if s.mailbox.count(s.view.folder) == 0 {
         return Some("the folder is already empty");
     }

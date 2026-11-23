@@ -475,8 +475,14 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
+    let unified = mailcraft_engine::unified::of(&app.session);
     let scope = match app.session.view.scope {
         mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+        // Every account's folder of a kind in view (#625): those folders, or those mailboxes.
+        mailcraft_engine::Scope::Mailbox if unified.is_some() => tl!("All Accounts").to_string(),
+        mailcraft_engine::Scope::Folder | mailcraft_engine::Scope::Subfolders if let Some(kind) = unified => {
+            crate::nav::unified_name(kind).to_string()
+        }
         // The account in view, by the name the folder pane gives it (#493).
         mailcraft_engine::Scope::Mailbox => folder
             .and_then(|f| mb.account(f.account))

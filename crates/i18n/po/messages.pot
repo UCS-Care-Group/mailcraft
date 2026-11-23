@@ -1079,7 +1079,7 @@ msgid "All"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 msgid "All Accounts"
 msgstr ""
 
@@ -18673,7 +18673,7 @@ msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
-msgid "needs two accounts at least"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
 msgstr ""
 
 #. name

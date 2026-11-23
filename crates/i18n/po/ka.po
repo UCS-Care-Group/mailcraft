@@ -1296,7 +1296,7 @@ msgid "All"
 msgstr "ყველა"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "ყველა ანგარიში"
@@ -22416,8 +22416,8 @@ msgstr "საჭიროა Gmail ანგარიში"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "საჭიროა მინიმუმ ორი ანგარიში"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "საჭიროა მინიმუმ ორი საფოსტო ყუთი (გაზიარებული ყუთიც ითვლება)"
 
 #. name
 #: crates/engine/src/agent.rs

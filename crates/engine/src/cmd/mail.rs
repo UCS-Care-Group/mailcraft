@@ -697,7 +697,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     s.view.search = query;
     s.view.scope = crate::Scope::Folder;
     // Another folder or search lists every conversation closed, as the window does (#503).
-    if s.view.folder != view.folder || s.view.search != view.search {
+    if s.view.folder != view.folder || s.view.search != view.search || s.view.unified != view.unified {
         s.view.open.clear();
     }
     let out = list_in_view(s, limit);

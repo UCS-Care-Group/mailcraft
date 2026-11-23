@@ -1298,7 +1298,7 @@ msgid "All"
 msgstr "全部"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "所有账户"
@@ -22473,8 +22473,8 @@ msgstr "需要 Gmail 账户"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "需要至少两个账户"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "需要至少两个邮箱（共享邮箱也算）"
 
 #. name
 #: crates/engine/src/agent.rs

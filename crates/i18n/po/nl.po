@@ -1269,7 +1269,7 @@ msgid "All"
 msgstr "Alle"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "Alle accounts"
@@ -21876,8 +21876,8 @@ msgstr "heeft een Gmail-account nodig"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "vereist ten minste twee accounts"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "vereist ten minste twee postvakken (een gedeeld postvak telt mee)"
 
 #. name
 #: crates/engine/src/agent.rs

@@ -189,3 +189,74 @@ fn mail_list_of_a_named_inbox_is_that_inbox_alone() {
     assert_eq!(s.run("mail.list", &json!({})).unwrap()["total"], 4);
     let _ = b;
 }
+
+/// Empty Folder that names its folder empties that one, All Deleted Items in view or not; one that
+/// names none refuses rather than guess which account's.
+#[test]
+fn empty_folder_named_in_all_deleted_items_empties_that_one() {
+    let (mut s, a, b) = two();
+    let trash = |s: &Session, acc| s.mailbox.folder_of_kind(acc, FolderKind::Deleted).unwrap();
+    for id in [titled(&s, "A old"), titled(&s, "B old")] {
+        s.run("mail.delete", &json!({"ids": [id]})).unwrap();
+    }
+    s.run("view.allAccounts", &json!({"kind": "deleted"})).unwrap();
+    assert!(s.run("folder.empty", &json!({})).is_err());
+    assert_eq!(s.mailbox.count(trash(&s, a)) + s.mailbox.count(trash(&s, b)), 2);
+    s.run("folder.empty", &json!({"id": trash(&s, b)})).unwrap();
+    assert_eq!((s.mailbox.count(trash(&s, a)), s.mailbox.count(trash(&s, b))), (1, 0));
+}
+
+/// An open conversation of All Inboxes is closed in a list of one Inbox named by `mail.list`,
+/// though that Inbox is the one the view stands on.
+#[test]
+fn mail_list_of_the_anchor_inbox_closes_all_inboxes_conversations() {
+    let (mut s, a, _) = two();
+    // A reply to "A new", filed in account A's Archive: part of its conversation.
+    let parent = s.mailbox.message(titled(&s, "A new")).unwrap().message_id.clone();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    let reply = Message { in_reply_to: parent.clone(), references: vec![parent], ..from_server(0, "RE: A new", 350) };
+    s.mailbox.add_message(Message { folder: archive, ..reply }).unwrap();
+    s.run("view.conversations", &json!({"value": true})).unwrap();
+    s.run("view.allAccounts", &json!({})).unwrap();
+    s.view.open.push((a, s.threads().key(titled(&s, "A new"))));
+    // Open in All Inboxes: the reply is listed under it.
+    let here = s.run("mail.list", &json!({})).unwrap();
+    assert!(here["messages"].as_array().unwrap().iter().any(|m| m.get("under").is_some()), "{here}");
+    let listed = s.run("mail.list", &json!({"folder": inbox(&s, a)})).unwrap();
+    assert!(listed["messages"].as_array().unwrap().iter().all(|m| m.get("open").is_none() && m.get("under").is_none()), "{listed}");
+    // The window's own view is as it was.
+    assert_eq!(s.view.open.len(), 1);
+}
+
+/// A search of the current mailbox from All Inboxes looks in every listed account's mailbox, not
+/// only the one the view stands on.
+#[test]
+fn a_mailbox_search_in_all_inboxes_covers_every_account() {
+    let (mut s, a, b) = two();
+    s.run("view.allAccounts", &json!({})).unwrap();
+    // One message of each account in its Archive: out of the Inbox, still in its mailbox.
+    for id in [titled(&s, "A old"), titled(&s, "B old")] {
+        s.run("mail.archive", &json!({"ids": [id]})).unwrap();
+    }
+    s.run("view.search", &json!({"query": "old", "scope": "mailbox"})).unwrap();
+    assert_eq!(subjects(&mut s), ["B old", "A old"]);
+    let _ = (a, b);
+}
+
+/// A message of a shared mailbox selected in All Inboxes and deleted comes back selected and listed
+/// with Undo, the view still every account's Inbox.
+#[test]
+fn undo_in_all_inboxes_brings_a_shared_mailboxs_message_back_into_the_list() {
+    let (mut s, a, b) = two();
+    let shared = s.mailbox.accounts.iter().position(|x| x.id == b).unwrap();
+    s.mailbox.accounts[shared].shared_of = Some(a);
+    s.run("view.allAccounts", &json!({})).unwrap();
+    let id = titled(&s, "B new");
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(!subjects(&mut s).contains(&"B new".to_string()));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(crate::unified::of(&s), Some(FolderKind::Inbox));
+    assert_eq!(s.sel.messages, vec![id]);
+    assert!(subjects(&mut s).contains(&"B new".to_string()));
+}

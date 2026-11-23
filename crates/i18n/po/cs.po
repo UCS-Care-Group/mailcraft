@@ -1292,7 +1292,7 @@ msgid "All"
 msgstr "Vše"
 
 #. command label, interface
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "All Accounts"
 msgstr "Všechny účty"
@@ -22550,8 +22550,8 @@ msgstr "vyžaduje účet Gmail"
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
-msgid "needs two accounts at least"
-msgstr "vyžaduje alespoň dva účty"
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "vyžaduje alespoň dvě poštovní schránky (sdílená schránka se počítá)"
 
 #. name
 #: crates/engine/src/agent.rs

@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"value": "folders"|"tabs"} — Gmail's inbox categories as five folders under a Gmail account's Inbox in the folder pane, or as a row of tabs above its message list (#911)"#),
         CommandSpec::new("view.allAccounts", "All Accounts", "Folder Pane", all_accounts)
             .reads()
-            .when(two_accounts)
+            .when(two_mailboxes)
             .params(r#"{"kind"?: "inbox"|"drafts"|"sent"|"deleted"|"archive" (default inbox)} — lists every account's folder of that kind together, newest first, each message in its own account (#625): what is done to one (read, flag, move, delete, reply) is done in that account, as from its own folder. Shared mailboxes are listed with the accounts. The window opens on it again at the next start when it was open at quit. Opening one account's folder (folder.select) leaves it. Answers {"kind", "folders": [id] (the accounts' folders it lists), "messages": n, "unread": n}"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
         CommandSpec::new("view.navigationBar", "Navigation Bar", "View › Layout", navigation_bar)
@@ -115,12 +115,13 @@ fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"value": s.view.reading_pane}))
 }
 
-/// Why All Accounts isn't offered: one account has nothing to put together (#625).
-fn two_accounts(s: &Session) -> Option<&'static str> {
+/// Why All Accounts isn't offered: one mailbox has nothing to put together (#625; a shared mailbox
+/// counts as one).
+fn two_mailboxes(s: &Session) -> Option<&'static str> {
     if crate::unified::offered(&s.mailbox) {
         return None;
     }
-    Some("needs two accounts at least")
+    Some("needs two mailboxes at least (a shared mailbox counts)")
 }
 
 /// `view.allAccounts`: every account's folder of a kind in one list (#625).

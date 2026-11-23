@@ -43,3 +43,16 @@ fn all_accounts_shows_with_two_accounts_and_all_inboxes_lists_both() {
     assert_eq!(accounts.len(), 2, "both accounts' mail in one list");
     assert_eq!(app.title_stem(), "All Inboxes");
 }
+
+/// Empty Folder is greyed over every account's Deleted Items (#625): the ribbon can't say whose;
+/// a folder's own menu names it, and the command empties a named folder.
+#[test]
+fn empty_folder_is_greyed_over_all_deleted_items() {
+    let mut harness = window();
+    let app = harness.state_mut();
+    app.session.mailbox.add_account(mailcraft_model::Account { name: "Work".into(), email: "me@work.example".into(), ..Default::default() });
+    app.execute("view.allAccounts", serde_json::json!({"kind": "deleted"})).unwrap();
+    assert!(!app.enabled("folder.empty"));
+    // Nothing is filled in for it: run without a folder, it refuses.
+    assert!(app.execute("folder.empty", serde_json::json!({})).is_err());
+}
