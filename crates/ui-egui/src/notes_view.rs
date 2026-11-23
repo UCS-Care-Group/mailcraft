@@ -107,14 +107,20 @@ pub fn fetch_cloud_notes() -> Option<Vec<Note>> {
         }
     }
 
-    // 2. Fallback: PowerShell Invoke-RestMethod
-    let ps_cmd = format!(
-        "$ProgressPreference = 'SilentlyContinue'; \
-        $res = Invoke-RestMethod -Uri '{GOOGLE_WEBHOOK_URL}' -Method Get; \
-        $res | ConvertTo-Json -Depth 10 -Compress"
-    );
+    // 2. Fallback: PowerShell Invoke-RestMethod with safe parameterized arguments
+    let ps_script = "$ProgressPreference = 'SilentlyContinue'; \
+        $res = Invoke-RestMethod -Uri $args[0] -Method Get; \
+        $res | ConvertTo-Json -Depth 10 -Compress";
     if let Ok(out) = std::process::Command::new("powershell")
-        .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps_cmd])
+        .args(&[
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            ps_script,
+            GOOGLE_WEBHOOK_URL,
+        ])
         .output()
     {
         if out.status.success() {
@@ -153,14 +159,21 @@ pub fn trigger_cloud_push(notes: Vec<Note>) {
         if let Ok(data) = serde_json::to_string(&payload) {
             if fs::write(&temp_file, data.as_bytes()).is_ok() {
                 let temp_path_str = temp_file.to_string_lossy().to_string();
-                let ps_cmd = format!(
-                    "$ProgressPreference = 'SilentlyContinue'; \
-                    $raw = [System.IO.File]::ReadAllText('{temp_path_str}', [System.Text.Encoding]::UTF8); \
-                    $null = Invoke-RestMethod -Uri '{GOOGLE_WEBHOOK_URL}' -Method Post -Body $raw -ContentType 'application/json'; \
-                    Remove-Item -Path '{temp_path_str}' -ErrorAction SilentlyContinue"
-                );
+                let ps_script = "$ProgressPreference = 'SilentlyContinue'; \
+                    $raw = [System.IO.File]::ReadAllText($args[0], [System.Text.Encoding]::UTF8); \
+                    [void](Invoke-RestMethod -Uri $args[1] -Method Post -Body $raw -ContentType 'application/json'); \
+                    Remove-Item -Path $args[0] -ErrorAction SilentlyContinue";
                 let _ = std::process::Command::new("powershell")
-                    .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps_cmd])
+                    .args(&[
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        ps_script,
+                        &temp_path_str,
+                        GOOGLE_WEBHOOK_URL,
+                    ])
                     .output();
             }
         }
