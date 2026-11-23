@@ -1258,6 +1258,9 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             app.windows.dialog_shown = true;
         }
         crate::text_menu::finish(&ctx, menus);
+        if app.services.clipboard_keys {
+            crate::paste_keys::copy_output(&ctx, app.services.clipboard.as_deref());
+        }
     });
     close
 }
@@ -1267,9 +1270,7 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
 pub(crate) fn clipboard_keys(app: &MailApp, ctx: &egui::Context) {
     if app.services.clipboard_keys {
         let board = app.services.clipboard.as_deref();
-        if ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board)) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
-        }
+        ctx.input_mut(|i| crate::paste_keys::translate(&mut i.events, board));
     }
 }
 

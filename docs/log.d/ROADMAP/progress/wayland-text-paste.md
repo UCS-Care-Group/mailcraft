@@ -1,1 +1,1 @@
-| 2026-11-19 | #1217 follow-up: Ctrl+V and menu Paste can use the window's native text reader when the rich Wayland reader has no selection; empty text and failed transfers are not retried, and Wayland reads no longer fall back to X11 |
+| 2026-11-23 | #1217 follow-up (#1708): Wayland Ctrl+V and menu Paste stay on one bounded, timed reader, with no competing window clipboard device or unbounded fallback; plain fields copy through the same device without X11, and menu paste stays with its target. Acceptance on the affected Flatpak desktop remains outstanding |

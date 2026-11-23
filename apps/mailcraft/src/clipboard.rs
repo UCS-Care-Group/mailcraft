@@ -14,8 +14,9 @@
 //! Under Wayland in the Flatpak neither of those is there (no data-control protocol, no X11), so
 //! HTML, pictures and text are read through winit's own `wl_data_device`, the one the window
 //! already uses for its text and file drops: the types asked for and the caps are in
-//! `clipboard_mime`. If that reader has no text, the UI can ask egui's regular Wayland reader;
-//! it must not depend on an X11 fallback being available (#1217).
+//! `clipboard_mime`. All Wayland paste reads stay on that bounded, timed reader. egui's
+//! competing Wayland reader is disabled; it must not take the selection away or provide an
+//! unbounded fallback (#1217, #1708).
 //!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
 //! copied is served from this program for as long as it holds the clipboard.
@@ -83,10 +84,27 @@ impl Board {
 impl RichClipboard for Board {
     fn put(&self, html: &str, text: &str) -> Result<(), String> {
         let r = self.with(|b| b.set().html(html, Some(text)));
+        // GNOME and the Flatpak may have neither data-control nor X11. Text still goes through
+        // the window's data device, which also returns our own selection without a pipe read.
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        let r = if r.is_err() && self.wayland_display { self.put_text(text) } else { r };
         if let Err(e) = &r {
             log::warn!("the clipboard took no HTML: {e}");
         }
         r
+    }
+
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if self.wayland_display {
+            return self
+                .wayland
+                .as_ref()
+                .ok_or_else(|| "the Wayland clipboard is unavailable".to_string())?
+                .store_text(text)
+                .map_err(|e| e.to_string());
+        }
+        self.with(|b| b.set_text(text.to_string()))
     }
 
     fn html(&self) -> Option<String> {

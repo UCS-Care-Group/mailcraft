@@ -67,11 +67,11 @@ fn ctrl_v_with_nothing_to_paste_sends_nothing() {
 }
 
 #[test]
-fn an_unavailable_wayland_reader_requests_the_windows_native_paste() {
+fn wayland_paste_never_requests_the_unbounded_window_reader() {
     use crate::{MailApp, Services};
     use mailcraft_engine::Session;
 
-    for (text, picture, expected) in [(None, false, true), (Some(""), false, false), (Some("text"), false, false), (None, true, false)] {
+    for (text, picture) in [(None, false), (Some(""), false), (Some("text"), false), (None, true)] {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0), Services::default());
         app.services.clipboard_keys = true;
         app.services.clipboard = Some(Box::new(Board { text, picture }));
@@ -80,14 +80,14 @@ fn an_unavailable_wayland_reader_requests_the_windows_native_paste() {
         let mut out = ctx.run_ui(raw, |ui| crate::windows::clipboard_keys(&app, ui.ctx()));
         out.textures_delta.clear();
         let requested = out.viewport_output.values().any(|v| v.commands.iter().any(|c| matches!(c, egui::ViewportCommand::RequestPaste)));
-        assert_eq!(requested, expected, "text={text:?}, picture={picture}");
+        assert!(!requested, "text={text:?}, picture={picture}: never bypass the bounded reader");
     }
 }
 
 #[test]
-fn a_timed_out_transfer_is_not_retried_through_the_native_reader() {
-    struct TimedOut;
-    impl RichClipboard for TimedOut {
+fn failed_and_oversized_transfers_are_not_retried_through_another_reader() {
+    struct Failed(std::io::ErrorKind);
+    impl RichClipboard for Failed {
         fn put(&self, _: &str, _: &str) -> Result<(), String> {
             Ok(())
         }
@@ -95,15 +95,19 @@ fn a_timed_out_transfer_is_not_retried_through_the_native_reader() {
             None
         }
         fn paste_text(&self) -> std::io::Result<Option<String>> {
-            Err(std::io::ErrorKind::TimedOut.into())
+            Err(self.0.into())
         }
         fn has_image(&self) -> bool {
             panic!("a failed text transfer must not start another read")
         }
     }
-    let mut events = vec![press(Key::V, Modifiers::COMMAND)];
-    assert!(!translate(&mut events, Some(&TimedOut)));
-    assert!(events.is_empty());
+    for error in [std::io::ErrorKind::TimedOut, std::io::ErrorKind::InvalidData, std::io::ErrorKind::BrokenPipe] {
+        for key in [Key::V, Key::Paste] {
+            let mut events = vec![press(key, Modifiers::COMMAND)];
+            translate(&mut events, Some(&Failed(error)));
+            assert!(events.is_empty(), "{error:?}, {key:?}");
+        }
+    }
 }
 
 #[test]

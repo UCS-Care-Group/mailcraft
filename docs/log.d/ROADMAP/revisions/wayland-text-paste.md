@@ -1,1 +1,1 @@
-| 2026-11-19 | patch: #1217 follow-up, progress entry for native text paste when the rich Wayland reader has no selection. |
+| 2026-11-23 | patch: #1217 follow-up (#1708), progress entry for bounded Wayland paste and copying without X11; affected-desktop acceptance remains outstanding. |

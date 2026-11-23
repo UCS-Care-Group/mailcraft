@@ -78,6 +78,12 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 ## Hardware and platforms
 
+On Linux and FreeBSD under Wayland, keyboard and menu paste use the window's clipboard reader
+with a two-second timeout and a 64 MiB text limit, without a competing window clipboard device
+or an unbounded native fallback (#1217, #1708). Menu paste keeps its target and selection;
+plain-text copying uses the same device when X11 and data-control are unavailable. Acceptance
+on the affected Flatpak desktop is still needed.
+
 Rendering is egui on wgpu (DirectX 12 with an OpenGL fallback on Windows, Metal, Vulkan; WebGPU
 with a WebGL2 fallback in the browser). Verified here: Windows 11 x64 and a Chromium browser.
 High-DPI is handled by egui. With Close to system tray on, the tray uses MailCraft's own icon,

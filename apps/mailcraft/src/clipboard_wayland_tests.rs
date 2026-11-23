@@ -10,6 +10,7 @@ fn a_wayland_window_without_its_rich_reader_does_not_open_an_x11_clipboard() {
     assert!(board.html().is_none());
     assert!(board.image().is_none());
     assert!(!board.has_image());
+    assert!(board.put_text("synthetic clipboard text").is_err());
     assert!(board.open.borrow().is_none());
 }
 
@@ -44,7 +45,7 @@ fn a_picture_only_selection_reaches_picture_paste() {
     assert!(board.paste_text().unwrap().is_none());
     assert!(board.image().is_some());
     let mut events = vec![paste_key()];
-    assert!(!mailcraft_ui_egui::paste_keys::translate(&mut events, Some(&board)));
+    mailcraft_ui_egui::paste_keys::translate(&mut events, Some(&board));
     assert!(matches!(events.as_slice(), [egui::Event::Paste(text)] if text.is_empty()));
 }
 
@@ -57,7 +58,7 @@ fn oversized_text_is_not_classified_as_missing_even_with_a_picture() {
     let board = Selection { mimes: &["text/plain", "image/png"], error: std::io::ErrorKind::InvalidData };
     assert_eq!(board.paste_text().unwrap_err().kind(), std::io::ErrorKind::InvalidData);
     let mut events = vec![paste_key()];
-    assert!(!mailcraft_ui_egui::paste_keys::translate(&mut events, Some(&board)));
+    mailcraft_ui_egui::paste_keys::translate(&mut events, Some(&board));
     assert!(events.is_empty());
 }
 

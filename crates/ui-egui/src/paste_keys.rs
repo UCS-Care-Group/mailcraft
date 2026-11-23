@@ -44,15 +44,13 @@ fn shortcut(key: Key, modifiers: egui::Modifiers) -> Option<Shortcut> {
     }
 }
 
-/// Replace the key presses that are clipboard shortcuts by their events. Returns whether the
-/// window must request its native paste: the rich reader can have no selection while the
-/// window backend's regular Wayland clipboard still has text. Never retry a failed transfer.
-pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) -> bool {
+/// Replace the key presses that are clipboard shortcuts by their events. Read only through
+/// the host's bounded, timed reader; never request egui-winit's unbounded native paste.
+pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
     if !events.iter().any(|e| matches!(e, Event::Key { pressed: true, key, modifiers, .. } if shortcut(*key, *modifiers).is_some())) {
-        return false;
+        return;
     }
     let mut out = Vec::with_capacity(events.len());
-    let mut native_paste = false;
     for event in events.drain(..) {
         let Event::Key { pressed: true, key, modifiers, .. } = &event else {
             out.push(event);
@@ -63,21 +61,35 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) -> 
             Some(Shortcut::Copy) => out.push(Event::Copy),
             Some(Shortcut::Paste) => {
                 let Ok(text) = board.map_or(Ok(None), |b| b.paste_text()) else { continue };
-                let unavailable = text.is_none();
                 let text = text.unwrap_or_default().replace("\r\n", "\n");
                 if !text.is_empty() {
                     out.push(Event::Paste(text));
                 } else if board.is_some_and(|b| b.has_image()) {
                     out.push(Event::Paste(String::new()));
-                } else {
-                    native_paste |= unavailable;
                 }
             }
             None => out.push(event),
         }
     }
     *events = out;
-    native_paste
+}
+
+/// egui's plain fields and Copy buttons write output commands. Under Wayland those copies
+/// must use the same data device as paste, including where neither data-control nor X11 exists.
+pub(crate) fn copy_output(ctx: &egui::Context, board: Option<&dyn RichClipboard>) {
+    let Some(board) = board else { return };
+    ctx.output_mut(|output| {
+        output.commands.retain(|command| {
+            if let egui::OutputCommand::CopyText(text) = command {
+                if let Err(e) = board.put_text(text) {
+                    log::warn!("the clipboard took no text: {e}");
+                }
+                false
+            } else {
+                true
+            }
+        });
+    });
 }
 
 #[cfg(test)]
