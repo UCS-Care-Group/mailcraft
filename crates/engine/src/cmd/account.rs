@@ -2234,7 +2234,15 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                     && mb.move_folder(id, Some(p)).is_ok()
                     && let Some(moved) = find(mb, &at, id).and_then(|i| mb.folders.get(i))
                 {
-                    names.entry(Some(p)).or_default().insert(moved.name.to_lowercase());
+                    let moved_name = moved.name.clone();
+                    // A name given a number only because another folder at the top had it (an
+                    // earlier version put other users' shared folders there: `INBOX (2)`) is the
+                    // server's name again in its own place, when that is free there.
+                    let free = clean_name(&f.name)
+                        .filter(|name| !name.contains('/') && numbered(&moved_name, name))
+                        .filter(|name| !names.get(&Some(p)).is_some_and(|taken| taken.contains(&name.to_lowercase())));
+                    let renamed = free.filter(|name| mb.rename_folder(id, name).is_ok());
+                    names.entry(Some(p)).or_default().insert(renamed.unwrap_or(moved_name).to_lowercase());
                 }
             }
             None => {
@@ -2262,6 +2270,15 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
             }
         }
     }
+}
+
+/// Whether `name` is `base` with a number after it, as a folder is named when its name is taken
+/// beside it ([`folder_for`]): `INBOX (2)` of `INBOX`.
+fn numbered(name: &str, base: &str) -> bool {
+    name.strip_prefix(base)
+        .and_then(|rest| rest.strip_prefix(" ("))
+        .and_then(|rest| rest.strip_suffix(')'))
+        .is_some_and(|n| !n.is_empty() && n.len() <= 3 && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Take in what changed in one server mailbox. `gmail_moves`: moves between Gmail's categories

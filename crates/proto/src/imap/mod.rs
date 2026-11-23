@@ -145,13 +145,26 @@ pub struct Mailbox {
     pub flags: Vec<String>,
 }
 
-/// The personal IMAP namespace (RFC 2342): `prefix` (as the server spells it, e.g. `"INBOX."`) and
+/// An IMAP namespace (RFC 2342): `prefix` (as the server spells it, e.g. `"INBOX."`, `"shared/"`) and
 /// hierarchy `delimiter` (`'.'`, `'/'`), if any.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Namespace {
     pub prefix: String,
     pub delimiter: Option<char>,
 }
+
+/// Every namespace the server names (RFC 2342): the account's own (`personal`), other users'
+/// mailboxes shared with it (`other_users`, often `shared/` or `Other Users/`) and mailboxes
+/// shared by everyone (`shared`, often `Public/`). At most [`MAX_NAMESPACES`] of each.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Namespaces {
+    pub personal: Vec<Namespace>,
+    pub other_users: Vec<Namespace>,
+    pub shared: Vec<Namespace>,
+}
+
+/// Most namespaces of each kind kept from one NAMESPACE answer.
+pub const MAX_NAMESPACES: usize = 16;
 
 impl Mailbox {
     /// Whether the mailbox has `flag` (`\Noselect`), whatever the letter case.
@@ -370,14 +383,24 @@ fn mailbox_from(values: Vec<Value>) -> Option<Mailbox> {
     Some(Mailbox { name: decode_utf7(&raw), raw, delimiter, flags: short_flags(flags) })
 }
 
-/// From `NAMESPACE ((prefix delimiter) ...) other shared` (RFC 2342): the first personal namespace.
-fn namespace_from(values: Vec<Value>) -> Option<Namespace> {
+/// From `NAMESPACE personal other shared` (RFC 2342), each `NIL` or `((prefix delimiter
+/// [extensions]) ...)`: every namespace of each kind, up to [`MAX_NAMESPACES`]. A group the
+/// server writes otherwise is taken as empty.
+fn namespaces_from(values: Vec<Value>) -> Option<Namespaces> {
     let mut values = values.into_iter();
     if !values.next()?.atom()?.eq_ignore_ascii_case("NAMESPACE") {
         return None;
     }
-    let Value::List(personal) = values.next()? else { return None };
-    let Value::List(desc) = personal.into_iter().next()? else { return None };
+    let mut group = || match values.next() {
+        Some(Value::List(descs)) => descs.into_iter().take(MAX_NAMESPACES).filter_map(namespace_of).collect(),
+        _ => Vec::new(),
+    };
+    Some(Namespaces { personal: group(), other_users: group(), shared: group() })
+}
+
+/// One `(prefix delimiter ...)` of a NAMESPACE answer.
+fn namespace_of(desc: Value) -> Option<Namespace> {
+    let Value::List(desc) = desc else { return None };
     let mut desc = desc.into_iter();
     let prefix = desc.next()?.into_text()?;
     if prefix.len() > MAX_MAILBOX_NAME {
@@ -867,16 +890,22 @@ impl<S: Read + Write> Imap<S> {
     /// NAMESPACE (RFC 2342): the server's first personal namespace, or `None` when the server
     /// offers no `NAMESPACE` capability or names no personal namespace.
     pub fn namespace(&mut self) -> Result<Option<Namespace>, ProtoError> {
+        Ok(self.namespaces()?.personal.into_iter().next())
+    }
+
+    /// NAMESPACE (RFC 2342): every namespace the server names; none when it offers no
+    /// `NAMESPACE` capability.
+    pub fn namespaces(&mut self) -> Result<Namespaces, ProtoError> {
         if !self.offers("NAMESPACE") {
-            return Ok(None);
+            return Ok(Namespaces::default());
         }
         let mut found = None;
         self.run(Command::new("NAMESPACE"), &mut |values| {
             if found.is_none() {
-                found = namespace_from(values);
+                found = namespaces_from(values);
             }
         })?;
-        Ok(found)
+        Ok(found.unwrap_or_default())
     }
 
     /// EXAMINE (read-only) or SELECT.

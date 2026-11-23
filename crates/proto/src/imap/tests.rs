@@ -1066,6 +1066,40 @@ fn namespace_reads_personal_prefix_and_delimiter() {
     assert_eq!(s.sent(), "");
 }
 
+/// Dovecot's answer with other users' and public mailboxes: every group is read, extensions
+/// and odd values passed over, and a group written as nothing a list is empty.
+#[test]
+fn namespaces_reads_every_group() {
+    let answer = "* NAMESPACE ((\"\" \"/\")) ((\"shared/\" \"/\" \"X-PARAM\" (\"a\"))) ((\"Public/\" \"/\") (\"Other.\" NIL))\r\nA0001 OK done\r\n";
+    let mut s = Script::new(answer);
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    let ns = imap.namespaces().unwrap();
+    let one = |prefix: &str, delimiter| Namespace { prefix: prefix.into(), delimiter };
+    assert_eq!(ns.personal, [one("", Some('/'))]);
+    assert_eq!(ns.other_users, [one("shared/", Some('/'))]);
+    assert_eq!(ns.shared, [one("Public/", Some('/')), one("Other.", None)]);
+
+    // Groups cut short, or garbage in them: what can be read is, and nothing panics.
+    for (answer, other) in [
+        ("* NAMESPACE NIL\r\nA0001 OK done\r\n", 0),
+        ("* NAMESPACE ((\"\" \"/\")) (\"x\" ()) NIL\r\nA0001 OK done\r\n", 0),
+        ("* NAMESPACE NIL ((\"shared/\" \"/\") 7 ((1))) NIL\r\nA0001 OK done\r\n", 1),
+    ] {
+        let mut s = Script::new(answer);
+        let mut imap = Imap::resume(&mut s);
+        imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+        assert_eq!(imap.namespaces().unwrap().other_users.len(), other, "{answer}");
+    }
+
+    // Many namespaces: no more than are kept.
+    let many: String = (0..100).map(|n| format!("(\"u{n}/\" \"/\")")).collect();
+    let mut s = Script::new(format!("* NAMESPACE NIL ({many}) NIL\r\nA0001 OK done\r\n"));
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespaces().unwrap().other_users.len(), MAX_NAMESPACES);
+}
+
 /// #1147: a token sign-in is followed by the `ID` command where the server offers it, as for a
 /// password (Coremail refuses every mailbox until a client has said which it is).
 #[test]

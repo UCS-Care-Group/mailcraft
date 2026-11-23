@@ -475,6 +475,8 @@ mod sender_trust_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
 #[cfg(test)]
+mod shared_namespace_tests;
+#[cfg(test)]
 mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
