@@ -78,15 +78,23 @@ impl Default for Note {
     }
 }
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub const GOOGLE_WEBHOOK_URL: &str =
     "https://script.google.com/macros/s/AKfycbzIFNueJUl00QuAOsyfbsK7Gexjm3yPQSWIQKzjnjPXaj_JuQSqMbQZsA1HjqVPS6Q/exec";
 
 pub fn fetch_cloud_notes() -> Option<Vec<Note>> {
-    // 1. Try curl.exe with 20s timeout (native on Windows 10/11)
-    if let Ok(out) = std::process::Command::new("curl.exe")
-        .args(&["-s", "-L", "-m", "20", GOOGLE_WEBHOOK_URL])
-        .output()
-    {
+    // 1. Try curl.exe with 20s timeout (native on Windows 10/11) without flashing a console window
+    let mut curl_cmd = std::process::Command::new("curl.exe");
+    curl_cmd.args(&["-s", "-L", "-m", "20", GOOGLE_WEBHOOK_URL]);
+    #[cfg(windows)]
+    curl_cmd.creation_flags(CREATE_NO_WINDOW);
+
+    if let Ok(out) = curl_cmd.output() {
         if out.status.success() {
             if let Ok(text) = String::from_utf8(out.stdout) {
                 if let Ok(notes) = serde_json::from_str::<Vec<Note>>(&text) {
@@ -107,22 +115,24 @@ pub fn fetch_cloud_notes() -> Option<Vec<Note>> {
         }
     }
 
-    // 2. Fallback: PowerShell Invoke-RestMethod with safe parameterized arguments
+    // 2. Fallback: PowerShell Invoke-RestMethod with safe parameterized arguments and NO console window
     let ps_script = "$ProgressPreference = 'SilentlyContinue'; \
         $res = Invoke-RestMethod -Uri $args[0] -Method Get; \
         $res | ConvertTo-Json -Depth 10 -Compress";
-    if let Ok(out) = std::process::Command::new("powershell")
-        .args(&[
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            ps_script,
-            GOOGLE_WEBHOOK_URL,
-        ])
-        .output()
-    {
+    let mut ps_cmd = std::process::Command::new("powershell");
+    ps_cmd.args(&[
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        ps_script,
+        GOOGLE_WEBHOOK_URL,
+    ]);
+    #[cfg(windows)]
+    ps_cmd.creation_flags(CREATE_NO_WINDOW);
+
+    if let Ok(out) = ps_cmd.output() {
         if out.status.success() {
             if let Ok(text) = String::from_utf8(out.stdout) {
                 if let Ok(notes) = serde_json::from_str::<Vec<Note>>(&text) {
@@ -163,18 +173,20 @@ pub fn trigger_cloud_push(notes: Vec<Note>) {
                     $raw = [System.IO.File]::ReadAllText($args[0], [System.Text.Encoding]::UTF8); \
                     [void](Invoke-RestMethod -Uri $args[1] -Method Post -Body $raw -ContentType 'application/json'); \
                     Remove-Item -Path $args[0] -ErrorAction SilentlyContinue";
-                let _ = std::process::Command::new("powershell")
-                    .args(&[
-                        "-NoProfile",
-                        "-NonInteractive",
-                        "-ExecutionPolicy",
-                        "Bypass",
-                        "-Command",
-                        ps_script,
-                        &temp_path_str,
-                        GOOGLE_WEBHOOK_URL,
-                    ])
-                    .output();
+                let mut push_cmd = std::process::Command::new("powershell");
+                push_cmd.args(&[
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    ps_script,
+                    &temp_path_str,
+                    GOOGLE_WEBHOOK_URL,
+                ]);
+                #[cfg(windows)]
+                push_cmd.creation_flags(CREATE_NO_WINDOW);
+                let _ = push_cmd.output();
             }
         }
     });
