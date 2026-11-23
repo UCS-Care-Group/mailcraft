@@ -297,14 +297,55 @@ fn query_gemini_adjustment_backend(
 ) -> String {
     // 1. Try local Gemini bridge endpoint if active
     if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(12)));
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(18)));
         let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(5)));
+
+        let full_prompt = if let Some(base) = base_text {
+            format!(
+                "Você é o assistente executivo de e-mails do MailCraft.\n\
+                O usuário está respondendo a um e-mail com os seguintes dados:\n\
+                - Remetente: {sender_full}\n\
+                - Assunto: {subject}\n\
+                - Trecho do e-mail recebido: {body_snippet}\n\n\
+                Sugestão prévia de resposta:\n\
+                \"\"\"\n{base}\n\"\"\"\n\n\
+                Instrução do usuário para redigir ou ajustar a resposta:\n\
+                \"{instruction}\"\n\n\
+                REGRAS OBRIGATÓRIAS:\n\
+                1. Escreva uma resposta de e-mail completa, elegante, profissional e pronta para envio.\n\
+                2. Inicie com saudação formal/apropriada (ex: 'Prezado(a)...' ou 'Olá...').\n\
+                3. Atenda com precisão a instrução do usuário (ex: CNV, executivo, viagem, prazos, etc.).\n\
+                4. Finalize com despedida cordial e a assinatura 'Atenciosamente,\nMarcondes Lima'.\n\
+                5. Retorne APENAS o texto pronto do e-mail. Não retorne JSON nem explicações extras."
+            )
+        } else {
+            format!(
+                "Você é o assistente executivo de e-mails do MailCraft.\n\
+                O usuário está respondendo a um e-mail com os seguintes dados:\n\
+                - Remetente: {sender_full}\n\
+                - Assunto: {subject}\n\
+                - Trecho do e-mail recebido: {body_snippet}\n\n\
+                Instrução do usuário para redigir a resposta:\n\
+                \"{instruction}\"\n\n\
+                REGRAS OBRIGATÓRIAS:\n\
+                1. Escreva uma resposta de e-mail completa, elegante, profissional e pronta para envio.\n\
+                2. Inicie com saudação formal/apropriada (ex: 'Prezado(a)...' ou 'Olá...').\n\
+                3. Atenda com precisão a instrução do usuário (ex: CNV, executivo, viagem, prazos, etc.).\n\
+                4. Finalize com despedida cordial e a assinatura 'Atenciosamente,\nMarcondes Lima'.\n\
+                5. Retorne APENAS o texto pronto do e-mail. Não retorne JSON nem explicações extras."
+            )
+        };
+
+        let sys_prompt = "Você é o assistente executivo de e-mails do MailCraft. Sua única função é redigir respostas de e-mails profissionais, elegantes e completas com base nas instruções do usuário e no contexto do e-mail. Retorne somente o texto pronto do e-mail para envio. Nunca mencione que você é um aplicativo de anotações ou Notebook.";
+
         let payload = json!({
+            "prompt": full_prompt,
+            "system_prompt": sys_prompt,
             "instruction": instruction,
-            "base_text": base_text,
             "sender": sender_full,
             "subject": subject,
-            "email_body": body_snippet
+            "email_body": body_snippet,
+            "base_text": base_text
         })
         .to_string();
 
@@ -321,9 +362,49 @@ fn query_gemini_adjustment_backend(
                     if let Some(pos) = text.find("\r\n\r\n") {
                         let json_part = &text[pos + 4..];
                         if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_part) {
-                            if let Some(reply) = v.get("reply").and_then(|r| r.as_str()) {
-                                if !reply.trim().is_empty() {
-                                    return reply.to_string();
+                            let mut raw_reply: Option<String> = None;
+                            if let Some(r) = v.get("reply").and_then(|r| r.as_str()) {
+                                raw_reply = Some(r.to_string());
+                            } else if let Some(m) = v.get("message").and_then(|r| r.as_str()) {
+                                raw_reply = Some(m.to_string());
+                            } else if let Some(e) = v.get("email_body").and_then(|r| r.as_str()) {
+                                raw_reply = Some(e.to_string());
+                            } else if let Some(er) = v.get("email_response").and_then(|r| r.as_str()) {
+                                raw_reply = Some(er.to_string());
+                            }
+
+                            if let Some(reply_str) = raw_reply {
+                                let mut final_text = reply_str.trim().to_string();
+                                // If the returned text is formatted as JSON, unpack the inner body
+                                if (final_text.starts_with('{') && final_text.ends_with('}'))
+                                    || final_text.starts_with("```json")
+                                    || final_text.starts_with("```")
+                                {
+                                    let clean = final_text
+                                        .trim_start_matches("```json")
+                                        .trim_start_matches("```")
+                                        .trim_end_matches("```")
+                                        .trim();
+                                    if let Ok(inner) = serde_json::from_str::<serde_json::Value>(clean) {
+                                        for key in &["email_response", "email_body", "message", "reply", "text", "response"] {
+                                            if let Some(val) = inner.get(*key).and_then(|v| v.as_str()) {
+                                                if !val.trim().is_empty() {
+                                                    final_text = val.trim().to_string();
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Reject any notebook boilerplate
+                                let lower = final_text.to_lowercase();
+                                let is_notebook_boilerplate = lower.contains("assistente inteligente integrado ao aplicativo notebook")
+                                    || lower.contains("posso criar notas, organizar cadernos")
+                                    || (lower.contains("notebook") && lower.contains("caderno"));
+
+                                if !is_notebook_boilerplate && !final_text.is_empty() {
+                                    return final_text;
                                 }
                             }
                         }
