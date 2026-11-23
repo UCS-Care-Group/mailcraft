@@ -1128,7 +1128,7 @@ fn a_sync_result_lands_in_the_right_folders() {
 
 mod two_way {
     use mailcraft_model::sync::{Created, Deleted, FlagsPushed, FolderDelta, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult};
-    use mailcraft_model::{Address, Message, Pending};
+    use mailcraft_model::{AccountKind, Address, Message, Pending};
 
     use super::*;
 
@@ -1704,6 +1704,19 @@ mod two_way {
         );
     }
 
+    /// A move the server took for an account that isn't IMAP ends the history: only an IMAP
+    /// account's messages are moved back from where the server has them.
+    #[test]
+    fn a_move_taken_for_an_account_that_isnt_imap_ends_the_history() {
+        let (mut s, a, _, archive) = synced();
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.move", json!({"ids": [one], "folder": archive}));
+        s.mailbox.account_mut(a).unwrap().kind = AccountKind::Exchange;
+        assert!(s.can_undo());
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, archive, 9, 10)], ..Default::default() });
+        assert!(!s.can_undo());
+    }
+
     /// Undone before the server heard of it, a deletion is simply called off.
     #[test]
     fn a_deletion_undone_before_the_run_sends_nothing() {
@@ -1711,7 +1724,8 @@ mod two_way {
         let one = titled(&s, a, "One");
         run(&mut s, "mail.delete", json!({"id": one}));
         run(&mut s, "edit.undo", json!({}));
-        assert_eq!(state(&s, one), (inbox, 1, state(&s, one).2, state(&s, one).3));
+        let (folder, uid, ..) = state(&s, one);
+        assert_eq!((folder, uid), (inbox, 1));
         assert!(request(&s, a).ops.is_empty());
     }
 

@@ -1498,7 +1498,10 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // A move within the account is undone from where the server has the message now
     // (`undo::imap_back`); one out of it, a deletion for good or a sending is not, nor a move
     // whose message was deleted for good meanwhile (its deletion now waits where the server put it).
-    let out_of_account = result.moved.iter().any(|m| s.mailbox.folder(m.to_folder).is_none_or(|f| f.account != account));
+    // Only an IMAP account's messages are put back there; for any other kind a move ends it too.
+    let imap = s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
+    let out_of_account =
+        !result.moved.is_empty() && (!imap || result.moved.iter().any(|m| s.mailbox.folder(m.to_folder).is_none_or(|f| f.account != account)));
     let deleting: HashSet<(&str, u32)> =
         s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. }) && p.account() == account).map(Pending::source).collect();
     let deleted_meanwhile = result.moved.iter().any(|m| deleting.contains(&(m.from.as_str(), m.uid)));
