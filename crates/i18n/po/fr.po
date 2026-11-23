@@ -15793,8 +15793,8 @@ msgstr "Signatures"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures). Un compte de serveur Exchange reprend celle qui y est enregistrée, sous un nom tiré du compte, et ne fait que la lire."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27140,6 +27140,10 @@ msgid "−Lines"
 msgstr "−Lignes"
 
 #, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "Utiliser l'horloge de 12 heures (3:05 PM)"
 
@@ -27587,209 +27591,3 @@ msgstr "−Lignes"
 #~ msgstr[0] "{n} message sera définitivement supprimé."
 #~ msgstr[1] "{n} messages seront définitivement supprimés."
 
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Autorisez MailCraft à lire les calendriers des autres personnes sur la page ouverte dans votre navigateur…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Autorisez MailCraft à lire les calendriers des boîtes aux lettres partagées sur la page ouverte dans votre navigateur…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "Autorisez MailCraft à envoyer depuis les boîtes aux lettres partagées sur la page ouverte dans votre navigateur…"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Tel que vos correspondants le voient"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Demander l'autorisation de lire les calendriers des boîtes aux lettres partagées : la page de Microsoft s'ouvre dans votre navigateur. Sans elle, aucun calendrier de cette boîte aux lettres n'est lu."
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Cliquez pour afficher un aperçu de {name} ; double-cliquez pour l'ouvrir"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Double-cliquez pour ouvrir {name} ; clic droit pour l'enregistrer"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Sa {n} règle disparaît aussi ; celle que son serveur conserve y reste."
-msgstr[1] "Ses {n} règles disparaissent aussi ; celles que son serveur conserve y restent."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "Le courrier de la boîte aux lettres partagée est en attente : {error}"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Le nouveau courrier que Gmail place dans Réseaux sociaux, Promotions, Notifications ou Forums arrive sans alerte."
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Les calendriers des autres personnes n'ont pas été autorisés : {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Envoyer depuis une boîte aux lettres partagée"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Les boîtes aux lettres partagées n'ont pas été autorisées : {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Les calendriers des boîtes aux lettres partagées n'ont pas été autorisés : {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Afficher les calendriers d'une boîte aux lettres partagée"
-
-#. interface
-#: crates/ui-egui/src/signatures.rs
-#, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
-msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures). Un compte de serveur Exchange reprend celle qui y est enregistrée, sous un nom tiré du compte, et ne fait que la lire."
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
-msgstr "Orthographe et grammaire"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Ce n'est pas une boîte aux lettres partagée"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "Les calendriers de la boîte aux lettres partagée sont en attente : {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"Pour répondre à des réunions ou en envoyer depuis {address}, MailCraft a besoin de votre autorisation d'envoyer depuis des boîtes aux lettres partagées. La page de Microsoft s'ouvre dans votre navigateur pour vous la demander, une seule fois.\n"
-"\n"
-"Que la réponse parte au nom de {address} ou de sa part relève du choix de votre organisation. Tant que vous ne l'autorisez pas, la réponse attend sur cet ordinateur, et rien n'est envoyé depuis votre propre adresse."
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-msgstr ""
-"Pour ouvrir les calendriers d'autres personnes, MailCraft a besoin de votre autorisation de lire les calendriers que l'on partage avec vous. La page de Microsoft s'ouvre dans votre navigateur pour vous la demander, une seule fois.\n"
-"\n"
-"Ce que vous ouvrez est conservé sur cet ordinateur uniquement : cela n'apparaît ni dans Outlook ni sur vos autres appareils."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Pour envoyer depuis {address}, MailCraft a besoin de votre autorisation d'envoyer depuis des boîtes aux lettres partagées. La page de Microsoft s'ouvre dans votre navigateur pour vous la demander, une seule fois.\n"
-"\n"
-"C'est votre organisation qui décide si votre courrier part en tant que {address} ou de sa part. Tant que vous ne l'autorisez pas, le courrier attend dans sa Boîte d'envoi, et rien n'est envoyé depuis votre propre adresse."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"Pour afficher les calendriers de {address}, MailCraft a besoin de votre autorisation de lire les calendriers des boîtes aux lettres partagées. La page de Microsoft s'ouvre dans votre navigateur pour vous la demander, une seule fois.\n"
-"\n"
-"Ce que vous pouvez voir d'un calendrier relève de son propriétaire et de votre organisation : cela n'y change rien. Tant que vous ne l'autorisez pas, rien des calendriers de {address} n'est lu."
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Utiliser l'horloge de 12 heures (3:05 PM)"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "Votre organisation n'autorise pas MailCraft à lire les calendriers des boîtes aux lettres partagées"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "L'administrateur de votre organisation doit approuver une fois la lecture des calendriers d'autres personnes : Fichier › Info"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "L'administrateur de votre organisation doit approuver une fois la lecture des boîtes aux lettres partagées : Fichier › Informations"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "L'administrateur de votre organisation doit approuver une fois la lecture des calendriers des boîtes aux lettres partagées : Fichier › Info"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "une règle ne peut pas déplacer du courrier vers une Boîte d'envoi : cela l'enverrait"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} message correspondant"
-msgstr[1] "{n} messages correspondants"

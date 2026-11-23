@@ -15911,8 +15911,8 @@ msgstr "Semnături"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, cu un nume după cont, și doar o citește."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27449,6 +27449,10 @@ msgid "−Lines"
 msgstr "−Linii"
 
 #, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "Folosiți ceasul de 12 ore (3:05 PM)"
 
@@ -27745,212 +27749,3 @@ msgstr "−Linii"
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "Ciorna rămâne în Ciorne. {why}"
 
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să citească calendarele altor persoane, din pagina deschisă în browser…"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să citească calendarele cutiilor poștale partajate, din pagina deschisă în browser…"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Allow MailCraft to send from shared mailboxes on the page that opened in your browser…"
-msgstr "Permiteți ca MailCraft să trimită din cutii poștale partajate, din pagina deschisă în browser…"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Așa cum îl văd persoanele cărora le scrieți"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr "Cereți permisiunea de a citi calendarele cutiilor poștale partajate: pagina Microsoft se deschide în browser. Fără ea, nu se citește nimic din calendarele acestei cutii poștale."
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Click to preview {name}; double-click to open it"
-msgstr "Clic pentru previzualizarea {name}; dublu clic pentru deschidere"
-
-#. interface
-#: crates/ui-egui/src/reading.rs
-#, fuzzy
-msgid "Double-click to open {name}; right-click to save it"
-msgstr "Dublu clic pentru a deschide {name}; clic dreapta pentru a-l salva"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Se elimină și {n} regulă a lui; cea păstrată de serverul lui rămâne acolo."
-msgstr[1] "Se elimină și cele {n} reguli ale lui; cele păstrate de serverul lui rămân acolo."
-msgstr[2] "Se elimină și cele {n} de reguli ale lui; cele păstrate de serverul lui rămân acolo."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Mail from the shared mailbox waits: {error}"
-msgstr "E-mailurile din cutia poștală partajată așteaptă: {error}"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "E-mailurile noi pe care Gmail le pune în Rețele sociale, Promoții, Actualizări sau Forumuri sosesc fără alertă."
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Other people's calendars weren't allowed: {error}"
-msgstr "Calendarele altor persoane nu au fost permise: {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Send from a Shared Mailbox"
-msgstr "Trimitere dintr-o cutie poștală partajată"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Shared mailboxes weren't allowed: {error}"
-msgstr "Cutiile poștale partajate nu au fost permise: {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr "Calendarele cutiilor poștale partajate nu au fost permise: {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Show a Shared Mailbox's Calendars"
-msgstr "Afișare calendare ale unei cutii poștale partajate"
-
-#. interface
-#: crates/ui-egui/src/signatures.rs
-#, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
-msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, cu un nume după cont, și doar o citește."
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Ortografie și gramatică"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "That isn't a shared mailbox"
-msgstr "Aceasta nu este o cutie poștală partajată"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "The calendars of the shared mailbox wait: {error}"
-msgstr "Calendarele cutiei poștale partajate așteaptă: {error}"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
-msgstr ""
-"Ca să răspundă la întâlniri sau să le trimită din {address}, MailCraft are nevoie de permisiunea dvs. de a trimite din cutii poștale partajate. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-"\n"
-"Dacă răspunsul pleacă ca {address} sau în numele ei decide organizația dvs. Până permiteți, răspunsul așteaptă pe acest computer și nu se trimite nimic de la propria dvs. adresă."
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid ""
-"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-msgstr ""
-"Ca să deschidă calendarele altor persoane, MailCraft are nevoie de permisiunea dvs. de a citi calendarele pe care vi le partajează alții. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-"\n"
-"Ce deschideți se păstrează doar pe acest computer: nu apare în Outlook sau pe celelalte dispozitive."
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid ""
-"To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-msgstr ""
-"Ca să trimită din {address}, MailCraft are nevoie de permisiunea dvs. de a trimite din cutii poștale partajate. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-"\n"
-"Dacă e-mailul pleacă ca {address} sau în numele ei decide organizația dvs. Până permiteți, e-mailul așteaptă în Mesaje de trimis și nu se trimite nimic de la propria dvs. adresă."
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid ""
-"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-"\n"
-"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-msgstr ""
-"Ca să afișeze calendarele lui {address}, MailCraft are nevoie de permisiunea dvs. de a citi calendarele cutiilor poștale partajate. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-"\n"
-"Ce puteți vedea dintr-un calendar decid proprietarul lui și organizația dvs.: asta nu schimbă nimic din aceasta. Până permiteți, nu se citește nimic din calendarele lui {address}."
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Folosiți ceasul de 12 ore (3:05 PM)"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr "Organizația dvs. nu permite ca MailCraft să citească calendarele cutiilor poștale partajate"
-
-#. interface
-#: crates/ui-egui/src/open_shared.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată citirea calendarelor altor persoane: Fișier › Informații"
-
-#. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată citirea cutiilor poștale partajate: Fișier › Informații"
-
-#. interface
-#: crates/ui-egui/src/shared_calendars.rs
-#, fuzzy
-msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr "Administratorul organizației trebuie să aprobe o dată citirea calendarelor cutiilor poștale partajate: Fișier › Informații"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "o regulă nu poate muta e-mailuri în Mesaje de trimis: le-ar trimite"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} mesaj găsit"
-msgstr[1] "{n} mesaje găsite"
-msgstr[2] "{n} de mesaje găsite"
