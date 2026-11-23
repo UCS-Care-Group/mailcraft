@@ -27452,3 +27452,28 @@ msgstr ""
 #~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 #~ msgstr "{not_sending_yet}: ეს წერილი სხვა ანგარიშიდან გაგზავნეთ ან მონახაზად შეინახეთ"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "ანგარიშის პრობლემები"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "ამ ანგარიშებზე ფოსტა არ მოვა, სანამ ხელახლა არ შეხვალთ."
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "ამ ანგარიშში ხელახლა უნდა შეხვიდეთ: მისი ფოსტა არ მოვა, სანამ ამას არ გააკეთებთ. დააწკაპუნეთ შესასვლელად."
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} ანგარიშში ხელახლა უნდა შეხვიდეთ"
+msgstr[1] "{n} ანგარიშში ხელახლა უნდა შეხვიდეთ"
