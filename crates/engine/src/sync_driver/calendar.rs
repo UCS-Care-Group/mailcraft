@@ -285,7 +285,9 @@ impl Session {
         if self.driver.calendar.send_waits.contains(&account) {
             upload.ops.retain(|op| !op.mails_others());
         }
-        Some(upload).filter(|upload| !upload.ops.is_empty())
+        // (A category renamed here, for the events that aren't kept here, goes with them or by
+        // itself, #851.)
+        Some(upload).filter(|upload| !upload.ops.is_empty() || upload.rename.is_some())
     }
 
     /// The accounts whose calendar a Microsoft server keeps.

@@ -381,6 +381,41 @@ pub(crate) fn capped_renames<'de, D: Deserializer<'de>>(deserializer: D) -> Resu
     Ok(out)
 }
 
+/// [`crate::Mailbox::category_sweeps`] of a mailbox file (the renames of each account's categories
+/// that items on its server wait for, #851): each entry counts as it is read; at most
+/// [`crate::remote::MAX_CATEGORY_SWEEPS`] are kept an account, each name a short one; and what
+/// isn't such a list is left out, which never costs the owner the whole file.
+pub(crate) fn capped_sweeps<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<Id, Vec<crate::remote::CategorySweep>>, D::Error> {
+    let short = |n: &str| !n.trim().is_empty() && n.chars().count() <= crate::MAX_NAME;
+    let mut out = BTreeMap::new();
+    let Value::Object(lists) = Value::deserialize(deserializer)? else { return Ok(out) };
+    for (id, sweeps) in lists {
+        charge()?;
+        let (Ok(id), Value::Array(sweeps)) = (id.parse::<Id>(), sweeps) else { continue };
+        let mut kept = Vec::new();
+        for sweep in sweeps {
+            charge()?;
+            if let Ok(mut sweep) = serde_json::from_value::<crate::remote::CategorySweep>(sweep)
+                && kept.len() < crate::remote::MAX_CATEGORY_SWEEPS
+                && short(&sweep.from)
+                && short(&sweep.to)
+            {
+                // Names as an answer about them comes back (one line, nothing at its ends):
+                // otherwise no answer would ever be taken for this one, and it would wait for ever.
+                sweep.from = crate::remote::line(&sweep.from, crate::MAX_NAME);
+                sweep.to = crate::remote::line(&sweep.to, crate::MAX_NAME);
+                if !sweep.from.is_empty() && !sweep.to.is_empty() && !crate::sync::same_category(&sweep.from, &sweep.to) {
+                    kept.push(sweep);
+                }
+            }
+        }
+        if !kept.is_empty() {
+            out.insert(id, kept);
+        }
+    }
+    Ok(out)
+}
+
 /// `deserialize_with` for a map by id.
 pub(crate) fn capped_map<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<BTreeMap<Id, T>, D::Error> {
     struct V<T>(PhantomData<T>);

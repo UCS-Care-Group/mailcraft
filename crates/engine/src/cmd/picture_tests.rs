@@ -394,6 +394,149 @@ fn hostile_params_never_panic() {
     assert!(s.run("compose.send", &json!({})).is_ok());
 }
 
+fn width(s: &Session, id: u64) -> Option<u16> {
+    compose(s).pictures.iter().find(|p| u64::from(p.id) == id).and_then(|p| p.width)
+}
+
+#[test]
+fn a_picture_is_resized_and_sent_at_that_width() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8)), "alt": "Chart"}))["id"].as_u64().unwrap();
+    compose_clean(&mut s);
+    let out = run(&mut s, "compose.picture.set", json!({"id": id, "width": 200}));
+    assert_eq!(out, json!({"id": id, "width": 200}));
+    assert_eq!(width(&s, id), Some(200));
+    assert!(compose(&s).dirty);
+    // Wider than a picture is made: the widest it may be.
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 99_999}));
+    assert_eq!(width(&s, id), Some(mailcraft_model::pictures::MAX_SHOWN_WIDTH));
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 200}));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let html = s.mailbox.message(sent).unwrap().body.html.clone().unwrap();
+    assert!(html.contains("width=\"200\""), "{html}");
+}
+
+#[test]
+fn its_own_width_again_is_null() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8)), "width": 300}))["id"].as_u64().unwrap();
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": null}));
+    assert_eq!(width(&s, id), None);
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    assert!(!s.mailbox.message(sent).unwrap().body.html.clone().unwrap().contains("width="));
+}
+
+#[test]
+fn undo_in_the_message_puts_the_width_back_and_typing_leaves_it_alone() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8)), "width": 300}))["id"].as_u64().unwrap();
+    let mailbox_undo = s.can_undo();
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 120}));
+    // The same width again is no step.
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 120}));
+    run(&mut s, "compose.type", json!({"text": " more"}));
+    let typed = compose(&s).body.plain();
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(width(&s, id), Some(120), "undoing the typing leaves the size");
+    run(&mut s, "compose.undo", json!({}));
+    assert_eq!(width(&s, id), Some(300));
+    assert_eq!(objects(&s), 1, "the picture is still there");
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(width(&s, id), Some(120));
+    run(&mut s, "compose.redo", json!({}));
+    assert_eq!(compose(&s).body.plain(), typed);
+    assert_eq!(s.can_undo(), mailbox_undo, "not a step of the mailbox's undo");
+}
+
+#[test]
+fn a_draft_keeps_the_width_it_was_given() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}))["id"].as_u64().unwrap();
+    run(&mut s, "compose.picture.set", json!({"id": id, "width": 240}));
+    run(&mut s, "compose.saveDraft", json!({}));
+    let draft = compose(&s).draft.expect("saved");
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    assert_eq!(compose(&s).pictures.iter().map(|p| p.width).collect::<Vec<_>>(), [Some(240)]);
+}
+
+#[test]
+fn what_isnt_a_picture_of_the_message_or_a_width_is_refused_and_nothing_changes() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}))["id"].as_u64().unwrap();
+    let before = compose(&s).clone();
+    for (params, why) in [
+        (json!({"id": id + 1, "width": 100}), "no picture"),
+        (json!({"id": 1, "width": 100}), "no picture"),
+        (json!({"id": id, "width": 0}), "width"),
+        (json!({"id": id, "width": -5}), "width"),
+        (json!({"id": id, "width": 12.5}), "width"),
+        (json!({"id": id, "width": "wide"}), "width"),
+        (json!({"id": id}), "width"),
+        (json!({"width": 100}), "id"),
+        (json!({"id": -1, "width": 100}), "id"),
+        (json!({"id": u64::MAX, "width": 100}), "id"),
+    ] {
+        let e = s.run("compose.picture.set", &params).unwrap_err().to_string();
+        assert!(e.contains(why), "{params}: {e}");
+    }
+    assert_eq!(*compose(&s), before);
+    // A picture deleted from the text is no longer the message's to size.
+    run(&mut s, "compose.delete", json!({}));
+    assert!(s.run("compose.picture.set", &json!({"id": id, "width": 100})).is_err());
+}
+
+#[test]
+fn sizing_is_off_without_an_html_message() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}))["id"].as_u64().unwrap();
+    assert!(s.enabled("compose.picture.set"));
+    run(&mut s, "compose.formatPlain", json!({}));
+    assert!(!s.enabled("compose.picture.set"));
+    assert!(s.run("compose.picture.set", &json!({"id": id, "width": 100})).unwrap_err().to_string().contains("plain text"));
+    let mut s = session();
+    assert!(!s.enabled("compose.picture.set"));
+    assert!(s.run("compose.picture.set", &json!({"id": FIRST_ID, "width": 100})).is_err());
+}
+
+#[test]
+fn an_agent_sizes_a_picture_only_in_a_message_that_isnt_the_owners() {
+    use crate::agent::{Verdict, check};
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}))["id"].as_u64().unwrap();
+    assert_eq!(check(&s, "compose.picture.set", &json!({"id": id, "width": 100}), &[]), Verdict::Run);
+    s.agent = Some(Vec::new());
+    assert!(s.run("compose.picture.set", &json!({"id": id, "width": 100})).is_err(), "the owner's message is theirs (#494)");
+    assert_eq!(width(&s, id), None);
+    s.compose.as_mut().unwrap().owner_changed = false;
+    assert!(s.run("compose.picture.set", &json!({"id": id, "width": 100})).is_ok());
+}
+
+#[test]
+fn hostile_sizes_never_panic() {
+    let mut s = message();
+    let id = run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}))["id"].as_u64().unwrap();
+    for v in [
+        json!(null),
+        json!([]),
+        json!({"id": id, "width": 1e300}),
+        json!({"id": id, "width": u64::MAX}),
+        json!({"id": id, "width": [1]}),
+        json!({"id": [id], "width": 5}),
+        json!({"id": id, "width": 1}),
+    ] {
+        let _ = s.run("compose.picture.set", &v);
+    }
+    while s.run("compose.undo", &json!({})).is_ok() {}
+    while s.run("compose.redo", &json!({})).is_ok() {}
+    assert!(s.run("compose.send", &json!({})).is_ok());
+}
+
+/// The message as if just saved: what a command changes shows in `dirty`.
+fn compose_clean(s: &mut Session) {
+    s.compose.as_mut().unwrap().dirty = false;
+}
+
 #[test]
 fn a_microsoft_account_sends_the_picture_up_as_an_inline_attachment() {
     let mut s = Session::empty();

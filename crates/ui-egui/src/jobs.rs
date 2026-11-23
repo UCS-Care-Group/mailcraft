@@ -112,7 +112,12 @@ impl MailApp {
                 // The account being added was for the old mailbox: the dialog closes, stopping
                 // what it asked of the host and keeping nothing that was typed.
                 JobKind::AccountSetup => match self.dialog.take() {
-                    Some(Dialog::Form(Form::Account(mut setup))) => setup.give_up(self),
+                    Some(Dialog::Form(Form::Account(mut setup))) => {
+                        setup.give_up(self);
+                        // The account dialog is gone: a compose window it belonged to does not
+                        // keep the next one.
+                        self.windows.dialog_for = None;
+                    }
                     other => self.dialog = other,
                 },
                 JobKind::AdminConsent => self.forget_admin_consent(),

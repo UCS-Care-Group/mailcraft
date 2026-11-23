@@ -1,6 +1,6 @@
 # Translating MailCraft
 
-> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-12 · **Change:** minor
+> **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-20 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
 Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
@@ -19,6 +19,13 @@ one, or adding another, needs no Rust.
 catalogue (a new text arrives with an empty translation, a text gone from the code is dropped) and
 prints how much of each language is translated. CI fails when the template is out of date, or when a
 translation loses or adds a `{placeholder}`.
+
+## New texts in a pull request
+
+A pull request that adds interface texts runs `cargo xtask i18n`, then gives each new entry a
+translation in every catalogue and marks it `#, fuzzy` (a draft awaiting review), so nobody sees
+English in the middle of their language. A machine or best-effort translation is fine; a native
+speaker removes the `#, fuzzy` later. An empty `msgstr` doesn't fail CI or block a review.
 
 ## Reviewing a preview language
 
@@ -71,6 +78,11 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-20 | minor | New texts in a pull request: a draft translation in every catalogue, marked `#, fuzzy`; empty ones don't block a review |
+| 2026-11-16 | minor | added the Czech preview catalogue (`cs.po`), with its three plural forms. |
+| 2026-11-15 | minor | #1357: added the Polish preview catalogue (`pl.po`), with its three plural forms. |
+| 2026-11-14 | minor | Added the Hungarian preview catalogue (`hu.po`). |
+| 2026-11-13 | minor | #1010: Georgian as a preview language (`ka.po`) |
 | 2026-11-12 | minor | #1135: Romanian as a preview language (`ro.po`), with its three plural forms |
 | 2026-11-12 | minor | #1031: Simplified Chinese preview catalogue (`zh_CN.po`), initial catalogue reviewed by its contributor |
 | 2026-11-10 | patch | #978: English writes dates the day first outside the US, Canada and the Philippines, with the region's clock and first day of the week |

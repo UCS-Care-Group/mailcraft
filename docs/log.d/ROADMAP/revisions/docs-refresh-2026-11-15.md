@@ -1,1 +1,0 @@
-| 2026-11-15 | Headline numbers recomputed (parity 247 / 315, 344 commands, 27 crates, 8,413 tests, twenty-two releases to v0.13.0); beta checklist rows B2, B4, B6, B9 and steps R2, R7 brought to what testers reported; after-beta items 1, 2, 3, 6, 7 and 13 brought to the code |

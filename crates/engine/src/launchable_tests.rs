@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The kinds of file that are launchable or ask first (A4-V1, A7-2, A7-3).
 
-use crate::opening::{BLOCKED, MACROS, Verdict, is_launchable, verdict};
+use crate::opening::{BLOCKED, Chooser, MACROS, Verdict, is_launchable, verdict, verdict_for};
 
 #[test]
 fn more_launchers_are_never_opened() {
@@ -36,7 +36,7 @@ fn more_launchers_are_never_opened() {
 #[test]
 fn legacy_office_binaries_ask_first() {
     for ext in ["doc", "dot", "xls", "xlt", "xlw", "ppt", "pot", "pps", "ppa", "pub", "wbk", "vsd", "vss", "vst", "vdx"] {
-        assert_eq!(verdict(&format!("invoice.{ext}")), Verdict::Macros, "{ext}");
+        assert_eq!(verdict_for(&format!("invoice.{ext}"), Chooser::Name), Verdict::Macros, "{ext}");
     }
     assert_eq!(verdict("a.docx"), Verdict::Open);
 }

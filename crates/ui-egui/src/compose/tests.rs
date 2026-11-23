@@ -795,7 +795,7 @@ fn typing_goes_on_after_the_window_was_left_and_came_back_to() {
     assert_eq!(plain(&h), "Hello again!");
 }
 
-fn click(h: &mut Window, at: egui::Pos2) {
+pub(super) fn click(h: &mut Window, at: egui::Pos2) {
     h.event(Event::PointerMoved(at));
     h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
     h.step();

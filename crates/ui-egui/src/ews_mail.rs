@@ -160,7 +160,8 @@ impl MailApp {
             self.jmap_refused.remove(&signer);
         }
         let Some(secret) = self.ews_secret(account) else {
-            self.dialog = dialogs::Dialog::open("password", self, &json!({"account": signer}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": signer}));
+            self.set_dialog(dialog);
             // (The owner's password is asked for; what is typed goes with the shared mailbox's run,
             // which was the one asked for: a shared mailbox being added is read then.)
             self.ews_password_then = (signer != account).then_some(account);
@@ -203,6 +204,7 @@ impl MailApp {
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("ews mail: the run stopped without its last piece (its thread ended early)");
+                    self.session.end_run_unfinished(account);
                     (self.sync_rx, self.sync_refused, self.sync_password) = (None, false, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;

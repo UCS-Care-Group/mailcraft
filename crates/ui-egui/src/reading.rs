@@ -23,21 +23,31 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
+pub(crate) mod attachment_pictures;
+#[cfg(test)]
+mod attachment_pictures_tests;
 mod backdrop;
 #[cfg(test)]
 mod backdrop_tests;
 pub(crate) mod colors;
 #[cfg(test)]
 mod colors_strong_tests;
-pub(crate) mod fonts;
 #[cfg(test)]
 mod header_tests;
 pub(crate) mod images;
 #[cfg(test)]
 mod images_tests;
 mod invitation;
-mod layout;
+// Readable from `crate::fonts`' tests, which lay a message out to see what it is drawn in.
+#[cfg(test)]
+mod font_faces_tests;
+pub(crate) mod layout;
+pub(crate) mod react;
+#[cfg(test)]
+mod react_tests;
 pub(crate) mod remote;
+#[cfg(test)]
+mod scroll_keys_tests;
 mod select;
 mod sharing;
 #[cfg(test)]
@@ -63,7 +73,7 @@ use serde_json::json;
 pub(crate) use invitation::{list_marks, options as invitation_options, question as invitation_question};
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
-pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use select::{inspect as selection_inspect, scroll_of, select_all_params};
 pub(crate) use signature::row_seal as signature_seal;
 pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
@@ -78,7 +88,12 @@ use crate::{MailApp, icons};
 pub(crate) fn let_go(app: &mut MailApp, ctx: &egui::Context) {
     view::Store::let_go(ctx);
     app.remote_pictures.let_go(ctx);
-    fonts::let_go(ctx);
+    // A message being written keeps the faces its fonts were read for: it is laid out again with
+    // every keystroke, and a face dropped under it would be read all over again (#1493).
+    if app.session.composing_count() > 0 || app.session.signature_edit.is_some() {
+        return;
+    }
+    crate::fonts::let_go(ctx);
 }
 
 /// Most recipient names the header of the reading pane lists, and most category chips it paints.
@@ -132,6 +147,7 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
                 egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
                     view::show(app, ui, m, place, access);
                 });
+                keyed_scroll(app, ui, place);
             });
         });
     });
@@ -253,7 +269,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(egui::RichText::new(tl!("Held:")).font(crate::theme::regular(12.0)).strong().color(t.text));
                 ui.label(egui::RichText::new(m.held.as_str()).font(crate::theme::regular(12.0)).color(t.text_dim));
-                if ui.button(tl!("Send Again")).clicked() {
+                // A draft is sent with Send, from its own bar (#1747).
+                if !m.draft && ui.button(tl!("Send Again")).clicked() {
                     let _ = app.run("mail.sendAgain", serde_json::json!({"id": id}));
                 }
             });
@@ -269,10 +286,30 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
                 egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
                     view::show(app, ui, m, place, access);
                 });
+                keyed_scroll(app, ui, place);
             });
         });
     });
     select::settle(app, ui, place);
+}
+
+/// How far an arrow key scrolls a message's body (#1739): about two lines of its text.
+const LINE_SCROLL: f32 = 40.0;
+
+/// Scroll the body laid out in `ui` (the inside of its scroll area, after the body) as the key
+/// waiting for `place` says (#1739). The scroll area keeps it within the body.
+fn keyed_scroll(app: &mut MailApp, ui: &mut Ui, place: Place) {
+    let Some(scroll) = app.text_selection.take_scroll(place) else { return };
+    let page = (ui.clip_rect().height() - LINE_SCROLL).max(LINE_SCROLL);
+    let whole = ui.min_rect().height();
+    // A positive delta brings what is above or to the left into view.
+    let delta = match scroll {
+        select::Scroll::Line { down, across } => vec2(-f32::from(across) * LINE_SCROLL, -f32::from(down) * LINE_SCROLL),
+        select::Scroll::Page(down) => vec2(0.0, -f32::from(down) * page),
+        select::Scroll::Top => vec2(0.0, whole),
+        select::Scroll::End => vec2(0.0, -whole),
+    };
+    ui.scroll_with_delta_animation(delta, egui::style::ScrollAnimation::none());
 }
 
 /// What the reading pane says of a message of which only the headers and a preview are here.
@@ -490,6 +527,10 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
                             let _ = app.run(id, json!({}));
                         }
+                        // React sits between Forward and Delete (#1544).
+                        if *id == "mail.delete" {
+                            ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+                        }
                     }
                 }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
@@ -604,7 +645,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
             });
         });
         notes(app, ui, m, &t, pictures);
-        attachments(app, ui, m, &t);
+        attachments(app, ui, m, place, &t);
     });
     select::header(app, ui, place, fields, around.response.rect);
     let r = ui.available_rect_before_wrap();
@@ -713,7 +754,7 @@ fn gmail_labels(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     });
 }
 
-pub(crate) fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
+pub(crate) fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: &Tokens) {
     // The calendar part of a meeting is what its bar shows: it is not one of the files.
     let meeting = invitation::info(app, ui.ctx(), m);
     // The signature part of a message whose signature was checked (that very part, by its bytes)
@@ -724,80 +765,109 @@ pub(crate) fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Token
     if files.is_empty() {
         return;
     }
+    // Which of them are shown as pictures, when the owner has them so (#834).
+    let sizes = attachment_pictures::looks(app, ui.ctx(), m, place, &files);
     ui.add_space(2.0);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-        for (index, a) in files {
-            // The name it is opened and saved under, not the one the sender wrote: a right-to-left
-            // override can make `fdp.exe` read as `exe.pdf`.
-            let shown = mailcraft_engine::opening::file_name(&a.name);
-            let name_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), regular(12.0), t.text).size().x).min(220.0);
-            // The chip, and at its right end a `▾` that opens the menu a right-click opens (#785).
-            let (r, _) = ui.allocate_exact_size(vec2(name_w + 44.0 + crate::ribbon::DROP_W, 38.0), Sense::hover());
-            let drop_rect = Rect::from_min_max(pos2(r.max.x - crate::ribbon::DROP_W, r.min.y), r.max);
-            let main_rect = Rect::from_min_max(r.min, pos2(drop_rect.min.x, r.max.y));
-            let filed = m.id != 0;
-            let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
-            let drop_sense = if filed { Sense::click() } else { Sense::hover() };
-            let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
-            app.hit.add("attachment", attachment_key(m.id, index), main_rect);
-            app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
-            let selected = crate::attachment_preview::target(app, app.hit.window(), m.id) == Some(index);
-            let (fill, border) = if selected { (t.selection_pill, t.selection_edge) } else { (t.panel, t.border) };
-            ui.painter().rect(r, 5.0, fill, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-            let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
-            let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
-            if !selected && resp.hovered() {
-                ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+        for ((index, a), look) in files.iter().zip(&sizes) {
+            match look {
+                Some(size) => attachment_pictures::tile(app, ui, m, *index, a, *size, t),
+                None => chip(app, ui, m, *index, a, t),
             }
-            if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
-                ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
-            }
-            let divider = ui.painter().round_to_pixel_center(drop_rect.min.x);
-            ui.painter().line_segment([pos2(divider, r.min.y + 7.0), pos2(divider, r.max.y - 7.0)], Stroke::new(1.0, t.border));
-            crate::ribbon::drop_mark(ui, drop_rect.center(), if filed { t.icon } else { t.text_disabled });
-            if resp.has_focus() {
-                ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
-            }
-            if drop.has_focus() {
-                ui.painter().rect_stroke(drop_rect.shrink(1.0), right, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
-            }
-            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &shown));
-            icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
-            paint_clipped(ui.painter(), pos2(r.min.x + 34.0, r.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
-            ui.painter().text(
-                pos2(r.min.x + 34.0, r.min.y + 27.0),
-                Align2::LEFT_CENTER,
-                mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
-                regular(10.5),
-                t.text_dim,
-            );
-            // Double-click opens it, as in Outlook; its menu opens or saves it.
-            // (A message that is not in the mailbox has no number to name it by: attachments are
-            // opened and saved once it is filed, and its `▾` is greyed and opens nothing.)
-            if !filed {
-                let why = tl!("Move the message to a folder to open or save its attachments");
-                resp.on_hover_text(why);
-                drop.on_hover_text(why);
-                continue;
-            }
-            let hint = tl!("Click to select {name}; double-click to open it");
-            let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", &shown)]));
-            if resp.double_clicked() {
-                crate::attachment_preview::cancel_click(app);
-                let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
-            } else if resp.clicked() {
-                crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
-            }
-            resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
-            // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
-            let label = crate::i18n::fmt(tl!("Attachment options for {name}"), &[("name", &shown)]);
-            drop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-            let drop = drop.on_hover_text(tl!("Attachment options"));
-            egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
         }
     });
     crate::attachment_preview::finish_click(app, ui.ctx(), m.id);
+}
+
+/// An attachment as a chip: its icon, its name and its size.
+fn chip(app: &mut MailApp, ui: &mut Ui, m: &Message, index: usize, a: &mailcraft_model::Attachment, t: &Tokens) {
+    // The name it is opened and saved under, not the one the sender wrote: a right-to-left
+    // override can make `fdp.exe` read as `exe.pdf`.
+    let shown = mailcraft_engine::opening::file_name(&a.name);
+    let name_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), regular(12.0), t.text).size().x).min(220.0);
+    let size = vec2(name_w + 44.0 + crate::ribbon::DROP_W, 38.0);
+    file_item(app, ui, m, index, &shown, size, t, |painter, main| {
+        icons::paint(painter, Rect::from_center_size(pos2(main.min.x + 17.0, main.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
+        paint_clipped(painter, pos2(main.min.x + 34.0, main.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
+        painter.text(
+            pos2(main.min.x + 34.0, main.min.y + 27.0),
+            Align2::LEFT_CENTER,
+            mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
+            regular(10.5),
+            t.text_dim,
+        );
+    });
+}
+
+/// One attachment of `size` points, as a chip or as a picture (#834): `paint` draws what it shows
+/// in its main part, and at its right end a `▾` opens the menu a right-click opens (#785).
+/// `shown` is the name it is opened and saved under.
+#[allow(clippy::too_many_arguments)]
+fn file_item(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    m: &Message,
+    index: usize,
+    shown: &str,
+    size: egui::Vec2,
+    t: &Tokens,
+    paint: impl FnOnce(&egui::Painter, Rect),
+) {
+    let (r, _) = ui.allocate_exact_size(size, Sense::hover());
+    let drop_rect = Rect::from_min_max(pos2(r.max.x - crate::ribbon::DROP_W, r.min.y), r.max);
+    let main_rect = Rect::from_min_max(r.min, pos2(drop_rect.min.x, r.max.y));
+    let filed = m.id != 0;
+    let resp = ui.interact(main_rect, ui.make_persistent_id(("attachment", m.id, index)), Sense::click());
+    let drop_sense = if filed { Sense::click() } else { Sense::hover() };
+    let drop = ui.interact(drop_rect, ui.make_persistent_id(("attachmentMenu", m.id, index)), drop_sense);
+    app.hit.add("attachment", attachment_key(m.id, index), main_rect);
+    app.hit.add("attachmentMenu", attachment_key(m.id, index), drop_rect);
+    let selected = crate::attachment_preview::target(app, app.hit.window(), m.id) == Some(index);
+    let (fill, border) = if selected { (t.selection_pill, t.selection_edge) } else { (t.panel, t.border) };
+    ui.painter().rect(r, 5.0, fill, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+    let left = egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 };
+    let right = egui::CornerRadius { nw: 0, sw: 0, ne: 5, se: 5 };
+    if !selected && resp.hovered() {
+        ui.painter().rect_filled(main_rect.shrink(1.0), left, t.hover);
+    }
+    if filed && (drop.hovered() || drop.is_pointer_button_down_on()) {
+        ui.painter().rect_filled(drop_rect.shrink(1.0), right, if drop.is_pointer_button_down_on() { t.pressed } else { t.hover });
+    }
+    let divider = ui.painter().round_to_pixel_center(drop_rect.min.x);
+    ui.painter().line_segment([pos2(divider, r.min.y + 7.0), pos2(divider, r.max.y - 7.0)], Stroke::new(1.0, t.border));
+    crate::ribbon::drop_mark(ui, drop_rect.center(), if filed { t.icon } else { t.text_disabled });
+    if resp.has_focus() {
+        ui.painter().rect_stroke(main_rect.shrink(1.0), left, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+    }
+    if drop.has_focus() {
+        ui.painter().rect_stroke(drop_rect.shrink(1.0), right, Stroke::new(2.0, t.focus_ring), egui::StrokeKind::Inside);
+    }
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, shown));
+    paint(&ui.painter().with_clip_rect(main_rect.intersect(ui.clip_rect())), main_rect);
+    // Double-click opens it, as in Outlook; its menu opens or saves it.
+    // (A message that is not in the mailbox has no number to name it by: attachments are
+    // opened and saved once it is filed, and its `▾` is greyed and opens nothing.)
+    if !filed {
+        let why = tl!("Move the message to a folder to open or save its attachments");
+        resp.on_hover_text(why);
+        drop.on_hover_text(why);
+        return;
+    }
+    let hint = tl!("Click to select {name}; double-click to open it");
+    let resp = resp.on_hover_text(crate::i18n::fmt(hint, &[("name", shown)]));
+    if resp.double_clicked() {
+        crate::attachment_preview::cancel_click(app);
+        let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
+    } else if resp.clicked() {
+        crate::attachment_preview::queue_click(app, ui.ctx(), m.id, index);
+    }
+    resp.context_menu(|ui| attachment_menu(ui, app, m.id, index));
+    // The `▾`: a click, or Enter or Space while it has the keyboard, opens the same menu.
+    let label = crate::i18n::fmt(tl!("Attachment options for {name}"), &[("name", shown)]);
+    drop.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    let drop = drop.on_hover_text(tl!("Attachment options"));
+    egui::Popup::menu(&drop).show(|ui| attachment_menu(ui, app, m.id, index));
 }
 
 /// The key of attachment `index` of message `id` in the hit map (`attachment` for the chip,
