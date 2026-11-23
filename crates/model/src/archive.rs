@@ -52,6 +52,8 @@ impl Mailbox {
             return Ok(have.id);
         }
         let archive = Account {
+            // (What it is kept under and what agents read; the interface never shows it, naming
+            // it in its own language, #1834 review.)
             name: format!("Online Archive - {}", o.email.trim()),
             email: o.email.trim().to_owned(),
             display_name: o.display_name.clone(),

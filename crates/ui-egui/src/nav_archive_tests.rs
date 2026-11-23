@@ -120,3 +120,20 @@ fn a_folder_of_the_archive_is_read_each_time_it_comes_on_screen() {
     // (No host here: the read can't start, which says so rather than trying at every frame.)
     assert!(app.archive_failed.contains(&archive), "a read was tried");
 }
+
+/// Wherever the archive is named away from its heading (a folder's account in a list, the
+/// problems of a run, the window's title), it is named in the interface's words, never by the
+/// name it is kept under (#1834 review).
+#[test]
+fn the_archive_is_never_named_by_the_name_it_is_kept_under() {
+    let (mut app, _, archive) = app();
+    let kept = "Kept under this name".to_owned();
+    app.session.mailbox.accounts.iter_mut().find(|a| a.id == archive).unwrap().name.clone_from(&kept);
+    let a = app.session.mailbox.account(archive).unwrap().clone();
+    for shown in [account_label(&a), account_name(&a), account_title(&a), heading_name(&app, &a)] {
+        assert_eq!(shown, "Online Archive – ada@corp.example");
+    }
+    let folder = app.session.mailbox.add_folder(archive, None, "Projects").unwrap();
+    app.session.view.folder = folder;
+    assert!(!app.title_stem().contains(&kept), "{}", app.title_stem());
+}

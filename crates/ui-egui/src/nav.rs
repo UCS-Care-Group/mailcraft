@@ -1255,9 +1255,20 @@ pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
 }
 
 /// What the folder pane calls an account: its name (Account Settings › Account name), and its
-/// address while none is (#1017).
+/// address while none is (#1017). An online archive is named as Outlook names it, in the
+/// interface's language, never by the name it is kept under (#1818).
 pub(crate) fn account_label(a: &Account) -> String {
+    if a.is_archive() {
+        return crate::i18n::fmt(tl!("Online Archive – {address}"), &[("address", a.email.trim())]);
+    }
     if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }
+}
+
+/// An account's name where it is shown as it was given (a window's title, the problems of a
+/// run): its name, and an online archive's [`account_label`], so that the name it is kept under
+/// is never shown (#1818).
+pub(crate) fn account_title(a: &Account) -> String {
+    if a.is_archive() { account_label(a) } else { a.name.clone() }
 }
 
 /// The account as a folder row away from the pane names it: [`account_label`], and its address
@@ -1265,7 +1276,8 @@ pub(crate) fn account_label(a: &Account) -> String {
 pub(crate) fn account_name(a: &Account) -> String {
     let label = account_label(a);
     let email = a.email.trim();
-    if email.is_empty() || email == label { label } else { format!("{label} ({email})") }
+    // (An archive's label has its address in it already.)
+    if email.is_empty() || email == label || a.is_archive() { label } else { format!("{label} ({email})") }
 }
 
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,
@@ -1316,7 +1328,7 @@ fn archive_note(app: &mut MailApp, ui: &mut Ui, archive: Id) {
 pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> String {
     // An online archive is named as Outlook names it, in the interface's language (#1818).
     if a.is_archive() {
-        return crate::i18n::fmt(tl!("Online Archive – {address}"), &[("address", a.email.trim())]);
+        return account_label(a);
     }
     if app.shared_refused.contains_key(&a.id) { crate::i18n::fmt(tl!("{account} · No access"), &[("account", &a.name)]) } else { a.name.clone() }
 }

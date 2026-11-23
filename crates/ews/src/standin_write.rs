@@ -264,7 +264,6 @@ impl State {
         Ok((200, first, response("UpdateItem", &messages)))
     }
 
-    /// Moves the item at `at` into `folder` under a new id, as the service does.
     /// Whether the folder `id` is in the mailbox's archive (#1818): under its `archiveroot`.
     fn in_archive(&self, id: &str) -> bool {
         let mut at = id.to_owned();
@@ -279,6 +278,7 @@ impl State {
         false
     }
 
+    /// Moves the item at `at` into `folder` under a new id, as the service does.
     fn relocate(&mut self, at: usize, folder: &Folder, copy: bool) -> Option<Item> {
         let mut item = self.items.get(at)?.clone();
         let old = item.id.clone();

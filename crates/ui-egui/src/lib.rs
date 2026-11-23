@@ -4834,7 +4834,7 @@ impl MailApp {
         if problems.is_empty() {
             return;
         }
-        let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
+        let name = self.session.mailbox.account(account).map(crate::nav::account_title).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
         let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(bounded_problem).collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
@@ -4872,7 +4872,7 @@ impl MailApp {
     fn skip_sync(&mut self, p: &Value) -> Result<Value, String> {
         use mailcraft_engine::cmd::sync_progress::RunState;
         let account = p.get("account").and_then(Value::as_u64).ok_or_else(|| tl!("Say which account to skip").to_string())?;
-        let name = self.session.mailbox.account(account).map(|a| a.name.clone()).ok_or_else(|| tl!("There is no such account").to_string())?;
+        let name = self.session.mailbox.account(account).map(crate::nav::account_title).ok_or_else(|| tl!("There is no such account").to_string())?;
         let row = self.session.sync_progress.accounts.iter().find(|r| r.account == account).map(|r| r.state);
         if self.sync_running_account() == Some(account) || row == Some(RunState::Running) {
             return Err(i18n::fmt(tl!("{name} is being sent and received now. Use Stop."), &[("name", &name)]));
@@ -5114,8 +5114,12 @@ impl MailApp {
     /// The name of what is in view, for the window title.
     pub fn title_stem(&self) -> String {
         use mailcraft_engine::Module;
-        let account =
-            self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
+        let account = self
+            .session
+            .mailbox
+            .folder(self.session.view.folder)
+            .and_then(|f| self.session.mailbox.account(f.account))
+            .map(crate::nav::account_title);
         match self.session.view.module {
             Module::Mail => {
                 // Every account's Inbox and the like (#625): no one account's.
