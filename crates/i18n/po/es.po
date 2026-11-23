@@ -25229,8 +25229,9 @@ msgstr "{name} es un buzón compartido cuya cuenta ya no existe: quítelo y vuel
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} se adjuntó: no se puede insertar en el texto ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

@@ -25311,8 +25311,9 @@ msgstr "{name} este o cutie poștală partajată al cărei cont nu mai există: 
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} a fost atașat: nu poate fi inserat în text ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

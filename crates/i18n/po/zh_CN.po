@@ -25203,8 +25203,9 @@ msgstr "{name} 是共享邮箱，其所属账户已不存在：请将其删除�
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "已附加 {name}：无法将其插入文本（{why}）"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

@@ -25132,8 +25132,9 @@ msgstr "{name} est une boîte aux lettres partagée dont le compte n'existe plus
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} a été joint : il ne peut pas être inséré dans le texte ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

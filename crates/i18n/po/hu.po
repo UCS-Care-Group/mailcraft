@@ -25225,8 +25225,9 @@ msgstr "A(z) {name} megosztott postafiókhoz tartozó fiók már nincs meg. Táv
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} csatolva lett: nem lehet a szövegbe beszúrni ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

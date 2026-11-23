@@ -24602,8 +24602,9 @@ msgstr "{name} is een gedeeld postvak waarvan het account is verdwenen: verwijde
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} is bijgevoegd: het kan niet in de tekst worden ingevoegd ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

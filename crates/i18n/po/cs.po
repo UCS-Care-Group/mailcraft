@@ -25286,8 +25286,9 @@ msgstr "{name} je sdílená poštovní schránka, jejíž účet už neexistuje:
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
-msgstr ""
+msgstr "{name} byl připojen: nelze ho vložit do textu ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
