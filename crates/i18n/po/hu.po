@@ -9353,6 +9353,11 @@ msgstr "Üzenetek a fény háttérben"
 msgid "Messages to download per folder"
 msgstr "Letöltendő üzenetek száma mappánként"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Messages with a similar subject are filed here."
+msgstr ""
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -15785,6 +15790,11 @@ msgstr "Bejelentkezés ezzel a szolgáltatóval: {provider}"
 msgid "Signs in with: {how}"
 msgstr "Bejelentkezési mód: {how}"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Similar messages from this sender are filed here."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16266,10 +16276,25 @@ msgid "Suggest Account Settings"
 msgstr "fiókbeállítások"
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Suggest Filing Folders"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "Suggest Recipients"
 msgstr "Ajánlás címzetteknek"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Suggest folders in the Move menu"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Suggested folders"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -17974,6 +17999,11 @@ msgstr "Az Exchange-kiszolgáló keresését átirányították ide: {host}. Ez 
 #, fuzzy
 msgid "The selected message, as .eml"
 msgstr "A kijelölt üzenet .eml-ként"
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "The sender and subject match messages filed here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs

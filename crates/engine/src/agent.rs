@@ -141,6 +141,7 @@ const SAFE: &[&str] = &[
     "mail.collapseConversation",
     "mail.get",
     "mail.list",
+    "mail.suggestFolders",
     "mail.delete",
     "mail.archive",
     "mail.move",
@@ -2003,6 +2004,7 @@ fn unsubscribe_mail(s: &Session, id: Id) -> Option<String> {
 /// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
 /// have changed a moment ago (#620). The owner's own runs keep the selection.
 pub const NEEDS_IDS: &[&str] = &[
+    "mail.suggestFolders",
     "mail.delete",
     "mail.deletePermanently",
     "mail.move",

@@ -122,6 +122,7 @@ pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
 pub mod files;
+mod filing_suggestions;
 mod find_replace;
 mod folder_properties;
 #[cfg(test)]
@@ -1972,6 +1973,7 @@ pub struct MailApp {
     pub(crate) sender_images: sender_images::SenderImages,
     /// Letting go of memory while the main window is out of sight ([`out_of_sight`]).
     pub(crate) out_of_sight: out_of_sight::OutOfSight,
+    filing_suggestions: filing_suggestions::Pending,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -2169,6 +2171,7 @@ impl MailApp {
             unsubscribing: Default::default(),
             sender_images: Default::default(),
             out_of_sight: Default::default(),
+            filing_suggestions: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),

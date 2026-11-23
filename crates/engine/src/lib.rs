@@ -34,6 +34,7 @@ pub mod counts;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
+pub mod filing_suggestions;
 pub mod gmail;
 pub mod import_pst;
 pub mod import_tree;

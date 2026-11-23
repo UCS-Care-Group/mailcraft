@@ -9350,6 +9350,11 @@ msgstr "邮件使用浅色背景"
 msgid "Messages to download per folder"
 msgstr "每个文件夹要下载的邮件数"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Messages with a similar subject are filed here."
+msgstr ""
+
 #. name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -15784,6 +15789,11 @@ msgstr "使用 {provider} 登录"
 msgid "Signs in with: {how}"
 msgstr "登录方式：{how}"
 
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Similar messages from this sender are filed here."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16265,10 +16275,25 @@ msgid "Suggest Account Settings"
 msgstr "建议账户设置"
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Suggest Filing Folders"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "Suggest Recipients"
 msgstr "建议收件人"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Suggest folders in the Move menu"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "Suggested folders"
+msgstr ""
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -17970,6 +17995,11 @@ msgstr "查找 Exchange 服务器的请求被重定向到 {host}，它不属于�
 #, fuzzy
 msgid "The selected message, as .eml"
 msgstr "将选定邮件保存为 .eml"
+
+#. interface
+#: crates/ui-egui/src/filing_suggestions.rs
+msgid "The sender and subject match messages filed here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
