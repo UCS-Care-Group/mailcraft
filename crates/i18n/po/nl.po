@@ -12187,6 +12187,12 @@ msgstr "Privacy"
 msgid "Private"
 msgstr "Persoonlijk"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programma's die bestanden als dit openen, doen iets met de inhoud: ze kunnen webinhoud erin tonen of de sleutels en certificaten erin overnemen. Open het alleen als u weet wie het heeft gestuurd en het verwacht."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18431,6 +18437,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Dit exemplaar van MailCraft werkt zichzelf niet bij."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Deze kopie van MailCraft draait in een Flatpak-sandbox, waar ze niet kan garanderen dat een bestand van dit soort met het juiste programma wordt geopend. Sla het op met Opslaan als en open het zelf."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19277,6 +19289,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "Aan mij"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Om een bijlage te openen vraagt MailCraft eerst aan de desktop wat voor bestand het is, en noch gio (van GLib) noch kmimetypefinder (van KDE) is geïnstalleerd. Installeer een van beide, of sla de bijlage op met Opslaan als."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20857,8 +20875,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Zimbra accounts can't send mail yet: that part is not built"
-msgstr ""
+msgstr "Zimbra-accounts kunnen nog geen e-mail verzenden: dat deel is nog niet gebouwd"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -26181,6 +26200,18 @@ msgid "−Lines"
 msgstr "−Regels"
 
 #, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra-accounts kunnen nog niet verzenden en ontvangen: dat deel is nog niet gebouwd"
+
+#, fuzzy
+#~ msgid "the result is for another Zimbra server"
+#~ msgstr "het resultaat is voor een andere Zimbra-server"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "het resultaat is voor een ander account"
+
+#, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
 #~ msgid_plural "Its {n} rules go too; those its server keeps stay there."
 #~ msgstr[0] "De {n} regel gaat ook mee; een die de server bewaart, blijft daar."
@@ -26621,10 +26652,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "a link goes to an http, https, mailto or tel address"
 #~ msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
-
-#, fuzzy
-#~ msgid "the result is for another account"
-#~ msgstr "het resultaat is voor een ander account"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"

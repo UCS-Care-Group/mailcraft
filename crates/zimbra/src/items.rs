@@ -152,9 +152,15 @@ pub fn answer(response: &HttpResponse) -> Result<Page, Error> {
     Ok(Page { messages, more, cursor })
 }
 
-/// A message as the model has one, from its summary; `None` for one that has no own id.
+/// A message as the model has one, from its summary; `None` for one that has no own id, or
+/// people in no shape of a list.
 pub fn message(m: &Value) -> Option<GraphMessage> {
     let id = json::own_id(m.get("id"))?;
+    // People that are there but in no shape a list is written in are not "nobody": read as an
+    // empty list, the message would come out whole with its recipients gone.
+    if json::bad_list(m.get("e")) {
+        return None;
+    }
     let flags = json::raw(m.get("f")).unwrap_or_default();
     let has = |c: char| flags.contains(c);
     let people = |kind: &str| -> Vec<Address> {
@@ -162,7 +168,12 @@ pub fn message(m: &Value) -> Option<GraphMessage> {
             .iter()
             .filter(|e| json::raw(e.get("t")).is_some_and(|t| t.trim() == kind))
             .take(MAX_PEOPLE)
-            .map(|e| Address::new(json::line(e.get("p")), json::text(e.get("a")).map(|a| a.trim().to_string()).unwrap_or_default()))
+            // (The address as it was sent, or not at all: cut to size or cleaned it would be
+            // another address, and the list would still pass for whole.)
+            .map(|e| {
+                let address = json::raw(e.get("a")).filter(|a| a.len() <= json::MAX_TEXT && !a.chars().any(char::is_control));
+                Address::new(json::line(e.get("p")), address.map(|a| a.trim().to_string()).unwrap_or_default())
+            })
             .filter(|a| !a.email.is_empty())
             .collect()
     };

@@ -12601,6 +12601,12 @@ msgstr "隐私"
 msgid "Private"
 msgstr "私人"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "打开此类文件的程序会处理其中的内容：可能显示其中的网页内容，或导入其中的密钥和证书。仅当您知道发件人并且正在等待该文件时才打开它。"
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18991,6 +18997,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "此 MailCraft 版本不会自行更新。"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "此 MailCraft 副本运行在 Flatpak 沙盒中，无法确保此类文件会用正确的程序打开。请用“另存为”保存后自行打开。"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19835,6 +19847,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "发给我"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "打开附件前，MailCraft 会先询问桌面环境这是哪种文件，但 gio（来自 GLib）和 kmimetypefinder（来自 KDE）都没有安装。请安装其中之一，或用“另存为”保存附件。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -21451,8 +21469,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Zimbra accounts can't send mail yet: that part is not built"
-msgstr ""
+msgstr "Zimbra 账户暂时还不能发送邮件：这部分尚未实现"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -26585,8 +26604,9 @@ msgstr "{why}。此处对它所做的 {n} 项更改保留在此计算机上，�
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
+msgstr "{why}：请从其他账户发送此邮件，或将其保存为草稿"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -26652,6 +26672,18 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra 账户尚不能收发邮件：该部分尚未构建"
+
+#, fuzzy
+#~ msgid "the result is for another Zimbra server"
+#~ msgstr "该结果属于另一台 Zimbra 服务器"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "该结果属于另一个账户"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

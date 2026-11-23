@@ -754,6 +754,11 @@ pub fn access(id: &str) -> Option<Access> {
     })
 }
 
+/// Every id an agent may run (with the owner's yes or without): the engine's and the window's.
+pub fn runnable() -> impl Iterator<Item = &'static str> {
+    [SAFE, SEND, DELETE, ACCOUNTS, MAILBOX, SETTINGS].into_iter().flatten().copied()
+}
+
 /// How a command uses a param that names a file on disk.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileUse {

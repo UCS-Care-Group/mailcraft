@@ -12612,6 +12612,12 @@ msgstr "Privacidad"
 msgid "Private"
 msgstr "Privado"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Los programas que abren archivos como este actúan sobre su contenido: pueden mostrar el contenido web que incluyan o incorporar las claves y certificados que contengan. Ábralo solo si sabe quién lo envió y lo esperaba."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -19007,6 +19013,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Esta copia de MailCraft no se actualiza sola."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Esta copia de MailCraft se ejecuta en un entorno aislado de Flatpak, donde no puede asegurarse de que un archivo de este tipo se abra con el programa adecuado. Guárdelo con Guardar como y ábralo usted mismo."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19861,6 +19873,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "Para mí"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Para abrir un adjunto, MailCraft pregunta primero al escritorio qué tipo de archivo es, y no está instalado ni gio (de GLib) ni kmimetypefinder (de KDE). Instale uno de ellos o guarde el adjunto con Guardar como."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -21474,8 +21492,9 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Zimbra accounts can't send mail yet: that part is not built"
-msgstr ""
+msgstr "Las cuentas de Zimbra aún no pueden enviar correo: esa parte todavía no está hecha"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -26733,8 +26752,9 @@ msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
+msgstr "{why}: envíe este mensaje desde otra cuenta o guárdelo como borrador"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -26801,6 +26821,18 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Líneas"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Las cuentas de Zimbra aún no pueden enviar ni recibir: esa parte aún no está hecha"
+
+#, fuzzy
+#~ msgid "the result is for another Zimbra server"
+#~ msgstr "el resultado es de otro servidor Zimbra"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "el resultado es para otra cuenta"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

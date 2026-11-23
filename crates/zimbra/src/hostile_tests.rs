@@ -274,8 +274,11 @@ fn leading_and_trailing_controls_are_not_trimmed_into_valid_ids() {
 fn ids_of_other_mailboxes_and_odd_ids_are_passed_over() {
     // A hit whose id is no id at all can't be told from a cached message the listing left out:
     // the whole answer is refused, like an item that names no folder.
-    let odd = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": "0"}, {"id": "-4"}, {"id": "12345678901"}]}}}));
-    assert_eq!(items::answer(&odd), Err(Error::Unreadable));
+    // (Each by itself and in a folder that is one, so that it is the id that is refused.)
+    for id in ["0", "-4", "12345678901"] {
+        let odd = answer(200, &json!({"Body": {"SearchResponse": {"m": [{"id": id, "l": "2"}]}}}));
+        assert_eq!(items::answer(&odd), Err(Error::Unreadable), "{id}");
+    }
     let found = answer(
         200,
         &json!({"Body": {"SearchResponse": {"m": [
@@ -355,4 +358,80 @@ fn a_text_of_many_byte_characters_is_held_to_the_byte_limit() {
     let message = &page.messages[0];
     assert_eq!((message.subject.len(), message.subject.chars().count()), (16 * 1024, 4 * 1024));
     assert_eq!((message.preview.len(), message.preview.chars().count()), (16 * 1024, 8 * 1024));
+}
+
+#[test]
+fn a_sign_in_refused_by_status_alone_is_a_sign_in_refused() {
+    // A proxy or a single sign-on in front of the service answers 401 or 403 with a page, not a
+    // fault: the owner is asked to sign in again, as for the fault.
+    for status in [401u16, 403] {
+        let page = HttpResponse::new(status, b"<html>Sign in</html>".to_vec());
+        assert_eq!(items::answer(&page), Err(Error::AuthRefused));
+        assert_eq!(folders::answer(&answer(status, &json!({"Body": {}}))), Err(Error::AuthRefused));
+    }
+    // A fault the server wrote keeps its own word.
+    let denied = answer(403, &json!({"Body": {"Fault": {"Detail": {"Error": {"Code": "service.PERM_DENIED"}}}}}));
+    assert_eq!(items::answer(&denied), Err(Error::Fault(Fault::PermissionDenied)));
+}
+
+#[test]
+fn a_page_in_place_of_a_message_is_no_message() {
+    // What a server or a proxy answers with 200 when it doesn't take the sign-in: taken for the
+    // message, it would be kept as its text and the message never asked for again.
+    let html = b"<!DOCTYPE html><html><body>Sign in</body></html>".to_vec();
+    assert_eq!(fetch::answer(&HttpResponse::new(200, html)), Err(Error::AuthRefused));
+    assert_eq!(fetch::answer(&HttpResponse::new(200, b"  \r\n<HTML lang=en>".to_vec())), Err(Error::AuthRefused));
+    let typed = HttpResponse::new(200, b"Subject: x\r\n\r\nbody".to_vec()).with_field("Content-Type", "Text/HTML; charset=utf-8");
+    assert_eq!(fetch::answer(&typed), Err(Error::AuthRefused));
+    // A message whose own text is HTML is a message, whatever type the service sends it as.
+    let mail = b"Subject: x\r\nContent-Type: text/html\r\n\r\n<html>hello</html>".to_vec();
+    for kind in [Some("message/rfc822"), Some("text/plain"), None] {
+        let response = HttpResponse::new(200, mail.clone());
+        let response = match kind {
+            Some(kind) => response.with_field("Content-Type", kind),
+            None => response,
+        };
+        assert_eq!(fetch::answer(&response), Ok(mail.clone()), "{kind:?}");
+    }
+}
+
+#[test]
+fn a_deleted_note_is_a_typed_deletion_that_removes_no_mail() {
+    // `notes` is one of the types `SyncResponse`'s `deleted` breaks down by: unread, a delta that
+    // deletes a note would never be gone on from.
+    let only = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "notes": [{"ids": "500"}]}]}}}));
+    let delta = delta::answer(&only, false).unwrap();
+    assert!(delta.deleted.is_empty() && delta.token == "6");
+    let odd = answer(200, &json!({"Body": {"SyncResponse": {"token": "6", "deleted": [{"ids": "500", "notes": [{"ids": "5 00"}]}]}}}));
+    assert_eq!(delta::answer(&odd, false), Err(Error::Unreadable));
+}
+
+#[test]
+fn a_probe_with_people_in_no_list_shape_is_refused() {
+    for people in [json!("unreadable"), json!(7), json!(true)] {
+        let one = answer(200, &json!({"Body": {"GetMsgResponse": {"m": [{"id": "257", "l": "2", "e": people}]}}}));
+        assert_eq!(items::probe_answer(&one, "257"), Err(Error::Unreadable));
+    }
+    let fine = answer(200, &json!({"Body": {"GetMsgResponse": {"m": [{"id": "257", "l": "2", "e": {"t": "t", "a": "bob@example.org"}}]}}}));
+    assert_eq!(items::probe_answer(&fine, "257").unwrap().unwrap().to.len(), 1);
+}
+
+#[test]
+fn an_address_that_can_not_be_kept_whole_is_left_out_and_said() {
+    // Cut to size or cleaned it would be another address: left out, the list says it is cut.
+    let long = format!("{}@example.org", "a".repeat(16 * 1024));
+    for odd in [long, "bob\u{0}@example.org".to_string()] {
+        let m = items::message(&json!({"id": "300", "l": "2", "e": [{"t": "t", "a": odd}, {"t": "t", "a": "ada@example.org"}]})).unwrap();
+        assert_eq!(m.to.len(), 1);
+        assert!(m.cut);
+    }
+}
+
+#[test]
+fn a_list_of_more_ids_than_asked_for_is_no_list() {
+    assert_eq!(crate::json::ids(Some(&json!("1,2")), 2), Some(vec!["1".to_string(), "2".to_string()]));
+    assert_eq!(crate::json::ids(Some(&json!("1,2")), 1), None);
+    // Ids of another mailbox don't count; what follows the last one taken is still read.
+    assert_eq!(crate::json::ids(Some(&json!("1,x:9")), 1), Some(vec!["1".to_string()]));
+    assert_eq!(crate::json::ids(Some(&json!("1,bad id")), 1), None);
 }

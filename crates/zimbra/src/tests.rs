@@ -1064,5 +1064,54 @@ fn mime_batches_check_the_prospective_total_and_keep_unread_ids_retryable() {
         assert_eq!(result.fetched.len(), 2);
         assert_eq!(result.fetched.iter().map(|message| message.mime.len()).sum::<usize>(), 2 * size);
         assert!(result.fetched.iter().all(|message| message.id != ids[2]));
+        // What the batch left for later comes whole when it is asked for again.
+        let request = ZimbraFetchRequest { ids: vec![ids[2].clone()], ..request };
+        let later = block_on(fetch_messages(&server, &request, &Secret::new(PASSWORD), &AtomicBool::new(false))).unwrap();
+        assert!(later.errors.is_empty() && later.failed.is_empty());
+        assert_eq!(later.fetched.iter().map(|message| (message.id.as_str(), message.mime.len())).collect::<Vec<_>>(), [(ids[2].as_str(), size)]);
     }
+}
+
+#[test]
+fn a_by_id_answer_that_names_a_message_twice_is_refused() {
+    // Each copy would be a message of the page, or a removal of it: a page past what is taken in,
+    // from an answer that named one message.
+    let server = StandIn::new();
+    let id = server.deliver(2, "Once", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    server.change(id, |m| m.flags = "u".into());
+    let twice = |body: &mut serde_json::Value| {
+        if let Some(messages) = body.pointer_mut("/Body/SearchResponse/m").and_then(serde_json::Value::as_array_mut)
+            && let Some(first) = messages.first().cloned()
+        {
+            messages.push(first);
+        }
+    };
+    let all = whole(&collect(&Edited { server, edit: Box::new(twice) }, &token));
+    assert!(!all.errors.is_empty() && all.token.is_empty() && !all.whole && all.pages.is_empty());
+}
+
+#[test]
+fn a_folder_read_that_comes_back_to_an_earlier_page_is_cut_off() {
+    // `more` every time, and after a second cursor the first one again: followed, the read would
+    // go round until the page cap and start round again on every run after.
+    let server = StandIn::new();
+    server.deliver(2, "One", "");
+    let asked = std::cell::Cell::new(0u32);
+    let round = move |body: &mut serde_json::Value| {
+        let Some(answer) = body.pointer_mut("/Body/SearchResponse") else { return };
+        // (The Inbox's first page, and the two asked for after it.)
+        let inbox = answer["m"].as_array().and_then(|m| m.first()).is_some_and(|m| m["l"] == "2");
+        if !(inbox || (1..3).contains(&asked.get())) {
+            return;
+        }
+        let (id, sort) = if asked.get().is_multiple_of(2) { ("301", 2000) } else { ("302", 1000) };
+        asked.set(asked.get() + 1);
+        answer["m"] = serde_json::json!([{"id": id, "l": "2", "d": sort, "sf": sort.to_string()}]);
+        answer["more"] = serde_json::json!(true);
+    };
+    let pieces = collect(&Edited { server, edit: Box::new(round) }, "");
+    let all = whole(&pieces);
+    assert!(!all.errors.is_empty() && all.token.is_empty() && !all.whole);
+    assert_eq!(all.pages.iter().filter(|p| p.folder == "2").count(), 2);
 }

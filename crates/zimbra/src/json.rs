@@ -141,8 +141,9 @@ pub(crate) fn bad_list(value: Option<&Value>) -> bool {
 }
 
 /// The ids of a comma-separated list (`"257,258"`), own ids only, at most `most` of them. The
-/// raw text is split, never [`text`]'s cut copy: a list longer than the cap is no list at all
-/// (`None`), so that a token cut in two can never pass for an id the server didn't send.
+/// raw text is split, never [`text`]'s cut copy: a list longer than the cap, or of more own ids
+/// than `most`, is no list at all (`None`), so that a token cut in two can never pass for an id
+/// the server didn't send, nor the start of a list for the whole of it.
 pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
     const MAX_LIST: usize = 64 * 1024;
     let raw = match value? {
@@ -167,12 +168,11 @@ pub(crate) fn ids(value: Option<&Value>, most: usize) -> Option<Vec<String>> {
         // no id at all — dropping it while the page's token is kept would lose a deletion
         // the server did send.
         match own_id(Some(&value)) {
+            // One more than the most asked for: no prefix of it is handed back as if it were all.
+            Some(_) if out.len() >= most => return None,
             Some(id) => out.push(id),
             None if foreign_id(Some(&value)) => {}
             None => return None,
-        }
-        if out.len() >= most {
-            break;
         }
     }
     Some(out)

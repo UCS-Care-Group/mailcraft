@@ -79,7 +79,7 @@ pub fn answer(response: &HttpResponse, first: bool) -> Result<Delta, Error> {
             return Err(Error::Unreadable);
         }
         let mut typed = false;
-        for kind in ["folder", "search", "link", "tag", "c", "chat", "m", "cn", "appt", "task", "w", "doc"] {
+        for kind in ["folder", "search", "link", "tag", "c", "chat", "m", "cn", "appt", "task", "notes", "w", "doc"] {
             let Some(list) = deleted.get(kind) else { continue };
             if list.is_null() || json::bad_list(Some(list)) {
                 return Err(Error::Unreadable);
