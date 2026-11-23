@@ -82,9 +82,7 @@ fn title_case_keeps_a_candidate_with_internal_capitals() {
 }
 
 #[test]
-fn sharp_s_restore_keeps_the_whole_uppercase_mapping() {
-    assert_eq!(crate::fold::restore_accents("straßee", "STRASSE"), "STRASSE");
-    assert_eq!(crate::fold::restore_accents("straße", "strasse"), "straße");
+fn sharp_s_typo_offers_the_whole_uppercase_dictionary_word() {
     let dict = Dictionary::parse("SET UTF-8\nREP 1\nREP straßee STRASSE\n", "1\nSTRASSE\n").expect("parse");
     let got = dict.suggest("straßee", &[]);
     assert!(got.iter().any(|word| word == "STRASSE"), "{got:?}");
@@ -92,14 +90,12 @@ fn sharp_s_restore_keeps_the_whole_uppercase_mapping() {
 }
 
 #[test]
-fn ligature_restore_consumes_its_whole_expansion() {
-    assert_eq!(crate::fold::restore_accents("encyclopædai", "encyclopaedia"), "encyclopædia");
+fn ligature_typo_offers_the_dictionary_spelling() {
     assert_eq!(crate::fold::fold_accents("encyclopædia"), "encyclopaedia");
-    assert_eq!(crate::fold::restore_accents("café", "cafe"), "café");
 
     let dict = Dictionary::parse("SET UTF-8\n", "1\nencyclopaedia\n").expect("parse");
     let got = dict.suggest("encyclopædai", &[]);
-    assert!(got.iter().any(|word| word == "encyclopædia"), "{got:?}");
+    assert!(got.iter().any(|word| word == "encyclopaedia"), "{got:?}");
     assert!(got.iter().all(|word| dict.is_correct(word)), "{got:?}");
 }
 
@@ -110,8 +106,39 @@ fn suggestion_case_and_accents() {
     let title = dict().suggest("Teh", &[]);
     assert!(title.iter().any(|word| word == "The"), "{title:?}");
     let accented = dict().suggest("caféé", &[]);
-    assert!(accented.iter().any(|word| word.contains('é') || word.contains('É')), "{accented:?}");
+    assert!(accented.iter().any(|word| word.eq_ignore_ascii_case("cafe")), "{accented:?}");
+    assert!(accented.iter().all(|word| !word.contains('é')), "{accented:?}");
     assert!(!accented.iter().any(|word| word == "caféé"));
+}
+
+#[test]
+fn suggestions_are_dictionary_spellings_without_typed_accents() {
+    let real = dict();
+    for word in ["naïvee", "Zoëy", "cafés"] {
+        let got = real.suggest(word, &[]);
+        assert!(got.iter().all(|item| !has_typed_accent(item)), "{word} -> {got:?}");
+        assert!(got.iter().all(|item| real.is_correct(item)), "{word} -> {got:?}");
+    }
+
+    let small = Dictionary::parse("SET UTF-8\nTRY jt\n", "7\nnaive\nnative\nJoey\nobey\ncafes\ncages\ncares\n").expect("parse");
+    let naivee = small.suggest("naïvee", &[]);
+    assert!(naivee.iter().any(|word| word == "naive"), "{naivee:?}");
+    assert!(naivee.iter().all(|word| !has_typed_accent(word)), "{naivee:?}");
+    assert!(naivee.iter().all(|word| small.is_correct(word)), "{naivee:?}");
+
+    let zoey = small.suggest("Zoëy", &[]);
+    assert!(zoey.iter().any(|word| word == "Joey"), "{zoey:?}");
+    assert!(zoey.iter().all(|word| !has_typed_accent(word)), "{zoey:?}");
+    assert!(zoey.iter().all(|word| small.is_correct(word)), "{zoey:?}");
+
+    let cafes = small.suggest("cafés", &[]);
+    assert!(cafes.iter().any(|word| word == "cages" || word == "cares"), "{cafes:?}");
+    assert!(cafes.iter().all(|word| !has_typed_accent(word)), "{cafes:?}");
+    assert!(cafes.iter().all(|word| small.is_correct(word)), "{cafes:?}");
+}
+
+fn has_typed_accent(word: &str) -> bool {
+    word.chars().any(|c| matches!(c, 'ï' | 'ë' | 'é' | 'Ï' | 'Ë' | 'É'))
 }
 
 #[test]

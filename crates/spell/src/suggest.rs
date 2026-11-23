@@ -33,8 +33,7 @@ impl<'a> Sink<'a> {
         if self.full() || candidate.is_empty() || candidate.chars().count() > 80 {
             return;
         }
-        let cased = fold::apply_case(self.kind, candidate);
-        let shown = fold::restore_accents(self.input, &cased);
+        let shown = fold::apply_case(self.kind, candidate);
         if shown.is_empty() || shown == self.input {
             return;
         }
@@ -52,8 +51,9 @@ impl Dictionary {
     /// are candidates too.
     ///
     /// Words longer than 64 characters yield nothing: the search is bounded.
-    /// A stem marked `NOSUGGEST` is never offered. The suggestion follows the capitals of `word`,
-    /// and a candidate that already has an internal capital keeps that spelling.
+    /// A stem marked `NOSUGGEST` is never offered. The suggestion is the dictionary spelling,
+    /// with the capitals of `word` applied. An accent on `word` is not copied onto it.
+    /// A candidate that already has an internal capital keeps that spelling.
     pub fn suggest(&self, word: &str, extra: &[&str]) -> Vec<String> {
         let mut count = 0usize;
         for _ in word.chars() {
