@@ -21567,8 +21567,9 @@ msgstr "Kont Zimbra nie można jeszcze wysyłać ani odbierać: ta część nie 
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Zimbra accounts can't send mail yet: that part is not built"
-msgstr ""
+msgstr "Konta Zimbra nie mogą jeszcze wysyłać poczty: ta część nie jest jeszcze gotowa"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -23877,8 +23878,9 @@ msgstr "żądanie zostało utracone"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another Zimbra server"
-msgstr ""
+msgstr "wynik dotyczy innego serwera Zimbra"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
@@ -26969,8 +26971,9 @@ msgstr "{why}. Zmiany wprowadzone w nim tutaj ({n}) czekają na tym komputerze."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "{why}: send this message from another account, or save it as a draft"
-msgstr ""
+msgstr "{why}: wyślij tę wiadomość z innego konta lub zapisz ją jako wersję roboczą"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

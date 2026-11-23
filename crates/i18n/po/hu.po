@@ -21480,8 +21480,9 @@ msgstr "A Zimbra-fiókokkal még nem lehet küldeni és fogadni: ez a rész még
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "Zimbra accounts can't send mail yet: that part is not built"
-msgstr ""
+msgstr "A Zimbra-fiókok még nem tudnak levelet küldeni: ez a rész még nem készült el"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -23787,13 +23788,15 @@ msgstr "a kérés elveszett"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another Zimbra server"
-msgstr ""
+msgstr "az eredmény egy másik Zimbra-kiszolgálóhoz tartozik"
 
 #. what a command says
 #: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
 msgid "the result is for another account"
-msgstr ""
+msgstr "az eredmény egy másik fiókhoz tartozik"
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
