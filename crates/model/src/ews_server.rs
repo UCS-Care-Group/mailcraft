@@ -55,6 +55,12 @@ pub struct EwsServer {
     /// The owner was told once why that archive isn't shown.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub cloud_archive_told: bool,
+    /// The owner asked to show an archive the setup found in Exchange Online
+    /// (`account.archive.show`, #1834 review): the next run asks the account's own server once.
+    /// One there is shown (the setup was wrong, or the archive was moved back); none, and it is
+    /// taken to be in Exchange Online again, and the owner is told why once more. Not a setting.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub cloud_recheck: bool,
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -73,6 +79,7 @@ impl std::fmt::Debug for EwsServer {
             .field("archive_hidden", &self.archive_hidden)
             .field("archive_absent", &self.archive_absent)
             .field("cloud_archive", &self.cloud_archive)
+            .field("cloud_recheck", &self.cloud_recheck)
             .finish()
     }
 }

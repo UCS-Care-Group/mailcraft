@@ -854,6 +854,73 @@ fn a_hidden_archive_goes_and_stays_away_until_shown() {
     assert!(s.mailbox.archive_of(account).is_some());
 }
 
+/// A run of the archive is judged a failed read by what failed the reading, as the window judges
+/// it (#1834 review): a folder that couldn't be read is one; a change of the owner's the server
+/// refused is said, but isn't.
+#[test]
+fn a_refused_change_is_said_but_is_no_failed_read() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let changes = ews_mail_request(&s, archive, false).unwrap().changes;
+    assert!(!changes.is_empty());
+    let refused: Vec<mailcraft_model::sync::FolderChangeDone> = changes
+        .into_iter()
+        .map(|change| mailcraft_model::sync::FolderChangeDone {
+            change,
+            outcome: mailcraft_model::sync::ChangeOutcome::Refused { why: "a name that is taken".into() },
+        })
+        .collect();
+    let said = apply_ews_mail(&mut s, EwsMailResult { changes: refused, ..piece(archive) }).unwrap();
+    assert!(said["errors"].as_array().is_some_and(|e| !e.is_empty()), "the refusal is said: {said}");
+    assert_eq!(said["readFailed"], false, "{said}");
+    // A folder that couldn't be read is a failed read.
+    let said = apply_ews_mail(&mut s, EwsMailResult { blocked: vec!["A1".into()], ..piece(archive) }).unwrap();
+    assert_eq!(said["readFailed"], true, "{said}");
+    // So is an error of the server's.
+    let said = apply_ews_mail(&mut s, EwsMailResult { errors: vec!["Couldn't reach the server".into()], ..piece(archive) }).unwrap();
+    assert_eq!(said["readFailed"], true, "{said}");
+}
+
+/// Show Online Archive on an account whose setup found its archive in Exchange Online asks the
+/// account's own server once (#1834 review): an archive there is shown and the word is gone (it
+/// was stale); none, and it is in Exchange Online again, to be said once more.
+#[test]
+fn showing_a_cloud_archive_asks_the_own_server_once() {
+    let ews = |s: &Session, account: Id| s.mailbox.account(account).unwrap().ews.clone().unwrap();
+    // The archive isn't in Exchange Online after all (moved back, or the setup was wrong).
+    let (mut s, account) = session();
+    let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+    (server.cloud_archive, server.cloud_archive_told) = (true, true);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
+    let shown = s.run("account.archive.show", &json!({"account": account})).unwrap();
+    assert_eq!(shown["askingAgain"], true);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "the own server is asked");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(ews(&s, account).cloud_recheck, "an answer that says nothing settles nothing");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some());
+    let server = ews(&s, account);
+    assert!(!server.cloud_archive && !server.cloud_recheck);
+    // It is in Exchange Online: back as it was, and the owner is told again why it isn't shown.
+    let (mut s, account) = session();
+    let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+    (server.cloud_archive, server.cloud_archive_told) = (true, true);
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+    let server = ews(&s, account);
+    assert!(server.cloud_archive && !server.cloud_archive_told && !server.cloud_recheck);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive, "not asked about again");
+    // An account with no such word: nothing to ask again.
+    let (mut s, account) = session();
+    assert_eq!(s.run("account.archive.show", &json!({"account": account})).unwrap()["askingAgain"], false);
+}
+
 /// Moved into another mailbox (between the mailbox and its archive), an Exchange server says no
 /// new id: the message here goes, and the next read of the folder brings it once, as the server
 /// has it, rather than a second copy beside one with an id that no longer holds (#1818 review).

@@ -75,7 +75,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"account": number (the online archive, or the Exchange server account it belongs to)} — takes the account's online archive off the folder pane, and the server isn't asked about it again until account.archive.show; nothing of it was kept on this computer, and nothing on the server changes. Answers {"hidden": owner id}"#)
             .when(available),
         CommandSpec::new("account.archive.show", "Show Online Archive", "Folder Pane", show_archive)
-            .params(r#"{"account": number (an Exchange server account)} — shows the account's online archive again: the next Send/Receive asks the server, and adds it when there is one. Answers {"shown": owner id}"#)
+            .params(r#"{"account": number (an Exchange server account)} — shows the account's online archive again: the next Send/Receive asks the server, and adds it when there is one. For an archive the setup found kept in Exchange Online, the account's own server is asked once: one there is shown; none, and it is taken to be in Exchange Online again (said once more). Answers {"shown": owner id, "askingAgain": bool}"#)
             .when(available),
     ]
 }
@@ -108,11 +108,18 @@ fn hide_archive(s: &mut Session, v: &Value) -> CmdResult {
 
 fn show_archive(s: &mut Session, v: &Value) -> CmdResult {
     let owner = archive_holder(s, v)?;
+    let mut checking = false;
     if let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
         (server.archive_hidden, server.archive_absent) = (false, 0);
+        // An archive the setup found in Exchange Online: the account's own server is asked once
+        // whether it has it after all (nothing goes to Microsoft), [`take_archive`] (#1834 review).
+        if server.cloud_archive {
+            (server.cloud_archive, server.cloud_recheck) = (false, true);
+            checking = true;
+        }
     }
     s.mailbox_changed();
-    Ok(json!({"shown": owner}))
+    Ok(json!({"shown": owner, "askingAgain": checking}))
 }
 
 /// Why the commands are out of reach, when they are: no account is an Exchange server account.
@@ -396,6 +403,21 @@ fn apply_ews_news(s: &mut Session, result: EwsMailResult) -> CmdResult {
 fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
     let Some(server) = s.mailbox.account(owner).filter(|a| !a.is_archive()).and_then(|a| a.ews.clone()) else { return false };
     let have = s.mailbox.archive_of(owner).map(|a| a.id);
+    // The owner asked again about an archive the setup found in Exchange Online (show_archive):
+    // the server's answer settles it. None here: it is in Exchange Online after all, and the owner
+    // is told so once more; one here is shown as any other (#1834 review).
+    if server.cloud_recheck && seen != ArchiveSeen::Unknown {
+        let cloud = seen == ArchiveSeen::Absent;
+        if let Some(own) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
+            own.cloud_recheck = false;
+            if cloud {
+                (own.cloud_archive, own.cloud_archive_told, own.archive_absent) = (true, false, 0);
+            }
+        }
+        if cloud {
+            return true;
+        }
+    }
     let absent = match seen {
         ArchiveSeen::Unknown => return false,
         ArchiveSeen::Present => 0,
@@ -551,7 +573,11 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     // run of it is never `whole`: what the folders it read said is gone goes when it went well.
     // Only those folders mark anything gone, so nothing of a folder not read goes, #1834 review.)
     let archive = s.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive);
-    let archive_clean = archive && result.errors.is_empty() && !result.stopped && !result.auth_refused;
+    // Whether this piece's reading failed: the server's errors, a sign-in turned down, a folder or
+    // a page that couldn't be read or taken in. A change of the owner's the server refused is
+    // said, but is no failed read (#1834 review); the window judges a read by this too.
+    let read_failed = !result.errors.is_empty() || result.auth_refused || !result.blocked.is_empty() || cut || left_out > 0;
+    let archive_clean = archive && !read_failed && !result.stopped;
     let read = if result.partial { None } else { s.ews_run_read.remove(&account) };
     if !result.partial && !run_cut {
         if result.whole && !archive {
@@ -643,6 +669,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         "authRefused": result.auth_refused,
         "untrusted": result.untrusted,
         "unreadableFolders": blocked,
+        "readFailed": read_failed,
         "stopped": result.stopped,
         "new": down.new,
         "changed": down.changed,

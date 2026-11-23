@@ -1823,6 +1823,8 @@ pub struct MailApp {
     /// it couldn't read, a piece refused): an online archive's run is judged by the whole run,
     /// never by its last piece alone (#1834 review).
     ews_run_trouble: bool,
+    /// Whether the Exchange server run under way told the owner of something (#1834 review).
+    ews_run_said: bool,
     /// Some piece of that run said it was stopped: judged with what stopped it at the run's end.
     ews_run_stopped: bool,
     /// The password the run in flight went with, until the system is asked to remember it: once
@@ -2119,6 +2121,7 @@ impl MailApp {
             sync_run: None,
             sync_refused: false,
             ews_run_trouble: false,
+            ews_run_said: false,
             ews_run_stopped: false,
             sync_password: None,
             jmap_refused: Default::default(),

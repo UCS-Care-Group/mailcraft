@@ -198,6 +198,7 @@ impl MailApp {
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let pieces = self.hand_ews(account, EwsJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
         (self.sync_refused, self.sync_password, self.ews_run_trouble, self.ews_run_stopped) = (false, sent, false, false);
+        self.ews_run_said = false;
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -220,7 +221,7 @@ impl MailApp {
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("ews mail: the run stopped without its last piece (its thread ended early)");
                     self.session.end_run_unfinished(account);
-                    self.archive_run_ended(account, false);
+                    self.archive_run_ended(account, false, true);
                     (self.sync_rx, self.sync_refused, self.sync_password) = (None, false, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
@@ -276,9 +277,11 @@ impl MailApp {
                             self.ews_unreadable.insert(account, folders);
                         }
                     }
-                    let unreadable = said["unreadableFolders"].as_array().is_some_and(|all| !all.is_empty());
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
-                    self.ews_run_trouble |= unreadable || errors.as_ref().is_some_and(|e| !e.is_empty());
+                    // (A read is judged as the engine judges it: a change the server refused is
+                    // said, but doesn't make the read a failed one, #1834 review.)
+                    self.ews_run_trouble |= said["readFailed"].as_bool().unwrap_or(true);
+                    self.ews_run_said |= errors.as_ref().is_some_and(|e| !e.is_empty());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                 }
                 Err(e) => {
@@ -324,8 +327,9 @@ impl MailApp {
             // the owner, or by anything else, it is.)
             let stopped = std::mem::take(&mut self.ews_run_stopped);
             let trouble = std::mem::take(&mut self.ews_run_trouble);
+            let said = std::mem::take(&mut self.ews_run_said);
             if !(restarts && stopped && !trouble) {
-                self.archive_run_ended(account, !trouble && !stopped);
+                self.archive_run_ended(account, !trouble && !stopped, said);
             }
             self.sync_password = None;
             self.note_pushed(account);
@@ -333,17 +337,20 @@ impl MailApp {
         }
     }
 
-    /// A run of `account` ended, `read` when it went through: for an online archive, whether it
-    /// is read again by itself (#1818). One that failed waits for the owner to ask.
-    fn archive_run_ended(&mut self, account: Id, read: bool) {
+    /// A run of `account` ended, `read` when it went through, `said` when it told the owner of
+    /// something (a change the server refused, say): for an online archive, whether it is read
+    /// again by itself (#1818). One that failed waits for the owner to ask.
+    pub(crate) fn archive_run_ended(&mut self, account: Id, read: bool, said: bool) {
         if !self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive) {
             return;
         }
         if read {
             self.archive_failed.remove(&account);
             // (Never `whole`, so the end of a run that went well clears what earlier ones said
-            // went wrong here, #1834 review: this run said nothing, or it wouldn't have.)
-            self.note_sync_problems(account, &[], true);
+            // went wrong here, #1834 review; not what this one said.)
+            if !said {
+                self.note_sync_problems(account, &[], true);
+            }
         } else {
             self.archive_failed.insert(account);
         }

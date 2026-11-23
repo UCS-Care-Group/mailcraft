@@ -155,3 +155,21 @@ fn a_failed_read_says_so_with_its_folders_here_too() {
     let shown = texts(&mut app);
     assert!(!shown.iter().any(|t| t.contains("couldn't be read")), "{shown:?}");
 }
+
+/// A run of the archive that read well but said something (a change the server refused) keeps
+/// what it said, and is no failed read: the archive goes on being read by itself (#1834 review).
+#[test]
+fn a_run_that_read_well_keeps_what_it_said() {
+    let (mut app, _, archive) = app();
+    app.archive_failed.insert(archive);
+    app.note_sync_problems(archive, &["“2019” couldn't be renamed: a name that is taken".into()], false);
+    app.archive_run_ended(archive, true, true);
+    assert!(!app.archive_read_failed(archive));
+    assert!(app.sync_problems.iter().any(|(a, _, _, lines)| *a == archive && !lines.is_empty()), "what it said stays");
+    // One that said nothing clears what earlier runs said.
+    app.archive_run_ended(archive, true, false);
+    assert!(!app.sync_problems.iter().any(|(a, _, _, lines)| *a == archive && !lines.is_empty()));
+    // A failed one waits for the owner.
+    app.archive_run_ended(archive, false, false);
+    assert!(app.archive_read_failed(archive));
+}
