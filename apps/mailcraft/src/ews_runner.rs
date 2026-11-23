@@ -429,7 +429,11 @@ pub(crate) fn client(url: &str, username: &str, email: &str, password: &str) -> 
     }
     let name = if username.trim().is_empty() { email.trim() } else { username.trim() };
     let secret = Secret::basic(name, password).map_err(|_| "The user name or the password can't be used to sign in")?;
-    Client::new(url, secret).map_err(|_| "The server's address can't be used")
+    // Kerio Connect answers a folder's reading with whole messages whatever was asked, and a
+    // monster message in a folder is then answered once in one big read or never at all: the
+    // measured death was the folder's last ask — one message, lightest shape, afresh — answered
+    // past the 16 MB floor (#1784, 22:31). Read up to 64 MB; the servlet has served more (#964).
+    Client::new(url, secret).map(|client| client.with_answer_limit(64 * 1024 * 1024)).map_err(|_| "The server's address can't be used")
 }
 
 /// The NTLM key for the same user name and password, when they can be sent that way.

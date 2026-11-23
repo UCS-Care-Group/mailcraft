@@ -189,6 +189,18 @@ impl HttpRequest {
         self
     }
 
+    /// Raises the largest response body accepted, never below the floor: for a server that
+    /// answers the reading of one folder heavier than the floor holds whatever the ask was.
+    /// Measured on Kerio (#1784, 22:31): the folder's last ask — one message at a time, the
+    /// lightest shape, read afresh already — was still answered past the floor, because the
+    /// servlet hangs whole messages on the list. Either the monster is read once, in one big
+    /// answer, or that folder can never be read at all.
+    #[must_use]
+    pub fn with_heavy_answers(mut self, bytes: usize) -> Self {
+        self.max_response = bytes.max(RESPONSE_LIMIT);
+        self
+    }
+
     /// Marks the request as one that is never sent twice: when its answer is lost after it went
     /// out, the program must not send it again ([`TransportError::Lost`]).
     #[must_use]

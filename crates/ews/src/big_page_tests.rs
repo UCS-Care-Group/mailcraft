@@ -943,3 +943,54 @@ fn a_delta_that_cant_be_told_is_a_state_lost_and_is_read_afresh() {
         "the folder was asked afresh, from nothing"
     );
 }
+
+/// The floor was the folder: one message at a time, lightest shape, read afresh — answered
+/// past the floor anyway, because the servlet hangs whole messages on the list and a monster
+/// is a monster however light you ask (measured 22:31: "shape Bare, ids false, 1 at a time,
+/// afresh spent"). A reader big enough for the whole answer reads it once and moves on;
+/// without the room, the folder can never be read at all (#1784).
+#[test]
+fn a_reader_big_enough_for_the_monster_reads_what_the_floor_never_can() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "First", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .find(|page| page.messages.iter().any(|m| m.subject == "First"))
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("a state to carry");
+    {
+        let mut s = standin.state();
+        s.oversized_deltas = true;
+        s.deliver("inbox", "Fresh one", false);
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        states: vec![mailcraft_model::sync::EwsFolderState { folder: folder.clone(), state }],
+        ..Default::default()
+    };
+    let big = Client::new(URL, Secret::new(AUTHORIZATION)).unwrap().with_answer_limit(32 * 1024 * 1024);
+    let cancel = AtomicBool::new(false);
+    let before = standin.state().requests.len();
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&big, &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "an answer the bigger reader holds is no error: {:?}", piece.errors);
+    }
+    assert!(again.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Fresh one"));
+    let state = standin.state();
+    assert!(
+        !state
+            .requests
+            .iter()
+            .skip(before)
+            .any(|a| a.operation == "SyncFolderItems" && a.body.contains(&folder) && !a.body.contains("<m:SyncState>")),
+        "the folder was never read afresh: the answer fit the bigger reader"
+    );
+}
