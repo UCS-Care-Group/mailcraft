@@ -744,12 +744,8 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         Err(()) => return None,
     };
     let (mailboxes, dropped) = match imap.list_counted() {
-        // Dovecot lists another's Inbox twice when it has folders inside: one folder.
-        Ok((mut list, dropped)) => {
-            let mut seen: HashSet<String> = HashSet::with_capacity(list.len());
-            list.retain(|mailbox| seen.insert(mailbox.raw.clone()));
-            (list, dropped)
-        }
+        // A mailbox listed twice is one already ([`Imap::list_counted`]).
+        Ok(listed) => listed,
         Err(e) => {
             let alive = run.failed(said!("Couldn't read the list of folders"), &e.into());
             run.out.unfiled.extend(owed);

@@ -24,7 +24,7 @@ mod utf7;
 pub use idle::IdleEvent;
 pub use status::{FolderStatus, MAX_STATUS_BATCH};
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{Read, Write};
 
 use parse::{Piece, Status, StatusLine, Value};
@@ -414,6 +414,25 @@ fn namespace_of(desc: Value) -> Option<Namespace> {
 }
 
 /// The flags of a list, as many as are kept and each cut at a character boundary.
+/// The flags of a mailbox named twice in one listing, `more` being the second naming's: each
+/// flag once (at most [`MAX_FLAGS`]); one that can be opened if either naming says so (neither
+/// `\Noselect` nor `\NonExistent` then), and with mailboxes inside if either says that.
+pub(crate) fn merge_flags(flags: &mut Vec<String>, more: Vec<String>) {
+    let open = |flags: &[String]| !flags.iter().any(|f| f.eq_ignore_ascii_case("\\Noselect") || f.eq_ignore_ascii_case("\\NonExistent"));
+    let either_open = open(flags) || open(&more);
+    for flag in more {
+        if flags.len() < MAX_FLAGS && !flags.iter().any(|f| f.eq_ignore_ascii_case(&flag)) {
+            flags.push(flag);
+        }
+    }
+    if either_open {
+        flags.retain(|f| !f.eq_ignore_ascii_case("\\Noselect") && !f.eq_ignore_ascii_case("\\NonExistent"));
+    }
+    if flags.iter().any(|f| f.eq_ignore_ascii_case("\\HasChildren")) {
+        flags.retain(|f| !f.eq_ignore_ascii_case("\\HasNoChildren"));
+    }
+}
+
 fn short_flags(flags: Vec<Value>) -> Vec<String> {
     flags
         .into_iter()
@@ -867,20 +886,30 @@ impl<S: Read + Write> Imap<S> {
     /// [`list`](Self::list), and how many more mailboxes the server listed that were read and
     /// dropped because the list was full ([`MAX_MAILBOXES`], [`MAX_LIST_BYTES`]): 0 when it
     /// was kept whole.
+    ///
+    /// A mailbox the server names twice (Dovecot names another user's Inbox twice when it has
+    /// mailboxes inside) is listed once, where it first came, with the flags of both
+    /// ([`merge_flags`]): one named once as `\Noselect` and once as a mailbox can be opened.
     pub fn list_counted(&mut self) -> Result<(Vec<Mailbox>, usize), ProtoError> {
         let mut out: Vec<Mailbox> = Vec::new();
-        let mut seen = HashSet::new();
+        let mut seen: HashMap<String, usize> = HashMap::new();
         let (mut kept, mut dropped) = (0usize, 0usize);
         self.run(Command::new("LIST").arg("\"\"").arg("\"*\""), &mut |values| {
             let full = out.len() >= MAX_MAILBOXES || kept >= MAX_LIST_BYTES;
-            // A mailbox the server names twice is listed once; past either cap, nothing is kept.
+            // Past either cap, nothing is kept.
             let Some(mailbox) = mailbox_from(values) else { return };
             if full {
                 dropped = dropped.saturating_add(1);
-            } else if seen.insert(mailbox.raw.clone()) {
+            } else if let Some(first) = seen.get(&mailbox.raw).and_then(|at| out.get_mut(*at)) {
+                let before: usize = first.flags.iter().map(String::len).sum();
+                merge_flags(&mut first.flags, mailbox.flags);
+                let after: usize = first.flags.iter().map(String::len).sum();
+                kept = kept.saturating_add(after.saturating_sub(before));
+            } else {
                 // The name twice (as written, decoded) and once more in `seen`, and the flags.
                 let size = mailbox.raw.len().saturating_mul(2).saturating_add(mailbox.name.len());
                 kept = mailbox.flags.iter().fold(kept.saturating_add(size), |kept, flag| kept.saturating_add(flag.len()));
+                seen.insert(mailbox.raw.clone(), out.len());
                 out.push(mailbox);
             }
         })?;

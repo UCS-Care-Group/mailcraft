@@ -2182,6 +2182,7 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
 /// on the server yet, so the server's tree is the one that holds).
 fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed: &[mailcraft_model::sync::ListedFolder]) {
     let listed = listed.get(..listed.len().min(mailcraft_model::sync::MAX_LISTED_FOLDERS)).unwrap_or_default();
+    let (freed, made) = jobs_given_up(mb, account, listed);
     // Each folder's parent by the folder's path, the first listed of a path being the one: one
     // pass, not a search of the whole list at every step up (#991).
     let mut parents: HashMap<&str, &str> = HashMap::with_capacity(listed.len());
@@ -2239,7 +2240,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                     // earlier version put other users' shared folders there: `INBOX (2)`) is the
                     // server's name again in its own place, when that is free there.
                     let free = clean_name(&f.name)
-                        .filter(|name| !name.contains('/') && numbered(&moved_name, name))
+                        .filter(|name| !name.contains('/') && (numbered(&moved_name, name) || freed.contains(&id)))
                         .filter(|name| !names.get(&Some(p)).is_some_and(|taken| taken.contains(&name.to_lowercase())));
                     let renamed = free.filter(|name| mb.rename_folder(id, name).is_ok());
                     names.entry(Some(p)).or_default().insert(renamed.unwrap_or(moved_name).to_lowercase());
@@ -2270,6 +2271,75 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
             }
         }
     }
+    // A job's new folder has the job's own name, once the folder that had it has moved away (a
+    // standard folder is not renamed by the owner: here, only when that name is free beside it).
+    for (id, name) in made {
+        let taken = |f: &mailcraft_model::Folder| f.account == account && f.parent.is_none() && f.id != id && f.name.eq_ignore_ascii_case(&name);
+        if !mb.folders.iter().any(taken)
+            && let Ok(f) = mb.folder_mut(id)
+        {
+            f.name = name;
+        }
+    }
+}
+
+/// The standard folders (Sent Items, Drafts, Deleted Items, Junk Email, Archive) that follow a
+/// server mailbox the listing gives no such job (#1863: an earlier version tied them to another
+/// user's shared `\Sent` or `\Trash`, so the owner's sent, deleted and archived mail went to
+/// that person's mailbox). Each gives its job up and is an ordinary folder from now on: it keeps
+/// its mail and follows the same mailbox, and [`adopt_listed`] moves it into that mailbox's place
+/// in the tree, under its name there. Its job goes to the folder of the account's own mailbox
+/// the listing gives that job, when that is an ordinary folder at the top; else to a new, empty
+/// folder, which the account's own mailbox of that kind, when it has none yet, then fills. A
+/// job that can't be handed on (no name is free for the new folder) stays where it is. Returns
+/// the folders that gave theirs up, and the new folders with the jobs and the names they are to
+/// have once the folders that had them have moved away.
+fn jobs_given_up(mb: &mut Mailbox, account: Id, listed: &[mailcraft_model::sync::ListedFolder]) -> (HashSet<Id>, Vec<(Id, String)>) {
+    let (mut freed, mut made) = (HashSet::new(), Vec::new());
+    let tied: Vec<(Id, FolderKind, String)> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && !f.remote.is_empty() && !matches!(f.kind, FolderKind::Custom | FolderKind::Inbox | FolderKind::Outbox))
+        .map(|f| (f.id, f.kind, f.remote.clone()))
+        .collect();
+    if tied.is_empty() {
+        return (freed, made);
+    }
+    // The kind the listing gives each path, the first listed of a path being the one, and the
+    // path it gives each standard kind.
+    let mut kinds: HashMap<&str, FolderKind> = HashMap::with_capacity(listed.len());
+    let mut doing: HashMap<FolderKind, &str> = HashMap::new();
+    for f in listed {
+        kinds.entry(f.remote.as_str()).or_insert(f.kind);
+        if f.kind != FolderKind::Custom {
+            doing.entry(f.kind).or_insert(f.remote.as_str());
+        }
+    }
+    for (id, kind, remote) in tied {
+        if kinds.get(remote.as_str()) != Some(&FolderKind::Custom) {
+            continue;
+        }
+        let heir = doing
+            .get(&kind)
+            .and_then(|own| mb.folders.iter().find(|f| f.account == account && f.remote == *own))
+            .filter(|f| f.kind == FolderKind::Custom && f.parent.is_none())
+            .map(|f| f.id);
+        let heir = heir.or_else(|| {
+            let base = kind.default_name();
+            let id = (1..=50).find_map(|n| mb.add_folder(account, None, &if n == 1 { base.to_string() } else { format!("{base} ({n})") }).ok())?;
+            made.push((id, base.to_string()));
+            Some(id)
+        });
+        let Some(heir) = heir else { continue };
+        if let Ok(f) = mb.folder_mut(id) {
+            f.kind = FolderKind::Custom;
+        }
+        if let Ok(f) = mb.folder_mut(heir) {
+            f.kind = kind;
+        }
+        freed.insert(id);
+    }
+    (freed, made)
 }
 
 /// Whether `name` is `base` with a number after it, as a folder is named when its name is taken

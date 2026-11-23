@@ -320,3 +320,41 @@ fn holders_never_take_a_listing_past_its_cap() {
     assert_eq!(at("shared/bob@example.org/INBOX"), Some(("", "shared/bob@example.org/INBOX")));
     assert_eq!(at("shared/bob@example.org"), None);
 }
+
+/// A mailbox the server lists twice, first as one that can't be opened and then as one that can
+/// (#1863): it is one folder, read, with the flags of both listings.
+#[test]
+fn a_mailbox_listed_closed_and_then_open_is_read() {
+    let mut world = dovecot('/');
+    let erin = "shared/erin@example.org/INBOX";
+    world.mailboxes.push(mailbox(erin, "\\Noselect \\HasNoChildren", &[]));
+    world.mailboxes.push(mailbox(erin, "\\HasChildren", &["For Erin"]));
+    world.mailboxes.push(mailbox(&format!("{erin}/Team"), "\\HasNoChildren", &[]));
+    let imap = Fake::imap(world);
+    let result = sync(&request(&imap));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_whole(&result.listed, '/');
+    let listed: Vec<&ListedFolder> = result.listed.iter().filter(|f| f.remote == erin).collect();
+    assert_eq!(listed.len(), 1, "{:?}", result.listed);
+    assert!(listed.iter().all(|f| f.kind == FolderKind::Custom && f.name == "INBOX"));
+    assert!(result.listed.iter().any(|f| f.remote == format!("{erin}/Team") && f.parent == erin));
+    assert_eq!(result.folders.iter().filter(|f| f.remote == erin).map(|f| f.new.len()).collect::<Vec<_>>(), [1]);
+}
+
+/// A standard folder an earlier version tied to another's mailbox (#1863): the tie is not
+/// followed, that mailbox is an ordinary folder, and the account's own one does the job.
+#[test]
+fn a_tie_to_anothers_mailbox_is_not_followed() {
+    let imap = Fake::imap(dovecot('/'));
+    let mut request = request(&imap);
+    request.folders = vec![
+        FolderState { id: 3, kind: FolderKind::Sent, remote: "shared/alice/Sent".into(), ..Default::default() },
+        FolderState { id: 4, kind: FolderKind::Deleted, remote: "shared/alice/Trash".into(), ..Default::default() },
+    ];
+    let result = sync(&request);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let kind = |remote: &str| result.listed.iter().find(|f| f.remote == remote).map(|f| f.kind);
+    assert_eq!(kind("shared/alice/Sent"), Some(FolderKind::Custom));
+    assert_eq!(kind("shared/alice/Trash"), Some(FolderKind::Custom));
+    assert_eq!(kind("Sent"), Some(FolderKind::Sent));
+}

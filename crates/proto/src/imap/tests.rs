@@ -1132,3 +1132,30 @@ fn a_token_sign_in_after_starttls_asks_what_the_server_can_do_before_id() {
     assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\n", bearer()));
     assert!(s.finished());
 }
+
+/// A mailbox named twice with different flags is one, where it first came, that can be opened
+/// when either naming says so (#1863: Dovecot names another's Inbox twice); named closed both
+/// times, it stays closed.
+#[test]
+fn a_mailbox_named_twice_has_the_flags_of_both() {
+    let mut server = String::new();
+    server += "* LIST (\\Noselect \\HasNoChildren) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\Noselect) \"/\" shared\r\n";
+    server += "* LIST (\\HasChildren \\Sent) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\NonExistent \\hasnochildren) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\Noselect \\HasChildren) \"/\" shared\r\n";
+    server += "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let list = Imap::resume(&mut s).list().unwrap();
+    assert_eq!(
+        list,
+        [
+            mailbox("shared/erin/INBOX", "shared/erin/INBOX", Some('/'), &["\\HasChildren", "\\Sent"]),
+            mailbox("shared", "shared", Some('/'), &["\\Noselect", "\\HasChildren"]),
+        ]
+    );
+    // Never more than MAX_FLAGS, whatever is added.
+    let mut flags: Vec<String> = (0..MAX_FLAGS).map(|n| format!("$f{n}")).collect();
+    merge_flags(&mut flags, vec!["$more".into(), "\\Noselect".into()]);
+    assert_eq!(flags.len(), MAX_FLAGS);
+}
