@@ -6271,6 +6271,8 @@ pub fn now_ms() -> f64 {
 }
 
 #[cfg(test)]
+mod catalogue_gaps_tests;
+#[cfg(test)]
 mod privacy_tests;
 #[cfg(test)]
 mod problem_log_tests;
