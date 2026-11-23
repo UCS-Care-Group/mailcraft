@@ -281,3 +281,42 @@ fn odd_namespaces_and_deep_paths_are_bounded() {
     // Every parent named is one of those listed, or the top.
     assert!(listed.iter().all(|f| f.parent.is_empty() || listed.iter().any(|p| p.remote == f.parent)));
 }
+
+/// The folders made to hold others' count against the folders a listing may have (#1863): a
+/// server that lists as many of others' folders as are read, each under paths it doesn't list,
+/// gets no more than that many, every one read is there, and none points at a folder not made.
+#[test]
+fn holders_never_take_a_listing_past_its_cap() {
+    use mailcraft_proto::imap::{Namespace, Namespaces};
+    let one = |prefix: &str| Namespace { prefix: prefix.into(), delimiter: Some('/') };
+    let others = Others::of(&Namespaces { personal: vec![one("")], other_users: vec![one("shared/")], shared: vec![] });
+    let own = |name: String| Mailbox { raw: name.clone(), name, delimiter: Some('/'), flags: Vec::new() };
+    let check = |made: &[ListedFolder], mailboxes: &[Mailbox]| {
+        assert!(made.len() <= MAX_FOLDERS, "{}", made.len());
+        let paths: HashSet<&str> = made.iter().map(|f| f.remote.as_str()).collect();
+        assert!(mailboxes.iter().take(MAX_FOLDERS).all(|m| paths.contains(m.name.as_str())));
+        assert!(made.iter().all(|f| f.parent.is_empty() || paths.contains(f.parent.as_str())));
+    };
+
+    // Every one of them deep under paths not listed: no room for any holder.
+    let hostile: Vec<Mailbox> = (0..MAX_FOLDERS).map(|n| own(format!("shared/u{n}/a/a/a/INBOX"))).collect();
+    let plan = planned(&hostile, &[], false, &others);
+    let made = listed(&plan, &others);
+    check(&made, &hostile);
+    assert_eq!(made.len(), MAX_FOLDERS);
+    assert!(made.iter().all(|f| f.parent.is_empty() && f.name == f.remote), "{:?}", made.first());
+
+    // Room for three: the first chain is made whole, the next that doesn't fit is at the top.
+    let mut tight = vec![own("shared/alice@example.org/Team/INBOX".into()), own("shared/bob@example.org/INBOX".into())];
+    tight.extend((0..MAX_FOLDERS - 5).map(|n| own(format!("F{n}"))));
+    let plan = planned(&tight, &[], false, &others);
+    let made = listed(&plan, &others);
+    check(&made, &tight);
+    assert_eq!(made.len(), MAX_FOLDERS);
+    let at = |remote: &str| made.iter().find(|f| f.remote == remote).map(|f| (f.parent.as_str(), f.name.as_str()));
+    assert_eq!(at("shared/alice@example.org/Team/INBOX"), Some(("shared/alice@example.org/Team", "INBOX")));
+    assert_eq!(at("shared/alice@example.org/Team"), Some(("shared/alice@example.org", "Team")));
+    assert_eq!(at("shared"), Some(("", "shared")));
+    assert_eq!(at("shared/bob@example.org/INBOX"), Some(("", "shared/bob@example.org/INBOX")));
+    assert_eq!(at("shared/bob@example.org"), None);
+}

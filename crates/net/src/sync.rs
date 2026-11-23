@@ -651,8 +651,12 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
             && let Some(delimiter) = mailbox.delimiter
             && others.has(mailbox)
         {
-            hold(above, delimiter, &by_name, &mut holders, &mut out);
-            parent = above.to_string();
+            // The holders count against the folders a listing may have, so that none read is
+            // left out for them: past that, the folder is at the top under its whole path.
+            let room = MAX_FOLDERS.saturating_sub(read.len()).saturating_sub(holders.len());
+            if hold(above, delimiter, room, &by_name, &mut holders, &mut out) {
+                parent = above.to_string();
+            }
         }
         let name = if leaf.is_empty() || (parent.is_empty() && !above.is_empty()) { name } else { leaf };
         out.push(mailcraft_model::sync::ListedFolder { remote, kind: *kind, parent, name: name.to_string() });
@@ -663,14 +667,16 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
 /// The folders above one of others' folders, from `path` up, that are not read themselves: each
 /// one that isn't in `out` yet goes there, highest first, as an ordinary folder named by the last
 /// part of its path. No more than [`MAX_HOLDER_LEVELS`] of them: of a path deeper than that, the
-/// highest made is at the top of the account.
+/// highest made is at the top of the account. None at all when more would be needed than `room`;
+/// returns whether `path` holds now.
 fn hold(
     path: &str,
     delimiter: char,
+    room: usize,
     by_name: &HashMap<&str, usize>,
     holders: &mut HashSet<String>,
     out: &mut Vec<mailcraft_model::sync::ListedFolder>,
-) {
+) -> bool {
     let mut above = Vec::new();
     let mut at = path;
     while !(at.is_empty() || by_name.contains_key(at) || holders.contains(at)) {
@@ -684,6 +690,9 @@ fn hold(
         above.push((at, up, leaf));
         at = up;
     }
+    if above.len() > room {
+        return false;
+    }
     for (path, up, leaf) in above.into_iter().rev() {
         let name = if leaf.is_empty() { path } else { leaf };
         holders.insert(path.to_string());
@@ -694,6 +703,7 @@ fn hold(
             name: name.to_string(),
         });
     }
+    true
 }
 
 /// What is done on the incoming server: copies of what was `sent` are filed, the changes made
@@ -749,7 +759,10 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     // Which of them are others' (RFC 2342): another user's Inbox is not this account's.
     let others = match imap.namespaces() {
         Ok(namespaces) => Others::of(&namespaces),
-        Err(ProtoError::Rejected(_)) => Others::default(),
+        Err(ProtoError::Rejected(_)) => {
+            log::debug!("namespaces refused: no folder is taken for another's");
+            Others::default()
+        }
         Err(e) => {
             let alive = run.failed(said!("Couldn't read the list of folders"), &e.into());
             run.out.unfiled.extend(owed);
