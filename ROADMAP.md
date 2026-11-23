@@ -237,7 +237,7 @@ follows:
 | M3 | **Writes like mail** | Rich-text composing and replies, pictures, spell check | Rich text and pictures done (R4); spelling on Windows and macOS (#954), with other platforms and grammar still open (gap 7) |
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226), the marks, moves and deletions made in them go up and their mail is sent (#1074) |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226) and the desktop app (#1014), the marks, moves and deletions made in them go up and their mail is sent (#1074) |
 | M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: eleven preview languages |
 
 ## Progress log
