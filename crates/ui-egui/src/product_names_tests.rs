@@ -42,6 +42,11 @@ const ALLOWED: &[(&str, &str)] = &[
     ("Favorites from Outlook", "reads the Favorites the owner keeps in Outlook on the web, through Microsoft Graph"),
     ("Outlook's Favorites", "the same Favorites, read from Outlook on the web: the folder pane's switch for them"),
     ("Show Outlook's Favorites", "turns on reading the Favorites kept in Outlook on the web"),
+    ("Add to Outlook", "sends a category kept on this computer only to the list the mailbox's server keeps, which Outlook shows (#661)"),
+    (
+        "Keep in Step with Outlook",
+        "keeps the to-dos, rules, automatic replies and categories in step with the mailbox's server, which Outlook shows (#661)",
+    ),
 ];
 
 /// Phrases of the interface's texts that may name one of those products, each with why. Each is
@@ -53,12 +58,16 @@ const ALLOWED_PHRASES: &[(&str, &str)] = &[
     ("Favorites from Outlook", "the Favorites read from the account's server"),
     ("Favorites in Outlook", "the Favorites read from the account's server"),
     ("Favorites come from Outlook", "the Favorites read from the account's server"),
+    ("Favorites Are Set in Outlook", "the folder menu's item for the Favorites read from the account's server"),
     ("your Outlook calendar", "the account's calendar on Microsoft's server, kept in step"),
     ("where Outlook and your other devices", "the account's calendar on the server, which other programs show too"),
     ("appear in Outlook or on your other devices", "what is kept on this computer only and not on the server"),
     ("Outlook's list", "the categories and their colours, read from the mailbox"),
-    ("set in Outlook", "a category's colour, read from the mailbox"),
-    ("in step with Outlook", "says that signatures are not kept on the server"),
+    ("in step with Outlook", "says what is kept on the mailbox's server, and that signatures are not (#661)"),
+    ("Keep in Step with Outlook", "the title of the one question for what is kept in step with the mailbox's server (#661)"),
+    ("Sync with Outlook", "File › Info's line for what is kept in step with the mailbox's server (#661)"),
+    ("Add to Outlook", "sends a category kept on this computer only to the mailbox's server (#661)"),
+    ("Outlook's colours", "the 25 colours a category takes on the mailbox's server (#661)"),
     ("what you see in Outlook", "an account kept in step through Microsoft Graph shows the same mail"),
     ("Out of Office", "the plain phrase for being away, a show-as state, not a product"),
 ];

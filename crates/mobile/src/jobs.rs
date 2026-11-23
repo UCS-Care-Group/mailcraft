@@ -215,6 +215,9 @@ impl SyncHost {
         for dropped in look.dropped.iter().filter(|d| !d.message.is_empty()).take(20) {
             self.job_error(inner, session, dropped.message.clone());
         }
+        for (_, line) in look.said.iter().take(20) {
+            self.job_error(inner, session, line.clone());
+        }
         for plan in &look.plans {
             // (Only an account of the owner's own: a shared mailbox's calendars take a permission of their own.)
             if !inner.sr.eligible(session, plan.account) || session.mailbox.account(plan.account).is_none_or(|a| a.is_shared()) {
@@ -224,7 +227,8 @@ impl SyncHost {
             let Some(refresh) = inner.sr.refresh_for(session, &ctx, plan.account) else { continue };
             let auth = CalendarAuth { oauth: effective_oauth(oauth, &ctx.ids), refresh, access: String::new(), favorites: false };
             let run = runners.calendar.clone();
-            let launch = |req: GraphRequest| Some(self.host.run_job("mailcraft-calendar", move |_| run(req), || {}));
+            let wake = self.pacer.clone();
+            let launch = |req: GraphRequest| Some(self.host.run_job("mailcraft-calendar", move |_| run(req), move || wake.poke()));
             if inner.jobs.calendar.start(session, plan, auth, now, launch) {
                 return 1;
             }
@@ -241,7 +245,8 @@ impl SyncHost {
             }
             let refresh = refreshes.get(&account).cloned();
             let run = runners.tasks.clone();
-            let launch = |job: TasksJob| Some(self.host.run_job("mailcraft-tasks", move |_| run(job), || {}));
+            let wake = self.pacer.clone();
+            let launch = |job: TasksJob| Some(self.host.run_job("mailcraft-tasks", move |_| run(job), move || wake.poke()));
             if inner.jobs.tasks.start(session, account, |_| refresh, |o| effective_oauth(o, &ctx.ids), now, launch) {
                 return 1;
             }

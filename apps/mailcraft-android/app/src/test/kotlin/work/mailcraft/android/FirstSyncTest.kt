@@ -6,10 +6,12 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.SyncAnswer
 
@@ -44,8 +46,22 @@ class FirstSyncTest {
     private val app = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private val api = SigningIn()
     private var syncs = 0
+
+    /** Which rounds were asked for: the owner's ("owner", which lets the holds go) or the app's ("first"). */
+    private val rounds = mutableListOf<String>()
     private val asked = mutableListOf<Pair<ULong, Long>>()
     private var room: suspend () -> Boolean = { true }
+    private val kept = MemoryHolds()
+    private val told = mutableListOf<Pair<ULong, Boolean>>()
+    /** How many of the next hold calls the core refuses (its queue full). */
+    private var refusals = 0
+    private val holds = FirstSyncHolds(kept) { account, held ->
+        if (refusals > 0) {
+            refusals--
+            throw CoreException.Failed("busy")
+        }
+        told.add(account to held)
+    }
 
     private val hub = AccountsHub(
         api = api,
@@ -55,12 +71,19 @@ class FirstSyncTest {
         copy = {},
         sync = {
             syncs++
+            rounds.add("owner")
+            SyncAnswer(started = true, message = "")
+        },
+        firstRound = {
+            syncs++
+            rounds.add("first")
             SyncAnswer(started = true, message = "")
         },
         roomFor = { account, storageMb ->
             asked.add(account to storageMb)
             room()
         },
+        holds = holds,
     )
 
     private fun addAccount(keep: (AccountActions) -> Unit = {}) {
@@ -138,6 +161,10 @@ class FirstSyncTest {
                 syncs++
                 answers.removeFirst()
             },
+            firstRound = {
+                syncs++
+                answers.removeFirst()
+            },
         )
         val actions = hub.controller.actions()
         actions.onEmail("ada@example.org")
@@ -168,5 +195,109 @@ class FirstSyncTest {
         hub.handle(Event.SyncFinished(0u, true))
         assertEquals(2, syncs)
         assertTrue(hub.syncing.value)
+    }
+
+    @Test
+    fun notNowHoldsTheNewAccountBackAndKeepsItOverARestart() {
+        room = { false }
+        addAccount()
+        assertEquals(listOf(7uL to true), told)
+        assertEquals(setOf(7uL), kept.load())
+    }
+
+    @Test
+    fun syncAnywayLetsTheAccountGo() {
+        kept.save(setOf(7uL))
+        val answer = CompletableDeferred<Boolean>()
+        room = { answer.await() }
+        addAccount()
+        // Nothing changes while the question is open.
+        assertTrue(told.isEmpty())
+        answer.complete(true)
+        assertEquals(listOf(7uL to false), told)
+        assertTrue(kept.load().isEmpty())
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aPullToRefreshLetsEveryAccountHeldBackGo() {
+        room = { false }
+        addAccount()
+        assertEquals(setOf(7uL), kept.load())
+        hub.syncNow()
+        // The core let go of them as it began the round; nothing is held here either.
+        assertTrue(kept.load().isEmpty())
+        assertEquals(1, syncs)
+    }
+
+    @Test
+    fun aPullToRefreshThatDidNotStartKeepsTheHold() {
+        kept.save(setOf(7uL))
+        val hub = AccountsHub(
+            api = api,
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { SyncAnswer(started = false, message = "No network") },
+            holds = holds,
+        )
+        hub.syncNow()
+        assertEquals(setOf(7uL), kept.load())
+    }
+
+    @Test
+    fun aNewAccountsFirstRoundLetsNoOtherHoldGo() {
+        // A pull to refresh is under way when the owner says yes to account 7's first sync...
+        hub.syncNow()
+        addAccount()
+        // ...and then "Not now" to account 8's, before that round ends.
+        runBlocking { holds.answered(8u, yes = false) }
+        hub.handle(Event.SyncFinished(0u, true))
+        // Account 7's round is the app's, not the owner's: 8 stays held, in the core and here.
+        assertEquals(listOf("owner", "first"), rounds)
+        assertEquals(setOf(8uL), kept.load())
+        // (8's hold is said again before that round, as before every round the app starts.)
+        assertEquals(listOf(7uL to false, 8uL to true, 8uL to true), told)
+    }
+
+    @Test
+    fun aHoldTheCoreMissedIsSaidAgainBeforeANewAccountsFirstRound() {
+        // "Not now" to account 8, which the core didn't hear (its queue was full); kept here.
+        refusals = 1
+        runBlocking { holds.answered(8u, yes = false) }
+        assertTrue(told.isEmpty())
+        addAccount()
+        // Account 7's round starts only once 8's hold has been said again.
+        assertEquals(listOf(7uL to false, 8uL to true), told)
+        assertEquals(listOf("first"), rounds)
+    }
+
+    @Test
+    fun aNewAccountsFirstRoundDoesNotStartWhileAHoldCannotBeSaid() {
+        kept.save(setOf(8uL))
+        // The yes for account 7 is heard; 8's hold, said again before the round, is not.
+        val hub = AccountsHub(
+            api = api,
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            firstRound = {
+                rounds.add("first")
+                SyncAnswer(started = true, message = "")
+            },
+            holds = FirstSyncHolds(kept) { account, held ->
+                if (account == 8uL) throw CoreException.Failed("busy")
+                told.add(account to held)
+            },
+        )
+        val actions = hub.controller.actions()
+        actions.onEmail("ada@example.org")
+        actions.onSignIn()
+        assertTrue(rounds.isEmpty())
+        assertFalse(hub.syncing.value)
+        assertEquals("Send/Receive couldn't start. Try again.", hub.syncNotice.value)
+        assertEquals(setOf(8uL), kept.load())
     }
 }

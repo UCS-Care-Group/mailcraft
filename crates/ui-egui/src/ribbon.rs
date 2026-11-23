@@ -109,6 +109,9 @@ pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     if crate::windows::compose_window::pane_compose(app).is_some() {
         tabs.splice(1..1, ["Message", "Insert", "Format Text", "Review"]);
     }
+    if crate::attachment_preview::pane_target(app).is_some() {
+        tabs.push("Attachments");
+    }
     tabs
 }
 
@@ -157,6 +160,7 @@ pub(crate) enum Menu {
     Junk,
     RecentAttachments,
     OpenCalendar,
+    Spelling,
 }
 
 impl Menu {
@@ -178,7 +182,15 @@ impl Menu {
 /// ([`Menu::command`]); a menu that stands for none always can. Every layout draws by it.
 pub(crate) fn usable(app: &MailApp, item: &Item) -> bool {
     match (&item.command, item.menu) {
-        (Some((command, _)), _) => app.enabled(command),
+        (Some((command, params)), _) => {
+            let explicit_attachment =
+                matches!(*command, "mail.openAttachment" | "mail.removeAttachment" | "mail.saveAttachment" | "mail.saveAllAttachments")
+                    && params
+                        .get("id")
+                        .and_then(Value::as_u64)
+                        .is_some_and(|id| crate::attachment_preview::target(app, app.hit.window(), id).is_some());
+            explicit_attachment || app.enabled(command)
+        }
         (None, Some(menu)) => menu_usable(app, menu),
         (None, None) => true,
     }
@@ -189,11 +201,85 @@ fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
 }
 
+/// Whether a menu holds a text field the owner clicks in and types into: the font menu's search
+/// (#1493), a colour typed by hand, a folder search. Such a menu keeps a click made inside it —
+/// that click is for the field, and not a way out of the menu. Every item of these menus shuts it
+/// itself ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen
+/// folder), and a click outside it still shuts it.
+///
+/// Every menu is said here, rather than the ones with a field being picked out of the rest: a
+/// popup's close behaviour is settled before its contents are drawn, so this can't be answered
+/// from the widgets in it — it can only be answered by whoever adds a menu, and an arm for each
+/// makes the compiler ask them. `the_menus_that_hold_a_field_are_the_ones_that_draw_one` checks
+/// the answers against what the menus really draw.
+pub(crate) fn holds_a_field(menu: Menu) -> bool {
+    match menu {
+        // The search field that finds one family among the ones installed here (#1493).
+        Menu::Font => true,
+        // A colour typed by hand, not picked from the squares. The highlight menu is not one of
+        // them: it draws squares only, each of which shuts the menu itself.
+        Menu::FontColor => true,
+        // The folder search: at the top of the first two, and a submenu down in the third.
+        Menu::MoveMessages | Menu::MoveFolder => true,
+        Menu::Rules => true,
+        // Everything else is items, and every item shuts the menu when it is clicked.
+        Menu::NewItems
+        | Menu::Highlight
+        | Menu::CategorizeMail
+        | Menu::FollowUp
+        | Menu::ComposeFollowUp
+        | Menu::FilterMail
+        | Menu::ShowAs
+        | Menu::Reminder
+        | Menu::CategorizeEvent
+        | Menu::CategorizeContact
+        | Menu::CategorizeTask
+        | Menu::FilterTasks
+        | Menu::Signature
+        | Menu::ReadingPane
+        | Menu::GmailCategories
+        | Menu::NavigationBar
+        | Menu::Preview
+        | Menu::ArrangeBy
+        | Menu::Theme
+        | Menu::RibbonLayout
+        | Menu::TimeScale
+        | Menu::ChangeView
+        | Menu::Zoom
+        | Menu::RecentSearches
+        | Menu::FontSize
+        | Menu::Junk
+        | Menu::RecentAttachments
+        | Menu::OpenCalendar
+        | Menu::Spelling => false,
+    }
+}
+
+/// The menus a button of the simplified row opens: its own, and those of what hangs under it.
+pub(crate) fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+    b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
+}
+
+/// A menu's popup: one that holds a text field keeps a click made inside it (#1493). Only menus
+/// whose every item shuts the menu themselves get this; a `…` of folded groups or of what didn't
+/// fit holds plain buttons, which count on the popup shutting for them, so those stay as they are.
+fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) -> egui::Popup<'a> {
+    let popup = egui::Popup::menu(resp);
+    if menus.into_iter().any(holds_a_field) { popup.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside) } else { popup }
+}
+
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
-/// greyed otherwise, saying why when hovered.
+/// greyed otherwise, saying why when hovered. One that holds a text field ([`holds_a_field`]) keeps
+/// a click made inside it here too: reached through a `…` or a `▾` because the ribbon is narrow,
+/// its search is still the owner's to click in (#1493).
 pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
     if menu_usable(app, menu) {
-        ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        if holds_a_field(menu) {
+            let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+            egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| menu_contents(ui, app, menu));
+        } else {
+            ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        }
         return;
     }
     let reason = menu.command().and_then(|c| app.session.registry.get(c)).and_then(|spec| (spec.enabled)(&app.session));
@@ -385,6 +471,9 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
         "Insert" => (insert(), "Insert"),
         "Format Text" => (format_text(app), "Format Text"),
         "Review" => (review(), "Review"),
+        "Attachments" => {
+            (crate::attachment_preview::pane_target(app).map_or_else(|| Tab::of(Vec::new()), |(id, index)| attachments(id, index)), "Attachments")
+        }
         "Send / Receive" => (send_receive(app), "Send / Receive"),
         "Folder" => (folder(app), "Folder"),
         "View" => (view(app), "View"),
@@ -409,6 +498,27 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
 
 fn no() -> Value {
     json!({})
+}
+
+fn attachments(id: mailcraft_model::Id, index: usize) -> Tab {
+    let file = json!({"id": id, "index": index});
+    Tab::of(vec![
+        g(
+            "Actions",
+            vec![
+                Item::big("open", "Open", "mail.openAttachment", file.clone()).at(0, 1),
+                Item::big("delete", "Remove\nAttachment", "mail.removeAttachment", file.clone()).at(0, 4),
+            ],
+        ),
+        g(
+            "Save to Computer",
+            vec![
+                Item::big("save", "Save As", "mail.saveAttachment", file).at(1, 1),
+                Item::big("save", "Save All\nAttachments", "mail.saveAllAttachments", json!({"id": id})).at(1, 3),
+            ],
+        ),
+        g("Message", vec![Item::big("mail", "Show\nMessage", "ui.showAttachmentMessage", no()).at(2, 1)]),
+    ])
 }
 
 /// What the owner pressed: with Shift held and nothing else, Delete runs as Delete Permanently,
@@ -577,6 +687,18 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
+    // The Calendar's Clipboard: the three window commands that take the whole selected set, or
+    // put what was copied or cut at the time picked in the grid. They are here whatever is
+    // selected — readiness is the commands' own (`enabled`: the set for Copy and Cut, the clip and
+    // the picked time for Paste), never a focus — so the group neither comes nor goes with a click.
+    groups.push(g(
+        "Clipboard",
+        vec![
+            Item::small("copy", "Copy", "Copy", "ui.calendarCopy", no()).at(4, 6),
+            Item::small("move", "Cut", "Cut", "ui.calendarCut", no()).at(4, 6),
+            Item::small("paste", "Paste", "Paste", "ui.calendarPaste", no()).at(4, 6),
+        ],
+    ));
     // Somebody else's calendar, by their address (#70), or one on the web (#209).
     groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
@@ -934,14 +1056,13 @@ fn insert() -> Tab {
     ])
 }
 
-/// Review, while a message is being written, in classic Outlook's groups: Word Count, and the
-/// rest still to be built.
+/// Review, while a message is being written.
 fn review() -> Tab {
     Tab::of(vec![
         g(
             "Proofing",
             vec![
-                Item::pending("review.spelling", "Spelling & Grammar", 0),
+                Item::big_menu("spelling", "spelling", "Spelling", "Check spelling with a local dictionary", Menu::Spelling).at(0, 2),
                 Item::pending("review.thesaurus", "Thesaurus", 0),
                 Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3),
             ],
@@ -965,9 +1086,9 @@ fn pending_tip(resp: egui::Response, item: &Item) -> egui::Response {
 
 fn send_receive(app: &MailApp) -> Tab {
     let note = if !app.services.can_sync() {
-        "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+        tl_later!("This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import.")
     } else if !app.session.enabled("sync.request") {
-        "No account is connected to a mail server yet."
+        tl_later!("No account is connected to a mail server yet.")
     } else {
         ""
     };
@@ -1014,6 +1135,8 @@ fn folder(app: &MailApp) -> Tab {
                 Item::big("markAllRead", "Mark All\nas Read", "mail.markAllRead", no()).at(2, 3),
                 Item::big("rules", "Run Rules\nNow", "rules.run", no()).at(2, 4),
                 Item::big("empty", "Empty\nFolder", "folder.empty", no()).at(2, 4),
+                // (Copies earlier imports left beside the server's mail, #1401.)
+                Item::big("copy", "Remove Imported\nDuplicates", "mail.removeImportedDuplicates", no()).at(2, 5),
             ],
         ),
         g(
@@ -1065,7 +1188,7 @@ fn view(app: &MailApp) -> Tab {
 /// mail's.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
-    let tight = app.session.prefs.tight_spacing;
+    let (tight, shade) = (app.session.prefs.tight_spacing, app.session.prefs.shade_rows);
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
@@ -1085,6 +1208,7 @@ fn view_of_any(app: &MailApp) -> Tab {
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
                 Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
+                Item::big("shadeRows", "Shade\nRows", "view.shadeRows", no()).checked(shade).at(1, 4),
             ],
         ),
         g(
@@ -1163,11 +1287,29 @@ pub(crate) struct FolderRow {
     pub(crate) heading: Option<String>,
 }
 
-/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), as
-/// indexes into `list`. Nothing typed (or nothing but marks) is all of them.
+impl FolderRow {
+    /// Whether a search for `wanted` (folded, never empty) finds this folder: its text holds it
+    /// as typed, or every word typed starts a word of its place or mailbox, in any order
+    /// (`Sum 2025` finds `Summer 2025`, #1655).
+    pub(crate) fn matches(&self, wanted: &str, words: &[String]) -> bool {
+        if self.fold.contains(wanted) {
+            return true;
+        }
+        if words.len() < 2 {
+            return false;
+        }
+        let have = mailcraft_model::words::words(&format!("{} {}", self.path, self.account));
+        words.iter().all(|q| have.iter().any(|h| h.starts_with(q.as_str())))
+    }
+}
+
+/// The folders whose place (or mailbox) holds `query` (any part, ignoring case and accents), or
+/// whose words each start with a word of it, as indexes into `list`. Nothing typed (or nothing but marks) is all of them.
 fn folder_matches(list: &[FolderRow], query: &str) -> Vec<usize> {
-    let wanted = mailcraft_model::words::fold(&query.chars().take(FOLDER_SEARCH_MAX).collect::<String>());
-    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.fold.contains(&wanted)).map(|(i, _)| i).collect()
+    let query: String = query.chars().take(FOLDER_SEARCH_MAX).collect();
+    let wanted = mailcraft_model::words::fold(&query);
+    let words = mailcraft_model::words::words(&query);
+    list.iter().enumerate().filter(|(_, row)| wanted.is_empty() || row.matches(&wanted, &words)).map(|(i, _)| i).collect()
 }
 
 /// What a folder menu offers.
@@ -1406,6 +1548,21 @@ pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
 /// Most names off the list that the Categorize menu shows.
 const MAX_OFF_LIST: usize = 32;
 
+/// The rows of [`category_menu`]: the categories of `accounts`, then the names of `carried` that
+/// none of them lists (at most [`MAX_OFF_LIST`]), each once as the lists compare names (any
+/// alphabet's capitals, #790), in grey unless a list gives it a colour.
+pub(crate) fn category_rows(mailbox: &mailcraft_model::Mailbox, accounts: &[Id], carried: &[String]) -> Vec<mailcraft_model::Category> {
+    let mut cats = mailbox.categories_for(accounts);
+    let listed = cats.len();
+    for name in carried {
+        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|c| mailcraft_model::sync::same_category(&c.name, name)) {
+            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
+            cats.push(mailcraft_model::Category { name: name.clone(), color });
+        }
+    }
+    cats
+}
+
 /// The categories of `accounts`, those of the selection's items (#633), and the names of `carried`
 /// (what the items have) that aren't on those lists, as menu items that toggle one on the
 /// selection through `command`: an item moved from another account, or a name its server stopped
@@ -1419,15 +1576,8 @@ pub fn category_menu(
     has: impl Fn(&MailApp, &str) -> bool,
     clear: Option<&str>,
 ) {
-    let mailbox = &app.session.mailbox;
-    let mut cats: Vec<(String, egui::Color32)> = mailbox.categories_for(accounts).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
-    let listed = cats.len();
-    for name in carried {
-        if cats.len() < listed + MAX_OFF_LIST && !cats.iter().any(|(c, _)| c.eq_ignore_ascii_case(name)) {
-            let color = accounts.iter().find_map(|a| mailbox.category_of(*a, name)).map_or(mailcraft_model::GREY_CATEGORY, |c| c.color);
-            cats.push((name.clone(), crate::theme::c32(color)));
-        }
-    }
+    let cats: Vec<(String, egui::Color32)> =
+        category_rows(&app.session.mailbox, accounts, carried).into_iter().map(|c| (c.name, crate::theme::c32(c.color))).collect();
     for (name, color) in cats {
         let on = has(app, &name);
         ui.horizontal(|ui| {
@@ -1436,7 +1586,7 @@ pub fn category_menu(
             if on {
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, "✓", medium(10.0), Tokens::get(ui.ctx()).on_swatch);
             }
-            if ui.add(egui::Button::new(name.as_str()).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
+            if ui.add(egui::Button::new(crate::i18n::category_label(&name)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
                 let _ = app.run(command, json!({"category": name}));
                 ui.close();
             }
@@ -1507,8 +1657,9 @@ pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
 }
 
 /// What `menu` lists.
-fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
+pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
+        Menu::Spelling => crate::spelling::review(ui, app),
         Menu::RecentAttachments => crate::recent_attachments::contents(ui, app),
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {
@@ -1636,7 +1787,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeEvent => {
             let id = app.session.sel.event;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.event(id)).is_some_and(|e| e.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.event(id))
+                    .is_some_and(|e| e.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let event = id.and_then(|id| app.session.mailbox.event(id));
             let account = event.map(|e| app.session.mailbox.event_account(e));
@@ -1646,7 +1798,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeContact => {
             let id = app.session.sel.contact;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.contact(id))
+                    .is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
             };
             let contact = id.and_then(|id| app.session.mailbox.contact(id));
             let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
@@ -1655,7 +1808,8 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         Menu::CategorizeTask => {
             let id = app.session.sel.task;
             let has = |app: &MailApp, name: &str| {
-                id.and_then(|id| app.session.mailbox.task(id)).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                id.and_then(|id| app.session.mailbox.task(id))
+                    .is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name)))
             };
             let task = id.and_then(|id| app.session.mailbox.task(id));
             let (account, carried) = (task.map(|t| t.origin.account), task.map(|t| t.categories.clone()).unwrap_or_default());
@@ -1694,7 +1848,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::ReadingPane => {
             let cur = app.session.view.reading_pane;
-            for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
+            for (label, code, pane) in
+                [(tl_later!("Right"), "right", Pane::Right), (tl_later!("Bottom"), "bottom", Pane::Bottom), (tl_later!("Off"), "off", Pane::Off)]
+            {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
         }
@@ -1710,7 +1866,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;
-            for (label, n) in [("Off", 0u8), ("1 Line", 1), ("2 Lines", 2), ("3 Lines", 3)] {
+            for (label, n) in [(tl_later!("Off"), 0u8), (tl_later!("1 Line"), 1), (tl_later!("2 Lines"), 2), (tl_later!("3 Lines"), 3)] {
                 mi_check(ui, app, label, lines == n, "view.previewLines", json!({"value": n}));
             }
             ui.separator();
@@ -1777,28 +1933,90 @@ pub(crate) fn size_menu(ui: &mut Ui, app: &mut MailApp) {
     }
 }
 
-/// The fonts a message may ask for (`format.font`), each in a menu entry.
+/// How many of the families installed here a font menu lists before it asks to narrow them down.
+const MOST_FONTS: usize = 400;
+
+/// Where the font menu's field keeps what has been typed in it: the same place every time the
+/// menu is opened, so the menu can be opened again with the search still in it.
+pub(crate) fn font_search_key() -> egui::Id {
+    egui::Id::unique("mailcraft-font-search")
+}
+
+/// The fonts a message may be written in (`format.font`): the six MailCraft has fallbacks for,
+/// and after them every family installed on this computer, with a field to find one among them
+/// (#1493). The same menu serves the composer and File › Signatures.
 pub(crate) fn font_menu(ui: &mut Ui, app: &mut MailApp) {
-    use mailcraft_model::rich::Font;
+    use mailcraft_model::rich::Built;
     let now = look_now(app).font;
+    let chosen = now.clone().flatten().map(|f| f.key().to_string());
     mi_check(ui, app, "Default", now == Some(None), "format.font", json!({"value": null}));
-    for f in Font::ALL {
-        mi_check(ui, app, f.label(), now == Some(Some(f)), "format.font", json!({"value": f.label()}));
+    for built in Built::ALL {
+        let checked = chosen.as_deref() == Some(built.key());
+        mi_check(ui, app, built.label(), checked, "format.font", json!({"value": built.label()}));
+    }
+    let ctx = ui.ctx().clone();
+    // The list is made on a thread of its own the first time it is asked for; the window is asked
+    // to draw again when it arrives.
+    crate::fonts::ask(&ctx);
+    ui.separator();
+    let key = font_search_key();
+    let mut query: String = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+    let field =
+        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut query).hint_text(tl!("Find a font")).char_limit(64).desired_width(190.0)));
+    ui.data_mut(|d| d.insert_temp(key, query.clone()));
+    app.hit.add("fontSearch", 0, field.rect);
+    let enabled = app.enabled("format.font");
+    // The list is made once with the index, in order and folded for searching: a menu open for a
+    // minute shouldn't build three thousand names again every frame (#1493).
+    let Some(index) = crate::fonts::index(&ctx) else {
+        ui.label(egui::RichText::new(tl!("Looking for fonts…")).color(crate::theme::Tokens::get(&ctx).text_dim));
+        return;
+    };
+    let needle = query.trim().to_lowercase();
+    let shown = index.menu().iter().filter(|family| needle.is_empty() || family.folded.contains(&needle));
+    let total = shown.clone().count();
+    let room = ui.available_height().min(320.0);
+    egui::ScrollArea::vertical().id_salt("font-menu").max_height(room.max(120.0)).auto_shrink([false, true]).show(ui, |ui| {
+        for family in shown.take(MOST_FONTS) {
+            let checked = chosen.as_deref() == Some(family.folded.as_str());
+            let mark = egui::RichText::new("✓");
+            let mark = if checked { mark } else { mark.color(egui::Color32::TRANSPARENT) };
+            let button = egui::Button::new((mark, family.name.as_str())).selected(checked).min_size(vec2(190.0, 0.0));
+            if ui.add_enabled(enabled, button).clicked() {
+                // The family as it is named here, with a font of its kind after it for whoever
+                // doesn't have it: what its own file says it is (#1493).
+                let value = format!("{}, {}", family.name, crate::fonts::generic_family(&ctx, &family.folded));
+                let _ = app.run("format.font", json!({"value": value}));
+                ui.close();
+            }
+        }
+        if total > MOST_FONTS {
+            ui.label(
+                egui::RichText::new(tln!(total - MOST_FONTS, "…and {n} more — type to narrow it", "…and {n} more — type to narrow it"))
+                    .color(crate::theme::Tokens::get(&ctx).text_dim),
+            );
+        }
+    });
+    ui.separator();
+    // Not a formatting command: it looks again at the fonts folder, and the menu shows the new
+    // list as it arrives.
+    if ui.button(tl!("Check for new fonts")).clicked() {
+        crate::fonts::rescan(&ctx);
     }
 }
 
 /// Text colours offered: an original palette, readable on white.
 pub(crate) const COLORS: [(&str, &str); 10] = [
-    ("Black", "#000000"),
-    ("Grey", "#595959"),
-    ("Dark Red", "#c00000"),
-    ("Orange", "#c55a11"),
-    ("Gold", "#bf8f00"),
-    ("Green", "#2e7d32"),
-    ("Teal", "#00796b"),
-    ("Navy", "#1f4e79"),
-    ("Blue", "#0563c1"),
-    ("Purple", "#7030a0"),
+    (tl_later!("Black"), "#000000"),
+    (tl_later!("Grey"), "#595959"),
+    (tl_later!("Dark Red"), "#c00000"),
+    (tl_later!("Orange"), "#c55a11"),
+    (tl_later!("Gold"), "#bf8f00"),
+    (tl_later!("Green"), "#2e7d32"),
+    (tl_later!("Teal"), "#00796b"),
+    (tl_later!("Navy"), "#1f4e79"),
+    (tl_later!("Blue"), "#0563c1"),
+    (tl_later!("Purple"), "#7030a0"),
 ];
 
 /// The text colours (`format.color`): Automatic, the palette as swatches, and a value of the
@@ -1840,14 +2058,14 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
 
 /// Highlights offered behind text: an original palette of light colours, which dark text reads on.
 pub(crate) const HIGHLIGHTS: [(&str, &str); 8] = [
-    ("Yellow", "#fff176"),
-    ("Lime", "#c5e1a5"),
-    ("Aqua", "#80deea"),
-    ("Sky", "#90caf9"),
-    ("Pink", "#f8bbd0"),
-    ("Lavender", "#d1c4e9"),
-    ("Peach", "#ffcc80"),
-    ("Grey", "#d9d9d9"),
+    (tl_later!("Yellow"), "#fff176"),
+    (tl_later!("Lime"), "#c5e1a5"),
+    (tl_later!("Aqua"), "#80deea"),
+    (tl_later!("Sky"), "#90caf9"),
+    (tl_later!("Pink"), "#f8bbd0"),
+    (tl_later!("Lavender"), "#d1c4e9"),
+    (tl_later!("Peach"), "#ffcc80"),
+    (tl_later!("Grey"), "#d9d9d9"),
 ];
 
 /// The highlights (`format.highlight`): No Color, and the palette as swatches.
@@ -1878,7 +2096,7 @@ pub(crate) fn highlight_menu(ui: &mut Ui, app: &mut MailApp) {
 /// when it is on.
 fn entry(ui: &mut Ui, app: &mut MailApp, item: &Item) {
     let Some((id, params)) = &item.command else { return };
-    let (key, enabled) = (shortcut_text(app, id), app.enabled(id));
+    let (key, enabled) = (shortcut_text(app, id), usable(app, item));
     let mut button = egui::Button::new(item.name()).selected(item.checked).min_size(vec2(190.0, 0.0));
     if !key.is_empty() {
         button = button.shortcut_text(key);
@@ -2093,7 +2311,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         drop_mark(ui, drop_rect.center(), ink);
         let main = menu_tooltip(app, main, item, on);
         if on {
-            egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+            menu_popup(&main, button_menus(b)).show(|ui| drop_menu(ui, app, b));
         }
         return;
     };
@@ -2114,7 +2332,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
     if item.menu != Some(Menu::RecentAttachments) || menu_usable(app, Menu::RecentAttachments) {
-        egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+        menu_popup(&drop, button_menus(b)).show(|ui| drop_menu(ui, app, b));
     }
 }
 
@@ -2207,7 +2425,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             classic_recent_attachments(app, &resp, on);
         }
         (Some((command, params)), _) => {
-            let on = app.enabled(command);
+            let on = usable(app, item);
             let (resp, text) = big_frame(ui, item.icon, label, on, item.checked, false);
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
@@ -2223,7 +2441,7 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
             app.hit.add("ribbon", hit_id(item.key), resp.rect);
             app.hit.add("ribbonLabel", hit_id(item.key), text);
             if on {
-                egui::Popup::menu(&resp).show(|ui| {
+                menu_popup(&resp, [menu]).show(|ui| {
                     ui.set_min_width(200.0);
                     menu_contents(ui, app, menu);
                 });
@@ -2256,7 +2474,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     classic_recent_attachments(app, &resp, on);
                 }
                 (Some((command, params)), _) => {
-                    let on = app.enabled(command);
+                    let on = usable(app, item);
                     let resp = small_frame(ui, item.icon, label, on, item.checked, false);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     let resp = command_tooltip(app, resp, &item.tip_text(), command);
@@ -2269,7 +2487,7 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item], labelled: boo
                     let resp = menu_tooltip(app, small_frame(ui, item.icon, label, on, false, true), item, on);
                     app.hit.add("ribbon", hit_id(item.key), resp.rect);
                     if on {
-                        egui::Popup::menu(&resp).show(|ui| {
+                        menu_popup(&resp, [menu]).show(|ui| {
                             ui.set_min_width(200.0);
                             menu_contents(ui, app, menu);
                         });
@@ -2385,6 +2603,7 @@ fn classic(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, available: f32
 // ---- the ribbon ----
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    crate::attachment_preview::follow_message(app, 0, crate::attachment_preview::pane_message(app));
     let tabs = tabs(app);
     if !tabs.contains(&app.ui.tab.as_str()) {
         app.ui.tab = "Home".into();
@@ -2402,6 +2621,18 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let tab = describe(app);
     band(app, ui, &tab, egui::Id::unique("ribbon"));
+}
+
+pub(crate) fn show_attachment_window(app: &mut MailApp, ui: &mut Ui, window: u64, message: mailcraft_model::Id) -> bool {
+    let Some(index) = crate::attachment_preview::target(app, window, message) else { return false };
+    if strip(app, ui, &["Message", "Attachments"], "Attachments", egui::Id::unique(("attachment-tabs", window)))
+        .is_some_and(|(tab, _)| tab == "Message")
+    {
+        let _ = app.run("ui.showAttachmentMessage", no());
+        return true;
+    }
+    band(app, ui, &attachments(message, index), egui::Id::unique(("attachment-ribbon", window)));
+    true
 }
 
 /// The ribbon of a window of its own with a message being written (#286), numbered `window`:
@@ -2452,7 +2683,7 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
                         ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), 4.0, t.hover);
                     }
                     // The tab that came up for the message being written stands out.
-                    let color = if *tab == "Message" && !active { t.accent_text } else { t.text };
+                    let color = if matches!(*tab, "Message" | "Attachments") && !active { t.accent_text } else { t.text };
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active { semibold(TAB_SIZE) } else { regular(TAB_SIZE) }, color);
                     if active {
                         // The tab in view: its name in the heavier weight, underlined in the accent.
@@ -2555,6 +2786,9 @@ mod move_menu_tests;
 
 #[cfg(test)]
 mod plain_tests;
+
+#[cfg(test)]
+mod category_rows_tests;
 
 #[cfg(test)]
 mod tests {

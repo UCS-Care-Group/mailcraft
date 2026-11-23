@@ -152,6 +152,36 @@ fn what_check_again_brings_is_taken_for_the_original_alone() {
     }
 }
 
+/// A message the server has another version of before what Check again asked for comes (a sent
+/// one made a draft again on another device): what comes is taken whole, its new version, and
+/// the mark that no rule goes by it goes, as for any fetch. Before, only its original was taken
+/// and nothing fetched it again, so no rule ever decided on it (#566).
+#[test]
+fn what_check_again_brings_after_the_message_changed_elsewhere_is_taken_whole() {
+    let (mut s, id) = read_before(AccountKind::Microsoft, SIGNED);
+    let account = s.mailbox.message(id).unwrap().account;
+    for (kind, server) in [(mailcraft_model::FolderKind::Inbox, "F"), (mailcraft_model::FolderKind::Drafts, "FD")] {
+        let folder = s.mailbox.folder_of_kind(account, kind).unwrap();
+        s.mailbox.folder_mut(folder).unwrap().server = Some(mailcraft_model::ServerFolder { id: server.into(), ..Default::default() });
+    }
+    s.run("mail.checkAgain", &json!({"id": id})).unwrap();
+    let mut index = Default::default();
+    let gone = mailcraft_model::sync::MessagePage { folder: "F".into(), removed: vec!["AAkA1".into()], link: "next".into(), ..Default::default() };
+    graph_down::take_page(&mut s.mailbox, &mut index, account, &gone, &mut Default::default());
+    let server = ServerMessage { id: "AAkA1".into(), folder: "FD".into(), change_key: "CK2".into(), ..Default::default() };
+    let back = mailcraft_model::sync::GraphMessage { server, subject: "Signed".into(), draft: Some(true), ..Default::default() };
+    let page = mailcraft_model::sync::MessagePage { folder: "FD".into(), messages: vec![back], ..Default::default() };
+    graph_down::take_page(&mut s.mailbox, &mut index, account, &page, &mut Default::default());
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.draft && m.stale && m.unfetched && m.original_wanted, "{m:?}");
+    let new: Vec<u8> = String::from_utf8_lossy(SIGNED).replace("Signed text.", "Changed on the phone.").into_bytes();
+    assert!(graph_down::take_fetched(&mut s.mailbox, &mut index, account, "AAkA1", &new));
+    let m = s.mailbox.message(id).unwrap();
+    assert!(!m.stale && !m.unfetched && !m.original_wanted, "{m:?}");
+    assert!(m.body.text.contains("Changed on the phone."), "{:?}", m.body);
+    assert_eq!(m.original_bytes(), Some(new.as_slice()));
+}
+
 #[test]
 fn a_message_a_part_was_removed_from_is_never_checked_again() {
     for kind in [AccountKind::Imap, AccountKind::Microsoft] {

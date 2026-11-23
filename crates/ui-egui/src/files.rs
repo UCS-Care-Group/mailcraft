@@ -54,6 +54,9 @@ pub struct PendingDialog {
     after: AfterPick,
     /// The extension of the name a Save dialog suggested, put back on a name typed without one.
     ext: Option<String>,
+    /// The window of the system the dialog was asked from, which comes forward again once it is
+    /// answered (#1282).
+    from: Option<u64>,
 }
 
 /// Commands that write a file, and the name they suggest.
@@ -194,7 +197,7 @@ fn ask(app: &mut MailApp, req: FileDialogRequest, after: AfterPick) -> Result<Va
         FileDialogRequest::Save { name } => std::path::Path::new(name).extension().map(|e| e.to_string_lossy().into_owned()),
         _ => None,
     };
-    app.file_dialog = Some(PendingDialog { rx: show(req), after, ext });
+    app.file_dialog = Some(PendingDialog { rx: show(req), after, ext, from: app.windows.focused });
     // A host that answered at once is handled right away.
     poll(app).unwrap_or(Ok(json!({"pending": "fileDialog"})))
 }
@@ -221,6 +224,7 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
         Some(Err(TryRecvError::Disconnected)) => None,
     };
     let d = app.file_dialog.take()?;
+    app.windows.refocus = d.from;
     let mut picked = picked.unwrap_or_default();
     // Several files to attach: each in turn, and one that can't be (too large, unreadable) doesn't
     // keep the others out.
@@ -232,7 +236,13 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     }
     // A dialog for one file answers with one; anything more is not taken.
     picked.truncate(1);
-    let Some(mut path) = picked.pop() else { return Some(Ok(json!({"cancelled": true}))) };
+    let Some(mut path) = picked.pop() else {
+        // A message's server copy fetched for this save isn't held any longer (#1561).
+        if matches!(&d.after, AfterPick::Export { command, .. } if command == "file.exportMessage") {
+            app.session.forget_for_save();
+        }
+        return Some(Ok(json!({"cancelled": true})));
+    };
     if let Some(ext) = &d.ext {
         path = with_extension(path, ext);
     }
@@ -249,13 +259,17 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
             if r.is_ok() && command == "ui.reportProblem" {
                 // The file is saved and GitHub's page open: now the window it came from closes,
                 // unless what went into the page was cut and the rest is still to be copied.
+                let mut close_report = false;
                 match &mut app.dialog {
                     Some(crate::dialogs::Dialog::ReportProblem(d)) if d.keep_open => {
                         d.waiting = false;
                         d.cut = true;
                     }
-                    Some(crate::dialogs::Dialog::ReportProblem(_)) => app.dialog = None,
+                    Some(crate::dialogs::Dialog::ReportProblem(_)) => close_report = true,
                     _ => {}
+                }
+                if close_report {
+                    app.set_dialog(None);
                 }
             } else if let (Ok(v), "mail.saveAllAttachments") = (&r, command.as_str()) {
                 let n = v.get("saved").and_then(Value::as_u64).unwrap_or(0) as usize;
@@ -287,6 +301,11 @@ pub(crate) fn saved_said(command: &str, v: &Value, name: &str) -> String {
             let n = v.get("messages").and_then(Value::as_u64).unwrap_or(0);
             crate::i18n::fmt(&tln!(n, "Saved {n} message to {name}", "Saved {n} messages to {name}"), &[("name", name)])
         }
+        // Written from what this computer keeps rather than as it was received (#1561): said.
+        "file.exportMessage" if v.get("asReceived").and_then(Value::as_bool) == Some(false) => crate::i18n::fmt(
+            tl!("Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"),
+            &[("name", name)],
+        ),
         "file.exportMessage" => crate::i18n::fmt(tl!("Saved the message to {name}"), &[("name", name)]),
         _ => crate::i18n::fmt(tl!("Saved {name}"), &[("name", name)]),
     }
@@ -616,7 +635,7 @@ pub(crate) fn ask_next(app: &mut MailApp) {
     }
     let Some(path) = app.opened_waiting.pop_front() else { return };
     let ask = import_question(app, &path);
-    app.dialog = Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask });
+    app.set_dialog(Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask: Box::new(ask) }));
 }
 
 /// The name of the folder mail imported now goes to (#1401): the folder in view, or, for a

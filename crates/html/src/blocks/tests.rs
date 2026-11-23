@@ -563,6 +563,28 @@ fn nested_lists() {
 }
 
 #[test]
+fn every_block_inside_a_list_item_is_marked_as_part_of_it_whatever_it_looks_like() {
+    fn marks(blocks: &[Block], out: &mut Vec<(String, bool)>) {
+        for b in blocks {
+            match &b.kind {
+                BlockKind::Table(t) => {
+                    out.push(("table".to_string(), b.in_item));
+                    for cell in t.rows.iter().flat_map(|r| &r.cells) {
+                        marks(&cell.blocks, out);
+                    }
+                }
+                _ => out.push((b.text(), b.in_item)),
+            }
+        }
+    }
+    let html = "<p>before</p><ul><li>a<pre>b</pre><h2>c</h2><table><tr><td>d</td><td>e</td></tr></table></li></ul><p>after</p>";
+    let mut out = Vec::new();
+    marks(&parse(html), &mut out);
+    let read: Vec<(&str, bool)> = out.iter().map(|(text, item)| (text.as_str(), *item)).collect();
+    assert_eq!(read, [("before", false), ("a", true), ("b", true), ("c", true), ("table", true), ("d", true), ("e", true), ("after", false)]);
+}
+
+#[test]
 fn outlook_list_paragraphs_become_list_items() {
     // What Outlook writes for a bulleted and a numbered list: paragraphs with the marker as text.
     let bullet = "<p class=MsoListParagraph style='text-indent:-.25in;mso-list:l0 level1 lfo1'><![if !supportLists]>\
@@ -1628,6 +1650,15 @@ fn an_hr_with_the_hidden_attribute_is_not_drawn() {
     assert_eq!(rules("<p>a</p><hr><p>b</p>"), 1);
     assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
     assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
+}
+
+/// #603: a block says which way it reads, apart from the side its text stands at.
+#[test]
+fn a_block_keeps_the_direction_it_reads_in() {
+    let rtl = |html: &str| parse(html).iter().map(|b| b.rtl).collect::<Vec<_>>();
+    assert_eq!(rtl("<ul dir=rtl><li style='text-align:left'>a</li></ul>"), [true]);
+    assert_eq!(rtl("<ul><li style='text-align:right'>a</li></ul>"), [false]);
+    assert_eq!(rtl("<p>שלום</p><p dir=rtl>a</p>"), [false, true]);
 }
 
 /// A block that starts inside a link opened as a block (`<div>`, a table) keeps the link, in a
