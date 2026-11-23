@@ -70,11 +70,8 @@ fn executable(variable: &str, product: &str, tool: &str) -> Option<PathBuf> {
     }
     let name = format!("{tool}{}", std::env::consts::EXE_SUFFIX);
     let installed = if cfg!(windows) {
-        ["ProgramFiles", "ProgramW6432"]
-            .iter()
-            .filter_map(std::env::var_os)
-            .map(|dir| PathBuf::from(dir).join(product).join(&name))
-            .find_map(absolute_file)
+        let roots: Vec<PathBuf> = ["ProgramFiles", "ProgramW6432"].iter().filter_map(std::env::var_os).map(PathBuf::from).collect();
+        installed_under(&roots, product, &name)
     } else if cfg!(target_os = "macos") {
         absolute_file(PathBuf::from("/Applications").join(format!("{product}.app")).join("Contents/MacOS").join(&name))
     } else {
@@ -84,6 +81,13 @@ fn executable(variable: &str, product: &str, tool: &str) -> Option<PathBuf> {
         std::env::var_os("PATH")
             .and_then(|paths| std::env::split_paths(&paths).filter(|path| path.is_absolute()).map(|path| path.join(&name)).find_map(absolute_file))
     })
+}
+
+/// The helper `name` of `product` under one of the Program Files folders `roots`: where it is
+/// installed by hand (`<root>\<product>`), then where the ArtCraft Launcher installs it
+/// (`<root>\ArtCraft\<product>`, #1383).
+fn installed_under(roots: &[PathBuf], product: &str, name: &str) -> Option<PathBuf> {
+    roots.iter().flat_map(|root| [root.join(product), root.join("ArtCraft").join(product)]).map(|dir| dir.join(name)).find_map(absolute_file)
 }
 
 /// Canonicalize an absolute file path, requiring an .exe extension on Windows.
