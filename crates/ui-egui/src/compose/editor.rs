@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 
 use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
-use egui::{Align2, Event, FontFamily, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use egui::{Align2, Event, FontId, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
 use mailcraft_model::RichBody;
 use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
@@ -37,6 +37,7 @@ mod table;
 
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
+use crate::fonts::{Chooser, Pick};
 use crate::spelling;
 use crate::theme::{Tokens, regular, semibold};
 
@@ -131,21 +132,24 @@ fn on_screen(size: Option<u8>) -> f32 {
 }
 
 /// How a run looks on screen; in a plain-text message everything is plain.
-pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&FontFamily) -> bool) -> TextFormat {
+///
+/// The font it asks for is picked by `fonts` ([`Chooser`]): the family installed on this computer,
+/// the window's own while its face is being read or when the family isn't installed, and the
+/// window's monospaced font for a list that asks for `monospace`.
+pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, fonts: &mut Chooser) -> TextFormat {
     if plain {
         return TextFormat::simple(regular(BASE_SIZE), t.text);
     }
     let size = on_screen(style.size);
-    // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
-    // A fixed-width font stays fixed width: its regular face for want of a bold one, else the
-    // window's own fixed-width font, so text art keeps its columns while it is written (#969).
-    let font = match crate::theme::document_font(style.font, style.bold, size, has) {
-        Some(font) => font,
-        None if style.font.is_some_and(|f| f.is_fixed_width()) => {
-            crate::theme::document_font(style.font, false, size, has).unwrap_or_else(|| egui::FontId::monospace(size))
-        }
-        None if style.bold => semibold(size),
-        None => regular(size),
+    // The font chosen, from the face installed on this computer; the window's own when there is
+    // none (#582). A fixed-width family keeps its columns: its own regular face for want of a bold
+    // one, else the window's own fixed-width font (#969) — which the chooser answers for every
+    // family, not Courier New alone.
+    let font = match style.font.as_ref().map(|f| fonts.pick(f.list(), style.bold)) {
+        Some(Pick::Family(family)) => FontId::new(size, family),
+        Some(Pick::Mono) => egui::FontId::monospace(size),
+        Some(Pick::Own) | None if style.bold => semibold(size),
+        Some(Pick::Own) | None => regular(size),
     };
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
@@ -165,8 +169,9 @@ struct LayoutKey {
     plain: bool,
     /// The pictures' ids and widths.
     pictures: u64,
-    /// How many font families are installed: the messages' fonts arrive a frame after the first.
-    families: usize,
+    /// Which message and document fonts egui has: a family read for a font arrives a frame after
+    /// it was asked for, and what is drawn in it is laid out again ([`crate::fonts::generation`]).
+    fonts: u64,
 }
 
 /// A picture in a paragraph, laid out: where it stands in the paragraph's text and where it is
@@ -285,9 +290,13 @@ impl Layout {
             return false;
         }
         let suffix = (0..shorter - prefix).take_while(|&k| same(n_new - 1 - k, n_old - 1 - k)).count();
+        // One chooser for the paragraphs laid out now: what they ask for is looked up once, and
+        // what isn't there yet is asked for once, at the end.
+        let mut fonts = Chooser::new(ctx);
         let fresh: Vec<Para> = (prefix..n_new - suffix)
-            .filter_map(|i| Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, pictures, t, width)))
+            .filter_map(|i| Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, pictures, t, width, &mut fonts)))
             .collect();
+        fonts.finish(ctx);
         self.paras.splice(prefix..n_old - suffix, fresh);
         let (mut start, mut top) = (0, 0.0);
         for p in &mut self.paras {
@@ -300,14 +309,22 @@ impl Layout {
         true
     }
 
-    fn lay(&mut self, ctx: &egui::Context, p: &Paragraph, number: u32, plain: bool, pictures: &[Picture], t: &Tokens, width: f32) -> Para {
+    fn lay(
+        &mut self,
+        ctx: &egui::Context,
+        p: &Paragraph,
+        number: u32,
+        plain: bool,
+        pictures: &[Picture],
+        t: &Tokens,
+        width: f32,
+        fonts: &mut Chooser,
+    ) -> Para {
         let indent = indent_of(p);
         let room = (width - indent).max(24.0);
         // A picture is a gap in the line as wide as the picture before an unseen character, in a
         // line as tall as the picture; it is painted into the gap.
         let object = TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, ..Default::default() };
-        let known = ctx.fonts(|f| f.families());
-        let has = |family: &FontFamily| known.contains(family);
         // Each picture shown: its run, its place in the paragraph, its id, its size and whether it
         // comes right after a character egui does not break a line after (a word, or another
         // picture).
@@ -362,13 +379,13 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
+                        job.append(&run.text, carry, text_format(&run.style, plain, t, fonts));
                         carry = 0.0;
                     }
                 }
             }
             if job.sections.is_empty() {
-                job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
+                job.append("", 0.0, text_format(&Style::default(), plain, t, fonts));
             }
             galley = ctx.fonts_mut(|f| f.layout_job(job));
             passes += 1;
@@ -599,11 +616,25 @@ fn class(c: char) -> u8 {
 /// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width the
 /// owner gave it or its own, its height in proportion.
 fn size_of(ctx: &egui::Context, p: &Picture, room: f32) -> Vec2 {
-    let frame = crate::reading::images::frame(ctx);
-    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
-    let [w, h] = own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32]);
+    let [w, h] = own_size(ctx, p);
     let width = p.width.map_or(w, f32::from).min(room).max(8.0);
     vec2(width, (width * h / w).clamp(4.0, 2000.0))
+}
+
+/// A picture's own size in pixels, or a stand-in when it can't be read; never zero.
+pub(super) fn own_size(ctx: &egui::Context, p: &Picture) -> [f32; 2] {
+    let frame = crate::reading::images::frame(ctx);
+    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
+    own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32])
+}
+
+/// The widest the corner of picture `id` makes it, in a body `room` wide; `None` when it has no
+/// corner there: a signature's pictures are sized in File › Signatures, even in a message.
+fn widest(which: Which, id: u32, room: f32) -> Option<f32> {
+    match which {
+        Which::Signature => Some(f32::from(mailcraft_model::signature::MAX_WIDTH)),
+        Which::Message => (id >= mailcraft_model::pictures::FIRST_ID).then(|| room.min(f32::from(mailcraft_model::pictures::MAX_SHOWN_WIDTH))),
+    }
 }
 
 /// A short fingerprint of the pictures' ids and widths, so that the layout follows them.
@@ -735,6 +766,9 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, min_height: f32, take_focus: 
 /// the editing commands are the signature's then.
 pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height: f32, take_focus: bool) {
     let ctx = ui.ctx().clone();
+    // Once a frame, as the reading pane does: what the threads brought in is taken in and given
+    // to egui, so a font chosen here is drawn in a frame or two.
+    crate::fonts::tick(&ctx);
     let t = Tokens::get(&ctx);
     let id = which.id(app);
     ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
@@ -748,7 +782,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         scale: ctx.pixels_per_point().to_bits(),
         plain,
         pictures: pictures_key(&shown),
-        families: ctx.fonts(|f| f.families().len()),
+        fonts: crate::fonts::generation(&ctx),
     };
     let store = store(&ctx, id);
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
@@ -779,25 +813,40 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
     let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture of a signature is made wider or narrower by its corner.
-    if which == Which::Signature
+    // A selected picture is made wider or narrower by its corner: only its outline follows the
+    // pointer (every paragraph is laid out again for a new width), and the width is set once
+    // the button is let go.
+    if editable
         && let Some((sel, _)) = now(app, which)
         && let Some((pid, r)) = layout.selected_picture(sel)
+        && let Some(most) = widest(which, pid, width)
     {
         let r = r.translate(origin.to_vec2());
         let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
+        let handle = ui.interact(corner, id.with(("corner", pid)), Sense::drag());
+        app.hit.add("pictureCorner", u64::from(pid), corner);
         if handle.hovered() || handle.dragged() {
             ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
         }
         if handle.dragged() {
             let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, f32::from(mailcraft_model::signature::MAX_WIDTH))));
+            st.resizing = Some((pid, w.clamp(8.0, most)));
         }
         if handle.drag_stopped()
             && let Some((i, w)) = st.resizing.take()
+            && (w.round() - r.width().round()).abs() >= 1.0
         {
-            let _ = app.run("signature.picture.set", json!({"id": i, "width": w.round() as u16}));
+            let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
+            let _ = app.run(command, json!({"id": i, "width": w.round() as u16}));
+        }
+    }
+    // The drag is kept while its picture stays selected, so letting go still sets the width
+    // on a frame that did not move the corner. A command that moves the selection while the
+    // corner is held drops it, and a click in the text places the caret again.
+    if let Some((pid, _)) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == pid);
+        if !still {
+            st.resizing = None;
         }
     }
 
@@ -1161,7 +1210,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
-        if which == Which::Signature {
+        if editable && widest(which, pid, width).is_some() {
             painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
         }
     }

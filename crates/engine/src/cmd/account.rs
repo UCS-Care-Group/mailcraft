@@ -695,6 +695,16 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if readdressed || left_microsoft {
         s.mailbox.restart_category_sync(id);
     }
+    // Only a Microsoft, Exchange or JMAP account fetches again a message its server lists as
+    // another version: on any other, one waiting for that would wait for ever, and no rule would
+    // read it; it is read as it is here (#566).
+    let fetches_again = matches!(s.mailbox.account(id).map(|x| x.kind), Some(AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap));
+    if !fetches_again {
+        let waiting: Vec<Id> = s.mailbox.messages.values().filter(|m| m.account == id && m.stale).map(|m| m.id).collect();
+        for m in waiting {
+            s.mailbox.message_mut(m)?.stale = false;
+        }
+    }
     Ok(json!({"id": id}))
 }
 
@@ -1438,6 +1448,7 @@ fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResul
     run.stopped |= stopped;
     run.finished = !partial;
     if !partial {
+        s.run_had.remove(&account);
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
         let held = super::graph_place::held_for_this_computer(s, account);
@@ -1484,9 +1495,11 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
-    let now = s.now();
+    let clock = s.rule_clock();
+    // What the account had before the run's new mail, as an earlier piece of it found it.
+    let had = s.run_had.remove(&account);
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result, now);
+    let sent = file_sent(mb, account, result, clock.now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1502,6 +1515,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         }
     }
     let mut on_server = OnServer::of(mb, account);
+    on_server.had = had;
     flags_pushed(mb, account, &on_server, &result.flagged);
     for moved in &result.moved {
         move_finished(mb, account, &mut on_server, moved);
@@ -1516,10 +1530,14 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, now);
+        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, &clock);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
+    // (For the run's later pieces: its last lets it go, [`apply_sync_part`].)
+    if let Some(had) = on_server.had.take() {
+        s.run_had.insert(account, had);
+    }
     if told {
         s.forget_history();
     }
@@ -1554,6 +1572,10 @@ struct OnServer {
     leaving: HashSet<(Id, u32)>,
     /// Messages put back as the server's after a refused copy ([`Message::returned`]).
     returned: Vec<Id>,
+    /// The Message-IDs of the account's mail in its folders, as the run first needs them
+    /// ([`OnServer::had`]), and as its later pieces have them from the first
+    /// ([`crate::Session::run_had`]); none of what the owner sent or is writing.
+    had: Option<HashSet<String>>,
 }
 
 impl OnServer {
@@ -1561,7 +1583,16 @@ impl OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
         let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned }
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned, had: None }
+    }
+
+    /// Whether the account had a message by the Message-ID `id` in one of its folders: mail new
+    /// to a folder that it had is mail moved there on another device (a filed message moved back
+    /// into the Inbox, say), which the server gives a new UID. The run reads the Inbox before the
+    /// folder it left (`mailcraft_net::sync`), so it is still where it was. Not the owner's own
+    /// sent mail, or a draft, which a message to themselves comes back as (#566).
+    fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
+        !id.is_empty() && self.had.get_or_insert_with(|| message_ids(mb, account)).contains(id)
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1596,6 +1627,14 @@ pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now:
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // Sent, it is no draft any more, however it got into the Outbox: a draft moved in
+            // and let go with Send Again was one still (#1748), and the server's copy isn't one.
+            if mb.message(*id).is_some_and(|m| m.draft)
+                && let Ok(m) = mb.message_mut(*id)
+            {
+                m.draft = false;
+                m.server_draft = None;
+            }
             // A reminder "after so many days" counts them from now that it has gone (#948).
             mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
@@ -1860,6 +1899,17 @@ fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
     for id in ids {
         original_goes(mb, id, false);
     }
+}
+
+/// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
+/// should one of them turn up in the Inbox as new, moved there on another device (#566).
+pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
+    let theirs = |f: Id| mb.folder(f).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && !m.draft && !m.message_id.is_empty() && theirs(m.folder))
+        .map(|m| m.message_id.clone())
+        .collect()
 }
 
 /// The move out of another account that waits for `id`, by which its original goes once the
@@ -2225,7 +2275,7 @@ fn take_in(
     mut delta: FolderDelta,
     (gmail_moves, moved_now): (bool, &HashSet<u64>),
     counts: &mut Counts,
-    now: mailcraft_time::Timestamp,
+    clock: &mailcraft_model::RuleClock,
 ) {
     if delta.remote.is_empty() {
         return;
@@ -2312,7 +2362,7 @@ fn take_in(
     } else {
         // (Or one moved out of the account, asked for from the copy it came from, #30.)
         let moved_out = super::imap_again::moved_out(mb, account);
-        super::imap_again::take_in(mb, &mut delta, now, |uid| {
+        super::imap_again::take_in(mb, &mut delta, clock.now, |uid| {
             on_server.by_uid.get(&(folder, uid)).or_else(|| moved_out.get(&(folder, uid))).copied()
         });
     }
@@ -2356,6 +2406,9 @@ fn take_in(
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
         // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
         let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
+        // Mail the account had, moved into the Inbox on another device: the rules file it as
+        // found (#566).
+        let moved_in = (inbox || junk) && sorting && uid > old_seen && on_server.had(mb, account, &m.message_id);
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
@@ -2367,9 +2420,21 @@ fn take_in(
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
             // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
             // them as any mail arriving in the Inbox does.
-            let sorted = sorting && uid > old_seen && mb.sort_junk(id);
+            // (They sort mail moved in on another device as any new mail, as they always did.)
+            let new = sorting && uid > old_seen;
+            let fresh = new && !moved_in;
+            let sorted = new && mb.sort_junk(id);
+            // The rules file what was there before too (a first download, a mailbox numbered anew,
+            // older mail, mail moved in on another device), but don't copy it or show an alert for
+            // it (#566).
             if inbox != sorted {
-                mb.apply_rules(id);
+                if fresh {
+                    mb.apply_rules(id, clock);
+                } else if reset {
+                    mb.apply_rules_renumbered(id, clock);
+                } else {
+                    mb.apply_rules_found(id, clock);
+                }
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {
@@ -2428,7 +2493,7 @@ fn take_in(
         if delta.complete {
             f.whole = Some(true);
             // What the server said of it before it was read to the end (#276), or nothing.
-            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: now, ..status });
+            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: clock.now, ..status });
         }
         if reset {
             f.imap_status = None;

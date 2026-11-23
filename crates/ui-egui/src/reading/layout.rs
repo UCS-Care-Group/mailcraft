@@ -34,8 +34,8 @@ use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, Lin
 use mailcraft_model::Message;
 
 use super::colors::Paper;
-use super::fonts::{Chooser, Pick};
 use super::images::{self, Pictures};
+use crate::fonts::{Chooser, Pick};
 use crate::theme::{Tokens, mono, regular, semibold};
 
 /// The size of text that asks for none, in points.

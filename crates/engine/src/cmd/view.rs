@@ -31,6 +31,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .when(crate::gmail::offered)
             .params(r#"{"value": "folders"|"tabs"} — Gmail's inbox categories as five folders under a Gmail account's Inbox in the folder pane, or as a row of tabs above its message list (#911)"#),
+        CommandSpec::new("view.allAccounts", "All Accounts", "Folder Pane", all_accounts)
+            .reads()
+            .when(two_mailboxes)
+            .params(r#"{"kind"?: "inbox"|"drafts"|"sent"|"deleted"|"archive" (default inbox)} — lists every account's folder of that kind together, newest first, each message in its own account (#625): what is done to one (read, flag, move, delete, reply) is done in that account, as from its own folder. Shared mailboxes are listed with the accounts. The window opens on it again at the next start when it was open at quit. Opening one account's folder (folder.select) leaves it. Answers {"kind", "folders": [id] (the accounts' folders it lists), "messages": n, "unread": n}"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
         CommandSpec::new("view.navigationBar", "Navigation Bar", "View › Layout", navigation_bar)
             .reads()
@@ -109,6 +113,41 @@ fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
         super::mail::mark_opened(s, false);
     }
     Ok(json!({"value": s.view.reading_pane}))
+}
+
+/// Why All Accounts isn't offered: one mailbox has nothing to put together (#625; a shared mailbox
+/// counts as one).
+fn two_mailboxes(s: &Session) -> Option<&'static str> {
+    if crate::unified::offered(&s.mailbox) {
+        return None;
+    }
+    Some("needs two mailboxes at least (a shared mailbox counts)")
+}
+
+/// `view.allAccounts`: every account's folder of a kind in one list (#625).
+fn all_accounts(s: &mut Session, v: &Value) -> CmdResult {
+    let kind = match p::str(v, "kind") {
+        None => mailcraft_model::FolderKind::Inbox,
+        Some(code) => mailcraft_model::FolderKind::parse(code)
+            .filter(|k| crate::unified::KINDS.contains(k))
+            .ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted or archive"))?,
+    };
+    let anchor = crate::unified::anchor(&s.mailbox, kind).ok_or_else(|| super::fail("no account has a folder of that kind"))?;
+    if crate::unified::of(s) != Some(kind) || s.view.module != Module::Mail {
+        s.view.folder = anchor;
+        s.view.unified = Some(kind);
+        s.view.module = Module::Mail;
+        s.view.gmail = None;
+        s.view.open.clear();
+        s.sel.messages.clear();
+    }
+    // A search belongs to the list it was typed in.
+    s.view.search.clear();
+    let folders = crate::unified::folders(&s.mailbox, kind);
+    let counts = s.folder_counts();
+    let (messages, unread) =
+        folders.iter().fold((0usize, 0usize), |(t, u), f| (t.saturating_add(counts.total(*f)), u.saturating_add(counts.unread(*f))));
+    Ok(json!({"kind": kind.code(), "folders": folders, "messages": messages, "unread": unread}))
 }
 
 fn gmail_categories(s: &mut Session, v: &Value) -> CmdResult {
