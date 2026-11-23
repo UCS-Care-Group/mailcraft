@@ -86,6 +86,17 @@ pub(crate) fn open_smtp_with<'a>(
     patience: &Patience,
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Smtp<Stream<'a>>, NetError> {
+    open_smtp_configured(account, secret, patience, cancel, false)
+}
+
+/// GOA's authenticated SMTP configuration must not fall back to anonymous delivery.
+pub(crate) fn open_smtp_configured<'a>(
+    account: &Account,
+    secret: &str,
+    patience: &Patience,
+    cancel: Option<&'a AtomicBool>,
+    require_password: bool,
+) -> Result<Smtp<Stream<'a>>, NetError> {
     let server = account.outgoing.as_ref().ok_or_else(|| NetError::Config(said!("the account has no outgoing server")))?;
     crate::sync::token_may_go_to(account, server, "smtp.gmail.com")?;
     let user = account.login();
@@ -110,6 +121,9 @@ pub(crate) fn open_smtp_with<'a>(
         let plain = smtp.starttls()?;
         smtp = Smtp::resume(transport::upgrade(plain, &host)?);
         offered = smtp.hello(CLIENT_NAME)?;
+    }
+    if require_password && (!offered.auth_plain && !offered.auth_login || secret.is_empty() || user.is_empty()) {
+        return Err(NetError::Config(said!("GNOME requires SMTP authentication, but this server does not offer a supported sign-in.")));
     }
     if account.oauth.is_some() {
         // A server that doesn't take tokens is an error, not a reason to go on unsigned.

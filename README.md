@@ -55,6 +55,14 @@ MailCraft follows the architecture and conventions of [WordCraft](https://github
 - **Everywhere:** every connection that carries mail or a sign-in is TLS or STARTTLS, never a silent downgrade; passwords and sign-in tokens live in memory or the system's credential store, never in MailCraft's files or logs; nothing in a message runs.
 - What MailCraft defends against and how: [docs/threat-model.md](docs/threat-model.md); what it sends anywhere: [PRIVACY.md](PRIVACY.md); reporting a vulnerability: [SECURITY.md](SECURITY.md).
 
+## Accounts from GNOME (Linux)
+
+File → Info → Import accounts from GNOME… offers enabled mail accounts configured in GNOME
+Online Accounts. Link a supported IMAP/SMTP account that uses passwords managed by GNOME,
+or prefill an independent MailCraft setup.
+Add Account is unchanged; no GNOME libraries are required. See [the GNOME import guide](docs/gnome-accounts.md)
+for supported providers and limits.
+
 ## Google accounts on the desktop
 
 Use **Send / Receive → Add Account → Sign in with Google**. App-password setup is a separate

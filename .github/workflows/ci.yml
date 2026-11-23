@@ -140,6 +140,10 @@ jobs:
           XTASK_CI_SKIP: ${{ runner.os != 'Linux' && 'clippy,wasm,deny' || 'deny' }}
           XTASK_TEST_FILTER: ${{ needs.changes.outputs.filter }}
 
+      - name: Test GNOME account linking on an isolated session bus
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- env MAILCRAFT_TEST_PRIVATE_BUS=1 cargo test --locked -p mailcraft --bin mailcraft private_bus_ -- --ignored --test-threads=1
+
   # cargo-deny (deny.toml): RustSec advisories, licences, duplicate crates, sources. Its own job,
   # since it needs no build; `ci` skips the step it would otherwise run.
   deny:

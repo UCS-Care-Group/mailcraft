@@ -109,6 +109,9 @@ fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool 
 /// The line under an account's name on its card in File › Info: what kind of account it is, and
 /// for one on a mail server, its servers.
 pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    if a.goa.is_some() {
+        return tl!("Managed by GNOME Online Accounts · IMAP and SMTP").to_string();
+    }
     let server = |s: &Option<mailcraft_model::Server>| {
         s.as_ref().map(|s| {
             if s.security == Security::None { crate::i18n::fmt(tl!("{host} (not encrypted)"), &[("host", &s.host)]) } else { s.host.clone() }
@@ -354,6 +357,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         t,
     ) {
         let _ = app.run("ui.dialog", json!({"name": "account"}));
+    }
+    if app.services.gnome_discovery().is_some()
+        && tile(ui, "account", tl!("Import accounts from GNOME…"), tl!("Link an existing GNOME mail account or set it up separately"), t)
+    {
+        let _ = app.run("ui.dialog", json!({"name": "gnomeAccounts"}));
     }
     crate::auto_replies::info_tiles(app, ui, t);
     // The calendar of an account that signs in with Microsoft is kept on its server: the owner

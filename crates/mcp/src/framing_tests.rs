@@ -920,6 +920,7 @@ const WRITTEN_PARAMS: &[&str] = &[
     "secret",
     "token",
     "clientId",
+    "provider", // GOA provider identifier, checked by account.add.
     "tenant",
     "session",
     "remember",

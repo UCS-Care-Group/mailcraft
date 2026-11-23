@@ -1239,6 +1239,37 @@ fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_ca
 }
 
 #[test]
+fn account_edit_accepts_goa_list_markers_without_changing_the_link() {
+    let (mut s, direct, _, _) = session();
+    let linked = run(
+        &mut s,
+        "account.add",
+        json!({
+            "email": "linked@example.org", "kind": "imap",
+        "incoming": {"host": "imap.example.org", "security": "tls"},
+        "outgoing": {"host": "smtp.example.org", "security": "tls"},
+        "goa": {"id": "linked", "provider": "imap_smtp"}
+        }),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    assert!(s.run("account.edit", &json!({"id": direct, "auth": "goa"})).is_err());
+    run(&mut s, "account.edit", json!({"id": linked, "auth": "goa", "displayName": "Linked sender"}));
+    assert_eq!(s.mailbox.account(linked).unwrap().display_name, "Linked sender");
+    assert!(s.run("account.edit", &json!({"id": linked, "auth": "password"})).is_err());
+    assert!(s.run("account.edit", &json!({"id": linked, "auth": "goa", "clientId": "other"})).is_err());
+    for id in [direct, linked] {
+        let before = s.mailbox.account(id).unwrap().clone();
+        run(&mut s, "account.edit", json!({"id": id, "goa": null, "displayName": "Mail owner"}));
+        let after = s.mailbox.account(id).unwrap();
+        assert_eq!(after.display_name, "Mail owner");
+        assert_eq!(after.oauth, before.oauth);
+        assert_eq!(after.goa, before.goa);
+        assert!(s.run("account.edit", &json!({"id": id, "goa": {"id": "other", "provider": "ms_graph"}})).is_err());
+    }
+}
+
+#[test]
 fn the_server_keeps_the_new_parts_it_can_and_says_why_not_for_the_rest() {
     use super::rules::{NotOnServer, server_cannot};
     use mailcraft_model::{FlagDue, Importance, Sensitivity, time::Date};

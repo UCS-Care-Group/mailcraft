@@ -1550,7 +1550,7 @@ fn refusal(error: &str, description: &str) -> NetError {
 /// POST the form to the token endpoint and read the tokens out of the answer. `secrets` are
 /// the parts of the form that must not come back in an error.
 fn trade(endpoint: &Url, fields: &[(&str, &str)], earlier_refresh: &str, secrets: &[&str]) -> Result<Tokens, Refused> {
-    let answer = http::post_form(endpoint, fields, TOKEN_TIMEOUT).map_err(|e| secrets.iter().fold(e, |e, secret| e.without(secret)))?;
+    let answer = http::post_form(endpoint, fields, TOKEN_TIMEOUT).map_err(|e| e.without_secrets(secrets))?;
     tokens_from(&answer, earlier_refresh, mailcraft_time::now(), secrets)
 }
 
@@ -1564,7 +1564,7 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
     if !text("error").is_empty() {
         // A careless server may repeat what it was sent; that is taken out before the text is
         // shortened, as a secret cut in half would no longer be recognised.
-        let hide = |text: &str| secrets.iter().fold(text.to_string(), |text, secret| crate::scrub(&text, secret));
+        let hide = |text: &str| crate::scrub_secrets(text, secrets);
         // Microsoft lists its own numbers for the refusal beside the description that names them.
         let listed = json.as_ref().and_then(|json| json.get("error_codes")).and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
         let codes: Vec<u64> = listed.iter().take(MAX_CODES).filter_map(Value::as_u64).collect();

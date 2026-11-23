@@ -82,7 +82,7 @@ impl MailApp {
             JobKind::Categories => self.category_sync.busy(),
             JobKind::AutoReplies => self.auto_replies.busy(),
             JobKind::SignIn => self.signing_in.is_some(),
-            JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..)))),
+            JobKind::AccountSetup => matches!(self.dialog, Some(Dialog::Form(Form::Account(..) | Form::GnomeAccounts(..)))),
             JobKind::AdminConsent => self.admin_consent_busy(),
         }
     }
@@ -118,6 +118,7 @@ impl MailApp {
                         // keep the next one.
                         self.windows.dialog_for = None;
                     }
+                    Some(Dialog::Form(Form::GnomeAccounts(_))) => self.windows.dialog_for = None,
                     other => self.dialog = other,
                 },
                 JobKind::AdminConsent => self.forget_admin_consent(),

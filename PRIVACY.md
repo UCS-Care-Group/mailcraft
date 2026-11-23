@@ -28,6 +28,7 @@ send ([Problem reports](#problem-reports)).
   says why. MailCraft notes the names (never the contents) of the entries it puts there in its
   settings, so that Remove MailCraft's data, and turning remembering off, can remove every one,
   also those of mailboxes you opened earlier, and list any that could not be removed.
+- **Accounts you link to GNOME on Linux** use GNOME Online Accounts as their local credential source. MailCraft requests credentials for mail operations and keeps them only in worker memory.
 - **Digitally signed and encrypted messages** (S/MIME and OpenPGP) are also kept as they
   arrived, beside the mailbox file with the rest of its content (up to 64 MB a message and 1 GB in
   all), so that their signature can still be checked and a copy moved to another account or saved

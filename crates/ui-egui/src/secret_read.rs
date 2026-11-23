@@ -83,6 +83,7 @@ impl MailApp {
             .mailbox
             .accounts
             .iter()
+            .filter(|a| a.goa.is_none())
             .flat_map(|a| {
                 ["password", "refresh"].map(|kind| Ask {
                     key: Self::secret_key(kind, a),
@@ -189,7 +190,7 @@ impl MailApp {
         let Some(a) = self.session.mailbox.account(account) else { return false };
         // (A JMAP account's secret is never with the store; an Exchange server account's is, under
         // the name that holds its server's address and its user name, #252.)
-        if a.kind == mailcraft_model::AccountKind::Jmap {
+        if a.kind == mailcraft_model::AccountKind::Jmap || a.goa.is_some() {
             return false;
         }
         if a.oauth.is_some() {

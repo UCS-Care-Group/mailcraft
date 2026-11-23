@@ -205,7 +205,7 @@ msgid "(no title)"
 msgstr "(nincs cím)"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "(none)"
 msgstr "(nincs)"
@@ -755,6 +755,12 @@ msgstr "Webcím, e-mail cím, telefonszám (tel:) vagy más cím, mint például
 #, fuzzy
 msgid "A word to look for is at most 200 characters."
 msgstr "A keresett szó legfeljebb 200 karakter lehet."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "ACCOUNTS ON THIS COMPUTER"
+msgstr "FIÓKOK EZEN A SZÁMÍTÓGÉPEN"
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -1425,6 +1431,12 @@ msgstr "Megosztott postafiókák küldése"
 #, fuzzy
 msgid "Allowed"
 msgstr "Engedélyezve"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Already added"
+msgstr "Már hozzáadva"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -2595,6 +2607,12 @@ msgid "Bring in"
 msgstr "Hozzátok be!"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Bring mail from your GNOME accounts into MailCraft."
+msgstr "Hozzon leveleket GNOME-fiókjaiból a MailCraftba."
+
+#. interface
 #: crates/ui-egui/src/recent_attachments.rs
 #, fuzzy
 msgid "Browse…"
@@ -2805,7 +2823,7 @@ msgid "Can't sign"
 msgstr "Nem tudom aláírni."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/gnome_accounts.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Mégse"
@@ -3367,6 +3385,12 @@ msgid "Choose a folder"
 msgstr "Válasszon egy mappát"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose an account first."
+msgstr "Először válasszon egy fiókot."
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Choose default signatures"
@@ -3395,6 +3419,12 @@ msgstr "Válassza ki, hogy ezeket a feladatokat elküldték-e a Microsoft To Do 
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Válassza ki, kinek a nevében küldi"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Choose your account"
+msgstr "Válassza ki a fiókját"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3943,10 +3973,28 @@ msgid "Copy to folder"
 msgstr "Másolás mappába"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not link this account."
+msgstr "Nem sikerült összekapcsolni ezt a fiókot."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Could not open Google sign-in"
 msgstr "Nem sikerült megnyitni a Google- beiratkozást"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts."
+msgstr "Nem sikerült beolvasni a GNOME-fiókokat."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Could not read GNOME accounts. Check access to GNOME Online Accounts and try again."
+msgstr "Nem sikerült beolvasni a GNOME-fiókokat. Ellenőrizze a hozzáférést a GNOME Online fiókokhoz, és próbálja újra."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs
@@ -6379,6 +6427,60 @@ msgstr "Részletes adatok: és hol, és a jegyzetek"
 msgid "Full messages: {done} of {total}"
 msgstr "Teljes üzenet: {done} of {total}"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."
+msgstr "A GNOME Online fiókok nem érhetők el. Nyissa meg a GNOME Online fiókokat, és próbálja újra a küldést/fogadást."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try again."
+msgstr "A GNOME Online fiókok nem érhetők el. Nyissa meg a GNOME Online fiókokat, és próbálja újra."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME Online Accounts is unavailable. You can still use Add Account."
+msgstr "A GNOME Online fiókok nem érhetők el. Továbbra is használhatja a Fiók hozzáadása funkciót."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME account request cancelled."
+msgstr "GNOME-fiók kérelme törölve."
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "GNOME requires SMTP authentication, but this server does not offer a supported sign-in."
+msgstr "A GNOME SMTP-hitelesítést igényel, de ez a kiszolgáló nem kínál támogatott bejelentkezést."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid mail credential."
+msgstr "A GNOME érvénytelen levél hitelesítő adatokat adott vissza."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned an invalid outgoing credential."
+msgstr "A GNOME érvénytelen kimenő levelezési hitelesítő adatokat adott vissza."
+
+#. interface, why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME returned too many accounts. Use Add Account instead."
+msgstr "A GNOME túl sok fiókot adott vissza. Ehelyett használja a Fiók hozzáadása lehetőséget."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "GNOME sign-in is unavailable."
+msgstr "A GNOME bejelentkezés nem érhető el."
+
 #. interface, name, ribbon location
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -7043,6 +7145,12 @@ msgstr "A szervezőnek kell elmondania, hogy hogyan ismételi meg."
 msgid "How many messages each folder holds and the space they take"
 msgstr "Hány üzenet van minden mappában és a hely, amit elvesznek"
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "How would you like to add it?"
+msgstr "Hogyan szeretné hozzáadni?"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -7222,6 +7330,12 @@ msgstr "Nyilvános kulcs importálása…"
 #, fuzzy
 msgid "Import a certificate (.p12)…"
 msgstr "Tanúsítvány importálása (p12)…"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Import accounts from GNOME…"
+msgstr "Fiókok importálása a GNOME-ból…"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -8086,6 +8200,12 @@ msgid "Keep your To Do tasks in step?"
 msgstr "Szinkronban tartja a To Do feladatait?"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Keep your existing sign-in. GNOME manages the account connection."
+msgstr "Tartsa meg meglévő bejelentkezési adatait. A GNOME kezeli a fiókkapcsolatot."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Keep {address}"
@@ -8354,6 +8474,18 @@ msgstr "Törölt sorok"
 #, fuzzy
 msgid "Link"
 msgstr "Hivatkozás"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Link an existing GNOME mail account or set it up separately"
+msgstr "Kapcsoljon össze egy meglévő GNOME-mail fiókot, vagy állítsa be külön"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Link with GNOME"
+msgstr "Kapcsolódás a GNOME-hoz"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8624,6 +8756,12 @@ msgstr "A junk e-mailben lévő levelek még mindig kérdezik először. Fájl �
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "A megosztott postafiókban lévő levelek várakoznak: a megosztott postafiókákból történő küldéshez engedély kell."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Mail is disabled in GNOME Online Accounts."
+msgstr "A levelezés le van tiltva a GNOME Online fiókokban."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -9064,6 +9202,24 @@ msgstr "Szabályok kezelése…"
 #, fuzzy
 msgid "Manage Task"
 msgstr "Feladat kezelése"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by GNOME"
+msgstr "A GNOME kezeli"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Managed by GNOME Online Accounts · IMAP and SMTP"
+msgstr "GNOME Online fiókok által kezelt · IMAP és SMTP"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Managed by MailCraft"
+msgstr "A MailCraft kezelője"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -10196,7 +10352,7 @@ msgid "New message"
 msgstr "Új üzenet"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "New messages"
 msgstr "Új üzenetek"
@@ -10558,6 +10714,12 @@ msgstr "Nincs információ"
 #, fuzzy
 msgid "No key imported here has that fingerprint"
 msgstr "Itt nincs kulcs, amiből az ujjlenyomatot behoznák."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "No mail accounts enabled in GNOME were found."
+msgstr "Nem találhatók a GNOME-ban engedélyezett levelezési fiókok."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -11004,6 +11166,12 @@ msgid "Not saved"
 msgstr "Nem mentve"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Not supported yet"
+msgstr "Még nem támogatott"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11434,6 +11602,12 @@ msgstr "Csak egy Microsoft-fiókot hívunk."
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Csak egy találkozót szervezel, ahol találsz egy időt."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Only accounts you choose are added."
+msgstr "Csak a kiválasztott fiókok kerülnek hozzáadásra."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -12823,6 +12997,12 @@ msgid "Reading Pane"
 msgstr "Olvasóablak"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Reading accounts from GNOME…"
+msgstr "Fiókok olvasása a GNOME-ból…"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Reading pane at the bottom"
@@ -12869,6 +13049,12 @@ msgstr "A megosztott tartalom beolvasása"
 #, fuzzy
 msgid "Reading your automatic replies from the server…"
 msgstr "Automatikus válaszolvasás a szerverről…"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Ready to link"
+msgstr "Linkelésre kész"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -13394,6 +13580,18 @@ msgstr "Kategória átnevezése a kiszolgálón: {done} / {total} üzenet"
 msgid "Renewing the sign-in…"
 msgstr "A bejelentkezés megújítása…"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's outgoing sign-in in GNOME Online Accounts."
+msgstr "Javítsa ki a fiók kimenő levelezési hitelesítő adatait a GNOME Online Accounts alkalmazásban."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "Repair this account's sign-in in GNOME Online Accounts."
+msgstr "Javítsa meg ennek a fióknak a bejelentkezését a GNOME Online fiókokban."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
 #, fuzzy
@@ -13431,7 +13629,7 @@ msgid "Replace with"
 msgstr "Csere:"
 
 #. interface
-#: crates/ui-egui/src/signatures.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Replies and forwards"
 msgstr "Válaszok és továbbítások"
@@ -13561,6 +13759,12 @@ msgstr "Méret visszaállítása"
 #, fuzzy
 msgid "Reset View"
 msgstr "A nézet újraindítása"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Resolve this account through GNOME Online Accounts before connecting."
+msgstr "Csatlakozás előtt kérje le a fiók adatait a GNOME Online Accounts alkalmazásból."
 
 #. command label, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -14963,6 +15167,12 @@ msgstr "Küldve:"
 msgid "Sep"
 msgstr "szept."
 
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Separate setup"
+msgstr "Külön beállítás"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -15010,6 +15220,12 @@ msgstr "Fontosság beállítása"
 #, fuzzy
 msgid "Set up manually"
 msgstr "Kézi beállítás"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Set up separately"
+msgstr "Külön állítsa be"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -15552,6 +15768,12 @@ msgid "Sign in again first"
 msgstr "Előbb jelentkezzen be újra"
 
 #. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "Sign in again to create a separate account in MailCraft."
+msgstr "Jelentkezzen be újra egy külön fiók létrehozásához a MailCraftban."
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Sign in again, asking for mail alone"
@@ -15684,7 +15906,7 @@ msgid "Signature file:"
 msgstr "Aláírási fájl:"
 
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Aláírások"
@@ -16859,6 +17081,24 @@ msgstr "A digitális aláírás lejárt."
 msgid "The Entire Series"
 msgstr "Az egész sorozat"
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account changed. Try again."
+msgstr "A GNOME-fiók megváltozott. Próbáld újra."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account connection changed. Remove it from MailCraft and link it again to keep mail from different servers separate."
+msgstr "A GNOME-fiók kapcsolata megváltozott. Távolítsa el a MailCraftból, és kapcsolja össze újra, hogy a különböző szerverekről érkező leveleket elkülönítve tartsa."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The GNOME account is unavailable."
+msgstr "A GNOME-fiók nem érhető el."
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -16900,6 +17140,12 @@ msgstr "A fiókba újra be kell jelentkezni."
 #, fuzzy
 msgid "The account is gone"
 msgstr "A fiók már nincs meg"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."
+msgstr "A fiók figyelmet igényel. Javítsa meg a bejelentkezést a GNOME Online fiókokban, és próbálja újra."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -17530,6 +17776,12 @@ msgstr "A kulcsot eltávolították a számítógépről."
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
 msgstr "A link a vágólapon van: küldje el a szervezet adminisztrátorának"
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "The linked GNOME account is no longer available."
+msgstr "A kapcsolt GNOME-fiók már nem érhető el."
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -18682,11 +18934,23 @@ msgstr "A GitHub-on található fájlba mentjük őket, amit a GitHub-on lévő 
 msgid "They share {what}."
 msgstr "Ezt osztják meg: {what}."
 
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts."
+msgstr "Ez a GNOME-fiók hiányzik, le van tiltva, vagy már nem teszi lehetővé a támogatott levelezési hozzáférést. Ellenőrizze a GNOME online fiókokat."
+
 #. interface, name, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "This Week"
 msgstr "Ez a hét"
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account cannot be linked through GNOME."
+msgstr "Ez a fiók nem kapcsolható össze a GNOME-on keresztül."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18721,8 +18985,26 @@ msgstr "Ez a fiók nem jelent be a Microsoft-nál"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Change its connection or repair its sign-in there. Removing it from MailCraft leaves it in GNOME."
+msgstr "Ezt a fiókot a GNOME Online fiókok kezelik. Módosítsa a kapcsolatot, vagy javítsa ki a bejelentkezést ott. Ha eltávolítja a MailCraftból, akkor a GNOME-ban marad."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "This account is managed by GNOME Online Accounts. Use a GOA-capable MailCraft desktop on Linux."
+msgstr "Ezt a fiókot a GNOME Online fiókok kezelik. Használjon GOA-kompatibilis MailCraft asztali számítógépet Linuxon."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "This account is no longer in the mailbox."
 msgstr "Ez a fiók már nincs a postafiókában."
+
+#. why a mail server couldn't be used
+#: apps/mailcraft/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account is not linked to GNOME."
+msgstr "Ez a fiók nem kapcsolódik a GNOME-hoz."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -18747,6 +19029,12 @@ msgstr "Ez a fiók nem használhatja a Microsoft Graph-on keresztüli feladatait
 #, fuzzy
 msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
 msgstr "Ez a fiók csak a megosztott postafiók \"{name}\" naptárát olvashatja: a postafiók tulajdonosa nem adta meg a szerkesztési jogokat (vagy még nem olvasták el)."
+
+#. interface
+#: crates/ui-egui/src/gnome_accounts.rs
+#, fuzzy
+msgid "This account needs separate setup in this version of MailCraft."
+msgstr "Ezt a fiókot külön be kell állítani a MailCraft ezen verziójában."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -22406,6 +22694,12 @@ msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr "nagyobb, mint a {mb} MB: hozza be a File › Import"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "link a GNOME account through Import accounts from GNOME"
+msgstr "kapcsoljon össze egy GNOME-fiókot a Fiókok importálása GNOME-ból funkcióval"
+
+#. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
 msgid "message {id} keeps no original"
@@ -23042,6 +23336,12 @@ msgstr "megosztott postafiókok nyithatók egy Microsoft Graph-on keresztül vez
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "megosztott postafiókok nyitnak egy fiók alatt, amely lépést tart a Microsoft Graph"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes require a separate Microsoft sign-in in MailCraft"
+msgstr "A megosztott postafiókokhoz külön Microsoft-bejelentkezés szükséges a MailCraftban"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -24392,6 +24692,12 @@ msgid "this account has no {folder} folder"
 msgstr "Ez a fiók nem rendelkezik {folder} mappával"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account is managed by GNOME Online Accounts; remove it and link it again to change its connection"
+msgstr "ezt a fiókot a GNOME Online fiókok kezelik; távolítsa el, és kapcsolja össze újra a kapcsolat megváltoztatásához"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
 msgid "this account may not save it"
@@ -24414,6 +24720,12 @@ msgstr "a fiók kategóriái nincsenek szinkronban egy kiszolgálóval"
 #, fuzzy
 msgid "this account's categories aren't kept in step with its server"
 msgstr "a fiók kategóriái nincsenek szinkronban a kiszolgálójával"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "this account's sign-in is managed by GNOME Online Accounts"
+msgstr "ennek a fióknak a bejelentkezését a GNOME Online fiókok kezelik"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
