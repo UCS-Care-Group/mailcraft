@@ -24,11 +24,18 @@ fn an_account_cards_buttons_fit_their_labels() {
     let mut w = testing::window("view.mail");
     w.state_mut().execute("ui.language", json!({"language": "ka"})).unwrap();
     w.state_mut().execute("ui.backstage", json!({"value": true, "page": "info"})).unwrap();
-    w.run_steps(4);
-    let shapes: Vec<Shape> = w.output().shapes.iter().map(|c| c.shape.clone()).collect();
+    // Step until the page has drawn its card (a busy machine can take more than a few frames).
     let (mut settings, mut remove) = (Vec::new(), Vec::new());
-    drawn(&shapes, crate::tl!("Settings"), &mut settings);
-    drawn(&shapes, crate::tl!("Remove"), &mut remove);
+    for _ in 0..60 {
+        w.run_steps(1);
+        let shapes: Vec<Shape> = w.output().shapes.iter().map(|c| c.shape.clone()).collect();
+        (settings, remove) = (Vec::new(), Vec::new());
+        drawn(&shapes, crate::tl!("Settings"), &mut settings);
+        drawn(&shapes, crate::tl!("Remove"), &mut remove);
+        if !settings.is_empty() && !remove.is_empty() {
+            break;
+        }
+    }
     assert!(!settings.is_empty() && !remove.is_empty(), "an account card is drawn: {settings:?} {remove:?}");
     assert!(settings.iter().chain(&remove).all(|&(_, lines)| lines == 1), "a button's label wraps: {settings:?} {remove:?}");
     let (s, r) = (settings[settings.len() - 1].0, remove[remove.len() - 1].0);

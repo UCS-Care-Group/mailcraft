@@ -204,8 +204,9 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let settings_w = card_button_w(ui, tl!("Settings"), cap);
         let remove_w = card_button_w(ui, tl!("Remove"), cap);
         // A label cut at the cap is named whole in the button's tooltip.
-        let cut = |label: &str, w: f32| card_button_w(ui, label, f32::INFINITY) > w;
-        let tip = |label: &str, w: f32, tip: &str| if cut(label, w) { format!("{label}: {tip}") } else { tip.to_owned() };
+        let settings_cut = card_button_w(ui, tl!("Settings"), f32::INFINITY) > settings_w;
+        let remove_cut = card_button_w(ui, tl!("Remove"), f32::INFINITY) > remove_w;
+        let tip = |label: &str, cut: bool, tip: &str| if cut { format!("{label}: {tip}") } else { tip.to_owned() };
         let button_room = if a.email.is_empty() { 0.0 } else { settings_w + 8.0 } + if removable { remove_w + 8.0 } else { 0.0 };
         let text_w = r.width() - 70.0 - button_room;
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
@@ -245,7 +246,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        let settings_tip = tip(tl!("Settings"), settings_w, settings_tip);
+        let settings_tip = tip(tl!("Settings"), settings_cut, settings_tip);
         if !a.email.is_empty()
             && on_card(ui, settings_at, settings_w, egui::Button::new(tl!("Settings")).truncate()).on_hover_text(settings_tip).clicked()
         {
@@ -255,7 +256,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             if on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
                 .on_hover_text(tip(
                     tl!("Remove"),
-                    remove_w,
+                    remove_cut,
                     tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."),
                 ))
                 .clicked()
@@ -264,7 +265,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         } else if removable
             && on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
-                .on_hover_text(tip(tl!("Remove"), remove_w, tl!("Remove this account and the mail kept for it here")))
+                .on_hover_text(tip(tl!("Remove"), remove_cut, tl!("Remove this account and the mail kept for it here")))
                 .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
