@@ -5,14 +5,16 @@
 //!
 //! Find and Replace in the message being written (or the signature open in File › Signatures):
 //! plain text on one line, letter case counting only when asked, and only a whole word when asked.
-//! Replace All is one step of the message's own undo (`compose.undo`). Neither reaches past the
-//! owner's text ([`super::format::reach`]).
+//! Replace All is one step of the message's own undo (`compose.undo`). Both search the whole body.
+//! A replacement by `spans` still stops where the spelling check stops
+//! ([`super::format::spelling_stop`]): a span inside a plain-text quoted original of a reply or
+//! forward is refused.
 
 use mailcraft_model::rich::{MAX_FIND, Place};
 use serde_json::{Value, json};
 use unicode_general_category::{GeneralCategory, get_general_category};
 
-use super::format::{edit, needs_doc, needs_html, reach};
+use super::format::{edit, needs_doc, needs_html, spelling_stop};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
@@ -49,7 +51,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). spans takes precedence over wholeWord, matchCase and all, so a caller can replace the exact places it found. Answers {"replaced", "found", "from", "to"}"#)
+            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. Both search the whole body. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). A span past where the spelling check stops (inside a plain-text quoted original of a reply or forward) is refused. spans takes precedence over wholeWord, matchCase and all, so a caller can replace the exact places it found. Answers {"replaced", "found", "from", "to"}"#)
             .when_writing(needs_doc),
     ]
 }
@@ -153,14 +155,14 @@ fn is_combining_mark(c: char) -> bool {
     matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
 }
 
-/// The places `text` is in the owner's text. Without `whole_word` that is one pass of
+/// The places `text` is in the body, the whole of it. Without `whole_word` that is one pass of
 /// [`mailcraft_model::RichText::find`], which reports places that do not overlap. With it, the
 /// plain text is walked: a place that is a whole word is kept and the walk continues at its end,
 /// and any other place is passed by one character, so a later whole word that overlapped it is
 /// still found. Places that are kept still do not overlap.
 fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
     let Some((body, _)) = s.doc() else { return Vec::new() };
-    let end = reach(s);
+    let end = body.text().len();
     if whole_word { whole_word_places(&body.plain(), text, match_case, end) } else { body.text().find(text, match_case, 0, end) }
 }
 
@@ -173,7 +175,7 @@ fn fold_char(c: char) -> char {
     }
 }
 
-/// The owner's text, indexed by character, and the same characters folded for one search.
+/// The text being searched, indexed by character, and the same characters folded for one search.
 struct Scanned<'a> {
     text: &'a str,
     /// Byte offset of character `i` in `text`, and one past the last character indexed.
@@ -318,7 +320,7 @@ fn whole_word_places(text: &str, needle: &str, match_case: bool, end: usize) -> 
         } else {
             start.saturating_add(1)
         };
-        // `end` is the owner's text. A step that does not move on cannot be trusted to finish.
+        // A step that does not move on cannot be trusted to finish.
         if next <= p {
             break;
         }
@@ -407,7 +409,8 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Put `with` at each span, when that span is exactly `text`, as one undo step. A span that is
-/// not that text, or not a place in the text, or past the owner's text, changes nothing.
+/// not that text, or not a place in the text, or past where the spelling check stops (inside a
+/// plain-text quoted original of a reply or forward), changes nothing.
 fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdResult {
     let Some(list) = spans.as_array() else {
         return Err(bad("`spans` is a list of {from, to}"));
@@ -419,7 +422,7 @@ fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdR
         return Err(fail("no message is being written"));
     };
     let plain = body.plain();
-    let end = reach(s);
+    let end = spelling_stop(s);
     let mut places = Vec::with_capacity(list.len());
     for item in list {
         let from = item.get("from").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());

@@ -343,7 +343,7 @@ fn a_span_in_the_quoted_original_is_refused_and_changes_nothing() {
     let from = before[..byte].chars().count();
     let err = s.run("edit.replace", &json!({"text": "teh", "with": "the", "spans": [{"from": from, "to": from + 3}]})).unwrap_err();
     assert!(err.to_string().contains("changed"), "{err}");
-    assert_eq!(compose(&s).body.plain(), before, "a span past the owner's text changes nothing");
+    assert_eq!(compose(&s).body.plain(), before, "a span inside the quoted original changes nothing");
 }
 
 fn plain_note(s: &mut Session, text: &str) -> u64 {

@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use super::{bad, fail, needs_compose};
 use crate::Doc;
 use crate::session::{enum_code, parse_enum};
-use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, Session, p};
+use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, Session, p};
 
 const RANGE: &str = r#"{"from"?: number, "to"?: number} (default: the selection)"#;
 
@@ -129,22 +129,44 @@ pub(super) fn position(v: &Value, key: &str) -> Result<Option<usize>, CmdError> 
     }
 }
 
-/// Where Find, Replace and the spelling check stop in the message being written (or the signature
-/// open). A signature block is inside it. A plain-text quoted original, which sits in the body
-/// after its opening line, is not; an HTML original is kept beside the body and is not in this
-/// length either. The formats and a selection are not limited by it.
-pub(crate) fn reach(s: &Session) -> usize {
+/// Where the spelling check stops, in characters of the message being written (or the signature
+/// open). A signature block is inside that text. In a reply or forward, or a draft continuing
+/// one, a plain-text quoted original is not, and neither is anything written below it. A new
+/// message is checked in full, even when the owner pastes the opening line. An HTML original is
+/// kept beside the body and is not in this length. Find and Replace search the whole body; a
+/// `spans` replacement still refuses a place past here. The formats and a selection are not
+/// limited by it.
+pub(crate) fn spelling_stop(s: &Session) -> usize {
     let Some((body, _)) = s.doc() else { return 0 };
     let len = body.text().len();
-    if s.signature_edit.is_some() {
+    if s.signature_edit.is_some() || !spelling_cuts_at_plain_quote(s) {
         return len;
     }
-    if s.compose.as_ref().is_some_and(|c| c.quote.is_none())
-        && let Some(at) = super::compose::plain_quote_start(&body.plain())
-    {
-        return at.min(len);
+    match super::compose::plain_quote_start(&body.plain()) {
+        Some(at) => at.min(len),
+        None => len,
     }
-    len
+}
+
+/// A reply or forward MailCraft wrote, so the plain-text opening line in the body is its quoted
+/// original. A new message is not one. An HTML original is not in the body.
+fn spelling_cuts_at_plain_quote(s: &Session) -> bool {
+    let Some(c) = &s.compose else { return false };
+    if c.quote.is_some() {
+        return false;
+    }
+    match c.mode {
+        ComposeMode::Reply | ComposeMode::ReplyAll | ComposeMode::Forward => true,
+        ComposeMode::Draft => draft_continues_reply_or_forward(s, c),
+        ComposeMode::New => false,
+    }
+}
+
+/// A draft reopened from one MailCraft saved of a reply or forward. Reopening drops `source`.
+/// A reply still carries `In-Reply-To`; a forward does not, and the saved draft records what it
+/// answers or forwards.
+fn draft_continues_reply_or_forward(s: &Session, c: &Compose) -> bool {
+    c.source.is_some() || !c.in_reply_to.is_empty() || c.draft.is_some_and(|id| s.mailbox.message(id).is_some_and(|m| m.answers.is_some()))
 }
 
 /// Select what `from` and `to` name, when the params name something.

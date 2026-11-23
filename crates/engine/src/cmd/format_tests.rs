@@ -743,6 +743,73 @@ fn a_range_in_the_quoted_original_is_deleted_copied_and_replaced() {
     let mut s = session();
     let before = plain_reply(&mut s, ORIGINAL);
     let r = run(&mut s, "edit.replace", json!({"text": WORD, "with": "the", "all": true}));
-    assert_eq!(r["replaced"], 0);
-    assert_eq!(compose(&s).body.plain(), before, "Find and Replace stay out of the quoted original");
+    assert_eq!(r["replaced"], 1);
+    assert_eq!(compose(&s).body.plain(), before.replacen(WORD, "the", 1));
+    assert!(compose(&s).body.plain().contains("Please fix the typo"));
+}
+
+/// A new message is not a reply MailCraft wrote, so a pasted opening line does not cut Find or spelling.
+#[test]
+fn a_new_message_is_searched_and_spellchecked_past_a_pasted_original_line() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"body": "Notes\n\n-----Original Message-----\nprices will rise teh"}));
+    run(&mut s, "compose.formatPlain", json!({}));
+    let found = run(&mut s, "edit.find", json!({"text": "prices"}));
+    assert_eq!(found["found"], true, "{found}");
+    let spelled = spelling_words(&mut s);
+    assert!(spelled.iter().any(|word| word == "teh"), "{spelled:?}");
+    // A draft of that new message still has no cut.
+    let draft = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    assert_eq!(compose(&s).mode, crate::ComposeMode::Draft);
+    assert!(compose(&s).source.is_none());
+    assert!(compose(&s).in_reply_to.is_empty());
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "prices"}))["found"], true);
+    let spelled = spelling_words(&mut s);
+    assert!(spelled.iter().any(|word| word == "teh"), "{spelled:?}");
+}
+
+/// Find searches a plain reply's quoted original, and text the owner writes below it. Spelling
+/// does not report a misspelling that is only in the original.
+#[test]
+fn find_searches_a_plain_replys_quoted_original_and_spelling_does_not() {
+    let mut s = session();
+    plain_reply(&mut s, "prices will rise teh");
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "compose.type", json!({"text": "tehh "}));
+    let end = compose(&s).body.text().len();
+    run(&mut s, "compose.select", json!({"from": end}));
+    run(&mut s, "compose.type", json!({"text": "\nrisen"}));
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "prices"}))["found"], true);
+    assert_eq!(run(&mut s, "edit.find", json!({"text": "risen"}))["found"], true);
+    let spelled = spelling_words(&mut s);
+    assert!(spelled.iter().any(|word| word == "tehh"), "{spelled:?}");
+    assert!(!spelled.iter().any(|word| word == "teh"), "{spelled:?}");
+}
+
+/// Saving a plain reply and opening the draft again keeps the spelling cut. Reopening is
+/// `ComposeMode::Draft` with no `source`; the reply's `In-Reply-To` is what still marks it.
+#[test]
+fn a_reopened_draft_of_a_plain_reply_still_skips_the_original_for_spelling() {
+    let mut s = session();
+    let id = plain_note(&mut s, "Please fix teh typo");
+    s.mailbox.message_mut(id).unwrap().message_id = "<note@rivera.example>".into();
+    run(&mut s, "mail.reply", json!({"id": id}));
+    run(&mut s, "compose.select", json!({"from": 0}));
+    run(&mut s, "compose.type", json!({"text": "tehh "}));
+    let draft = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    let c = compose(&s);
+    assert_eq!(c.mode, crate::ComposeMode::Draft);
+    assert!(c.source.is_none());
+    assert_eq!(c.in_reply_to, "<note@rivera.example>");
+    let spelled = spelling_words(&mut s);
+    assert!(spelled.iter().any(|word| word == "tehh"), "{spelled:?}");
+    assert!(!spelled.iter().any(|word| word == "teh"), "{spelled:?}");
+}
+
+fn spelling_words(s: &mut Session) -> Vec<String> {
+    run(s, "review.spelling", json!({}))["issues"].as_array().unwrap().iter().filter_map(|issue| issue["word"].as_str().map(str::to_string)).collect()
 }

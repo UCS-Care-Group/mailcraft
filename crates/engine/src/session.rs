@@ -1768,15 +1768,15 @@ impl Session {
         self.restored
     }
 
-    /// The message the reading pane shows.
-    /// The text being edited and whether it is plain: a signature open in the options, else the
-    /// message being written.
-    /// Where the text the owner edits ends: the signature block is inside it, and a plain-text
-    /// quoted original is not.
+    /// Where the spelling check stops in the text being edited. The signature block is inside
+    /// that text. In a reply or forward, or a draft continuing one, a plain-text quoted original
+    /// is not, and neither is text written below it. A new message is checked in full.
     pub fn edit_reach(&self) -> usize {
-        crate::cmd::format::reach(self)
+        crate::cmd::format::spelling_stop(self)
     }
 
+    /// The text being edited and whether it is plain: a signature open in the options, else the
+    /// message being written.
     pub fn doc(&self) -> Option<(&RichBody, bool)> {
         match (&self.signature_edit, &self.compose) {
             (Some(e), _) => Some((&e.body, false)),
@@ -1793,6 +1793,7 @@ impl Session {
         }
     }
 
+    /// The message the reading pane shows.
     pub fn focused_message(&self) -> Option<&Message> {
         self.sel.focus().and_then(|id| self.mailbox.message(id))
     }
