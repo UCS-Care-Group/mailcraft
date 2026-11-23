@@ -769,7 +769,8 @@ fn a_server_too_busy_to_say_the_signature_leaves_the_run_whole() {
     let (pieces, _) = run(&standin, &EwsMailRequest { signature: true, ..request() });
     assert!(last(&pieces).signature.is_none());
     assert!(last(&pieces).busy_for.is_none() && last(&pieces).whole, "{:?}", last(&pieces));
-    assert_eq!(asked_for_the_signature(&standin), 1, "asked once, and left for a later run");
+    // Asked, then again as often as a busy server is asked again, and then left for a later run.
+    assert_eq!(asked_for_the_signature(&standin), 1 + crate::run::BUSY_TRIES as usize, "left for a later run");
 }
 
 #[test]

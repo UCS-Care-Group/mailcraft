@@ -61,7 +61,7 @@ use crate::userconfig::GetUserOptions;
 /// requests, few enough that a page is quick to take in.
 pub const PAGE: u32 = 200;
 /// How many times one request is made again for a busy server.
-const BUSY_TRIES: u32 = 3;
+pub(crate) const BUSY_TRIES: u32 = 3;
 /// The most folders one run reads, and the most pages of one folder.
 const MAX_FOLDERS: usize = 2_000;
 const MAX_PAGES: usize = 5_000;
