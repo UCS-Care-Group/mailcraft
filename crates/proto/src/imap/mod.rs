@@ -413,7 +413,6 @@ fn namespace_of(desc: Value) -> Option<Namespace> {
     Some(Namespace { prefix, delimiter })
 }
 
-/// The flags of a list, as many as are kept and each cut at a character boundary.
 /// The flags of a mailbox named twice in one listing, `more` being the second naming's: each
 /// flag once (at most [`MAX_FLAGS`]); one that can be opened if either naming says so (neither
 /// `\Noselect` nor `\NonExistent` then), and with mailboxes inside if either says that.
@@ -437,6 +436,7 @@ pub(crate) fn merge_flags(flags: &mut Vec<String>, more: Vec<String>) {
     }
 }
 
+/// The flags of a list, as many as are kept and each cut at a character boundary.
 fn short_flags(flags: Vec<Value>) -> Vec<String> {
     flags
         .into_iter()
