@@ -18396,6 +18396,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Impossible d'ajouter la boîte aux lettres partagée"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Impossible de lire la boîte aux lettres partagée."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21881,6 +21887,12 @@ msgstr "une boîte aux lettres partagée n'a pas de dossier Reportés"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "une boîte aux lettres partagée est atteinte via les réglages de serveur du compte par lequel elle est ouverte : modifiez ceux de ce compte"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "une boîte aux lettres partagée conserve hors connexion autant de courrier que le compte par lequel elle est ouverte : modifiez le réglage de ce compte"
 
@@ -21955,6 +21967,18 @@ msgstr "ajoutez d'abord un compte (Fichier › Ajouter un compte)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "ajoutez au moins un destinataire"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "un compte de serveur Exchange a besoin d'une adresse de serveur utilisable pour ouvrir une boîte aux lettres partagée"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "le serveur et le nom d'utilisateur d'un compte de serveur Exchange ne peuvent pas être modifiés tant que le courrier d'une boîte aux lettres partagée ouverte par ce compte est ici : supprimez d'abord la boîte aux lettres partagée"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23427,14 +23451,14 @@ msgstr "boîte aux lettres partagée"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph, ou sous un compte de serveur Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte qui est synchronisé via Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph ou qui est un compte de serveur Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25640,7 +25664,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} est un compte JMAP, et cette version ne permet pas encore d'envoyer et de recevoir avec ce type de compte"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} est une boîte aux lettres partagée dont le compte n'existe plus : supprimez-la et ajoutez-la de nouveau"
@@ -27140,6 +27164,14 @@ msgid "−Lines"
 msgstr "−Lignes"
 
 #, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte qui est synchronisé via Microsoft Graph"
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "Utiliser l'horloge de 12 heures (3:05 PM)"
 
@@ -27587,83 +27619,3 @@ msgstr "−Lignes"
 #~ msgstr[0] "{n} message sera définitivement supprimé."
 #~ msgstr[1] "{n} messages seront définitivement supprimés."
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Tel que vos correspondants le voient"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Sa {n} règle disparaît aussi ; celle que son serveur conserve y reste."
-msgstr[1] "Ses {n} règles disparaissent aussi ; celles que son serveur conserve y restent."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Le nouveau courrier que Gmail place dans Réseaux sociaux, Promotions, Notifications ou Forums arrive sans alerte."
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Spelling & Grammar"
-msgstr "Orthographe et grammaire"
-
-#. interface
-#: crates/ui-egui/src/ews_mail.rs
-#, fuzzy
-msgid "The shared mailbox couldn't be read."
-msgstr "Impossible de lire la boîte aux lettres partagée."
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Utiliser l'horloge de 12 heures (3:05 PM)"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "une règle ne peut pas déplacer du courrier vers une Boîte d'envoi : cela l'enverrait"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
-msgstr "une boîte aux lettres partagée est atteinte via les réglages de serveur du compte par lequel elle est ouverte : modifiez ceux de ce compte"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
-msgstr "un compte de serveur Exchange a besoin d'une adresse de serveur utilisable pour ouvrir une boîte aux lettres partagée"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
-msgstr "le serveur et le nom d'utilisateur d'un compte de serveur Exchange ne peuvent pas être modifiés tant que le courrier d'une boîte aux lettres partagée ouverte par ce compte est ici : supprimez d'abord la boîte aux lettres partagée"
-
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
-msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph, ou sous un compte de serveur Exchange"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
-msgstr "les boîtes aux lettres partagées s'ouvrent sous un compte synchronisé via Microsoft Graph ou qui est un compte de serveur Exchange"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} message correspondant"
-msgstr[1] "{n} messages correspondants"

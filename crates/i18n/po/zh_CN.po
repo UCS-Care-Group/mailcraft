@@ -18463,6 +18463,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "无法添加共享邮箱"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "无法读取共享邮箱。"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21956,6 +21962,12 @@ msgstr "共享邮箱没有“已暂缓”文件夹"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "共享邮箱通过打开它所用账户的服务器设置访问；请更改该账户的设置"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "共享邮箱离线保留邮件的范围与打开它所用的账户相同；请更改该账户的设置"
 
@@ -22030,6 +22042,18 @@ msgstr "请先添加账户（文件 › 添加账户）"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "请至少添加一位收件人"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "Exchange 服务器账户需要可以使用的服务器地址才能打开共享邮箱"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "通过 Exchange 服务器账户打开的共享邮箱的邮件仍在此处时，无法更改该账户的服务器和用户名：请先移除该共享邮箱"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23500,14 +23524,14 @@ msgstr "共享邮箱"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "请在通过 Microsoft Graph 同步的账户下打开共享邮箱"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "请在通过 Microsoft Graph 同步的账户或 Exchange 服务器账户下打开共享邮箱"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "共享邮箱在通过 Microsoft Graph 同步的账户下打开"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "共享邮箱需在通过 Microsoft Graph 同步的账户或 Exchange 服务器账户下打开"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25711,7 +25735,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} 是 JMAP 账户，此版本尚不能使用它收发邮件"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} 是共享邮箱，其所属账户已不存在：请将其删除并重新添加"
@@ -27089,6 +27113,14 @@ msgid "−Lines"
 msgstr "−行"
 
 #, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "请在通过 Microsoft Graph 同步的账户下打开共享邮箱"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "共享邮箱在通过 Microsoft Graph 同步的账户下打开"
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "使用 12 小时制（下午 3:05）"
 
@@ -27381,82 +27413,3 @@ msgstr "−行"
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "草稿保留在“草稿”中。{why}"
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "收件人看到的效果"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "其 {n} 条本地规则也会一并删除；服务器上的规则仍保留。"
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "Gmail 放入“社交”“促销”“更新”或“论坛”的新邮件到达时不会发出提醒。"
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Spelling & Grammar"
-msgstr "拼写和语法"
-
-#. interface
-#: crates/ui-egui/src/ews_mail.rs
-#, fuzzy
-msgid "The shared mailbox couldn't be read."
-msgstr "无法读取共享邮箱。"
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "使用 12 小时制（下午 3:05）"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "规则无法将邮件移至发件箱：这会发送邮件"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
-msgstr "共享邮箱通过打开它所用账户的服务器设置访问；请更改该账户的设置"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
-msgstr "Exchange 服务器账户需要可以使用的服务器地址才能打开共享邮箱"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
-msgstr "通过 Exchange 服务器账户打开的共享邮箱的邮件仍在此处时，无法更改该账户的服务器和用户名：请先移除该共享邮箱"
-
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
-msgstr "请在通过 Microsoft Graph 同步的账户或 Exchange 服务器账户下打开共享邮箱"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
-msgstr "共享邮箱需在通过 Microsoft Graph 同步的账户或 Exchange 服务器账户下打开"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "匹配到 {n} 封邮件"

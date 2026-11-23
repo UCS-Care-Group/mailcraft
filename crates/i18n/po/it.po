@@ -18458,6 +18458,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Impossibile aggiungere la cassetta postale condivisa"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Impossibile leggere la cassetta postale condivisa."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21953,6 +21959,12 @@ msgstr "una cassetta postale condivisa non ha una cartella Posticipati"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "una cassetta postale condivisa si raggiunge con le impostazioni del server dell'account tramite cui è aperta: modificare quelle di quell'account"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "una cassetta postale condivisa conserva offline tanta posta quanto l'account tramite cui è aperta: modificare l'impostazione di quell'account"
 
@@ -22027,6 +22039,18 @@ msgstr "aggiungere prima un account (File › Aggiungi account)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "aggiungere almeno un destinatario"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "un account di server Exchange ha bisogno di un indirizzo di server utilizzabile per aprire una cassetta postale condivisa"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "il server e il nome utente di un account di server Exchange non possono essere cambiati finché la posta di una cassetta postale condivisa aperta tramite esso è qui: rimuovi prima la cassetta postale condivisa"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23499,14 +23523,14 @@ msgstr "cassetta postale condivisa"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph o sotto un account di server Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph o è un account di server Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25712,7 +25736,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} è un account JMAP, e questa versione non invia e riceve ancora con questo tipo di account"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} è una cassetta postale condivisa il cui account non c'è più: rimuoverla e aggiungerla di nuovo"
@@ -27213,6 +27237,14 @@ msgid "−Lines"
 msgstr "−Righe"
 
 #, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "Usa il formato a 12 ore (3:05 PM)"
 
@@ -27668,84 +27700,3 @@ msgstr "−Righe"
 #~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 #~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Come lo vedono le persone a cui si scrive"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "Se ne va anche la sua {n} regola; quella che tiene il suo server resta lì."
-msgstr[1] "Se ne vanno anche le sue {n} regole; quelle che tiene il suo server restano lì."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "La nuova posta che Gmail mette in Social, Promozioni, Aggiornamenti o Forum arriva senza avviso."
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Controllo ortografia e grammatica"
-
-#. interface
-#: crates/ui-egui/src/ews_mail.rs
-#, fuzzy
-msgid "The shared mailbox couldn't be read."
-msgstr "Impossibile leggere la cassetta postale condivisa."
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Usa il formato a 12 ore (3:05 PM)"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "una regola non può spostare la posta in Posta in uscita: verrebbe inviata"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
-msgstr "una cassetta postale condivisa si raggiunge con le impostazioni del server dell'account tramite cui è aperta: modificare quelle di quell'account"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
-msgstr "un account di server Exchange ha bisogno di un indirizzo di server utilizzabile per aprire una cassetta postale condivisa"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
-msgstr "il server e il nome utente di un account di server Exchange non possono essere cambiati finché la posta di una cassetta postale condivisa aperta tramite esso è qui: rimuovi prima la cassetta postale condivisa"
-
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
-msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph o sotto un account di server Exchange"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
-msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph o è un account di server Exchange"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} messaggio corrispondente"
-msgstr[1] "{n} messaggi corrispondenti"

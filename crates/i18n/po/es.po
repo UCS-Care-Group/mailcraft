@@ -18479,6 +18479,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "No se pudo agregar el buzón compartido"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "No se pudo leer el buzón compartido."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21978,6 +21984,12 @@ msgstr "un buzón compartido no tiene carpeta de pospuestos"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "a un buzón compartido se accede con la configuración de servidor de la cuenta con la que se abre: cambie la de esa cuenta"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "un buzón compartido guarda sin conexión tanto correo como la cuenta con la que se abre: cambie el de esa cuenta"
 
@@ -22052,6 +22064,18 @@ msgstr "agregue primero una cuenta (Archivo › Agregar cuenta)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "agregue al menos un destinatario"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "una cuenta de servidor Exchange necesita una dirección de servidor que se pueda usar para abrir un buzón compartido"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "el servidor y el nombre de usuario de una cuenta de servidor Exchange no se pueden cambiar mientras el correo de un buzón compartido abierto con ella esté aquí: quite primero el buzón compartido"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23524,14 +23548,14 @@ msgstr "buzón compartido"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph o con una cuenta de servidor Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph o que es una cuenta de servidor Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25737,7 +25761,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} es una cuenta JMAP, y esta versión todavía no envía ni recibe con ese tipo de cuenta"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} es un buzón compartido cuya cuenta ya no existe: quítelo y vuelva a agregarlo"
@@ -27238,6 +27262,14 @@ msgid "−Lines"
 msgstr "−Líneas"
 
 #, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
+
+#, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
 #~ msgstr "Usar el formato de 12 horas (3:05 p. m.)"
 
@@ -27686,84 +27718,3 @@ msgstr "−Líneas"
 #~ msgstr[0] "{n} mensaje se eliminará de forma definitiva."
 #~ msgstr[1] "{n} mensajes se eliminarán de forma definitiva."
 
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "As the people you write to see it"
-msgstr "Tal como lo ven las personas a las que escribe"
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Its {n} rule goes too; one its server keeps stays there."
-msgid_plural "Its {n} rules go too; those its server keeps stay there."
-msgstr[0] "También se va su {n} regla; la que guarda su servidor permanece allí."
-msgstr[1] "También se van sus {n} reglas; las que guarda su servidor permanecen allí."
-
-#. interface
-#: crates/ui-egui/src/account_setup.rs
-#, fuzzy
-msgid "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."
-msgstr "El correo nuevo que Gmail pone en Social, Promociones, Actualizaciones o Foros llega sin alerta."
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-#, fuzzy
-msgid "Spelling & Grammar"
-msgstr "Ortografía y gramática"
-
-#. interface
-#: crates/ui-egui/src/ews_mail.rs
-#, fuzzy
-msgid "The shared mailbox couldn't be read."
-msgstr "No se pudo leer el buzón compartido."
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Usar el formato de 12 horas (3:05 p. m.)"
-
-#. what a command says
-#: crates/engine/src/cmd/rules.rs
-#, fuzzy
-msgid "a rule can't move mail to an Outbox: that would send it"
-msgstr "una regla no puede mover correo a una Bandeja de salida: eso lo enviaría"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
-msgstr "a un buzón compartido se accede con la configuración de servidor de la cuenta con la que se abre: cambie la de esa cuenta"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
-msgstr "una cuenta de servidor Exchange necesita una dirección de servidor que se pueda usar para abrir un buzón compartido"
-
-#. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
-msgstr "el servidor y el nombre de usuario de una cuenta de servidor Exchange no se pueden cambiar mientras el correo de un buzón compartido abierto con ella esté aquí: quite primero el buzón compartido"
-
-#. what a command says, why a command can't run
-#: crates/engine/src/cmd/shared.rs
-#, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
-msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph o con una cuenta de servidor Exchange"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
-msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph o que es una cuenta de servidor Exchange"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "{n} message matched"
-msgid_plural "{n} messages matched"
-msgstr[0] "{n} mensaje coincidió"
-msgstr[1] "{n} mensajes coincidieron"
