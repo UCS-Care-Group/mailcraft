@@ -1,5 +1,5 @@
-# The English text of MailCraft's interface, gathered by `cargo xtask i18n` (never edit it by
-# hand). A language's catalogue is `<code>.po` beside it, kept up to date by the same command.
+# MailCraft's interface in Japanese. Kept up to date by `cargo xtask i18n`; see docs/translating.md.
+# An entry marked fuzzy is a draft no native speaker has reviewed yet.
 msgid ""
 msgstr ""
 "Project-Id-Version: MailCraft\n"
@@ -12592,6 +12592,12 @@ msgstr "プライバシー"
 msgid "Private"
 msgstr "非公開"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "この種のファイルは、開いたプログラムが中身をそのまま読み込んで動作します。ファイル内の Web コンテンツが表示されたり、含まれている鍵や証明書が取り込まれたりすることがあります。差出人がわかっていて、受信を予期している場合にのみ開いてください。"
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18986,6 +18992,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "この MailCraft は自動更新されません。"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "この MailCraft は Flatpak サンドボックス内で実行されているため、この種のファイルが正しいプログラムで開かれることを保証できません。名前を付けて保存で保存してから、ご自身で開いてください。"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19830,6 +19842,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "自分宛て"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "添付ファイルを開くには、MailCraft がまずデスクトップ環境にファイルの種類を問い合わせる必要がありますが、gio (GLib に付属) も kmimetypefinder (KDE に付属) もインストールされていません。どちらかをインストールするか、名前を付けて保存で添付ファイルを保存してください。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
