@@ -3,16 +3,16 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-20 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
+Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Brazilian Portuguese. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
 Simplified Chinese is offered on desktop only until the browser build has a CJK font.
-File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
+File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)", "Português (pré-visualização)"). Reviewing
 one, or adding another, needs no Rust.
 
 ## Where the texts are
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `zh_CN.po`, `ka.po`), in
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `zh_CN.po`, `ka.po`, `pt_BR.po`), in
   the gettext format any `.po` editor opens. The catalogues are compiled into the program.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
