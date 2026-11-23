@@ -337,6 +337,12 @@ msgid "12 months"
 msgstr "12 hónap"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "12-hour (3:05 PM)"
+msgstr "12 órás (3:05 PM)"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "15 Minutes"
@@ -365,6 +371,12 @@ msgstr "2 év"
 #, fuzzy
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. Ha jóváhagyták a MailCraftot, jöjjön vissza ide, és jelentkezzen be újra."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "24-hour (15:05)"
+msgstr "24 órás (15:05)"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -1354,6 +1366,18 @@ msgstr ""
 msgid "All"
 msgstr "Mind"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Minden fiók"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Minden archívum"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1373,10 +1397,34 @@ msgid "All Categories…"
 msgstr "Összes kategória…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Minden törölt elem"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Minden piszkozat"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Minden beérkezett üzenet"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Minden postafiók"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Minden elküldött elem"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -2335,6 +2383,12 @@ msgstr "Automatikus archívum"
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatikus"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Automatic (the language's)"
+msgstr "Automatikus (a nyelvé)"
 
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
@@ -3569,6 +3623,11 @@ msgstr "Kattintson a kijelöléshez, vagy kattintson duplán a megnyitáshoz: {n
 #, fuzzy
 msgid "Clipboard"
 msgstr "Vágólap"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -20491,12 +20550,6 @@ msgid "Use YYYY-MM-DD"
 msgstr "ÉÉÉÉ-HH-NN formátum használata"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "12 órás időformátum használata (du. 3:05)"
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use a Google app password, not your everyday Google account password."
@@ -22789,6 +22842,12 @@ msgstr "szüksége van a Google-bejelentkezésre"
 msgid "needs a Gmail account"
 msgstr "Gmail-fiókra van szüksége"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "legalább két postafiók szükséges (a megosztott postafiók is számít)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22818,6 +22877,12 @@ msgstr "nincs nyilvános kulcs az ujjlenyomathoz, amit a címhez meg kell őrizn
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "egyik fióknak sincs naptár- és névjegykiszolgálója"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "egyik fióknak sincs ilyen típusú mappája"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -24007,6 +24072,12 @@ msgstr "az utolsó Küldés/Fogadás során problémák voltak"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "az utolsó naptár nem törölhető"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "a lista minden fiók mappáját mutatja: nyissa meg egy fiók mappáját, vagy nevezze meg a mappát"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -27164,6 +27235,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "Use a 12-hour clock (3:05 PM)"
+#~ msgstr "12 órás időformátum használata (du. 3:05)"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."

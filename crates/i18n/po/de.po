@@ -309,6 +309,12 @@ msgid "12 months"
 msgstr "12 Monate"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "12-hour (3:05 PM)"
+msgstr "12-Stunden (3:05 PM)"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "15 Minutes"
@@ -334,6 +340,12 @@ msgstr "2 Jahre"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. Sobald der Administrator MailCraft genehmigt hat, kehren Sie hierher zurück und melden Sie sich erneut an."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "24-hour (15:05)"
+msgstr "24-Stunden (15:05)"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -1282,6 +1294,18 @@ msgstr ""
 msgid "All"
 msgstr "Alle"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Alle Konten"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Alle Archive"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1301,10 +1325,34 @@ msgid "All Categories…"
 msgstr "Alle Kategorien…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Alle gelöschten Elemente"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Alle Entwürfe"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Alle Posteingänge"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Alle Postfächer"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Alle gesendeten Elemente"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -2224,6 +2272,12 @@ msgstr "AutoArchivierung"
 #, fuzzy
 msgid "Automatic"
 msgstr "Automatisch"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Automatic (the language's)"
+msgstr "Automatisch (je nach Sprache)"
 
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
@@ -3385,6 +3439,11 @@ msgstr "Klicken, um {name} auszuwählen; doppelklicken, um die Datei zu öffnen"
 #, fuzzy
 msgid "Clipboard"
 msgstr "Zwischenablage"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -19284,12 +19343,6 @@ msgid "Use YYYY-MM-DD"
 msgstr "Verwenden Sie JJJJ-MM-TT"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "12-Stunden-Format verwenden (3:05 PM)"
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Use a Google app password, not your everyday Google account password."
 msgstr "Verwenden Sie ein Google-App-Passwort, nicht Ihr normales Google-Passwort."
@@ -21457,6 +21510,12 @@ msgstr "erfordert eine Google-Anmeldung"
 msgid "needs a Gmail account"
 msgstr "erfordert ein Gmail-Konto"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "erfordert mindestens zwei Postfächer (ein freigegebenes Postfach zählt mit)"
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "never"
@@ -21482,6 +21541,12 @@ msgstr "für diese Adresse ist kein öffentlicher Schlüssel mit diesem Fingerab
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "kein Konto hat einen Kalender- und Kontaktserver"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "kein Konto hat einen Ordner dieser Art"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22612,6 +22677,12 @@ msgstr "das letzte Senden/Empfangen hatte Probleme"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "der letzte Kalender kann nicht gelöscht werden"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "die Liste zeigt die Ordner aller Konten: Öffnen Sie den Ordner eines Kontos oder nennen Sie den Ordner"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -25612,6 +25683,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "Use a 12-hour clock (3:05 PM)"
+#~ msgstr "12-Stunden-Format verwenden (3:05 PM)"
 
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
 #~ msgid_plural "Its {n} rules go too; those its server keeps stay there."

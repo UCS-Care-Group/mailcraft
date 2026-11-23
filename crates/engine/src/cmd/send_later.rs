@@ -15,6 +15,22 @@
 //! - **Undo Send** is the same mechanism: with `sync.waitBeforeSending` on, Send gives the message a
 //!   time a few seconds ahead, and `compose.undoSend` takes it back while it has not come.
 //!
+//!
+//! What the wait before sending keeps to (#1799; `send_delay_tests.rs` has a test for each):
+//! - **Sent at most once.** A run takes only what is due and not marked as being sent, and marks
+//!   it, on disk, before it leaves (`sync_driver::sending`). Undo Send, Cancel Send and Open Draft
+//!   are refused once it is due or marked, even with the clock set back; the draft taken back
+//!   becomes the message again when Send is pressed, so one message waits, never two.
+//! - **Never lost.** The wait is the message's own Send time, in the Outbox, saved like any change
+//!   (the window saves within a few seconds, sooner than the shortest wait). Quit or a crash
+//!   within the wait leaves it in the Outbox: after the restart it goes at its time, or at the next
+//!   run when that has passed. Undo's bar was the last run's and is gone, but Cancel Send and Open
+//!   Draft still take it back. A crash before that save leaves the draft as it was last saved.
+//! - **An agent's Send waits too**, once the owner approved it: the wait only ever holds mail
+//!   back, the owner keeps the same Undo, and the agent's answer says so (`wait`, `sendAt`).
+//! - **Work Offline** holds it past its wait (no run is asked for); Cancel Send still takes it
+//!   back, and it goes with the first run once online. Send/Receive within the wait leaves it out.
+//!
 //! A Microsoft account's message waits here too and is sent by MailCraft at its time: the server
 //! is not asked to hold it. Nothing here touches a server.
 
@@ -49,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{} — takes back the message that Send put in the Outbox for the wait before sending (sync.waitBeforeSending), while its time has not come: it goes back to Drafts and opens to be written again. Refused when nothing waits or it is on its way. Answers as Open Draft does"#),
         CommandSpec::new("sync.waitBeforeSending", "Wait Before Sending", "Send / Receive › Preferences", wait_before_sending)
             .pure()
-            .params(r#"{"seconds": 0 | 5 | 10 | 15 | 20 | 30} — how long a message waits in the Outbox after Send, with Undo Send; 0 (as it is until the owner turns it on) sends at once. Kept between runs; not an undo step. Answers {"seconds"}"#),
+            .params(r#"{"seconds": 0 | 5 | 10 | 15 | 20 | 30 | 60 | 120} — how long a message waits in the Outbox after Send, with Undo Send; 0 (as it is until the owner turns it on) sends at once. Kept between runs; not an undo step. Answers {"seconds"}"#),
     ]
 }
 
@@ -176,7 +192,7 @@ fn undo_send(s: &mut Session, v: &Value) -> CmdResult {
 fn wait_before_sending(s: &mut Session, v: &Value) -> CmdResult {
     p::only(v, &["seconds"])?;
     let n = p::u64(v, "seconds").and_then(|n| u8::try_from(n).ok()).filter(|n| Prefs::UNDO_SEND_CHOICES.contains(n));
-    let n = n.ok_or_else(|| bad("`seconds` is 0, 5, 10, 15, 20 or 30"))?;
+    let n = n.ok_or_else(|| bad("`seconds` is 0, 5, 10, 15, 20, 30, 60 or 120"))?;
     s.prefs.undo_send_secs = n;
     Ok(json!({"seconds": n}))
 }
@@ -233,3 +249,7 @@ impl Session {
 #[cfg(test)]
 #[path = "send_later_tests.rs"]
 mod send_later_tests;
+
+#[cfg(test)]
+#[path = "send_delay_tests.rs"]
+mod send_delay_tests;

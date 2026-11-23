@@ -279,6 +279,11 @@ msgid "12 months"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "12-hour (3:05 PM)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "15 Minutes"
 msgstr ""
@@ -301,6 +306,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "2. When they have approved MailCraft, come back here and sign in again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "24-hour (15:05)"
 msgstr ""
 
 #. interface
@@ -1123,6 +1133,16 @@ msgstr ""
 msgid "All"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+msgid "All Accounts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Archives"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "All Attendees"
@@ -1139,8 +1159,28 @@ msgid "All Categories…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Deleted Items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Drafts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Inboxes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "All Mailboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "All Sent Items"
 msgstr ""
 
 #. android, interface
@@ -1939,6 +1979,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 msgid "Automatic"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic (the language's)"
 msgstr ""
 
 #. command label, interface
@@ -2965,6 +3010,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Clipboard"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
@@ -17004,11 +17054,6 @@ msgid "Use YYYY-MM-DD"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Use a Google app password, not your everyday Google account password."
 msgstr ""
@@ -18921,6 +18966,11 @@ msgstr ""
 msgid "needs a Gmail account"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "never"
@@ -18944,6 +18994,11 @@ msgstr ""
 #. why a command can't run
 #: crates/engine/src/cmd/dav_sync.rs
 msgid "no account has a calendar and contacts server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+msgid "no account has a folder of that kind"
 msgstr ""
 
 #. what a command says
@@ -19938,6 +19993,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "the last calendar can't be deleted"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
 msgstr ""
 
 #. what a command says

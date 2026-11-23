@@ -501,7 +501,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
 pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question> {
     let mb = &app.session.mailbox;
     // Read as the command reads it (#553): one named wrongly asks nothing, and the command refuses it.
-    let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
+    // (No folder in view to fall back on while every account's of a kind is, #625.)
+    let in_view = mailcraft_engine::unified::of(&app.session).is_none().then_some(app.session.view.folder);
+    let folder = |key: &str| mailcraft_engine::p::id_strict(params, key).ok()?.or(in_view).and_then(|f| mb.folder(f));
     // (A JMAP account's too: its deletions go up with its next run. Not an Exchange server
     // account's, as before.)
     let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Exchange);
@@ -994,7 +996,11 @@ pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
         });
     let pin = match id {
         "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
-        "folder.empty" | "folder.delete" if !named("id") => Some(("id", json!(app.session.view.folder))),
+        // (Not while every account's folder of a kind is in view, #625: the command refuses to
+        // guess which account's.)
+        "folder.empty" | "folder.delete" if !named("id") && mailcraft_engine::unified::of(&app.session).is_none() => {
+            Some(("id", json!(app.session.view.folder)))
+        }
         // The message the question was about, not whatever is selected when the owner says yes
         // (#1207); `null` reads as the selection there too.
         "ui.unsubscribe" if params.get("message").is_none_or(Value::is_null) => sel.focus().map(|m| ("message", json!(m))),

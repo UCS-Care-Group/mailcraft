@@ -334,6 +334,12 @@ msgid "12 months"
 msgstr "12 luni"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "12-hour (3:05 PM)"
+msgstr "12 ore (3:05 PM)"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "15 Minutes"
@@ -362,6 +368,12 @@ msgstr "2 ani"
 #, fuzzy
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. După ce a aprobat MailCraft, reveniți aici și conectați-vă din nou."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "24-hour (15:05)"
+msgstr "24 de ore (15:05)"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -1351,6 +1363,18 @@ msgstr ""
 msgid "All"
 msgstr "Toate"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Toate conturile"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Toate arhivele"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1370,10 +1394,34 @@ msgid "All Categories…"
 msgstr "Toate categoriile…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Toate elementele șterse"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Toate ciornele"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Toate mesajele primite"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Toate cutiile poștale"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Toate elementele trimise"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -2336,6 +2384,12 @@ msgstr "Arhivare automată"
 #, fuzzy
 msgid "Automatic"
 msgstr "Automat"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Automatic (the language's)"
+msgstr "Automat (cel al limbii)"
 
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
@@ -3572,6 +3626,11 @@ msgstr "Faceți clic pentru a selecta {name}; faceți dublu clic pentru a-l desc
 #, fuzzy
 msgid "Clipboard"
 msgstr "Clipboard"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -20568,12 +20627,6 @@ msgid "Use YYYY-MM-DD"
 msgstr "Folosiți AAAA-LL-ZZ"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Folosiți ceasul de 12 ore (3:05 PM)"
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use a Google app password, not your everyday Google account password."
@@ -22872,6 +22925,12 @@ msgstr "necesită conectare Google"
 msgid "needs a Gmail account"
 msgstr "necesită un cont Gmail"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "necesită cel puțin două cutii poștale (o cutie partajată se pune la socoteală)"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22901,6 +22960,12 @@ msgstr "pentru acea adresă nu e păstrată nicio cheie publică cu această amp
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "niciun cont nu are un server de calendare și contacte"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "niciun cont nu are un dosar de acest fel"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -24090,6 +24155,12 @@ msgstr "ultima Trimitere/Primire a avut probleme"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "ultimul calendar nu poate fi șters"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "lista arată dosarul fiecărui cont: deschideți dosarul unui singur cont sau numiți dosarul"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -27376,6 +27447,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Use a 12-hour clock (3:05 PM)"
+#~ msgstr "Folosiți ceasul de 12 ore (3:05 PM)"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
