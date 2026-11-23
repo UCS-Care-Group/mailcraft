@@ -1254,8 +1254,6 @@ msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/signatures.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adresa"
@@ -11434,8 +11432,6 @@ msgstr "října"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Vypnuto"
@@ -27642,36 +27638,6 @@ msgstr "−Řádky"
 #~ "Zda odpověď odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, odpověď čeká v tomto počítači a z vaší vlastní adresy se nic neodešle."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Aby mohl otevírat kalendáře jiných lidí, potřebuje MailCraft vaše oprávnění číst kalendáře, které s vámi lidé sdílejí. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Co otevřete, se uchovává jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Aby mohl odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Zda pošta odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, pošta čeká ve své složce Pošta k odeslání a z vaší vlastní adresy se nic neodešle."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "Aby mohl zobrazit kalendáře {address}, potřebuje MailCraft vaše oprávnění číst kalendáře sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Co z kalendáře smíte vidět, rozhoduje jeho vlastník a vaše organizace: na tom se nic nemění. Dokud to nepovolíte, z kalendářů {address} se nic nečte."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "Vaše organizace MailCraftu nepovoluje číst kalendáře sdílených poštovních schránek"
 
@@ -27734,26 +27700,6 @@ msgstr "−Řádky"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Tento účet neuchovává pravidla na svém serveru"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Aby mohl měnit automatické odpovědi {address}, potřebuje MailCraft vaše oprávnění ke změně nastavení poštovní schránky. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "MailCraft s ním mění jen vaše automatické odpovědi a pravidla Doručené pošty, nikdy kategorie ani pracovní dobu. Ke čtení automatických odpovědí ho nepotřebuje."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Aby mohl uchovávat pravidla {address} na jejím serveru, kde běží, i když je MailCraft zavřený, a zobrazují se v Outlooku na webu i v telefonu, potřebuje MailCraft vaše oprávnění ke změně nastavení poštovní schránky, kde Microsoft pravidla uchovává. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Dokud to nepovolíte, pravidla zůstávají v tomto počítači a nic z nich se Microsoftu neodesílá."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

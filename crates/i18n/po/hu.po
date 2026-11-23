@@ -1259,8 +1259,6 @@ msgstr "Hozzáadva a névjegyekhez"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/signatures.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Cím"
@@ -11411,8 +11409,6 @@ msgstr "október"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Ki"
@@ -27456,36 +27452,6 @@ msgstr "−Sorok"
 #~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A válasz {address}-ként vagy annak nevében a szervezet választása. Amíg nem engedi, a válasz ezen a számítógépen vár, és semmi sem kerül elküldésre a saját címéről."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Mások megosztott naptárainak megnyitásához a MailCraft olvasási engedélyt kér. A Microsoft oldala egyszer nyílik meg a böngészőben az engedélykéréshez.\n"
-#~ "\n"
-#~ "A megnyitott naptárak csak ezen a számítógépen jelennek meg. Az Outlookban és más eszközökön nem lesznek láthatók."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Ahhoz, hogy erről a címről küldhessen levelet, a MailCraft engedélyt kér a megosztott postafiókokból való küldéshez: {address}. A Microsoft engedélykérő oldala egyszer nyílik meg a böngészőben.\n"
-#~ "\n"
-#~ "A szervezet beállítása dönti el, hogy a levél feladójaként a(z) {address} cím jelenik meg, vagy a levél ennek nevében megy ki. Engedélyezésig az üzenet a megosztott fiók Postázandó üzenetek mappájában vár. A saját címéről nem megy ki üzenet."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "A {address} naptárainak megjelenítéséhez MailCraft-nak szüksége van az engedélyére, hogy elolvassa a megosztott postafiókák naptárait.\n"
-#~ "\n"
-#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A naptárról csak egyszer láthatja a tulajdonosát és a szervezetét, hogy döntsön: ez nem változtat semmin. Amíg nem engedi, {address} naptáraiból semmit sem olvasunk."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "A szervezet nem engedi, hogy MailCraft elolvassa a megosztott postafiókák naptárait."
 
@@ -27548,26 +27514,6 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "A fiók szabályai helyben vannak tárolva"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "A {address} automatikus válaszának megváltoztatásához MailCraft-nak szüksége van az engedélyére a postafiók beállításai megváltoztatásához.\n"
-#~ "\n"
-#~ "A Microsoft oldala egyszer megnyílik a böngészőjében. A MailCraft csak az automatikus válaszodat és az Inbox szabályait változtatja meg vele, soha nem a kategóriákat vagy a munkaidőt. Az automatikus válasz olvasása nem szükséges."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Ahhoz, hogy a {address} szabályait a szerverén tartsa, ahol még MailCraft bezárása alatt is fut, és az Outlook-ban jelenjen meg az interneten és a telefonon, a MailCraft-nak szüksége van az engedélyére, hogy megváltoztassa a postafiók beállításait, ahol a Microsoft fenntartja a szabályokat.\n"
-#~ "\n"
-#~ "A Microsoft oldala egyszer megnyílik a böngészőjében, és amíg nem engedi, addig a szabályai ezen a számítógépen maradnak, és ebből semmit sem küld a Microsoftnak."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

@@ -1256,8 +1256,6 @@ msgstr "Dodano do kontaktów"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/signatures.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Address"
 msgstr "Adres"
@@ -11453,8 +11451,6 @@ msgstr "października"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "Wyłączone"
@@ -27677,36 +27673,6 @@ msgstr "−Wiersze"
 #~ "To, czy odpowiedź zostanie wysłana jako {address}, czy w jego imieniu, zależy od Twojej organizacji. Dopóki na to nie zezwolisz, odpowiedź czeka na tym komputerze i nic nie jest wysyłane z Twojego własnego adresu."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Aby otwierać kalendarze innych osób, MailCraft potrzebuje Twojej zgody na odczytywanie kalendarzy, które inni Ci udostępniają. Strona Microsoft otworzy się w przeglądarce, aby zapytać Cię o to jednorazowo.\n"
-#~ "\n"
-#~ "To, co otworzysz, jest przechowywane tylko na tym komputerze: nie pojawia się w Outlooku ani na Twoich innych urządzeniach."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Aby wysyłać z adresu {address}, MailCraft potrzebuje Twojej zgody na wysyłanie z udostępnionych skrzynek pocztowych. Strona Microsoft otworzy się w przeglądarce, aby zapytać Cię o to jednorazowo.\n"
-#~ "\n"
-#~ "To, czy Twoja poczta zostanie wysłana jako {address}, czy w jego imieniu, zależy od Twojej organizacji. Dopóki na to nie zezwolisz, wiadomość czeka w Skrzynce nadawczej i nic nie jest wysyłane z Twojego własnego adresu."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "Aby pokazać kalendarze {address}, MailCraft potrzebuje Twojej zgody na odczytywanie kalendarzy udostępnionych skrzynek pocztowych. Strona Microsoft otworzy się w przeglądarce, aby zapytać Cię o to jednorazowo.\n"
-#~ "\n"
-#~ "To, co możesz zobaczyć w kalendarzu, ustala jego właściciel i Twoja organizacja: to niczego w tym nie zmienia. Dopóki na to nie zezwolisz, nic z kalendarzy {address} nie jest odczytywane."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "Twoja organizacja nie zezwala, aby MailCraft odczytywał kalendarze udostępnionych skrzynek pocztowych"
 
@@ -27769,26 +27735,6 @@ msgstr "−Wiersze"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "To konto nie przechowuje swoich reguł na serwerze"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Aby zmienić automatyczne odpowiedzi dla {address}, MailCraft potrzebuje Twojej zgody na zmianę ustawień skrzynki pocztowej. Strona Microsoft otworzy się w przeglądarce, aby zapytać Cię o to jednorazowo.\n"
-#~ "\n"
-#~ "MailCraft zmienia za jej pomocą tylko Twoje automatyczne odpowiedzi i reguły Skrzynki odbiorczej, nigdy kategorie ani godziny pracy. Odczytywanie automatycznych odpowiedzi nie wymaga tej zgody."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Aby przechowywać reguły dla {address} na jego serwerze, gdzie działają nawet przy zamkniętym programie MailCraft i są widoczne w Outlooku w sieci web oraz na telefonie, MailCraft potrzebuje Twojej zgody na zmianę ustawień skrzynki pocztowej, w których Microsoft przechowuje reguły. Strona Microsoft otworzy się w przeglądarce, aby zapytać Cię o to jednorazowo.\n"
-#~ "\n"
-#~ "Dopóki na to nie zezwolisz, Twoje reguły pozostają na tym komputerze i nic z nich nie jest wysyłane do Microsoft."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
