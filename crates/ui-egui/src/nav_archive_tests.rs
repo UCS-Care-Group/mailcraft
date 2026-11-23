@@ -137,3 +137,21 @@ fn the_archive_is_never_named_by_the_name_it_is_kept_under() {
     app.session.view.folder = folder;
     assert!(!app.title_stem().contains(&kept), "{}", app.title_stem());
 }
+
+/// A read that failed says so under the heading even when the archive's folders are here (a
+/// folder of it opened later couldn't be read), and the folders stay listed (#1834 review).
+#[test]
+fn a_failed_read_says_so_with_its_folders_here_too() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.archive_failed.insert(archive);
+    let shown = texts(&mut app);
+    assert!(shown.iter().any(|t| t.contains("couldn't be read")), "{shown:?}");
+    assert!(shown.iter().any(|t| t == "2019"), "{shown:?}");
+    assert!(!app.syncing(), "nothing started by itself");
+    // Offline it is the connection that is wanted: no line over the folders.
+    app.session.prefs.offline = true;
+    let shown = texts(&mut app);
+    assert!(!shown.iter().any(|t| t.contains("couldn't be read")), "{shown:?}");
+}

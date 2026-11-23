@@ -1165,8 +1165,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 }
                 // An online archive is read when it is opened (#1818): until its folders come, a
                 // line says so, or that it needs a connection; a folder of it opened is read then.
+                // A read that failed says so whether or not its folders are here (#1834 review).
                 if app.session.mailbox.account(*account).is_some_and(mailcraft_model::Account::is_archive) {
-                    if rows.is_empty() {
+                    if rows.is_empty() || (!app.offline() && app.archive_read_failed(*account)) {
                         archive_note(app, ui, *account);
                     } else if !app.offline() {
                         app.read_archive(*account);
@@ -1306,7 +1307,8 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
     }
 }
 
-/// The line under an online archive's heading while it has no folders here (#1818): it is read
+/// The line under an online archive's heading while it has no folders here, or its last read
+/// failed (#1818): it is read
 /// from its server when it is opened, as Outlook reads it, and offline it can't be; a read that
 /// failed, or that has no password to go with, says so. Opening it starts that read.
 fn archive_note(app: &mut MailApp, ui: &mut Ui, archive: Id) {

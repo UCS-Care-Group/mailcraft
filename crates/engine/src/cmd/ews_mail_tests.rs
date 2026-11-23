@@ -792,6 +792,17 @@ fn a_hidden_or_cloud_archive_is_not_added() {
     }
 }
 
+/// An archive the setup found kept in Exchange Online is never shown, so a run never asks the
+/// server about it (#1834 review); one with no such word is asked about.
+#[test]
+fn a_cloud_archive_is_not_asked_about() {
+    let (mut s, account) = session();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_archive = true;
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_archive = false;
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive);
+}
+
 #[test]
 fn an_archive_whose_owner_is_gone_has_no_request() {
     let (mut s, account) = session();
