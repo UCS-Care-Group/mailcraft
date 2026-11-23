@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A message checked for its OpenPGP Digital signature, its Public keys read, and the same bytes
-//! read as key material and as an `Autocrypt:` header value.
+//! read as key material (public and secret) and as an `Autocrypt:` header value.
 #![no_main]
 
 use std::sync::LazyLock;
@@ -30,4 +30,6 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = mailcraft_openpgp::keys_in_message(data);
     let _ = PublicKey::parse(data);
     let _ = mailcraft_openpgp::parse_autocrypt(&String::from_utf8_lossy(data));
+    let _ = mailcraft_openpgp::secret::read(data);
+    let _ = mailcraft_openpgp::secret::holds_secret(data);
 });

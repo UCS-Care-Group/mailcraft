@@ -58,6 +58,97 @@ fn no_record_and_no_service_are_not_errors() {
     }
 }
 
+/// A name server that answers the SRV question with `srv` and the alias question with `alias`.
+fn answering(srv: &'static str, alias: &'static str) -> FakeHttp {
+    FakeHttp::start(move |_, request| json_answer("200 OK", if request.contains("type=CNAME") { alias } else { srv }))
+}
+
+#[test]
+fn the_hosts_for_autodiscover_are_the_srv_targets_then_the_alias_and_only_the_domain_is_asked() {
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"0 0 443 autodiscover.de2.hoster.example."},{"type":33,"data":"0 0 80 autodiscover.de2.hoster.example."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"Autodiscover.Hoster.Example."}]}"#,
+    );
+    let hosts = autodiscover_hosts_at(&[&server.url("/dns-query")], "Example.ORG.").unwrap();
+    assert_eq!(hosts, ["autodiscover.de2.hoster.example", "autodiscover.hoster.example"]);
+    assert_eq!(server.asked(), 2);
+    let questions = [server.request(0), server.request(1)];
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=_autodiscover._tcp.example.org&type=SRV HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=autodiscover.example.org&type=CNAME HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().all(|q| q.ends_with("\r\n\r\n") && !q.contains('@') && !q.to_lowercase().contains("cookie")), "{questions:?}");
+}
+
+#[test]
+fn the_search_s_targets_keep_the_srv_ports_and_take_the_alias_at_443() {
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"0 0 8443 autodiscover.de2.hoster.example."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.de2.hoster.example."}]}"#,
+    );
+    let targets = autodiscover_targets_at(&[&server.url("/q")], "example.org").unwrap();
+    let srv: Vec<(String, u16)> = targets.srv.into_iter().map(|t| (t.host, t.port)).collect();
+    assert_eq!(srv, [("autodiscover.de2.hoster.example".to_string(), 8443)]);
+    // The alias is kept apart: it is no SRV record's word.
+    assert_eq!(targets.aliases, ["autodiscover.de2.hoster.example"]);
+    // A split DNS: the public resolvers don't know the SRV record, the alias is public.
+    let split = answering(r#"{"Status":3}"#, r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.de2.hoster.example."}]}"#);
+    let targets = autodiscover_targets_at(&[&split.url("/q")], "example.org").unwrap();
+    assert!(targets.srv.is_empty());
+    assert_eq!(targets.aliases, ["autodiscover.de2.hoster.example"]);
+}
+
+#[test]
+fn an_srv_record_that_names_autodiscover_of_the_domain_itself_is_kept_and_an_alias_to_itself_is_not() {
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"0 0 443 autodiscover.example.org."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.example.org."}]}"#,
+    );
+    let url = server.url("/q");
+    let targets = autodiscover_targets_at(&[&url], "example.org").unwrap();
+    assert_eq!(targets.srv.into_iter().map(|t| t.host).collect::<Vec<_>>(), ["autodiscover.example.org"]);
+    assert!(targets.aliases.is_empty());
+    assert_eq!(autodiscover_hosts_at(&[&url], "example.org").unwrap(), ["autodiscover.example.org"]);
+}
+
+#[test]
+fn an_alias_counts_only_when_it_is_called_autodiscover_too() {
+    let alias =
+        |data: &str| aliases(&Answer { status: 200, body: format!(r#"{{"Status":0,"Answer":[{{"type":5,"data":"{data}"}}]}}"#).into_bytes() });
+    assert_eq!(alias("autodiscover.outlook.com."), Ok(vec!["autodiscover.outlook.com".to_string()]));
+    // What a wildcard gives every name, a web host, or something that isn't a name says nothing.
+    for nothing in
+        ["example.org.", "www.example.org.", "webhost.example.net.", "autodiscoverx.example.net.", "autodiscover", ".", "autodiscover..example.net."]
+    {
+        assert_eq!(alias(nothing), Ok(Vec::new()), "{nothing}");
+    }
+    // Only aliases are read.
+    let address = aliases(&Answer { status: 200, body: br#"{"Status":0,"Answer":[{"type":1,"data":"autodiscover.example.net"}]}"#.to_vec() });
+    assert_eq!(address, Ok(Vec::new()));
+}
+
+#[test]
+fn a_domain_without_records_has_no_hosts_and_one_answer_is_enough() {
+    let none = answering(r#"{"Status":3}"#, r#"{"Status":0}"#);
+    assert_eq!(autodiscover_hosts_at(&[&none.url("/q")], "example.org"), Ok(Vec::new()));
+    // The alias pointing back at the host asked about names nothing new.
+    let itself = answering(r#"{"Status":0}"#, r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.example.org."}]}"#);
+    assert_eq!(autodiscover_hosts_at(&[&itself.url("/q")], "example.org"), Ok(Vec::new()));
+    // The SRV question fails, the alias question is answered.
+    let half = FakeHttp::start(|_, request| {
+        if request.contains("type=CNAME") {
+            json_answer("200 OK", r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.hoster.example."}]}"#)
+        } else {
+            json_answer("500 Internal Server Error", "{}")
+        }
+    });
+    assert_eq!(autodiscover_hosts_at(&[&half.url("/q")], "example.org"), Ok(vec!["autodiscover.hoster.example".to_string()]));
+    // Neither: an error.
+    let broken = FakeHttp::answering(json_answer("500 Internal Server Error", "{}"));
+    assert!(autodiscover_hosts_at(&[&broken.url("/q")], "example.org").is_err());
+    // Not a domain: nothing is asked.
+    assert!(matches!(autodiscover_hosts_at(&[&broken.url("/q")], "ada@example.org"), Err(NetError::Config(_))));
+    assert_eq!(broken.asked(), 2);
+}
+
 #[test]
 fn the_next_name_server_is_asked_when_one_fails() {
     let good = FakeHttp::answering(json_answer("200 OK", ANSWER));
@@ -128,6 +219,49 @@ fn hostile_answers_give_host_names_or_nothing() {
 }
 
 #[test]
+fn an_alias_keeps_its_room_however_many_hosts_the_srv_record_names() {
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"1 0 443 a1.example.org."},{"type":33,"data":"2 0 443 a2.example.org."},
+            {"type":33,"data":"3 0 443 a3.example.org."},{"type":33,"data":"4 0 443 a4.example.org."},
+            {"type":33,"data":"5 0 443 a5.example.org."},{"type":33,"data":"6 0 443 a6.example.org."},
+            {"type":33,"data":"7 0 443 a7.example.org."},{"type":33,"data":"8 0 443 a8.example.org."},
+            {"type":33,"data":"9 0 443 a9.example.org."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.outlook.com."}]}"#,
+    );
+    let hosts = autodiscover_hosts_at(&[&server.url("/q")], "example.org").unwrap();
+    assert_eq!(hosts.len(), MAX_HOSTS);
+    assert_eq!(hosts.last().map(String::as_str), Some("autodiscover.outlook.com"), "{hosts:?}");
+    assert_eq!(hosts[..MAX_HOSTS - 1], (1..MAX_HOSTS).map(|n| format!("a{n}.example.org")).collect::<Vec<_>>()[..]);
+    // Without an alias the SRV record's targets have all the room.
+    let srv_only = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"1 0 443 a1.example.org."},{"type":33,"data":"2 0 443 a2.example.org."},
+            {"type":33,"data":"3 0 443 a3.example.org."},{"type":33,"data":"4 0 443 a4.example.org."},
+            {"type":33,"data":"5 0 443 a5.example.org."},{"type":33,"data":"6 0 443 a6.example.org."},
+            {"type":33,"data":"7 0 443 a7.example.org."},{"type":33,"data":"8 0 443 a8.example.org."},
+            {"type":33,"data":"9 0 443 a9.example.org."}]}"#,
+        r#"{"Status":3}"#,
+    );
+    assert_eq!(autodiscover_hosts_at(&[&srv_only.url("/q")], "example.org").unwrap().len(), MAX_HOSTS);
+}
+
+#[test]
+fn an_alias_the_srv_record_names_already_takes_no_room_from_it() {
+    // Eight hosts in the record, Microsoft's last, and an alias of the first of them: all eight
+    // are kept, so Microsoft's is still seen.
+    let server = answering(
+        r#"{"Status":0,"Answer":[{"type":33,"data":"1 0 443 autodiscover.hoster.example."},{"type":33,"data":"2 0 443 a2.example.org."},
+            {"type":33,"data":"3 0 443 a3.example.org."},{"type":33,"data":"4 0 443 a4.example.org."},
+            {"type":33,"data":"5 0 443 a5.example.org."},{"type":33,"data":"6 0 443 a6.example.org."},
+            {"type":33,"data":"7 0 443 a7.example.org."},{"type":33,"data":"8 0 443 autodiscover.outlook.com."}]}"#,
+        r#"{"Status":0,"Answer":[{"type":5,"data":"autodiscover.hoster.example."}]}"#,
+    );
+    let hosts = autodiscover_hosts_at(&[&server.url("/q")], "example.org").unwrap();
+    assert_eq!(hosts.len(), MAX_HOSTS, "{hosts:?}");
+    assert_eq!(hosts.first().map(String::as_str), Some("autodiscover.hoster.example"), "{hosts:?}");
+    assert_eq!(hosts.last().map(String::as_str), Some("autodiscover.outlook.com"), "{hosts:?}");
+}
+
+#[test]
 fn a_port_is_kept_and_a_host_at_two_ports_is_two_targets() {
     let body =
         records(&[r#""1 1 8443 a.example.org.""#, r#""1 1 443 a.example.org.""#, r#""1 1 8443 a.example.org.""#, r#""1 1 99999 b.example.org.""#]);
@@ -146,6 +280,11 @@ fn the_hosts_handed_back_are_capped() {
 }
 
 proptest! {
+    #[test]
+    fn arbitrary_alias_answers_never_panic(status in 0u16..700, body in proptest::collection::vec(any::<u8>(), 0..300)) {
+        let _ = aliases(&Answer { status, body });
+    }
+
     #[test]
     fn arbitrary_answers_never_panic(status in 0u16..700, body in proptest::collection::vec(any::<u8>(), 0..300)) {
         let _ = targets(&Answer { status, body });
@@ -167,6 +306,109 @@ proptest! {
                 prop_assert_eq!(checked.as_ref(), Some(host));
                 prop_assert!(!hosts[..n].contains(host));
             }
+        }
+    }
+}
+
+/// A name server that answers the SRV question with `srv` and the TXT one with `txt`.
+fn dav_answering(srv: &'static str, txt: &'static str) -> FakeHttp {
+    FakeHttp::start(move |_, request| json_answer("200 OK", if request.contains("type=TXT") { txt } else { srv }))
+}
+
+const DAV_SRV: &str = r#"{"Status":0,"Answer":[{"type":33,"data":"0 1 8443 dav.example.net."},{"type":33,"data":"0 5 443 Cal.Example.NET."}]}"#;
+
+#[test]
+fn a_dav_server_is_found_by_the_secure_services_only_and_a_txt_path_comes_with_it() {
+    let server = dav_answering(DAV_SRV, r#"{"Status":0,"Answer":[{"type":16,"data":"\"path=/dav/cal/\""}]}"#);
+    let found = lookup_dav_at(&[&server.url("/dns-query")], DavService::CalDav, " Example.ORG. ").unwrap();
+    assert_eq!(found.targets.iter().map(|t| (t.host.as_str(), t.port)).collect::<Vec<_>>(), [("cal.example.net", 443), ("dav.example.net", 8443)]);
+    assert_eq!(found.path.as_deref(), Some("/dav/cal/"));
+    assert!(!format!("{found:?}").contains("example"));
+    let questions = [server.request(0), server.request(1)];
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=_caldavs._tcp.example.org&type=SRV HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().any(|q| q.starts_with("GET /dns-query?name=_caldavs._tcp.example.org&type=TXT HTTP/1.1\r\n")), "{questions:?}");
+    assert!(questions.iter().all(|q| !q.contains("_caldav._tcp") && !q.contains('@') && !q.to_lowercase().contains("cookie")), "{questions:?}");
+    let book = dav_answering(DAV_SRV, r#"{"Status":0}"#);
+    let found = lookup_dav_at(&[&book.url("/q")], DavService::CardDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (2, None));
+    assert!(book.request(0).contains("name=_carddavs._tcp.example.org&type=SRV"));
+}
+
+#[test]
+fn no_srv_record_asks_nothing_more_and_a_failed_txt_question_is_no_error() {
+    let none = dav_answering(r#"{"Status":3}"#, r#"{"Status":0}"#);
+    let found = lookup_dav_at(&[&none.url("/q")], DavService::CalDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (0, None));
+    assert_eq!(none.asked(), 1);
+    let broken =
+        FakeHttp::start(
+            |_, request| {
+                if request.contains("type=TXT") { json_answer("500 Internal Server Error", "{}") } else { json_answer("200 OK", DAV_SRV) }
+            },
+        );
+    let found = lookup_dav_at(&[&broken.url("/q")], DavService::CalDav, "example.org").unwrap();
+    assert_eq!((found.targets.len(), found.path), (2, None));
+    // The SRV question failing everywhere is an error, as for Autodiscover.
+    let down = FakeHttp::answering(json_answer("500 Internal Server Error", "{}"));
+    assert!(lookup_dav_at(&[&down.url("/q")], DavService::CalDav, "example.org").is_err());
+    assert!(matches!(lookup_dav_at(&[&down.url("/q")], DavService::CalDav, "ada@example.org"), Err(NetError::Config(_))));
+}
+
+fn path(data: &str) -> Option<String> {
+    let body = format!(r#"{{"Status":0,"Answer":[{{"type":16,"data":{data}}}]}}"#);
+    path_of(&Answer { status: 200, body: body.into_bytes() }).unwrap()
+}
+
+#[test]
+fn a_txt_path_is_taken_only_when_it_is_a_plain_absolute_path() {
+    assert_eq!(path(r#""\"path=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    // Each string of a record is an attribute of its own (RFC 6763), in either order, and an
+    // unquoted one is read as it is; strings are never joined into another path.
+    assert_eq!(path(r#""\"path=/dav/\" \"txtvers=1\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"txtvers=1\" \"path=/dav/\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"path=/cal\" \"dav/\"""#).as_deref(), Some("/cal"));
+    assert_eq!(path(r#""\"txtvers=1\" \"PATH=/dav/\" \"path=/other/\"""#).as_deref(), Some("/dav/"));
+    assert_eq!(path(r#""\"txtvers=1\"""#), None);
+    // An escaped quote does not end a string: a record with a backslash is passed over, and the
+    // next record may give the path.
+    let escaped = r#""\"note=\\\"x\\\"path=/wrong\" \"path=/real\"""#;
+    assert_eq!(path(escaped), None);
+    let two = format!(r#"{{"Status":0,"Answer":[{{"type":16,"data":{escaped}}},{{"type":16,"data":"\"path=/real\""}}]}}"#);
+    assert_eq!(path_of(&Answer { status: 200, body: two.into_bytes() }).unwrap().as_deref(), Some("/real"));
+    assert_eq!(path(r#""path=/caldav/""#).as_deref(), Some("/caldav/"));
+    for bad in [
+        r#""\"path=\"""#,
+        r#""\"path=caldav/\"""#,
+        r#""\"path=//evil.example.net/\"""#,
+        r#""\"path=/a?b=c\"""#,
+        r#""\"path=/a#b\"""#,
+        r#""\"path=/a b\"""#,
+        r#""\"path=/a\\\\b\"""#,
+        r#""\"path=https://evil.example.net/\"""#,
+        r#""\"other=/caldav/\"""#,
+        r#""\"path=/a\u0000b\"""#,
+        r#"5"#,
+    ] {
+        assert_eq!(path(bad), None, "{bad}");
+    }
+    assert_eq!(path(&format!(r#""\"path=/{}\"""#, "a".repeat(300))), None);
+    // The key is read in any case; a piece that is too long to be a path is refused whole, never
+    // cut and joined into another path.
+    assert_eq!(path(r#""\"PATH=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    assert_eq!(path(r#""\"Path=/caldav/\"""#).as_deref(), Some("/caldav/"));
+    assert_eq!(path(&format!(r#""\"path=/{}\" \"/ok\"""#, "a".repeat(2_000))), None);
+    assert_eq!(path(&format!(r#""\"path=/ok\" \"{}\"""#, "b".repeat(300))), None);
+    assert_eq!(path(&format!(r#""path=/{}""#, "c".repeat(400))), None);
+    // A record of another type is passed over, and a later record may give the path.
+    let two = br#"{"Status":0,"Answer":[{"type":16,"data":"\"v=spf1\""},{"type":16,"data":"\"path=/x/\""}]}"#;
+    assert_eq!(path_of(&Answer { status: 200, body: two.to_vec() }).unwrap().as_deref(), Some("/x/"));
+}
+
+proptest! {
+    #[test]
+    fn a_txt_answer_of_any_bytes_gives_nothing_or_a_plain_path(body in proptest::collection::vec(any::<u8>(), 0..600)) {
+        if let Ok(Some(path)) = path_of(&Answer { status: 200, body }) {
+            prop_assert!(path.starts_with('/') && path.len() <= 256 && !path.contains(['?', '#', ' ', '\\']));
         }
     }
 }

@@ -21,7 +21,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mailcraft_mime::{PLACE_HEADER, WriteOptions};
+use mailcraft_mime::PLACE_HEADER;
+use mailcraft_mime_model::WriteOptions;
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
@@ -64,6 +65,8 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
         can_move: false,
         uidplus: false,
         gmail: false,
+        personal_prefix: String::new(),
+        personal_delimiter: None,
         destinations: HashMap::new(),
         arrived: Arrived::new(),
         searching: None,
@@ -75,6 +78,19 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
                 push.can_move = capabilities.iter().any(|c| c == "MOVE");
                 push.uidplus = capabilities.iter().any(|c| c == "UIDPLUS");
                 push.gmail = capabilities.iter().any(|c| c.eq_ignore_ascii_case("X-GM-EXT-1"));
+                if capabilities.iter().any(|c| c == "NAMESPACE") {
+                    match imap.namespace() {
+                        Ok(Some(ns)) => {
+                            push.personal_prefix = ns.prefix;
+                            push.personal_delimiter = ns.delimiter;
+                        }
+                        Ok(None) | Err(ProtoError::Rejected(_)) => {}
+                        Err(e) => {
+                            run.out.problem(because(said!("Couldn't bring the server up to date"), &e.into()));
+                            return None;
+                        }
+                    }
+                }
             }
             // A server that won't say is taken for one that can do neither.
             Err(ProtoError::Rejected(_)) => {}
@@ -136,6 +152,10 @@ struct Push<'a> {
     uidplus: bool,
     /// The server is Gmail's, or works as it does (`X-GM-EXT-1`): see the module's notes.
     gmail: bool,
+    /// Personal IMAP namespace prefix (RFC 2342), e.g. `"INBOX."`, or empty when none.
+    personal_prefix: String,
+    /// Hierarchy delimiter from `NAMESPACE`, if any.
+    personal_delimiter: Option<char>,
     /// The destination worked out for each local folder; `None` for one that can't be had (the
     /// reason was reported once).
     destinations: HashMap<Id, Option<Destination>>,
@@ -615,9 +635,9 @@ impl<'a> Push<'a> {
             } else {
                 message
             };
-            let written = mailcraft_mime::write_placed(message, &options, marker.unwrap_or_default());
+            let written = mailcraft_mime_model::write_placed(message, &options, marker.unwrap_or_default());
             // Written from the bytes it came as (#30): what it was moved out of may go then.
-            let original = mailcraft_mime::writes_original(message);
+            let original = mailcraft_mime_model::writes_original(message);
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
@@ -794,7 +814,8 @@ impl<'a> Push<'a> {
         // server's own separator.
         let (mut raw, delimiter) = if to.is_empty() {
             let inbox = self.mailboxes.iter().find(|m| kinds::is_inbox(m)).and_then(|m| m.delimiter);
-            (String::new(), inbox.or_else(|| self.mailboxes.iter().find_map(|m| m.delimiter)).unwrap_or('/'))
+            let delimiter = self.personal_delimiter.or(inbox).or_else(|| self.mailboxes.iter().find_map(|m| m.delimiter)).unwrap_or('/');
+            (self.personal_prefix.clone(), delimiter)
         } else {
             let parent = self.listed(to).ok_or_else(|| gone(to))?;
             let Some(delimiter) = parent.delimiter else {
@@ -813,7 +834,7 @@ impl<'a> Push<'a> {
             if level.is_empty() {
                 return Err(unnamed());
             }
-            if !raw.is_empty() {
+            if !raw.is_empty() && !raw.ends_with(delimiter) {
                 raw.push(delimiter);
             }
             raw.push_str(&encode_utf7(level));

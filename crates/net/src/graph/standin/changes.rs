@@ -322,7 +322,8 @@ impl State {
     }
 
     pub(super) fn look_of(asked: &Asked, list: bool) -> Result<Look, Refusal> {
-        let allowed: &[&str] = if list { &["$select", "$top", "$skip", "$expand", "$filter", "$search"] } else { &["$select", "$expand"] };
+        let allowed: &[&str] =
+            if list { &["$select", "$top", "$skip", "$expand", "$filter", "$search", "$orderby"] } else { &["$select", "$expand"] };
         if let Some((other, _)) = asked.query.iter().find(|(name, _)| !allowed.contains(&name.as_str())) {
             return Err(bad(format!("The query parameter '{other}' is not one this stand-in answers here.")));
         }
@@ -466,8 +467,17 @@ impl State {
     pub(super) fn folder_messages(&mut self, asked: &Asked, folder: &str) -> Result<Answer, Refusal> {
         let folder = self.mail_folder(folder)?.id.clone();
         let look = State::look_of(asked, true)?;
+        // A window's mail: `$filter=receivedDateTime ge …`, newest first (a plain list has no
+        // limit on how many, as a delta with a filter has).
+        let from = asked.param("$filter").and_then(super::messages::received_from);
+        if let Some(order) = asked.param("$orderby")
+            && !order.trim().eq_ignore_ascii_case("receivedDateTime desc")
+        {
+            return Err(bad("The only order this stand-in answers is 'receivedDateTime desc'."));
+        }
         let filter = match asked.param("$filter") {
             None => None,
+            Some(_) if from.is_some() => None,
             Some(text) => Some(property_filter(text).ok_or_else(|| {
                 bad("The only filter this stand-in answers is singleValueExtendedProperties/any(ep: ep/id eq '…' and ep/value eq '…').")
             })?),
@@ -476,14 +486,47 @@ impl State {
             .mailbox
             .messages
             .values()
-            .filter(|m| m.folder == folder)
+            .filter(|m| m.folder == folder && from.is_none_or(|from| m.received >= from))
             .filter(|m| filter.as_ref().is_none_or(|(id, value)| m.extended.iter().any(|(have, is)| same_property(have, id) && is == value)))
             .collect();
         found.sort_by(|a, b| b.received.cmp(&a.received).then_with(|| a.id.cmp(&b.id)));
         let ids: Vec<String> = found.into_iter().map(|m| m.id.clone()).collect();
         let list = ids.iter().map(|id| self.message_json(id, &look)).collect();
-        self.page(asked, list)
+        let mut answer = self.page(asked, list)?;
+        if self.mailbox.foreign_next
+            && let Some(Value::Object(body)) = answer.1.as_mut()
+            && let Some(next) = body.get("@odata.nextLink").and_then(Value::as_str)
+        {
+            let path = next.split_once("/v1.0/").map_or("", |(_, rest)| rest);
+            body.insert("@odata.nextLink".into(), Value::String(format!("https://elsewhere.example/v1.0/{path}")));
+        }
+        Ok(answer)
     }
+
+    /// `GET /me/messages?$filter=categories/any(c:c eq '…')`: every message of the mailbox that
+    /// carries the category, whatever folder it is in, newest first (#851). The name is matched
+    /// as it is written; a `'` in it is written `''`.
+    pub(super) fn messages_with_category(&mut self, asked: &Asked) -> Result<Answer, Refusal> {
+        let look = State::look_of(asked, true)?;
+        let name = asked
+            .param("$filter")
+            .and_then(category_filter)
+            .ok_or_else(|| bad("The only filter this stand-in answers here is categories/any(c:c eq '…')."))?;
+        let mut found: Vec<&super::Message> = self.mailbox.messages.values().filter(|m| m.categories.contains(&name)).collect();
+        found.sort_by(|a, b| b.received.cmp(&a.received).then_with(|| a.id.cmp(&b.id)));
+        let ids: Vec<String> = found.into_iter().map(|m| m.id.clone()).collect();
+        let list = ids.iter().map(|id| self.message_json(id, &look)).collect();
+        let page = self.page(asked, list);
+        self.changed_meanwhile();
+        page
+    }
+}
+
+/// `categories/any(c:c eq '…')`: the name.
+pub(in crate::graph::standin) fn category_filter(text: &str) -> Option<String> {
+    let name = text.trim().strip_prefix("categories/any(c:c eq '")?.strip_suffix("')")?;
+    // (A quote that isn't doubled would end the name.)
+    (!name.replace("''", "").contains('\'')).then(|| name.replace("''", "'"))
 }
 
 #[cfg(test)]

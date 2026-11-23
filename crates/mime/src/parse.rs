@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::auth_results::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
-use mailcraft_model::{Attachment, FlagStatus, Importance, Message};
+use crate::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
+use crate::{Attachment, FlagStatus, Importance, Message};
 
 use crate::header::{self, Headers, parse_params};
 use crate::words::{decode_words, has_words};
@@ -23,6 +23,12 @@ const MAX_PARTS: usize = 1000;
 const MAX_OPAQUE: usize = 1;
 /// The most bytes opened from opaque signed parts in one message: past it they stay files.
 const MAX_OPAQUE_BYTES: usize = 64 * 1024 * 1024;
+
+/// How many TNEF streams (`winmail.dat`) of one message are opened: one. One inside another
+/// (an attached message) is never opened, and nor is a second beside the first.
+const MAX_TNEF: usize = 1;
+/// The biggest TNEF stream opened: past it, it stays a file.
+const MAX_TNEF_BYTES: usize = 64 * 1024 * 1024;
 
 /// Most unmodelled header fields kept in [`Message::headers`], and their total size in bytes.
 const MAX_KEPT_HEADERS: usize = 200;
@@ -43,8 +49,8 @@ const MAX_IDS: usize = 1000;
 /// with the bytes as its text.
 ///
 /// Sets `message_id` (without angle brackets), `in_reply_to`, `references`, `from`, `reply_to`,
-/// `to`, `cc`, `bcc`, `subject` (encoded-words decoded), `date` and `received` (both from `Date`;
-/// 0 when it is missing or unreadable), `body`, `attachments`, `importance`, `categories` (from
+/// `to`, `cc`, `bcc`, `subject` (encoded-words decoded), `date` (from `Date`; 0 when it is
+/// missing or unreadable), `body`, `attachments`, `importance`, `categories` (from
 /// `Keywords`), `read` (`Status` has `R`), `flag` (`X-Status` has `F`), `answered` (`X-Status` has
 /// `A`) and `headers` (every other field that isn't MIME structure, in order: as written, but for
 /// the unstructured ones, whose encoded-words are decoded).
@@ -60,7 +66,11 @@ const MAX_IDS: usize = 1000;
 /// it is not opened. `inline` is set for `Content-Disposition: inline`, and for a part with a
 /// `Content-ID` inside `multipart/related`. An S/MIME opaque signed part (`application/pkcs7-mime`
 /// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
-/// its text joins the body and its files the attachments.
+/// its text joins the body and its files the attachments. A TNEF stream (`winmail.dat`,
+/// `application/ms-tnef`, [MS-OXTNEF]) stays an attachment, and the files it holds are added
+/// before it; its text is the body only when the message has none of its own, as the MIME
+/// around it is to be believed before what is inside it (2.1.3.5.2). Its other contents (its
+/// rich text, an attached message, an OLE object) are not opened: they stay in the stream.
 pub fn parse(bytes: &[u8]) -> Message {
     parse_opening(bytes, MAX_OPAQUE_BYTES)
 }
@@ -76,6 +86,13 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
     message.hidden_text = hidden.unwrap_or_default();
+    // A winmail.dat's text, for a message with no text or HTML of its own.
+    if walk.html.is_none()
+        && walk.text.as_deref().is_none_or(|t| t.trim().is_empty())
+        && let Some(text) = walk.tnef_text.take()
+    {
+        walk.text = Some(text);
+    }
     message.body.text = match (walk.text, html_text) {
         (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
@@ -88,6 +105,8 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
 }
 
 fn read_headers(headers: &Headers, m: &mut Message) {
+    // Fields left out as the header was split, past its caps: what they said can't be told (#566).
+    m.headers_cut |= headers.1;
     let mut kept_bytes = 0usize;
     let mut kept_auth_as = 0usize;
     let mut kept_direction = 0usize;
@@ -98,11 +117,15 @@ fn read_headers(headers: &Headers, m: &mut Message) {
         match name.as_str() {
             "to" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.to.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.to.extend(list.into_iter().take(room));
             }
             "cc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.cc.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.cc.extend(list.into_iter().take(room));
             }
             "bcc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
@@ -118,9 +141,13 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             }
             "keywords" => {
                 let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
-                m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty()).take(room));
+                let mut words = value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty());
+                m.categories.extend(words.by_ref().take(room));
+                m.headers_cut |= words.next().is_some();
             }
-            "status" => m.read |= value.contains('R'),
+            "status" => {
+                m.read |= value.contains('R');
+            }
             "x-status" => {
                 if value.contains('F') {
                     m.flag = FlagStatus::Flagged;
@@ -133,7 +160,7 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             // Nor of where in a .pst file a message was (#815).
             "x-mailcraft-pst-item" => {}
             // Read once, below.
-            "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
+            "from" | "subject" | "message-id" | "in-reply-to" | "date" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}
             // Kept apart from the cap below, so that a sender's padding can't push Exchange's own out.
             auth_as if auth_as.eq_ignore_ascii_case(AUTH_AS) => {
@@ -142,6 +169,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     // Cut short by `header::split` already.
                     m.headers.push((field.name.clone(), value.to_string()));
                     m.fresh_stamps = true;
+                } else {
+                    m.headers_cut = true;
                 }
             }
             // So is Exchange's word on which way the message went.
@@ -149,6 +178,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 if kept_direction < MAX_AUTH_AS {
                     kept_direction += 1;
                     m.headers.push((field.name.clone(), value.to_string()));
+                } else {
+                    m.headers_cut = true;
                 }
             }
             _ => {
@@ -157,6 +188,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     kept_bytes += size;
                     let value = if has_words(&name) { decode_words(value) } else { value.to_string() };
                     m.headers.push((field.name.clone(), value));
+                } else {
+                    // Left out: what it says can't be told from the message (#566).
+                    m.headers_cut = true;
                 }
             }
         }
@@ -166,7 +200,6 @@ fn read_headers(headers: &Headers, m: &mut Message) {
     }
     if let Some((timestamp, _)) = headers.get("date").and_then(mailcraft_time::parse_rfc5322) {
         m.date = timestamp;
-        m.received = timestamp;
     }
     if let Some(from) = headers.get("from").and_then(|v| address::parse_list(v).into_iter().next()) {
         m.from = from;
@@ -230,6 +263,9 @@ struct Walk {
     opaque_bytes: usize,
     /// The most bytes opened from opaque signed parts ([`MAX_OPAQUE_BYTES`] but in tests).
     opaque_limit: usize,
+    /// TNEF streams opened so far ([`MAX_TNEF`]), and the text of the first that had one.
+    tnef: usize,
+    tnef_text: Option<String>,
 }
 
 impl Walk {
@@ -295,6 +331,14 @@ impl Walk {
         let name = file_name.unwrap_or_else(|| media::default_name(&mime));
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
         let data = Arc::new(decode(body, &encoding));
+        // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
+        // stream itself, which keeps what of it isn't read here.
+        let tnef_type = matches!(mime.as_str(), "application/ms-tnef" | "application/vnd.ms-tnef") || name.eq_ignore_ascii_case("winmail.dat");
+        // Only a stream that reads takes the one place: a broken one before it (a version that
+        // can't be read) doesn't keep a good one shut.
+        if tnef_type && self.tnef < MAX_TNEF && data.len() <= MAX_TNEF_BYTES && mailcraft_tnef::is_tnef(&data) && self.open_tnef(&data) {
+            self.tnef = self.tnef.saturating_add(1);
+        }
         // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
         // the file itself. Not one sent along as a file inside another message, and nothing is
         // checked here. The file is kept beside what it holds (about twice the room): it is the
@@ -308,16 +352,43 @@ impl Walk {
             && depth < MAX_DEPTH
             && self.opaque < MAX_OPAQUE
             && data.len() <= self.opaque_limit.saturating_sub(self.opaque_bytes);
-        let signed = openable.then(|| mailcraft_model::ber::signed_content(&data)).flatten();
+        let signed = openable.then(|| mailcraft_ber::signed_content(&data)).flatten();
         if let Some(content) = &signed {
             self.opaque = self.opaque.saturating_add(1);
             self.opaque_bytes = self.opaque_bytes.saturating_add(content.len());
         }
-        self.attachments.push(Attachment { name, mime, content_id, inline, data, kept: None });
+        self.attachments.push(Attachment { name, mime, content_id, inline, data });
         if let Some(content) = signed {
             let (inner_headers, inner_body) = header::split(&content, false);
             self.part(&inner_headers, inner_body, depth.saturating_add(1), parent);
         }
+    }
+
+    /// The files of a TNEF stream, as attachments, and its text for later. False when it can't
+    /// be read at all.
+    ///
+    /// Its files don't count against [`MAX_PARTS`], which bounds the MIME parts read: they are
+    /// bounded by the reader's own cap (`Limits::max_files`, of the one stream opened), so a
+    /// stream's files never keep the message's own later parts from being read.
+    fn open_tnef(&mut self, data: &[u8]) -> bool {
+        let Ok(found) = mailcraft_tnef::read(data, &mailcraft_tnef::Limits::default()) else { return false };
+        for file in found.files {
+            let name = file.name.unwrap_or_default();
+            let mime = match file.mime_type.as_deref().map(media::safe_media_type) {
+                Some(t) if t != "application/octet-stream" => t,
+                _ => media::media_type_for(&name).to_string(),
+            };
+            let name = if name.is_empty() { media::default_name(&mime) } else { name };
+            // No content id: only the stream's own rich text refers to one, and it isn't shown.
+            // Carried, it could clash with a part of the message's own (a `cid:` picture goes to
+            // the first attachment with its id, and the stream's files stand before what follows
+            // it), so the stream could put its file in the place of the message's picture.
+            self.attachments.push(Attachment { name, mime, content_id: String::new(), inline: false, data: Arc::new(file.data) });
+        }
+        if self.tnef_text.is_none() {
+            self.tnef_text = found.body.map(|t| charset::unix_lines(&t));
+        }
+        true
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {
@@ -403,546 +474,5 @@ pub(crate) fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) ->
 }
 
 #[cfg(test)]
-mod tests {
-    use mailcraft_model::Address;
-
-    use super::*;
-
-    fn a(name: &str, email: &str) -> Address {
-        Address { name: name.into(), email: email.into() }
-    }
-
-    /// A message from lines, joined with CRLF.
-    fn eml(lines: &[&str]) -> Vec<u8> {
-        lines.join("\r\n").into_bytes()
-    }
-
-    #[test]
-    fn a_plain_message() {
-        let m = parse(&eml(&[
-            "Return-Path: <ada@example.org>",
-            "Received: from mail.example.org (mail.example.org [192.0.2.1])",
-            "\tby mx.example.org with ESMTP id 4F2A1; Tue, 1 Jul 2003 10:52:40 +0200",
-            "Date: Tue, 1 Jul 2003 10:52:37 +0200",
-            "From: Ada Lovelace <ada@example.org>",
-            "To: Bob <bob@example.org>, carol@example.org",
-            "Cc: \"Hopper, Grace\" <grace@example.org>",
-            "Reply-To: replies@example.org",
-            "Subject: Lunch on Friday?",
-            "Message-ID: <abc.123@example.org>",
-            "In-Reply-To: <parent.1@example.org>",
-            "References: <root.0@example.org>",
-            " <parent.1@example.org>",
-            "User-Agent: SyntheticMail 1.0",
-            "MIME-Version: 1.0",
-            "Content-Type: text/plain; charset=us-ascii",
-            "",
-            "Hello Bob,",
-            "",
-            "Lunch on Friday?",
-            "",
-            "Ada",
-            "",
-        ]));
-        assert_eq!(m.from, a("Ada Lovelace", "ada@example.org"));
-        assert_eq!(m.to, [a("Bob", "bob@example.org"), a("", "carol@example.org")]);
-        assert_eq!(m.cc, [a("Hopper, Grace", "grace@example.org")]);
-        assert_eq!(m.reply_to, [a("", "replies@example.org")]);
-        assert!(m.bcc.is_empty());
-        assert_eq!(m.subject, "Lunch on Friday?");
-        assert_eq!(m.date, 1_057_049_557);
-        assert_eq!(m.received, m.date);
-        assert_eq!(m.message_id, "abc.123@example.org");
-        assert_eq!(m.in_reply_to, "parent.1@example.org");
-        assert_eq!(m.references, ["root.0@example.org", "parent.1@example.org"]);
-        assert_eq!(m.body.text, "Hello Bob,\n\nLunch on Friday?\n\nAda");
-        assert_eq!(m.body.html, None);
-        assert!(m.attachments.is_empty());
-        let kept: Vec<&str> = m.headers.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(kept, ["Return-Path", "Received", "User-Agent"]);
-        assert_eq!(
-            m.headers.get(1).map(|(_, v)| v.as_str()),
-            Some("from mail.example.org (mail.example.org [192.0.2.1])\tby mx.example.org with ESMTP id 4F2A1; Tue, 1 Jul 2003 10:52:40 +0200")
-        );
-        assert_eq!((m.id, m.account, m.folder, m.uid), (0, 0, 0, 0));
-        assert!(!m.read && !m.answered && !m.draft && !m.pinned && !m.forwarded);
-        assert_eq!((m.flag, m.importance), (FlagStatus::None, Importance::Normal));
-    }
-
-    #[test]
-    fn bare_lf_line_ends() {
-        let m = parse(b"From: ada@example.org\nSubject: Unix\n\nLine one\nLine two\n");
-        assert_eq!(m.from.email, "ada@example.org");
-        assert_eq!(m.subject, "Unix");
-        assert_eq!(m.body.text, "Line one\nLine two");
-    }
-
-    #[test]
-    fn encoded_words_in_subject_and_names() {
-        let m = parse(&eml(&[
-            "From: =?UTF-8?B?QWTDoSBMw7N2ZWxhY2U=?= <ada@example.org>",
-            "To: =?ISO-8859-1?Q?Andr=E9?= <andre@example.org>",
-            "Subject: =?UTF-8?Q?Caf=C3=A9_=E2=82=AC5?=",
-            " =?UTF-8?Q?_tomorrow?=",
-            "",
-            "x",
-        ]));
-        assert_eq!(m.from, a("Adá Lóvelace", "ada@example.org"));
-        assert_eq!(m.to, [a("André", "andre@example.org")]);
-        assert_eq!(m.subject, "Café €5 tomorrow");
-    }
-
-    #[test]
-    fn html_and_plain_alternative() {
-        let m = parse(&eml(&[
-            "From: ada@example.org",
-            "Subject: Both",
-            "MIME-Version: 1.0",
-            "Content-Type: multipart/alternative; boundary=\"alt-1\"",
-            "",
-            "This is the preamble, for readers that don't know MIME.",
-            "--alt-1",
-            "Content-Type: text/plain; charset=utf-8",
-            "",
-            "Hello *world*",
-            "--alt-1",
-            "Content-Type: text/html; charset=utf-8",
-            "",
-            "<p>Hello <b>world</b></p>",
-            "--alt-1--",
-            "The epilogue.",
-        ]));
-        assert_eq!(m.body.text, "Hello *world*");
-        assert_eq!(m.body.html.as_deref(), Some("<p>Hello <b>world</b></p>"));
-        assert!(m.attachments.is_empty());
-    }
-
-    #[test]
-    fn html_only_gets_readable_text() {
-        let m = parse(&eml(&[
-            "Content-Type: text/html; charset=utf-8",
-            "",
-            "<html><body><h1>Sale</h1><p>Up to <b>50%</b> off&nbsp;today.</p></body></html>",
-        ]));
-        assert_eq!(m.body.html.as_deref(), Some("<html><body><h1>Sale</h1><p>Up to <b>50%</b> off&nbsp;today.</p></body></html>"));
-        assert_eq!(m.body.text, "Sale\n\nUp to 50% off today.");
-        // A blank plain part next to HTML counts as none.
-        let m = parse(&eml(&[
-            "Content-Type: multipart/alternative; boundary=b",
-            "",
-            "--b",
-            "Content-Type: text/plain",
-            "",
-            "  ",
-            "--b",
-            "Content-Type: text/html",
-            "",
-            "<p>Real text</p>",
-            "--b--",
-        ]));
-        assert_eq!(m.body.text, "Real text");
-    }
-
-    #[test]
-    fn html_with_an_inline_image() {
-        let m = parse(&eml(&[
-            "Content-Type: multipart/related; boundary=\"rel\"; type=\"text/html\"",
-            "",
-            "--rel",
-            "Content-Type: text/html; charset=utf-8",
-            "",
-            "<p>Logo: <img src=\"cid:logo@example.org\" alt=\"Our logo\"></p>",
-            "--rel",
-            "Content-Type: image/png; name=\"logo.png\"",
-            "Content-Transfer-Encoding: base64",
-            "Content-ID: <logo@example.org>",
-            "",
-            "iVBORw0KGgo=",
-            "--rel--",
-        ]));
-        assert_eq!(m.body.text, "Logo: [Our logo]");
-        assert_eq!(m.attachments.len(), 1);
-        let logo = &m.attachments[0];
-        assert_eq!(
-            (logo.name.as_str(), logo.mime.as_str(), logo.content_id.as_str(), logo.inline),
-            ("logo.png", "image/png", "logo@example.org", true)
-        );
-        assert_eq!(logo.data.as_slice(), b"\x89PNG\r\n\x1a\n");
-        assert!(!m.has_attachments());
-    }
-
-    #[test]
-    fn two_attachments_one_with_an_rfc2231_name() {
-        let m = parse(&eml(&[
-            "Subject: Files",
-            "Content-Type: multipart/mixed; boundary=mix",
-            "",
-            "--mix",
-            "Content-Type: text/plain; charset=utf-8",
-            "",
-            "See attached.",
-            "--mix",
-            "Content-Type: application/pdf",
-            "Content-Disposition: attachment; filename=\"report.pdf\"",
-            "Content-Transfer-Encoding: base64",
-            "",
-            "JVBERi0xLjQK",
-            "--mix",
-            "Content-Type: text/plain; charset=utf-8",
-            "Content-Disposition: attachment;",
-            " filename*0*=utf-8''r%C3%A9sum%C3%A9%20;",
-            " filename*1*=%E2%82%AC.txt",
-            "Content-Transfer-Encoding: quoted-printable",
-            "",
-            "Prix: 5 =E2=82=AC=",
-            "",
-            "--mix--",
-        ]));
-        assert_eq!(m.body.text, "See attached.");
-        assert_eq!(m.attachments.len(), 2);
-        assert_eq!(
-            (m.attachments[0].name.as_str(), m.attachments[0].mime.as_str(), m.attachments[0].inline),
-            ("report.pdf", "application/pdf", false)
-        );
-        assert_eq!(m.attachments[0].data.as_slice(), b"%PDF-1.4\n");
-        assert_eq!((m.attachments[1].name.as_str(), m.attachments[1].mime.as_str()), ("résumé €.txt", "text/plain"));
-        assert_eq!(m.attachments[1].data.as_slice(), "Prix: 5 €".as_bytes());
-        assert!(m.has_attachments());
-    }
-
-    #[test]
-    fn quoted_printable_latin1() {
-        let m = parse(&eml(&[
-            "Subject: =?iso-8859-1?Q?R=E9union?=",
-            "Content-Type: text/plain; charset=ISO-8859-1",
-            "Content-Transfer-Encoding: quoted-printable",
-            "",
-            "La r=E9union est =E0 10h. Co=FBt: 5=80 (=93environ=94).=20",
-            "Une ligne tr=E8s longue qui continue =",
-            "sur la suivante.",
-        ]));
-        assert_eq!(m.subject, "Réunion");
-        assert_eq!(m.body.text, "La réunion est à 10h. Coût: 5€ (“environ”). \nUne ligne très longue qui continue sur la suivante.");
-    }
-
-    #[test]
-    fn base64_utf8() {
-        let m = parse(&eml(&[
-            "Content-Type: text/plain; charset=\"UTF-8\"",
-            "Content-Transfer-Encoding: BASE64",
-            "",
-            "R3LDvMOfZSBhdXMg",
-            "TcO8bmNoZW4g8J+Ziw0KWndlaXRlIFplaWxl",
-            "",
-        ]));
-        assert_eq!(m.body.text, "Grüße aus München 🙋\nZweite Zeile");
-    }
-
-    #[test]
-    fn a_calendar_invitation() {
-        let m = parse(&eml(&[
-            "Subject: Planning",
-            "Content-Type: multipart/alternative; boundary=cal",
-            "",
-            "--cal",
-            "Content-Type: text/plain",
-            "",
-            "You are invited.",
-            "--cal",
-            "Content-Type: text/x-amp-html",
-            "",
-            "<html amp4email></html>",
-            "--cal",
-            "Content-Type: text/html",
-            "",
-            "<p>You are invited.</p>",
-            "--cal",
-            "Content-Type: text/calendar; charset=utf-8; method=REQUEST",
-            "",
-            "BEGIN:VCALENDAR",
-            "METHOD:REQUEST",
-            "END:VCALENDAR",
-            "--cal--",
-        ]));
-        assert_eq!(m.body.text, "You are invited.");
-        assert_eq!(m.body.html.as_deref(), Some("<p>You are invited.</p>"));
-        assert_eq!(m.attachments.len(), 1);
-        assert_eq!((m.attachments[0].name.as_str(), m.attachments[0].mime.as_str()), ("invite.ics", "text/calendar"));
-        assert_eq!(m.attachments[0].data.as_slice(), b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR");
-    }
-
-    #[test]
-    fn an_attached_message_is_not_opened() {
-        let m = parse(&eml(&[
-            "Subject: Fwd",
-            "Content-Type: multipart/mixed; boundary=fw",
-            "",
-            "--fw",
-            "",
-            "See below.",
-            "--fw",
-            "Content-Type: message/rfc822",
-            "",
-            "Subject: Inner",
-            "Content-Type: multipart/mixed; boundary=inner",
-            "",
-            "--inner",
-            "",
-            "Inner text",
-            "--inner--",
-            "--fw--",
-        ]));
-        assert_eq!(m.subject, "Fwd");
-        assert_eq!(m.body.text, "See below.");
-        assert_eq!(m.attachments.len(), 1);
-        assert_eq!((m.attachments[0].name.as_str(), m.attachments[0].mime.as_str()), ("message.eml", "message/rfc822"));
-        assert!(m.attachments[0].data.starts_with(b"Subject: Inner\r\n"));
-        assert_eq!(parse(&m.attachments[0].data).body.text, "Inner text");
-    }
-
-    #[test]
-    fn nested_multiparts() {
-        let m = parse(&eml(&[
-            "Content-Type: multipart/mixed; boundary=outer",
-            "",
-            "--outer",
-            "Content-Type: multipart/alternative; boundary=alt",
-            "",
-            "--alt",
-            "Content-Type: text/plain",
-            "",
-            "Plain",
-            "--alt",
-            "Content-Type: multipart/related; boundary=rel",
-            "",
-            "--rel",
-            "Content-Type: text/html",
-            "",
-            "<p>Rich</p>",
-            "--rel",
-            "Content-Type: image/gif",
-            "Content-ID: <dot@example.org>",
-            "Content-Transfer-Encoding: base64",
-            "",
-            "R0lGODlh",
-            "--rel--",
-            "--alt--",
-            "--outer",
-            "Content-Type: application/zip; name=files.zip",
-            "Content-Disposition: attachment",
-            "Content-Transfer-Encoding: base64",
-            "",
-            "UEsDBA==",
-            "--outer",
-            "Content-Type: text/plain",
-            "",
-            "-- ",
-            "Sent via the example list",
-            "--outer--",
-        ]));
-        assert_eq!(m.body.text, "Plain\n\n-- \nSent via the example list");
-        assert_eq!(m.body.html.as_deref(), Some("<p>Rich</p><p>--<br>\nSent via the example list</p>\n"));
-        let files: Vec<(&str, &str, bool)> = m.attachments.iter().map(|a| (a.name.as_str(), a.mime.as_str(), a.inline)).collect();
-        assert_eq!(files, [("image.gif", "image/gif", true), ("files.zip", "application/zip", false)]);
-    }
-
-    #[test]
-    fn names_from_every_place() {
-        let part = |headers: &[&str]| {
-            let mut lines = vec!["Content-Type: multipart/mixed; boundary=b", "", "--b"];
-            lines.extend_from_slice(headers);
-            lines.extend_from_slice(&["", "data", "--b--"]);
-            parse(&eml(&lines)).attachments.first().map(|a| (a.name.clone(), a.mime.clone(), a.inline))
-        };
-        let got = |name: &str, mime: &str, inline: bool| Some((name.to_string(), mime.to_string(), inline));
-        assert_eq!(part(&["Content-Type: application/pdf; name=\"from type.pdf\""]), got("from type.pdf", "application/pdf", false));
-        assert_eq!(
-            part(&["Content-Type: application/pdf; name=a.pdf", "Content-Disposition: inline; filename=b.pdf"]),
-            got("b.pdf", "application/pdf", true)
-        );
-        assert_eq!(
-            part(&["Content-Type: application/octet-stream", "Content-Disposition: attachment; filename=\"=?UTF-8?B?csOpc3Vtw6kucGRm?=\""]),
-            got("résumé.pdf", "application/octet-stream", false)
-        );
-        assert_eq!(part(&["Content-Disposition: attachment; filename=notes.txt"]), got("notes.txt", "text/plain", false));
-        assert_eq!(part(&["Content-Type: garbage", "Content-Disposition: attachment; filename=scan.png"]), got("scan.png", "image/png", false));
-        assert_eq!(part(&["Content-Type: image/jpeg"]), got("image.jpg", "image/jpeg", false));
-        assert_eq!(part(&["Content-Type: application/x-thing"]), got("attachment", "application/x-thing", false));
-        assert_eq!(part(&["Content-Type: text/plain", "Content-Disposition: attachment"]), got("attachment.txt", "text/plain", false));
-        assert_eq!(part(&["Content-Type: text/html; name=page.html"]), got("page.html", "text/html", false));
-        assert_eq!(part(&["Content-Type: text/plain"]), None);
-        // A path stays as the sender wrote it; whoever saves the file must not trust it.
-        assert_eq!(part(&["Content-Type: application/pdf; name=\"../../x.pdf\""]), got("../../x.pdf", "application/pdf", false));
-    }
-
-    #[test]
-    fn flags_importance_and_categories() {
-        let m = parse(&eml(&[
-            "Status: RO",
-            "X-Status: AF",
-            "Importance: High",
-            "Keywords: Work, =?UTF-8?Q?Caf=C3=A9?= ,, Travel",
-            "Keywords: More",
-            "",
-            "",
-        ]));
-        assert!(m.read && m.answered);
-        assert_eq!(m.flag, FlagStatus::Flagged);
-        assert_eq!(m.importance, Importance::High);
-        assert_eq!(m.categories, ["Work", "Café", "Travel", "More"]);
-        assert!(m.headers.is_empty());
-
-        let m = parse(&eml(&["Status: O", "X-Status: ", "X-Priority: 5 (Lowest)", "", ""]));
-        assert!(!m.read && !m.answered);
-        assert_eq!((m.flag, m.importance), (FlagStatus::None, Importance::Low));
-        assert_eq!(parse(b"X-Priority: 1\n\n").importance, Importance::High);
-        assert_eq!(parse(b"X-Priority: 2\n\n").importance, Importance::High);
-        assert_eq!(parse(b"X-Priority: 3\n\n").importance, Importance::Normal);
-        assert_eq!(parse(b"X-Priority: 4\n\n").importance, Importance::Low);
-        assert_eq!(parse(b"X-Priority: 1\nImportance: low\n\n").importance, Importance::Low);
-        assert_eq!(parse(b"Importance: whatever\nX-Priority: 2\n\n").importance, Importance::High);
-        assert_eq!(parse(b"X-Status: F\nX-MailCraft-Flag: complete\n\n").flag, FlagStatus::Complete);
-    }
-
-    #[test]
-    fn message_ids_in_odd_forms() {
-        assert_eq!(parse(b"Message-ID: bare@example.org\n\n").message_id, "bare@example.org");
-        assert_eq!(parse(b"Message-ID:   < spaced@example.org >  \n\n").message_id, "spaced@example.org");
-        assert_eq!(parse(b"In-Reply-To: Your message of Tuesday <a@example.org> (see there)\n\n").in_reply_to, "a@example.org");
-        assert_eq!(parse(b"In-Reply-To: your message of Tuesday\n\n").in_reply_to, "");
-        assert_eq!(
-            parse(b"References: <a@example.org><b@example.org>\n\t<c@example.org> <> <unclosed\n\n").references,
-            ["a@example.org", "b@example.org", "c@example.org"]
-        );
-        assert_eq!(parse(b"References: a@example.org, b@example.org\n\n").references, ["a@example.org", "b@example.org"]);
-        let many = format!("References: {}\n\n", "<x@example.org> ".repeat(MAX_IDS + 50));
-        assert_eq!(parse(many.as_bytes()).references.len(), MAX_IDS);
-    }
-
-    #[test]
-    fn dates() {
-        assert_eq!(parse(b"Date: 1 Jul 2003 08:52:37 GMT\n\n").date, 1_057_049_557);
-        assert_eq!(parse(b"Date: next Tuesday\n\n").date, 0);
-        assert_eq!(parse(b"Subject: none\n\n").date, 0);
-        assert_eq!(parse(b"Date: 99 Abc 99999 99:99\n\n").received, 0);
-    }
-
-    #[test]
-    fn kept_headers_are_capped() {
-        let many = "X-Extra: value\r\n".repeat(MAX_KEPT_HEADERS + 100);
-        assert_eq!(parse(many.as_bytes()).headers.len(), MAX_KEPT_HEADERS);
-        let big = format!("X-Big: {}\r\n", "v".repeat(1000)).repeat(100);
-        let m = parse(big.as_bytes());
-        assert!(m.headers.len() < 100);
-        assert!(m.headers.iter().map(|(n, v)| n.len() + v.len()).sum::<usize>() <= MAX_KEPT_BYTES);
-        let m = parse(b"Comments: =?UTF-8?Q?caf=C3=A9?=\r\nContent-Language: en\r\nMIME-Version: 1.0\r\n\r\n");
-        assert_eq!(m.headers, [("Comments".to_string(), "café".to_string())]);
-    }
-
-    #[test]
-    fn several_recipient_fields_are_merged() {
-        let m = parse(b"To: a@example.org\nTo: b@example.org\nFrom: first@example.org, second@example.org\nFrom: third@example.org\n\n");
-        assert_eq!(m.to, [a("", "a@example.org"), a("", "b@example.org")]);
-        assert_eq!(m.from, a("", "first@example.org"));
-    }
-
-    #[test]
-    fn a_truncated_multipart_keeps_what_arrived() {
-        let m = parse(&eml(&[
-            "Content-Type: multipart/mixed; boundary=cut",
-            "",
-            "--cut",
-            "Content-Type: text/plain",
-            "",
-            "The text arrived.",
-            "--cut",
-            "Content-Type: application/pdf; name=half.pdf",
-            "Content-Transfer-Encoding: base64",
-            "",
-            "JVBERi0xLjQKJ",
-        ]));
-        assert_eq!(m.body.text, "The text arrived.");
-        assert_eq!(m.attachments.len(), 1);
-        assert_eq!(m.attachments[0].data.as_slice(), b"%PDF-1.4\n");
-        // Cut inside the headers of a part.
-        let m = parse(&eml(&["Content-Type: multipart/mixed; boundary=cut", "", "--cut", "Content-Type: text/pl"]));
-        assert_eq!(m.body.text, "");
-    }
-
-    #[test]
-    fn a_missing_or_wrong_boundary_shows_the_raw_text() {
-        let m = parse(&eml(&["Content-Type: multipart/mixed", "", "--who-knows", "", "Hidden text", "--who-knows--"]));
-        assert!(m.body.text.contains("Hidden text"));
-        let m = parse(&eml(&["Content-Type: multipart/mixed; boundary=\"\"", "", "text"]));
-        assert_eq!(m.body.text, "text");
-        // The boundary never appears: there are no parts.
-        let m = parse(&eml(&["Content-Type: multipart/mixed; boundary=absent", "", "--other", "", "text", "--other--"]));
-        assert_eq!(m.body.text, "");
-        assert!(m.attachments.is_empty());
-    }
-
-    #[test]
-    fn boundaries_that_look_alike() {
-        let m = parse(&eml(&[
-            "Content-Type: multipart/mixed; boundary=b",
-            "",
-            "--b",
-            "",
-            "--bb is not a delimiter",
-            "--b-- neither is this",
-            "--b  ",
-            "",
-            "second",
-            "--b--  ",
-            "--b",
-            "",
-            "after the end",
-        ]));
-        assert_eq!(m.body.text, "--bb is not a delimiter\n--b-- neither is this\n\nsecond");
-    }
-
-    #[test]
-    fn deep_nesting_and_many_parts_are_capped() {
-        let mut deep = Vec::new();
-        for i in 0..200 {
-            deep.extend_from_slice(format!("Content-Type: multipart/mixed; boundary=b{i}\r\n\r\n--b{i}\r\n").as_bytes());
-        }
-        deep.extend_from_slice(b"Content-Type: text/plain\r\n\r\ndeep text\r\n");
-        let m = parse(&deep);
-        assert_eq!(m.body.text, "");
-
-        let mut wide = b"Content-Type: multipart/mixed; boundary=w\r\n\r\n".to_vec();
-        for _ in 0..(MAX_PARTS + 500) {
-            wide.extend_from_slice(b"--w\r\nContent-Type: application/x-a\r\n\r\nx\r\n");
-        }
-        wide.extend_from_slice(b"--w--\r\n");
-        let m = parse(&wide);
-        assert_eq!(m.attachments.len(), MAX_PARTS - 1);
-    }
-
-    #[test]
-    fn garbage_gives_a_mostly_empty_message() {
-        assert_eq!(parse(b""), Message::default());
-        let m = parse(b"\x00\x01\x02\xff\xfe binary \x80 junk");
-        assert!(m.subject.is_empty() && m.to.is_empty() && m.attachments.is_empty());
-        assert!(m.body.text.contains("binary"));
-        let m = parse(b"no headers at all, just text\r\nsecond line\r\n");
-        assert_eq!(m.body.text, "no headers at all, just text\nsecond line");
-        let m = parse(b"\r\n\r\nstarts with blank lines");
-        assert_eq!(m.body.text, "\nstarts with blank lines");
-        let _ = parse(&[b'\n'; 10_000]);
-        let _ = parse(&[b':'; 10_000]);
-        let _ = parse(b"Content-Type: multipart/mixed; boundary=\r\n\r\n--\r\n----\r\n");
-        let _ = parse(b"Content-Type: ;;;=;\"\r\nContent-Disposition: \"\r\nContent-Transfer-Encoding: base64\r\n\r\n====");
-    }
-
-    #[test]
-    fn a_byte_order_mark_and_raw_8bit_text() {
-        let m = parse(b"Content-Type: text/plain; charset=utf-8\n\n\xEF\xBB\xBFHello");
-        assert_eq!(m.body.text, "Hello");
-        // No charset: UTF-8 when it is valid, else Windows-1252.
-        assert_eq!(parse("Subject: x\n\ncafé".as_bytes()).body.text, "café");
-        assert_eq!(parse(b"Subject: x\n\ncaf\xE9 \x80").body.text, "café €");
-        assert_eq!(parse(b"Content-Type: text/plain; charset=x-unknown\n\ncaf\xE9").body.text, "caf\u{fffd}");
-    }
-}
+#[path = "parse_tests.rs"]
+mod tests;

@@ -115,7 +115,9 @@ impl Known {
             }
             let addresses: Vec<String> = chunk
                 .values()
-                .filter(|m| self.outgoing.contains(&m.folder))
+                // A draft moved into the Outbox has gone to nobody: its recipients aren't known
+                // for it, or Send would let a lookalike in it go unasked (#1747).
+                .filter(|m| self.outgoing.contains(&m.folder) && !m.draft)
                 .flat_map(|m| m.to.iter().chain(&m.cc).chain(&m.bcc))
                 .map(|a| a.email.trim().to_lowercase())
                 .collect();
@@ -164,8 +166,8 @@ fn fingerprint(m: &Message, account: Option<&Account>) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     (m.id, m.account, m.folder, &m.from.name, &m.from.email, m.uid == 0 && m.server.is_none()).hash(&mut hasher);
     account.map(|a| (a.kind, a.incoming.as_ref().map(|server| &server.host))).hash(&mut hasher);
-    let results = m.headers.iter().take(2_000).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"));
-    results.map(|(_, v)| v.as_bytes().get(..MAX_RESULTS_HASHED).unwrap_or(v.as_bytes())).hash(&mut hasher);
+    let results = m.header("Authentication-Results");
+    results.map(|v| v.as_bytes().get(..MAX_RESULTS_HASHED).unwrap_or(v.as_bytes())).hash(&mut hasher);
     (m.body.html.as_ref().map(String::len), m.body_is_kept()).hash(&mut hasher);
     hasher.finish()
 }
@@ -303,6 +305,16 @@ impl Session {
         let known = checks.known.contains(address);
         self.sender_checks = checks;
         known
+    }
+
+    /// What the warnings are measured against, brought up to date with the mailbox: the send
+    /// warnings (#509) use the same known correspondents as the sender warnings.
+    pub(crate) fn known_facts(&mut self) -> Arc<Facts> {
+        let mut checks = std::mem::take(&mut self.sender_checks);
+        checks.known.update(self);
+        let facts = checks.facts();
+        self.sender_checks = checks;
+        facts
     }
 
     /// The sender warnings of `m` (`mailcraft_model::sender_warnings`): with its links looked at

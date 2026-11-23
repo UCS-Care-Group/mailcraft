@@ -42,21 +42,35 @@ pub mod io;
 mod launchable_tests;
 pub mod list;
 #[cfg(test)]
+mod load_where_tests;
+#[cfg(test)]
 mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
 #[cfg(test)]
+mod opening_kind_tests;
+#[cfg(test)]
 mod opening_tests;
+#[cfg(test)]
+mod openpgp_signature_tests;
 mod picture_fit;
+pub mod private_keys;
+#[cfg(test)]
+#[allow(dead_code)]
+mod private_keys_fixtures_tests;
+#[cfg(test)]
+mod private_keys_tests;
 pub mod sample;
+pub mod send_warnings;
 pub mod sender_warnings;
 mod session;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store_before;
+pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
@@ -68,12 +82,13 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 pub use mailcraft_html as html;
-pub use mailcraft_mime as mime;
+pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane, Part,
-    PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, MAX_SELECTED_EVENTS, Missing,
+    Module, Pane, Part, PeopleSort, Prefs, Quote, ReadIn, Scope, SelectedEvent, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter,
+    TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps
@@ -359,11 +374,13 @@ pub mod p {
         if v.is_object() || v.is_null() { Ok(()) } else { Err(CmdError::Params("the parameters are an object".into())) }
     }
     /// Refuses any parameter but `known`: a caller that names what the command doesn't take
-    /// means something by it that the command would not do.
+    /// means something by it that the command would not do. `confirmed` is always taken: it is
+    /// the window's note that the owner said yes to the question asked before the command, and
+    /// it changes nothing the command does (a yes to Remove Imported Duplicates was refused).
     pub fn only(v: &Value, known: &[&str]) -> Result<(), CmdError> {
         match v {
             Value::Null => Ok(()),
-            Value::Object(map) => match map.keys().find(|k| !known.contains(&k.as_str())) {
+            Value::Object(map) => match map.keys().find(|k| k.as_str() != "confirmed" && !known.contains(&k.as_str())) {
                 Some(k) => Err(CmdError::Params(format!(
                     "`{k}` isn't a parameter of this command (it takes {})",
                     known.iter().map(|k| format!("`{k}`")).collect::<Vec<_>>().join(", ")
@@ -409,6 +426,8 @@ mod agent_ids_tests;
 #[cfg(test)]
 mod agent_tests;
 #[cfg(test)]
+mod catalog_tests;
+#[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
@@ -419,7 +438,11 @@ mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
 #[cfg(test)]
+mod gmail_labels_tests;
+#[cfg(test)]
 mod gmail_tests;
+#[cfg(test)]
+mod imap_status_tests;
 #[cfg(test)]
 mod import_pst_calendar_tests;
 #[cfg(test)]
@@ -441,6 +464,10 @@ mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
 #[cfg(test)]
+mod read_pane_off_tests;
+#[cfg(test)]
+mod send_warnings_tests;
+#[cfg(test)]
 mod sender_trust_tests;
 #[cfg(test)]
 mod sender_warnings_tests;
@@ -448,6 +475,8 @@ mod sender_warnings_tests;
 mod strict_ids_all_tests;
 #[cfg(test)]
 mod strict_ids_tests;
+#[cfg(test)]
+mod sync_driver_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

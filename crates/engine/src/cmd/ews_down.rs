@@ -52,6 +52,12 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     if !is_id(&m.server.id) {
         return false;
     }
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    m.categories_cut |= m.server.categories.len() > 50;
+    let (to, cc) = (people(&m.to), people(&m.cc));
+    // (A blank and a character after it, at the most, say a subject on one line is longer.)
+    m.cut |= to.len() < m.to.len() || cc.len() < m.cc.len() || line(&m.subject, MAX_TEXT + 2).chars().count() > MAX_TEXT;
     let server = &mut m.server;
     server.folder = folder.to_owned();
     server.gone = false;
@@ -68,8 +74,7 @@ fn bounded_message(m: &mut GraphMessage, folder: &str) -> bool {
     m.subject = line(&m.subject, MAX_TEXT);
     m.preview = line(&m.preview, MAX_PREVIEW);
     m.from = person(&m.from).unwrap_or_default();
-    m.to = people(&m.to);
-    m.cc = people(&m.cc);
+    (m.to, m.cc) = (to, cc);
     true
 }
 
@@ -236,7 +241,14 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
     let lost = queued || missing;
     super::graph_mail::drop_own_deletes(mb, account, &own);
     let mut folders: Vec<GraphFolder> = deltas.changed.clone();
-    if !deltas.afresh {
+    // What isn't in the list stays as it is: all of it after a delta, or after a read afresh past
+    // a mail folder that couldn't be read nor where it lies; after one past folders that lie in
+    // known places, what lies directly in those places, for it may be one of them (#1108). (A
+    // place this account doesn't have is the top here, where such a folder is kept.)
+    let keep_all = !deltas.afresh || deltas.unreadable_anywhere;
+    let places: HashSet<&str> =
+        deltas.unreadable_in.iter().map(|p| if mb.folder_by_server(account, p).is_some() { p.as_str() } else { "" }).collect();
+    if keep_all || !places.is_empty() {
         let named: HashSet<&str> = deltas.changed.iter().map(|f| f.id.as_str()).chain(deltas.deleted.iter().map(String::as_str)).collect();
         let stubs: Vec<GraphFolder> = mb
             .folders
@@ -244,6 +256,7 @@ pub(crate) fn take_folders(mb: &mut Mailbox, account: Id, deltas: &EwsFolderDelt
             .filter(|f| f.account == account)
             .filter_map(|f| f.server.as_ref().map(|server| (f.kind, server)))
             .filter(|(_, server)| !named.contains(server.id.as_str()))
+            .filter(|(_, server)| keep_all || places.contains(server.parent.as_str()))
             .map(|(kind, server)| GraphFolder {
                 id: server.id.clone(),
                 parent: server.parent.clone(),
@@ -287,6 +300,7 @@ pub(crate) fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, 
         link: String::new(),
         caught_up: false,
         afresh: page.afresh,
+        relist_gen: 0,
         counts: None,
     };
     graph_down::take_page(mb, index, account, &as_page, down);

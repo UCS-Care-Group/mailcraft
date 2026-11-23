@@ -30,12 +30,12 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
-use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table, VAlign};
+use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Rgb, Sides, Span, Table, VAlign};
 use mailcraft_model::Message;
 
 use super::colors::Paper;
-use super::fonts::{Chooser, Pick};
 use super::images::{self, Pictures};
+use crate::fonts::{Chooser, Pick};
 use crate::theme::{Tokens, mono, regular, semibold};
 
 /// The size of text that asks for none, in points.
@@ -168,6 +168,27 @@ pub enum ItemKind {
     },
     Picture(PictureItem),
     Placeholder(PlaceholderItem),
+    /// A picture behind a box, over its colour and under what it holds (#601); the item's
+    /// rectangle is the box's, which it is clipped to.
+    Backdrop(BackdropItem),
+}
+
+/// A picture behind a box (`super::backdrop`): one of the message's own, attached to it or
+/// written into it. Never one from the web.
+#[derive(Clone, Debug)]
+pub struct BackdropItem {
+    pub data: Arc<Vec<u8>>,
+    /// The size of one copy.
+    pub tile: Vec2,
+    /// Where the first copy's top left corner is, from the box's.
+    pub offset: Vec2,
+    /// Whether it repeats across and down.
+    pub repeat: [bool; 2],
+    /// What it is multiplied by: white, or darker in the dark theme.
+    pub tint: Color32,
+    /// What is painted over it, for a box with no colour of its own: the paper round it, a
+    /// little see-through.
+    pub veil: Option<Color32>,
 }
 
 /// A piece of text: a paragraph, or part of a very long one.
@@ -178,8 +199,8 @@ pub struct TextItem {
     /// Where the text's origin is, from the left of the item (centred and right-aligned text is
     /// laid out around its origin).
     pub anchor: f32,
-    /// The parts that lead somewhere: character ranges and their addresses.
-    pub links: Vec<(Range<usize>, Arc<str>)>,
+    /// The linked spans, in character order.
+    pub links: Vec<TextLink>,
     /// What is painted behind it: what its colours were checked against (and are, by the tests).
     #[cfg_attr(not(test), allow(dead_code))]
     pub paper: Color32,
@@ -189,6 +210,18 @@ pub struct TextItem {
     pub join: Join,
     /// What a copy that starts at its beginning writes in front of it: a list item's marker.
     pub lead: String,
+}
+
+/// A linked span and the ink used to underline it.
+#[derive(Clone, Debug)]
+pub struct TextLink {
+    pub range: Range<usize>,
+    pub url: Arc<str>,
+    pub ink: Color32,
+    /// Whether its line is drawn: a link is underlined unless it said otherwise itself
+    /// (`Span::bare`) and nothing in it asks for the line. What it opens is shown when the
+    /// pointer is over it, whatever it looks like.
+    pub underlined: bool,
 }
 
 /// A picture: one of the message's own, or one from the web that the owner asked for.
@@ -227,6 +260,8 @@ pub struct Stats {
     pub tables: usize,
     /// Layout tables that were stacked for want of room.
     pub stacked: usize,
+    /// Pictures behind boxes that are shown (#601).
+    pub behind: usize,
 }
 
 /// A message laid out, as far as it has been.
@@ -436,6 +471,53 @@ impl Cx<'_> {
         self.items.len() - 1
     }
 
+    /// Keep a place in the painting order for the picture behind a box, when there is one to show
+    /// (#601): the message's own (attached to it or written into it), under the caps of every
+    /// other picture. Its size is known when the box's is ([`Cx::fill_behind`]).
+    fn behind_slot(&mut self, picture: Option<&BgPicture>) -> Option<Behind> {
+        let picture = picture?;
+        super::backdrop::tint(&self.t)?;
+        if self.stats.pictures.saturating_add(self.stats.behind) >= images::MAX_PICTURES_PER_MESSAGE {
+            return None;
+        }
+        let src = picture.src.trim();
+        let bytes =
+            picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+        let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
+        self.stats.behind += 1;
+        Some(Behind { slot: self.slot(), data, size })
+    }
+
+    /// `paper` (the box's colour, `asked`) as the text in the box is read on it: with `picture` set
+    /// where the picture kept for it is painted as it is, so that the colours of the text there
+    /// are not judged against the colour under the picture.
+    fn lit(&self, behind: &Option<Behind>, asked: Option<Rgb>, paper: Paper) -> Paper {
+        match asked {
+            Some(asked) if behind.is_some() && Paper::of(asked, &self.t).fill == super::colors::c32(asked) => Paper { picture: true, ..paper },
+            _ => paper,
+        }
+    }
+
+    /// Put the picture behind a box at `rect` into the place kept for it. `asked`: the box's own
+    /// colour; `paper`: what its text is read against.
+    fn fill_behind(&mut self, behind: Option<Behind>, rect: Rect, picture: Option<&BgPicture>, asked: Option<Rgb>, paper: Paper) {
+        let (Some(Behind { slot, data, size: [w, h] }), Some(picture)) = (behind, picture) else { return };
+        // Dimmed in the dark theme with a colour it turned dark, or none; veiled where there is none.
+        let veil = asked.is_none().then(|| paper.fill.gamma_multiply(super::backdrop::VEIL));
+        let turned = asked.is_some_and(|c| Paper::of(c, &self.t).fill != super::colors::c32(c));
+        let tint = match super::backdrop::tint(&self.t) {
+            Some(tint) if turned || veil.is_some() => tint,
+            _ => Color32::WHITE,
+        };
+        let tile = super::backdrop::tile_size(picture.size, vec2(w as f32, h as f32), rect.size());
+        let offset = super::backdrop::offset(picture.position, tile, rect.size());
+        let item = BackdropItem { data, tile, offset, repeat: picture.repeat.axes(), tint, veil };
+        self.right = self.right.max(rect.max.x);
+        if let Some(kept) = self.items.get_mut(slot) {
+            *kept = Item { rect, kind: ItemKind::Backdrop(item), seg: NO_SEG };
+        }
+    }
+
     fn fill_slot(&mut self, slot: usize, rect: Rect, color: Color32, radius: f32) {
         self.right = self.right.max(rect.max.x);
         if let Some(item) = self.items.get_mut(slot) {
@@ -446,6 +528,13 @@ impl Cx<'_> {
     fn measure(&mut self, job: LayoutJob) -> Arc<egui::Galley> {
         self.ctx.fonts_mut(|f| f.layout_job(job))
     }
+}
+
+/// The place kept for a picture behind a box, and the picture.
+struct Behind {
+    slot: usize,
+    data: Arc<Vec<u8>>,
+    size: [u32; 2],
 }
 
 /// What the block above was, for the gap under it and for joining quote bars.
@@ -646,7 +735,7 @@ fn text_job(
     align: Align,
     line_height: Option<LineHeight>,
     zoom: f32,
-) -> (LayoutJob, Vec<(Range<usize>, Arc<str>)>, usize) {
+) -> (LayoutJob, Vec<TextLink>, usize) {
     let (base, line) = type_scale(kind);
     let pre = matches!(kind, BlockKind::Preformatted);
     let mut job = LayoutJob { wrap: TextWrapping { max_width: wrap, ..TextWrapping::default() }, halign: halign(align), ..LayoutJob::default() };
@@ -673,7 +762,7 @@ fn text_job(
             font_id: font,
             color: ink,
             italics: span.italic,
-            underline: if span.underline || span.link.is_some() { stroke } else { Stroke::NONE },
+            underline: if span.underline && span.link.is_none() { stroke } else { Stroke::NONE },
             strikethrough: if span.strike { stroke } else { Stroke::NONE },
             background,
             line_height: Some(line_height.map_or(size * line, |lh| lh.of(size)).round()),
@@ -681,7 +770,7 @@ fn text_job(
         };
         let count = span.text.chars().count();
         if let Some(url) = &span.link {
-            links.push((chars..chars + count, Arc::clone(url)));
+            links.push(TextLink { range: chars..chars + count, url: Arc::clone(url), ink, underlined: !span.bare || span.underline });
         }
         chars += count;
         job.append(&span.text, 0.0, format);
@@ -766,7 +855,12 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
-    let (x, width) = (x + indent, (width - indent).max(MIN_CELL.min(width)));
+    // An item that reads from the right hangs its marker there, whatever side its text stands at
+    // (a `text-align` does not move a bullet, as in a browser): its text is indented from the
+    // right instead of the left (#603).
+    let hung_right = matches!(block.kind, BlockKind::ListItem { .. }) && block.rtl;
+    let (edge, room) = (x + width, (width - indent).max(MIN_CELL.min(width)));
+    let (x, width) = if hung_right { (x, room) } else { (x + indent, room) };
     let quoted = block.quote > 0;
     let mut y = y;
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
@@ -792,7 +886,8 @@ fn text_from(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: 
             let first = piece.first();
             let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from) * cx.zoom;
             let ink = paper.ink(&cx.t, first.and_then(|s| s.color).filter(|_| first.is_some_and(|s| s.link.is_none())), false, quoted);
-            list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
+            let side = if hung_right { Hang::Right { text: x + width, edge } } else { Hang::Left { text: x, edge: left } };
+            list_marker(cx, marker, *depth, y, side, row, size, ink, paper.fill);
         }
         let anchor = match block.align {
             Align::Left => 0.0,
@@ -841,13 +936,25 @@ fn copied_marker(marker: &Marker, depth: u8) -> String {
     }
 }
 
-/// What stands in front of a list item whose text starts at `at`: a bullet or a number, never
-/// further left than `left`.
-fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left: f32, row: f32, size: f32, ink: Color32, paper: Color32) {
+/// Which edge a list item's marker hangs at, with the edge of its text beside it and the limit it
+/// may not pass (the item's own edge).
+#[derive(Clone, Copy)]
+enum Hang {
+    Left { text: f32, edge: f32 },
+    Right { text: f32, edge: f32 },
+}
+
+/// What stands in front of a list item: a bullet or a number, beside its text at `side`, never
+/// past the item's edge.
+fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, y: f32, side: Hang, row: f32, size: f32, ink: Color32, paper: Color32) {
     let Some(label) = marker_label(marker) else {
         if matches!(marker, Marker::Bullet) {
             let r = (size * 0.19).clamp(2.0, 4.0);
-            let center = pos2((at.x - 11.0).max(left + r), at.y + row / 2.0);
+            let cx_at = match side {
+                Hang::Left { text, edge } => (text - 11.0).max(edge + r),
+                Hang::Right { text, edge } => (text + 11.0).min(edge - r),
+            };
+            let center = pos2(cx_at, y + row / 2.0);
             cx.push(Rect::from_center_size(center, Vec2::splat(r * 2.0)), ItemKind::Bullet { depth, color: ink });
         }
         return;
@@ -855,7 +962,11 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left
     let format = TextFormat { font_id: regular(size), color: ink, line_height: Some((size * LINE).round()), ..TextFormat::default() };
     let job = LayoutJob { wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() }, ..LayoutJob::single_section(label, format) };
     let galley = cx.measure(job.clone());
-    let rect = Rect::from_min_size(pos2((at.x - 6.0 - galley.size().x).max(left), at.y), galley.size());
+    let at_x = match side {
+        Hang::Left { text, edge } => (text - 6.0 - galley.size().x).max(edge),
+        Hang::Right { text, edge } => (text + 6.0).min(edge - galley.size().x),
+    };
+    let rect = Rect::from_min_size(pos2(at_x, y), galley.size());
     // Not a text of the message: it is not selected, and a copy writes it with its item.
     let number = TextItem { job: Arc::new(job), anchor: 0.0, links: Vec::new(), paper, chars: 0, join: Join::default(), lead: String::new() };
     cx.push(rect, ItemKind::Text(number));
@@ -874,6 +985,7 @@ fn run_length(blocks: &[Block], index: usize) -> usize {
 struct Tile<'a> {
     size: Vec2,
     block: &'a Block,
+    padding: Option<Pad>,
     /// The picture's bytes when it is one of the message's own and can be shown.
     data: Option<Arc<Vec<u8>>>,
     label: String,
@@ -885,8 +997,29 @@ struct Tile<'a> {
 
 /// What a picture block comes to in `room` points of width. `shown` counts it; measuring a column does not.
 fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
+    let Some(padding) = block.image_padding else { return picture_tile(cx, block, room, 0.0, shown) };
+    let mut pad = Pad::from_insets(padding);
+    let wanted_padding = pad.across();
+    let mut tile = picture_tile(cx, block, room, wanted_padding, shown);
+    // Keep space for the picture or placeholder mark, and give the padding what is left.
+    tile.size.x = tile.size.x.min(room);
+    let padding_room = (room - tile.size.x).max(0.0);
+    if wanted_padding > padding_room {
+        let scale = padding_room / wanted_padding;
+        pad.left *= scale;
+        pad.right *= scale;
+    }
+    tile.size += vec2(pad.across(), pad.top + pad.bottom);
+    tile.wanted += wanted_padding;
+    tile.padding = Some(pad);
+    tile
+}
+
+/// Measure the picture in the full slot. An unsized stand-in can use less width for its label
+/// to leave room for padding around its mark.
+fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, shown: bool) -> Tile<'a> {
     let BlockKind::Image { src, width, height, data, .. } = &block.kind else {
-        return Tile { size: Vec2::ZERO, block, data: None, label: String::new(), described: false, wanted: 0.0 };
+        return Tile { size: Vec2::ZERO, block, padding: None, data: None, label: String::new(), described: false, wanted: 0.0 };
     };
     let alt = block.text();
     let alt = alt.trim();
@@ -900,7 +1033,8 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     {
         bytes = Some(data);
     }
-    let bytes = bytes.filter(|_| cx.stats.pictures < images::MAX_PICTURES_PER_MESSAGE);
+    // (The pictures behind boxes count against the same cap: one message's pictures in all.)
+    let bytes = bytes.filter(|_| cx.stats.pictures.saturating_add(cx.stats.behind) < images::MAX_PICTURES_PER_MESSAGE);
     let natural = bytes.and_then(|data| cx.pictures.size(&data, cx.frame).map(|size| (data, size)));
     let asked = |v: &Option<u16>| v.map(f32::from).filter(|v| *v >= 1.0);
     if let Some((data, [w, h])) = natural {
@@ -918,7 +1052,7 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
         if shown {
             cx.stats.pictures += 1;
         }
-        return Tile { size, block, data: Some(data), label: alt.to_string(), described: !alt.is_empty(), wanted };
+        return Tile { size, block, padding: None, data: Some(data), label: alt.to_string(), described: !alt.is_empty(), wanted };
     }
     // Not shown: a stand-in the size of its description, or just a mark for a small picture without one.
     let small = width.is_some_and(|w| w <= 48) || height.is_some_and(|h| h <= 48);
@@ -946,10 +1080,10 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     if let (true, Some(w), Some(h)) = (asked_for, asked(width), asked(height)) {
         let scale = (room / w).min(MAX_PICTURE_HEIGHT / h).min(1.0);
         let size = vec2((w * scale).max(1.0), (h * scale).max(1.0));
-        return Tile { size, block, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };
+        return Tile { size, block, padding: None, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };
     }
     let wanted = CHIP_HEIGHT + text;
-    Tile { size: vec2(wanted.min(room.max(CHIP_HEIGHT)), CHIP_HEIGHT), block, data: None, label, described, wanted }
+    Tile { size: vec2(wanted.min((room - padding).max(CHIP_HEIGHT)), CHIP_HEIGHT), block, padding: None, data: None, label, described, wanted }
 }
 
 /// Lay out pictures that stand in one line, wrapping to more lines as needed; the bottom.
@@ -993,6 +1127,7 @@ fn pictures(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: P
 /// same line was given its place in a copy already.
 fn put_tile(cx: &mut Cx<'_>, tile: &Tile<'_>, rect: Rect, paper: Paper, said: &mut bool) {
     let BlockKind::Image { src, link, .. } = &tile.block.kind else { return };
+    let rect = tile.padding.map_or(rect, |pad| Rect::from_min_max(rect.min + vec2(pad.left, pad.top), rect.max - vec2(pad.right, pad.bottom)));
     let link = link.as_deref().map(Arc::from);
     match &tile.data {
         Some(data) => cx.push_seg(rect, ItemKind::Picture(PictureItem { data: data.clone(), alt: tile.label.clone(), link, paper })),
@@ -1127,7 +1262,8 @@ fn mixed_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
                     put_tile(cx, &tile, Rect::from_min_size(pos2(at, top), tile.size), paper, &mut said);
                 }
                 _ if too_wide => {
-                    let alone = Block { align: Align::Left, space: 0, beside: false, ..block.clone() };
+                    // It keeps the side of the picture before it, so that the two stay together.
+                    let alone = Block { space: 0, beside: false, ..block.clone() };
                     bottom = bottom.max(text(cx, &alone, x, y, width, paper));
                 }
                 _ => {
@@ -1466,7 +1602,7 @@ fn grid(table: &Table) -> Grid<'_> {
 
 /// Whether the table itself is painted: a background, or lines.
 fn painted(table: &Table) -> bool {
-    table.background.is_some() || table.border || table.outline
+    table.background.is_some() || table.bg_picture.is_some() || table.border || table.outline
 }
 
 /// Whether a layout table is ruled: lines above or under some of its cells, and nothing else
@@ -1479,7 +1615,7 @@ fn ruled(table: &Table) -> bool {
     }
     let mut lines = false;
     for cell in table.rows.iter().flat_map(|r| &r.cells) {
-        if cell.background.is_some() || cell.border.left || cell.border.right {
+        if cell.background.is_some() || cell.bg_picture.is_some() || cell.border.left || cell.border.right {
             return false;
         }
         lines |= cell.border.top || cell.border.bottom;
@@ -1497,6 +1633,10 @@ struct Pad {
 }
 
 impl Pad {
+    fn from_insets(pad: mailcraft_html::Insets) -> Pad {
+        Pad { left: f32::from(pad.left), top: f32::from(pad.top), right: f32::from(pad.right), bottom: f32::from(pad.bottom) }
+    }
+
     fn both(v: Vec2) -> Pad {
         Pad { left: v.x, top: v.y, right: v.x, bottom: v.y }
     }
@@ -1511,14 +1651,14 @@ impl Pad {
 fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
     if let Some(asked) = cell.padding {
         // The message says how much (a cell that is only a colour or a line too).
-        return Pad { left: f32::from(asked.left), top: f32::from(asked.top), right: f32::from(asked.right), bottom: f32::from(asked.bottom) };
+        return Pad::from_insets(asked);
     }
     Pad::both(if !table.layout {
         DATA_PADDING
     } else if cell.blocks.is_empty() {
         // A cell that is only a colour or a line: a band or a divider.
         vec2(0.0, 3.0)
-    } else if ruled || painted(table) || cell.background.is_some() || cell.border.any() {
+    } else if ruled || painted(table) || cell.background.is_some() || cell.bg_picture.is_some() || cell.border.any() {
         BOX_PADDING
     } else {
         Vec2::ZERO
@@ -1625,10 +1765,10 @@ fn table_extent(cx: &mut Cx<'_>, table: &Table, depth: usize) -> Extent {
     if table.layout && grid.columns > 1 {
         extent.min = columns.min.iter().copied().fold(0.0, f32::max);
     }
-    match table.width {
-        Some(Length::Px(w)) => extent.max = f32::from(w).max(extent.min),
-        Some(Length::Percent(_)) => extent.max = WIDE,
-        None => {}
+    // A percentage sets the drawn width once there is a containing width. It doesn't make
+    // the table's contents wider when measuring an auto-sized parent.
+    if let Some(Length::Px(w)) = table.width {
+        extent.max = f32::from(w).max(extent.min);
     }
     Extent { min: extent.min.min(WIDE), max: extent.max.clamp(extent.min.min(WIDE), WIDE) }
 }
@@ -1801,7 +1941,7 @@ fn cell_paper(cx: &Cx<'_>, table: &Table, cell: &Cell, around: Paper) -> (Paper,
     match cell.background {
         Some(bg) => (Paper::of(bg, &cx.t), true),
         // A header cell of a data table is shaded a little when the message gives it no colour.
-        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own }, true),
+        None if cell.header && !table.layout => (Paper { fill: around.shade(&cx.t), own: around.own, asked: None, picture: false }, true),
         None => (around, false),
     }
 }
@@ -1881,6 +2021,8 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     };
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
+    let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let gap = gaps(table);
     let ruled = ruled(table);
     // The left edge of each column, and the right edge of the last.
@@ -1899,7 +2041,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     // Rows from the top; a cell that spans rows ends with the last of them.
     let mut tops = Vec::with_capacity(grid.rows);
     let mut bottoms: Vec<f32> = Vec::with_capacity(grid.rows);
-    let mut done: Vec<(usize, Option<usize>, Paper, f32)> = Vec::with_capacity(grid.cells.len());
+    let mut done: Vec<(usize, Option<usize>, Option<Behind>, Paper, f32)> = Vec::with_capacity(grid.cells.len());
     let mut next = 0;
     let mut top = y;
     for row in 0..grid.rows {
@@ -1917,10 +2059,12 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             let pad = padding(table, ruled, placed.cell);
             let (inside, own) = cell_paper(cx, table, placed.cell, around);
             let slot = own.then(|| cx.slot());
+            let behind = cx.behind_slot(placed.cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, placed.cell.background, inside);
             let width = (right - left - pad.across()).max(MIN_CELL.min(right - left));
             let bottom =
                 flow(cx, &placed.cell.blocks, left + pad.left.min((right - left) / 2.0), top + pad.top, width, inside, depth + 1) + pad.bottom;
-            done.push((next, slot, inside, bottom));
+            done.push((next, slot, behind, inside, bottom));
             // ponytail: a cell spanning rows stays at the top; place it once the last row is known if senders need it.
             let single = placed.rows == 1;
             let alone = single && !placed.cell.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_)));
@@ -1933,7 +2077,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
         across.end(cx);
         let bottom = done
             .iter()
-            .filter_map(|(index, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
+            .filter_map(|(index, _, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
             .fold(top, f32::max);
         // A cell the source places goes there; its own fill is painted later, over the whole cell.
         for (items, slot, cell_bottom, valign) in told {
@@ -1971,7 +2115,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     }
     let bottom = bottoms.last().copied().unwrap_or(y);
     let single = grid.cells.len() == 1 && table.width.is_none();
-    for (index, slot, inside, _) in done {
+    for (index, slot, behind, inside, _) in done {
         let Some(placed) = grid.cells.get(index) else { continue };
         let (left, right) = span(placed.col, placed.cols);
         let (Some(top), Some(low)) = (tops.get(placed.row), bottoms.get(placed.row + placed.rows - 1)) else { continue };
@@ -1987,6 +2131,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             };
             cx.fill_slot(slot, rect, inside.fill, radius);
         }
+        cx.fill_behind(behind, rect, placed.cell.bg_picture.as_deref(), placed.cell.background, inside);
         let sides = if table.border { Sides::ALL } else { placed.cell.border };
         let look = edges_of(&cx.t, &placed.cell.lines, sides, around);
         let outer = Sides {
@@ -2001,6 +2146,7 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     // A table with lines round every cell has its outline from them.
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
@@ -2035,6 +2181,8 @@ fn one_line(items: &[Item]) -> bool {
 fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Paper, depth: usize) -> f32 {
     let around = table.background.map_or(paper, |bg| Paper::of(bg, &cx.t));
     let table_slot = table.background.map(|_| cx.slot());
+    let table_behind = cx.behind_slot(table.bg_picture.as_deref());
+    let around = cx.lit(&table_behind, table.background, around);
     let between = gaps(table).y;
     let ruled = ruled(table);
     let mut at = y;
@@ -2052,6 +2200,8 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             let pad = padding(table, ruled, cell);
             let (inside, own) = cell_paper(cx, table, cell, around);
             let slot = own.then(|| cx.slot());
+            let behind = cx.behind_slot(cell.bg_picture.as_deref());
+            let inside = cx.lit(&behind, cell.background, inside);
             let width = (room - pad.across()).max(MIN_CELL.min(room));
             let bottom = if depth >= MAX_NESTING {
                 // Too deep to go on: what is in the cell is not laid out.
@@ -2063,6 +2213,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
             if let Some(slot) = slot {
                 cx.fill_slot(slot, rect, inside.fill, f32::from(cell.radius));
             }
+            cx.fill_behind(behind, rect, cell.bg_picture.as_deref(), cell.background, inside);
             let look = edges_of(&cx.t, &cell.lines, if table.border { Sides::ALL } else { cell.border }, around);
             cell_lines(cx, rect, look, Sides::ALL, f32::from(cell.radius));
             at = bottom;
@@ -2073,6 +2224,7 @@ fn stacked(cx: &mut Cx<'_>, table: &Table, x: f32, y: f32, room: f32, paper: Pap
     if let (Some(slot), Some(bg)) = (table_slot, table.background) {
         cx.fill_slot(slot, whole, Paper::of(bg, &cx.t).fill, f32::from(table.radius));
     }
+    cx.fill_behind(table_behind, whole, table.bg_picture.as_deref(), table.background, around);
     if !table.border {
         let look = table_edges(&cx.t, table, paper);
         cell_lines(cx, whole, look, Sides::ALL, f32::from(table.radius));

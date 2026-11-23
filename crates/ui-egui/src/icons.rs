@@ -8,9 +8,6 @@
 use egui::epaint::{Mesh, TextShape};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 
-mod mark;
-pub use mark::app_mark;
-
 /// Draws on the 20-unit grid of one icon, fitted to the screen's pixels.
 ///
 /// Everything is worked out in device pixels: the grid's origin is a whole pixel, a stroke is a
@@ -522,6 +519,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.head(16.5, 5.5, 0.0, 4.0, c);
             pen.envelope(11.5, 12.0, 18.0, 17.0, c);
         }
+        // React (#1544): a face.
+        "react" => {
+            pen.circle(10.0, 10.0, 7.0, c);
+            pen.fcircle(7.5, 8.0, 0.9, c);
+            pen.fcircle(12.5, 8.0, 0.9, c);
+            pen.line(&[(6.5, 11.5), (8.0, 13.5), (12.0, 13.5), (13.5, 11.5)]);
+        }
         "delete" | "deleted" | "discard" | "remove" => {
             pen.lid(false, c);
             pen.rounded(&[(5.0, 5.5), (5.0, 16.5), (15.0, 16.5), (15.0, 5.5)], false, 1.0, c);
@@ -906,6 +910,15 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rect(2.5, 3.5, 17.5, 16.5, c);
             pen.line_c(&[(7.0, 3.5), (7.0, 16.5)], a);
         }
+        // The switch between the modules at the foot of the pane (#1174): the pane, with a row
+        // of four dots along its lower edge where the modules sit.
+        "navigationBar" => {
+            pen.rect(2.5, 3.5, 17.5, 16.5, c);
+            pen.line_c(&[(2.5, 12.5), (17.5, 12.5)], a);
+            for i in 0..4 {
+                pen.fcircle(4.75 + i as f32 * 3.5, 14.5, 0.9, a);
+            }
+        }
         // Messages one behind another.
         "conversations" => {
             pen.rounded(&[(5.5, 13.0), (2.5, 13.0), (2.5, 3.5), (13.5, 3.5), (13.5, 6.0)], false, 1.0, c);
@@ -949,6 +962,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.head(4.5, 7.0, 90.0, 2.5, a);
             pen.line_c(&[(4.5, 17.5), (4.5, 13.0)], a);
             pen.head(4.5, 13.0, 270.0, 2.5, a);
+        }
+        // Shade Alternate Rows (#1657): a list of four rows, the second and the fourth banded.
+        "shadeRows" => {
+            pen.rect(2.5, 2.5, 17.5, 17.5, c);
+            pen.frect(3.5, 6.5, 16.5, 10.0, a);
+            pen.frect(3.5, 13.5, 16.5, 16.5, a);
         }
         // Zoom: a glass with a plus in it.
         "zoom" => {
@@ -1103,6 +1122,11 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(6.0, 3.0), (6.0, 5.5), (10.0, 10.0), (6.0, 14.5), (6.0, 17.0)], false, 1.0, c);
             pen.rounded(&[(14.0, 3.0), (14.0, 5.5), (10.0, 10.0), (14.0, 14.5), (14.0, 17.0)], false, 1.0, c);
             pen.line_c(&[(8.0, 15.5), (12.0, 15.5)], a);
+        }
+        "spelling" => {
+            pen.line(&[(3.0, 5.0), (17.0, 5.0)]);
+            pen.line(&[(3.0, 8.0), (11.0, 8.0)]);
+            pen.line_c(&[(3.0, 14.0), (5.0, 12.0), (7.0, 14.0), (9.0, 12.0), (11.0, 14.0), (13.0, 12.0), (15.0, 14.0), (17.0, 12.0)], a);
         }
         // Review › Word Count: lines of text and a tally of four strokes and one across them.
         "wordCount" => {
@@ -1292,6 +1316,7 @@ pub const NAMES: &[&str] = &[
     "replyAll",
     "forward",
     "forwardAsAttachment",
+    "react",
     "delete",
     "deleted",
     "discard",
@@ -1404,6 +1429,7 @@ pub const NAMES: &[&str] = &[
     "filter",
     "readingPane",
     "folderPane",
+    "navigationBar",
     "conversations",
     "ribbon",
     "sort",
@@ -1412,6 +1438,7 @@ pub const NAMES: &[&str] = &[
     "list",
     "changeView",
     "density",
+    "shadeRows",
     "zoom",
     "recentSearches",
     "reset",
@@ -1444,6 +1471,7 @@ pub const NAMES: &[&str] = &[
     "clock",
     "time",
     "dateTime",
+    "spelling",
     "wordCount",
     "pending",
     "picture",

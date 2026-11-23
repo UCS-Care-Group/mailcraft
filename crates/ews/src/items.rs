@@ -35,6 +35,14 @@ const MAX_PEOPLE: usize = 200;
 const MAX_CATEGORIES: usize = 50;
 const MAX_CATEGORY: usize = 255;
 
+/// What a list shows of an item that the `Default` shape doesn't give of every kind of item,
+/// asked for by name in every shape (#1457). Of a meeting request, response or cancellation
+/// (`MeetingRequest`, `MeetingResponse`, `MeetingCancellation`: [MS-OXWSMTGS]) Exchange Server
+/// 2019 gives no time, size, sender, importance or `Message-ID` in that shape, and of a message
+/// not the time it arrived or its importance; without them a meeting request was listed as sent
+/// and received at no time, by nobody, at the bottom of the Inbox and the last to be fetched.
+const LISTED: [&str; 6] = ["item:DateTimeReceived", "item:DateTimeSent", "item:Size", "item:Importance", "message:From", "message:InternetMessageId"];
+
 /// Which properties `SyncFolderItems` asks for besides the default ones.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
@@ -43,8 +51,12 @@ pub enum Shape {
     /// itself, [`GetItemConversations`].)
     Full,
     /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, say), which are then left out.
+    /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
+    /// The categories alone: for a server that won't give the recipients in `SyncFolderItems`
+    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
+    /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
+    Bare,
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -99,14 +111,16 @@ impl SyncFolderItems {
         Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape }
     }
 
-    /// The operation as the schema has it: `ItemShape`, `SyncFolderId`, `SyncState`,
-    /// `MaxChangesReturned`, `SyncScope`.
+    /// The operation as the schema has it: `ItemShape` (the `Default` shape and what a list
+    /// shows that it may lack, [`LISTED`]), `SyncFolderId`, `SyncState`, `MaxChangesReturned`,
+    /// `SyncScope`.
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
-        let mut extra = Element::new("t:AdditionalProperties")
-            .child(uri("message:ToRecipients"))
-            .child(uri("message:CcRecipients"))
-            .child(uri("item:Categories"));
+        let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
+        if self.shape != Shape::Bare {
+            extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        }
+        extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
@@ -240,6 +254,17 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
+    // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
+    // end of a subject past what is kept of one (#566).
+    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+    // (A subject longer than the XML reader keeps of a text comes with none.)
+    let (subject, subject_cut) = item.child_in(TYPES, "Subject").map_or(("", false), |n| (n.text.as_str(), n.text_cut));
+    let cut = to.len() < listed("ToRecipients")
+        || cc.len() < listed("CcRecipients")
+        || subject_cut
+        || line(subject, MAX_SUBJECT + 1).chars().count() > MAX_SUBJECT;
+    let categories_cut = listed("Categories") > MAX_CATEGORIES;
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
@@ -256,16 +281,99 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
             ..ServerMessage::default()
         },
         message_id: message_id.trim_start_matches('<').trim_end_matches('>').to_owned(),
-        subject: line(item.child_in(TYPES, "Subject").map_or("", |n| n.text.as_str()), MAX_SUBJECT),
+        subject: line(subject, MAX_SUBJECT),
         from: people(item, "From").into_iter().next().unwrap_or_default(),
-        to: people(item, "ToRecipients"),
-        cc: people(item, "CcRecipients"),
+        to,
+        cc,
         sent: time(item, "DateTimeSent"),
         received: time(item, "DateTimeReceived"),
         preview: line(item.child_in(TYPES, "Preview").map_or("", |n| n.text.as_str()), MAX_PREVIEW),
         has_attachments: flag(item, "HasAttachments"),
         draft: item.child_in(TYPES, "IsDraft").map(|n| n.text.trim().eq_ignore_ascii_case("true")),
+        cut,
+        categories_cut,
     })
+}
+
+/// Most items one `GetItem` asks the recipients of.
+pub const MAX_RECIPIENTS_ASKED: usize = 100;
+
+/// The people a message was sent to, as [`GetItemRecipients`] reads them.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct Recipients {
+    /// The item's id.
+    pub id: String,
+    /// `ToRecipients`.
+    pub to: Vec<Address>,
+    /// `CcRecipients`.
+    pub cc: Vec<Address>,
+    /// Some of them were left out, past what is kept of a list or as a recipient that can't be
+    /// kept: a rule can't tell from them who it was sent to (#566).
+    pub cut: bool,
+}
+
+impl std::fmt::Debug for Recipients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Recipients").field("to", &self.to.len()).field("cc", &self.cc.len()).field("cut", &self.cut).finish()
+    }
+}
+
+/// The request `GetItem` for the recipients of several items: for a server whose `SyncFolderItems`
+/// won't give them ([`Shape::Bare`], #1349), or leaves them out (Exchange 2013 to 2019, #1151).
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemRecipients {
+    ids: Vec<String>,
+}
+
+impl std::fmt::Debug for GetItemRecipients {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemRecipients").field("ids", &self.ids.len()).finish()
+    }
+}
+
+impl GetItemRecipients {
+    /// Asks for the items with these ids, the first [`MAX_RECIPIENTS_ASKED`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_RECIPIENTS_ASKED).cloned().collect() }
+    }
+
+    /// Whether there is nothing to ask.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and the two lists), `ItemIds`.
+    pub fn element(&self) -> Element {
+        let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
+        let extra = Element::new("t:AdditionalProperties").child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+        Element::new("m:GetItem").child(shape).child(ids)
+    }
+
+    /// The recipients of each item the server answered for, in the order asked; an item it answered
+    /// with an error of its own (gone since, say) is left out. A busy server is [`Error::Busy`] for
+    /// the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Vec<Recipients>, Error> {
+        let messages = reply.messages("GetItem")?;
+        let mut out = Vec::with_capacity(self.ids.len());
+        for (id, message) in self.ids.iter().zip(&messages) {
+            match message.ok() {
+                Ok(node) => {
+                    let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) else {
+                        continue;
+                    };
+                    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+                    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+                    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
+                    out.push(Recipients { id: id.clone(), to, cc, cut });
+                }
+                Err(busy @ Error::Busy { .. }) => return Err(busy),
+                Err(_) => {}
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Most items one `GetItem` asks the conversation of.

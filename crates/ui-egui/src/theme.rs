@@ -5,10 +5,14 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Stroke, Visuals};
-use mailcraft_model::rich::Font;
+use mailcraft_model::rich::Built;
 
 mod accent;
-pub use accent::{Accent, AccentInk, lenient_bool};
+mod blue;
+pub use accent::{
+    Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
+};
+pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
@@ -228,7 +232,8 @@ pub struct Tokens {
     pub surface_sunken: Color32,
     /// The ring round a control that has the keyboard's focus in a box that has no stroke of its own.
     pub focus_ring: Color32,
-    /// The line under a row of the message list.
+    /// The line under a row of the message list: plainly seen on a bright screen (#1657), and in
+    /// High Contrast 3:1 on the list.
     pub rule: Color32,
     /// The groove a progress bar runs in.
     pub track: Color32,
@@ -342,7 +347,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0xE6, 0xE9, 0xEF),
+            rule: c(0xC6, 0xCD, 0xD8),
             border_faint: c(0xEC, 0xEF, 0xF4),
             track: c(0xD6, 0xDC, 0xE6),
             lane: window,
@@ -367,54 +372,57 @@ impl Tokens {
             avatar_shade: 1.0,
         }
     }
-    /// The dark palette: one cool ramp, window to folder pane to list to ribbon, and a lighter
-    /// blue accent.
+    /// The dark palette: neutral greys, window to folder pane to list to ribbon, as in the other
+    /// Craft programs (no blue in the greys; only the accent and what it washes are coloured),
+    /// and a lighter blue accent.
     pub fn dark() -> Self {
-        let window = c(0x12, 0x16, 0x1D);
-        let panel = c(0x16, 0x1B, 0x23);
-        let surface = c(0x1B, 0x21, 0x2B);
-        let border = c(0x2C, 0x34, 0x42);
-        let text = c(0xF1, 0xF4, 0xF9);
-        let hover = c(0x2A, 0x32, 0x40);
+        let window = c(0x18, 0x18, 0x1A);
+        let panel = c(0x1D, 0x1D, 0x1F);
+        let surface = c(0x22, 0x22, 0x24);
+        let border = c(0x38, 0x38, 0x3C);
+        let text = c(0xEE, 0xEE, 0xF0);
+        let hover = c(0x32, 0x32, 0x36);
         let accent = c(0x5A, 0xA2, 0xFF);
         let on_accent = c(0x08, 0x13, 0x2B);
-        let soft = c(0x1F, 0x33, 0x58);
-        let selection = c(0x1F, 0x2B, 0x40);
-        let input_border = c(0x7D, 0x88, 0x9C);
+        let soft = c(0x26, 0x34, 0x51);
+        let selection = c(0x26, 0x2C, 0x39);
+        let input_border = c(0x84, 0x84, 0x8B);
+        let ribbon = c(0x2A, 0x2A, 0x2D);
+        let dim = c(0xB6, 0xB6, 0xBC);
         Tokens {
             dark: true,
             high_contrast: false,
             sender_dark: false,
             title_bar: window,
-            ribbon: c(0x20, 0x27, 0x33),
+            ribbon,
             tab_strip: window,
             nav: window,
             canvas: window,
             panel,
             surface,
             border,
-            border_strong: c(0x4A, 0x55, 0x68),
+            border_strong: c(0x55, 0x55, 0x5B),
             text,
-            text_dim: c(0xB4, 0xBC, 0xCB),
-            text_disabled: c(0x6E, 0x78, 0x8C),
-            icon: c(0xDF, 0xE4, 0xEC),
+            text_dim: dim,
+            text_disabled: c(0x7A, 0x7A, 0x80),
+            icon: c(0xDE, 0xDE, 0xE2),
             hover,
-            pressed: c(0x36, 0x40, 0x52),
+            pressed: c(0x3E, 0x3E, 0x43),
             checked: soft,
             accent,
             accent_text: c(0x8F, 0xBF, 0xFF),
             on_accent,
             input: surface,
             input_border,
-            group_label: c(0xB4, 0xBC, 0xCB),
+            group_label: dim,
             status_bar: window,
             selection,
             find_highlight: Color32::from_rgba_unmultiplied(0xC8, 0xA8, 0x00, 0x70),
-            flagged_row: c(0x34, 0x26, 0x2C),
+            flagged_row: c(0x3A, 0x2A, 0x2E),
             overdue: c(0xFF, 0x99, 0x99),
-            off_hours: c(0x17, 0x1C, 0x24),
-            today: c(0x1B, 0x2B, 0x45),
-            menu: c(0x20, 0x27, 0x33),
+            off_hours: c(0x1E, 0x1E, 0x20),
+            today: c(0x22, 0x2C, 0x3E),
+            menu: ribbon,
             blue: c(0x6C, 0x9B, 0xEA),
             red: c(0xEE, 0x6A, 0x6A),
             green: c(0x5B, 0xC0, 0x8A),
@@ -427,23 +435,23 @@ impl Tokens {
             shadow_popup: Color32::from_black_alpha(120),
             shadow_window: Color32::from_black_alpha(140),
             text_selection: accent.linear_multiply(0.45),
-            selection_unfocused: c(0x1A, 0x22, 0x30),
+            selection_unfocused: c(0x2A, 0x2A, 0x2E),
             selection_edge: accent,
-            selection_edge_unfocused: c(0x4A, 0x58, 0x72),
+            selection_edge_unfocused: c(0x60, 0x60, 0x68),
             group_header: Color32::TRANSPARENT,
             selection_pill: soft,
             accent_soft: soft,
             accent_soft_text: c(0xCF, 0xE0, 0xFF),
-            pill_quiet: c(0x26, 0x2E, 0x3B),
+            pill_quiet: c(0x30, 0x30, 0x34),
             hover_subtle: hover.linear_multiply(0.6),
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0x25, 0x2C, 0x38),
-            border_faint: c(0x22, 0x29, 0x34),
-            track: c(0x36, 0x40, 0x52),
+            rule: c(0x46, 0x46, 0x4D),
+            border_faint: c(0x2A, 0x2A, 0x2D),
+            track: c(0x3E, 0x3E, 0x43),
             lane: panel,
-            ribbon_edge: Stroke::new(1.0, c(0x2A, 0x32, 0x40)),
+            ribbon_edge: Stroke::new(1.0, c(0x33, 0x33, 0x37)),
             pane_rule: true,
             field_edge: input_border,
             backstage_column: panel,
@@ -482,6 +490,32 @@ impl Tokens {
         rgb.linear_multiply(0.8)
     }
 
+    /// The faint band every other row of the message list wears with View › Shade Alternate Rows
+    /// (#1657): the list's own colour a little towards its text, a little more in High Contrast.
+    /// A custom accent is fitted against it ([`accent::custom_ink`]).
+    pub fn row_shade(&self) -> Color32 {
+        self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
+    }
+
+    /// How a message-list row is laid, from the bottom up (#1657): its shaded band, a flag's tint,
+    /// a selection's fill (letting a little of a flag's tint through) or else the pointer's shade.
+    /// `selected` is whether the list has the focus, for a selected row. The list paints these
+    /// and its coloured text is fitted to what they make ([`RowLayers::under`]), so the two can't
+    /// part, as long as every layer it paints covers all of the row's text.
+    pub fn list_row_layers(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> RowLayers {
+        let selection = selected.map(|focus| {
+            let fill = if focus { self.selection } else { self.selection_unfocused };
+            if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }
+        });
+        RowLayers {
+            base: self.surface,
+            band: shaded.then(|| self.row_shade()),
+            flag: flagged.then_some(self.flagged_row),
+            selection,
+            hover: (selected.is_none() && hovered).then_some(self.hover_subtle),
+        }
+    }
+
     /// The strength with which a mailbox colour tints an event block over `surface`.
     pub fn data_soft(&self, hovered: bool) -> f32 {
         if hovered { self.data_soft + 0.08 } else { self.data_soft }
@@ -514,9 +548,13 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off.
-    pub fn for_choice(accent: Accent, high_contrast: bool) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build(true, accent, high_contrast) }
+    /// The built-in look in `accent` — with `custom` as the colour when it is a custom one — with
+    /// high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, custom: Option<Color32>, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette {
+            light: Tokens::build_choice(false, accent, custom, high_contrast),
+            dark: Tokens::build_dark_choice(style, accent, custom, high_contrast),
+        }
     }
 
     fn slot() -> egui::Id {
@@ -533,13 +571,17 @@ impl Palette {
 pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
+    /// The colour of a custom accent; None until the owner picks one (the default is used then).
+    pub custom: Option<Color32>,
     pub high_contrast: bool,
+    /// The greys of the dark theme (#1384).
+    pub dark_style: DarkStyle,
 }
 
 impl ThemeChoice {
     /// The palette this choice shows.
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast)
+        Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style)
     }
 }
 
@@ -584,9 +626,14 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     // Segoe UI has Hebrew and Arabic; Thai and the scripts of India come from these.
     &["LeelawUI.ttf", "leelawad.ttf", "tahoma.ttf"],
     &["Nirmala.ttf", "mangal.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort, for when Segoe UI isn't there: Arial has Hebrew and Arabic.
     &["arial.ttf"],
 ];
+
+/// Georgian (#1010): Sylfaen, the system's Georgian face since Windows XP, then Segoe UI.
+#[cfg(windows)]
+pub const GEORGIAN_FACES: &[&str] = &["sylfaen.ttf", "segoeui.ttf"];
 
 /// As on Windows, the faces macOS keeps in its fonts folders (`/System/Library/Fonts` and its
 /// `Supplemental`). PingFang is no longer among them on recent systems, so it comes last; Arial
@@ -600,7 +647,13 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["GeezaPro.ttc", "Arial Unicode.ttf"],
     &["Thonburi.ttc", "Arial Unicode.ttf"],
     &["Kohinoor.ttc", "DevanagariMT.ttc", "Arial Unicode.ttf"],
+    GEORGIAN_FACES,
 ];
+
+/// Georgian (#1010): Apple's own face (`SFGeorgian.ttf`, macOS 11 and later), then a Noto face the
+/// owner installed, then Arial Unicode, which has Mkhedruli alone.
+#[cfg(target_os = "macos")]
+pub const GEORGIAN_FACES: &[&str] = &["SFGeorgian.ttf", "NotoSansGeorgian-Regular.ttf", "Arial Unicode.ttf"];
 
 /// As on Windows, the faces the free desktops' packages install (Noto, Source Han, WenQuanYi,
 /// Nanum, DejaVu), in any of their fonts folders.
@@ -615,6 +668,8 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
         "SourceHanSans-Regular.ttc",
         "SourceHanSansSC-Regular.otf",
         "NotoSansCJK-VF.ttc",
+        // Upstream's variable collection is 32,682,580 bytes, close to FALLBACK_FONT_CAP.
+        "NotoSansCJK-VF.otf.ttc",
         "wqy-microhei.ttc",
         "wqy-zenhei.ttc",
         "DroidSansFallbackFull.ttf",
@@ -625,9 +680,15 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
     &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
     &["NotoSansThai-Regular.ttf"],
     &["NotoSansDevanagari-Regular.ttf"],
+    GEORGIAN_FACES,
     // A broad last resort: Hebrew, Arabic, Armenian, Georgian and more.
     &["DejaVuSans.ttf", "FreeSans.ttf"],
 ];
+
+/// Georgian (#1010): Noto Sans Georgian (the packages of the free desktops), then DejaVu Sans and
+/// FreeSans, which have Mkhedruli but no Mtavruli.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+pub const GEORGIAN_FACES: &[&str] = &["NotoSansGeorgian-Regular.ttf", "DejaVuSans.ttf", "FreeSans.ttf"];
 
 /// The system's colour emoji face, by the name of its file, best first (#832): drawn in its own
 /// colours, in front of egui's black-and-white emoji. Apple Color Emoji is left out: at well over
@@ -656,45 +717,40 @@ pub struct SystemFont {
     fallbacks: Vec<Arc<FontData>>,
     /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
     emoji: Option<Arc<FontData>>,
-    /// The installed face of each font a message can be written in (#582), by font and whether
-    /// it is the bold face; read at start, a few hundred kilobytes each.
-    document: Vec<(Font, bool, Arc<FontData>)>,
+    /// The installed face of each of the six families the composer offers first (#582), by family
+    /// and whether it is the bold face; read at start, a few hundred kilobytes each.
+    document: Vec<(Built, bool, Arc<FontData>)>,
 }
 
-/// The file names (lower case) the face of `font` may have on this system, best first: the
+/// The file names (lower case) the face of `built` may have on this system, best first: the
 /// vendor's own on Windows and macOS, then the open metric-compatible faces on Linux and FreeBSD.
 /// `System` is the window's own font and has none.
-pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
-    match (font, bold) {
-        (Font::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
-        (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
-        (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
-        (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
-        (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
-        (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
-        (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
-        (Font::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
-        (Font::System, _) => &[],
+pub fn face_files(built: Built, bold: bool) -> &'static [&'static str] {
+    match (built, bold) {
+        (Built::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
+        (Built::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
+        (Built::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
+        (Built::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Built::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Built::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
+        (Built::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
+        (Built::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
+        (Built::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
+        (Built::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
+        (Built::System, _) => &[],
     }
 }
 
-/// The first of the face names of `font` that `has` says is there.
-pub fn first_face(font: Font, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
-    face_files(font, bold).iter().copied().find(|name| has(name))
+/// The first of the face names of `built` that `has` says is there.
+pub fn first_face(built: Built, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
+    face_files(built, bold).iter().copied().find(|name| has(name))
 }
 
-/// The family a message's text in `font` is registered under, when [`SystemFont`] found its face.
-pub fn document_family(font: Font, bold: bool) -> FontFamily {
-    let name = format!("font-{}{}", font.label().to_lowercase(), if bold { "-bold" } else { "" });
+/// The family text in one of the six families is registered under, when [`SystemFont`] found its
+/// face. Any other family is registered by [`crate::fonts`] under a family of its own.
+pub fn document_family(built: Built, bold: bool) -> FontFamily {
+    let name = format!("font-{}{}", built.label().to_lowercase(), if bold { "-bold" } else { "" });
     FontFamily::Name(name.into())
-}
-
-/// How text in a message's own `font` is drawn: its family where `has` says one was registered,
-/// else `None` and the caller draws it in the window's font. `System` is the window's font.
-pub fn document_font(font: Option<Font>, bold: bool, size: f32, has: impl Fn(&FontFamily) -> bool) -> Option<FontId> {
-    let font = font.filter(|f| *f != Font::System)?;
-    let family = document_family(font, bold);
-    has(&family).then(|| FontId::new(size, family))
 }
 
 impl SystemFont {
@@ -794,23 +850,23 @@ impl SystemFont {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_document_faces(mut self, dirs: &[std::path::PathBuf]) -> Self {
         let mut names: Vec<&[&str]> = Vec::new();
-        for font in Font::ALL {
-            names.push(face_files(font, false));
-            names.push(face_files(font, true));
+        for built in Built::ALL {
+            names.push(face_files(built, false));
+            names.push(face_files(built, true));
         }
         let found = find_font_files(dirs, &names);
-        for font in Font::ALL {
+        for built in Built::ALL {
             for bold in [false, true] {
-                let path = first_face(font, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
+                let path = first_face(built, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
                 let Some(bytes) = path.and_then(|p| read_font(p, SYSTEM_FONT_CAP)) else { continue };
-                self.document.push((font, bold, Arc::new(FontData::from_owned(bytes))));
+                self.document.push((built, bold, Arc::new(FontData::from_owned(bytes))));
             }
         }
         self
     }
 
-    /// Which of a message's fonts have an installed face (regular, bold).
-    pub fn document_faces(&self) -> Vec<(Font, bool)> {
+    /// Which of the six families have an installed face (regular, bold).
+    pub fn document_faces(&self) -> Vec<(Built, bool)> {
         self.document.iter().map(|(f, b, _)| (*f, *b)).collect()
     }
 
@@ -861,6 +917,9 @@ pub(crate) fn font_dirs() -> Vec<std::path::PathBuf> {
             std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()).map(PathBuf::from).or_else(|| home.as_ref().map(|h| h.join(".local/share")));
         dirs.extend(data_home.map(|d| d.join("fonts")));
         dirs.extend(home.iter().map(|h| h.join(".fonts")));
+        // Flatpak and other containers expose host fonts here. Missing paths are harmless.
+        #[cfg(target_os = "linux")]
+        dirs.extend(["/run/host/user-fonts", "/run/host/local-fonts", "/run/host/fonts"].map(PathBuf::from));
         let data_dirs = std::env::var_os("XDG_DATA_DIRS").filter(|d| !d.is_empty()).unwrap_or_else(|| "/usr/local/share:/usr/share".into());
         dirs.extend(std::env::split_paths(&data_dirs).filter(|d| d.is_absolute()).map(|d| d.join("fonts")));
         dirs.push("/usr/local/share/fonts".into());
@@ -987,7 +1046,6 @@ pub(crate) fn hide_bitmap_strikes(bytes: &mut [u8], index: u32) {
 /// Where the directory of the face `index` begins: 0 for a font of one face; in a collection
 /// (its tag, a version, how many faces it has and where each begins, every one of those places
 /// inside the file) the place its header gives for the face asked for.
-#[cfg(not(target_arch = "wasm32"))]
 fn face_start(bytes: &[u8], index: u32) -> Option<usize> {
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
     if u32_at(0) != Some(0x7474_6366) {
@@ -1013,7 +1071,6 @@ fn is_font(bytes: &[u8]) -> bool {
 
 /// [`is_font`] for the face `index` of a collection (a face of its own is face 0): the one egui is
 /// to draw with (`FontData::index`).
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn is_face(bytes: &[u8], index: u32) -> bool {
     let u16_at = |at: usize| bytes.get(at..at.checked_add(2)?).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
@@ -1068,6 +1125,23 @@ pub fn install_fonts_with(ctx: &egui::Context, system: &SystemFont) {
 /// The interface fonts as [`install_fonts`] installs them on this system.
 pub fn font_definitions() -> FontDefinitions {
     font_definitions_with(&SystemFont::load())
+}
+
+/// `fonts` with one more face, `bytes` under `name`, last in every family: for the letters no other
+/// face has. The browser build's Georgian (#1010), which it fetches only when the language is
+/// Georgian, as it has no system faces. `None` when `bytes` are not a font egui can open (a server
+/// that answers a missing file with its home page, say): egui panics on such data.
+pub fn with_extra_face(mut fonts: FontDefinitions, name: &str, bytes: Vec<u8>) -> Option<FontDefinitions> {
+    if !is_face(&bytes, 0) {
+        return None;
+    }
+    fonts.font_data.insert(name.into(), Arc::new(FontData::from_owned(bytes)));
+    for names in fonts.families.values_mut() {
+        if !names.iter().any(|n| n == name) {
+            names.push(name.into());
+        }
+    }
+    Some(fonts)
 }
 
 /// The interface fonts with `system` in front of the bundled ones.
@@ -1131,7 +1205,7 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     // A message's fonts (#582): the installed face under a family of its own, then the window's
     // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
     // bold: the emphasis is what is sent, and egui can't embolden a face itself.
-    for font in Font::ALL {
+    for font in Built::ALL {
         let face = |bold: bool| system.document.iter().find(|(f, b, _)| *f == font && *b == bold).map(|(_, _, data)| data);
         let Some(regular_face) = face(false) else { continue };
         for bold_face in [false, true] {
@@ -1141,10 +1215,12 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
                 (false, _) => (regular_face, format!("Doc{}", font.label())),
             };
             fonts.font_data.insert(name.clone(), data.clone());
+            // A fixed-width face has JetBrains Mono behind it, so a glyph it lacks keeps the columns (#969).
+            let mono = font.is_fixed_width().then_some("Mono");
             let chain = if bold_face {
-                chain(&[Some(&name), bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
+                chain(&[Some(&name), mono, bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
             } else {
-                chain(&[Some(&name), regular, Some("Inter")])
+                chain(&[Some(&name), mono, regular, Some("Inter")])
             };
             fonts.families.insert(document_family(font, bold_face), chain);
         }
@@ -1365,6 +1441,39 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
     let (r, g, b) = PALETTE.get(hash as usize % PALETTE.len()).copied().unwrap_or((0x0B, 0x7F, 0xAB));
     let c = Color32::from_rgb(r, g, b);
     c.linear_multiply(t.avatar_shade)
+}
+
+/// How much of a selected row's fill is laid over a flag's tint, so the tint shows through.
+pub const LIST_FLAGGED_SELECTION: f32 = 0.72;
+
+/// The layers of a message-list row, from the bottom up ([`Tokens::list_row_layers`]): each one
+/// that is there is painted in this order, and the row's coloured text is fitted to [`Self::under`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowLayers {
+    /// The list's own colour, under everything.
+    pub base: Color32,
+    /// The band of a shaded row (View › Shade Alternate Rows).
+    pub band: Option<Color32>,
+    /// A flagged or overdue message's tint.
+    pub flag: Option<Color32>,
+    /// A selected row's fill.
+    pub selection: Option<Color32>,
+    /// The pointer's shade, on a row that is not selected.
+    pub hover: Option<Color32>,
+}
+
+impl RowLayers {
+    /// What the row's text sits on: every layer laid over the one before, as egui blends them.
+    pub fn under(&self) -> Color32 {
+        [self.band, self.flag, self.selection, self.hover].into_iter().flatten().fold(self.base, |under, layer| over(layer, under))
+    }
+}
+
+/// `src` (premultiplied, as egui's colours are) painted over `dst`, blended as the painter does.
+fn over(src: Color32, dst: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(src.a()) / 255.0;
+    let ch = |s: u8, d: u8| (f32::from(s) + f32::from(d) * keep).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(ch(src.r(), dst.r()), ch(src.g(), dst.g()), ch(src.b(), dst.b()))
 }
 
 #[cfg(test)]
@@ -1646,12 +1755,18 @@ mod tests {
     /// space French puts before a colon) has a glyph in every weight of the bundled fonts.
     #[test]
     fn the_catalogues_are_drawn_with_the_bundled_fonts() {
+        // Chinese needs a system CJK fallback; the bundled fonts do not cover its characters.
         let catalogues = [
             ("fr", include_str!("../../i18n/po/fr.po")),
             ("de", include_str!("../../i18n/po/de.po")),
             ("es", include_str!("../../i18n/po/es.po")),
             ("it", include_str!("../../i18n/po/it.po")),
             ("nl", include_str!("../../i18n/po/nl.po")),
+            ("ro", include_str!("../../i18n/po/ro.po")),
+            ("pl", include_str!("../../i18n/po/pl.po")),
+            ("cs", include_str!("../../i18n/po/cs.po")),
+            // Not ka.po: no bundled font has Georgian. It is drawn by the system's Georgian face
+            // (`GEORGIAN_FACES`) or, in the browser, the face the page fetches (theme_font_tests.rs).
         ];
         let mut chars = BTreeSet::new();
         for (code, text) in catalogues {

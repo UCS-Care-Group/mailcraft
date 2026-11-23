@@ -69,11 +69,13 @@ pub(crate) struct Make {
     pub(crate) rsa: Option<usize>,
     /// A second User ID, `Alias <alias@example.org>`.
     pub(crate) alias: bool,
+    /// An RSA encryption subkey of 2048 bits besides.
+    pub(crate) rsa_encryption: bool,
 }
 
 impl Default for Make {
     fn default() -> Make {
-        Make { seed: 1, subkey: false, v6: false, rsa: None, alias: false }
+        Make { seed: 1, subkey: false, v6: false, rsa: None, alias: false, rsa_encryption: false }
     }
 }
 
@@ -91,10 +93,19 @@ pub(crate) fn secret(user_id: &str, make: Make) -> SignedSecretKey {
     if make.alias {
         params.user_ids(vec!["Alias <alias@example.org>".into()]);
     }
+    let mut subkeys = Vec::new();
     if make.subkey {
         let mut sub = SubkeyParamsBuilder::default();
         sub.version(version).key_type(key_type).can_sign(true).can_encrypt(EncryptionCaps::None);
-        params.subkeys(vec![sub.build().unwrap()]);
+        subkeys.push(sub.build().unwrap());
+    }
+    if make.rsa_encryption {
+        let mut sub = SubkeyParamsBuilder::default();
+        sub.version(version).key_type(KeyType::Rsa(2048)).can_sign(false).can_encrypt(EncryptionCaps::All);
+        subkeys.push(sub.build().unwrap());
+    }
+    if !subkeys.is_empty() {
+        params.subkeys(subkeys);
     }
     params.build().unwrap().generate(rng).unwrap()
 }

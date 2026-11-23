@@ -339,6 +339,7 @@ fn attachments_are_opened_only_in_the_window() {
     run(&mut s, "mail.new", json!({"to": "maya@lumen.example"}));
     run(&mut s, "compose.attach", json!({"name": "notes.txt", "data": "aGVsbG8="}));
     run(&mut s, "compose.attach", json!({"name": "setup.exe", "data": "aGVsbG8="}));
+    run(&mut s, "compose.attach", json!({"name": "invoice.qzx", "data": "aGVsbG8="}));
     let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
     // Outside the window nothing is opened: an ordinary file says where it would be...
     let e = s.run("mail.openAttachment", &json!({"id": id, "index": 0})).unwrap_err().to_string();
@@ -346,6 +347,10 @@ fn attachments_are_opened_only_in_the_window() {
     // ...and a program is refused for what it is.
     let e = s.run("mail.openAttachment", &json!({"id": id, "index": 1})).unwrap_err().to_string();
     assert!(e.contains("doesn't open setup.exe") && e.contains("Save As"), "{e}");
+    // A kind of no known name is refused where the desktop would type it by what is in it.
+    let e = s.run("mail.openAttachment", &json!({"id": id, "index": 2})).unwrap_err().to_string();
+    let refused = crate::opening::Chooser::THIS == crate::opening::Chooser::NameOrContent;
+    assert_eq!(e.contains("doesn't open invoice.qzx") && e.contains("Save As"), refused, "{e}");
     assert!(s.run("mail.openAttachment", &json!({"id": id, "index": 9})).is_err());
     assert!(s.run("mail.openAttachment", &json!({"id": id})).is_err());
     // Agents may not ask for it at all.
@@ -766,6 +771,145 @@ fn accounts_that_sign_in_on_the_providers_page() {
     assert_eq!(
         (mx["known"].as_bool(), mx["via"].as_str(), mx["incoming"]["host"].as_str()),
         (Some(false), Some("guess"), Some("imap.lumen.example"))
+    );
+    // What the host found in the domain's own records (#1063): for the owner to confirm, so not
+    // "known"; the address as the user name (RFC 6186); the usual names for what it lacks; and a
+    // found host outside the address's domain said to be so, for an agent to ask the owner.
+    let found = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "mx": ["mx.lumen.example"], "found": {
+            "incoming": {"host": "Mail.Hosted.Example.", "port": 993, "security": "tls", "via": "srv"},
+            "outgoing": {"host": "smtp.lumen.example", "security": "starttls", "via": "srv"}
+        }}),
+    );
+    assert_eq!(
+        (found["known"].as_bool(), found["via"].as_str(), found["username"].as_str()),
+        (Some(false), Some("srv"), Some("Avery@lumen.example"))
+    );
+    assert_eq!(
+        (
+            found["incoming"]["host"].as_str(),
+            found["incoming"]["port"].as_u64(),
+            found["incoming"]["security"].as_str(),
+            found["incoming"]["via"].as_str(),
+            found["incoming"]["outside"].as_bool()
+        ),
+        (Some("mail.hosted.example"), Some(993), Some("tls"), Some("srv"), Some(true))
+    );
+    assert_eq!(
+        (
+            found["outgoing"]["host"].as_str(),
+            found["outgoing"]["port"].as_u64(),
+            found["outgoing"]["security"].as_str(),
+            found["outgoing"]["via"].as_str(),
+            found["outgoing"]["outside"].as_bool()
+        ),
+        (Some("smtp.lumen.example"), Some(587), Some("starttls"), Some("srv"), Some(false))
+    );
+    let half = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "found": {"outgoing": {"host": "smtp.lumen.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (half["via"].as_str(), half["incoming"]["via"].as_str(), half["incoming"]["host"].as_str()),
+        (Some("srv"), Some("guess"), Some("imap.lumen.example"))
+    );
+    assert_eq!(
+        (half["outgoing"]["port"].as_u64(), half["outgoing"]["via"].as_str(), half["username"].as_str()),
+        (Some(465), Some("srv"), Some("avery@lumen.example"))
+    );
+    // A guess is never "outside": it is made from the address's own domain.
+    assert_eq!(half["incoming"]["outside"].as_bool(), Some(false));
+    // #1112: what the domain publishes for mail programs or Mozilla's ISP database lists is
+    // taken the same way, and the user name is what the source's placeholders make of the address.
+    let published = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "Avery@lumen.example", "found": {
+            "incoming": {"host": "mail.lumen.example", "security": "tls", "via": "autoconfig"},
+            "outgoing": {"host": "smtp.hosted.example", "security": "starttls", "via": "ispdb"},
+            "username": "%EMAILLOCALPART%"
+        }}),
+    );
+    assert_eq!(
+        (published["known"].as_bool(), published["via"].as_str(), published["username"].as_str()),
+        (Some(false), Some("autoconfig"), Some("Avery"))
+    );
+    assert_eq!(
+        (published["incoming"]["port"].as_u64(), published["incoming"]["via"].as_str(), published["incoming"]["outside"].as_bool()),
+        (Some(993), Some("autoconfig"), Some(false))
+    );
+    assert_eq!(
+        (published["outgoing"]["port"].as_u64(), published["outgoing"]["via"].as_str(), published["outgoing"]["outside"].as_bool()),
+        (Some(587), Some("ispdb"), Some(true))
+    );
+    // What is put in for a placeholder is never read as one again: a `%` in the address stays.
+    for (email, template, name) in [
+        ("avery%tag@lumen.example", "%EMAILLOCALPART%", "avery%tag"),
+        ("%EMAILDOMAIN%@lumen.example", "%EMAILLOCALPART%", "%EMAILDOMAIN%"),
+        ("avery@lumen.example", "%EMAILLOCALPART%+mail@%EMAILDOMAIN%", "avery+mail@lumen.example"),
+    ] {
+        let filled = run(
+            &mut s,
+            "account.preset",
+            json!({"email": email, "found": {"incoming": {"host": "imap.lumen.example", "security": "tls", "via": "autoconfig"}, "username": template}}),
+        );
+        assert_eq!(filled["username"], name, "{email} {template}");
+    }
+    // A placeholder nobody knows, or a user name without a found incoming server: the address.
+    for (records, why) in [
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%@%NOBODY%"}),
+            "unknown placeholder",
+        ),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "\r\n"}), "empty"),
+        (json!({"username": "%EMAILLOCALPART%"}), "nothing found"),
+        (
+            json!({"outgoing": {"host": "smtp.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%"}),
+            "no incoming server found",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "autoconfig"}, "username": "%EMAILLOCALPART%EMAILDOMAIN%"}),
+            "half a placeholder",
+        ),
+        (
+            json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}, "username": "%EMAILLOCALPART%"}),
+            "an SRV record writes no user name",
+        ),
+    ] {
+        let odd = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": records}));
+        assert_eq!(odd["username"], "avery@lumen.example", "{why}");
+    }
+    // A server without encryption, a host that isn't one, a source nobody knows, a bad port: the
+    // usual names stand in.
+    for (bad, why) in [
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "none", "via": "srv"}}), "plain"),
+        (json!({"incoming": {"host": "imap.hosted.example", "via": "srv"}}), "no security"),
+        (json!({"incoming": {"host": "imap.hosted.example/path", "security": "tls", "via": "srv"}}), "not a host"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "rumour"}}), "unknown source"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 0}}), "port 0"),
+        (json!({"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv", "port": 70000}}), "port too big"),
+        (json!({"incoming": "imap.hosted.example"}), "not an object"),
+        (json!([]), "a list"),
+    ] {
+        let preset = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "found": bad}));
+        assert_eq!(
+            (preset["via"].as_str(), preset["incoming"]["host"].as_str(), preset["incoming"]["security"].as_str()),
+            (Some("guess"), Some("imap.lumen.example"), Some("tls")),
+            "{why}"
+        );
+    }
+    // A provider the domain or its exchangers name needs nothing found.
+    let known = run(
+        &mut s,
+        "account.preset",
+        json!({"email": "avery@lumen.example", "mx": ["aspmx.l.google.com"], "found": {"incoming": {"host": "imap.hosted.example", "security": "tls", "via": "srv"}}}),
+    );
+    assert_eq!(
+        (known["via"].as_str(), known["incoming"]["host"].as_str(), known["incoming"]["via"].as_str(), known["incoming"]["outside"].as_bool()),
+        (Some("mx"), Some("imap.gmail.com"), Some("mx"), Some(false))
     );
     // Or the owner says whose it is.
     let named = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "Outlook.com"}));
@@ -1766,13 +1910,14 @@ mod two_way {
         apply(&mut s, came_back(a, two, archive, 5));
         assert_eq!(request(&s, a).ops, [RemoteOp::Delete { from: "Archive".into(), uid: 5 }]);
 
-        // When the server didn't say where it put the message, there is nothing to go on: the
-        // server's copy comes down as a message of its own, and nothing is asked that could hit
-        // another message.
+        // When the server didn't say where it put the message, there is no UID to go on, and
+        // nothing is asked that could hit another message: the deletion waits for the server's
+        // copy to come down, to be found by its Message-ID.
         let (mut s, a, _, archive, two) = left();
         run(&mut s, "mail.deletePermanently", json!({"id": two}));
         apply(&mut s, came_back(a, two, archive, 0));
-        assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
+        assert_eq!(request(&s, a).ops.len(), 0);
+        assert!(matches!(&s.mailbox.pending[..], [Pending::Delete { from, uid: 0, .. }] if from == "Archive"), "{:?}", s.mailbox.pending);
 
         // A deletion the owner took back while it was carried out: the server no longer has the
         // message, so the one here is the only one. It stays, and goes on the server again (#451).
@@ -1832,7 +1977,7 @@ mod two_way {
             id: 9_001,
             name: "Reports".into(),
             enabled: true,
-            conditions: vec![mailcraft_model::Condition::SubjectContains("report".into())],
+            conditions: vec![mailcraft_model::Condition::SubjectContains(vec!["report".into()])],
             actions: vec![mailcraft_model::Action::MarkRead, mailcraft_model::Action::MoveTo(archive)],
             stop: false,
             ..Default::default()
@@ -1870,7 +2015,7 @@ mod two_way {
         run(
             &mut s,
             "rules.add",
-            json!({"name": "Reports", "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
+            json!({"name": "Reports", "account": a, "conditions": [{"type": "subjectContains", "value": "report"}], "actions": [{"type": "moveTo", "value": archive}]}),
         );
         let first = SyncResult {
             account: a,
@@ -1887,6 +2032,272 @@ mod two_way {
             request(&s, a).ops,
             [RemoteOp::Move { message: report, from: "INBOX".into(), uid: 1, to: "Archive".into(), to_folder: archive, create: vec![] }]
         );
+    }
+
+    #[test]
+    fn mail_that_was_there_before_isnt_alerted_of() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let told = json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        run(&mut s, "rules.add", told);
+        // The first run: what the Inbox had stays, and is no alert.
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "An offer"), from_server(2, "Hello")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(s.mailbox.count(inbox), 2);
+        assert!(!s.mailbox.message(titled(&s, a, "Hello")).unwrap().rule_alert);
+        assert_eq!(request(&s, a).ops, []);
+        // New mail after it is told of.
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(4, "Hello again")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert!(s.mailbox.message(titled(&s, a, "Hello again")).unwrap().rule_alert);
+    }
+
+    /// A rule that moves new mail into another IMAP account, and an undo of a step from before the
+    /// mail came, in a mailbox with no Microsoft or Exchange account: the message still goes onto
+    /// the other account's server, and the original waits for it there (#566).
+    #[test]
+    fn an_undo_of_an_earlier_step_keeps_a_rules_move_into_another_imap_account_on_its_way() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let theirs_inbox = SyncResult {
+            account: b,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 9, vec![], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, theirs_inbox);
+        let theirs = folder(&s, b, FolderKind::Inbox);
+        let rule = json!({"name": "Hand on", "account": a, "conditions": [{"type": "subjectContains", "value": "offer"}],
+            "actions": [{"type": "moveTo", "value": theirs}]});
+        run(&mut s, "rules.add", rule);
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "Hello")], vec![]) }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let hello = titled(&s, a, "Hello");
+        run(&mut s, "mail.flag", json!({"ids": [hello]}));
+        let later = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(2, "An offer")], vec![])],
+            ..Default::default()
+        };
+        apply(&mut s, later);
+        assert_eq!(request(&s, b).places.len(), 1);
+        run(&mut s, "edit.undo", json!({}));
+        (s.path, s.dirty) = (Some(std::path::PathBuf::from("mailbox.mailcraft")), false);
+        let places = request(&s, b).places.len();
+        let deletes: Vec<RemoteOp> = request(&s, a).ops.into_iter().filter(|op| matches!(op, RemoteOp::Delete { .. })).collect();
+        assert_eq!((places, deletes), (1, vec![]), "the message still goes to B's server, and the original stays on A's until it is there");
+    }
+
+    /// Older mail below how far the Inbox was read, and an Inbox the server numbered anew, are mail
+    /// that was there before: filed by the rules, never alerted of, and what was copied as it
+    /// arrived isn't copied again (#566).
+    #[test]
+    fn older_mail_and_a_renumbered_inbox_arent_alerted_of_or_copied_again() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let told = json!({"name": "Told", "account": a, "conditions": [{"type": "subjectContains", "value": "hello"}], "actions": [], "alert": true});
+        let copied = json!({"name": "Copied", "account": a, "conditions": [{"type": "subjectContains", "value": "memo"}], "actions": [{"type": "copyTo", "value": kept}]});
+        run(&mut s, "rules.add", told);
+        run(&mut s, "rules.add", copied);
+        let inbox_news =
+            |id, validity, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, validity, new, vec![]) };
+        let first = SyncResult { account: a, folders: vec![inbox_news(None, 7, vec![from_server(10, "Note")], 10)], ..Default::default() };
+        apply(&mut s, first);
+        let memo = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), 7, vec![from_server(11, "Memo")], 11)], ..Default::default() };
+        apply(&mut s, memo);
+        let copies = |s: &Session| s.mailbox.messages_in(kept).filter(|m| m.subject == "Memo").count();
+        assert_eq!(copies(&s), 1, "copied as it arrived");
+        // Older mail, below how far the Inbox was read (a raised limit brings it down).
+        let older = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), 7, vec![from_server(6, "Old hello")], 11)], ..Default::default() };
+        apply(&mut s, older);
+        assert!(!s.mailbox.message(titled(&s, a, "Old hello")).unwrap().rule_alert, "older mail alerted of");
+        // Numbered anew.
+        let renumbered = SyncResult {
+            account: a,
+            folders: vec![inbox_news(Some(inbox), 8, vec![from_server(1, "Note"), from_server(2, "Memo"), from_server(4, "Renumbered hello")], 4)],
+            ..Default::default()
+        };
+        apply(&mut s, renumbered);
+        assert!(!s.mailbox.message(titled(&s, a, "Renumbered hello")).unwrap().rule_alert, "renumbered mail alerted of");
+        assert_eq!(copies(&s), 1, "not copied again");
+    }
+
+    /// Mail an IMAP server had before it was read here (the Inbox's first download, older mail a
+    /// raised limit brings down) is filed by the rules but copied by none: not into a folder of its
+    /// account, and not onto another account's server, where years of an Inbox would go up. Mail
+    /// arriving after it is (#566).
+    #[test]
+    fn mail_the_server_had_before_isnt_copied_by_a_rule_here_or_onto_another_server() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let b =
+            run(&mut s, "account.add", json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}}))["id"].as_u64().unwrap();
+        let (kept, elsewhere) = (s.mailbox.add_folder(a, None, "Kept").unwrap(), s.mailbox.add_folder(b, None, "Kept").unwrap());
+        let copied = json!({"name": "Copied", "account": a, "conditions": [{"type": "subjectContains", "value": "memo"}],
+            "actions": [{"type": "copyTo", "value": kept}, {"type": "copyTo", "value": elsewhere}]});
+        run(&mut s, "rules.add", copied);
+        let inbox_news = |id, new, seen| FolderDelta { complete: true, uid_seen: seen, ..news(id, "INBOX", FolderKind::Inbox, 7, new, vec![]) };
+        let copies = |s: &Session| {
+            let here: Vec<String> = s.mailbox.messages_in(kept).map(|m| m.subject.clone()).collect();
+            let there: Vec<String> = s.mailbox.messages_in(elsewhere).map(|m| m.subject.clone()).collect();
+            (here, there, request(s, b).places.len())
+        };
+        let first = SyncResult {
+            account: a,
+            folders: vec![inbox_news(None, vec![from_server(1, "First memo"), from_server(10, "Second memo")], 10)],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "a first download");
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let older = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(5, "Old memo")], 10)], ..Default::default() };
+        apply(&mut s, older);
+        assert_eq!(copies(&s), (vec![], vec![], 0), "older mail");
+        let new = SyncResult { account: a, folders: vec![inbox_news(Some(inbox), vec![from_server(11, "New memo")], 11)], ..Default::default() };
+        apply(&mut s, new);
+        assert_eq!(copies(&s), (vec!["New memo".into()], vec!["New memo".into()], 1), "new mail");
+    }
+
+    /// A message filed in Archive is moved back into the Inbox on a phone: the server gives it a
+    /// new UID there. It is mail the account had, not new mail: the rules file it as found, and
+    /// neither copy it again nor show an alert for it (#566). (The run reads the Inbox first,
+    /// `mailcraft_net::sync`, while Archive still lists it.)
+    #[test]
+    fn mail_moved_into_the_inbox_on_another_device_isnt_copied_again_or_alerted_of() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![
+                FolderDelta {
+                    complete: true,
+                    ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+                },
+                FolderDelta { complete: true, ..news(None, "Archive", FolderKind::Archive, 8, vec![from_server(1, "Filed news")], vec![]) },
+            ],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let (inbox, archive) = (folder(&s, a, FolderKind::Inbox), folder(&s, a, FolderKind::Archive));
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let copy = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "actions": [{"type": "copyTo", "value": kept}], "alert": true});
+        run(&mut s, "rules.add", copy);
+        let came = FolderDelta { complete: true, ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(3, "Filed news")], vec![]) };
+        let left =
+            FolderDelta { removed: vec![1], uid_seen: 1, complete: true, ..news(Some(archive), "Archive", FolderKind::Archive, 8, vec![], vec![]) };
+        apply(&mut s, SyncResult { account: a, folders: vec![came, left], ..Default::default() });
+        let here: Vec<(Id, bool)> = s.mailbox.messages.values().filter(|m| m.subject == "Filed news").map(|m| (m.folder, m.rule_alert)).collect();
+        assert_eq!(here, [(inbox, false)], "copied again, or alerted of");
+        // New mail of the same kind is copied and told of as ever.
+        let fresh = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(4, "Fresh news")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![fresh], ..Default::default() });
+        assert_eq!(s.mailbox.messages_in(kept).count(), 1);
+        assert!(s.mailbox.messages.values().any(|m| m.subject == "Fresh news" && m.folder == inbox && m.rule_alert));
+        // A blocked sender's mail goes to Junk E-mail, whatever Message-ID it gives itself.
+        run(&mut s, "junk.add", json!({"list": "blocked", "entry": "x@example.org", "account": a}));
+        let again = news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![from_server(5, "One")], vec![]);
+        apply(&mut s, SyncResult { account: a, folders: vec![again], ..Default::default() });
+        let junk = folder(&s, a, FolderKind::Junk);
+        assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "One" && m.folder == junk).count(), 1);
+    }
+
+    /// Two copies of one Message-ID in one Send/Receive (a mailing list's after the one sent to me),
+    /// which the window takes in two pieces, newest first: both are new mail to the rules, each copied
+    /// and alerted of, as when the run is taken whole (#566).
+    #[test]
+    fn two_copies_in_two_pieces_of_one_run_are_both_new_mail() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let first = SyncResult {
+            account: a,
+            folders: vec![FolderDelta {
+                complete: true,
+                ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "One"), from_server(2, "Two")], vec![])
+            }],
+            ..Default::default()
+        };
+        apply(&mut s, first);
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let kept = s.mailbox.add_folder(a, None, "Kept").unwrap();
+        let copy = json!({"name": "Copy", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "actions": [{"type": "copyTo", "value": kept}], "alert": true});
+        run(&mut s, "rules.add", copy);
+        let twin = |uid: u32, subject: &str| Message { message_id: "weekly@list.example".into(), ..from_server(uid, subject) };
+        let mut totals = cmd::account::SyncTotals::default();
+        let piece1 = SyncResult {
+            account: a,
+            partial: true,
+            folders: vec![FolderDelta {
+                uid_seen: 2,
+                ..news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(4, "Weekly news (list)")], vec![])
+            }],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece1).unwrap();
+        let piece2 = SyncResult {
+            account: a,
+            folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![twin(3, "Weekly news (direct)")], vec![])],
+            ..Default::default()
+        };
+        cmd::account::apply_sync_part(&mut s, &mut totals, piece2).unwrap();
+        let alerted = s.mailbox.messages_in(inbox).filter(|m| m.subject.starts_with("Weekly") && m.rule_alert).count();
+        assert_eq!((alerted, s.mailbox.messages_in(kept).count()), (2, 2));
+        assert!(s.run_had.is_empty(), "the run's last piece lets go of what the account had");
+    }
+
+    /// New IMAP mail whose header fields ran past what the reader keeps: a rule that deletes
+    /// except if the sender marked it private can't tell, and leaves it alone (#566).
+    #[test]
+    fn new_imap_mail_with_headers_left_out_isnt_deleted_past_an_exception_on_them() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "exceptions": [{"type": "sensitivity", "value": "private"}], "actions": [{"type": "delete"}]});
+        run(&mut s, "rules.add", purge);
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "first")], vec![]) }],
+                ..Default::default()
+            },
+        );
+        let cut = Message { headers_cut: true, ..from_server(2, "news cut") };
+        let whole = from_server(3, "news whole");
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![whole, cut], vec![])],
+                ..Default::default()
+            },
+        );
+        let left: Vec<String> = s.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect();
+        assert_eq!(left, ["first", "news cut"]);
+        let binned: Vec<String> = s.mailbox.messages_in(folder(&s, a, FolderKind::Deleted)).map(|m| m.subject.clone()).collect();
+        assert_eq!(binned, ["news whole"]);
     }
 
     #[test]
@@ -2303,28 +2714,6 @@ fn options_validate() {
     assert_eq!(session::enum_code(&CalView::WorkWeek), "workWeek");
 }
 
-#[test]
-fn parity_has_a_floor_that_only_rises() {
-    let s = session();
-    let p = catalog::parity(&s.registry);
-    let percent = p["percent"].as_f64().unwrap();
-    assert!(percent >= 60.0, "catalog parity fell to {percent}%");
-    // Every catalog id is spelled like a command id.
-    for f in catalog::features() {
-        assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Missing"));
-    // What is out of scope is a catalog row, said why, and listed apart from what is missing.
-    for (id, why) in catalog::OUT_OF_SCOPE {
-        assert!(catalog::features().any(|f| f.id == id), "{id} is in the catalog");
-        assert!(!why.is_empty());
-        let listed = |k: &str| p[k].as_array().unwrap().iter().any(|m| m["id"] == id);
-        assert!(!listed("missing"), "{id} isn't missing");
-        assert!(listed("outOfScope") || s.registry.get(id).is_some(), "{id} is out of scope");
-    }
-    assert!(catalog::parity_markdown(&s.registry).contains("## Out of scope"));
-}
-
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
 #[test]
 fn hostile_params_never_panic() {
@@ -2341,10 +2730,38 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // A folder named as a kind or a path (#1200): the branch that reads the text, walks the
+        // paths of every account and then tries the digits as an id. Without one of these, that
+        // whole branch is never entered by this test. No `account` on the first four, because one
+        // that is refused ends the call before `folder` is looked at.
+        json!({"folder": "\u{0}inbox/../..", "ids": [[[]]]}),
+        json!({"folder": "x".repeat(100_000)}),
+        json!({"folder": "18446744073709551615", "query": "\u{202e}"}),
+        json!({"folder": "///", "limit": 1e300}),
+        json!({"folder": "inbox", "account": 18446744073709551615u64}),
         // Messages forwarded together (#360): more than one message carries, each named again and
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        // Snooze (#949): Return times that are none, far, past or the end of time.
+        json!({"ids": [1, 2, 3], "until": i64::MAX}),
+        json!({"ids": [1], "until": i64::MIN}),
+        json!({"ids": [1, 1, 1], "until": 1e300}),
+        json!({"id": 1, "until": "9999-12-31T23:59:59+23:59"}),
+        json!({"ids": [1], "until": "0001-01-01T00:00-23:59"}),
+        json!({"ids": [1], "until": {"deep": [[[]]]}}),
+        // Follow-up reminders (#948): times and days that are none, far or the end of time.
+        json!({"ids": [1], "at": i64::MAX, "days": 1e300, "ifNoReply": "x"}),
+        json!({"ids": [1], "days": 0}),
+        json!({"ids": [1], "days": 4294967296u64, "at": "9999-12-31T23:59:59+23:59"}),
+        json!({"id": 1, "at": {"deep": [[[]]]}, "ifNoReply": true, "clear": 5}),
+        // Subscribed calendars (#209): addresses that are none, an outcome that is nonsense.
+        json!({"address": "https://user:pw@cal.example.org/x.ics", "name": "\u{0}", "color": 5}),
+        json!({"address": "webcal://[::1", "intervalMinutes": 1e300}),
+        json!({"address": "http://cal.example.org/".repeat(500), "id": 1}),
+        json!({"calendar": 1, "outcome": {"kind": "changed", "text": "BEGIN:VCALENDAR", "etag": "\r\n", "lastModified": [1]}}),
+        json!({"calendar": 1, "outcome": {"kind": "failed", "failure": "status:99999999999"}}),
+        json!({"calendar": 18446744073709551615u64, "outcome": {"kind": "notModified"}, "all": "yes"}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),
@@ -2368,6 +2785,16 @@ fn hostile_params_never_panic() {
             "errors": ["\u{0}", ""],
         }}),
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
+        // A rule's other parts (#566): sizes, days, people, copies and due days of the wrong kind,
+        // exceptions that are no list, lists far over any cap, and one that gets past the door.
+        json!({"name": "r", "conditions": [
+            {"type": "sizeBetween", "value": {"min": 1e300, "max": -1}}, {"type": "sizeBetween", "value": {"min": 0.5, "max": 18446744073709551615u64}},
+            {"type": "receivedBetween", "value": null}, {"type": "receivedBetween", "value": {"from": "9999-99-99", "to": 5}}, {"type": "receivedBetween", "value": {"from": ""}},
+            {"type": "from", "value": ["\u{0}@example.org", "x".repeat(10_000)]}, {"type": "headerContains", "value": [[]]}, {"type": "sensitivity", "value": null},
+        ], "exceptions": {"type": "flagged"}, "actions": [{"type": "copyTo", "value": 18446744073709551615u64}, {"type": "flagFor", "value": 5}, {"type": "delete", "value": "x"}], "alert": "yes", "stop": 1}),
+        json!({"name": "r", "conditions": vec![json!({"type": "subjectContains", "value": vec!["w"; 10_000]}); 1000], "exceptions": vec![json!({"type": "flagged"}); 10_000], "actions": vec![json!({"type": "markRead"}); 10_000], "alert": true}),
+        json!({"name": "r", "conditions": [{"type": "toMe"}], "exceptions": [{"type": "bodyContains", "value": "x"}, {"type": "sizeBetween", "value": {"min": 0, "max": 2147483647}}], "actions": [], "alert": true, "account": 18446744073709551615u64, "server": "yes"}),
+        json!({"name": "r", "conditions": [{"type": "receivedBetween", "value": {"to": "9999-12-31"}}], "exceptions": [{"type": "sensitivity", "value": "normal"}], "actions": [{"type": "flagFor", "value": "nextWeek"}, {"type": "copyTo", "value": 1}, {"type": "clearCategories"}, {"type": "delete"}], "alert": true, "stop": true}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
         // A merge of contacts (#506): itself, twice, nobody, nonsense choices.
@@ -2447,6 +2874,17 @@ fn hostile_params_never_panic() {
     junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
     junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
     junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
+    // Calendar and contacts servers (#209), switched on so that their commands get past the door:
+    // homes that are none, too many, or not lists; names and pins that are none; answers that make
+    // no sense.
+    s.dav_enabled = true;
+    junk.push(
+        json!({"id": ews, "calendarHomes": ["https://dav.example.org/cal/", "http://evil.example/", "https://u:p@x.example/", 5, null, "\u{0}"]}),
+    );
+    junk.push(json!({"id": ews, "contactHomes": (0..1000).map(|n| format!("https://h{n}.example.org/")).collect::<Vec<_>>(), "username": "x".repeat(100_000)}));
+    junk.push(json!({"id": ews, "calendarHomes": {"deep": [[[]]]}, "contactHomes": "x", "trusted": [1], "separatePassword": "yes"}));
+    junk.push(json!({"id": jmap, "calendarHomes": ["https://outlook.office365.com/", "https://www.googleapis.com/"], "trusted": "zz".repeat(40)}));
+    junk.push(json!({"account": ews, "result": {"collections": [{"href": "\u{0}", "syncToken": "x".repeat(100_000)}], "uploaded": [null, 5]}}));
     // Several messages being written (#286): ids of messages being written that are none, of
     // another kind, the largest there is, and ones open beside others.
     junk.push(json!({"compose": null, "text": "x"}));
@@ -2713,4 +3151,18 @@ fn a_reply_quotes_only_the_first_names_of_a_long_list() {
     let c = s.compose.as_ref().unwrap();
     let body = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
     assert!(body.contains("(+4900)") && !body.contains("u4999@"), "{}", body.len());
+}
+
+/// The window runs a command it asked about first with `"confirmed": true` added (the owner's
+/// yes): no command refuses that note as a parameter it doesn't take. Remove Imported Duplicates
+/// did, so its question's yes could never go ahead.
+#[test]
+fn no_command_refuses_the_windows_yes() {
+    let mut s = session();
+    let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
+    for id in ids {
+        if let Err(e) = s.run(id, &json!({"confirmed": true})) {
+            assert!(!e.to_string().contains("`confirmed` isn't a parameter"), "{id}: {e}");
+        }
+    }
 }

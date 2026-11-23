@@ -372,3 +372,22 @@ fn keeping_both_is_remembered_and_closing_the_shared_mailbox_forgets_it() {
     s.run("account.addSharedMailbox", &json!({"address": OPS})).unwrap();
     assert_eq!(list(&mut s, account, vec![ops_copy()], vec![])["listedTwice"].as_array().unwrap().len(), 1);
 }
+
+#[test]
+fn on_an_account_added_by_an_alias_its_own_main_address_opened_is_a_copy_under_shared_calendars() {
+    // Added by an alias: its server names the mailbox's main address as the owner of its
+    // calendars, the main one's too (#661). That address opened by hand is not counted twice.
+    const ALIAS: &str = "a.lovelace@example.org";
+    let mut s = Session::at(crate::sample::mailbox(NOW, 0), NOW, 0);
+    let added = s.run("account.add", &json!({"email": ALIAS, "kind": "microsoft", "provider": "microsoft", "tenant": "organizations"})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    open(&mut s, OWNER).unwrap();
+    let me = Some(CalendarOwner { address: OWNER.into(), name: "Ada".into() });
+    let calendars = vec![RemoteCalendar { owner: me, ..main_calendar() }, opened(OWNER, "Ada", Rights::Read)];
+    remote::apply_calendars(&mut s, &CalendarsDownload { account, email: ALIAS.into(), complete: true, calendars, refused: vec![] }).unwrap();
+    let copy = named(&s, "Ada").unwrap();
+    assert!(!remote::is_own_calendar(&s.mailbox, &copy), "not reminded of twice, nor sent as the account's own");
+    let groups = crate::cmd::calendar_settings::calendar_groups(&s);
+    let shared = groups.iter().find(|g| g.title == "Shared Calendars").expect("a group of Shared Calendars");
+    assert_eq!(shared.calendars, [copy.id]);
+}

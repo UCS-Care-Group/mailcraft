@@ -194,6 +194,7 @@ const FOLDER: &[Row] = &[
     Cmd("folder.empty"),
     Cmd("mail.markAllRead"),
     Cmd("rules.run"),
+    Cmd("mail.removeImportedDuplicates"),
     Cmd("folder.properties"),
     Sep,
     Cmd("sync.request"),
@@ -292,6 +293,11 @@ pub fn window_title() -> String {
 /// The items the app menu has besides the system's own (About, Hide, Quit).
 pub fn app_items() -> Vec<Item> {
     vec![item(Own::Settings)]
+}
+
+/// The tray menu's labels, translated with the interface.
+pub fn tray_text() -> (String, String, String) {
+    (tl!("Show MailCraft").to_string(), tl!("Send/Receive All Folders").to_string(), tl!("Quit MailCraft").to_string())
 }
 
 /// The words of the app menu and the Window menu, whose items the system provides.
@@ -406,8 +412,8 @@ pub fn enabled(app: &MailApp, action: &Action) -> bool {
 
 /// Choose an item: a command runs as its key does in the window (the same id: Search focuses the
 /// search box, Send/Receive is the host's), as the ribbon runs it (a failure shows in the status bar); an
-/// Edit item becomes the input a text field takes on its next frame. `clipboard_text` is asked
-/// for only by Paste.
+/// Edit item becomes the input a text field takes on its next frame, in the window that has the
+/// keyboard. `clipboard_text` is asked for only by Paste.
 pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> String) {
     match action {
         Action::Command { id, params } => {
@@ -436,9 +442,10 @@ pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> 
                 EditKey::Redo => press(Key::Z, Modifiers { shift: true, ..cmd }),
                 EditKey::SelectAll => press(Key::A, cmd),
             };
-            // (Bounded: the queue is drained a frame at a time.)
-            if app.synthetic.len() < 64 {
-                app.synthetic.extend(events);
+            // For the window with the keyboard, the main one or one of its own (#1500). (Bounded:
+            // the queue is drained a frame at a time.)
+            if app.edit_keys.len() < 64 {
+                app.edit_keys.extend(events);
             }
         }
     }

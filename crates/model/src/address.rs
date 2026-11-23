@@ -4,6 +4,16 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Whether `email` looks deliverable: `local@domain`, no spaces.
+pub fn is_valid_email(email: &str) -> bool {
+    match email.split_once('@') {
+        Some((local, domain)) => {
+            !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.') && !email.contains(char::is_whitespace)
+        }
+        None => false,
+    }
+}
+
 /// A mailbox: an optional display name and an address.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Address {
@@ -27,10 +37,23 @@ impl Address {
             && open < close
         {
             let email = s.get(open + 1..close)?.trim();
-            let name = s.get(..open)?.trim().trim_matches('"').replace("\\\"", "\"");
+            let name = s.get(..open)?.trim();
+            let name = name.strip_prefix('"').unwrap_or(name);
+            let name = name.strip_suffix('"').unwrap_or(name).replace("\\\"", "\"");
             return Some(Address::new(name.trim(), email));
         }
+        // Wholly quoted (a name written back as it was typed): `\"` and `\\` stand for what they
+        // escape.
+        if let Some(inner) = s.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) {
+            return Some(Address::new("", unescape(inner)));
+        }
         Some(Address::new("", s.trim_matches('"')))
+    }
+
+    /// The address part quoted for a recipient line, `"` and `\` escaped, so that a comma, a
+    /// semicolon or a quote in it stays inside the quotes.
+    pub fn quoted(&self) -> String {
+        format!("\"{}\"", self.email.replace('\\', "\\\\").replace('"', "\\\""))
     }
 
     /// Split a recipient line on `,` and `;` (outside quotes and angle brackets) and parse each part.
@@ -84,18 +107,9 @@ impl Address {
         letters.to_uppercase()
     }
 
-    /// Whether the address looks deliverable: `local@domain`, no spaces.
+    /// Whether the address looks deliverable ([`is_valid_email`]).
     pub fn is_valid(&self) -> bool {
-        match self.email.split_once('@') {
-            Some((local, domain)) => {
-                !local.is_empty()
-                    && domain.contains('.')
-                    && !domain.starts_with('.')
-                    && !domain.ends_with('.')
-                    && !self.email.contains(char::is_whitespace)
-            }
-            None => false,
-        }
+        is_valid_email(&self.email)
     }
 
     /// The same mailbox, whatever the display name or letter case.
@@ -143,6 +157,19 @@ pub fn format_list(list: &[Address]) -> String {
 pub fn format_list_capped(list: &[Address], max: usize) -> (String, usize) {
     let shown = list.get(..max).unwrap_or(list);
     (format_list(shown), list.len().saturating_sub(shown.len()))
+}
+
+/// Text between quotes with each `\x` read as `x`.
+fn unescape(inner: &str) -> String {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => out.extend(chars.next()),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

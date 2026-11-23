@@ -264,7 +264,7 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
 
 /// `deserialize_with` for the messages of a mailbox ([`crate::Messages`]).
 pub(crate) fn capped_messages<'de, D: Deserializer<'de>>(deserializer: D) -> Result<crate::Messages, D::Error> {
-    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::from)
+    capped_map::<D, std::sync::Arc<crate::Message>>(deserializer).map(crate::Messages::read)
 }
 
 /// `deserialize_with` for a list of ids a file may have got wrong (the owner's order of the
@@ -347,6 +347,71 @@ pub(crate) fn capped_lists<'de, D: Deserializer<'de>, T: DeserializeOwned>(deser
             kept.extend(from_value::<T>(&item).ok());
         }
         out.insert(id, kept);
+    }
+    Ok(out)
+}
+
+/// `deserialize_with` for names by name, by id (the renames of each account's list of categories
+/// that wait on its server, #661): each entry counts as it is read; at most
+/// [`crate::MAX_CATEGORIES`] are kept an account, each name a short one; and what isn't such a map
+/// or such a name is left out, which never costs the owner the whole file.
+pub(crate) fn capped_renames<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<Id, BTreeMap<String, String>>, D::Error> {
+    // (A name's key, in lower case, may have a few more characters than the name.)
+    let short = |n: &str| n.chars().count() <= crate::MAX_NAME.saturating_mul(4);
+    let mut out = BTreeMap::new();
+    let Value::Object(lists) = Value::deserialize(deserializer)? else { return Ok(out) };
+    for (id, names) in lists {
+        charge()?;
+        let (Ok(id), Value::Object(names)) = (id.parse::<Id>(), names) else { continue };
+        let mut kept = BTreeMap::new();
+        for (new, old) in names {
+            charge()?;
+            if let Value::String(old) = old
+                && kept.len() < crate::MAX_CATEGORIES
+                && short(&new)
+                && short(&old)
+            {
+                kept.insert(new, old);
+            }
+        }
+        if !kept.is_empty() {
+            out.insert(id, kept);
+        }
+    }
+    Ok(out)
+}
+
+/// [`crate::Mailbox::category_sweeps`] of a mailbox file (the renames of each account's categories
+/// that items on its server wait for, #851): each entry counts as it is read; at most
+/// [`crate::remote::MAX_CATEGORY_SWEEPS`] are kept an account, each name a short one; and what
+/// isn't such a list is left out, which never costs the owner the whole file.
+pub(crate) fn capped_sweeps<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BTreeMap<Id, Vec<crate::remote::CategorySweep>>, D::Error> {
+    let short = |n: &str| !n.trim().is_empty() && n.chars().count() <= crate::MAX_NAME;
+    let mut out = BTreeMap::new();
+    let Value::Object(lists) = Value::deserialize(deserializer)? else { return Ok(out) };
+    for (id, sweeps) in lists {
+        charge()?;
+        let (Ok(id), Value::Array(sweeps)) = (id.parse::<Id>(), sweeps) else { continue };
+        let mut kept = Vec::new();
+        for sweep in sweeps {
+            charge()?;
+            if let Ok(mut sweep) = serde_json::from_value::<crate::remote::CategorySweep>(sweep)
+                && kept.len() < crate::remote::MAX_CATEGORY_SWEEPS
+                && short(&sweep.from)
+                && short(&sweep.to)
+            {
+                // Names as an answer about them comes back (one line, nothing at its ends):
+                // otherwise no answer would ever be taken for this one, and it would wait for ever.
+                sweep.from = crate::remote::line(&sweep.from, crate::MAX_NAME);
+                sweep.to = crate::remote::line(&sweep.to, crate::MAX_NAME);
+                if !sweep.from.is_empty() && !sweep.to.is_empty() && !crate::sync::same_category(&sweep.from, &sweep.to) {
+                    kept.push(sweep);
+                }
+            }
+        }
+        if !kept.is_empty() {
+            out.insert(id, kept);
+        }
     }
     Ok(out)
 }

@@ -11,23 +11,23 @@ use serde_json::json;
 use super::*;
 use crate::cmd::account::servers_text;
 
-const ME: &str = "ada@example.org";
-const SESSION: &str = "https://jmap.example.org/jmap/session";
+pub(super) const ME: &str = "ada@example.org";
+pub(super) const SESSION: &str = "https://jmap.example.org/jmap/session";
 
 /// A session with one JMAP account; its id.
-fn session() -> (Session, Id) {
+pub(super) fn session() -> (Session, Id) {
     let mut s = Session::empty();
     let added = s.run("account.add", &json!({"email": ME, "kind": "jmap", "jmap": {"session": SESSION, "bearer": true}})).unwrap();
     (s, added["id"].as_u64().unwrap())
 }
 
-fn folder(id: &str, parent: &str, name: &str, kind: FolderKind) -> GraphFolder {
+pub(super) fn folder(id: &str, parent: &str, name: &str, kind: FolderKind) -> GraphFolder {
     GraphFolder { id: id.into(), parent: parent.into(), name: name.into(), kind, ..Default::default() }
 }
 
 /// The server's mailboxes: the Inbox and its fellows by role, and two of the owner's, one inside
 /// the other.
-fn mailboxes() -> Vec<GraphFolder> {
+pub(super) fn mailboxes() -> Vec<GraphFolder> {
     vec![
         folder("M1", "", "Inbox", FolderKind::Inbox),
         folder("M2", "", "Sent", FolderKind::Sent),
@@ -39,7 +39,7 @@ fn mailboxes() -> Vec<GraphFolder> {
 }
 
 /// An email as a window brings one that isn't here: what a list shows of it.
-fn email(id: &str, subject: &str, received: i64) -> GraphMessage {
+pub(super) fn email(id: &str, subject: &str, received: i64) -> GraphMessage {
     GraphMessage {
         server: ServerMessage { id: id.into(), size: 1_200, ..Default::default() },
         message_id: format!("{id}@example.org"),
@@ -54,23 +54,23 @@ fn email(id: &str, subject: &str, received: i64) -> GraphMessage {
 }
 
 /// An email as a window brings one that is here: its marks alone.
-fn marks(id: &str, read: bool, flagged: bool) -> GraphMessage {
+pub(super) fn marks(id: &str, read: bool, flagged: bool) -> GraphMessage {
     let flag = if flagged { FlagStatus::Flagged } else { FlagStatus::None };
     GraphMessage { server: ServerMessage { id: id.into(), read, flag, ..Default::default() }, ..Default::default() }
 }
 
-fn window(folder: &str, messages: Vec<GraphMessage>, afresh: bool) -> MessagePage {
+pub(super) fn window(folder: &str, messages: Vec<GraphMessage>, afresh: bool) -> MessagePage {
     MessagePage { folder: folder.into(), messages, afresh, ..Default::default() }
 }
 
 /// A piece of a run of the account, more to come.
-fn piece(account: Id) -> JmapMailResult {
+pub(super) fn piece(account: Id) -> JmapMailResult {
     JmapMailResult { account, email: ME.into(), partial: true, ..Default::default() }
 }
 
 /// A run as a host hands it over: the listing, one piece for each window, and the last piece,
 /// which says whether the run went well. What taking in the last piece answered.
-fn run(s: &mut Session, account: Id, pages: Vec<MessagePage>, whole: bool) -> Value {
+pub(super) fn run(s: &mut Session, account: Id, pages: Vec<MessagePage>, whole: bool) -> Value {
     apply_jmap_mail(s, JmapMailResult { listing: Some(FolderListing { folders: mailboxes(), complete: true }), ..piece(account) }).unwrap();
     for page in pages {
         apply_jmap_mail(s, JmapMailResult { pages: vec![page], ..piece(account) }).unwrap();
@@ -79,11 +79,11 @@ fn run(s: &mut Session, account: Id, pages: Vec<MessagePage>, whole: bool) -> Va
 }
 
 /// The message of the account the server calls `id`.
-fn here<'s>(s: &'s Session, account: Id, id: &str) -> Option<&'s Message> {
+pub(super) fn here<'s>(s: &'s Session, account: Id, id: &str) -> Option<&'s Message> {
     s.mailbox.messages.values().map(|m| &**m).find(|m| m.account == account && m.server.as_ref().is_some_and(|server| server.id == id))
 }
 
-fn folder_here(s: &Session, account: Id, server: &str) -> Id {
+pub(super) fn folder_here(s: &Session, account: Id, server: &str) -> Id {
     s.mailbox.folder_by_server(account, server).unwrap()
 }
 
@@ -648,49 +648,47 @@ fn a_server_address_a_mailbox_file_spoiled_can_be_put_right() {
     assert!(jmap_mail_request(&s, account, false).is_ok());
 }
 
-/// Until moves and deletions go up to the server, a JMAP account's mail stays where its server has
-/// it: each command that would change a message's place says why and changes nothing, and is shown
-/// greyed while such a message is selected (or such a folder is in view).
+/// Mail the server has moves between the folders the server has, and its move goes up
+/// (`jmap_up_tests.rs`); a folder the server hasn't got takes none of it, and a folder holding what
+/// the server has isn't deleted: each such command says why and changes nothing.
 #[test]
-fn a_move_or_a_deletion_of_mail_the_server_has_is_refused_until_changes_go_up() {
+fn mail_the_server_has_stays_out_of_folders_the_server_hasnt_got() {
     let (mut s, account) = session();
     run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true), window("M5", vec![email("P1", "Plan", 2)], true)], true);
     let (one, plan) = (here(&s, account, "E1").unwrap().id, here(&s, account, "P1").unwrap().id);
     let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
     let local = s.mailbox.local_account();
     let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
-    for (command, params) in [
-        ("mail.move", json!({"ids": [one], "folder": projects})),
-        ("mail.move", json!({"ids": [one], "folder": elsewhere})),
-        ("mail.delete", json!({"ids": [one]})),
-        ("mail.deletePermanently", json!({"ids": [one]})),
-        ("mail.archive", json!({"ids": [one]})),
-        ("mail.junk", json!({"ids": [one]})),
-        ("mail.notJunk", json!({"ids": [plan]})),
-        ("folder.empty", json!({"id": inbox})),
-        ("folder.delete", json!({"id": projects})),
+    let ours = s.run("folder.new", &json!({"name": "Ours", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    // (The server of this account has no mailbox for the Archive nor for Junk E-mail.)
+    for (command, params, why) in [
+        ("mail.move", json!({"ids": [one], "folder": elsewhere}), mailcraft_model::ONLY_SERVER_FOLDERS),
+        ("mail.move", json!({"ids": [one], "folder": ours}), mailcraft_model::ONLY_SERVER_FOLDERS),
+        ("mail.archive", json!({"ids": [one]}), mailcraft_model::ONLY_SERVER_FOLDERS),
+        ("mail.junk", json!({"ids": [one]}), mailcraft_model::ONLY_SERVER_FOLDERS),
+        ("folder.delete", json!({"id": projects}), mailcraft_model::FOLDERS_NOT_DELETED_YET),
     ] {
         let before = s.mailbox.clone();
-        let why = s.run(command, &params).unwrap_err().to_string();
-        assert_eq!(why, mailcraft_model::NOT_MOVING_YET, "{command}");
+        assert_eq!(s.run(command, &params).unwrap_err().to_string(), why, "{command}");
         assert!(s.mailbox == before, "{command} changed the mailbox");
     }
-    // Greyed in the window, with the reason.
+    // The commands are there for it all the same: where it may go is known only once it is said.
     s.run("mail.select", &json!({"id": one})).unwrap();
     for command in ["mail.delete", "mail.deletePermanently", "mail.archive", "mail.move", "mail.junk", "mail.notJunk"] {
-        assert!(!s.enabled(command), "{command}");
+        assert!(s.enabled(command), "{command}");
     }
-    let why = s.run("mail.delete", &json!({})).unwrap_err().to_string();
-    assert_eq!(why, format!("not available: {}", mailcraft_model::NOT_MOVING_YET));
-    s.view.folder = inbox;
-    assert!(!s.enabled("folder.empty"));
     s.view.folder = projects;
     assert!(!s.enabled("folder.delete"));
-    // A rule that would move it leaves it where it is.
+    // The Inbox is emptied into Deleted Items, which the server has; and Deleted Items for good,
+    // but not while a folder holding the server's mail lies in it.
+    s.view.folder = inbox;
+    assert!(s.enabled("folder.empty"));
+    // A rule moves it into a folder the server has, as the owner would.
     let rule = json!({"name": "Plans", "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": projects}]});
     s.run("rules.add", &rule).unwrap();
-    let _ = s.run("rules.run", &json!({"folder": inbox}));
-    assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(projects));
+    assert_eq!(s.mailbox.message(plan).map(|m| m.folder), Some(projects));
 }
 
 /// The server's mailboxes keep their names and places until changes go up: Rename Folder and Move
@@ -721,10 +719,10 @@ fn a_folder_the_server_has_is_neither_renamed_nor_moved_until_changes_go_up() {
     assert_eq!(s.mailbox.folder(ours).map(|f| (f.name.as_str(), f.parent)), Some(("Mine", Some(inbox))));
 }
 
-/// Discard on a draft the server has closes the editor and keeps the draft, and says why, for the
-/// window to tell the owner; one written here alone is deleted as before.
+/// Discard on a draft the server has closes the editor and deletes the draft, there too with the
+/// next run; one written here alone is deleted with no word to anybody.
 #[test]
-fn discarding_a_draft_the_server_has_keeps_it_and_says_why() {
+fn discarding_a_draft_the_server_has_deletes_it_there_too() {
     let (mut s, account) = session();
     let mut draft = email("D1", "Plan", 1);
     draft.draft = Some(true);
@@ -734,34 +732,16 @@ fn discarding_a_draft_the_server_has_keeps_it_and_says_why() {
     let fetched = vec![GraphFetched { id: "D1".into(), mime }];
     apply_jmap_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     s.run("mail.editDraft", &json!({"id": id})).unwrap();
-    let answer = s.run("compose.discard", &json!({})).unwrap();
-    assert_eq!(answer, json!({"draftDeleted": false, "draft": id, "stays": mailcraft_model::NOT_MOVING_YET}));
-    assert!(s.compose.is_none() && s.mailbox.message(id).is_some());
-    // A draft only this computer has goes, and nothing is said of it.
+    assert_eq!(s.run("compose.discard", &json!({})).unwrap(), json!({"draftDeleted": true}));
+    assert!(s.compose.is_none() && s.mailbox.message(id).is_none());
+    let request = jmap_mail_request(&s, account, true).unwrap();
+    assert_eq!(request.changes, [mailcraft_model::sync::JmapChange::Destroy { id: "D1".into() }]);
+    // A draft only this computer has goes, and nothing is asked of the server for it.
     s.run("mail.new", &json!({"account": account, "subject": "Mine"})).unwrap();
     let mine = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
     assert_eq!(s.run("compose.discard", &json!({})).unwrap(), json!({"draftDeleted": true}));
     assert!(s.mailbox.message(mine).is_none());
-}
-
-/// Without a JMAP account the selection isn't walked (the ribbon asks every frame); with one, a
-/// message its server has greys the commands that would move it.
-#[test]
-fn whether_mail_may_move_is_known_without_walking_a_selection_without_a_jmap_account() {
-    let mut s = Session::empty();
-    let local = s.mailbox.local_account();
-    let inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
-    let mut m = Message { folder: inbox, account: local, subject: "Here".into(), ..Default::default() };
-    // Even a message that says it is a server's (a damaged file) doesn't count without one.
-    m.server = Some(ServerMessage { id: "E1".into(), ..Default::default() });
-    let id = s.mailbox.add_message(m).unwrap();
-    s.sel.messages = vec![id; 10_000];
-    assert!(!s.mailbox.has_jmap_account());
-    assert_eq!(crate::cmd::needs_movable(&s), None);
-    let (mut s, account) = session();
-    run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true)], true);
-    s.sel.messages = vec![here(&s, account, "E1").unwrap().id];
-    assert_eq!(crate::cmd::needs_movable(&s), Some(mailcraft_model::NOT_MOVING_YET));
+    assert_eq!(jmap_mail_request(&s, account, true).unwrap().changes.len(), 1);
 }
 
 #[test]
@@ -828,4 +808,76 @@ fn the_host_side_of_a_jmap_run_is_never_an_agents() {
     let mut s = Session::empty();
     assert!(!s.enabled("sync.jmapRequest") && !s.enabled("sync.jmapFetchRequest"));
     assert_eq!(s.run("sync.jmapRequest", &json!({})).unwrap_err().to_string(), "not available: no account is kept in step over JMAP");
+}
+
+/// A recipient a JMAP account's listing leaves out, as an address that can't be kept, and a
+/// subject longer than is kept make the message one whose listing was cut (#566): a rule can't
+/// tell from it what they said until it is fetched.
+#[test]
+fn a_window_that_leaves_a_recipient_or_the_end_of_a_subject_out_says_the_message_was_cut() {
+    let (mut s, account) = session();
+    let plain = GraphMessage { cc: vec![Address::new("", "bo@example.net")], ..email("E1", "Plain cc", 1_000) };
+    let quoted = GraphMessage { cc: vec![Address::new("", "\"x,y\"@example.net")], ..email("E2", "Quoted cc", 1_000) };
+    let long = email("E3", &format!("{} confidential", "a".repeat(1_000)), 1_000);
+    // (A blank at the cut with more after it is a longer subject; blanks alone after 998 characters are not.)
+    let blank_at_the_cut = email("E4", &format!("{} confidential", "a".repeat(998)), 1_000);
+    let blanks_after = email("E5", &format!("{}   ", "a".repeat(998)), 1_000);
+    run(&mut s, account, vec![window("M1", vec![plain, quoted, long, blank_at_the_cut, blanks_after], true)], true);
+    let cut = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.cc.len()));
+    assert_eq!((cut("E1"), cut("E2")), (Some((false, 1)), Some((true, 0))));
+    let subject = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.subject.chars().count()));
+    assert_eq!([subject("E3"), subject("E4"), subject("E5")], [Some((true, 998)), Some((true, 998)), Some((false, 998))]);
+}
+
+/// Run Rules Now on a JMAP server's mail whose listing cut the end of its subject, as the JMAP reader
+/// says it did (#566): a rule with an exception for a word in the subject can't tell before the
+/// download, and leaves the mail alone.
+#[test]
+fn run_rules_now_doesnt_act_on_jmap_mail_past_an_exception_its_listing_cut() {
+    let (mut s, account) = session();
+    let as_read = GraphMessage { subject: "a".repeat(998), cut: true, ..email("E1", "", 1_000) };
+    run(&mut s, account, vec![window("M1", vec![as_read], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let rule = json!({"name": "Zoe away", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "subjectContains", "value": "confidential"}], "actions": [{"type": "moveTo", "value": projects}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let m = here(&s, account, "E1").unwrap();
+    assert_eq!(
+        (m.unfetched, m.folder, m.flag),
+        (true, inbox, FlagStatus::None),
+        "acted on past an exception for the end of the subject the listing cut"
+    );
+}
+
+/// Run Rules Now with a rule that copies and flags a JMAP account's mail (#566): a message not
+/// downloaded yet isn't copied, in its account or onto this computer, where the copy would never
+/// be whole (its server isn't asked to make it), as one out of a Microsoft or an Exchange server
+/// account isn't; the rest of the rule acts on it. One downloaded is copied.
+#[test]
+fn run_rules_now_doesnt_copy_jmap_mail_not_downloaded_yet() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "news", 1_000), email("E2", "news", 1_100)], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let local = s.mailbox.local_account();
+    let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let mime = b"From: Zoe Park <zoe@example.org>\r\nSubject: news\r\nMessage-ID: <E2@example.org>\r\n\r\nAll of it.\r\n".to_vec();
+    apply_jmap_fetch(
+        &mut s,
+        GraphFetchResult { account, email: ME.into(), fetched: vec![GraphFetched { id: "E2".into(), mime }], ..Default::default() },
+    )
+    .unwrap();
+    // (And a copy of the one not downloaded, as `mail.copy` makes it: no server id, and it never
+    // fills in either.)
+    s.mailbox.copy_message(here(&s, account, "E1").unwrap().id, inbox).unwrap();
+    let rule = json!({"name": "Keep", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}],
+        "actions": [{"type": "copyTo", "value": projects}, {"type": "copyTo", "value": elsewhere}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let e1 = here(&s, account, "E1").unwrap();
+    assert_eq!((e1.unfetched, e1.folder, e1.flag), (true, inbox, FlagStatus::Flagged), "the rest of the rule acts");
+    let copies = |folder: Id| {
+        s.mailbox.messages_in(folder).filter(|m| m.server.is_none()).map(|m| (m.unfetched, m.body.text.contains("All of it."))).collect::<Vec<_>>()
+    };
+    assert_eq!((copies(projects), copies(elsewhere)), (vec![(false, true)], vec![(false, true)]), "only the downloaded one is copied");
 }

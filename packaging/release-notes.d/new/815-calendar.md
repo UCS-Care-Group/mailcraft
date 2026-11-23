@@ -1,1 +1,0 @@
-- Import a .pst File now brings in calendar items, with their repeat patterns and time zones, and tasks. Nothing is sent to anybody ([#815](https://github.com/GITHUB_REPOSITORY/issues/815)).

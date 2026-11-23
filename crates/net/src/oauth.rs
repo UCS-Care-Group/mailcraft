@@ -24,10 +24,15 @@
 //! come from [`refresh_graph_with_favorites`], which falls back to what a sign-in covered
 //! before.
 //!
-//! Reading a shared mailbox (#70) takes one more (`Mail.ReadWrite.Shared`), asked for in the
-//! same way: by itself, when the owner has opened one ([`sign_in_for_shared`],
-//! [`refresh_graph_shared`]); and sending from one another (`Mail.Send.Shared`), by itself at
-//! the first send from one ([`sign_in_for_shared_send`], [`refresh_graph_shared_send`]).
+//! Everything else an owner can give is put to him on the page of a sign-in (2026-11-17): the
+//! to-dos' and the mailbox settings' (#661), and what reading and sending from a shared mailbox
+//! and reading the calendars shared with him take (`Mail.ReadWrite.Shared`, `Mail.Send.Shared`,
+//! `Calendars.ReadWrite.Shared`, #70). None of those is asked for by itself any more. A page that
+//! won't have them all is asked again for less ([`Endpoints::fewer`], [`Endpoints::lesser`]), so
+//! that mail never waits on them; a job that needs one asks for a token with it
+//! ([`refresh_graph_shared`], [`refresh_graph_shared_send`], …) and gets
+//! [`NetError::ConsentNeeded`] when the sign-in doesn't cover it, and an older sign-in is put one
+//! page for all of it ([`sign_in_for_sync`]).
 //!
 //! When a no to them is the organisation's rather than the owner's, it is told apart by
 //! Microsoft's own numbers for it: an administrator has to approve first ([`FavoritesRefusal::Approval`]: [`admin_consent_url`] is the address to hand
@@ -130,40 +135,47 @@ const MICROSOFT_GRAPH_MAIL: &str = "https://graph.microsoft.com/Mail.ReadWrite";
 /// keeps everything it had ([`refresh_graph_with_favorites`]), and the owner is asked for them
 /// on the provider's page only when he says so ([`sign_in_for_favorites`]).
 const MICROSOFT_GRAPH_FAVORITES: &str = "https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic";
-/// What reading a shared mailbox takes (#70, a draft): the folders and mail of the mailboxes the
-/// owner was given Full Access to, read and changed. Asked for by itself when the owner opens a
-/// shared mailbox and it is first read ([`sign_in_for_shared`], [`refresh_graph_shared`]), never
-/// on the page of a sign-in: an account without shared mailboxes is never asked for it.
+/// What reading a shared mailbox takes (#70): the folders and mail of the mailboxes the owner was
+/// given Full Access to, read and changed. Put to the owner on the page of a sign-in beside the
+/// rest ([`MICROSOFT_GRAPH_SHARED_ALL`]); a shared mailbox's run asks for a token with it
+/// ([`refresh_graph_shared`]). Microsoft has it for work and school accounts only.
 const MICROSOFT_GRAPH_SHARED: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared";
 /// What sending from a shared mailbox takes (#70): mail sent as it or on its behalf, through its
-/// own address. Asked for by itself at the first send from one ([`sign_in_for_shared_send`],
-/// [`refresh_graph_shared_send`]), never on the page of a sign-in, and never for a run that has
-/// nothing of a shared mailbox's to send.
+/// own address. On the page of a sign-in beside the rest; a run that has something of a shared
+/// mailbox's to send asks for a token with it ([`refresh_graph_shared_send`]) and sends nothing
+/// without one. Work and school accounts only.
 const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send.Shared";
-/// What reading a shared mailbox's calendars takes (#70): the calendars of the mailboxes the
-/// owner was given access to, read and, once writing comes, changed (`Calendars.Read.Shared`
-/// alone is never asked for). Asked for by itself the first time the owner shows one of them
-/// ([`sign_in_for_shared_calendars`], [`refresh_graph_shared_calendars`]), never on the page of a
-/// sign-in: an account without a shared mailbox's calendar shown is never asked for it. It is on
-/// the administrator's list too, so that one approval covers it.
+/// What reading a shared mailbox's calendars, and the calendars opened by address, takes (#70):
+/// read and, where the owner may, changed (`Calendars.Read.Shared` alone is never asked for). On
+/// the page of a sign-in beside the rest; a calendar job asks for a token with it
+/// ([`refresh_graph_shared_calendars`], [`refresh_graph_opened_calendars`]).
 const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// Everything of other people's mailboxes and calendars that is put to the owner on the page of a
+/// sign-in (2026-11-17): reading and sending from the shared mailboxes he was given access to, and
+/// reading the calendars shared with him. A page that won't have them (a personal account, which
+/// has no shared mailboxes) is asked again without them ([`Endpoints::fewer`]).
+const MICROSOFT_GRAPH_SHARED_ALL: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// What of [`MICROSOFT_GRAPH_SHARED_ALL`] the phone's page asks for: the shared mailboxes it reads
+/// and sends from. It never reads their calendars.
+const MICROSOFT_GRAPH_SHARED_PHONE: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared";
 /// What keeping the owner's to-dos in step with Microsoft To Do takes (#248): reading and
 /// changing the lists and tasks of the signed-in owner. Put to the owner on the page of a new
-/// sign-in beside the rest ([`Endpoints::consent`]; a page that won't have it is asked again
-/// without), and on the administrator's list. It is **not** part of [`MICROSOFT_GRAPH`]: a sign-in
-/// from before it was asked for would get no token at all for calendar and contacts. A job for
-/// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
-/// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
+/// sign-in beside the rest, as an extra a page that won't have it is asked again without
+/// ([`Endpoints::consent`], [`Endpoints::lesser`]), and on the administrator's list. It is **not**
+/// part of [`MICROSOFT_GRAPH`]: a sign-in from before it was asked for would get no token at all
+/// for calendar and contacts. A job for the to-dos asks for it by itself ([`refresh_graph_tasks`]);
+/// a sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_SETTINGS_WRITE`] together ([`sign_in_for_sync`]).
 const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 /// What changing the mailbox's settings takes: its automatic replies (File › Info › Automatic
-/// Replies) and the rules of its Inbox (`messageRules`, #566). Asked for by itself, the first
-/// time the owner changes either and after the window has asked him, never with a sign-in, so
-/// that a sign-in never waits on it, and on the administrator's list; a sign-in reads both with
-/// [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks for it
-/// ([`refresh_graph_replies`], [`refresh_graph_rules`]); a sign-in that doesn't cover it gets
-/// [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_replies`],
-/// [`sign_in_for_rules`]). The categories and the working hours are never written with it, nor
-/// anything else of the settings.
+/// Replies), the rules of its Inbox (`messageRules`, #566) and its list of categories
+/// (`masterCategories`, #661). Put to the owner on the page of a new sign-in beside the rest, as
+/// an extra a page that won't have it is asked again without, and on the administrator's list; a
+/// sign-in reads all three with [`MICROSOFT_GRAPH_EXTRAS`] as ever. A job that changes them asks
+/// for it ([`refresh_graph_replies`], [`refresh_graph_rules`], [`refresh_graph_categories`]); a
+/// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// once for it and for [`MICROSOFT_GRAPH_TASKS`] together ([`sign_in_for_sync`]). The working
+/// hours are never written with it, nor anything else of the settings.
 const MICROSOFT_GRAPH_SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
@@ -244,10 +256,14 @@ pub struct Endpoints {
     /// shown these: the tokens of the sign-in itself are for `scope`. When the provider refuses
     /// the two together, the sign-in is tried once more without them.
     pub consent: String,
-    /// What the owner is asked to agree to instead when the page won't have `consent` (the
-    /// provider has no such permission for this kind of account, or the owner may not give it):
-    /// less than `consent`, and known to be had. Empty for nothing in between: the sign-in is
-    /// then tried without any of it, as above.
+    /// What the owner is asked to agree to first when the page won't have `consent` (the provider
+    /// has no such permission for this kind of account, or the owner may not give it): `consent`
+    /// without what only some accounts can have (a work or school account's shared mailboxes).
+    /// Empty to go straight to `lesser`.
+    pub fewer: String,
+    /// What the owner is asked to agree to when the page won't have `fewer` either: less than
+    /// `consent`, and known to be had. Empty for nothing in between: the sign-in is then tried
+    /// without any of it, as above.
     pub lesser: String,
 }
 
@@ -268,26 +284,56 @@ impl Endpoints {
     /// one is refused by [`sign_in`] and [`refresh`]; here it reads as `common` too, so that
     /// nothing unchecked ends up in an address.)
     pub fn for_resource(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, true)
+    }
+
+    /// [`Endpoints::for_resource`] for a host that keeps none of the to-dos, the rules, the
+    /// automatic replies and the categories in step, and reads no shared mailbox's calendars (the
+    /// phone apps, for now): its page doesn't ask for what those take (`Tasks.ReadWrite`,
+    /// `MailboxSettings.ReadWrite`, #661; `Calendars.ReadWrite.Shared`), only for the shared
+    /// mailboxes it reads and sends from.
+    pub fn for_resource_without_sync(oauth: &OAuth, resource: Resource) -> Endpoints {
+        Endpoints::asking(oauth, resource, false)
+    }
+
+    fn asking(oauth: &OAuth, resource: Resource, sync: bool) -> Endpoints {
         match oauth.provider {
             OAuthProvider::Microsoft => {
                 let tenant = tenant(oauth).unwrap_or("common");
                 // The optional extras are only ever put to the owner on the page, beside what the
                 // tokens are for: a provider that won't have them there is asked again without
                 // them ([`sign_in`]), so that asking for more never costs what was to be had.
-                let (scope, consent) = match resource {
+                let (scope, plain) = match resource {
                     Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS}")),
                     Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                     Resource::GraphMail => (format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                 };
-                // (With the Favorites' permissions on the same page, were that wanted: what was
-                // asked for before them is then what a refused page falls back to.)
-                let (consent, lesser) =
-                    if FAVORITES_AT_SIGN_IN { (format!("{consent} {MICROSOFT_GRAPH_FAVORITES}"), consent) } else { (consent, String::new()) };
+                // Every permission an owner can give, on the one page (2026-11-17): keeping the
+                // to-dos, the rules, the automatic replies and the categories in step with the
+                // server (#661), for a host that keeps them; and the shared mailboxes and the
+                // calendars shared with the owner (#70). A page that won't have it all is asked
+                // again without the shared ones (a personal account has none), then for what was
+                // asked before any of it, and then for the tokens alone.
+                let (fewer, shared) = if sync {
+                    (format!("{plain} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE}"), MICROSOFT_GRAPH_SHARED_ALL)
+                } else {
+                    (plain.clone(), MICROSOFT_GRAPH_SHARED_PHONE)
+                };
+                // (Microsoft has no shared mailboxes nor calendars for a personal account: its
+                // page is not asked for them, so it is one page and not two.)
+                let consent = if oauth.is_personal("") { fewer.clone() } else { format!("{fewer} {shared}") };
+                // (With the Favorites' permissions on the same page, were that wanted.)
+                let consent = if FAVORITES_AT_SIGN_IN { format!("{consent} {MICROSOFT_GRAPH_FAVORITES}") } else { consent };
+                // (Nothing in between for a page whose only extras are the shared ones.)
+                let fewer = if fewer == plain { String::new() } else { fewer };
+                let lesser = plain;
+                let (page, login) = microsoft_login();
                 Endpoints {
-                    authorize: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/authorize"),
-                    token: format!("{MICROSOFT_LOGIN}/{tenant}/oauth2/v2.0/token"),
+                    authorize: format!("{page}/{tenant}/oauth2/v2.0/authorize"),
+                    token: format!("{login}/{tenant}/oauth2/v2.0/token"),
                     scope,
                     consent,
+                    fewer,
                     lesser,
                 }
             }
@@ -296,10 +342,22 @@ impl Endpoints {
                 token: GOOGLE_TOKEN.into(),
                 scope: GOOGLE_SCOPE.into(),
                 consent: String::new(),
+                fewer: String::new(),
                 lesser: String::new(),
             },
         }
     }
+}
+
+/// Where Microsoft's sign-in page and its token endpoint are: its own address, always. (Only the
+/// phone's end-to-end build, with the stand-in, may have a whole process sign in at a stand-in on
+/// the device instead: `graph::standin::route_this_process`.)
+fn microsoft_login() -> (String, String) {
+    #[cfg(any(test, feature = "stand-in"))]
+    if let Some(base) = crate::graph::standin::routed_everywhere() {
+        return (crate::graph::standin::STAND_IN_PAGE.to_string(), base);
+    }
+    (MICROSOFT_LOGIN.to_string(), MICROSOFT_LOGIN.to_string())
 }
 
 /// Sign the owner in on the provider's page and bring back the tokens for the mail servers.
@@ -331,7 +389,17 @@ pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel:
     if oauth.provider == OAuthProvider::Google && resource != Resource::Mail {
         return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
     }
-    sign_in_at(&Endpoints::for_resource(oauth, resource), oauth, login_hint, open, cancel)
+    let mut endpoints = Endpoints::for_resource(oauth, resource);
+    // (An Outlook.com address is a personal account whatever the settings know yet.)
+    if resource != Resource::Mail && oauth.is_personal(login_hint) {
+        endpoints.consent = without_shared(&endpoints.consent);
+    }
+    sign_in_at(&endpoints, oauth, login_hint, open, cancel)
+}
+
+/// `consent` without the shared mailboxes' and calendars' permissions.
+fn without_shared(consent: &str) -> String {
+    consent.split(' ').filter(|scope| !MICROSOFT_GRAPH_SHARED_ALL.split(' ').any(|shared| shared == *scope)).collect::<Vec<_>>().join(" ")
 }
 
 /// [`sign_in`] at endpoints other than the provider's usual ones, or asking for something else
@@ -414,23 +482,50 @@ fn sign_in_refused(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
-    let (mut consent, lesser) = (endpoints.consent.trim(), endpoints.lesser.trim());
-    let mut outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`sign_in_refused`], coming back the way `via` says.
+fn sign_in_refused_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
+    let mut consent = endpoints.consent.trim();
+    let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     // The page won't have all it was asked for (the provider has no such permission for this
-    // kind of account, or it is not the owner's to give), and there is less that is known to be
-    // had: once more, for that.
-    let unwilling = |refused: &Refused| matches!(refused.about, About::Scope | About::Consent);
-    if !lesser.is_empty() && lesser != consent && outcome.as_ref().is_err_and(unwilling) {
-        log::debug!("the sign-in was refused for what it asked for; asking again for what it asked for before");
-        consent = lesser;
-        outcome = attempt(endpoints, consent, oauth, login_hint, open, cancel, patience);
+    // kind of account, or it is not the owner's to give, or an administrator has to approve it),
+    // and there is less that is known to be had: once more for that, and once more for less.
+    // An administrator's approval is not had by asking for a bit less: an organisation that wants
+    // one for the extras is asked once more for what mail alone needs (so that signing in to mail
+    // never waits on them), and not in between; nor is the owner's own no turned into a yes by
+    // asking again.
+    let retry = |refused: &Refused, in_between: bool| {
+        if refused.policy == Policy::Approval {
+            !in_between
+        } else {
+            !refused.declined && (matches!(refused.about, About::Scope | About::Consent) || refused.policy == Policy::Account)
+        }
+    };
+    for (less, in_between) in [(endpoints.fewer.trim(), true), (endpoints.lesser.trim(), false)] {
+        // (Nothing is less than nothing: a page that asked for the tokens alone is the answer.)
+        if consent.is_empty() || less.is_empty() || less == consent || !outcome.as_ref().is_err_and(|refused| retry(refused, in_between)) {
+            continue;
+        }
+        log::debug!("the sign-in was refused for what it asked for; asking again for less");
+        consent = less;
+        outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
     }
     match outcome {
         // The provider won't have what was asked for, and more was asked for than the tokens
         // need: once more, for the tokens alone.
         Err(refused) if refused.about == About::Scope && !consent.is_empty() => {
             log::debug!("the sign-in was refused for what it asked for; asking again without the extra permissions");
-            attempt(endpoints, "", oauth, login_hint, open, cancel, patience)
+            attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via)
         }
         outcome => outcome,
     }
@@ -458,10 +553,10 @@ pub enum FavoritesRefusal {
 /// everything this program asks an owner for, so that one approval covers what is asked later
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
-/// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox and sending from one take, what reading its calendars takes, what
-/// keeping the to-dos in step with Microsoft To Do takes, and what keeping rules on the server
-/// takes.
+/// through Graph, its mail; keeping the to-dos, the rules, the automatic replies and the
+/// categories in step; reading and sending from shared mailboxes and reading the calendars shared
+/// with the owner), and what reading the Favorites of Outlook through Graph takes, which is the
+/// one thing still asked for by itself. Exactly that, and nothing more.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -588,13 +683,30 @@ pub fn admin_consent(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &
 
 /// [`admin_consent`], waiting no longer than `patience` for each page.
 fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`admin_consent`], with the answer coming back the way `via` says (a program on a phone has
+/// no loopback port to be sent back to: [`RedirectStrategy::CustomScheme`]).
+pub fn admin_consent_via(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel: &AtomicBool, via: &RedirectStrategy) -> Result<(), AdminRefusal> {
+    admin_consent_within_via(oauth, tenant, open, cancel, SIGN_IN_TIMEOUT, via)
+}
+
+fn admin_consent_within_via(
+    oauth: &OAuth,
+    tenant: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), AdminRefusal> {
     let all = admin_scope();
-    match ask_administrator(oauth, tenant, &all, open, cancel, patience) {
+    match ask_administrator(oauth, tenant, &all, open, cancel, patience, via) {
         // The page won't have what it was asked for together: once more, a page for each service.
         Err(refused) if refused.about == About::Scope && apart(&all).len() > 1 => {
             log::debug!("the approval page was refused for what it asked for; asking service by service");
             for part in apart(&all) {
-                ask_administrator(oauth, tenant, &part, open, cancel, patience)?;
+                ask_administrator(oauth, tenant, &part, open, cancel, patience, via)?;
             }
             Ok(())
         }
@@ -603,22 +715,32 @@ fn admin_consent_within(oauth: &OAuth, tenant: &str, open: &dyn Fn(&str), cancel
 }
 
 /// One go at an administrator's approval of `scope`: the page, and the wait for its answer.
-fn ask_administrator(oauth: &OAuth, tenant: &str, scope: &str, open: &dyn Fn(&str), cancel: &AtomicBool, patience: Duration) -> Result<(), Refused> {
+fn ask_administrator(
+    oauth: &OAuth,
+    tenant: &str,
+    scope: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<(), Refused> {
     let client_id = client_id(oauth)?;
     let page = admin_consent_page(oauth, tenant)?;
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
+    let redirect = Landing::open(via)?;
     // As for a sign-in: the registered address, on whichever port is free here.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect_uri = redirect.uri();
     // Only the page that was given the state can send it back: nobody else on this machine can
     // say yes or no in its place.
     let state = random(24)?;
-    log::debug!("waiting on port {} for the administrator's approval to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the administrator's approval to come back");
+    }
     let fields = [("client_id", client_id), ("scope", scope), ("redirect_uri", redirect_uri.as_str()), ("state", state.as_str())];
     open(&format!("{page}?{}", http::form(&fields)));
-    redirect.wait_for(&state, cancel, patience, judge_consent)
+    redirect.wait_consent(&state, cancel, patience)
 }
 
 /// Ask the owner, on the provider's page, to let this program read the Favorites of Outlook
@@ -631,7 +753,7 @@ fn ask_administrator(oauth: &OAuth, tenant: &str, scope: &str, open: &dyn Fn(&st
 pub fn sign_in_for_favorites(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
     let plain = Endpoints::for_resource(oauth, Resource::Graph);
     let scope = format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_FAVORITES} {SIGN_IN_SCOPE}");
-    let endpoints = Endpoints { scope, consent: String::new(), lesser: String::new(), ..plain };
+    let endpoints = Endpoints { scope, consent: String::new(), fewer: String::new(), lesser: String::new(), ..plain };
     sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
@@ -658,21 +780,21 @@ fn shared_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program read the shared mailboxes he was
-/// given Full Access to (`Mail.ReadWrite.Shared`), beside what Microsoft Graph was asked for
-/// before. Only when he has opened one (#70), and never with an ordinary sign-in. The tokens
-/// that come back are Graph's, for all of it; a no says whose it is, in the same kinds as the
-/// Favorites' ([`FavoritesRefusal`]). Nothing is tried a second time.
-pub fn sign_in_for_shared(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: shared_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+/// The tokens, when what the answer says it granted (RFC 6749 §5.1: left out when it is what was
+/// asked for) has `needed`; else [`NetError::ConsentNeeded`], and nothing is read or sent with them.
+fn granted(tokens: Tokens, needed: &str) -> Result<Tokens, NetError> {
+    let name = |scope: &str| scope.rsplit('/').next().unwrap_or(scope).to_ascii_lowercase();
+    let wanted = name(needed);
+    if tokens.granted_scope.is_empty() || tokens.granted_scope.split_whitespace().any(|scope| name(scope) == wanted) {
+        return Ok(tokens);
+    }
+    Err(NetError::ConsentNeeded(format!("the sign-in doesn't cover {}", needed.rsplit('/').next().unwrap_or(needed))))
 }
 
 /// [`refresh_graph_mail`] for a Graph run of a shared mailbox (#70): the tokens are asked for
 /// with `Mail.ReadWrite.Shared` too, and for nothing less: a sign-in that doesn't cover it gets
-/// [`NetError::ConsentNeeded`], and the owner is asked on the provider's page
-/// ([`sign_in_for_shared`]). The owner's own runs are not touched by it.
+/// [`NetError::ConsentNeeded`], and the owner is asked, once, for everything his sign-in lacks
+/// ([`sign_in_for_sync`]). The owner's own runs are not touched by it.
 pub fn refresh_graph_shared(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     refresh_graph_shared_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
 }
@@ -682,6 +804,7 @@ pub fn refresh_graph_shared(oauth: &OAuth, refresh_token: &str) -> Result<GraphT
 pub fn refresh_graph_shared_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -691,20 +814,10 @@ fn shared_send_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {MICROSOFT_GRAPH_SHARED_SEND} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program send from the shared mailboxes he
-/// may send as or on behalf of (`Mail.Send.Shared`), beside what reading them takes. Only at the
-/// first send from one (#70), after the window has asked him, and never with an ordinary
-/// sign-in. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
-pub fn sign_in_for_shared_send(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: shared_send_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph_shared`] for a run of a shared mailbox that has mail to send (#70): the tokens
 /// are asked for with `Mail.Send.Shared` too, and for nothing less. A sign-in that doesn't cover
 /// it gets [`NetError::ConsentNeeded`]: nothing is sent, and the window asks the owner
-/// ([`sign_in_for_shared_send`]).
+/// ([`sign_in_for_sync`]).
 pub fn refresh_graph_shared_send(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     refresh_graph_shared_send_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
 }
@@ -714,6 +827,7 @@ pub fn refresh_graph_shared_send(oauth: &OAuth, refresh_token: &str) -> Result<G
 pub fn refresh_graph_shared_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_SEND)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -723,21 +837,10 @@ fn shared_calendar_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {MICROSOFT_GRAPH_SHARED_CALENDARS} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program read the calendars of the shared
-/// mailboxes he was given access to (`Calendars.ReadWrite.Shared`), beside what reading their mail
-/// takes. Only when he first shows one of them (#70), after the window has asked him, and never
-/// with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a
-/// second time.
-pub fn sign_in_for_shared_calendars(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: shared_calendar_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph_shared`] for a Graph run of a shared mailbox's calendars (#70): the tokens are
 /// asked for with `Calendars.ReadWrite.Shared` too, and for nothing less. A sign-in that doesn't
 /// cover it gets [`NetError::ConsentNeeded`]: nothing of the calendars is read, and the window
-/// asks the owner ([`sign_in_for_shared_calendars`]).
+/// asks the owner ([`sign_in_for_sync`]).
 pub fn refresh_graph_shared_calendars(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     refresh_graph_shared_calendars_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
 }
@@ -747,6 +850,7 @@ pub fn refresh_graph_shared_calendars(oauth: &OAuth, refresh_token: &str) -> Res
 pub fn refresh_graph_shared_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_calendar_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -762,7 +866,7 @@ fn shared_calendar_send_scope() -> String {
 /// [`refresh_graph_shared_calendars`] for a run that has something of a shared mailbox's calendar
 /// to send (#70): the tokens are asked for with `Mail.Send.Shared` too, and for nothing less. A
 /// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: nothing is sent, and the window
-/// asks the owner as it does for mail ([`sign_in_for_shared_send`]).
+/// asks the owner as it does for mail ([`sign_in_for_sync`]).
 pub fn refresh_graph_shared_calendars_send(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     refresh_graph_shared_calendars_send_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
 }
@@ -772,30 +876,22 @@ pub fn refresh_graph_shared_calendars_send(oauth: &OAuth, refresh_token: &str) -
 pub fn refresh_graph_shared_calendars_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_calendar_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    let tokens = granted(granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?, MICROSOFT_GRAPH_SHARED_SEND)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
 /// What the tokens of a calendar job for an account with calendars opened by address are asked
 /// for (#70, Open Shared Calendar): what its calendar takes, and `Calendars.ReadWrite.Shared` on
 /// top, the same permission as a shared mailbox's calendars take. Not the mail permissions of
-/// shared mailboxes: an account that only opened somebody's calendar is never asked for those.
+/// shared mailboxes: a job for somebody's calendar needs none of those.
 fn opened_calendars_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SHARED_CALENDARS} {SIGN_IN_SCOPE}")
-}
-
-/// [`sign_in_for_shared_calendars`] for an account that opened somebody's calendar by address:
-/// the same one permission, asked for by itself and never with a sign-in, without what reading a
-/// shared mailbox's mail takes.
-pub fn sign_in_for_opened_calendars(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: opened_calendars_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
 /// [`refresh_graph_shared_calendars`] for a calendar job of an account with calendars opened by
 /// address (#70): asked for with `Calendars.ReadWrite.Shared` too, and for nothing less. A sign-in
 /// that doesn't cover it gets [`NetError::ConsentNeeded`], and the job goes on with the account's
-/// own calendars while the owner is asked ([`sign_in_for_opened_calendars`]).
+/// own calendars while the owner is asked ([`sign_in_for_sync`]).
 pub fn refresh_graph_opened_calendars(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     refresh_graph_opened_calendars_at(&Endpoints::for_resource(oauth, Resource::Graph), oauth, refresh_token)
 }
@@ -804,6 +900,7 @@ pub fn refresh_graph_opened_calendars(oauth: &OAuth, refresh_token: &str) -> Res
 pub fn refresh_graph_opened_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: opened_calendars_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
+    let tokens = granted(tokens, MICROSOFT_GRAPH_SHARED_CALENDARS)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 
@@ -813,21 +910,10 @@ fn tasks_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_TASKS} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program read and change the to-dos of the
-/// signed-in owner (`Tasks.ReadWrite`). Only when a to-do job found the sign-in doesn't cover
-/// it, after the window has asked him, and never with an ordinary sign-in of an account that
-/// was made before it was asked for. A no says whose it is ([`FavoritesRefusal`]); nothing is
-/// tried a second time.
-pub fn sign_in_for_tasks(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: tasks_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph`] for a to-do job (#248): the tokens are asked for with `Tasks.ReadWrite`,
 /// and for nothing less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the
 /// to-dos are neither read nor sent, everything else goes on, and the window asks the owner
-/// ([`sign_in_for_tasks`]). Microsoft says no to a personal account that never agreed in the
+/// ([`sign_in_for_sync`]). Microsoft says no to a personal account that never agreed in the
 /// words of a sign-in that is over (#520), so a no is put to the account's mail with the same
 /// refresh token, as [`refresh_graph_at`] does: if it still takes it, it is the permission.
 /// `mail` is how the account's mail is had: [`Resource::Mail`] (IMAP and SMTP) or
@@ -885,21 +971,10 @@ fn rules_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
 }
 
-/// Ask the owner, on the provider's page, to let this program change the rules his server keeps
-/// (`MailboxSettings.ReadWrite`, the permission the automatic replies are changed with). Only
-/// when a rule is to go to the server and the sign-in doesn't cover it, after the window has
-/// asked him, and never with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]);
-/// nothing is tried a second time.
-pub fn sign_in_for_rules(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
-    let endpoints = Endpoints { scope: rules_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
-}
-
 /// [`refresh_graph_mail`] for a rules job with changes to send (#566): the tokens are asked for
 /// with `MailboxSettings.ReadWrite`, and for nothing less. A sign-in that doesn't cover it gets
 /// [`NetError::ConsentNeeded`]: nothing of the rules is sent, everything else goes on, and the
-/// window asks the owner ([`sign_in_for_rules`]).
+/// window asks the owner ([`sign_in_for_sync`]).
 pub fn refresh_graph_rules(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints::for_resource(oauth, Resource::GraphMail);
     refresh_graph_rules_at(&endpoints, &endpoints, oauth, refresh_token)
@@ -916,16 +991,6 @@ pub fn refresh_graph_rules_at(endpoints: &Endpoints, mail: &Endpoints, oauth: &O
 /// asked for, and changing the mailbox's settings on top.
 fn replies_scope() -> String {
     format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
-}
-
-/// Ask the owner, on the provider's page, to let this program change the mailbox's settings
-/// (`MailboxSettings.ReadWrite`), for its automatic replies. Only when a job that changes them
-/// found the sign-in doesn't cover it, after the window has asked him; never with a sign-in.
-/// A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
-pub fn sign_in_for_replies(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
-    let plain = Endpoints::for_resource(oauth, Resource::Graph);
-    let endpoints = Endpoints { scope: replies_scope(), consent: String::new(), lesser: String::new(), ..plain };
-    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
 /// Tokens for changing the automatic replies (and reading them back): asked for with
@@ -947,6 +1012,115 @@ pub fn refresh_graph_replies_at(
     refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the automatic replies")
 }
 
+/// What the tokens of the one page for an older sign-in are for: what keeping the to-dos, the
+/// rules, the automatic replies and the categories in step with the server takes (#661); with
+/// `mail_write`, for an account kept in step through Graph (R3), reading and changing its mail as
+/// well, and for no other. (What the shared mailboxes and calendars take is put to the owner on
+/// the same page, [`sync_endpoints`]; their jobs ask for their own tokens.)
+fn sync_scope(mail_write: bool) -> String {
+    let mail = if mail_write { format!(" {MICROSOFT_GRAPH_MAIL}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, once, for everything a sign-in's page asks for today
+/// that his older sign-in doesn't cover (Microsoft shows only what wasn't given yet): keeping the
+/// to-dos, rules, automatic replies and categories in step with the server (`Tasks.ReadWrite`,
+/// `MailboxSettings.ReadWrite`, #661), and, for an account that isn't a personal one, reading and
+/// sending from the shared mailboxes he was given access to and reading the calendars shared with
+/// him (`Mail.ReadWrite.Shared`, `Mail.Send.Shared`, `Calendars.ReadWrite.Shared`, #70). Only after
+/// the window has asked him; `mail_write` as for [`sync_scope`]. A no says whose it is
+/// ([`FavoritesRefusal`]). A page that can't have the shared ones (the account has no such
+/// permissions) is asked again without them; an administrator's no is the answer, so that the
+/// owner is told how to have one approve it all.
+pub fn sign_in_for_sync(
+    oauth: &OAuth,
+    login_hint: &str,
+    mail_write: bool,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+) -> Result<Tokens, FavoritesRefusal> {
+    sync_page_within(&sync_endpoints(oauth, login_hint, mail_write), oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, &RedirectStrategy::Loopback)
+}
+
+/// The page and the tokens [`sign_in_for_sync`] asks for: [`sync_scope`] for the tokens, and the
+/// shared mailboxes' and calendars' permissions put to the owner beside them, unless the account
+/// is a personal one (Microsoft has no shared mailboxes for those).
+fn sync_endpoints(oauth: &OAuth, email: &str, mail_write: bool) -> Endpoints {
+    let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
+    let consent = if oauth.is_personal(email) { String::new() } else { MICROSOFT_GRAPH_SHARED_ALL.to_string() };
+    Endpoints { scope: sync_scope(mail_write), consent, fewer: String::new(), lesser: String::new(), ..plain }
+}
+
+/// `scope` without what keeping the to-dos and the settings in step takes.
+fn without_sync_scopes(scope: &str) -> String {
+    let own = |word: &&str| ![MICROSOFT_GRAPH_TASKS, MICROSOFT_GRAPH_SETTINGS_WRITE].contains(word);
+    scope.split(' ').filter(own).collect::<Vec<_>>().join(" ")
+}
+
+/// [`sign_in_for_sync`] at `endpoints`, waiting no longer than `patience`, coming back the way
+/// `via` says: the page, and once more without what it put to the owner beside the tokens' scopes
+/// when the provider has no such permissions for the account. Nothing else is tried again.
+fn sync_page_within(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, FavoritesRefusal> {
+    let consent = endpoints.consent.trim();
+    let mut without_shared = consent.is_empty();
+    let mut reduced = false;
+    // (No such permissions for this kind of account, in either of Microsoft's ways of saying so.)
+    let no_such = |refused: &Refused| refused.policy == Policy::Account || (refused.about == About::Scope && refused.policy == Policy::None);
+    let mut outcome = attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, via);
+    if !consent.is_empty() && outcome.as_ref().is_err_and(no_such) {
+        log::debug!("the one page was refused for what it asked for; asking again without the shared mailboxes' permissions");
+        without_shared = true;
+        outcome = attempt_via(endpoints, "", oauth, login_hint, open, cancel, patience, via);
+    }
+    // Still not had for its scopes, and there are shared ones to be had: the organisation has no
+    // such To Do lists or settings for this person, and shared mailboxes are not to wait on that
+    // (an administrator's approval is another matter: nothing is asked again for less). Once
+    // more, for the shared ones beside the tokens' own, without those.
+    if !consent.is_empty() && outcome.as_ref().is_err_and(|refused| refused.about == About::Scope && refused.policy != Policy::Approval) {
+        log::debug!("the one page was refused for its scopes; asking again for the shared mailboxes' permissions alone");
+        let alone = Endpoints { scope: without_sync_scopes(&endpoints.scope), ..endpoints.clone() };
+        reduced = true;
+        without_shared = false;
+        outcome = attempt_via(&alone, consent, oauth, login_hint, open, cancel, patience, via);
+    }
+    // (Tokens of a page that was not given the shared permissions say so, so that nobody takes
+    // them for allowed to use a shared mailbox: that would only ask for the page again. Nor are
+    // those of a page without the to-dos' and the settings' taken for allowed to keep them.)
+    let outcome = outcome.map(|tokens| Tokens { shared_not_given: without_shared, sync_not_given: reduced, ..tokens });
+    outcome.map_err(|refused| match (refused.policy, refused.about) {
+        (Policy::Approval, _) => FavoritesRefusal::Approval,
+        (Policy::Blocked, _) => FavoritesRefusal::Organisation,
+        (Policy::Account, _) | (Policy::None, About::Scope) => FavoritesRefusal::Account,
+        (Policy::None, _) => FavoritesRefusal::Other(refused.error),
+    })
+}
+
+/// Tokens for changing the account's list of categories (#661), and for reading it back: asked
+/// for with `MailboxSettings.ReadWrite`, and for nothing less, as [`refresh_graph_replies`] is.
+/// A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the list is read-only here.
+pub fn refresh_graph_categories(oauth: &OAuth, refresh_token: &str, mail: Resource) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_categories_at(&endpoints, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_categories`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_categories_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
+    refresh_by_itself_at(&Endpoints { scope: replies_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "changing the categories")
+}
+
 /// One go at signing in: the page (asked for the tokens' scopes and for `consent`), the wait for
 /// the browser, and the code traded in for tokens (for the tokens' scopes only: a token request
 /// names one resource).
@@ -959,6 +1133,21 @@ fn attempt(
     cancel: &AtomicBool,
     patience: Duration,
 ) -> Result<Tokens, Refused> {
+    attempt_via(endpoints, consent, oauth, login_hint, open, cancel, patience, &RedirectStrategy::Loopback)
+}
+
+/// [`attempt`], coming back the way `via` says.
+#[allow(clippy::too_many_arguments)]
+fn attempt_via(
+    endpoints: &Endpoints,
+    consent: &str,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    patience: Duration,
+    via: &RedirectStrategy,
+) -> Result<Tokens, Refused> {
     let client_id = client_id(oauth)?;
     tenant(oauth)?;
     // Both addresses are checked before the owner is sent anywhere.
@@ -967,16 +1156,18 @@ fn attempt(
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
-    let redirect = Redirect::listen()?;
-    // As it is registered with the provider (`http://localhost`), which ignores the port of a
-    // loopback address but compares the rest exactly: no path, no trailing slash.
-    let redirect_uri = format!("http://localhost:{}", redirect.port);
+    let redirect = Landing::open(via)?;
+    // Loopback: as it is registered with the provider (`http://localhost`), which ignores the
+    // port of a loopback address but compares the rest exactly: no path, no trailing slash.
+    let redirect_uri = redirect.uri();
     // PKCE: only who knows the verifier can trade the code in, and only its hash goes through the browser.
     let verifier = random(32)?;
     let state = random(24)?;
-    log::debug!("waiting on port {} for the sign-in to come back", redirect.port);
+    if let Some(port) = redirect.port() {
+        log::debug!("waiting on port {port} for the sign-in to come back");
+    }
     open(&authorize_url(endpoints, consent, client_id, &redirect_uri, &state, &challenge(&verifier), login_hint));
-    let code = redirect.wait(&state, cancel, patience)?;
+    let code = redirect.wait_code(&state, cancel, patience)?;
     drop(redirect);
     let fields = [
         ("grant_type", "authorization_code"),
@@ -1411,7 +1602,13 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
         _ => None,
     };
     let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(0, MAX_LIFETIME);
-    Ok(Tokens { access: access.to_string(), refresh: refresh.to_string(), expires_at: now.saturating_add(lifetime), ..identity(text("id_token")) })
+    Ok(Tokens {
+        access: access.to_string(),
+        refresh: refresh.to_string(),
+        expires_at: now.saturating_add(lifetime),
+        granted_scope: text("scope").chars().take(4096).collect(),
+        ..identity(text("id_token"))
+    })
 }
 
 /// Who signed in, from the identity token that may come with the others (a JWT: three parts in
@@ -1569,16 +1766,39 @@ fn judge_consent(request: &[u8], state: &str) -> (&'static Page, Option<Result<(
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    if let Some(refused) = page_refusal(&fields) {
-        return (&NOT_APPROVED, Some(Err(refused)));
+    match consent_of(&fields) {
+        Ok(()) => (&APPROVED, Some(Ok(()))),
+        Err(refused) => (&NOT_APPROVED, Some(Err(refused))),
+    }
+}
+
+/// The answer in what the approval page sent back (`fields`, once `state` is known to be ours).
+fn consent_of(fields: &[(String, String)]) -> Result<(), Refused> {
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
     }
     let said = fields.iter().find(|(name, _)| name == "admin_consent").map_or("", |(_, value)| value.as_str());
     if said.trim().eq_ignore_ascii_case("true") {
-        (&APPROVED, Some(Ok(())))
+        Ok(())
     } else {
         let broken = ProtoError::Protocol("the approval page came back without an answer".into());
-        (&NOT_APPROVED, Some(Err(NetError::Proto(broken).into())))
+        Err(NetError::Proto(broken).into())
     }
+}
+
+/// The code in what the provider's page sent back (`fields`, once `state` is known to be ours),
+/// or why there is none.
+fn code_of(fields: &[(String, String)]) -> Result<String, Refused> {
+    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
+    if let Some(refused) = page_refusal(fields) {
+        return Err(refused);
+    }
+    let code = field("code");
+    if code.is_empty() || !usable(code) {
+        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
+        return Err(NetError::Proto(broken).into());
+    }
+    Ok(code.to_string())
 }
 
 /// The page a request is answered with and, when it is the one waited for, how the sign-in
@@ -1588,16 +1808,10 @@ fn judge(request: &[u8], state: &str) -> (&'static Page, Option<Result<String, R
         Ok(fields) => fields,
         Err(page) => return (page, None),
     };
-    let field = |name: &str| fields.iter().find(|(n, _)| n == name).map_or("", |(_, value)| value.as_str());
-    if let Some(refused) = page_refusal(&fields) {
-        return (&FAILED, Some(Err(refused)));
+    match code_of(&fields) {
+        Ok(code) => (&DONE, Some(Ok(code))),
+        Err(refused) => (&FAILED, Some(Err(refused))),
     }
-    let code = field("code");
-    if code.is_empty() || !usable(code) {
-        let broken = ProtoError::Protocol("the sign-in page came back without a code".into());
-        return (&FAILED, Some(Err(NetError::Proto(broken).into())));
-    }
-    (&DONE, Some(Ok(code.to_string())))
 }
 
 /// A connection to the loopback port and what it has sent so far.
@@ -1686,6 +1900,19 @@ impl Visitor {
     }
 }
 
+/// The ports browsers refuse to connect to ("bad ports" of the Fetch standard,
+/// <https://fetch.spec.whatwg.org/#port-blocking>), and 0, which is no port.
+const BLOCKED_PORTS: &[u16] = &[
+    0, 1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119,
+    123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993,
+    995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697, 10080,
+];
+
+/// Whether a browser would refuse to go to `port`.
+fn blocked_port(port: u16) -> bool {
+    BLOCKED_PORTS.contains(&port)
+}
+
 /// The loopback port the browser is sent back to.
 struct Redirect {
     listeners: Vec<TcpListener>,
@@ -1696,10 +1923,19 @@ impl Redirect {
     /// Listen on a free port of 127.0.0.1 and, where there is IPv6, on the same port of `::1`:
     /// a browser may take `localhost` to be either.
     fn listen() -> Result<Redirect, NetError> {
+        Redirect::listen_avoiding(blocked_port)
+    }
+
+    /// [`listen`](Self::listen) with the test for a port a browser refuses given, so a test can drive it.
+    fn listen_avoiding(blocked: impl Fn(u16) -> bool) -> Result<Redirect, NetError> {
         let failed = || NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into());
         for attempt in 1..=MAX_PORT_TRIES {
             let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| failed())?;
             let port = v4.local_addr().map_err(|_| failed())?.port();
+            // A browser would show ERR_UNSAFE_PORT and the sign-in would never come back: another port.
+            if blocked(port) {
+                continue;
+            }
             let mut listeners = vec![v4];
             match TcpListener::bind((Ipv6Addr::LOCALHOST, port)) {
                 Ok(v6) => listeners.push(v6),
@@ -1793,10 +2029,61 @@ pub fn sign_in_google_explained_at(
     google::sign_in_google_refused(endpoints, oauth, client_secret, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
+mod permission;
+pub use permission::{Ending, Permission, permission_endpoints, sign_in_ending_via, sign_in_for_permission_at};
+mod scheme;
+use scheme::Landing;
+pub use scheme::{CustomScheme, DEFAULT_REDIRECT_HOST, DEFAULT_REDIRECT_PATH, Handback, RedirectStrategy};
+
+/// [`sign_in_at`], coming back the way `via` says: through a loopback port (what a desktop does)
+/// or through a custom scheme the platform hands back ([`RedirectStrategy::CustomScheme`]).
+/// Everything else (PKCE, the state, the consent, the trade of the code) is the same. Google's
+/// registration comes back through loopback only.
+pub fn sign_in_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, NetError> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_at(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(NetError::Config("Google sign-in comes back through a loopback port only".into()));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(|refused| refused.error)
+}
+
+/// [`sign_in_via`], saying how a sign-in that brought no tokens ended ([`SignInEnd`]).
+pub fn sign_in_explained_via(
+    endpoints: &Endpoints,
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    via: &RedirectStrategy,
+) -> Result<Tokens, SignInEnd> {
+    if matches!(via, RedirectStrategy::Loopback) {
+        return sign_in_explained(endpoints, oauth, login_hint, open, cancel);
+    }
+    if oauth.provider == OAuthProvider::Google {
+        return Err(SignInEnd::Other(NetError::Config("Google sign-in comes back through a loopback port only".into())));
+    }
+    sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(SignInEnd::from)
+}
+
 mod google;
 pub use google::{refresh_google_at, sign_in_google_at};
 
 #[cfg(test)]
 mod google_tests;
+#[cfg(test)]
+mod one_page_tests;
+#[cfg(test)]
+mod permission_tests;
+#[cfg(test)]
+mod scheme_tests;
 #[cfg(test)]
 mod tests;

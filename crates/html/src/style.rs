@@ -12,10 +12,12 @@
 //! | Read | From |
 //! |---|---|
 //! | text colour | `color` |
-//! | background colour | `background-color`, the colour in `background` (a `url()` there is never used) |
+//! | background colour | `background-color`, the colour in `background` (also in one too long for the picture written into it) |
+//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): only one that is attached to the message or written into it, never one on the web |
 //! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
-//! | alignment | `text-align` |
+//! | alignment | `text-align`; `start`, `end` and `justify` follow the paragraph's direction, the sides don't |
+//! | direction | `direction` (`ltr`, `rtl`) and the `dir` attribute (`ltr`, `rtl`, `auto`): a paragraph that reads from the right stands at the right; one with none reads left to right, as in a browser, and only `dir=auto` takes it from its first letter that has a direction (`bidi.rs`) |
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`, the families after the size in `font`: the list of names (at most [`MAX_FAMILIES`]), for the reading pane to draw in the first that is installed on this computer and for pasting into the composer; a font is never fetched (`@font-face` is ignored) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
@@ -28,7 +30,9 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block`, exactly (any other `display` but `none` says nothing) |
+//! | boxes on a line | `display: inline-block`, and `display: table` (a box as wide as what is in it; centred by automatic margins) read as it on anything but a `<table>`, whose display that is anyway |
+//! | a link or a span as a box of its own | `display: block` on an `<a>` or a `<span>` that has a background, a frame, padding or a width: a block as wide as its line, as a button written so is (no other `display` value says anything but `none` and the table parts below) |
+//! | table parts | `display: table-row` and `display: table-cell` on ordinary blocks and spans |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
@@ -49,9 +53,11 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
+use crate::bg::{BgCss, is_bg_property, without_urls};
+use crate::bidi::{AlignFrom, Dir};
 use crate::{
-    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
-    MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
+    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
+    MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
 };
 
 /// Longest `style` attribute read, in bytes; the rest is ignored.
@@ -66,6 +72,9 @@ const MAX_VALUE: usize = 1024;
 /// The size text has when a message doesn't say, in CSS pixels: what a relative size (`120%`,
 /// `<small>`) is measured against.
 pub(crate) const BASE_FONT_PX: f32 = 13.0;
+
+/// The largest font size a message can ask for in the reading pane, in CSS pixels.
+pub const MAX_FONT_PX: u8 = 48;
 
 /// A margin up to this many pixels is no paragraph gap: lines that close are still one block of lines.
 const SLIGHT_MARGIN_PX: f32 = 6.0;
@@ -85,7 +94,7 @@ pub(crate) enum Size {
 impl Size {
     /// The size in whole pixels, clamped to what is readable, given the size around it; `None`
     /// when it is so small that the text is meant not to be seen.
-    pub fn resolve(self, parent: Option<u8>) -> Option<u8> {
+    pub fn resolve(self, parent: Option<u8>, max_font_px: u8) -> Option<u8> {
         let px = match self {
             Size::Px(px) => px,
             Size::Scale(scale) => scale * parent.map_or(BASE_FONT_PX, f32::from),
@@ -93,7 +102,7 @@ impl Size {
         if !px.is_finite() || px <= HIDDEN_FONT_PX {
             return None;
         }
-        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(MAX_FONT_PX)) as u8)
+        Some(px.round().clamp(f32::from(MIN_FONT_PX), f32::from(max_font_px)) as u8)
     }
 }
 
@@ -106,6 +115,13 @@ pub(crate) enum MsoList {
     Level(u8),
 }
 
+/// The two table roles a style can give an ordinary element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TableDisplay {
+    Row,
+    Cell,
+}
+
 /// The whitelisted facts of one `style` attribute.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Css {
@@ -116,6 +132,10 @@ pub(crate) struct Css {
     pub underline: Option<bool>,
     pub strike: Option<bool>,
     pub align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    pub align_from: AlignFrom,
+    /// `direction`, and the `dir` attribute where it gives none ([`crate::blocks::css_of`]).
+    pub direction: Option<Dir>,
     pub size: Option<Size>,
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
@@ -152,8 +172,17 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// `display: table`: a box as wide as what is in it on anything but a `<table>`, whose display
+    /// that is anyway ([`crate::blocks::asks_box`]).
+    pub table: bool,
+    /// `display: block`: read for a link or a span with a look of its own alone.
+    pub block: bool,
+    /// A row or cell role on an ordinary element in a block context.
+    pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
+    /// A picture behind the box (`bg.rs`, #601).
+    pub bg: BgCss,
 }
 
 impl Css {
@@ -175,10 +204,27 @@ impl Css {
         let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
-            if value.len() > MAX_VALUE || property.len() > 32 {
+            if property.len() > 32 {
                 continue;
             }
             let property = property.to_ascii_lowercase();
+            // (A picture behind a box may be written into the value: it is as long as the caps
+            // on the whole text allow, and keeps its letter case.)
+            if is_bg_property(&property) {
+                css.bg.read(&property, strip_important(value).0);
+            }
+            // (A `background` that is long for the picture written into it keeps its colour: the
+            // pictures are taken out of it before its length is held to the cap.)
+            let shorn;
+            let value = if property == "background" && value.len() > MAX_VALUE {
+                shorn = without_urls(value);
+                shorn.as_str()
+            } else {
+                value
+            };
+            if value.len() > MAX_VALUE {
+                continue;
+            }
             let value = value.to_ascii_lowercase();
             let value = strip_important(&value).0;
             match property.as_str() {
@@ -221,12 +267,27 @@ impl Css {
                         css.strike = Some(true);
                     }
                 }
-                "text-align" => css.align = align(value).or(css.align),
+                "text-align" => {
+                    if let Some(side) = align(value) {
+                        css.align = Some(side);
+                        css.align_from = if matches!(value, "start" | "end" | "justify") { AlignFrom::Flow } else { AlignFrom::Side };
+                    }
+                }
+                "direction" => css.direction = Dir::css(value).or(css.direction),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
                 "display" => {
                     display_none = value == "none";
                     css.inline_block = value == "inline-block";
+                    // (`display: table` is a box as wide as what is in it, as a box on a line is:
+                    // a label or a badge written so. On a `<table>` it says nothing: `asks_box`.)
+                    css.table = value == "table";
+                    css.block = value == "block";
+                    css.table_display = match value {
+                        "table-row" => Some(TableDisplay::Row),
+                        "table-cell" => Some(TableDisplay::Cell),
+                        _ => None,
+                    };
                 }
                 "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
                 "opacity" => opacity_zero = number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
@@ -750,7 +811,7 @@ fn number(text: &str) -> Option<f32> {
 }
 
 /// A number and its unit (lower case; empty when there is none).
-fn dimension(value: &str) -> Option<(f32, &str)> {
+pub(crate) fn dimension(value: &str) -> Option<(f32, &str)> {
     let value = value.trim();
     let split = value.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+'))).unwrap_or(value.len());
     let n = number(value.get(..split)?)?;
@@ -758,7 +819,7 @@ fn dimension(value: &str) -> Option<(f32, &str)> {
 }
 
 /// A length in absolute units, in CSS pixels. Relative lengths (`em`, `%`) give nothing.
-fn length_px(value: &str) -> Option<f32> {
+pub(crate) fn length_px(value: &str) -> Option<f32> {
     let (n, unit) = dimension(value)?;
     let px = match unit {
         "px" => n,
@@ -994,6 +1055,11 @@ pub(crate) fn attr_align(value: &str) -> Option<Align> {
     }
 }
 
+/// Whether an `align` attribute says `justify`, which names no side.
+pub(crate) fn attr_justify(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("justify")
+}
+
 /// A `<font size>`: 1 to 7, or a step up or down from 3 (`+1`, `-2`).
 pub(crate) fn font_tag_size(value: &str) -> Option<Size> {
     let value = value.trim();
@@ -1170,6 +1236,7 @@ mod style_family_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MAX_FONT_PX;
 
     #[test]
     fn colour_names_are_sorted() {
@@ -1253,7 +1320,7 @@ mod tests {
         assert_eq!(css.background, Some(Rgb(255, 255, 0)));
         assert_eq!((css.bold, css.italic, css.underline, css.strike), (Some(true), Some(true), Some(true), Some(true)));
         assert_eq!(css.align, Some(Align::Right));
-        assert_eq!(css.size.and_then(|s| s.resolve(None)), Some(15));
+        assert_eq!(css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)), Some(15));
         assert!(!css.hidden);
         // Later declarations win; `!important` is only a word.
         let css = Css::parse("font-weight:bold;font-weight:normal !important;text-decoration:none;color:red;color:nonsense");
@@ -1299,7 +1366,7 @@ mod tests {
     fn everything_else_is_ignored() {
         let css = Css::parse(
             "position:absolute; left:-9999px; float:left; line-height:0; \
-             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
+             content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
         assert_eq!(css, Css::default());
@@ -1316,7 +1383,7 @@ mod tests {
 
     #[test]
     fn font_sizes() {
-        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent));
+        let size = |style: &str, parent: Option<u8>| Css::parse(style).size.and_then(|s| s.resolve(parent, MAX_FONT_PX));
         assert_eq!(size("font-size:14px", None), Some(14));
         assert_eq!(size("font-size:12pt", None), Some(16));
         assert_eq!(size("font-size:small", None), Some(13));
@@ -1331,7 +1398,7 @@ mod tests {
         assert_eq!(size("font-size:big", None), None);
         // The shorthand: weight, slant and size (its families: `style_family_tests.rs`).
         let css = Css::parse("font: italic bold 7.0pt/1.2 \"Times New Roman\"");
-        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None))), (Some(true), Some(true), Some(MIN_FONT_PX)));
+        assert_eq!((css.bold, css.italic, css.size.and_then(|s| s.resolve(None, MAX_FONT_PX))), (Some(true), Some(true), Some(MIN_FONT_PX)));
         assert_eq!(Css::parse("font: 12px bold").bold, None);
     }
 
@@ -1375,11 +1442,11 @@ mod tests {
         for tiny in ["font-size:0", "font-size:1px", "font-size:0.0pt", "font-size:2px;line-height:0"] {
             let css = Css::parse(tiny);
             assert!(!css.hidden, "{tiny}");
-            assert_eq!(css.size.and_then(|s| s.resolve(Some(16))), None, "{tiny}");
+            assert_eq!(css.size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None, "{tiny}");
         }
         // A relative size is judged against the size around it.
-        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16))), None);
-        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16))), None);
+        assert_eq!(Css::parse("font-size:0%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
+        assert_eq!(Css::parse("font-size:10%").size.and_then(|s| s.resolve(Some(16), MAX_FONT_PX)), None);
     }
 
     #[test]
@@ -1635,7 +1702,7 @@ mod tests {
         #[test]
         fn any_style_parses(s in proptest::prelude::any::<String>()) {
             let css = Css::parse(&s);
-            if let Some(size) = css.size.and_then(|s| s.resolve(None)) {
+            if let Some(size) = css.size.and_then(|s| s.resolve(None, MAX_FONT_PX)) {
                 proptest::prop_assert!((MIN_FONT_PX..=MAX_FONT_PX).contains(&size));
             }
             proptest::prop_assert!(in_range(&css));

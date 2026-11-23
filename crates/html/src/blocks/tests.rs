@@ -20,6 +20,135 @@ fn para(text: &str) -> Block {
     Block::new(BlockKind::Paragraph, vec![Span::plain(text)])
 }
 
+/// The reading pane keeps newsletter type sizes up to 48 px. Paste retains its original cap.
+#[test]
+fn newsletter_type_and_button_line_height_survive_parsing() {
+    let html = "<div style='font-size:54px'>A large headline</div>\
+                <div style='font-size:44px'>A smaller headline</div>\
+                <div><a href='https://example.org' style='font-size:34px;line-height:1'>Read</a></div>";
+    let blocks = parse(html);
+    assert_eq!(blocks[0].spans[0].size, Some(48));
+    assert_eq!(blocks[1].spans[0].size, Some(44));
+    assert_eq!(parse_text(html)[0].spans[0].size, Some(32));
+    let button = &blocks[2];
+    assert_eq!(button.line_height, Some(LineHeight::Scale(100)));
+    assert_eq!(button.spans[0].size, Some(34));
+    assert_eq!(button.spans[0].link.as_deref(), Some("https://example.org"));
+}
+
+#[test]
+fn an_inline_lead_in_does_not_set_the_paragraph_line_height() {
+    let blocks = parse("<p style='line-height:1.6'><span style='line-height:1'>Lead-in</span> plain tail<br>next line</p>");
+    assert_eq!(blocks[0].line_height, Some(LineHeight::Scale(160)));
+    assert_eq!(blocks[0].text(), "Lead-in plain tail\nnext line");
+
+    let whole = parse("<p style='line-height:1.6'><a href='https://example.org/' style='line-height:1'>Read <b>more</b></a> </p>");
+    assert_eq!(whole[0].line_height, Some(LineHeight::Scale(100)));
+}
+
+/// Inline and stylesheet roles build the same rows and cells as native tags, including limits.
+#[test]
+fn css_table_parts_use_native_layout_and_limits() {
+    let styled = "<style>.row{display:table-row}.cell{display:table-cell}</style>\
+        <table role='presentation'><div class='row' style='vertical-align:middle' valign='bottom'>\
+        <div class='cell' style='width:75%;padding:6px'><div>First</div> still first</div>\
+        <span style='display:table-cell;width:25%'>Second</span></div>\
+        <div style='display:table-row'><span class='cell' style='width:99999px' colspan='9000' rowspan='9000' bgcolor='red'>Wide</span></div></table>";
+    let native = "<table role='presentation'><tr style='vertical-align:middle'>\
+        <td style='width:75%;padding:6px'><div>First</div> still first</td>\
+        <td style='width:25%'>Second</td></tr>\
+        <tr><td style='width:99999px'>Wide</td></tr></table>";
+    assert_eq!(parse(styled), parse(native));
+    let blocks = parse(styled);
+    let BlockKind::Table(table) = &blocks[0].kind else { panic!("expected a table") };
+    assert_eq!(table.rows[0].cells.len(), 2);
+    assert_eq!(table.rows[1].cells[0].rowspan, 1);
+    assert_eq!(table.rows[1].cells[0].colspan, 1);
+}
+
+/// Inline roles leave links, running text and list markers in their original blocks.
+#[test]
+fn css_table_roles_only_apply_in_a_block_context() {
+    for html in [
+        "<p><a href='https://example.org/x'><span style='display:table-cell'>click</span></a> plain tail text</p><p>Next</p>",
+        "<p>Hello <span style='display:table-cell'>x</span> world</p>",
+        "<ul><li><span style='display:table-cell'>List text</span> continues</li></ul>",
+        "<a href='https://example.org/x'><div><span style='display:table-cell'>click</span></div></a> plain tail",
+    ] {
+        assert_eq!(parse(html), parse(&html.replace("display:table-cell", "")), "{html}");
+    }
+}
+
+/// A bare CSS cell inside a real cell keeps its ordinary layout, including inside a button.
+#[test]
+fn css_cells_do_not_replace_their_native_cell() {
+    for content in [
+        "<div style='display:table-cell'>A</div>",
+        "<a href='https://shop.example/'><span style='display:table-cell;padding:12px'>Shop now</span></a>",
+    ] {
+        let html = format!("<table border=1><tr><td>{content}</td><td>C</td></tr><tr><td>D</td><td>E</td></tr></table><p>after</p>");
+        assert_eq!(parse(&html), parse(&html.replace("display:table-cell", "")), "{content}");
+    }
+}
+
+/// A native cell closes any unfinished CSS grid it holds before the next cell opens.
+#[test]
+fn a_native_cell_end_closes_an_unfinished_css_grid() {
+    let html = "<table border=1><tr><td><div><div style='display:table-row'>\
+        <span style='display:table-cell'>A</span><span style='display:table-cell'>B</span>\
+        </td><td>C</td></tr><tr><td>D</td><td>E</td></tr></table><p>after</p>";
+    let closed = html.replace("</td><td>C", "</div></div></td><td>C");
+    assert_eq!(parse(html), parse(&closed));
+}
+
+/// Closing a styled cell through a native end tag also forgets the styled tag's name.
+#[test]
+fn an_old_css_cell_end_does_not_close_a_later_native_cell() {
+    let html = "<table><tr><div style='display:table-cell'>A</td></tr></table>\
+        <table border=1><tr><td>one</div>two</td><td>three</td></tr></table>";
+    let expected = "<table><tr><td>A</td></tr></table>\
+        <table border=1><tr><td>one</div>two</td><td>three</td></tr></table>";
+    assert_eq!(parse(html), parse(expected));
+}
+
+/// CSS row and cell tags may imply a table inside a regular newsletter container.
+#[test]
+fn css_table_parts_form_a_grid_inside_a_regular_wrapper() {
+    let styled = "<div style='display:table'><div style='display:table-row'>\
+        <span style='display:table-cell'>One</span><span style='display:table-cell'>Two</span>\
+        </div></div><p>After</p>";
+    let blocks = parse(styled);
+    assert!(matches!(&blocks[0].kind, BlockKind::Table(t) if t.rows.len() == 1 && t.rows[0].cells.len() == 2));
+    assert_eq!(blocks[1].text(), "After");
+    assert_eq!(parse("<div style='display:table'>Plain</div>"), parse("<div>Plain</div>"));
+}
+
+/// Closing a CSS grid must happen before the following ordinary element applies its style.
+#[test]
+fn an_ordinary_sibling_after_a_css_grid_keeps_its_link() {
+    let grid = "<div style='display:table-row'><span style='display:table-cell'>A</span><span style='display:table-cell'>B</span></div>";
+    let tail = "<a href='https://example.org/'>Read more</a>";
+    let blocks = parse(&format!("<div>{grid}{tail}</div>"));
+    assert!(matches!(blocks[0].kind, BlockKind::Table(_)));
+    assert_eq!(blocks[1].spans[0].link.as_deref(), Some("https://example.org/"));
+}
+
+/// A capped cell still takes overflow text, and its closing div stays distinct from the row's.
+#[test]
+fn css_rows_close_after_a_capped_cell_with_the_same_tag_name() {
+    let mut styled = String::from("<div><div style='display:table-row'>");
+    let mut native = String::from("<div><table><tr>");
+    for _ in 0..=MAX_TABLE_COLUMNS {
+        styled.push_str("<div style='display:table-cell'>cell</div>");
+        native.push_str("<td>cell</td>");
+    }
+    styled.push_str("</div></div><p>After</p>");
+    native.push_str("</tr></table></div><p>After</p>");
+    let blocks = parse(&styled);
+    assert_eq!(blocks, parse(&native));
+    assert_eq!(blocks.last().unwrap().text(), "After");
+}
+
 fn hex(c: Rgb) -> String {
     format!("{:02x}{:02x}{:02x}", c.0, c.1, c.2)
 }
@@ -27,7 +156,7 @@ fn hex(c: Rgb) -> String {
 /// A span's text with its formatting in front: `[B#ff0000^16:text→url]`.
 fn span_text(s: &Span) -> String {
     let mut marks = String::new();
-    for (on, mark) in [(s.bold, 'B'), (s.italic, 'I'), (s.underline, 'U'), (s.strike, 'S'), (s.code, 'C')] {
+    for (on, mark) in [(s.bold, 'B'), (s.italic, 'I'), (s.underline, 'U'), (s.strike, 'S'), (s.code, 'C'), (s.bare, 'N')] {
         if on {
             marks.push(mark);
         }
@@ -289,11 +418,97 @@ fn a_link_has_its_own_colour_or_none() {
     );
     assert_eq!(
         dump(r##"<a href="https://example.org" style="color:#ffffff;text-decoration:none">Shop</a>"##),
-        ["p|[#ffffff:Shop→https://example.org]"]
+        ["p|[N#ffffff:Shop→https://example.org]"]
     );
     assert_eq!(dump(r#"<a href="https://example.org"><span style="color:green">in</span></a>"#), ["p|[#008000:in→https://example.org]"]);
     // An anchor that leads nowhere is just text.
     assert_eq!(dump(r#"<font color=red><a name="top">x</a></font>"#), ["p|[#ff0000:x]"]);
+}
+
+/// A link is drawn with its line unless it says otherwise itself (`N`: by its style or a rule of
+/// the message's style sheet), as in a browser: neither what is around it nor what is inside it
+/// takes the line away, and an anchor that leads nowhere has none.
+#[test]
+fn a_link_has_its_line_unless_it_says_otherwise() {
+    assert_eq!(dump(r#"<a href="https://example.org">go</a>"#), ["p|[:go→https://example.org]"]);
+    assert_eq!(dump(r#"<a href="https://example.org" style="text-decoration:none">go</a>"#), ["p|[N:go→https://example.org]"]);
+    let sheet = r#"<style>a { text-decoration: none } .keep a { text-decoration: underline }</style>"#;
+    assert_eq!(
+        dump(&format!(r#"{sheet}<p><a href="https://example.org/a">a</a> <span class="keep"><a href="https://example.org/b">b</a></span></p>"#)),
+        ["p|[N:a→https://example.org/a] [U:b→https://example.org/b]"]
+    );
+    assert_eq!(
+        dump(
+            r#"<p style="text-decoration:none"><a href="https://example.org">go</a></p><table><tr><td style="text-decoration:none"><a href="https://example.org">cell</a></td></tr></table>"#
+        ),
+        ["p|[:go→https://example.org]", "p|[:cell→https://example.org]"]
+    );
+    assert_eq!(
+        dump(r#"<a href="https://example.org">a <span style="text-decoration:none">b</span></a> <a name="top" style="text-decoration:none">c</a>"#),
+        ["p|[:a b→https://example.org] c"]
+    );
+}
+
+/// A link or a span with a look of its own that asks to be a block (`display: block`) is a box
+/// as wide as its line, as a button written so is drawn, and the link leads where it did; without
+/// a look, in a heading, hidden, or with its end tag missing or doubled, nothing changes.
+#[test]
+fn a_link_written_as_a_block_is_a_button_as_wide_as_its_line() {
+    let button = r#"<a href="https://example.org/go" style="display:block;background:#0041d9;color:#ffffff;text-align:center;padding:10px 0;border-radius:8px;text-decoration:none">Explore</a>"#;
+    let drawn = "layout w=100%[(@0041d9 p.c|[N#ffffff:Explore→https://example.org/go])]";
+    assert_eq!(dump(button), [drawn]);
+    let mut blocks = parse(button);
+    let Some(BlockKind::Table(t)) = blocks.pop().map(|b| b.kind) else { panic!() };
+    let cell = &t.rows[0].cells[0];
+    assert_eq!((t.radius, cell.padding.map(|p| (p.top, p.bottom))), (8, Some((10, 10))));
+    // Text before and after it stays in lines of its own.
+    assert_eq!(dump(&format!("before {button} after")), ["p|before", drawn, "p|after"]);
+    assert_eq!(dump(r#"<span style="display:block;border:1px solid #cccccc;padding:4px">note</span>"#), ["layout+outline w=100%[(p|note)]"]);
+    // Without a look of its own, a block link is a link as before; so is one in a heading or hidden.
+    assert_eq!(dump(r#"<a href="https://example.org" style="display:block">plain</a>"#), ["p|[:plain→https://example.org]"]);
+    // The whole line (`width:100%`) is a look, though a box on a line asks for nothing by it: a
+    // button written so and nothing else takes a line of its own, with its words where it puts them.
+    let wide = r#"<a href="https://example.org" style="display:block;width:100%;text-align:center">wide</a>"#;
+    assert_eq!(dump(&format!("before {wide} after")), ["p|before", "p.c|[:wide→https://example.org]", "p|after"]);
+    assert_eq!(dump(r#"<h2><a href="https://example.org" style="display:block;background:#000">head</a></h2>"#).len(), 1);
+    assert_eq!(dump(r#"<a href="https://example.org" style="display:block;background:#000;visibility:hidden">x</a>y"#), ["p|y"]);
+    // Its end tag doubled, another link opened inside it, or its cell ended first: it ends, and
+    // what follows is outside it.
+    assert_eq!(dump(r#"<a href="https://a.example" style="display:block;background:#000">a</a></a>b"#).last().map(String::as_str), Some("p|b"));
+    assert_eq!(
+        dump(r#"<a href="https://a.example" style="display:block;background:#000">a<a href="https://b.example">b</a>c"#),
+        ["layout w=100%[(@000000 p|[:a→https://a.example])]", "p|[:b→https://b.example]c"]
+    );
+    // A `<span>` inside a span opened as a block ends itself, not the block: what follows it is
+    // still in the box.
+    assert_eq!(
+        dump(r#"<span style="display:block;background:#000">x <span style="color:red">y</span> z</span>after"#),
+        ["layout w=100%[(@000000 p|x [#ff0000:y] z)]", "p|after"]
+    );
+    let unclosed = dump(r#"<td><a href="https://a.example" style="display:block;background:#000">a</td><td>b</td>"#);
+    assert!(unclosed.iter().any(|b| b.contains("(p|b)")), "{unclosed:?}");
+}
+
+/// A link written as a block inside a paragraph is phrasing: the paragraph goes on round it, the
+/// button takes its alignment and colour, the text after it keeps them, and `</p>` adds no blank
+/// paragraph.
+#[test]
+fn a_block_link_inside_a_paragraph_stays_in_it() {
+    let html = r#"<p style="text-align:center;color:#333">Pay by Friday <a href="https://example.org/pay" style="display:block;padding:10px;background:#06c;color:#fff">Pay now</a> or call us.</p><p>Next</p>"#;
+    assert_eq!(
+        dump(html),
+        [
+            "p.c|[#333333:Pay by Friday]",
+            "layout w=100%[(@0066cc p.c|[#ffffff:Pay now→https://example.org/pay])]",
+            "p.c|[#333333:or call us.]",
+            "p|Next"
+        ]
+    );
+    // While an inline element's end tag is owed to the overflow count, a block link is opened
+    // inline, so its end tag closes it and what follows is not in the button.
+    let deep = format!("{}<a href='https://example.org' style='display:block;background:#000'>go</a>after", "<span>".repeat(MAX_DEPTH + 4));
+    let blocks = parse(&deep);
+    assert!(blocks.iter().all(|b| !matches!(b.kind, BlockKind::Table(_))), "{blocks:?}");
 }
 
 #[test]
@@ -345,6 +560,28 @@ fn nested_lists() {
     // Paragraphs inside an item: the first carries the marker, the rest stay under it.
     assert_eq!(dump("<ul><li><p>first</p><p>second</p></li><li>next</li></ul>"), ["ul0|first", "li0|second", "ul0|next"]);
     assert_eq!(dump("<ul><li>a<ul><li>b</li></ul>back</li></ul>"), ["ul0|a", "ul1|b", "li0|back"]);
+}
+
+#[test]
+fn every_block_inside_a_list_item_is_marked_as_part_of_it_whatever_it_looks_like() {
+    fn marks(blocks: &[Block], out: &mut Vec<(String, bool)>) {
+        for b in blocks {
+            match &b.kind {
+                BlockKind::Table(t) => {
+                    out.push(("table".to_string(), b.in_item));
+                    for cell in t.rows.iter().flat_map(|r| &r.cells) {
+                        marks(&cell.blocks, out);
+                    }
+                }
+                _ => out.push((b.text(), b.in_item)),
+            }
+        }
+    }
+    let html = "<p>before</p><ul><li>a<pre>b</pre><h2>c</h2><table><tr><td>d</td><td>e</td></tr></table></li></ul><p>after</p>";
+    let mut out = Vec::new();
+    marks(&parse(html), &mut out);
+    let read: Vec<(&str, bool)> = out.iter().map(|(text, item)| (text.as_str(), *item)).collect();
+    assert_eq!(read, [("before", false), ("a", true), ("b", true), ("c", true), ("table", true), ("d", true), ("e", true), ("after", false)]);
 }
 
 #[test]
@@ -1413,4 +1650,50 @@ fn an_hr_with_the_hidden_attribute_is_not_drawn() {
     assert_eq!(rules("<p>a</p><hr><p>b</p>"), 1);
     assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
     assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
+}
+
+/// #603: a block says which way it reads, apart from the side its text stands at.
+#[test]
+fn a_block_keeps_the_direction_it_reads_in() {
+    let rtl = |html: &str| parse(html).iter().map(|b| b.rtl).collect::<Vec<_>>();
+    assert_eq!(rtl("<ul dir=rtl><li style='text-align:left'>a</li></ul>"), [true]);
+    assert_eq!(rtl("<ul><li style='text-align:right'>a</li></ul>"), [false]);
+    assert_eq!(rtl("<p>שלום</p><p dir=rtl>a</p>"), [false, true]);
+}
+
+/// A block that starts inside a link opened as a block (`<div>`, a table) keeps the link, in a
+/// `<p>` as anywhere else: the `<div>` doesn't end the `<p>` round the link, where closing it took
+/// the link and its box with it (a browser opens the link again inside the `<div>`).
+#[test]
+fn a_block_inside_a_block_link_keeps_the_link() {
+    let link = r#"<a href="https://example.org/pay" style="display:block;background:#0066cc;padding:8px">"#;
+    let button = "layout w=100%[(@0066cc p|[:Pay→https://example.org/pay])]";
+    assert_eq!(dump(&format!("<p>{link}<div>Pay</div></a></p>")), [button]);
+    assert_eq!(dump(&format!("<td>{link}<div>Pay</div></a></td>")), [button]);
+    assert_eq!(dump(&format!("{link}<div>Pay</div></a>")), [button]);
+    // Text before, in and after the `<div>` is all linked, in the one box; the text after the
+    // link isn't.
+    let three =
+        "layout w=100%[(@0066cc p|[:First→https://example.org/pay] ; p|[:Second→https://example.org/pay] ; p|[:Third→https://example.org/pay])]";
+    assert_eq!(dump(&format!("<p>{link}First<div>Second</div>Third</a>after</p>")), [three, "p|after"]);
+    assert_eq!(dump(&format!("<div>{link}First<div>Second</div>Third</a>after</div>")), [three, "p|after"]);
+    // A table inside the link is linked too, and the `<p>` goes on after the link.
+    assert_eq!(
+        dump(&format!("<p>{link}x<table><tr><td>cell</td></tr></table>y</a>z</p>")),
+        ["layout w=100%[(@0066cc p|[:x→https://example.org/pay] ; p|[:cell→https://example.org/pay] ; p|[:y→https://example.org/pay])]", "p|z"]
+    );
+    // A `<div>` after the link ends the `<p>` as it did.
+    assert_eq!(dump(&format!("<p>a {link}Pay</a><div>b</div>c</p>")), ["p|a", button, "p|b", "p|c"]);
+}
+
+#[test]
+fn a_span_that_lost_its_link_to_the_allowance_is_not_a_bare_link() {
+    // One long address under a link cut into thousands of spans: the spans past what the document
+    // may repeat lose the link, and with it the word that the link has no line.
+    let html = format!("<a href='https://example.org/{}' style='text-decoration:none'>{}</a>", "a".repeat(1000), "<b>x</b>y".repeat(2000));
+    let blocks = parse(&html);
+    let spans: Vec<&Span> = blocks.iter().flat_map(|b| b.spans.iter()).collect();
+    assert!(spans.first().is_some_and(|s| s.link.is_some() && s.bare));
+    assert!(spans.iter().any(|s| s.link.is_none()));
+    assert!(spans.iter().all(|s| s.link.is_some() || !s.bare));
 }

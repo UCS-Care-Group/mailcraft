@@ -2,43 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! How the message header shares its row between the sender's name, address, tag and date (#630).
 
-use super::{header_date_on_own_line, header_widths};
-
-#[test]
-fn name_and_address_keep_their_natural_width_when_they_fit() {
-    assert_eq!(header_widths(500.0, 100.0, 150.0), (100.0, 150.0));
-}
-
-#[test]
-fn the_address_gives_way_first_and_the_name_keeps_the_rest() {
-    let (name, address) = header_widths(300.0, 120.0, 400.0);
-    assert_eq!(address, 180.0);
-    assert_eq!(name, 120.0);
-    let (name, address) = header_widths(300.0, 250.0, 400.0);
-    assert!(address < 400.0 && name < 250.0 && name + address <= 300.0 + 0.001);
-}
-
-#[test]
-fn nothing_ever_adds_up_to_more_than_the_room() {
-    for room in [-5.0, 0.0, 1.0, 40.0, 200.0, 900.0] {
-        for name in [0.0, 30.0, 300.0, 5000.0] {
-            for address in [0.0, 80.0, 700.0, f32::MAX] {
-                let (n, a) = header_widths(room, name, address);
-                assert!(n >= 0.0 && a >= 0.0 && n + a <= room.max(0.0) + 0.001, "{room} {name} {address}: {n} {a}");
-            }
-        }
-    }
-}
+use super::header_date_on_own_line;
 
 #[test]
 fn a_very_narrow_row_puts_the_date_on_its_own_line() {
     assert!(header_date_on_own_line(250.0, 130.0));
     assert!(!header_date_on_own_line(600.0, 130.0));
-}
-
-#[test]
-fn a_short_name_leaves_the_address_the_room_that_is_left() {
-    assert_eq!(header_widths(400.0, 60.0, 450.0), (60.0, 340.0));
 }
 
 /// (#630) At a narrow width the name, the address, the External tag and the date are drawn
@@ -65,4 +34,25 @@ fn a_narrow_pane_draws_the_sender_the_tag_and_the_date_apart() {
             }
         }
     }
+}
+
+/// A short sender name keeps its width when the address needs a separate line.
+#[test]
+fn a_compact_pane_gives_the_address_its_own_line() {
+    use egui_kittest::kittest::Queryable as _;
+
+    let email = "maya.okafor@long-name.example";
+    let mut message = super::tests::web_message(0, email, "Sender details", &[]);
+    message.from = mailcraft_model::Address::new("Maya Okafor", email);
+    let (app, ids) = super::tests::app_with(vec![message]);
+    let mut h = super::tests::window(app, (1280.0, 800.0));
+    super::tests::select(&mut h, ids[0]);
+    let name = |h: &egui_kittest::Harness<'static, crate::MailApp>| h.get_by_label("Maya Okafor").rect();
+    let wide = name(&h);
+    h.set_size(egui::vec2(850.0, 700.0));
+    h.run_steps(5);
+    let narrow = name(&h);
+    let address = h.get_by_label("<maya.okafor@long-name.example>").rect();
+    assert!((wide.width() - narrow.width()).abs() < 1.0, "{wide:?} → {narrow:?}");
+    assert!(address.min.y >= narrow.max.y - 0.5, "{narrow:?} and {address:?}");
 }

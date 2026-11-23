@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message};
+use crate::{Address, Attachment, Body, FlagStatus, Importance, Message};
 use proptest::prelude::*;
 
 use crate::{WriteOptions, parse, parse_mbox, write, write_mbox, written_message_id};
@@ -14,7 +14,7 @@ fn a(name: &str, email: &str) -> Address {
 }
 
 fn file(name: &str, mime: &str, data: &[u8]) -> Attachment {
-    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()), kept: None }
+    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()) }
 }
 
 fn picture(name: &str, mime: &str, content_id: &str, data: &[u8]) -> Attachment {
@@ -49,7 +49,6 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
         bcc: if opts.include_bcc { m.bcc.clone() } else { Vec::new() },
         subject: m.subject.clone(),
         date: m.date,
-        received: m.date,
         body: Body { text, html },
         attachments,
         read: m.read,
@@ -190,7 +189,6 @@ fn an_inline_image_round_trips() {
     let bytes = write(&m, &WriteOptions::default());
     let back = parse(&bytes);
     assert!(back.attachments[0].inline);
-    assert!(!back.has_attachments());
     round_trip(&m);
     // Inline first, whatever the order they were added in.
     m.attachments.insert(0, file("notes.txt", "text/plain", b"plain notes\n"));
@@ -410,6 +408,25 @@ fn large_and_hostile_input_is_read_quickly() {
     let _ = parse(&m);
     let _ = parse_mbox(&b"From \r\n".repeat(100_000));
     let _ = parse_mbox(&b">From x 12:34\r\n\r\nFrom y 12:34\r\n".repeat(30_000));
+    let _ = crate::count_mbox(&b"From \r\n".repeat(100_000));
+}
+
+/// (#1401) The count asked about before an import is the count the import reads.
+#[test]
+fn an_mbox_is_counted_as_it_is_read() {
+    let messages: Vec<crate::Message> = (0..5)
+        .map(|i| {
+            let mut m = parse(format!("Subject: Plans {i}\r\nFrom: bo@example.org\r\n\r\nFrom the start\r\n").as_bytes());
+            m.message_id = format!("m{i}@example.org");
+            m
+        })
+        .collect();
+    let refs: Vec<&crate::Message> = messages.iter().collect();
+    let mbox = write_mbox(&refs, &WriteOptions::default());
+    assert_eq!(crate::count_mbox(&mbox), parse_mbox(&mbox).len());
+    assert_eq!(crate::count_mbox(&mbox), 5);
+    assert_eq!(crate::count_mbox(b""), 0);
+    assert_eq!(crate::count_mbox(b"Subject: no separator\r\n\r\nbody\r\n"), 1);
 }
 
 // ---- generators ----
@@ -464,7 +481,6 @@ fn attachment() -> impl Strategy<Value = Attachment> {
         content_id,
         inline,
         data: Arc::new(data),
-        kept: None,
     })
 }
 
@@ -508,8 +524,6 @@ fn message() -> impl Strategy<Value = Message> {
             bcc,
             subject,
             date,
-            // Not carried by the format: must not come back.
-            received: date.wrapping_add(99),
             body: Body { text, html },
             hidden_text: String::new(),
             attachments,
@@ -517,48 +531,14 @@ fn message() -> impl Strategy<Value = Message> {
             flag,
             importance,
             read_receipt: false,
+            reaction: false,
             categories,
             answered,
             headers,
             fresh_stamps: false,
-            id: 7,
-            account: 3,
-            folder: 5,
-            uid: 11,
             draft: true,
-            pinned: true,
-            warnings_dismissed: vec!["external".into()],
-            forwarded: true,
-            flag_due: Some(1),
-            synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
-            not_downloaded: 62_914_560,
-            gmail_category: Some(mailcraft_model::GmailCategory::Social),
-            gmail_synced: Some(mailcraft_model::GmailCategory::Updates),
-            gmail_refusals: 0,
-            gmail_id: 42,
-            server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
-            unfetched: false,
-            refetch: false,
-            refetched: false,
-            attachments_on_server: false,
-            moving_out: None,
-            returned: 0,
-            placed: String::new(),
-            incomplete: false,
-            server_draft: None,
-            held: String::new(),
-            sending: false,
-            answers: None,
-            kept: None,
+            headers_cut: false,
             original: None,
-            parts_removed: false,
-            original_wanted: false,
-            original_asked: false,
-            original_tries: 0,
-            original_refused: 0,
-            original_retry: 0,
-            original_no_room: 0,
-            original_placed: 0,
         },
     )
 }
@@ -651,7 +631,7 @@ proptest! {
     #[test]
     fn any_bytes_parse(data in proptest::collection::vec(any::<u8>(), 0..4096)) {
         let m = parse(&data);
-        prop_assert_eq!((m.id, m.account, m.folder, m.uid), (0, 0, 0, 0));
+        prop_assert!(m.original.is_none());
         let _ = parse_mbox(&data);
     }
 
@@ -703,6 +683,35 @@ fn recipients_and_categories_are_capped_across_the_message() {
     assert_eq!(m.reply_to.len(), crate::MAX_RECIPIENTS);
 }
 
+/// What is left out past the caps is said on the message (`headers_cut`, #566), so that a rule
+/// doesn't read a field it never saw as not there; a message within them says nothing.
+#[test]
+fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
+    let fields = |n: usize| (0..n).map(|i| format!("X-Trace-{i}: hop\r\n")).collect::<String>();
+    let message = |head: String| parse(format!("From: a@example.org\r\nSubject: s\r\n{head}\r\nbody\r\n").as_bytes());
+    assert!(!message(fields(200)).headers_cut);
+    assert!(message(fields(201)).headers_cut);
+    let to = |n: usize| format!("To: {}\r\n", (0..n).map(|i| format!("u{i}@example.org")).collect::<Vec<_>>().join(", "));
+    assert!(!message(to(crate::MAX_RECIPIENTS)).headers_cut);
+    assert!(message(to(crate::MAX_RECIPIENTS + 1)).headers_cut);
+    let keywords = |n: usize| format!("Keywords: {}\r\n", (0..n).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
+    assert!(!message(keywords(crate::MAX_CATEGORIES)).headers_cut);
+    assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
+}
+
+/// A Cc past the recipients kept after the To: the message says its header was cut, so that a
+/// rule that reads them can't tell, as for a To or a field count past what is kept (#566).
+#[test]
+fn a_cc_past_the_room_left_is_said_cut() {
+    let list = |n: usize| (0..n).map(|i| format!("c{i}@example.org")).collect::<Vec<_>>().join(", ");
+    let with_cc = |n: usize| parse(format!("From: a@example.org\r\nTo: b@example.org\r\nCc: {}\r\nSubject: s\r\n\r\nbody\r\n", list(n)).as_bytes());
+    // One in To leaves room for all but one in Cc.
+    let whole = with_cc(crate::MAX_RECIPIENTS - 1);
+    assert_eq!((whole.cc.len(), whole.headers_cut), (crate::MAX_RECIPIENTS - 1, false));
+    let cut = with_cc(crate::MAX_RECIPIENTS);
+    assert_eq!((cut.cc.len(), cut.headers_cut), (crate::MAX_RECIPIENTS - 1, true));
+}
+
 #[test]
 fn a_header_block_keeps_a_bounded_number_of_bytes() {
     let mut raw = Vec::new();
@@ -729,6 +738,20 @@ fn an_mbox_is_read_one_message_at_a_time() {
 }
 
 proptest! {
+    /// (#1401) Any bytes: the count never panics, and is never fewer than the messages read.
+    #[test]
+    fn an_mbox_count_is_never_short_of_what_is_read(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+        prop_assert!(crate::count_mbox(&bytes) >= parse_mbox(&bytes).len());
+    }
+
+    /// (#1401) Messages written as an mbox are counted as many as they are.
+    #[test]
+    fn a_written_mbox_is_counted_whole(ms in proptest::collection::vec(message(), 0..8), opts in options()) {
+        let refs: Vec<&crate::Message> = ms.iter().collect();
+        let mbox = write_mbox(&refs, &opts);
+        prop_assert_eq!(crate::count_mbox(&mbox), parse_mbox(&mbox).len());
+    }
+
     #[test]
     fn list_headers_stay_under_the_caps(lines in proptest::collection::vec(("(To|Cc|Bcc|Reply-To|Keywords)", "[a-z@.,; <>]{0,3000}"), 0..60)) {
         let mut raw = String::new();
@@ -757,7 +780,7 @@ fn the_message_id_said_to_be_written_is_the_one_written() {
 /// out of what is kept, and a flood of stamps is itself capped.
 #[test]
 fn exchange_stamps_are_kept_past_the_header_cap() {
-    use mailcraft_model::auth_results::{AUTH_AS, MAX_AUTH_AS};
+    use crate::{AUTH_AS, MAX_AUTH_AS};
     let stamps = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(AUTH_AS)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
     let padded = format!(
         "{}{AUTH_AS}: Internal\r\n{}x-ms-exchange-organization-authas: Anonymous\r\n\r\n",
@@ -786,7 +809,7 @@ fn exchange_stamps_are_kept_past_the_header_cap() {
 /// kept headers, on header fields or on header bytes; a flood of it is capped too.
 #[test]
 fn exchanges_direction_is_kept_past_the_header_cap() {
-    use mailcraft_model::auth_results::{DIRECTIONALITY, MAX_AUTH_AS};
+    use crate::{DIRECTIONALITY, MAX_AUTH_AS};
     let words = |m: &Message| m.headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case(DIRECTIONALITY)).map(|(_, v)| v.clone()).collect::<Vec<_>>();
     for padding in ["X-Pad: 1\r\n".repeat(200), "X-Pad: 1\r\n".repeat(2_500), format!("X-Pad: {}\r\n", "p".repeat(250_000)).repeat(20)] {
         let padded = format!("From: a@example.org\r\n{padding}{DIRECTIONALITY}: Incoming\r\n\r\n");

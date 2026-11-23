@@ -255,7 +255,7 @@ fn a_message_keeps_its_people_dates_state_and_attachments() {
     let attached = &m.attachments[1];
     assert_eq!(attached.mime, "message/rfc822");
     assert!(attached.name.ends_with(".eml"), "{}", attached.name);
-    let inner = mailcraft_mime::parse(&attached.data);
+    let inner = mailcraft_mime_model::parse(&attached.data);
     assert_eq!(inner.subject, "Minutes of the garden committee");
     assert_eq!(inner.to[0].email, "eli@example.org");
     assert_eq!(inner.attachments[0].name, "minutes.txt");
@@ -283,8 +283,8 @@ fn the_headers_it_was_sent_with_come_first() {
     assert_eq!(m.message_id, "hdr-1@example.org");
     assert_eq!(m.date, DELIVERED_AT - 600);
     assert_eq!(m.received, DELIVERED_AT);
-    assert!(m.headers.iter().any(|(k, v)| k == "X-Mailer" && v == "Test"));
-    assert!(m.headers.iter().any(|(k, _)| k == "Received"));
+    assert!(m.all_headers().iter().any(|(k, v)| k == "X-Mailer" && v == "Test"));
+    assert!(m.all_headers().iter().any(|(k, _)| k == "Received"));
 }
 
 #[test]
@@ -1182,6 +1182,17 @@ fn subclasses_and_contacts_among_mail_come_in_and_the_rest_is_still_counted() {
     assert_eq!(answer["leftOut"], 0);
     assert_eq!(s.mailbox.contacts.len(), 2);
     assert_eq!(answer["tasks"], 1);
+}
+
+#[test]
+fn a_contacts_category_in_other_letters_of_any_alphabet_comes_in_once() {
+    // As every list of categories compares names (#790): not by A to Z alone.
+    let keywords = multi_unicode(&["Ärger", "ärger", "ÄRGER", "Проект", "проект"]);
+    let pat = contact_item("Pat", vec![(0x3001, w::unicode("Pat")), (CONTACT_KEYWORDS, keywords)]);
+    let mut s = session();
+    import(&mut s, &people_file(vec![pat]), json!({"places": {"contacts": "here"}})).unwrap();
+    let pat = s.mailbox.contacts.values().find(|c| c.name() == "Pat").unwrap();
+    assert_eq!(pat.categories, ["Ärger", "Проект"]);
 }
 
 #[test]
@@ -2083,4 +2094,12 @@ fn a_streamed_list_with_long_notes_shares_the_room_with_its_members() {
     import(&mut s, &people_file(vec![list]), json!({})).unwrap();
     let c = s.mailbox.contacts.values().next().unwrap();
     assert!(c.notes.ends_with("Member 9 <m9@example.org>"), "{}", &c.notes[c.notes.len() - 200..]);
+}
+
+/// A file's list that has a name twice in other letters keeps it once, in any alphabet (#788).
+#[test]
+fn the_files_list_keeps_a_name_in_other_letters_once() {
+    let xml = r#"<categories><category name="Ärger" color="1"/><category name="ärger" color="2"/><category name="Red"/><category name="red"/></categories>"#;
+    let names: Vec<String> = categories(xml).into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["Ärger", "Red"]);
 }

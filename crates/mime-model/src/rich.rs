@@ -1,0 +1,730 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Rich text (`mailcraft_model::rich`) to HTML and back.
+//!
+//! [`to_html`] writes the owner's text as the HTML part of a message: `<div>` paragraphs (an
+//! indented one inside a 40-pixel left margin a level, a centred or right one with `text-align`
+//! on it, inline, as Outlook writes it), `<ul>` and `<ol>` lists, `<b>`, `<i>`, `<u>`,
+//! `<span style="…">` with a font size, a colour and a font from the model's list, `<a href>`,
+//! and pictures as `<img src="cid:…">` when the text's holder says which ([`to_html_with`]), and
+//! bounded tables. Every character of text and of an address is escaped, and a link is written
+//! only when its address is one the model accepts (`rich::safe_link`: any scheme but
+//! `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out,
+//! its first picture beside or above the text when it asks for that, in a two-cell table, as
+//! Outlook writes it.
+//!
+//! HTML is read by
+//! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
+//! set (a link keeps only an address a reader follows, `http`, `https`, `mailto`, `tel` or `cid`; a
+//! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts).
+//! [`from_html_for_compose`] and draft reopening preserve bounded text tables with cell alignment,
+//! colours, and merged cells. [`from_html`] and tables outside those bounds give their cells'
+//! paragraphs in reading order. A paragraph's indent and its alignment (a list item's excepted)
+//! are kept.
+
+use mailcraft_html::{Block, BlockKind, Marker, Span};
+use mailcraft_model::rich::{
+    Align, CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE,
+    MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
+};
+use mailcraft_model::signature::{Layout, Picture, Signature};
+
+/// How a picture of the text is written: its `cid:` address (without the scheme), the width it
+/// is shown at and its description.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Img {
+    pub content_id: String,
+    pub width: Option<u16>,
+    pub alt: String,
+}
+
+impl Img {
+    /// A signature's picture, sent as the inline part `content_id`.
+    pub fn of(picture: &Picture, content_id: impl Into<String>) -> Img {
+        Img { content_id: content_id.into(), width: picture.width, alt: picture.alt.clone() }
+    }
+}
+
+/// The text as an HTML fragment (what goes inside `<body>`). A list item a level deeper than the
+/// one before it is in a list of its own inside that item (`<ul><li>a<ul><li>b</li></ul></li></ul>`),
+/// as Outlook, Word and the web's editors write nested lists; so an item is never aligned, or the
+/// items inside it would be too.
+pub fn to_html(text: &RichText) -> String {
+    to_html_with(text, &|_| None)
+}
+
+/// [`to_html`], with each picture written as `pictures` says (left out when it says nothing).
+pub fn to_html_with(text: &RichText, pictures: &dyn Fn(u32) -> Option<Img>) -> String {
+    let mut out = String::new();
+    // The lists open, outermost first: each with its kind and whether an item of it is open.
+    let mut open: Vec<(ListKind, bool)> = Vec::new();
+    let paragraphs = text.paragraphs();
+    for (i, p) in paragraphs.iter().enumerate() {
+        if p.list == ListKind::None {
+            close_to(&mut out, &mut open, 0);
+            // Increased indent (#1658): a left margin a level, each in a block of its own, as a
+            // reader takes no more than 64 pixels from one. A blank line is a blank line however
+            // far in it is, and reads back as one at the margin; it is written as it always was,
+            // left, so that blank lines at the edges are known again ([`edge_blank_lines`]).
+            let levels = if p.is_empty() { 0 } else { usize::from(p.level.min(MAX_LEVEL)) };
+            out.push_str(&INDENT_OPEN.repeat(levels));
+            out.push_str(div(if p.is_empty() { Align::Left } else { p.align }));
+            paragraph(&mut out, p, pictures);
+            out.push_str("</div>");
+            out.push_str(&"</div>".repeat(levels));
+            out.push_str("\r\n");
+            continue;
+        }
+        let depth = usize::from(p.level.min(MAX_LEVEL)) + 1;
+        close_to(&mut out, &mut open, depth);
+        // A list of the other kind at this level ends the one that is open there.
+        if open.len() == depth && open.last().is_some_and(|(kind, _)| *kind != p.list) {
+            close_to(&mut out, &mut open, depth - 1);
+        }
+        // The item before at this level ends here.
+        if open.len() == depth
+            && let Some((_, item)) = open.last_mut()
+            && *item
+        {
+            out.push_str("</li>");
+            *item = false;
+        }
+        while open.len() < depth {
+            out.push_str(if p.list == ListKind::Numbered {
+                "<ol style=\"margin-top:0;margin-bottom:0\">"
+            } else {
+                "<ul style=\"margin-top:0;margin-bottom:0\">"
+            });
+            open.push((p.list, false));
+        }
+        out.push_str("<li>");
+        if let Some((_, item)) = open.last_mut() {
+            *item = true;
+        }
+        paragraph(&mut out, p, pictures);
+        // The item stays open for a deeper list that follows it.
+        let deeper = paragraphs.get(i + 1).is_some_and(|next| next.list != ListKind::None && next.level > p.level);
+        if !deeper {
+            out.push_str("</li>");
+            if let Some((_, item)) = open.last_mut() {
+                *item = false;
+            }
+        }
+        out.push_str("\r\n");
+    }
+    close_to(&mut out, &mut open, 0);
+    out
+}
+
+/// The `<div>` a paragraph aligned `align` opens with (`text-align` inline, nothing for left).
+fn div(align: Align) -> &'static str {
+    match align {
+        Align::Left => "<div>",
+        Align::Center => "<div style=\"text-align:center\">",
+        Align::Right => "<div style=\"text-align:right\">",
+    }
+}
+
+/// How far each level of Increase Indent moves an ordinary paragraph in, in CSS pixels: what Outlook
+/// on the web and Gmail write, and a browser's own step for a quote or a list.
+const INDENT_PX: u32 = 40;
+
+/// What opens one level of Increase Indent ([`INDENT_PX`]).
+const INDENT_OPEN: &str = "<div style=\"margin-left:40px\">";
+
+/// The indent level of an ordinary paragraph that stands `inset` CSS pixels in from the left: whole
+/// steps of [`INDENT_PX`], a step counted from 32 pixels on, so a little padding round the text
+/// isn't an indent and Outlook's half inch (48 pixels) a step is one. The reading stops at 255
+/// pixels, which is anything from there on: the deepest level, which is written further in.
+fn level_of_inset(inset: u8) -> u8 {
+    if inset == u8::MAX {
+        return MAX_LEVEL;
+    }
+    let steps = (u32::from(inset) + INDENT_PX / 5) / INDENT_PX;
+    u8::try_from(steps).unwrap_or(MAX_LEVEL).min(MAX_LEVEL)
+}
+
+/// Close lists (and their open items) until `depth` are left open.
+fn close_to(out: &mut String, open: &mut Vec<(ListKind, bool)>, depth: usize) {
+    while open.len() > depth {
+        let Some((kind, item)) = open.pop() else { break };
+        if item {
+            out.push_str("</li>");
+        }
+        out.push_str(if kind == ListKind::Numbered { "</ol>" } else { "</ul>" });
+    }
+}
+
+/// A paragraph's runs, or a line break for an empty one.
+fn paragraph(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) {
+    if p.is_empty() {
+        out.push_str("<br>");
+    } else {
+        runs(out, p, pictures);
+    }
+}
+
+/// Write the table using fixed markup and the same escaped text runs as the rest of the body.
+fn write_table(out: &mut String, table: &PastedTable) {
+    // The fixed grid makes cell boundaries visible in the editor and in the mail it sends.
+    out.push_str("<table data-mailcraft-grid=\"1\" border=\"1\" cellpadding=\"4\" cellspacing=\"0\" style=\"border-collapse:collapse\">");
+    for row in table.rows() {
+        out.push_str("<tr>");
+        for cell in row {
+            let tag = if cell.header { "th" } else { "td" };
+            let align = match cell.alignment {
+                CellAlignment::Left => "left",
+                CellAlignment::Center => "center",
+                CellAlignment::Right => "right",
+            };
+            out.push_str(&format!("<{tag} colspan=\"{}\" rowspan=\"{}\" align=\"{align}\"", cell.colspan, cell.rowspan));
+            let color = cell.background.as_deref().and_then(safe_color);
+            if cell.header || color.is_some() {
+                out.push_str(" style=\"");
+                if cell.header {
+                    out.push_str("font-weight:normal;");
+                }
+                if let Some(color) = color {
+                    out.push_str(&format!("background-color:{color}"));
+                }
+                out.push('"');
+            }
+            out.push('>');
+            for (i, line) in cell.lines.iter().enumerate() {
+                if i > 0 {
+                    out.push_str("<br>");
+                }
+                let text = Paragraph::new(line.iter().map(|run| Run::new(&run.text, run.style.clone())).collect(), ListKind::None);
+                runs(out, &text, &|_| None);
+            }
+            out.push_str(&format!("</{tag}>"));
+        }
+        out.push_str("</tr>");
+    }
+    out.push_str("</table>");
+}
+
+/// A picture as `<img>`: its `cid:` address, width and description, all escaped.
+fn img(out: &mut String, img: &Img) {
+    let cid: String = img.content_id.chars().filter(|c| c.is_ascii_graphic() && !matches!(c, '<' | '>' | '"')).collect();
+    out.push_str("<img src=\"cid:");
+    out.push_str(&mailcraft_html::escape(&cid));
+    out.push('"');
+    if let Some(w) = img.width {
+        out.push_str(&format!(" width=\"{}\"", w.clamp(1, mailcraft_model::pictures::MAX_SHOWN_WIDTH)));
+    }
+    out.push_str(" alt=\"");
+    out.push_str(&mailcraft_html::escape(&img.alt.chars().filter(|c| !c.is_control()).collect::<String>()));
+    out.push_str("\" style=\"border:0\">");
+}
+
+/// A signature as HTML, its pictures written as `content_id` names them. Laid out with its first
+/// picture on the left of the text or above it when it asks for that: a two-cell table, or the
+/// picture in a paragraph of its own, aligned as the one it stood in.
+pub fn signature_html(sig: &Signature, content_id: &dyn Fn(&Picture) -> String) -> String {
+    let pictures = |id: u32| sig.picture(id).map(|p| Img::of(p, content_id(p)));
+    let first = sig.body().pictures().first().copied().filter(|_| sig.layout != Layout::Inline);
+    let Some((first, lead)) = first.and_then(|id| pictures(id).map(|i| (id, i))) else {
+        return to_html_with(sig.body(), &pictures);
+    };
+    // The text without that picture where it first stands (the paragraph it stood in kept as it
+    // was), and how that paragraph is aligned.
+    let mut found = None;
+    let rest = RichText::from_paragraphs(
+        sig.body()
+            .paragraphs()
+            .iter()
+            .map(|p| {
+                let mut runs = p.runs.clone();
+                if found.is_none()
+                    && let Some(i) = runs.iter().position(|r| r.picture == Some(first))
+                {
+                    runs.remove(i);
+                    found = Some(p.align);
+                }
+                p.with_runs(runs)
+            })
+            .collect(),
+    );
+    let text = to_html_with(&rest, &pictures);
+    let mut out = String::new();
+    if sig.layout == Layout::PictureLeft {
+        out.push_str("<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"vertical-align:top;padding-right:12px\">");
+        img(&mut out, &lead);
+        out.push_str("</td><td style=\"vertical-align:top\">\r\n");
+        out.push_str(&text);
+        out.push_str("</td></tr></table>\r\n");
+    } else {
+        out.push_str(div(found.unwrap_or_default()));
+        img(&mut out, &lead);
+        out.push_str("</div>\r\n");
+        out.push_str(&text);
+    }
+    out
+}
+
+/// A whole HTML document holding the text, and under it `below` as it is (a quoted original).
+pub fn to_html_document(text: &RichText, below: Option<&str>) -> String {
+    document(&to_html(text), below)
+}
+
+/// A whole HTML document holding `fragment` (HTML this module wrote), and under it `below` as it
+/// is.
+pub fn document(fragment: &str, below: Option<&str>) -> String {
+    let mut out = String::from("<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head><body>\r\n");
+    out.push_str(fragment);
+    if let Some(below) = below {
+        out.push_str(below);
+        out.push_str("\r\n");
+    }
+    out.push_str("</body></html>\r\n");
+    out
+}
+
+/// The runs of a paragraph. White space is kept as typed: a space at the start or the end of the
+/// paragraph, or after another, is a no-break space, and a tab is four.
+fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) {
+    let total: usize = p.runs.iter().map(|r| r.text.chars().count()).sum();
+    let mut index = 0usize;
+    let mut after_space = true;
+    for run in &p.runs {
+        let style = run.style.clone().clean();
+        if let Some(table) = &run.table {
+            write_table(out, table);
+            index += 1;
+            after_space = true;
+            continue;
+        }
+        if let Some(id) = run.picture {
+            index += 1;
+            after_space = false;
+            if let Some(found) = pictures(id) {
+                img(out, &found);
+            }
+            continue;
+        }
+        let mut close: Vec<&str> = Vec::new();
+        if let Some(url) = &style.link {
+            out.push_str("<a href=\"");
+            out.push_str(&mailcraft_html::escape(url));
+            out.push_str("\">");
+            close.push("</a>");
+        }
+        for (on, open, end) in [(style.bold, "<b>", "</b>"), (style.italic, "<i>", "</i>"), (style.underline, "<u>", "</u>")] {
+            if on {
+                out.push_str(open);
+                close.push(end);
+            }
+        }
+        if let Some(size) = style.size {
+            out.push_str(&format!("<span style=\"font-size:{}pt\">", size.clamp(MIN_SIZE, MAX_SIZE)));
+            close.push("</span>");
+        }
+        if let Some(color) = style.color.as_deref().and_then(safe_color) {
+            out.push_str(&format!("<span style=\"color:{color}\">"));
+            close.push("</span>");
+        }
+        if let Some(font) = &style.font {
+            out.push_str(&format!("<span style=\"font-family:{}\">", mailcraft_html::escape(&font.css())));
+            close.push("</span>");
+        }
+        if let Some(highlight) = style.highlight.as_deref().and_then(safe_color) {
+            out.push_str(&format!("<span style=\"background-color:{highlight}\">"));
+            close.push("</span>");
+        }
+        for c in run.text.chars() {
+            index += 1;
+            match c {
+                ' ' if after_space || index == total => out.push_str("&nbsp;"),
+                ' ' => out.push(' '),
+                '\t' => out.push_str("&nbsp;&nbsp;&nbsp;&nbsp;"),
+                '&' => out.push_str("&amp;"),
+                '<' => out.push_str("&lt;"),
+                '>' => out.push_str("&gt;"),
+                '"' => out.push_str("&quot;"),
+                '\'' => out.push_str("&#39;"),
+                c if c.is_control() => {}
+                c => out.push(c),
+            }
+            after_space = c == ' ' || c == '\t';
+        }
+        for end in close.iter().rev() {
+            out.push_str(end);
+        }
+    }
+}
+
+/// Any HTML (a message, or what was pasted) reduced to rich text.
+///
+/// Blank lines at the very start and end of the text are kept when they are written the way
+/// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
+/// them there.
+pub fn from_html(html: &str) -> RichText {
+    read(html, false, false)
+}
+
+/// Paste into a message body, keeping the cells of a table as an editor object.
+pub fn from_html_for_compose(html: &str) -> RichText {
+    read(html, false, true)
+}
+
+/// An `<img src="cid:…">` of an HTML draft this program wrote.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImgRef {
+    /// The Content-ID, without `cid:`.
+    pub cid: String,
+    /// The `width` it was written with.
+    pub width: Option<u16>,
+    /// The `alt` it was written with.
+    pub alt: String,
+}
+
+/// [`from_html`] for a draft of this program's: each `<img src="cid:…">` that `claim` takes (it
+/// answers the id the picture has in the text) stands in the text where it was, as a picture
+/// run. Any other picture is left out, as in [`from_html`].
+///
+/// The HTML is the owner's own, so a link keeps any address [`safe_link`] accepts (a link to
+/// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
+/// received mail.
+pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
+    read(&mark_pictures(html, claim), true, true)
+}
+
+/// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
+/// other `OBJECT` (nothing but this puts one in the text).
+fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
+    // No more than the reading after this looks at.
+    let html = cut(html, mailcraft_html::MAX_INPUT_WITH_PICTURES).replace(OBJECT, "");
+    let lower = html.to_ascii_lowercase();
+    let (mut out, mut at) = (String::with_capacity(html.len()), 0usize);
+    while let Some(start) = lower.get(at..).and_then(|rest| rest.find("<img")).map(|rel| at + rel) {
+        let after = start + 4;
+        let boundary = html.as_bytes().get(after).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>'));
+        let end = if boundary { tag_end(&html, after) } else { Err(after) };
+        let end = match end {
+            Ok(end) => end,
+            Err(looked) => {
+                // Not a tag of its own (`<imgx>`) or not closed in time: kept as it is, with what
+                // was looked through for its end, which isn't looked through again.
+                let mut skip = looked.max(after);
+                while !html.is_char_boundary(skip) {
+                    skip = skip.saturating_sub(1);
+                }
+                out.push_str(html.get(at..skip).unwrap_or(""));
+                at = skip;
+                continue;
+            }
+        };
+        out.push_str(html.get(at..start).unwrap_or(""));
+        let tag = html.get(after..end).unwrap_or("");
+        match img_ref(tag).and_then(|img| claim(&img)) {
+            Some(id) => out.push_str(&format!("{OBJECT}{id}{OBJECT}")),
+            None => out.push_str(html.get(start..end).unwrap_or("")),
+        }
+        at = end;
+    }
+    out.push_str(html.get(at..).unwrap_or(""));
+    out
+}
+
+/// Longest `<img>` tag looked through for its end, in bytes; a longer one is kept as it is.
+const MAX_TAG: usize = 64 * 1024;
+
+/// Where the tag whose attributes start at `from` ends (just past its `>`), quotes respected;
+/// else how far it was looked through ([`MAX_TAG`] at most).
+fn tag_end(html: &str, from: usize) -> Result<usize, usize> {
+    let bytes = html.as_bytes();
+    let limit = from.saturating_add(MAX_TAG).min(bytes.len());
+    let Some(window) = bytes.get(from..limit) else { return Err(bytes.len()) };
+    let mut quote = None;
+    for (i, b) in window.iter().enumerate() {
+        match (quote, *b) {
+            (Some(q), b) if b == q => quote = None,
+            (Some(_), _) => {}
+            (None, b'"' | b'\'') => quote = Some(*b),
+            (None, b'>') => return Ok(from + i + 1),
+            _ => {}
+        }
+    }
+    Err(limit)
+}
+
+/// The `src`, `width` and `alt` of an `<img>` whose attributes are `attrs`, when `src` is a `cid:`.
+fn img_ref(attrs: &str) -> Option<ImgRef> {
+    let chars: Vec<char> = attrs.trim_end_matches('>').chars().collect();
+    let (mut i, mut img, mut src) = (0usize, ImgRef::default(), None);
+    while i < chars.len() {
+        while chars.get(i).is_some_and(|c| c.is_whitespace() || *c == '/') {
+            i += 1;
+        }
+        let name_start = i;
+        while chars.get(i).is_some_and(|c| !c.is_whitespace() && !matches!(c, '=' | '/')) {
+            i += 1;
+        }
+        let name: String = chars.get(name_start..i).unwrap_or(&[]).iter().collect::<String>().to_ascii_lowercase();
+        while chars.get(i).is_some_and(|c| c.is_whitespace()) {
+            i += 1;
+        }
+        let mut value = String::new();
+        if chars.get(i) == Some(&'=') {
+            i += 1;
+            while chars.get(i).is_some_and(|c| c.is_whitespace()) {
+                i += 1;
+            }
+            match chars.get(i) {
+                Some(q @ ('"' | '\'')) => {
+                    i += 1;
+                    while let Some(c) = chars.get(i).filter(|c| *c != q) {
+                        value.push(*c);
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                _ => {
+                    while let Some(c) = chars.get(i).filter(|c| !c.is_whitespace()) {
+                        value.push(*c);
+                        i += 1;
+                    }
+                }
+            }
+        }
+        match name.as_str() {
+            "src" => src = Some(value),
+            "width" => img.width = value.trim().parse().ok(),
+            "alt" => img.alt = value.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"),
+            _ => {}
+        }
+    }
+    let src = src?;
+    let src = src.trim();
+    let cid = src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
+    img.cid = cid.to_string();
+    Some(img)
+}
+
+fn read(html: &str, pictures: bool, tables: bool) -> RichText {
+    // The look and the text only: pictures written into the HTML are not decoded for this.
+    let blocks = if tables { mailcraft_html::parse_text_with_tables(html, pictures.then_some(safe_link)) } else { mailcraft_html::parse_text(html) };
+    let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
+    let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
+    let mut reader = Reader { out: Vec::new(), pictures, copies, tables };
+    reader.blocks(&blocks);
+    let (lead, trail) = edge_blank_lines(html);
+    let found = !reader.out.is_empty();
+    let mut out: Vec<Paragraph> = std::iter::repeat_with(Paragraph::default).take(lead).collect();
+    out.append(&mut reader.out);
+    if found {
+        out.extend(std::iter::repeat_with(Paragraph::default).take(trail));
+    }
+    RichText::from_paragraphs(out)
+}
+
+/// The empty paragraphs [`to_html`] wrote before the first paragraph with text and after the last.
+fn edge_blank_lines(html: &str) -> (usize, usize) {
+    const BLANK: &str = "<div><br></div>";
+    let start = html.find("<body>").map_or(0, |at| at + "<body>".len());
+    let end = html.rfind("</body>").unwrap_or(html.len());
+    let Some(inner) = html.get(start..end.max(start)) else { return (0, 0) };
+    let mut lead = 0;
+    let mut rest = inner.trim_start();
+    while let Some(r) = rest.strip_prefix(BLANK) {
+        lead += 1;
+        rest = r.trim_start();
+    }
+    let mut trail = 0;
+    let mut rest = inner.trim_end();
+    while let Some(r) = rest.strip_suffix(BLANK) {
+        trail += 1;
+        rest = r.trim_end();
+    }
+    (lead, trail)
+}
+
+/// What the runs of one document may repeat of the link addresses they carry, all told: this
+/// many times the HTML read, and [`COPY_FLOOR`] besides. Every line of a span is a run of its own
+/// with the span's link (as is each picture in it); past this, a run keeps its text and style but not the link, so what is
+/// made stays a small multiple of what was read.
+const COPY_ALLOWANCE: usize = 4;
+
+/// What the runs of a short document may repeat besides ([`COPY_ALLOWANCE`]).
+const COPY_FLOOR: usize = 64 * 1024;
+
+#[cfg(test)]
+mod table_tests;
+
+struct Reader {
+    out: Vec<Paragraph>,
+    /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
+    pictures: bool,
+    /// What the runs still to be made may repeat of links ([`COPY_ALLOWANCE`]).
+    copies: usize,
+    tables: bool,
+}
+
+impl Reader {
+    fn blocks(&mut self, blocks: &[Block]) {
+        for b in blocks {
+            if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
+                return;
+            }
+            match &b.kind {
+                BlockKind::Table(table) => {
+                    self.gap(b.space);
+                    if self.tables
+                        && table.compose_grid
+                        && let Some(table) = self.table(table)
+                    {
+                        self.out.push(Paragraph::new(vec![Run::table(std::sync::Arc::new(table))], ListKind::None));
+                    } else {
+                        for cell in table.rows.iter().flat_map(|r| &r.cells) {
+                            self.blocks(&cell.blocks);
+                        }
+                    }
+                }
+                BlockKind::Rule | BlockKind::Image { .. } => {}
+                kind => {
+                    // A nested list keeps its level, as deep as the model goes; an item is left,
+                    // and so is everything inside one, whatever it looks like (a further paragraph
+                    // is an ordinary paragraph here, and so are a heading and preformatted text).
+                    let (list, level) = match kind {
+                        BlockKind::ListItem { marker: Marker::Bullet, depth } => (ListKind::Bullet, *depth),
+                        BlockKind::ListItem { marker: Marker::Number(_) | Marker::Label(_), depth } => (ListKind::Numbered, *depth),
+                        BlockKind::ListItem { .. } => (ListKind::None, 0),
+                        // A paragraph moved in from the left keeps its indent (#1658).
+                        _ => (ListKind::None, level_of_inset(b.inset[0])),
+                    };
+                    let align = match b.align {
+                        _ if b.in_item || matches!(kind, BlockKind::ListItem { .. }) => Align::Left,
+                        mailcraft_html::Align::Left => Align::Left,
+                        mailcraft_html::Align::Center => Align::Center,
+                        mailcraft_html::Align::Right => Align::Right,
+                    };
+                    self.gap(b.space);
+                    self.paragraph(&b.spans, list, level.min(MAX_LEVEL), align);
+                }
+            }
+        }
+    }
+
+    fn table(&mut self, source: &mailcraft_html::Table) -> Option<PastedTable> {
+        if !(1..=MAX_PASTED_ROWS).contains(&source.rows.len()) || !(1..=MAX_PASTED_COLUMNS).contains(&usize::from(source.columns)) {
+            return None;
+        }
+        let cells = source.rows.iter().map(|row| row.cells.len()).sum::<usize>();
+        if !(1..=MAX_PASTED_CELLS).contains(&cells) {
+            return None;
+        }
+        let mut spans = 0;
+        let mut copies = self.copies;
+        let mut rows = Vec::with_capacity(source.rows.len());
+        for row in &source.rows {
+            let mut cells = Vec::with_capacity(row.cells.len());
+            for cell in &row.cells {
+                let mut reader = Reader { out: Vec::new(), pictures: self.pictures, copies, tables: false };
+                reader.blocks(&cell.blocks);
+                copies = reader.copies;
+                spans += reader.out.iter().map(|p| p.runs.len()).sum::<usize>();
+                if spans > MAX_PASTED_SPANS || reader.out.iter().flat_map(|p| &p.runs).any(|run| run.picture.is_some()) {
+                    return None;
+                }
+                let lines =
+                    reader.out.into_iter().map(|p| p.runs.into_iter().map(|run| CellText { text: run.text, style: run.style }).collect()).collect();
+                let alignment = match cell.blocks.first().map(|block| block.align) {
+                    Some(mailcraft_html::Align::Center) => CellAlignment::Center,
+                    Some(mailcraft_html::Align::Right) => CellAlignment::Right,
+                    _ => CellAlignment::Left,
+                };
+                let background = cell.background.or(source.background).map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2));
+                cells.push(TableCell { lines, header: cell.header, colspan: cell.colspan, rowspan: cell.rowspan, background, alignment });
+            }
+            rows.push(cells);
+        }
+        let table = PastedTable::new(source.columns, rows)?;
+        self.copies = copies;
+        Some(table)
+    }
+
+    /// The blank lines above a block, as empty paragraphs (none above the first).
+    fn gap(&mut self, space: u8) {
+        if self.out.is_empty() {
+            return;
+        }
+        for _ in 0..space {
+            self.out.push(Paragraph::default());
+        }
+    }
+
+    fn paragraph(&mut self, spans: &[Span], list: ListKind, level: u8, align: Align) {
+        let mut cur: Vec<Run> = Vec::new();
+        for span in spans {
+            let style = Style {
+                bold: span.bold,
+                italic: span.italic,
+                underline: span.underline,
+                size: span.size.map(px_to_points),
+                link: span.link.as_deref().and_then(safe_link),
+                color: span.color.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
+                font: span.font.as_deref().and_then(Font::from_css),
+                highlight: span.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
+            };
+            let text = span.text.replace('\u{a0}', " ");
+            for (i, line) in text.split('\n').enumerate() {
+                if i > 0 {
+                    if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
+                        return;
+                    }
+                    self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level).aligned(align));
+                }
+                if self.pictures && line.contains(OBJECT) {
+                    // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
+                    for (n, part) in line.split(OBJECT).enumerate() {
+                        match (n % 2, part.parse::<u32>()) {
+                            (1, Ok(id)) => cur.push(Run::picture(id, self.charged(&style))),
+                            (1, Err(_)) => {}
+                            _ if part.is_empty() => {}
+                            _ => cur.push(Run::new(part, self.charged(&style))),
+                        }
+                    }
+                    continue;
+                }
+                cur.push(Run::new(line, self.charged(&style)));
+            }
+        }
+        if self.out.len() < mailcraft_model::rich::MAX_PARAGRAPHS {
+            self.out.push(Paragraph::new(cur, list).at_level(level).aligned(align));
+        }
+    }
+
+    /// `style` for one more run, when what its link repeats fits in what is left
+    /// ([`COPY_ALLOWANCE`]); else the same without its link.
+    fn charged(&mut self, style: &Style) -> Style {
+        let cost = style.link.as_deref().map_or(0, str::len);
+        if cost <= self.copies {
+            self.copies -= cost;
+            style.clone()
+        } else {
+            Style { link: None, ..style.clone() }
+        }
+    }
+}
+
+/// CSS pixels to points, within the model's sizes.
+fn px_to_points(px: u8) -> u8 {
+    let points = (u16::from(px) * 3 + 2) / 4;
+    u8::try_from(points).unwrap_or(MAX_SIZE).clamp(MIN_SIZE, MAX_SIZE)
+}
+
+/// `text` cut to at most `max` bytes, at a character boundary.
+fn cut(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.get(..end).unwrap_or("")
+}
+
+#[cfg(test)]
+mod tests;

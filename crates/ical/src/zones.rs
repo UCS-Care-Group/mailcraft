@@ -421,12 +421,12 @@ impl Source<'_> {
     /// The zone of the database an event written in this zone at `wall` (which is `instant`)
     /// keeps as its own, and what there is to say about it.
     #[cfg(test)]
-    pub(crate) fn zone(&self, tzid: &str, wall: DateTime, instant: Timestamp) -> (Option<Zone>, Option<String>) {
-        self.zone_in(None, tzid, wall, instant)
+    pub(crate) fn zone(&self, tzid: &str, instant: Timestamp) -> (Option<Zone>, Option<String>) {
+        self.zone_in(None, tzid, instant)
     }
 
     /// As [`zone`](Self::zone), remembering in `zones` what a definition came to, per offset.
-    pub(crate) fn zone_in(&self, zones: Option<&FileZones>, tzid: &str, wall: DateTime, instant: Timestamp) -> (Option<Zone>, Option<String>) {
+    pub(crate) fn zone_in(&self, zones: Option<&FileZones>, tzid: &str, instant: Timestamp) -> (Option<Zone>, Option<String>) {
         match self {
             Source::Utc => (Some(Zone::UTC), None),
             Source::Known(zone) => (Some(*zone), None),
@@ -437,7 +437,10 @@ impl Source<'_> {
             }
             Source::Unknown => (None, Some(note(tzid, "isn't one that is known: its times are kept as they are written."))),
             Source::File(definition, named) => {
-                let offset = i64::from(definition.offset_for_wall(wall));
+                // The offset at the instant, which for a time the clocks skip is the one after
+                // the change, as the database has it: not the one before, by which such a time
+                // is reckoned (RFC 5545 §3.3.5).
+                let offset = i64::from(definition.offset_at(instant));
                 if let Some(zone) = named.filter(|zone| zone.offset_seconds_at(instant) == offset) {
                     return (Some(zone), None);
                 }
@@ -732,9 +735,9 @@ END:VTIMEZONE\n";
         let wall = at(2026, 10, 12, 9, 0);
         // What an event keeps as its zone, and what is said.
         let known = none.source("Europe/Berlin");
-        assert_eq!(known.zone("Europe/Berlin", wall, known.instant(wall).unwrap()), (Some(zone("Europe/Berlin")), None));
+        assert_eq!(known.zone("Europe/Berlin", known.instant(wall).unwrap()), (Some(zone("Europe/Berlin")), None));
         let offset = none.source("(UTC-05:00) Somewhere Else");
-        let (kept, said) = offset.zone("(UTC-05:00) Somewhere Else", wall, offset.instant(wall).unwrap());
+        let (kept, said) = offset.zone("(UTC-05:00) Somewhere Else", offset.instant(wall).unwrap());
         assert_eq!((kept, offset.instant(wall)), (Zone::fixed(-300), Some(wall.to_timestamp(-300))));
         assert_eq!(
             said.as_deref(),
@@ -744,7 +747,7 @@ END:VTIMEZONE\n";
         );
         let unknown = none.source("Customized Time Zone");
         assert_eq!(unknown.instant(wall), None);
-        let (kept, said) = unknown.zone("Customized\r\nTime Zone", wall, 0);
+        let (kept, said) = unknown.zone("Customized\r\nTime Zone", 0);
         assert!(kept.is_none() && said.unwrap().contains("\"CustomizedTime Zone\" isn't one that is known"));
 
         // Defined in the file as it is: the zone of that name.
@@ -752,26 +755,26 @@ END:VTIMEZONE\n";
         let file = zones.source("Eastern Standard Time");
         let instant = file.instant(wall).unwrap();
         assert_eq!(instant, zone("America/New_York").instant(wall));
-        assert_eq!(file.zone("Eastern Standard Time", wall, instant), (Some(zone("America/New_York")), None));
+        assert_eq!(file.zone("Eastern Standard Time", instant), (Some(zone("America/New_York")), None));
         // The same definition under a name nobody knows is the zone with that clock.
         let renamed = EASTERN.replace("Eastern Standard Time", "Customized Time Zone");
         let zones = FileZones::collect(&renamed);
         let file = zones.source("Customized Time Zone");
-        assert_eq!(file.zone("Customized Time Zone", wall, instant), (Some(zone("America/New_York")), None));
+        assert_eq!(file.zone("Customized Time Zone", instant), (Some(zone("America/New_York")), None));
         // A definition that contradicts its name: the file's times, the zone with the file's
         // clock, and a word about it.
         let wrong = EASTERN.replace("Eastern Standard Time", "Pacific Standard Time");
         let zones = FileZones::collect(&wrong);
         let file = zones.source("Pacific Standard Time");
         assert_eq!(file.instant(wall), Some(instant));
-        let (kept, said) = file.zone("Pacific Standard Time", wall, instant);
+        let (kept, said) = file.zone("Pacific Standard Time", instant);
         assert_eq!(kept, Some(zone("America/New_York")));
         assert!(said.unwrap().contains("is defined in the file otherwise than the zone of that name"));
         // A clock no zone keeps: the offset it has then.
         let alone = "BEGIN:VTIMEZONE\nTZID:Example/Alone\nBEGIN:STANDARD\nDTSTART:19700101T000000\nTZOFFSETFROM:+0317\nTZOFFSETTO:+0317\nEND:STANDARD\nEND:VTIMEZONE\n";
         let zones = FileZones::collect(alone);
         let file = zones.source("Example/Alone");
-        let (kept, said) = file.zone("Example/Alone", wall, file.instant(wall).unwrap());
+        let (kept, said) = file.zone("Example/Alone", file.instant(wall).unwrap());
         assert_eq!(kept, Zone::fixed(197));
         assert!(said.unwrap().contains("is like none that is known: its times are kept at UTC+03:17."));
     }
@@ -840,7 +843,7 @@ END:VTIMEZONE\n"
                 let _ = (definition.offset_for_wall(wall), definition.offset_at(wall.to_timestamp(0)), definition.instant(wall));
             }
             let source = zones.source(&text);
-            let _ = source.zone(&text, wall, source.instant(wall).unwrap_or(0));
+            let _ = source.zone(&text, source.instant(wall).unwrap_or(0));
         }
     }
 }
