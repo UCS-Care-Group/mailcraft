@@ -129,10 +129,10 @@ pub(super) fn position(v: &Value, key: &str) -> Result<Option<usize>, CmdError> 
     }
 }
 
-/// Where the text the owner edits ends in the message being written (or the signature open): its
-/// end. Find, Replace and the formats keep within it. A signature block is inside it. A plain-text
-/// quoted original, which sits in the body after its opening line, is not; an HTML original is
-/// kept beside the body and is not in this length either.
+/// Where Find, Replace and the spelling check stop in the message being written (or the signature
+/// open). A signature block is inside it. A plain-text quoted original, which sits in the body
+/// after its opening line, is not; an HTML original is kept beside the body and is not in this
+/// length either. The formats and a selection are not limited by it.
 pub(crate) fn reach(s: &Session) -> usize {
     let Some((body, _)) = s.doc() else { return 0 };
     let len = body.text().len();
@@ -147,8 +147,8 @@ pub(crate) fn reach(s: &Session) -> usize {
     len
 }
 
-/// Select what `from` and `to` name, when the params name something, within `reach`.
-fn select_range(body: &mut RichBody, v: &Value, reach: usize) -> Result<(), CmdError> {
+/// Select what `from` and `to` name, when the params name something.
+fn select_range(body: &mut RichBody, v: &Value) -> Result<(), CmdError> {
     let (from, to) = (position(v, "from")?, position(v, "to")?);
     if from.is_none() && to.is_none() {
         return Ok(());
@@ -157,19 +157,17 @@ fn select_range(body: &mut RichBody, v: &Value, reach: usize) -> Result<(), CmdE
     let from = from.unwrap_or(sel.start());
     let to = to.unwrap_or(from);
     let len = body.text().len();
-    // Past the end is an error as ever; past the owner's text, only as far as it goes.
     if from > len || to > len {
         return Err(model(ModelError::Invalid(format!("the text has {len} characters"))));
     }
-    body.select(from.min(reach), to.min(reach)).map_err(model)
+    body.select(from, to).map_err(model)
 }
 
 /// Run an edit of the text; the message (or signature) is changed when its text is.
 pub(super) fn edit<T>(s: &mut Session, v: &Value, f: impl FnOnce(&mut RichBody) -> Result<T, ModelError>) -> Result<T, CmdError> {
-    let reach = reach(s);
     let (out, changed) = {
         let d = doc_mut(s)?;
-        select_range(d.body, v, reach)?;
+        select_range(d.body, v)?;
         let before = d.body.text().clone();
         let out = f(d.body).map_err(model)?;
         let changed = *d.body.text() != before;
@@ -486,9 +484,8 @@ fn outdent(s: &mut Session, v: &Value) -> CmdResult {
 /// The selection (after the params' range, when they name one) as the clipboard takes it: HTML
 /// of the set, written as the message's own HTML part is, and its plain text.
 fn clipboard(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
-    let reach = reach(s);
     let d = doc_mut(s)?;
-    select_range(d.body, v, reach)?;
+    select_range(d.body, v)?;
     let sel = d.body.selection();
     if sel.is_empty() {
         return Err(fail("nothing is selected in the message"));

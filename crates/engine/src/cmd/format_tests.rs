@@ -682,3 +682,67 @@ fn replace_exact_checks_the_old_word_and_keeps_its_style_and_list() {
     assert_eq!(mine(&s), "oggi sopratutto");
     assert_eq!(compose(&s).body.selection(), Selection::caret(0));
 }
+
+/// A plain-text message in the inbox, with `example` addresses, so a reply quotes it.
+fn plain_note(s: &mut Session, text: &str) -> u64 {
+    use mailcraft_model::{Address, Message};
+    let inbox = s.mailbox.inbox().unwrap();
+    let account = s.mailbox.accounts[0].id;
+    s.mailbox
+        .add_message(Message {
+            account,
+            folder: inbox,
+            from: Address::new("Sam Rivera", "sam@rivera.example"),
+            to: vec![Address::new("Avery Quinn", "avery@lumen.example")],
+            subject: "Notes".into(),
+            body: mailcraft_model::Body { text: text.into(), html: None },
+            ..Default::default()
+        })
+        .unwrap()
+}
+
+/// Character offsets of the one `word` in a plain-text reply.
+fn word_span(plain: &str, word: &str) -> (u64, u64) {
+    assert_eq!(plain.matches(word).count(), 1, "`{word}` once, in the quoted original:\n{plain}");
+    let byte = plain.find(word).unwrap_or_else(|| panic!("`{word}` missing:\n{plain}"));
+    let from = plain[..byte].chars().count();
+    (from as u64, (from + word.chars().count()) as u64)
+}
+
+fn plain_reply(s: &mut Session, text: &str) -> String {
+    let id = plain_note(s, text);
+    run(s, "mail.reply", json!({"id": id}));
+    let plain = compose(s).body.plain();
+    assert!(plain.contains("-----Original Message-----"), "{plain}");
+    plain
+}
+
+#[test]
+fn a_range_in_the_quoted_original_is_deleted_copied_and_replaced() {
+    const ORIGINAL: &str = "Please fix teh typo";
+    const WORD: &str = "teh";
+
+    let mut s = session();
+    let before = plain_reply(&mut s, ORIGINAL);
+    let (from, to) = word_span(&before, WORD);
+    run(&mut s, "compose.delete", json!({"from": from, "to": to}));
+    assert_eq!(compose(&s).body.plain(), before.replacen(WORD, "", 1));
+
+    let mut s = session();
+    let before = plain_reply(&mut s, ORIGINAL);
+    let (from, to) = word_span(&before, WORD);
+    assert_eq!(run(&mut s, "edit.copy", json!({"from": from, "to": to}))["text"], WORD);
+    assert_eq!(compose(&s).body.plain(), before, "copying the original changes nothing");
+
+    let mut s = session();
+    let before = plain_reply(&mut s, ORIGINAL);
+    let (from, to) = word_span(&before, WORD);
+    run(&mut s, "compose.replaceText", json!({"from": from, "to": to, "expected": WORD, "text": "the"}));
+    assert_eq!(compose(&s).body.plain(), before.replacen(WORD, "the", 1));
+
+    let mut s = session();
+    let before = plain_reply(&mut s, ORIGINAL);
+    let r = run(&mut s, "edit.replace", json!({"text": WORD, "with": "the", "all": true}));
+    assert_eq!(r["replaced"], 0);
+    assert_eq!(compose(&s).body.plain(), before, "Find and Replace stay out of the quoted original");
+}
