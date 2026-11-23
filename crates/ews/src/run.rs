@@ -574,7 +574,12 @@ impl<E: HttpExchange> Run<'_, E> {
     /// server is said in `outcome`; a request it refused is each of its items refused.
     async fn conversations(&mut self, ids: &[String], outcome: &mut Outcome) -> Vec<ThreadOf> {
         let mut out = Vec::new();
-        let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS)).unwrap_or_default();
+        // (The model's cap is a thousand a run; this server reads a thousand conversations as a
+        // thousand fights and drops folder reads mid-answer while it's at it — the log's
+        // "couldn't be read" folders are always the ones asked after the storm started. Two
+        // hundred a run: the tail works down across runs instead of burning each one (#1784,
+        // measured 20:55 and 21:00).)
+        let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS.min(200))).unwrap_or_default();
         for some in ids.chunks(MAX_CONVERSATIONS) {
             let op = GetItemConversations::new(some);
             let said = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
@@ -715,7 +720,11 @@ impl<E: HttpExchange> Run<'_, E> {
                         folder,
                         match &other {
                             Asked::Code(code) => code.to_string(),
-                            _ => "an answer this program can't read".to_string(),
+                            Asked::Bad => "an answer this program can't read".to_string(),
+                            Asked::Lost => "the connection died mid-answer".to_string(),
+                            Asked::TooLarge => "the answer outweighed the limit".to_string(),
+                            Asked::Unreadable => "the answer couldn't be taken in".to_string(),
+                            _ => "the run was asked to stop".to_string(),
                         }
                     );
                     out.line("Some folders couldn't be read from the server");
