@@ -98,11 +98,19 @@ fn section(ui: &mut Ui, text: &str, t: &Tokens) {
 
 /// A wide button with an icon, a title and a line of explanation; `true` when clicked.
 fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool {
-    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width().min(560.0), 52.0), Sense::click());
+    let width = ui.available_width().min(560.0);
+    // The detail wraps (two lines at most) rather than eliding.
+    let mut job = egui::text::LayoutJob::single_section(
+        detail.to_string(),
+        egui::text::TextFormat { font_id: regular(11.5), color: t.text_dim, ..Default::default() },
+    );
+    job.wrap = egui::text::TextWrapping { max_width: (width - 64.0).max(8.0), max_rows: 2, break_anywhere: true, overflow_character: Some('…') };
+    let galley = ui.painter().layout_job(job);
+    let (r, resp) = ui.allocate_exact_size(vec2(width, 52.0f32.max(30.0 + galley.size().y)), Sense::click());
     ui.painter().rect(r, 6.0, if resp.hovered() { t.hover } else { t.panel }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 26.0, r.center().y), vec2(24.0, 24.0)), icon, t.icon, t.accent);
     ui.painter().text(pos2(r.min.x + 52.0, r.min.y + 18.0), Align2::LEFT_CENTER, title, semibold(13.0), t.text);
-    crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 52.0, r.min.y + 36.0), r.width() - 64.0, detail, regular(11.5), t.text_dim);
+    ui.painter().galley(pos2(r.min.x + 52.0, r.min.y + 29.0), galley, t.text_dim);
     resp.clicked()
 }
 
@@ -736,6 +744,22 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
     }
+    row(ui, tl!("Clock"), |ui| {
+        let (chosen, twelve) = (app.session.prefs.clock_chosen, app.session.prefs.twelve_hour);
+        let now = (chosen == Some(true)).then_some(twelve);
+        let name = |c: Option<bool>| match c {
+            None => tl!("Automatic (the language's)"),
+            Some(true) => tl!("12-hour (3:05 PM)"),
+            Some(false) => tl!("24-hour (15:05)"),
+        };
+        egui::ComboBox::from_id_salt("opt_clock").selected_text(name(now)).show_ui(ui, |ui| {
+            for (c, code) in [(None, "auto"), (Some(true), "12"), (Some(false), "24")] {
+                if ui.selectable_label(c == now, name(c)).clicked() {
+                    let _ = app.run("file.options", json!({"clock": code}));
+                }
+            }
+        });
+    });
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
@@ -909,7 +933,12 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
     // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
     row(ui, tl!("Wait before sending"), |ui| {
-        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        let wait = |n: u8| match n {
+            0 => tl!("Off").to_string(),
+            // (A whole number of minutes from a minute on, #1799.)
+            n if n >= 60 && n % 60 == 0 => tln!(u64::from(n / 60), "{n} minute", "{n} minutes"),
+            n => tln!(u64::from(n), "{n} second", "{n} seconds"),
+        };
         egui::ComboBox::from_id_salt("opt_wait_before_sending")
             .selected_text(wait(prefs.undo_send()))
             .show_ui(ui, |ui| {
@@ -955,7 +984,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let built_in = !app.services.microsoft_client_id.is_empty();
         let mut id = app.ui.microsoft_client_id.clone();
         let hint = if built_in { tl!("The one this build came with") } else { tl!("Needed for Outlook.com and Microsoft 365 accounts") };
-        let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0);
+        let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(340.0);
         if crate::text_menu::field(ui.add(edit)).changed() {
             let _ = app.execute("ui.microsoftClientId", json!({"value": id.trim()}));
         }
@@ -988,10 +1017,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Security"), t);
     crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
-    let mut twelve = prefs.twelve_hour;
-    if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {
-        set(app, json!({"twelveHour": twelve}));
-    }
     row(ui, tl!("Week starts on"), |ui| {
         egui::ComboBox::from_id_salt("opt_week").selected_text(tl!(prefs.week_start.name())).show_ui(ui, |ui| {
             for d in [Weekday::Sun, Weekday::Mon, Weekday::Sat] {
