@@ -210,7 +210,8 @@ fn queue(
 /// own that `ui.closeWindow` closes, that another mailbox in view (`file.new`, `file.open`)
 /// closes, or that closes with its appointment when that is taken away.
 fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
-    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo");
+    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo")
+        || (id == "calendar.paste" && params.get("cut").and_then(Value::as_bool) == Some(true));
     if !removes && !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
         if let Some(fields) = params.as_object_mut() {
             fields.remove("unsaved");
@@ -306,17 +307,24 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class], only: Option
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;
     app.session.only_shown = only;
+    let owner = app.windows.dialog_for;
     let r = app.execute(id, params);
     app.session.agent = None;
     app.session.owner_changing = Vec::new();
     app.session.only_shown = None;
-    if let Some(form) = owners
-        && let Some(opened) = app.dialog.replace(form)
-    {
-        return err(format!(
-            "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
-            opened.name()
-        ));
+    if let Some(form) = owners {
+        // The form was only set aside. A dialog the command opened is not shown, and the form
+        // is still the one its window had open.
+        let opened = app.dialog.replace(form);
+        if let Some(compose) = owner {
+            app.windows.claim_dialog(compose);
+        }
+        if let Some(opened) = opened {
+            return err(format!(
+                "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
+                opened.name()
+            ));
+        }
     }
     match r {
         Ok(v) => ok(v),
@@ -574,6 +582,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         answer_with(app, said);
     }
 }
+
+/// The batch of calendar items an agent asked about and what the owner's yes reaches: its own
+/// file, as the tests that hold the gate to what it shows (#494, U-1, U-2, C-1).
+#[cfg(test)]
+#[path = "calendar_batch_guard_tests.rs"]
+mod calendar_batch_guard_tests;
 
 #[cfg(test)]
 mod tests {

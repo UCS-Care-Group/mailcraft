@@ -79,6 +79,61 @@ pub struct Down {
     pub removed: usize,
     /// New messages a rule moved out of the account as they arrived (#567).
     pub left: usize,
+    /// The clock the rules run by on what arrives ([`Session::rule_clock`](crate::Session::rule_clock));
+    /// without one, this computer's.
+    pub clock: Option<mailcraft_model::RuleClock>,
+    /// The `Message-ID`s of the mail an account had before a run's new mail
+    /// ([`super::account::message_ids`]), found once for the run when new mail comes into the
+    /// Inbox or Junk E-mail, and kept for its later pieces ([`Down::of_run`]).
+    had: Option<(Id, HashSet<String>)>,
+}
+
+impl Down {
+    /// Down for a run of `s`, whose rules run by its clock.
+    pub fn of(s: &crate::Session) -> Down {
+        Down { clock: Some(s.rule_clock()), ..Default::default() }
+    }
+
+    /// [`Down::of`] for a piece of `account`'s run, with what the account had before the run's
+    /// new mail as an earlier piece of the run found it ([`crate::Session::run_had`]).
+    pub(crate) fn of_run(s: &mut crate::Session, account: Id) -> Down {
+        let had = s.run_had.remove(&account).map(|had| (account, had));
+        Down { had, ..Down::of(s) }
+    }
+
+    /// Keep what the account had for the run's next piece, unless this one was its last.
+    pub(crate) fn end_piece(&mut self, s: &mut crate::Session, account: Id, partial: bool) {
+        match self.had.take() {
+            Some((of, had)) if partial && of == account => {
+                s.run_had.insert(account, had);
+            }
+            _ => {
+                s.run_had.remove(&account);
+            }
+        }
+    }
+
+    /// Whether taking in the pages did anything: the clock is no part of that.
+    pub fn took_anything(&self) -> bool {
+        self.new + self.changed + self.gone + self.removed + self.left > 0
+    }
+
+    /// Whether `account` had a message with the `Message-ID` `id` before the run's new mail: one
+    /// moved into the Inbox on another device, to which an Exchange server gives a new id (#566).
+    fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        if self.had.as_ref().is_none_or(|(a, _)| *a != account) {
+            self.had = Some((account, super::account::message_ids(mb, account)));
+        }
+        self.had.as_ref().is_some_and(|(_, had)| had.contains(id))
+    }
+
+    fn rule_clock(&self) -> mailcraft_model::RuleClock {
+        let system = || mailcraft_model::RuleClock { now: mailcraft_time::now(), zone: mailcraft_time::Zone::system(), due_hour: 17 };
+        self.clock.unwrap_or_else(system)
+    }
 }
 
 /// Take in one page of a folder's delta, with its link. A page for a folder this mailbox doesn't
@@ -92,6 +147,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
     // shared mailbox: the rules, like the lists, are the owner's.
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
+    let junk = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Junk);
     // (Of a Microsoft or Exchange server account alone, as the repair that puts right what an
     // earlier version kept: a JMAP server's Sent folder is read through here too.)
     let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
@@ -185,6 +241,10 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 if sent_items {
                     message.draft = false;
                 }
+                // Mail the account had, moved into the Inbox or Junk E-mail on another device,
+                // where an Exchange server gives it a new id: the lists sort it as any new mail,
+                // and the rules file it as found (#566).
+                let moved_in = sorting && (inbox || junk) && down.had(mb, account, &message.message_id);
                 if let Ok(m) = mb.add_message(message) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
@@ -193,7 +253,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     // A move goes up as the owner's own does (R3.3).
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
-                        mb.apply_rules(m);
+                        if moved_in {
+                            mb.apply_rules_found(m, &down.rule_clock());
+                        } else {
+                            mb.apply_rules(m, &down.rule_clock());
+                        }
                         // Out of the account: should the page list it again, that is the same
                         // message (#606 review).
                         if mb.message(m).is_some_and(|m| m.account != account) {
@@ -262,6 +326,8 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         server: Some(server),
         unfetched: true,
         attachments_on_server: there.has_attachments,
+        headers_cut: there.cut,
+        categories_cut: there.categories_cut,
         ..Default::default()
     }
 }
@@ -340,8 +406,17 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.importance == last.importance {
         m.importance = now.importance;
     }
-    if follows {
+    // (Its categories are the server's, and what a listing left out of them stays left out; its
+    // recipients and subject are the listing's only until it is fetched.)
+    m.categories_cut |= there.categories_cut;
+    if m.unfetched {
+        m.headers_cut |= there.cut;
+    }
+    if follows && m.folder != folder {
         m.folder = folder;
+        // Moved on another device before it is here whole, and back too: the rules that waited on
+        // it let it alone, as after a move here ([`Mailbox::move_message`], #566).
+        m.rules_waiting = None;
     }
     if m.unfetched {
         m.attachments_on_server = there.has_attachments;
@@ -367,17 +442,22 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     }
     if changed_there || sent || drafted {
         // Changed elsewhere only: the server's version, fetched afresh.
+        // (Its recipients and subject are the listing's now, and so is whether it left some out.
+        // What else is here of it is the version downloaded before, kept until the new one comes,
+        // and no word on what it is now: no rule goes by it meanwhile, [`Message::stale`], #566.)
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
+        m.headers_cut = there.cut;
+        m.stale = true;
         m.attachments_on_server = there.has_attachments;
         if let Some(sd) = m.server_draft.as_mut() {
             sd.synced = None;
         }
     }
     // A delta never says a size (#300): the last one known, of the whole message when it was
-    // fetched, stays; but not for a draft changed elsewhere, whose new version is still to be
-    // fetched and may be smaller than the background fetch's limit, which its old size is held
-    // against. Until then the list says what is here, its old version.
-    let size = if now.size > 0 || changed_there { now.size } else { last.size };
+    // fetched, stays; but not for a draft changed elsewhere, sent or a draft again, whose new
+    // version is still to be fetched and may be smaller than the background fetch's limit, which
+    // its old size is held against, and is no size a rule may go by (#566).
+    let size = if now.size > 0 || changed_there || sent || drafted { now.size } else { last.size };
     // The conversation id, as the size: one a listing doesn't say (a JMAP server's marks alone)
     // is the last one known (#795).
     let (thread, thread_asked, thread_tries) =
@@ -572,19 +652,28 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     }
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
-    // from for them: nothing else of it changes.
+    // from for them: nothing else of it changes. Unless the server has had another version of it
+    // since ([`Message::stale`], #566): what came is then taken whole, as any fetch's answer is,
+    // and not left the old version with no fetch to come.
     if std::mem::take(&mut m.original_wanted) {
         m.original_asked |= !brought;
         if no_room > 0 {
             m.original_no_room = no_room;
         }
-        // (A copy that brings none, one put on the server from its parts, takes nothing away.)
-        if !m.parts_removed && read.original.is_some() {
-            m.original = read.original;
+        if !m.stale {
+            // (A copy that brings none, one put on the server from its parts, takes nothing away.)
+            if !m.parts_removed && read.original.is_some() {
+                m.original = read.original;
+            }
+            (m.unfetched, m.attachments_on_server) = (false, false);
+            return Some(here);
         }
-        (m.unfetched, m.attachments_on_server) = (false, false);
-        return Some(here);
     }
+    // What a listing left out of its recipients and subject comes with it whole, but for one of
+    // them the download doesn't give, which stays as the listing said (#566).
+    let listed =
+        (read.to.is_empty() && !m.to.is_empty()) || (read.cc.is_empty() && !m.cc.is_empty()) || (read.subject.is_empty() && !m.subject.is_empty());
+    let listing_cut = m.headers_cut && listed;
     m.message_id = read.message_id;
     m.in_reply_to = read.in_reply_to;
     m.references = read.references;
@@ -618,6 +707,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     }
     m.parts_removed = false;
     (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
+    // (What a listing left out of its categories stays left out: they are the server's still,
+    // [`Message::categories_cut`].)
+    m.headers_cut = read.headers_cut || listing_cut;
     // Fetched to go on to another account's server: this server's stamps stay behind (#781).
     if m.account != account {
         mailcraft_model::auth_results::forget_stamps(m);
@@ -625,6 +717,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.
     m.kept = None;
     m.unfetched = false;
+    m.stale = false;
     m.attachments_on_server = false;
     // Its size is that of the MIME brought (#300), which the fetch caps and which is measured
     // here: kept for when it is back to its preview, and taken anew at every fetch, so that a
