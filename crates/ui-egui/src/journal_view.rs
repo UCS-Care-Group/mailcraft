@@ -60,9 +60,7 @@ impl Default for JournalEntry {
 pub fn journal_file_path() -> PathBuf {
     if let Ok(user_profile) = std::env::var("USERPROFILE") {
         let p_gdrive = PathBuf::from(&user_profile).join("Google Drive").join("ZohoNotebook_Sync").join("journal.json");
-        if p_gdrive.parent().map(|p| p.exists()).unwrap_or(false) {
-            return p_gdrive;
-        }
+        return p_gdrive;
     }
     let p_direct = PathBuf::from(r"C:\Users\marcondes.lima\Google Drive\ZohoNotebook_Sync\journal.json");
     if p_direct.parent().map(|p| p.exists()).unwrap_or(false) {

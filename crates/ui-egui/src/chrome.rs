@@ -505,10 +505,13 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
                     }
                     Module::Notes => {
+                        app.notes.poll_cloud_sync();
                         let count = app.notes.notes.len();
                         st(ui, &tln!(count, "{n} note", "{n} notes"), t.text_dim);
-                        if !app.notes.last_sync_time.is_empty() {
-                            st(ui, &format!("● Sincronizado ({})", app.notes.last_sync_time), Color32::from_rgb(76, 175, 80));
+                        if app.notes.cloud_syncing {
+                            st(ui, "🔄 Sincronizando com a Nuvem...", Color32::from_rgb(66, 133, 244));
+                        } else if !app.notes.last_sync_time.is_empty() {
+                            st(ui, &format!("● Nuvem Google ({})", app.notes.last_sync_time), Color32::from_rgb(76, 175, 80));
                         }
                     }
                     Module::Journal => {

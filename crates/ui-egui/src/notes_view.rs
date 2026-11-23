@@ -78,6 +78,114 @@ impl Default for Note {
     }
 }
 
+pub const GOOGLE_WEBHOOK_URL: &str =
+    "https://script.google.com/macros/s/AKfycbzIFNueJUl00QuAOsyfbsK7Gexjm3yPQSWIQKzjnjPXaj_JuQSqMbQZsA1HjqVPS6Q/exec";
+
+pub fn fetch_cloud_notes() -> Option<Vec<Note>> {
+    // 1. Try curl.exe with 20s timeout (native on Windows 10/11)
+    if let Ok(out) = std::process::Command::new("curl.exe")
+        .args(&["-s", "-L", "-m", "20", GOOGLE_WEBHOOK_URL])
+        .output()
+    {
+        if out.status.success() {
+            if let Ok(text) = String::from_utf8(out.stdout) {
+                if let Ok(notes) = serde_json::from_str::<Vec<Note>>(&text) {
+                    if !notes.is_empty() {
+                        return Some(notes);
+                    }
+                }
+                if let Ok(val) = serde_json::from_str::<Value>(&text) {
+                    if let Some(arr) = val.get("notes") {
+                        if let Ok(notes) = serde_json::from_value::<Vec<Note>>(arr.clone()) {
+                            if !notes.is_empty() {
+                                return Some(notes);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback: PowerShell Invoke-RestMethod
+    let ps_cmd = format!(
+        "$ProgressPreference = 'SilentlyContinue'; \
+        $res = Invoke-RestMethod -Uri '{GOOGLE_WEBHOOK_URL}' -Method Get; \
+        $res | ConvertTo-Json -Depth 10 -Compress"
+    );
+    if let Ok(out) = std::process::Command::new("powershell")
+        .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps_cmd])
+        .output()
+    {
+        if out.status.success() {
+            if let Ok(text) = String::from_utf8(out.stdout) {
+                if let Ok(notes) = serde_json::from_str::<Vec<Note>>(&text) {
+                    if !notes.is_empty() {
+                        return Some(notes);
+                    }
+                }
+                if let Ok(val) = serde_json::from_str::<Value>(&text) {
+                    if let Some(arr) = val.get("notes") {
+                        if let Ok(notes) = serde_json::from_value::<Vec<Note>>(arr.clone()) {
+                            if !notes.is_empty() {
+                                return Some(notes);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+pub fn trigger_cloud_push(notes: Vec<Note>) {
+    std::thread::spawn(move || {
+        let temp_file = std::env::temp_dir().join(format!(
+            "mailcraft_push_{}.json",
+            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis()
+        ));
+        let payload = json!({
+            "action": "sync_notes",
+            "notes": notes
+        });
+        if let Ok(data) = serde_json::to_string(&payload) {
+            if fs::write(&temp_file, data.as_bytes()).is_ok() {
+                let temp_path_str = temp_file.to_string_lossy().to_string();
+                let ps_cmd = format!(
+                    "$ProgressPreference = 'SilentlyContinue'; \
+                    $raw = [System.IO.File]::ReadAllText('{temp_path_str}', [System.Text.Encoding]::UTF8); \
+                    $null = Invoke-RestMethod -Uri '{GOOGLE_WEBHOOK_URL}' -Method Post -Body $raw -ContentType 'application/json'; \
+                    Remove-Item -Path '{temp_path_str}' -ErrorAction SilentlyContinue"
+                );
+                let _ = std::process::Command::new("powershell")
+                    .args(&["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &ps_cmd])
+                    .output();
+            }
+        }
+    });
+}
+
+pub fn smart_merge_notes(local_notes: &mut Vec<Note>, cloud_notes: Vec<Note>) -> (usize, usize) {
+    let mut added = 0;
+    let mut updated = 0;
+    for c_note in cloud_notes {
+        if let Some(existing) = local_notes.iter_mut().find(|n| n.id == c_note.id) {
+            let c_mod = c_note.modified_date.as_deref().unwrap_or("");
+            let l_mod = existing.modified_date.as_deref().unwrap_or("");
+            if c_mod > l_mod {
+                *existing = c_note;
+                updated += 1;
+            }
+        } else {
+            local_notes.push(c_note);
+            added += 1;
+        }
+    }
+    (added, updated)
+}
+
 /// Detects the path to Google Drive or local sync `notes.json`.
 pub fn notes_file_path() -> PathBuf {
     if let Ok(user_profile) = std::env::var("USERPROFILE") {
@@ -89,6 +197,7 @@ pub fn notes_file_path() -> PathBuf {
         if p_portable.exists() {
             return p_portable;
         }
+        return p_gdrive;
     }
     let p_direct1 = PathBuf::from(r"C:\Users\marcondes.lima\Google Drive\ZohoNotebook_Sync\notes.json");
     if p_direct1.exists() {
@@ -144,6 +253,8 @@ pub struct NotesState {
     #[allow(clippy::type_complexity)]
     pub gemini_rx: Option<std::sync::mpsc::Receiver<(String, String)>>,
     pub gemini_loading: bool,
+    pub cloud_rx: Option<std::sync::mpsc::Receiver<Vec<Note>>>,
+    pub cloud_syncing: bool,
 }
 
 impl Default for NotesState {
@@ -200,10 +311,52 @@ impl NotesState {
             status_msg: None,
             gemini_rx: None,
             gemini_loading: false,
+            cloud_rx: None,
+            cloud_syncing: false,
         };
         state.migrate_existing_chat_comments();
         state.sync_editing_buffer();
+        state.trigger_cloud_pull();
         state
+    }
+
+    pub fn poll_cloud_sync(&mut self) {
+        if let Some(rx) = &self.cloud_rx {
+            if let Ok(cloud_notes) = rx.try_recv() {
+                let (added, updated) = smart_merge_notes(&mut self.notes, cloud_notes);
+                if added > 0 || updated > 0 || !self.file_path.exists() {
+                    if let Some(parent) = self.file_path.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    if let Ok(serialized) = serde_json::to_string_pretty(&self.notes) {
+                        let _ = fs::write(&self.file_path, serialized);
+                    }
+                    if self.selected_note_id.is_none() && !self.notes.is_empty() {
+                        self.selected_note_id = self.notes.first().map(|n| n.id.clone());
+                        self.sync_editing_buffer();
+                    }
+                }
+                self.last_sync_time = current_time_hh_mm_ss();
+                self.cloud_syncing = false;
+                self.status_msg = Some(format!("● Sincronizado com o Google Drive ({} notas)", self.notes.len()));
+                self.cloud_rx = None;
+            }
+        }
+    }
+
+    pub fn trigger_cloud_pull(&mut self) {
+        if self.cloud_syncing {
+            return;
+        }
+        self.cloud_syncing = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.cloud_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            if let Some(notes) = fetch_cloud_notes() {
+                let _ = tx.send(notes);
+            }
+        });
     }
 
     pub fn reload(&mut self) {
@@ -219,6 +372,7 @@ impl NotesState {
                 self.sync_editing_buffer();
             }
         }
+        self.trigger_cloud_pull();
     }
 
     pub fn migrate_existing_chat_comments(&mut self) {
@@ -292,6 +446,7 @@ impl NotesState {
                 self.last_sync_time = current_time_hh_mm_ss();
             }
         }
+        trigger_cloud_push(self.notes.clone());
     }
 
     pub fn sync_editing_buffer(&mut self) {
@@ -578,6 +733,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let is_dark = t.dark;
 
+    // Poll background cloud synchronization with Google Drive
+    app.notes.poll_cloud_sync();
+    if app.notes.cloud_syncing {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+    }
+
     // Check disk mtime for automatic background sync from Google Drive
     if let Ok(metadata) = fs::metadata(&app.notes.file_path) {
         if let Ok(mtime) = metadata.modified() {
@@ -720,6 +881,12 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // Status dots
         status_dot_item(ui, "👤", "Login & Conta Google", "●", Color32::from_rgb(52, 168, 83), t);
         status_dot_item(ui, "✨", "Configurar IA Gemini", "Ativo", Color32::from_rgb(52, 168, 83), t);
+        let (cloud_label, cloud_col) = if app.notes.cloud_syncing {
+            ("Sincronizando...", Color32::from_rgb(66, 133, 244))
+        } else {
+            ("Conectado", Color32::from_rgb(52, 168, 83))
+        };
+        status_dot_item(ui, "☁️", "Google Drive Nuvem", cloud_label, cloud_col, t);
 
         ui.add_space(12.0);
         ui.separator();
