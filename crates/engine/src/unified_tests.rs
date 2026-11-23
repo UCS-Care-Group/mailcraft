@@ -260,3 +260,17 @@ fn undo_in_all_inboxes_brings_a_shared_mailboxs_message_back_into_the_list() {
     assert_eq!(s.sel.messages, vec![id]);
     assert!(subjects(&mut s).contains(&"B new".to_string()));
 }
+
+/// With one mailbox, `view.allAccounts` from a script, an agent or the control port is refused
+/// where commands are run (its `when`), with the reason the window gives, and the view stays as
+/// it was: never an All Inboxes the folder pane has no row for.
+#[test]
+fn one_mailbox_refuses_all_accounts_at_dispatch() {
+    let mut s = Session::empty();
+    imap(&mut s, "avery@one.example", vec![from_server(1, "Only", 100)]);
+    let before = s.view.clone();
+    let refused = s.run("view.allAccounts", &json!({"kind": "inbox"})).unwrap_err();
+    assert!(matches!(refused, crate::CmdError::Disabled(ref why) if why.contains("two mailboxes")), "{refused:?}");
+    assert_eq!(s.view, before);
+    assert_eq!(crate::unified::of(&s), None);
+}
