@@ -286,3 +286,18 @@ fn nothing_is_copied_out_of_the_archive_and_removing_it_puts_moves_back() {
     let m = mb.message(kickoff).expect("kept");
     assert_eq!((m.account, m.folder), (owner, inbox));
 }
+
+/// Mail moved into the archive that the server has since said is gone isn't put back: it would
+/// come back here although the server no longer has it (#1834 review).
+#[test]
+fn a_move_into_the_archive_of_mail_the_server_says_is_gone_isnt_put_back() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    let (kickoff, _) = on_owners_server(&mut mb, owner);
+    mb.move_messages(&[kickoff], year).unwrap();
+    Arc::make_mut(mb.messages.get_mut(&kickoff).unwrap()).server.as_mut().unwrap().gone = true;
+    assert!(mb.for_disk().message(kickoff).is_none(), "not written back");
+    mb.remove_archive(archive).unwrap();
+    assert!(mb.message(kickoff).is_none(), "not put back");
+}

@@ -1183,9 +1183,10 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 }
                 // An online archive is read when it is opened (#1818): until its folders come, a
                 // line says so, or that it needs a connection; a folder of it opened is read then.
-                // A read that failed says so whether or not its folders are here (#1834 review).
+                // A read that failed, or that has no password to go with, says so whether or not
+                // its folders are here (#1834 review).
                 if app.session.mailbox.account(*account).is_some_and(mailcraft_model::Account::is_archive) {
-                    if rows.is_empty() || (!app.offline() && app.archive_read_failed(*account)) {
+                    if rows.is_empty() || (!app.offline() && app.archive_not_read(*account).is_some()) {
                         archive_note(app, ui, *account);
                     } else if !app.offline() {
                         app.read_archive(*account);

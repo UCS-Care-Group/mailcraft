@@ -854,6 +854,46 @@ fn a_hidden_archive_goes_and_stays_away_until_shown() {
     assert!(s.mailbox.archive_of(account).is_some());
 }
 
+/// Said to be kept in Exchange Online by an edit (`ews.cloudArchive`), an archive shown here goes
+/// at once, as one the server says isn't there goes, and isn't asked about again (#1834 review);
+/// not while a change made in it waits to go up, which would be lost.
+#[test]
+fn an_archive_said_to_be_in_exchange_online_goes() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.view.folder = year;
+    // A change made in it that hasn't gone up: refused, and nothing changes.
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let edit = json!({"id": account, "ews": {"cloudArchive": true}});
+    let said = s.run("account.edit", &edit).unwrap_err().to_string();
+    assert!(said.contains("Send/Receive first"), "{said}");
+    assert!(s.mailbox.archive_of(account).is_some());
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().cloud_archive);
+    // Once it has gone up, the edit is taken and the archive goes.
+    let changes = ews_mail_request(&s, archive, false).unwrap().changes;
+    let done: Vec<mailcraft_model::sync::FolderChangeDone> = changes
+        .into_iter()
+        .map(|change| mailcraft_model::sync::FolderChangeDone {
+            change,
+            outcome: mailcraft_model::sync::ChangeOutcome::Done { folder: folder("A1", "", "2020", FolderKind::Custom) },
+        })
+        .collect();
+    apply_ews_mail(&mut s, EwsMailResult { changes: done, ..piece(archive) }).unwrap();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_recheck = true;
+    s.run("account.edit", &edit).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none(), "it goes at once");
+    assert!(s.mailbox.folder(s.view.folder).is_some_and(|f| f.account == account), "the view goes to a folder that is there");
+    let server = s.mailbox.account(account).unwrap().ews.clone().unwrap();
+    assert!(server.cloud_archive && !server.cloud_recheck && !server.archive_hidden);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive, "not asked about again");
+    // Said again, nothing more happens.
+    s.run("account.edit", &edit).unwrap();
+}
+
 /// A run of the archive is judged a failed read by what failed the reading, as the window judges
 /// it (#1834 review): a folder that couldn't be read is one; a change of the owner's the server
 /// refused is said, but isn't.

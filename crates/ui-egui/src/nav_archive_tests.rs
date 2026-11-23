@@ -268,3 +268,15 @@ fn the_folder_menus_offer_the_archive_only_where_mail_may_go() {
         }
     }
 }
+
+/// With its folders here but no password at hand (the mailbox's was turned down, or forgotten),
+/// the archive says how to read it rather than nothing (#1834 review).
+#[test]
+fn without_a_password_it_says_how_to_read_it_with_its_folders_here_too() {
+    let (mut app, _, archive) = app();
+    app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    let shown = texts(&mut app);
+    assert!(shown.iter().any(|t| t.contains("Send/Receive the mailbox")), "{shown:?}");
+    assert!(shown.iter().any(|t| t == "2019"), "{shown:?}");
+    assert!(!app.syncing(), "nothing started by itself");
+}

@@ -391,6 +391,29 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     Ok(())
 }
 
+/// Whether a change made in the online archive `archive` waits to go up that taking it away would
+/// lose (#1834 review): of its folders, or of its mail; not a move into it of mail its owner's
+/// server still has, which is put back where the server has it ([`Mailbox::remove_archive`]),
+/// with what was changed in it.
+fn archive_changes_wait(s: &Session, archive: Id) -> bool {
+    use mailcraft_model::sync::MessageChange;
+    let mb = &s.mailbox;
+    let Some(owner) = mb.archive_owner(archive).map(|o| o.id) else { return false };
+    if !super::graph_mail::folder_changes(mb, archive, 1).0.is_empty() {
+        return true;
+    }
+    let put_back = |id: Id| {
+        mb.message(id).and_then(|m| m.server.as_ref()).is_some_and(|server| !server.gone && mb.folder_by_server(owner, &server.folder).is_some())
+    };
+    const MOST: usize = 10_000;
+    let (changes, count) = super::graph_up::message_changes(s, archive, MOST);
+    count > changes.len()
+        || changes.iter().any(|change| match change {
+            MessageChange::Update { message, .. } | MessageChange::Move { message, .. } => !put_back(*message),
+            _ => true,
+        })
+}
+
 /// A JMAP account's server from `jmap` in a command's params, over `before` (what it has, when it
 /// has a server): `session`, the address of the session resource, and `bearer`, whether the secret
 /// is a bearer token. An address that is given, or that a new server has, must be one the model
@@ -607,6 +630,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     let named_by_address = before.named_by_address();
+    let was_cloud = before.ews.as_ref().is_some_and(|e| e.cloud_archive);
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
     // An Exchange server account is the same: its ids are the server's.
@@ -673,8 +697,27 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if a.name.trim().is_empty() || (p::str(v, "name").is_none() && named_by_address) {
         a.name = a.name_by_default();
     }
-    if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
+    // (Its own online archive has its address, and is no other account, #1834 review.)
+    if s.mailbox.accounts.iter().any(|x| x.id != id && x.archive_of != Some(id) && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
+    }
+    // Its online archive said to be kept in Exchange Online (#1818): one shown here goes, as one
+    // the server says isn't there goes, its moves not made yet put back where the server has the
+    // mail. Not while a change made in it waits to go up, which would be lost (#1834 review).
+    let cloud = |x: &Account| x.ews.as_ref().is_some_and(|e| e.cloud_archive);
+    let archive_goes = (cloud(&a) && !was_cloud).then(|| s.mailbox.archive_of(id).map(|x| x.id)).flatten();
+    if let Some(archive) = archive_goes
+        && archive_changes_wait(s, archive)
+    {
+        return Err(fail(
+            "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online",
+        ));
+    }
+    if cloud(&a)
+        && !was_cloud
+        && let Some(server) = a.ews.as_mut()
+    {
+        (server.archive_hidden, server.cloud_recheck, server.archive_absent) = (false, false, 0);
     }
     // (Whatever its kind now: it may be a Microsoft account again later.)
     let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
@@ -684,6 +727,13 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // are listed afresh, to bring the older mail it now covers.
     let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
+    if let Some(archive) = archive_goes {
+        s.mailbox.remove_archive(archive).map_err(|e| fail(e.to_string()))?;
+        if s.mailbox.folder(s.view.folder).is_none() {
+            s.view.folder = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap_or(0);
+            s.sel.messages.clear();
+        }
+    }
     if shortened {
         s.driver.thinning.now = true;
     }

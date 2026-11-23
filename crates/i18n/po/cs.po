@@ -24310,6 +24310,11 @@ msgid "the occurrence was not changed; nothing was moved"
 msgstr "výskyt nebyl změněn; nic se nepřesunulo"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"

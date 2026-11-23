@@ -129,7 +129,8 @@ impl Mailbox {
             .filter(|m| only.is_none_or(|archive| m.account == archive))
             .filter_map(|m| {
                 let owner = self.archive_owner(m.account)?.id;
-                let server = m.server.as_ref()?;
+                // (Not mail the server no longer has: it would come back here, #1834 review.)
+                let server = m.server.as_ref().filter(|s| !s.gone)?;
                 self.folder_by_server(owner, &server.folder).map(|folder| (m.id, owner, folder))
             })
             .collect();
