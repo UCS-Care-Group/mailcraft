@@ -235,11 +235,17 @@ struct Checked {
     smtp_username: Option<String>,
 }
 
+fn metadata_problem(error: DiscoveryError) -> Text {
+    match error {
+        DiscoveryError::Unavailable => said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."),
+        DiscoveryError::Failed => said!("Could not read GNOME accounts."),
+        DiscoveryError::TooManyAccounts => said!("GNOME returned too many accounts. Use Add Account instead."),
+    }
+}
+
 fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &AtomicBool) -> Result<Checked, Text> {
     let linked = account.goa.as_ref().ok_or_else(|| said!("This account is not linked to GNOME."))?;
-    let accounts = metadata::snapshot(bus)
-        .and_then(|objects| parse_for(objects, Some(linked)))
-        .map_err(|_| said!("GNOME Online Accounts is unavailable. Open GNOME Online Accounts and try Send/Receive again."))?;
+    let accounts = metadata::snapshot(bus).and_then(|objects| parse_for(objects, Some(linked))).map_err(metadata_problem)?;
     let current =
         accounts.iter().filter_map(|a| a.linked.as_ref()).find(|a| a.goa.as_ref() == Some(linked)).ok_or_else(|| {
             said!("This GNOME account is missing, disabled, or no longer exposes supported mail access. Check GNOME Online Accounts.")
@@ -258,7 +264,7 @@ fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &Ato
         return Err(said!("GNOME account request cancelled."));
     }
     // Resolve the path from public Id rather than constructing it from untrusted file contents.
-    let objects = metadata::snapshot(bus).map_err(|_| said!("Could not read GNOME accounts."))?;
+    let objects = metadata::snapshot(bus).map_err(metadata_problem)?;
     if objects.len() > 256 {
         return Err(said!("GNOME returned too many accounts. Use Add Account instead."));
     }
@@ -283,6 +289,7 @@ fn checked(bus: &zbus::blocking::Connection, account: &MailAccount, cancel: &Ato
         return Err(said!("The GNOME account changed. Try again."));
     }
     let proxy = uncached(bus, path.as_str(), ACCOUNT).map_err(|_| said!("The GNOME account is unavailable."))?;
+    // No settings are written while validating; a failure leaves the saved link intact.
     let _: i32 = proxy
         .call("EnsureCredentials", &())
         .map_err(|_| said!("The account needs attention. Repair its sign-in in GNOME Online Accounts and try again."))?;

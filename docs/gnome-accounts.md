@@ -56,7 +56,8 @@ GNOME Shell by this feature.
 
 No GNOME client library is required to build or start MailCraft. Discovery and credential
 resolution run on background threads using the existing Rust D-Bus dependency, with method
-timeouts and cancellation checks. Bounded D-Bus introspection enumerates object/interface names;
+timeouts and cancellation checks. A transient D-Bus metadata error gets one retry within
+the discovery budget. Bounded D-Bus introspection enumerates object/interface names;
 only Account and Mail properties are read. Discovery never requests OAuth registration properties
 or credentials. Only selected
 linked accounts query GOA during manual and scheduled operations. Both Flatpak manifests allow
@@ -85,4 +86,3 @@ or GOA disables mail. Live provider and packaged Flatpak acceptance remain separ
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-12 | minor | #989: optional discovery and separate account setup from GNOME |

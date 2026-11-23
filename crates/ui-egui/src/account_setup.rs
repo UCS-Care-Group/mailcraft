@@ -619,7 +619,7 @@ impl AccountSetup {
     /// provider; the owner still presses Connect in the unchanged setup wizard.
     pub(crate) fn from_gnome(app: &MailApp, account: &crate::gnome_accounts::Account) -> Self {
         use crate::gnome_accounts::Provider;
-        let mut setup = Self::new(app, &json!({"email": account.email, "displayName": account.name}));
+        let mut setup = Self::with_identity(app, &account.email, &account.name);
         setup.imported_kind = match account.provider {
             Provider::Google => Some(Kind::Google),
             Provider::Microsoft365 => Some(Kind::Microsoft365),
@@ -725,12 +725,16 @@ impl AccountSetup {
     }
 
     fn new(app: &MailApp, p: &Value) -> AccountSetup {
-        let text = |k: &str| line(p.get(k).and_then(Value::as_str).unwrap_or_default(), LINE);
+        let text = |key: &str| p.get(key).and_then(Value::as_str).unwrap_or_default();
+        Self::with_identity(app, text("email"), text("displayName"))
+    }
+
+    fn with_identity(app: &MailApp, email: &str, display_name: &str) -> AccountSetup {
         let mut w = AccountSetup::blank(Page::Address);
         w.google_testers_only = app.services.google_testers_only;
         w.google_app_password_selected = w.google_testers_only;
-        w.email = text("email");
-        w.name = text("displayName");
+        w.email = line(email, LINE);
+        w.name = line(display_name, LINE);
         if w.name.is_empty() {
             // Whoever writes from here already most likely adds another address of their own.
             w.name = app.session.mailbox.default_account().filter(|a| !a.email.is_empty()).map(|a| line(&a.display_name, LINE)).unwrap_or_default();
