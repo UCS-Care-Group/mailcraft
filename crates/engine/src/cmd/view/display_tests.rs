@@ -45,6 +45,19 @@ fn tighter_spacing_toggles_and_is_kept_in_the_settings() {
 }
 
 #[test]
+fn shaded_rows_toggle_and_are_kept_in_the_settings() {
+    let mut s = Session::empty();
+    assert!(!s.prefs.shade_rows, "off until the owner turns it on");
+    assert_eq!(run(&mut s, "view.shadeRows", json!({}))["value"], true);
+    assert_eq!(run(&mut s, "view.shadeRows", json!({"value": true}))["value"], true);
+    let saved = serde_json::to_value(&s.prefs).unwrap();
+    assert_eq!(saved["shadeRows"], true);
+    assert!(serde_json::from_value::<Prefs>(saved).unwrap().shade_rows);
+    assert_eq!(run(&mut s, "view.shadeRows", json!({}))["value"], false);
+    assert!(serde_json::to_value(&s.prefs).unwrap().get("shadeRows").is_none(), "off is not written");
+}
+
+#[test]
 fn zoom_steps_and_stays_in_range() {
     let mut s = Session::empty();
     assert_eq!(run(&mut s, "view.zoom", json!({}))["value"], 100);

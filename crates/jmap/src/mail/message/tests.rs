@@ -363,3 +363,74 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
         GraphMessage { server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, ..Default::default() }, ..Default::default() }
     );
 }
+
+/// Recipients dropped before the MIME reader sees them (past the 500 fields a block takes, or past
+/// the room a To list has) mark the message cut, so that a rule about "me" can't tell of it instead
+/// of reading a short To (#566).
+#[test]
+fn recipients_dropped_before_the_reader_still_mark_a_cut() {
+    let mut junk: Vec<(String, String)> = (0..MAX_FIELDS).map(|i| ("X-Junk".to_string(), format!("{i}"))).collect();
+    junk.push(("To".into(), "me@example.org".into()));
+    let late: Vec<(&str, &str)> = junk.iter().map(|(n, v)| (n.as_str(), v.as_str())).collect();
+    let past_the_fields = read(&late);
+    let long: String = (0..600).map(|i| format!("someone.with.a.longer.name.{i:04}@department.example.org, ")).collect::<String>() + "me@example.org";
+    let past_the_room = read(&[("To", long.as_str())]);
+    let found =
+        [(past_the_fields.to.is_empty(), past_the_fields.cut), (past_the_room.to.iter().all(|a| a.email != "me@example.org"), past_the_room.cut)];
+    assert_eq!(found, [(true, true), (true, true)], "(dropped, marked cut) for: To past 500 fields; a To over its room");
+}
+
+/// A subject longer than a list keeps (998 characters) says the message was cut (#566): a rule's
+/// "subject contains" can't tell of a word past the cut until the message is fetched. A blank at
+/// the cut with more after it is a longer subject; blanks alone after 998 characters are not.
+#[test]
+fn a_subject_longer_than_is_kept_marks_the_message_cut() {
+    let a = "a".repeat(998);
+    let cut = |subject: &str| {
+        let m = read(&[("Subject", subject)]);
+        (m.subject.chars().count(), m.cut)
+    };
+    let found =
+        [cut(&format!(" {} confidential", "a".repeat(1_000))), cut(&format!(" {a} confidential")), cut(&format!(" {a}a")), cut(&format!(" {a}   "))];
+    assert_eq!(found, [(998, true), (998, true), (998, true), (998, false)], "(kept, cut): over 998; a blank at the cut; 999; blanks after 998");
+}
+
+/// The reader keeps 8,192 bytes of a Subject field before it is decoded: an encoded subject past
+/// that room loses its end although it decodes to fewer than 998 characters, and the message says
+/// it was cut (#566). (Japanese, as a mail program writes it in quoted-printable: 7 characters in
+/// each encoded word of 75; 840 characters in all.)
+#[test]
+fn an_encoded_subject_past_the_fields_room_marks_the_message_cut() {
+    let word = format!("=?UTF-8?Q?{}?=", "=E4=B8=AD".repeat(7));
+    let subject = format!("{} confidential", vec![word; 120].join(" "));
+    let m = read(&[("Subject", &subject)]);
+    assert!(m.subject.chars().count() < 998, "{}", m.subject.chars().count());
+    assert!(!m.subject.contains("confidential"));
+    assert!(m.cut, "the end of the subject was left out, unsaid: kept {} characters", m.subject.chars().count());
+}
+
+/// A Subject field of exactly the 8,192 bytes the reader keeps, blanks after it or not, is whole;
+/// one word more is cut (#566).
+#[test]
+fn an_encoded_subject_that_exactly_fills_the_fields_room_is_whole() {
+    let word = format!("=?UTF-8?Q?{}?=", "=E4=B8=AD".repeat(7));
+    let last = format!("=?UTF-8?Q?{}aaa?=", "=E4=B8=AD".repeat(5));
+    let fits = format!("{} {last}", vec![word; 107].join(" "));
+    assert_eq!(fits.len(), 8_192);
+    let cut = |subject: &str| {
+        let m = read(&[("Subject", subject)]);
+        (m.subject.chars().count(), m.cut)
+    };
+    let found = [cut(&format!(" {fits}")), cut(&format!(" {fits}   ")), cut(&format!(" {fits} b")), cut(&format!(" {fits}\r\n b"))];
+    assert_eq!(found, [(757, false), (757, false), (757, true), (757, true)], "(kept, cut): exact; blanks after; a word more; a folded word more");
+}
+
+/// A Subject past the 500 fields looked at is left out, and the message says it was cut, as for a
+/// To or a Cc there (#566).
+#[test]
+fn a_subject_past_the_fields_looked_at_marks_the_message_cut() {
+    let mut headers: Vec<(&str, &str)> = vec![("Received", " from relay.example"); 500];
+    headers.push(("Subject", " Weekly news"));
+    let m = read(&headers);
+    assert_eq!((m.subject.as_str(), m.cut), ("", true), "(kept, cut)");
+}
