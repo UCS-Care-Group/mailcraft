@@ -1284,6 +1284,11 @@ msgstr "Lorsque vous acceptez, acceptez provisoirement ou refusez une demande de
 msgid "Agenda"
 msgstr "Agenda"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3228,6 +3233,12 @@ msgstr "Rechercher de nouvelles versions"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "Rechercher des mises à jour"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5819,6 +5830,12 @@ msgstr "Rechercher les messages associés"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Trouver un horaire"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8429,6 +8446,12 @@ msgstr "Adresse qui en imite une autre."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Examen du certificat du serveur…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -12518,6 +12541,12 @@ msgstr "Confidentialité"
 #, fuzzy
 msgid "Private"
 msgstr "Privé"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Les programmes qui ouvrent ce type de fichier agissent sur son contenu : ils peuvent afficher le contenu web qu’il contient, ou importer les clés et certificats qu’il renferme. Ne l’ouvrez que si vous savez qui l’a envoyé et que vous l’attendiez."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -18882,6 +18911,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Cette copie de MailCraft ne se met pas à jour d'elle-même."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Cette copie de MailCraft s’exécute dans un bac à sable Flatpak, où elle ne peut pas s’assurer qu’un fichier de ce type s’ouvre avec le bon programme. Enregistrez-le avec Enregistrer sous et ouvrez-le vous-même."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19735,6 +19770,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "À moi"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Pour ouvrir une pièce jointe, MailCraft demande d’abord au bureau de quel type de fichier il s’agit, et ni gio (de GLib) ni kmimetypefinder (de KDE) n’est installé. Installez l’un des deux, ou enregistrez la pièce jointe avec Enregistrer sous."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -26568,6 +26609,14 @@ msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas êt
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• à {to}, objet « {subject} »"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

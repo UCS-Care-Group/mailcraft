@@ -263,6 +263,38 @@ fn a_reply_reads_the_text_and_its_pictures_and_a_calendar_part_too_large_is_not_
     assert!(!noting.asked.lock().unwrap().contains(&large));
 }
 
+/// A picture kept on disk that only a narrow pane shows is read for a reply asked for where the
+/// message was read narrow, and carried with it; asked for where it was read wide, it is neither.
+#[test]
+fn a_reply_carries_a_picture_only_the_pane_it_was_read_in_shows() {
+    for (width, carried) in [(800.0, true), (1600.0, false)] {
+        let tmp = Temp::new("reply-narrow-picture");
+        let path = tmp.file();
+        let mut mb = mailbox(4);
+        let inbox = mb.inbox().unwrap();
+        let mut m = Message { folder: inbox, subject: "Narrow".into(), from: Address::new("Ada", "ada@example.org"), ..Default::default() };
+        m.body.html = Some(format!(
+            "<html><head><style>@media (min-width:900px){{.n{{display:none}}}}</style></head><body><p>{}</p><div class=n><img src=\"cid:logo@pic.example\"></div></body></html>",
+            long_text(4)
+        ));
+        m.attachments.push(Attachment {
+            content_id: "logo@pic.example".into(),
+            ..Attachment::new("logo.png", "image/png", [b"\x89PNG\r\n\x1a\n".to_vec(), noise(31, 2_993)].concat())
+        });
+        let id = mb.add_message(m).unwrap();
+        save(&path, &mb).unwrap();
+        clear_cache();
+        let mut s = session_without_bodies(&path);
+        assert!(!s.mailbox.message(id).unwrap().attachments[0].is_loaded());
+        s.read_at(id, crate::ReadIn::Pane, mailcraft_html::Env::for_pane(width, false), false);
+        s.run("mail.reply", &json!({"id": id})).unwrap();
+        let quote = s.compose.as_ref().unwrap().quote.as_ref().unwrap();
+        assert_eq!(quote.html.contains("cid:logo@pic.example"), carried, "{width}");
+        assert_eq!(quote.pictures.len(), usize::from(carried), "{width}");
+        assert!(quote.pictures.iter().all(|p| p.data.len() == 3_001), "{width}");
+    }
+}
+
 #[test]
 fn run_rules_now_reads_an_invitation_but_not_a_calendar_part_too_large_to_be_shown() {
     let tmp = Temp::new("rules-calendar");

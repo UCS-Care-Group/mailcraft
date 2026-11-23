@@ -1280,6 +1280,11 @@ msgstr "Když v poště přijmete, předběžně přijmete nebo odmítnete žád
 msgid "Agenda"
 msgstr "Agenda"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3236,6 +3241,12 @@ msgstr "Zkontrolovat nové verze"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "Vyhledat aktualizace"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5848,6 +5859,12 @@ msgstr "Najít související zprávy"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Najít čas"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8486,6 +8503,12 @@ msgstr "Podobná adresa."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Prohlížím certifikát serveru…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -12589,6 +12612,12 @@ msgstr "Soukromí"
 #, fuzzy
 msgid "Private"
 msgstr "Soukromé"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programy, které otevírají soubory tohoto druhu, pracují s jejich obsahem: mohou zobrazit webový obsah v nich nebo převzít klíče a certifikáty, které obsahují. Otevřete jej, jen pokud víte, kdo ho poslal, a očekáváte ho."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -18997,6 +19026,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Tato kopie MailCraftu se sama neaktualizuje."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Tato kopie MailCraftu běží v sandboxu Flatpak, kde nemůže zajistit, že se soubor tohoto druhu otevře správným programem. Uložte jej pomocí Uložit jako a otevřete jej sami."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19860,6 +19895,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "Mně"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Před otevřením přílohy se MailCraft nejprve zeptá pracovního prostředí, o jaký druh souboru jde, a není nainstalován ani gio (z GLib), ani kmimetypefinder (z KDE). Nainstalujte jeden z nich, nebo přílohu uložte pomocí Uložit jako."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -26848,6 +26889,15 @@ msgstr "„{subject}“ nebyla nalezena na serveru, takže ji nelze přeposlat j
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• komu: {to}, předmět „{subject}“"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
+msgstr[2] ""
 
 #. interface
 #: crates/ui-egui/src/credits.rs

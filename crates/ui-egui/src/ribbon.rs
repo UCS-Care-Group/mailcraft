@@ -201,18 +201,62 @@ fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
 }
 
-/// Whether a menu holds a text field the owner clicks in and types into: a colour typed by hand,
-/// a folder search. Such a menu keeps a click made inside it — that click is for the field, and
-/// not a way out of the menu. Every item of these menus shuts it itself
-/// ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen folder), and
-/// a click outside it still shuts it. The font menu joins them when it gets its search field
-/// (#1494).
-fn holds_a_field(menu: Menu) -> bool {
-    matches!(menu, Menu::FontColor | Menu::Highlight | Menu::MoveMessages | Menu::Rules | Menu::MoveFolder)
+/// Whether a menu holds a text field the owner clicks in and types into: the font menu's search
+/// (#1493), a colour typed by hand, a folder search. Such a menu keeps a click made inside it —
+/// that click is for the field, and not a way out of the menu. Every item of these menus shuts it
+/// itself ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen
+/// folder), and a click outside it still shuts it.
+///
+/// Every menu is said here, rather than the ones with a field being picked out of the rest: a
+/// popup's close behaviour is settled before its contents are drawn, so this can't be answered
+/// from the widgets in it — it can only be answered by whoever adds a menu, and an arm for each
+/// makes the compiler ask them. `the_menus_that_hold_a_field_are_the_ones_that_draw_one` checks
+/// the answers against what the menus really draw.
+pub(crate) fn holds_a_field(menu: Menu) -> bool {
+    match menu {
+        // The search field that finds one family among the ones installed here (#1493).
+        Menu::Font => true,
+        // A colour typed by hand, not picked from the squares. The highlight menu is not one of
+        // them: it draws squares only, each of which shuts the menu itself.
+        Menu::FontColor => true,
+        // The folder search: at the top of the first two, and a submenu down in the third.
+        Menu::MoveMessages | Menu::MoveFolder => true,
+        Menu::Rules => true,
+        // Everything else is items, and every item shuts the menu when it is clicked.
+        Menu::NewItems
+        | Menu::Highlight
+        | Menu::CategorizeMail
+        | Menu::FollowUp
+        | Menu::ComposeFollowUp
+        | Menu::FilterMail
+        | Menu::ShowAs
+        | Menu::Reminder
+        | Menu::CategorizeEvent
+        | Menu::CategorizeContact
+        | Menu::CategorizeTask
+        | Menu::FilterTasks
+        | Menu::Signature
+        | Menu::ReadingPane
+        | Menu::GmailCategories
+        | Menu::NavigationBar
+        | Menu::Preview
+        | Menu::ArrangeBy
+        | Menu::Theme
+        | Menu::RibbonLayout
+        | Menu::TimeScale
+        | Menu::ChangeView
+        | Menu::Zoom
+        | Menu::RecentSearches
+        | Menu::FontSize
+        | Menu::Junk
+        | Menu::RecentAttachments
+        | Menu::OpenCalendar
+        | Menu::Spelling => false,
+    }
 }
 
 /// The menus a button of the simplified row opens: its own, and those of what hangs under it.
-fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+pub(crate) fn button_menus(b: &Button<'_>) -> Vec<Menu> {
     b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
 }
 
@@ -225,10 +269,17 @@ fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) 
 }
 
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
-/// greyed otherwise, saying why when hovered.
+/// greyed otherwise, saying why when hovered. One that holds a text field ([`holds_a_field`]) keeps
+/// a click made inside it here too: reached through a `…` or a `▾` because the ribbon is narrow,
+/// its search is still the owner's to click in (#1493).
 pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
     if menu_usable(app, menu) {
-        ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        if holds_a_field(menu) {
+            let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+            egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| menu_contents(ui, app, menu));
+        } else {
+            ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        }
         return;
     }
     let reason = menu.command().and_then(|c| app.session.registry.get(c)).and_then(|spec| (spec.enabled)(&app.session));
@@ -1606,7 +1657,7 @@ pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
 }
 
 /// What `menu` lists.
-fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
+pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
         Menu::Spelling => crate::spelling::review(ui, app),
         Menu::RecentAttachments => crate::recent_attachments::contents(ui, app),
@@ -1880,13 +1931,75 @@ pub(crate) fn size_menu(ui: &mut Ui, app: &mut MailApp) {
     }
 }
 
-/// The fonts a message may ask for (`format.font`), each in a menu entry.
+/// How many of the families installed here a font menu lists before it asks to narrow them down.
+const MOST_FONTS: usize = 400;
+
+/// Where the font menu's field keeps what has been typed in it: the same place every time the
+/// menu is opened, so the menu can be opened again with the search still in it.
+pub(crate) fn font_search_key() -> egui::Id {
+    egui::Id::unique("mailcraft-font-search")
+}
+
+/// The fonts a message may be written in (`format.font`): the six MailCraft has fallbacks for,
+/// and after them every family installed on this computer, with a field to find one among them
+/// (#1493). The same menu serves the composer and File › Signatures.
 pub(crate) fn font_menu(ui: &mut Ui, app: &mut MailApp) {
-    use mailcraft_model::rich::Font;
+    use mailcraft_model::rich::Built;
     let now = look_now(app).font;
+    let chosen = now.clone().flatten().map(|f| f.key().to_string());
     mi_check(ui, app, "Default", now == Some(None), "format.font", json!({"value": null}));
-    for f in Font::ALL {
-        mi_check(ui, app, f.label(), now == Some(Some(f)), "format.font", json!({"value": f.label()}));
+    for built in Built::ALL {
+        let checked = chosen.as_deref() == Some(built.key());
+        mi_check(ui, app, built.label(), checked, "format.font", json!({"value": built.label()}));
+    }
+    let ctx = ui.ctx().clone();
+    // The list is made on a thread of its own the first time it is asked for; the window is asked
+    // to draw again when it arrives.
+    crate::fonts::ask(&ctx);
+    ui.separator();
+    let key = font_search_key();
+    let mut query: String = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+    let field =
+        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut query).hint_text(tl!("Find a font")).char_limit(64).desired_width(190.0)));
+    ui.data_mut(|d| d.insert_temp(key, query.clone()));
+    app.hit.add("fontSearch", 0, field.rect);
+    let enabled = app.enabled("format.font");
+    // The list is made once with the index, in order and folded for searching: a menu open for a
+    // minute shouldn't build three thousand names again every frame (#1493).
+    let Some(index) = crate::fonts::index(&ctx) else {
+        ui.label(egui::RichText::new(tl!("Looking for fonts…")).color(crate::theme::Tokens::get(&ctx).text_dim));
+        return;
+    };
+    let needle = query.trim().to_lowercase();
+    let shown = index.menu().iter().filter(|family| needle.is_empty() || family.folded.contains(&needle));
+    let total = shown.clone().count();
+    let room = ui.available_height().min(320.0);
+    egui::ScrollArea::vertical().id_salt("font-menu").max_height(room.max(120.0)).auto_shrink([false, true]).show(ui, |ui| {
+        for family in shown.take(MOST_FONTS) {
+            let checked = chosen.as_deref() == Some(family.folded.as_str());
+            let mark = egui::RichText::new("✓");
+            let mark = if checked { mark } else { mark.color(egui::Color32::TRANSPARENT) };
+            let button = egui::Button::new((mark, family.name.as_str())).selected(checked).min_size(vec2(190.0, 0.0));
+            if ui.add_enabled(enabled, button).clicked() {
+                // The family as it is named here, with a font of its kind after it for whoever
+                // doesn't have it: what its own file says it is (#1493).
+                let value = format!("{}, {}", family.name, crate::fonts::generic_family(&ctx, &family.folded));
+                let _ = app.run("format.font", json!({"value": value}));
+                ui.close();
+            }
+        }
+        if total > MOST_FONTS {
+            ui.label(
+                egui::RichText::new(tln!(total - MOST_FONTS, "…and {n} more — type to narrow it", "…and {n} more — type to narrow it"))
+                    .color(crate::theme::Tokens::get(&ctx).text_dim),
+            );
+        }
+    });
+    ui.separator();
+    // Not a formatting command: it looks again at the fonts folder, and the menu shows the new
+    // list as it arrives.
+    if ui.button(tl!("Check for new fonts")).clicked() {
+        crate::fonts::rescan(&ctx);
     }
 }
 

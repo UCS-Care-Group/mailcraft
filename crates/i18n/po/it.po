@@ -1285,6 +1285,11 @@ msgstr "Dopo aver accettato, accettato con riserva o rifiutato una convocazione 
 msgid "Agenda"
 msgstr "Agenda"
 
+#. command label
+#: crates/engine/src/cmd/format.rs
+msgid "Align Text"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3236,6 +3241,12 @@ msgstr "Verifica nuove versioni"
 #, fuzzy
 msgid "Check for Updates"
 msgstr "Verifica aggiornamenti"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Check for new fonts"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5839,6 +5850,12 @@ msgstr "Trova messaggi correlati"
 #, fuzzy
 msgid "Find a Time"
 msgstr "Trova un orario"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Find a font"
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -8463,6 +8480,12 @@ msgstr "Indirizzo che ne imita un altro."
 #, fuzzy
 msgid "Looking at the server's certificate…"
 msgstr "Esame del certificato del server…"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Looking for fonts…"
+msgstr "Looking for fonts…"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -12562,6 +12585,12 @@ msgstr "Privacy"
 #, fuzzy
 msgid "Private"
 msgstr "Privato"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "I programmi che aprono file di questo tipo agiscono sul loro contenuto: possono mostrare il contenuto web che includono o acquisire le chiavi e i certificati che contengono. Aprilo solo se sai chi l’ha inviato e te lo aspettavi."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -18943,6 +18972,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Questa copia di MailCraft non si aggiorna da sola."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Questa copia di MailCraft è eseguita in un ambiente isolato Flatpak, dove non può garantire che un file di questo tipo si apra con il programma giusto. Salvalo con Salva con nome e aprilo tu."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19797,6 +19832,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "A me"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Per aprire un allegato, MailCraft chiede prima al desktop che tipo di file sia, e non è installato né gio (di GLib) né kmimetypefinder (di KDE). Installane uno, oppure salva l’allegato con Salva con nome."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -26641,6 +26682,14 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 msgid "• to {to}, subject “{subject}”"
 msgstr "• a {to}, oggetto «{subject}»"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…and {n} more — type to narrow it"
+msgstr[1] "…and {n} more — type to narrow it"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
