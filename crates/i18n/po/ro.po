@@ -27760,36 +27760,6 @@ msgstr "−Linii"
 #~ "Dacă răspunsul pleacă ca {address} sau în numele ei decide organizația dvs. Până permiteți, răspunsul așteaptă pe acest computer și nu se trimite nimic de la propria dvs. adresă."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Ca să deschidă calendarele altor persoane, MailCraft are nevoie de permisiunea dvs. de a citi calendarele pe care vi le partajează alții. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-#~ "\n"
-#~ "Ce deschideți se păstrează doar pe acest computer: nu apare în Outlook sau pe celelalte dispozitive."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Ca să trimită din {address}, MailCraft are nevoie de permisiunea dvs. de a trimite din cutii poștale partajate. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-#~ "\n"
-#~ "Dacă e-mailul pleacă ca {address} sau în numele ei decide organizația dvs. Până permiteți, e-mailul așteaptă în Mesaje de trimis și nu se trimite nimic de la propria dvs. adresă."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "Ca să afișeze calendarele lui {address}, MailCraft are nevoie de permisiunea dvs. de a citi calendarele cutiilor poștale partajate. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-#~ "\n"
-#~ "Ce puteți vedea dintr-un calendar decid proprietarul lui și organizația dvs.: asta nu schimbă nimic din aceasta. Până permiteți, nu se citește nimic din calendarele lui {address}."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "Organizația dvs. nu permite ca MailCraft să citească calendarele cutiilor poștale partajate"
 
@@ -27851,26 +27821,6 @@ msgstr "−Linii"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Acest cont nu își păstrează regulile pe server"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Ca să modifice răspunsurile automate ale {address}, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-#~ "\n"
-#~ "MailCraft modifică astfel doar răspunsurile automate și regulile dosarului Mesaje primite, niciodată categoriile sau programul de lucru. Pentru citirea răspunsurilor automate nu e nevoie."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Ca să păstreze regulile lui {address} pe server, unde rulează chiar și când MailCraft e închis și apar în Outlook pe web și pe telefon, MailCraft are nevoie de permisiunea dvs. de a modifica setările cutiei poștale, unde Microsoft păstrează regulile. Pagina Microsoft se deschide în browser ca să vă întrebe, o singură dată.\n"
-#~ "\n"
-#~ "Până permiteți, regulile rămân pe acest computer și nu se trimite nimic din ele către Microsoft."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

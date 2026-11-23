@@ -27463,36 +27463,6 @@ msgstr ""
 #~ "პასუხი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, პასუხი ამ კომპიუტერზე ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "სხვების კალენდრების გასახსნელად MailCraft-ს სჭირდება თქვენი ნებართვა იმ კალენდრების წასაკითხად, რომლებსაც გიზიარებენ. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
-#~ "\n"
-#~ "რასაც გახსნით, მხოლოდ ამ კომპიუტერზე ინახება: ის არ ჩანს Outlook-ში ან თქვენს სხვა მოწყობილობებზე."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "მისამართიდან {address} გასაგზავნად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთებიდან გასაგზავნად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
-#~ "\n"
-#~ "თქვენი წერილი გაიგზავნება როგორც {address} თუ მისი სახელით, ამას თქვენი ორგანიზაცია წყვეტს. სანამ ამას დაუშვებთ, წერილი გასაგზავნებში ელოდება და თქვენი საკუთარი მისამართიდან არაფერი იგზავნება."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "საფოსტო ყუთის {address} კალენდრების საჩვენებლად MailCraft-ს სჭირდება თქვენი ნებართვა საერთო საფოსტო ყუთების კალენდრების წასაკითხად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
-#~ "\n"
-#~ "რისი ნახვაც შეგიძლიათ კალენდარში, მისი მფლობელი და თქვენი ორგანიზაცია წყვეტს: ეს ამას არ ცვლის. სანამ ამას დაუშვებთ, საფოსტო ყუთის {address} კალენდრებიდან არაფერი იკითხება."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "თქვენი ორგანიზაცია MailCraft-ს არ აძლევს საერთო საფოსტო ყუთების კალენდრების წაკითხვის ნებას"
 
@@ -27555,26 +27525,6 @@ msgstr ""
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "ეს ანგარიში თავის წესებს სერვერზე არ ინახავს"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "ანგარიშის {address} ავტომატური პასუხების შესაცვლელად MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
-#~ "\n"
-#~ "ამით MailCraft ცვლის მხოლოდ თქვენს ავტომატურ პასუხებს და შემოსულების წესებს, არასოდეს თქვენს კატეგორიებს ან სამუშაო საათებს. ავტომატური პასუხების წაკითხვას ეს არ სჭირდება."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "ანგარიშის {address} წესების მის სერვერზე შესანახად, სადაც ისინი MailCraft-ის დახურვისასაც სრულდება და ჩანს Outlook-ის ვებვერსიაში და თქვენს ტელეფონზე, MailCraft-ს სჭირდება თქვენი ნებართვა საფოსტო ყუთის პარამეტრების შესაცვლელად, სადაც Microsoft წესებს ინახავს. ამის საკითხავად თქვენს ბრაუზერში ერთხელ გაიხსნება Microsoft-ის გვერდი.\n"
-#~ "\n"
-#~ "სანამ ამას დაუშვებთ, თქვენი წესები ამ კომპიუტერზე რჩება და მათგან არაფერი ეგზავნება Microsoft-ს."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

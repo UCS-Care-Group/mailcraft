@@ -26920,36 +26920,6 @@ msgstr "−Regels"
 #~ "Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Om vanaf {address} te verzenden, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft wordt eenmalig in uw browser geopend om het u te vragen.\n"
-#~ "\n"
-#~ "Of uw e-mail als {address} of namens dat adres wordt verzonden, bepaalt uw organisatie. Tot u dit toestaat, wacht de e-mail in het Postvak UIT en wordt er niets vanaf uw eigen adres verzonden."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
 
@@ -27011,26 +26981,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Dit account bewaart zijn regels niet op zijn server"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden en de regels van uw Postvak IN, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Om de regels van {address} op de server te bewaren, waar ze ook worden uitgevoerd terwijl MailCraft gesloten is en in Outlook op het web en op uw telefoon verschijnen, heeft MailCraft uw toestemming nodig om uw postvakinstellingen te wijzigen, waar Microsoft de regels bewaart. De pagina van Microsoft wordt in uw browser geopend om het u één keer te vragen.\n"
-#~ "\n"
-#~ "Tot u het toestaat, blijven uw regels op deze computer en wordt er niets van naar Microsoft verzonden."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
@@ -27217,16 +27167,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "These tasks exist only on this computer. If you send them, they and every task you make from now on are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
 #~ msgstr "Deze taken bestaan alleen op deze computer. Als u ze verzendt, worden zij en elke taak die u vanaf nu maakt bijgehouden met Microsoft To Do. Totdat u dat doet, blijven ze hier en wordt er niets van verzonden. Bestand › Info biedt dit opnieuw aan."
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only the automatic replies with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Om de automatische antwoorden van {address} te wijzigen, heeft MailCraft uw toestemming nodig om de instellingen van uw postvak te wijzigen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
-#~ "\n"
-#~ "MailCraft wijzigt daarmee alleen de automatische antwoorden, nooit uw categorieën of werktijden. Het lezen van uw automatische antwoorden heeft die toestemming niet nodig."
 
 #, fuzzy
 #~ msgid "Permanently Delete"
