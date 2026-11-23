@@ -5190,6 +5190,7 @@ impl MailApp {
             self.motion.applied = None;
         }
         let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        let plays = software::animations_play(self.ui.animations, plays, software::is_software());
         self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
