@@ -198,6 +198,13 @@ pub struct State {
     /// A server that won't take a `SyncFolderItems` asked over the `IdOnly` base at all: it
     /// answers one with `ErrorInvalidPropertyForOperation`, as servers do that outlive the shape.
     pub refuses_ids: bool,
+    /// …and one that refuses the same asking with a bare SOAP fault and no response code at
+    /// all, Kerio's way of saying no (#1784, measured): the fault names only SOAP's own
+    /// `Client`. With [`Self::refuses_delta_barely`], so does every read that goes on from a
+    /// state it wasn't given back.
+    pub refuses_ids_barely: bool,
+    /// Every `SyncFolderItems` carrying a sync state is refused with the same bare fault.
+    pub refuses_delta_barely: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -310,6 +317,8 @@ impl Default for State {
             refused_bodies: 0,
             sends_mime_with_changes: 0,
             refuses_ids: false,
+            refuses_ids_barely: false,
+            refuses_delta_barely: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,
@@ -626,6 +635,12 @@ impl State {
         self.requests.push(asked);
         response
     }
+}
+
+/// A SOAP fault that names no response code: just SOAP's own `faultcode`, which is how Kerio
+/// says no (#1784, measured — see [`State::refuses_ids_barely`]).
+pub(crate) fn bare_fault(code: &str, why: &str) -> String {
+    envelope(&format!("<s:Fault><faultcode>s:{code}</faultcode><faultstring xml:lang=\"en-US\">{}</faultstring></s:Fault>", escape(why)))
 }
 
 fn envelope(body: &str) -> String {

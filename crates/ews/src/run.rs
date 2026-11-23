@@ -749,7 +749,14 @@ impl<E: HttpExchange> Run<'_, E> {
                 // big but not huge (at ~1 MB an item, pages of a dozen read fine). The refusal
                 // is the run's: no later folder tries the refused asking again.)
                 Err(Asked::Code(
-                    ResponseCode::InvalidPropertyRequest | ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation,
+                    ResponseCode::InvalidPropertyRequest
+                    | ResponseCode::InvalidPropertyForOperation
+                    | ResponseCode::SchemaValidation
+                    // (Measured on Kerio, twice: it refuses the light asking with a bare SOAP
+                    // `Client` fault where Exchange would name a schema code — and the refusal
+                    // of the light asking is a refusal of the light asking, whatever words the
+                    // server chose to refuse it in (#1784).)
+                    | ResponseCode::Other(_),
                 )) if self.ids => {
                     // (It may be the flag the page asked on top of `IdOnly` that was refused,
                     // not the light asking itself: ask it once more without the flag, and
@@ -767,6 +774,20 @@ impl<E: HttpExchange> Run<'_, E> {
                     // (Half of the size that taught the size lesson — the sizes above it were
                     // already refused, and re-asking them only re-pays them.)
                     self.page = (below_page / 2).max(MIN_PAGE);
+                    continue;
+                }
+                // (A fault in SOAP's own blaming-the-client words, on a read that goes on from a
+                // state, may well be the server losing that state in words no version of Exchange
+                // would use: the folder is read afresh once before it costs anything, which is
+                // exactly what a named lost state does (the re-review: a bare `Server` fault is
+                // the server blaming itself and likely temporary — that one doesn't earn having
+                // its state thrown away; it falls through to the folder's problem below).
+                // Kerio answers refused asks as a bare SOAP `Client` fault (#1784, measured).)
+                Err(Asked::Code(ResponseCode::Other(ref words)))
+                    if !lost && !state.is_empty() && (words.as_str() == "Client" || words.as_str() == "Sender") =>
+                {
+                    (state, afresh, lost) = (String::new(), true, true);
+                    log::info!("ews mail: the server refused a folder's own asking; it is read afresh");
                     continue;
                 }
                 // (A schema fault is read as a missing property only from a server older than Exchange

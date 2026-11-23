@@ -617,6 +617,14 @@ impl State {
         let parts = Check::children(operation, MESSAGES, &["ItemShape", "SyncFolderId", "SyncState", "Ignore", "MaxChangesReturned", "SyncScope"])?;
         let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
         let (base, _, extra) = Self::item_shape(shape, false)?;
+        // (Kerio's no: a bare SOAP fault with no response code, refusing the light asking —
+        // and, with the other knob, every read that goes on from a state (#1784, measured).)
+        if self.refuses_ids_barely && base == "IdOnly" {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
+        if self.refuses_delta_barely && parts.get(2).copied().flatten().is_some_and(|state| !state.text.trim().is_empty()) {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
         if base == "IdOnly" && self.refuses_ids {
             return Ok((
                 200,

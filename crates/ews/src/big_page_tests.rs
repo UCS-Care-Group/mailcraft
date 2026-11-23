@@ -486,3 +486,126 @@ fn a_leaked_template_folder_is_never_listed_nor_asked_about() {
         pieces.iter().flat_map(|p| p.errors.clone()).collect::<Vec<_>>()
     );
 }
+
+/// The light asking refused, but refused in Kerio's words rather than Exchange's: a bare SOAP
+/// `Client` fault that names no response code. A refusal of the light asking is a refusal of
+/// the light asking whatever words it comes in — the folder goes back to the schema shape and
+/// the halving finds the fit, exactly as with a named refusal (#1784, measured: four heavy
+/// folders, every sync, `refused: Client`).
+#[test]
+fn a_light_list_refused_with_a_bare_fault_falls_back_likewise() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 1_000_000;
+        s.refuses_ids_barely = true;
+        for n in 0..150 {
+            s.deliver("inbox", &format!("Big {n:03}"), false);
+        }
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let subjects: Vec<String> = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).map(|m| m.subject.clone()).collect();
+    assert_eq!(subjects.len(), 150, "every one came down, in pages small enough to read");
+    for piece in &pieces {
+        assert!(piece.errors.is_empty(), "no problem: the unnamed refusal was read as what it was: {:?}", piece.errors);
+        assert!(piece.blocked.is_empty(), "and no folder was left behind for it: {:?}", piece.blocked);
+    }
+    assert!(pieces.last().is_some_and(|p| p.whole), "the folder's delta reached its end");
+    let state = standin.state();
+    let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems").collect();
+    let ids = asked.iter().filter(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    assert_eq!(ids, 2, "the refused asking is probed twice for the run and then remembered, named or not: {ids}");
+}
+
+/// The same bare fault on a read that goes on from a state: it may well mean the server lost
+/// that state in words no version of Exchange would use, and the one answer that can't make it
+/// worse is to read the folder afresh — which is what a named lost state already does. A bare
+/// `Server` fault — the server blaming itself, likely temporary — earns no such thing and goes
+/// straight to the folder's one problem (#1784, the review).
+#[test]
+fn a_delta_refused_with_a_bare_fault_is_read_afresh() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "One", false);
+        s.deliver("inbox", "Two", true);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .last()
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("the folder was read and a state came back");
+    assert!(!state.is_empty(), "and the state was one to carry");
+    standin.state().refuses_delta_barely = true;
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        list_folders: true,
+        states: vec![mailcraft_model::sync::EwsFolderState { folder, state }],
+        ..Default::default()
+    };
+    let cancel = AtomicBool::new(false);
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "the afresh read answered what the refused delta couldn't: {:?}", piece.errors);
+    }
+    let subjects: Vec<String> = again.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).map(|m| m.subject.clone()).collect();
+    assert!(subjects.contains(&"One".to_owned()) && subjects.contains(&"Two".to_owned()), "the whole folder came round again: {subjects:?}");
+    assert!(again.iter().flat_map(|p| &p.pages).any(|page| page.afresh && !page.messages.is_empty()), "and it was read afresh, from no state");
+}
+
+/// The live shape, measured: the folder is being read from a state, the weight forces the
+/// light asking on, and Kerio answers it with the bare `Client` fault. That fault is a
+/// refusal of the light asking — which the folder is in the middle of — and not of the state
+/// it rides on: the ids asking goes off and the state is kept, rather than the whole folder
+/// being thrown away and re-listed because a fault arrived in unnamed words (#1784, the
+/// review: the order of the two answers is the whole difference).
+#[test]
+fn a_bare_client_fault_on_a_state_carried_page_refuses_the_light_asking_not_the_state() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 1_000_000;
+        s.deliver("inbox", "First", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .find(|page| page.messages.iter().any(|m| m.subject == "First"))
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("the folder was read and a state came back for it");
+    assert!(!state.is_empty(), "a state came back to carry");
+    standin.state().refuses_ids_barely = true;
+    // (Heavy enough that the delta itself is refused for weight, so the run is mid-light-asking
+    // when the bare fault arrives — the measured shape, where whole messages ride the list.)
+    for n in 0..25 {
+        standin.state().deliver("inbox", &format!("Big {n:02}"), false);
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        list_folders: true,
+        states: vec![mailcraft_model::sync::EwsFolderState { folder, state }],
+        ..Default::default()
+    };
+    let cancel = AtomicBool::new(false);
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "the refusal was read as the light asking's: {:?}", piece.errors);
+        assert!(piece.blocked.is_empty(), "no folder was left behind: {:?}", piece.blocked);
+    }
+    let inbox =
+        again.iter().flat_map(|p| &p.pages).find(|page| page.messages.iter().any(|m| m.subject.starts_with("Big "))).expect("the changes came down");
+    assert!(!inbox.afresh, "the folder was not thrown away and re-listed: its state was kept (from={:?})", inbox.from);
+    let state = standin.state();
+    let ids = state.requests.iter().filter(|a| a.operation == "SyncFolderItems" && a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    assert_eq!(ids, 2, "probed twice for the run — with the flag and without — then given up: {ids}");
+}
