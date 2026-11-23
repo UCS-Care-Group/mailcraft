@@ -52,6 +52,45 @@ fn the_original_starts_right_under_a_short_signature() {
 }
 
 #[test]
+fn a_forward_of_an_html_original_starts_it_right_under_a_short_signature() {
+    let mut a = app();
+    a.execute("signature.set", json!({"name": "Short", "text": "Avery"})).unwrap();
+    a.execute("signature.defaults", json!({"reply": "Short"})).unwrap();
+    let id = html_original(&a);
+    a.execute("mail.forward", json!({"id": id})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    let c = h.state().session.compose.as_ref().unwrap();
+    assert_eq!(c.mode, mailcraft_engine::ComposeMode::Forward);
+    assert!(c.body.text().paragraphs().iter().any(|p| p.signature));
+    assert!(rect(&h, "composeBody").height() < ROOM, "{:?}", rect(&h, "composeBody"));
+    assert!((0.0..=LINE).contains(&gap(&h)), "the original is within a line of the signature: {}", gap(&h));
+}
+
+/// An original in plain text is quoted in the text itself, right after the signature: there is no
+/// original drawn under the text, and nothing laid out between the two but the blank line before it.
+#[test]
+fn a_reply_to_a_plain_text_original_quotes_it_right_after_the_signature() {
+    let mut a = app();
+    a.execute("signature.set", json!({"name": "Short", "text": "Avery"})).unwrap();
+    a.execute("signature.defaults", json!({"reply": "Short"})).unwrap();
+    let id = a
+        .session
+        .mailbox
+        .messages
+        .values()
+        .find(|m| m.subject == "Q4 roadmap review moved to Thursday" && m.body.html.is_none())
+        .map(|m| m.id)
+        .unwrap();
+    a.execute("mail.reply", json!({"id": id})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    assert!(h.state().hit.rect("composeQuote", 0).is_none(), "no original drawn under the text");
+    let text = h.state().session.compose.as_ref().unwrap().body.plain();
+    assert!(text.contains("Avery\n\n-----Original Message-----"), "the original follows the signature: {text:?}");
+}
+
+#[test]
 fn switching_from_a_long_signature_to_a_short_one_leaves_no_blank_lines() {
     let mut h = reply("Long");
     let long = rect(&h, "composeBody").height();
