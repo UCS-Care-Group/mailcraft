@@ -47,7 +47,8 @@ fn connect_defaults_to_plain_sockets_and_fails_typed() {
     assert!(Fake(None).connect("127.0.0.1", port, Duration::from_secs(2)).is_ok());
     // A dropped listener's port is no proof of a refusal: a test running alongside may be
     // handed it (FreeBSD gives ports out in order under a burst of binds). An address that
-    // can't resolve fails the same typed way, every time.
+    // can't resolve, or port 0 (never connectable), fails the same typed way, every time.
+    assert!(matches!(Fake(None).connect("127.0.0.1", 0, Duration::from_secs(2)), Err(PlatformError::Io(_))));
     assert!(matches!(Fake(None).connect("", 0, Duration::from_millis(10)), Err(PlatformError::Io(_))));
 }
 
