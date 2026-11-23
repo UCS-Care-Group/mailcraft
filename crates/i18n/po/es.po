@@ -1298,6 +1298,18 @@ msgstr ""
 msgid "All"
 msgstr "Todo"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Todas las cuentas"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Todos los archivos"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1317,10 +1329,34 @@ msgid "All Categories…"
 msgstr "Todas las categorías…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Todos los elementos eliminados"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Todos los borradores"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Todas las bandejas de entrada"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Todos los buzones"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Todos los elementos enviados"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22458,6 +22494,12 @@ msgstr "necesita el inicio de sesión de Google"
 msgid "needs a Gmail account"
 msgstr "necesita una cuenta de Gmail"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two accounts at least"
+msgstr "requiere al menos dos cuentas"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22487,6 +22529,12 @@ msgstr "no se conserva ninguna clave pública con esa huella digital para esa di
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "ninguna cuenta tiene un servidor de calendarios y contactos"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "ninguna cuenta tiene una carpeta de ese tipo"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23568,6 +23616,12 @@ msgstr "el último Enviar/Recibir tuvo problemas"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "no se puede eliminar el último calendario"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "la lista muestra la carpeta de todas las cuentas: abra la carpeta de una cuenta o indique la carpeta"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

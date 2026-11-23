@@ -5082,6 +5082,10 @@ impl MailApp {
             self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
         match self.session.view.module {
             Module::Mail => {
+                // Every account's Inbox and the like (#625): no one account's.
+                if let Some(kind) = mailcraft_engine::unified::of(&self.session) {
+                    return crate::nav::unified_name(kind).to_string();
+                }
                 let folder = self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name);
                 match account.filter(|a| !a.is_empty()) {
                     Some(a) => i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder), ("mailbox", &a)]),

@@ -300,6 +300,11 @@ pub struct ViewState {
     /// Gmail's categories as a row of tabs above a Gmail Inbox's list, in place of the five
     /// folders under it in the folder pane (#911; `view.gmailCategories`). Off: as folders.
     pub gmail_tabs: bool,
+    /// Every account's folder of this kind in one list (#625; `view.allAccounts`): All Inboxes and
+    /// the like, over the accounts' own folders, nothing copied. Only while the folder in view is
+    /// a top-level folder of that kind ([`crate::unified::of`]); `folder.select` leaves it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unified: Option<mailcraft_model::FolderKind>,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -350,6 +355,7 @@ impl Default for ViewState {
             filter: Filter::All,
             gmail: None,
             gmail_tabs: false,
+            unified: None,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
@@ -484,6 +490,8 @@ pub struct Stays {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ListOf {
     folder: Id,
+    /// Every account's folder of a kind (#625).
+    unified: Option<mailcraft_model::FolderKind>,
     filter: Filter,
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
@@ -500,7 +508,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, unified: view.unified, filter: view.filter, gmail: view.gmail, search, when }
     }
 }
 

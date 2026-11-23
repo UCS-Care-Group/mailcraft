@@ -203,7 +203,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Grammar checking and spell checking on the remaining platforms (gap 7); further review of the French, German, Spanish, Italian, Dutch,
     Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian previews, more languages, right-to-left layout (gap 14). Partly done: the eleven ship as previews.
-16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)).
+16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)). Partly done: All Accounts in the folder pane (All Inboxes, All Drafts, All Sent Items, All Deleted Items, All Archives, #625).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
 ## The browser build

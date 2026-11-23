@@ -1291,6 +1291,18 @@ msgstr ""
 msgid "All"
 msgstr "Vše"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "Všechny účty"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "Všechny archivy"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1310,10 +1322,34 @@ msgid "All Categories…"
 msgstr "Všechny kategorie…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "Veškerá odstraněná pošta"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "Všechny koncepty"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "Všechny doručené"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "Všechny poštovní schránky"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "Veškerá odeslaná pošta"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -22511,6 +22547,12 @@ msgstr "vyžaduje přihlášení přes Google"
 msgid "needs a Gmail account"
 msgstr "vyžaduje účet Gmail"
 
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two accounts at least"
+msgstr "vyžaduje alespoň dva účty"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -22540,6 +22582,12 @@ msgstr "pro tuto adresu není uložen žádný veřejný klíč s tímto otiskem
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "žádný účet nemá server kalendářů a kontaktů"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "žádný účet nemá složku tohoto druhu"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23621,6 +23669,12 @@ msgstr "poslední Odeslat/přijmout mělo potíže"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "poslední kalendář nelze odstranit"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "seznam zobrazuje složky všech účtů: otevřete složku jednoho účtu, nebo složku pojmenujte"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
