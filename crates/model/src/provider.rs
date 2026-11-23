@@ -35,6 +35,18 @@ fn with_password(service: &'static str, imap: &str, smtp: (&str, u16, Security),
     Preset { service, oauth: None, incoming: server(imap, 993, Security::Tls), outgoing: server(smtp.0, smtp.1, smtp.2), note }
 }
 
+/// Infomaniak's mail server, for every domain it hosts: Infomaniak's help page "Understanding
+/// messaging ports and protocols" (FAQ 468) names one host for IMAP (993, TLS) and SMTP (587,
+/// STARTTLS), the full address as the user name.
+const INFOMANIAK_MAIL: &str = "mail.infomaniak.com";
+
+/// Infomaniak: mail at the owner's own domain. Infomaniak's documents name no domain of its own
+/// for addresses, so it is found by name only ([`by_name`]), or by its IMAP host for calendars
+/// and contacts ([`dav_by_imap_host`]).
+fn infomaniak() -> Preset {
+    with_password("Infomaniak", INFOMANIAK_MAIL, (INFOMANIAK_MAIL, 587, Security::StartTls), "")
+}
+
 /// Outlook.com (`consumer`) or Microsoft 365 work and school mail.
 pub fn microsoft(consumer: bool) -> Preset {
     // Outlook.com sends through its own host; work and school mail through Office 365's.
@@ -347,10 +359,17 @@ const ICLOUD_DAV: DavPreset = DavPreset {
 };
 const FASTMAIL_DAV: DavPreset =
     DavPreset { service: "Fastmail", caldav: "https://caldav.fastmail.com/", carddav: "https://carddav.fastmail.com/", shards: &[] };
+/// Infomaniak's help pages for CalDAV and CardDAV (FAQ 1544, 2046, 2047) name one server for
+/// both, `sync.infomaniak.com`; its `/.well-known/caldav` and `/.well-known/carddav` lead to the
+/// root, which names the signed-in account's principal (#1832). The DAV user name is a short
+/// account name and the password the Infomaniak account's (or an app password), not the mail ones.
+const INFOMANIAK_DAV: DavPreset =
+    DavPreset { service: "Infomaniak", caldav: "https://sync.infomaniak.com/", carddav: "https://sync.infomaniak.com/", shards: &[] };
 
 /// The calendar and contacts servers of the provider whose address's domain this is (`icloud.com`,
 /// `fastmail.com`), or whose IMAP server (`imap.fastmail.com`) holds the account; `None` for any
-/// other domain. Only iCloud and Fastmail: the others wait until their public documents are checked.
+/// other domain. Only iCloud, Fastmail and (by its IMAP host) Infomaniak: the others wait until
+/// their public documents are checked.
 pub fn dav_by_domain(domain: &str) -> Option<DavPreset> {
     match domain.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
         "icloud.com" | "me.com" | "mac.com" => Some(ICLOUD_DAV),
@@ -364,12 +383,13 @@ pub fn dav_by_imap_host(imap_host: &str) -> Option<DavPreset> {
     match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
         "imap.mail.me.com" => Some(ICLOUD_DAV),
         "imap.fastmail.com" => Some(FASTMAIL_DAV),
+        INFOMANIAK_MAIL => Some(INFOMANIAK_DAV),
         _ => None,
     }
 }
 
 /// From the provider's name, for an owner who says whose the account is (`microsoft365`,
-/// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`).
+/// `outlook.com`, `google`, `yahoo`, `icloud`, `fastmail`, `infomaniak`).
 pub fn by_name(name: &str) -> Option<Preset> {
     let name: String = name.trim().to_ascii_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect();
     match name.as_str() {
@@ -381,6 +401,7 @@ pub fn by_name(name: &str) -> Option<Preset> {
         "fastmail" => by_domain("fastmail.com"),
         "aol" => by_domain("aol.com"),
         "zoho" => by_domain("zoho.com"),
+        "infomaniak" => Some(infomaniak()),
         _ => None,
     }
 }
