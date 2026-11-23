@@ -637,7 +637,13 @@ impl<E: HttpExchange> Run<'_, E> {
         // Which folders are read, in which order.
         let mut read: Vec<String> = Vec::new();
         let put = |id: &str, read: &mut Vec<String>| {
-            if !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
+            // (A remembered folder whose name is nothing but a placeholder — the `<id>` a
+            // Display once leaked into a state — is no folder: the server never served it,
+            // and asking for it is how a run dies at folder one of seven with six healthy
+            // folders behind it. It joins nothing; a finished run lets the folder list take
+            // its state away like any folder the server doesn't have (#1784, measured).)
+            let placeholder = id.starts_with('<') && id.ends_with('>');
+            if !placeholder && !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
                 read.push(id.to_owned());
             }
         };

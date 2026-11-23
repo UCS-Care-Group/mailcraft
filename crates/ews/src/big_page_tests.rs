@@ -835,3 +835,32 @@ fn a_connection_that_dies_on_the_naming_drops_the_naming_and_asks_again() {
         pieces.iter().flat_map(|p| p.errors.clone()).collect::<Vec<_>>()
     );
 }
+
+/// A state that remembers folder `<id>` — the placeholder a Display leaked — must not
+/// be asked about, ever: on the live server, asking it killed the connection and the
+/// run died at folder one of seven with six folders of mail behind it. The rest of the
+/// mailbox reads as if it was never remembered (#1784, measured at 17:01).
+#[test]
+fn a_folder_remembered_under_a_placeholder_is_never_asked_about() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "Real mail", false);
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        list_folders: true,
+        states: vec![mailcraft_model::sync::EwsFolderState { folder: "<id>".into(), state: "S0".into() }],
+        ..Default::default()
+    };
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    assert!(pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Real mail"), "the healthy folders read on");
+    let state = standin.state();
+    assert!(
+        state.requests.iter().all(|a| !a.body.contains(">&lt;id&gt;<") && !a.body.contains("><id><")),
+        "no word was ever spent on the placeholder: {}",
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").count()
+    );
+}
