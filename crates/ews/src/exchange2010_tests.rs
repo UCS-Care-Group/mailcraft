@@ -143,8 +143,17 @@ fn a_server_refusing_the_preview_and_then_the_recipients_steps_down_to_what_it_t
     assert_eq!(messages.len(), 2);
     assert!(messages.iter().all(|m| m.to.len() == 1 && m.preview.is_empty()));
     let codes = codes(&standin, "SyncFolderItems");
-    assert_eq!(codes.get(..2), Some(&["ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]));
-    assert!(codes.len() > 3 && codes[2..].iter().all(|c| c == "NoError"), "every folder after is read in the shape it takes: {codes:?}");
+    // (The read state is first named the MAPI way too, and the very first refusal — which is
+    // the preview's — is re-asked without the naming: a naming the server is about to refuse
+    // must not leave the shape guessing what was refused. The two shape lessons follow, one
+    // page later, and hold for every folder after (#1784).)
+    assert_eq!(
+        codes.get(..3),
+        Some(
+            &["ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]
+        )
+    );
+    assert!(codes.len() > 4 && codes[3..].iter().all(|c| c == "NoError"), "every folder after is read in the shape it takes: {codes:?}");
 }
 
 #[test]

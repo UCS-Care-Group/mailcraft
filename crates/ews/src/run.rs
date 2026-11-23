@@ -802,8 +802,20 @@ impl<E: HttpExchange> Run<'_, E> {
                 // (Only a page asked from nothing can blame the naming alone: on a read that
                 // rides a state, the state itself is a suspect, and the fault belongs to the
                 // afresh answer below with the naming still on — the read afresh is exactly
-                // where the naming earns its keep (#1784, the review).)
-                Err(Asked::Code(ResponseCode::Other(_))) if self.extended && !self.ids && state.is_empty() =>
+                // where the naming earns its keep (#1784, the review). Measured on Kerio the
+                // naming is refused as a schema code, with the detail block and proper
+                // response code: the naming is dropped before any lesson about the SHAPE is
+                // drawn from its refusal, and the shape learns its own lesson on the re-ask
+                // that doesn't carry it — one refused page per run at the outside, and it
+                // saves a Kerio from a preview lesson it was never meant to teach.)
+                Err(
+                    Asked::Code(
+                        ResponseCode::InvalidPropertyRequest
+                        | ResponseCode::InvalidPropertyForOperation
+                        | ResponseCode::SchemaValidation
+                        | ResponseCode::Other(_),
+                    ),
+                ) if self.extended && !self.ids && state.is_empty() =>
                 {
                     self.extended = false;
                     if !self.extended_said {
