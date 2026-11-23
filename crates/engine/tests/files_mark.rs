@@ -27,6 +27,7 @@ const SENDER_WRITERS: &[(&str, &str)] = &[
 /// The files that write files that are not a sender's bytes, and what they write.
 const OTHER_WRITERS: &[(&str, &str)] = &[
     ("crates/engine/src/mark.rs", "the mark itself, and the writers of the sender's bytes"),
+    ("apps/mailcraft/src/ews_runner.rs", "a one-line marker beside the mailbox: this server won't have the read state named the MAPI way (#1784)"),
     ("crates/engine/src/store.rs", "the mailbox file and its content folder"),
     ("crates/engine/src/store_stream.rs", "the mailbox file's time"),
     ("crates/engine/src/store_pack.rs", "the packs of header blocks in the mailbox's content folder"),
