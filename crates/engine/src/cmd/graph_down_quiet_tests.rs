@@ -104,6 +104,47 @@ fn a_silence_leaves_the_agreed_state_intact_and_a_later_word_is_still_followed()
     assert_eq!((m.read, m.flag), (false, FlagStatus::None), "the webmail change after the silence is taken, not swallowed");
 }
 
+/// A sent box that a silent listing fills: mail arrives there already sent and read, so the
+/// first landing guesses read — Kerio's own unread counter for Sent Items says the same, and
+/// the folder badge agreed with it against the list. A server that does say unread is still
+/// followed into the sent box: the guess only fills the silence.
+#[test]
+fn a_silent_listing_fills_a_sent_box_with_read_mail_and_a_said_unread_is_still_taken() {
+    let (mut mb, account, _) = mailbox();
+    let sent = mb.alloc_id();
+    mb.folders.push(Folder {
+        id: sent,
+        account,
+        name: "Sent Items".into(),
+        kind: FolderKind::Sent,
+        server: Some(ServerFolder { id: "S".into(), ..Default::default() }),
+        ..Default::default()
+    });
+    let silent = ServerMessage { id: "E7".into(), folder: "S".into(), ..Default::default() };
+    let said = ServerMessage { id: "E8".into(), folder: "S".into(), read: false, read_said: true, ..Default::default() };
+    let page = MessagePage {
+        folder: "S".into(),
+        messages: vec![GraphMessage { server: silent, ..Default::default() }, GraphMessage { server: said, ..Default::default() }],
+        ..Default::default()
+    };
+    take_page(&mut mb, &mut ServerIndex::default(), account, &page, &mut Down::default());
+    let of = |id: &str| mb.messages.iter().map(|(_, m)| m).find(|m| m.server.as_ref().is_some_and(|s| s.id == id)).map(|m| m.read);
+    assert_eq!(of("E7"), Some(true), "the sent box guesses read from silence, and agrees its snapshot to it");
+    assert_eq!(of("E8"), Some(false), "a server that says unread to the sent box is believed");
+}
+
+/// The guess belongs to sent boxes alone: an inbox silence still lands unread, for new mail is
+/// unread near enough always, and nothing here is invented about the other kinds.
+#[test]
+fn an_inbox_silence_still_lands_unread() {
+    let (mut mb, account, _) = mailbox();
+    let silent = ServerMessage { id: "E9".into(), folder: "F".into(), ..Default::default() };
+    let page = MessagePage { folder: "F".into(), messages: vec![GraphMessage { server: silent, ..Default::default() }], ..Default::default() };
+    take_page(&mut mb, &mut ServerIndex::default(), account, &page, &mut Down::default());
+    let found = mb.messages.iter().map(|(_, m)| m).find(|m| m.server.as_ref().is_some_and(|s| s.id == "E9"));
+    assert_eq!(found.map(|m| m.read), Some(false), "the inbox guess stays unread, and known to be a guess");
+}
+
 /// A brand-new message with no server word about the read state still lands unread: there is
 /// nothing to hold — the page is all there is. This pins the boundary of the rule: it guards the
 /// merge, not the first landing.

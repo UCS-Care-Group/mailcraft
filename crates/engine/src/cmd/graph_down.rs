@@ -175,7 +175,12 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
-                let mut message = new_message(folder, &page.folder, there);
+                let mut message = new_message(
+                    folder,
+                    &page.folder,
+                    there,
+                    mb.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)),
+                );
                 // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
                 // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
                 // #611) under an id this mailbox has never seen, with `isDraft` still true, and it
@@ -239,8 +244,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
 }
 
 /// A message the server has and this mailbox hasn't: its headers and preview.
-pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage) -> Message {
-    let server = ServerMessage { folder: server_folder.to_string(), gone: false, ..there.server.clone() };
+///
+/// `arrives_sent` says the place it lands in is a sent box. A listing that says nothing of the
+/// read state (#1784) leaves a first landing to guess; in a sent box the guess is never a
+/// surprise, for mail arrives there already sent and read — the server's own unread counter for
+/// the folder says the same, as Kerio does. The server's word, when it has one, is followed.
+pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage, arrives_sent: bool) -> Message {
+    let mut server = ServerMessage { folder: server_folder.to_string(), gone: false, ..there.server.clone() };
+    if arrives_sent && !server.read_said {
+        server.read = true;
+    }
     Message {
         folder,
         message_id: there.message_id.trim().trim_start_matches('<').trim_end_matches('>').to_string(),
@@ -278,7 +291,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         // Changed here too: both are kept (S26). The server's is a draft of its own, unless the
         // server says it is one no longer: sent meanwhile and filed in Sent Items (#611), it is
         // the sent message, and only what was changed here stays a draft.
-        let mut copy = new_message(folder, server_folder, there);
+        let mut copy =
+            new_message(folder, server_folder, there, mb.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)));
         copy.draft = there.draft.unwrap_or(true);
         // The server's own version, a draft on its word: so kept through a save and the repair
         // of sent copies an earlier version took for drafts, wherever the server has it.

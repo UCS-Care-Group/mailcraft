@@ -779,7 +779,11 @@ impl SyncHost {
                 answer.left_out = answer.left_out.saturating_add(1);
                 continue;
             };
-            match session.mailbox.add_message(search_server::as_message(account, folder, g)) {
+            let arrives_sent = session
+                .mailbox
+                .folder(folder)
+                .is_some_and(|f| matches!(f.kind, mailcraft_model::FolderKind::Sent | mailcraft_model::FolderKind::Outbox));
+            match session.mailbox.add_message(search_server::as_message(account, folder, g, arrives_sent)) {
                 Ok(m) => {
                     inner.fetch.search_kept = inner.fetch.search_kept.saturating_add(1);
                     added.push(m);
