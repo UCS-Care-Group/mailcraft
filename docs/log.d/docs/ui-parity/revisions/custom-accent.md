@@ -1,1 +1,0 @@
-| 2026-11-19 | minor | File › Options › General › Accent: a fifth swatch, Custom color, with a picker and a hex field; a custom colour is fitted to the theme so the contrast rules hold in the light and both greys of the dark theme, and in high contrast (#1737) |

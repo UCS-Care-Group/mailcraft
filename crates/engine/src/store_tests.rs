@@ -1679,7 +1679,7 @@ fn what_a_command_reads_of_a_message_is_fetched_from_disk() {
     assert_eq!(s.mailbox.event(event).unwrap().description, mb.message(older).unwrap().body.text);
     // So does an appointment a message dropped on Calendar starts with (#873).
     let dropped = s.run("mail.itemFromMessage", &json!({"id": older, "as": "appointment"})).unwrap();
-    let text = crate::cmd::item_from_message::text_of(mb.message(older).unwrap());
+    let text = crate::cmd::item_from_message::text_of(&s, mb.message(older).unwrap());
     assert_eq!(dropped["description"].as_str(), Some(text.as_str()));
     assert!(!text.is_empty());
     // A content file that has gone is said, never written as an empty file.

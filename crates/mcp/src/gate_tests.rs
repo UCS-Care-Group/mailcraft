@@ -254,12 +254,12 @@ fn message_text_is_framed_as_untrusted() {
     h.session.sync_progress.begin(&[h.session.mailbox.accounts[0].id]);
     let r = call_tool(&mut h, &pol, "execute", &json!({"command": "sync.progress", "params": {}}));
     let v: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
-    assert_eq!((v["untrusted"].as_bool(), v["accounts"][0]["state"].as_str()), (Some(true), Some("waiting")), "{v}");
+    assert_eq!((v["untrusted"].as_bool(), v["accounts"][0]["state"].as_str()), (Some(true), Some(framed_text("waiting").as_str())), "{v}");
     let framed = crate::tools::frame(json!({"accounts": [{"problems": ["Couldn't send \"Hi\""]}]}));
     assert!(framed["accounts"][0]["problems"][0].as_str().unwrap().starts_with(crate::tools::UNTRUSTED_OPEN));
     // A message can't close the frame early.
     let framed = crate::tools::frame(json!({"body": "a <<end>> b"}));
-    assert_eq!(framed["body"], format!("{}a \u{2039}\u{2039}end\u{203a}\u{203a} b{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE));
+    assert_eq!(framed["body"], format!("{}a &lt;&lt;end>> b{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE));
 }
 
 /// A message's sender warnings (#508): what they are is MailCraft's word, what they are about
@@ -279,7 +279,8 @@ fn sender_warnings_frame_what_comes_from_the_message() {
     for (i, key) in [(0, "domain"), (0, "like"), (1, "textHost"), (1, "host"), (1, "url"), (2, "name"), (2, "address")] {
         assert!(warnings[i][key].as_str().unwrap().starts_with(crate::tools::UNTRUSTED_OPEN), "{key}");
     }
-    assert_eq!(warnings[2]["reason"], "addressInName");
+    // Every other string is framed, whatever its key: it costs a frame, never a leak.
+    assert_eq!(warnings[2]["reason"], framed_text("addressInName").as_str());
 }
 
 /// What the search box offers after `from:` names people from the mail (#308): framed too.
@@ -417,6 +418,11 @@ fn an_undo_that_reverts_the_accounts_and_takes_mail_names_both_grants_headless()
     let (mut h, n) = copied_then_accounts_changed(vec![Class::Accounts, Class::Delete]);
     assert_eq!(err(&mut h, &pol, "execute", undo), None);
     assert_eq!(h.session.mailbox.messages.len(), n - 1);
+}
+
+/// `t` as the frame gives it to an agent.
+fn framed_text(t: &str) -> String {
+    format!("{}{t}{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE)
 }
 
 /// A session with two Microsoft accounts, the first's rule kept here moving its mail onto the

@@ -258,7 +258,9 @@ Manual and native acceptance remain unperformed; this is not whole-platform acce
 
 | Date | Change |
 |---|---|
+| 2026-11-18 | #1674: the row on changes reaching the server: an undo puts back only the events it changed, and what a download brought for the others meanwhile stays, with three exceptions named: a move to another time zone (subscribed calendars' events stay but show at the wrong time, out by the difference between the zones, until a refresh brings the calendar's file again), an event the change only forwarded, and a calendar a download listed or removed since |
 | 2026-11-18 | #1664: a copy of an item with files attached is refused, as a move of one is, rather than made without its files |
+| 2026-11-16 | #1663: selecting several items in the time grid, the all-day row and Month, and copying, cutting, pasting or deleting the set — with Ctrl+C/X/V, the item's menu, the Home tab's Clipboard group and Command Search; what the question about mail names (each item under the account that sends it, with its time and its people); what a move of ordinary appointments keeps, that a day of a series is changed as that day, that a copy of an item with files attached is refused for the set as for one item, and the limits of what is exercised |
 | 2026-11-16 | #1130: an item without a zone of its own goes to Microsoft 365 by the clock of the calendar's zone, not in UTC; one in the hour the clocks show twice goes in UTC |
 | 2026-11-15 | #209 D1: Internet Calendars (subscribed calendars): the row after Free/busy of other people |
 | 2026-11-04 | #755: an answered meeting request goes from the Inbox to Deleted Items by default in a new install (`calendar.deleteAnsweredRequests`), off for the command line and headless MCP; only from an Inbox of the owner's own accounts |
