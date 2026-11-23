@@ -79,6 +79,10 @@ fn split_quote(line: &str) -> (u8, &str) {
 }
 
 /// Text as spans, with web and e-mail addresses made into links.
+///
+/// Joined in order, the spans' texts are exactly `text`, so a span's bytes in `text` start at the
+/// sum of the lengths of the spans before it. A link is only ever an `http`, `https` or `mailto`
+/// address that [`crate::is_safe_url`] accepts; a `www.` address is written out as `https://`.
 pub fn autolink(text: &str) -> Vec<Span> {
     let b = text.as_bytes();
     let mut spans = Vec::new();

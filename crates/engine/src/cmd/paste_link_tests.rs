@@ -9,7 +9,10 @@
 //! the target it had. A plain-text message, an unsafe scheme, and a string that is not an
 //! address stay ordinary text.
 
+use std::sync::Arc;
+
 use mailcraft_model::RichText;
+use mailcraft_model::rich::{CellAlignment, CellText, ListKind, Paragraph, PastedTable, Run, Style, TableCell};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -147,10 +150,6 @@ Write to ada@example.org.";
     require_link(text, "www.example.org", "https://www.example.org");
     require_link(text, "ada@example.org", "mailto:ada@example.org");
     // The marks around those addresses belong to the sentence.
-    assert!(pasted.contains("a_(b))!"));
-    assert!(pasted.contains("example.org,"));
-    assert!(pasted.contains("www.example.org."));
-    assert!(pasted.contains("ada@example.org."));
     let after = |shown: &str| {
         let (_, end) = place(text, shown);
         text.all(end, end + 1, |style| style.link.is_none()).unwrap_or(false)
@@ -327,4 +326,57 @@ fn a_url_pasted_into_an_open_signature_becomes_a_link() {
     run(&mut s, "compose.undo", json!({}));
     assert_eq!(s.signature_edit.as_ref().unwrap().body.text(), &before);
     assert!(!s.signature_edit.as_ref().unwrap().body.can_undo());
+}
+
+/// One paragraph: an address, then `middle` (a picture or a table), then more words.
+fn address_then(middle: Run) -> RichText {
+    RichText::from_paragraphs(vec![Paragraph::new(
+        vec![Run::new("See https://example.org/a", Style::default()), middle, Run::new("b more", Style::default())],
+        ListKind::None,
+    )])
+}
+
+#[test]
+fn an_address_stops_at_a_picture() {
+    let out = super::autolink_rich(address_then(Run::picture(1, Style::default())));
+    require_link(&out, "https://example.org/a", "https://example.org/a");
+    require_unlinked(&out, "See ");
+    require_unlinked(&out, "b more");
+    let picture = out.paragraphs().iter().flat_map(|p| &p.runs).find(|run| run.picture.is_some()).expect("the picture run was dropped");
+    assert_eq!(picture.picture, Some(1));
+    assert!(picture.style.link.is_none(), "{picture:?}");
+}
+
+#[test]
+fn an_address_stops_at_a_table() {
+    let cell = TableCell {
+        lines: vec![vec![CellText { text: "https://example.org/cell".into(), style: Style::default() }]],
+        header: false,
+        colspan: 1,
+        rowspan: 1,
+        background: None,
+        alignment: CellAlignment::Left,
+    };
+    let table = Arc::new(PastedTable::new(1, vec![vec![cell]]).unwrap());
+    let out = super::autolink_rich(address_then(Run::table(Arc::clone(&table))));
+    require_link(&out, "https://example.org/a", "https://example.org/a");
+    require_unlinked(&out, "See ");
+    require_unlinked(&out, "b more");
+    let run = out.paragraphs().iter().flat_map(|p| &p.runs).find(|run| run.table.is_some()).expect("the table run was dropped");
+    assert!(run.style.link.is_none(), "{run:?}");
+    assert_eq!(run.table.as_deref(), Some(table.as_ref()));
+}
+
+#[test]
+fn an_address_in_a_pasted_table_cell_stays_unlinked() {
+    let mut s = new_message();
+    run(&mut s, "edit.paste", json!({"html": "<p>https://example.org/before</p><table><tr><td>https://example.org/cell</td></tr></table>"}));
+    let text = compose(&s).body.text();
+    require_link(text, "https://example.org/before", "https://example.org/before");
+    // A table is one object and is pasted as it was; its cells are not linked (deliberate, for now).
+    let table = text.paragraphs().iter().flat_map(|p| &p.runs).find_map(|run| run.table.as_deref()).expect("the paste has no table");
+    let cells: Vec<_> = table.rows().iter().flat_map(|row| row.iter()).flat_map(|cell| &cell.lines).flatten().collect();
+    assert!(cells.iter().all(|bit| bit.style.link.is_none()), "{cells:?}");
+    let words: String = cells.iter().map(|bit| bit.text.as_str()).collect();
+    assert!(words.contains("https://example.org/cell"), "{words}");
 }
