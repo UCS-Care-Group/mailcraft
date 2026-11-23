@@ -83,7 +83,7 @@ options for the test and the options put back as they were afterwards.
 |---|---|---|
 | Where it is | `GetUserConfiguration` of `OWA.UserOptions` in the root folder, its `Dictionary` | The operation is [MS-OXWSUSRCFG]'s. A mailbox whose owner never saved a signature has a few options and no signature in it |
 | The names | `signaturehtml`, `signaturetext` (String), `autoaddsignature`, `autoaddsignatureonreply` (Boolean), in lower case | The names are in no protocol specification; `Set-MailboxMessageConfiguration`'s `SignatureHtml`, `SignatureText`, `AutoAddSignature` and `AutoAddSignatureOnReply` are their public counterpart. An entry written under the lower-case names shows in Outlook on the web's own options; under the camel-case names it does not, so MailCraft matches them whatever the case |
-| Taken in | Works | As a signature named `<address> (Exchange)`, and the account starts new mail with it when none was chosen |
+| Taken in | Works | As a signature named for the account (`<address> (Exchange)`, or `<address> (Exchange 2)` when the owner already has one by that name), and the account starts new mail with it when none was chosen |
 | A large signature | Kept and given back whole | A signature of some 120 KB (a picture written into its HTML) was stored and given back whole to a request written by hand. MailCraft takes no signature from such an answer, neither the HTML nor the plain text beside it (a test keeps that shape) |
 
 What MailCraft does with it, and what it leaves out:

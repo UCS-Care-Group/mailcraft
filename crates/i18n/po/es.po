@@ -27781,8 +27781,8 @@ msgstr "Mostrar los calendarios de un buzón compartido"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
-msgstr "Las firmas se guardan en este equipo. No se pueden sincronizar con Outlook: en otro dispositivo, configúrelas allí, o pegue una desde Outlook en la Web (Configuración › Firmas). Una cuenta de servidor Exchange incorpora la que se guardó allí, como «<dirección> (Exchange)», y solo la lee."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Las firmas se guardan en este equipo. No se pueden sincronizar con Outlook: en otro dispositivo, configúrelas allí, o pegue una desde Outlook en la Web (Configuración › Firmas). Una cuenta de servidor Exchange incorpora la que se guardó allí, con un nombre según la cuenta, y solo la lee."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs

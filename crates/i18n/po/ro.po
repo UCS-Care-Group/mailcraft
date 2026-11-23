@@ -27841,8 +27841,8 @@ msgstr "Afișare calendare ale unei cutii poștale partajate"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
-msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, ca „<adresă> (Exchange)”, și doar o citește."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, cu un nume după cont, și doar o citește."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs

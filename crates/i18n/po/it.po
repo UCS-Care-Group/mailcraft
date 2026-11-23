@@ -27762,8 +27762,8 @@ msgstr "Mostra i calendari di una cassetta postale condivisa"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
-msgstr "Le firme sono conservate su questo computer. Non possono essere sincronizzate con Outlook: su un altro dispositivo configurarle lì, oppure incollarne una da Outlook sul web (Impostazioni › Firme). Un account server Exchange importa quella salvata lì, come «<indirizzo> (Exchange)», e si limita a leggerla."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Le firme sono conservate su questo computer. Non possono essere sincronizzate con Outlook: su un altro dispositivo configurarle lì, oppure incollarne una da Outlook sul web (Impostazioni › Firme). Un account server Exchange importa quella salvata lì, con un nome preso dall'account, e si limita a leggerla."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs

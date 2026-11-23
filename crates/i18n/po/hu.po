@@ -15859,8 +15859,8 @@ msgstr "Aláírások"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
-msgstr "Az aláírások ezen a számítógépen maradnak. Nem lehet lépést tartani az Outlook-kal: egy másik eszközön, amit ott helyeznek el, vagy az Outlook-ból az interneten (Beállítások › Aláírások). Egy Exchange-kiszolgálói fiók átveszi az ott mentett aláírást „<cím> (Exchange)” néven, és csak olvassa."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Az aláírások ezen a számítógépen maradnak. Nem lehet lépést tartani az Outlook-kal: egy másik eszközön, amit ott helyeznek el, vagy az Outlook-ból az interneten (Beállítások › Aláírások). Egy Exchange-kiszolgálói fiók átveszi az ott mentett aláírást a fiókról elnevezve, és csak olvassa."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs

@@ -27475,8 +27475,8 @@ msgstr "显示共享邮箱的日历"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, as \"<address> (Exchange)\", and only reads it."
-msgstr "签名保存在本机，无法与 Outlook 同步。请在其他设备上分别设置，或从 Outlook 网页版（设置 › 签名）粘贴。Exchange 服务器账户会导入在那里保存的签名，名为“<地址> (Exchange)”，并且只读取它。"
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "签名保存在本机，无法与 Outlook 同步。请在其他设备上分别设置，或从 Outlook 网页版（设置 › 签名）粘贴。Exchange 服务器账户会导入在那里保存的签名，以该账户命名，并且只读取它。"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
