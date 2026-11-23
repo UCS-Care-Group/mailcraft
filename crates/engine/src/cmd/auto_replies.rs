@@ -105,7 +105,10 @@ fn account_of(s: &Session, v: &Value) -> Result<Id, CmdError> {
         None | Some(Value::Null) => reply_accounts(&s.mailbox).first().copied().ok_or_else(|| fail(NOT_MICROSOFT)),
         Some(_) => {
             let account = p::req_id(v, "account")?;
-            can_reply(&s.mailbox, account)?;
+            // An IMAP account's are in a Sieve script, when its server keeps them (#9999).
+            if !s.mailbox.account(account).is_some_and(super::sieve_replies::is_sieve_account) {
+                can_reply(&s.mailbox, account)?;
+            }
             Ok(account)
         }
     }
@@ -140,14 +143,18 @@ fn read_command(s: &mut Session, v: &Value) -> CmdResult {
     let account = account_of(s, v)?;
     let known = s.auto_replies.get(&account).map(|known| known_json(s, known));
     let mut answer = json!({"account": account, "known": known});
+    let sieve = s.mailbox.account(account).is_some_and(super::sieve_replies::is_sieve_account);
+    if sieve {
+        answer["sieve"] = super::sieve_replies::read_json(s, account);
+    }
     if !s.prefs.offline {
-        answer["ask"] = json!({"account": account});
+        answer["ask"] = if sieve { json!({"account": account, "sieve": crate::sieve::SCRIPT_NAME}) } else { json!({"account": account}) };
     }
     Ok(answer)
 }
 
 /// A time the owner gave, `YYYY-MM-DDTHH:MM` in the zone the calendar is shown in.
-fn time_param(s: &Session, v: &Value, key: &str) -> Result<Option<Timestamp>, CmdError> {
+pub(super) fn time_param(s: &Session, v: &Value, key: &str) -> Result<Option<Timestamp>, CmdError> {
     let Some(text) = v.get(key).filter(|x| !x.is_null()) else { return Ok(None) };
     let text = text.as_str().ok_or_else(|| bad(format!("`{key}` is a time: YYYY-MM-DDTHH:MM")))?;
     let wall = (text.len() <= 40).then(|| mailcraft_time::parse_iso(text)).flatten().map(|(wall, _)| wall);
@@ -158,7 +165,7 @@ fn time_param(s: &Session, v: &Value, key: &str) -> Result<Option<Timestamp>, Cm
 
 /// A reply the owner typed: at most [`MAX_REPLY_TEXT`] characters, no control characters but line
 /// breaks and tabs.
-fn reply_param(v: &Value, key: &str) -> Result<Option<String>, CmdError> {
+pub(super) fn reply_param(v: &Value, key: &str) -> Result<Option<String>, CmdError> {
     let Some(text) = v.get(key).filter(|x| !x.is_null()) else { return Ok(None) };
     let text = text.as_str().ok_or_else(|| bad(format!("`{key}` is the reply, as text")))?;
     if text.chars().count() > MAX_REPLY_TEXT {
@@ -184,6 +191,9 @@ fn set_command(s: &mut Session, v: &Value) -> CmdResult {
         None if v.get("audience").is_some_and(|x| !x.is_null()) => return Err(bad("`audience` is none, contactsOnly or all")),
         None => None,
     };
+    if s.mailbox.account(account).is_some_and(super::sieve_replies::is_sieve_account) {
+        return super::sieve_replies::set(s, account, status, audience, v);
+    }
     // Nothing is changed blind: a change made before the server's setting is known would write
     // empty replies over the owner's.
     let Some(known) = s.auto_replies.get(&account).cloned() else { return Err(fail(NOT_READ)) };

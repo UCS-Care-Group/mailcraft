@@ -35,6 +35,9 @@ mailcraft-pst = { workspace = true }
 unicode-segmentation = { workspace = true }
 # Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
 image = { workspace = true }
+# The digest that tells MailCraft's own Sieve script from one changed elsewhere (`sieve`, #9999),
+# in the browser too.
+sha2 = { workspace = true }
 
 # SHA-256 names the content files of a mailbox kept on disk (`store`). Not in the browser, which
 # keeps the mailbox as one file.

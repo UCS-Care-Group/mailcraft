@@ -236,11 +236,20 @@ impl MailApp {
         let Ok(v) = &r else { return r };
         match id {
             "account.automaticReplies" => {
+                // An IMAP account's are read through ManageSieve (`/ask/sieve`, #9999), which no
+                // job of the window's does yet: never through Graph.
+                if v.pointer("/ask/sieve").is_some() {
+                    return r;
+                }
                 if let Some(account) = v.pointer("/ask/account").and_then(Value::as_u64) {
                     self.auto_replies_read_now(account);
                 }
             }
             "account.setAutomaticReplies" => {
+                // A Sieve script to write: not Graph's to change (#9999).
+                if v.get("sieve").is_some() {
+                    return r;
+                }
                 let account = v.get("account").and_then(Value::as_u64).unwrap_or(0);
                 let change = v.get("change").cloned().map(|c| AutoReplies::from_graph(&c)).unwrap_or_default();
                 self.auto_replies_change(account, change)?;

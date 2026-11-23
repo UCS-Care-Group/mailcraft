@@ -187,6 +187,9 @@ pub mod senders;
 #[cfg(test)]
 mod senders_tests;
 pub mod shared;
+pub mod sieve_replies;
+#[cfg(test)]
+mod sieve_replies_tests;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;
@@ -267,6 +270,7 @@ pub fn registry() -> Registry {
     v.extend(categories_remote::specs());
     v.extend(account::specs());
     v.extend(auto_replies::specs());
+    v.extend(sieve_replies::specs());
     v.extend(offline::specs());
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());

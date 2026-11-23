@@ -1924,6 +1924,12 @@ msgid "Apply Downloaded Rules"
 msgstr "ჩამოტვირთული წესების გამოყენება"
 
 #. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Apply Downloaded Sieve Scripts"
+msgstr "ჩამოტვირთული Sieve-ის სკრიპტების გამოყენება"
+
+#. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 #, fuzzy
 msgid "Apply Downloaded To-dos"
@@ -9287,6 +9293,12 @@ msgstr "MailCraft {version} არ დაინსტალირდა: აქ 
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "MailCraft-ის Google Desktop რეგისტრაცია ამ ანაწყობში ჯერ არ არის კონფიგურირებული."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed or removed elsewhere since MailCraft wrote it, and is left as it is"
+msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე მისი ჩაწერის შემდეგ სხვაგან შეიცვალა ან წაიშალა და რჩება ისე, როგორც არის"
+
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
@@ -14990,7 +15002,7 @@ msgid "Send & Receive"
 msgstr "გაგზავნა და მიღება"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/sieve_replies.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "გაგზავნა / მიღება"
@@ -19406,6 +19418,12 @@ msgstr "ამ ანგარიშის რჩეულები Outlook-ი�
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "ამ ანგარიშის კალენდრის გამოკითხვა ჯერ შეუძლებელია: „გაგზავნა/მიღება“ ჯერ მასში შევა."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
+msgstr "ამ ანგარიშის სერვერი MailCraft-ისგან ავტომატურ პასუხებს არ იღებს: ის შვებულების პასუხებიან Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve)"
+
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
@@ -23435,7 +23453,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "Microsoft Graph-ით არცერთი ანგარიში არ სინქრონიზდება"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "ანგარიში id-ით {account} არ არსებობს"
@@ -24342,7 +24360,7 @@ msgid "the attachments are larger than {mb} MB together: save them in a folder"
 msgstr "დანართები ერთად {mb} მბ-ზე დიდია: შეინახეთ ისინი საქაღალდეში"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen"
 msgstr "ავტომატური პასუხები სერვერიდან ჯერ არ წაკითხულა: ჯერ წაიკითხეთ, რომ მათგან არაფერი უნახავად გადაიწეროს"
@@ -24473,7 +24491,7 @@ msgid "the end is before the start"
 msgstr "დასასრული დასაწყისზე ადრეა"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "the end of the time range must be after its start"
 msgstr "დროის შუალედის დასასრული მისი დასაწყისის შემდეგ უნდა იყოს"
@@ -24620,6 +24638,12 @@ msgstr "ბოლო კალენდრის წაშლა შეუძლ
 #, fuzzy
 msgid "the list shows every account's folder: open one account's folder, or name the folder"
 msgstr "სია აჩვენებს ყველა ანგარიშის საქაღალდეს: გახსენით ერთი ანგარიშის საქაღალდე ან დაასახელეთ საქაღალდე"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "the mail server doesn't know your contacts: replies outside the organisation go to nobody or to everybody"
+msgstr "საფოსტო სერვერმა თქვენი კონტაქტები არ იცის: ორგანიზაციის გარეთ პასუხები არავის ან ყველას მიდის"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -25555,6 +25579,12 @@ msgstr "ეს ფაილი პირად გასაღებს შე�
 #, fuzzy
 msgid "this isn't a .pst file"
 msgstr "ეს .pst ფაილი არ არის"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "this mail server can't send automatic replies only during a time range (its Sieve scripts have no date tests)"
+msgstr "ეს საფოსტო სერვერი ავტომატურ პასუხებს მხოლოდ დროის შუალედში ვერ აგზავნის (მის Sieve-ის სკრიპტებს თარიღის შემოწმება არ აქვს)"
 
 #. name
 #: crates/model/src/sync.rs

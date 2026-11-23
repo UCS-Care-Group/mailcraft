@@ -68,6 +68,9 @@ pub mod sample;
 pub mod send_warnings;
 pub mod sender_warnings;
 mod session;
+pub mod sieve;
+#[cfg(test)]
+mod sieve_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
 #[cfg(not(target_arch = "wasm32"))]

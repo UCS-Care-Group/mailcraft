@@ -588,9 +588,23 @@ pub struct Account {
     /// or another language makes no second one. `None` until the first message is snoozed.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub snoozed_folder: Option<Id>,
+    /// For an IMAP account whose server keeps Sieve scripts (#9999): the SHA-256 digest, in
+    /// lower-case hexadecimal, of the script MailCraft last wrote there (`mailcraft_net::sieve`).
+    /// Only the digest, never the script: it tells MailCraft's own script from one changed
+    /// elsewhere, which is never written over. Empty when MailCraft never wrote one; a value that
+    /// isn't a digest is read as none.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub sieve_written: String,
 }
 
 impl Account {
+    /// The digest of the Sieve script MailCraft last wrote on the account's server
+    /// ([`Account::sieve_written`]), when it is one.
+    pub fn sieve_digest(&self) -> Option<&str> {
+        let d = self.sieve_written.as_str();
+        (d.len() == 64 && d.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))).then_some(d)
+    }
+
     /// The name the folder pane gives an account the owner hasn't named (#1017): its address, or
     /// `Mailbox` for one without an address.
     pub fn name_by_default(&self) -> String {
