@@ -247,6 +247,16 @@ fn is_owners(s: &Session, email: &str) -> bool {
     s.mailbox.accounts.iter().any(|a| a.sends_as(email))
 }
 
+/// Whether `email` is an address of the sign-in that mail in `account` is answered from: the
+/// account's own and its sender addresses, and for a shared mailbox and the account it is opened
+/// through, each other's. Reply All leaves these out and keeps the owner's other accounts as any
+/// other recipient, as Outlook does (#1874). Mail of an account that is gone: any of the owner's.
+fn answers_as(s: &Session, account: Id, email: &str) -> bool {
+    let Some(a) = s.mailbox.account(account) else { return is_owners(s, email) };
+    let sign_in = a.shared_of.unwrap_or(a.id);
+    s.mailbox.accounts.iter().any(|a| (a.id == sign_in || a.shared_of == Some(sign_in)) && a.sends_as(email))
+}
+
 /// An address for an error message: short, and without control characters.
 fn shown_address(text: &str) -> String {
     text.trim().chars().filter(|ch| !ch.is_control()).take(80).collect()
@@ -619,10 +629,12 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
             }
             let mut cc = Vec::new();
             if mode == ComposeMode::ReplyAll {
-                for a in m.to.iter().filter(|a| !is_mine(a)) {
+                // Less the addresses the reply is from, not those of the owner's other accounts.
+                let is_from = |a: &Address| answers_as(s, m.account, &a.email);
+                for a in m.to.iter().filter(|a| !is_from(a)) {
                     add(&mut to, &[], a);
                 }
-                for a in m.cc.iter().filter(|a| !is_mine(a)) {
+                for a in m.cc.iter().filter(|a| !is_from(a)) {
                     add(&mut cc, &to, a);
                 }
             }
