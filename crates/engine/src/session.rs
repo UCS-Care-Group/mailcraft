@@ -1014,14 +1014,17 @@ impl Default for Prefs {
 }
 
 impl Prefs {
-    /// The waits Undo Send offers, in seconds (0 is off).
-    pub const UNDO_SEND_CHOICES: [u8; 6] = [0, 5, 10, 15, 20, 30];
+    /// The waits Undo Send offers, in seconds (0 is off), up to two minutes (#1799). Each fits a
+    /// `u8`, so a settings file stays readable by an older version (which reads more than 30 as 30).
+    pub const UNDO_SEND_CHOICES: [u8; 8] = [0, 5, 10, 15, 20, 30, 60, 120];
+    /// The longest wait offered.
+    pub const UNDO_SEND_MOST: u8 = 120;
 
     /// The seconds to wait before a message goes, 0 for none (a settings file may say anything:
-    /// a value the choice doesn't offer is read as the nearest one it does, never more than 30).
+    /// a value the choice doesn't offer is read as the next one up, never more than the most).
     pub fn undo_send(&self) -> u8 {
-        let n = self.undo_send_secs.min(30);
-        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(30)
+        let n = self.undo_send_secs.min(Self::UNDO_SEND_MOST);
+        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(Self::UNDO_SEND_MOST)
     }
 
     /// The zoom of the message being read, in percent: the least, the most, and as it comes.
