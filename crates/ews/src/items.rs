@@ -82,6 +82,8 @@ pub struct SyncFolderItems {
     state: String,
     max: u32,
     shape: Shape,
+    /// Ask the read state as an extended property too, as Outlook for Mac does (#1784).
+    pub(crate) extended: bool,
 }
 
 impl std::fmt::Debug for SyncFolderItems {
@@ -124,7 +126,7 @@ impl SyncFolderItems {
     /// Reads folder `folder` (its server id) from `state` (empty: from its start), `max` changes
     /// at the most (1 to 512).
     pub fn new(folder: &str, state: &str, max: u32, shape: Shape) -> Self {
-        Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape }
+        Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape, extended: false }
     }
 
     /// The operation as the schema has it: `ItemShape` (the `Default` shape and what a list
@@ -149,6 +151,13 @@ impl SyncFolderItems {
         extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
+        }
+        // (The read state as MAPI knows it, `PR_IS_READ` (0x0E67), next to the SOAP one: Kerio
+        // answers the listing silently over `IsRead` yet answers this tag, which is how Outlook
+        // for Mac knows a message is read on it (#964, #1784). Named where the rest is named —
+        // the same base shapes, the same refusal to learn from.)
+        if self.extended {
+            extra = extra.child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0E67").attr("PropertyType", "Boolean"));
         }
         let base = if matches!(self.shape, Shape::Ids { .. }) { "IdOnly" } else { "Default" };
         let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text(base)).child(extra);
@@ -229,6 +238,29 @@ fn time(node: &Node, name: &str) -> i64 {
     node.child_in(TYPES, name).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0)).unwrap_or(0)
 }
 
+/// The item's read state as an extended property: `PR_IS_READ` (0x0E67). Servers quote the
+/// tag both ways the schema allows — hex, with or without the `0x` and in either case, and
+/// plain decimal 3687 — so both do. None: the answer didn't name it, or didn't answer it in
+/// words; a value that means neither yes nor no is no answer (#1784).
+fn extended_read(item: &Node) -> Option<bool> {
+    item.children
+        .iter()
+        .filter(|p| p.is(TYPES, "ExtendedProperty"))
+        .find(|p| {
+            p.child_in(TYPES, "ExtendedFieldURI").and_then(|u| u.attribute("PropertyTag")).is_some_and(|tag| {
+                tag == "3687" || u32::from_str_radix(tag.trim().trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(0x0E67)
+            })
+        })
+        .and_then(|p| p.child_in(TYPES, "Value"))
+        .and_then(|v| match v.text.trim() {
+            "1" => Some(true),
+            "0" => Some(false),
+            t if t.eq_ignore_ascii_case("true") => Some(true),
+            t if t.eq_ignore_ascii_case("false") => Some(false),
+            _ => None,
+        })
+}
+
 fn flag(node: &Node, name: &str) -> bool {
     node.child_in(TYPES, name).is_some_and(|n| n.text.trim().eq_ignore_ascii_case("true"))
 }
@@ -281,11 +313,12 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
+    let native_read = item.child_in(TYPES, "IsRead").map(|n| n.text.trim().eq_ignore_ascii_case("true"));
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
-            read: flag(item, "IsRead"),
-            read_said: item.child_in(TYPES, "IsRead").is_some(),
+            read: native_read.or_else(|| extended_read(item)).unwrap_or(false),
+            read_said: native_read.is_some() || extended_read(item).is_some(),
             flag: status,
             flag_said: flag_node.is_some(),
             categories,

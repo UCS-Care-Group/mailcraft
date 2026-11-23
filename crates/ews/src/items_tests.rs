@@ -83,3 +83,26 @@ fn a_page_larger_than_the_model_takes_in_is_no_page() {
         (0..mailcraft_model::sync::MAX_EWS_PAGE_MESSAGES + 1).map(|n| format!("<t:Create>{}</t:Create>", bare(&format!("ID{n}")))).collect();
     assert_eq!(page(&changes, 512).unwrap_err(), Error::Unreadable);
 }
+
+/// The read state named as `PR_IS_READ`, read however the server quotes the tag — hex with
+/// or without the prefix and in either case, or plain decimal — and answered only in words
+/// that mean yes or no. Anything else is no answer: silence, held, never an invented unread
+/// (#1784, the review).
+#[test]
+fn the_read_state_tag_is_read_whatever_way_the_server_quotes_it() {
+    for (tag, value, want) in [
+        ("0E67", "true", Some(true)),
+        ("0xe67", "False", Some(false)),
+        ("3687", "1", Some(true)),
+        ("0x0E67", "0", Some(false)),
+        ("3687", "perhaps", None),
+        ("1002", "1", None),
+    ] {
+        let xml = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/><t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"{tag}\" PropertyType=\"Boolean\"/><t:Value>{value}</t:Value></t:ExtendedProperty></t:Message></t:Create>"
+        );
+        let got = page(&xml, 10).unwrap();
+        let m = &got.messages[0].server;
+        assert_eq!((m.read, m.read_said), (want.unwrap_or(false), want.is_some()), "tag {tag}={value}");
+    }
+}

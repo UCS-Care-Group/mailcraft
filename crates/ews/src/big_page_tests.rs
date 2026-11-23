@@ -609,3 +609,151 @@ fn a_bare_client_fault_on_a_state_carried_page_refuses_the_light_asking_not_the_
     let ids = state.requests.iter().filter(|a| a.operation == "SyncFolderItems" && a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
     assert_eq!(ids, 2, "probed twice for the run — with the flag and without — then given up: {ids}");
 }
+
+/// The server that says nothing of the read state over its own SOAP property — every shape,
+/// measured on Kerio — yet answers it when it is named the MAPI way, `PR_IS_READ`, as Outlook
+/// for Mac names it. Asked that way, the read mail arrives read on a first listing, and the
+/// unread arrives unread; the unread storm #964's heavy folders caused is answered at its root.
+#[test]
+fn the_read_state_asked_the_mapi_way_arrives_where_the_soap_one_stays_silent() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 200_000;
+        s.omits_read_state = true;
+        s.answers_read_extended = true;
+        for n in 0..60 {
+            s.deliver("inbox", &format!("Heavy {n:02}"), n % 3 == 0);
+        }
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let read: Vec<bool> = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).map(|m| m.server.read).collect();
+    assert_eq!(read.len(), 60, "all of them came down");
+    assert!(read.iter().enumerate().all(|(n, r)| *r == (n % 3 == 0)), "every one arrived with the state the server has, through the tag");
+    for piece in &pieces {
+        assert!(piece.errors.is_empty(), "and nothing cost a problem: {:?}", piece.errors);
+    }
+    let state = standin.state();
+    assert!(
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").all(|a| a.body.contains("ExtendedFieldURI")),
+        "the asking went out every page: the server answers it, so it is worth its weight"
+    );
+}
+
+/// A server that refuses the MAPI naming outright, in its usual words — the bare fault. The
+/// asking is dropped, the page is asked again without it, and the folder goes on: a naming the
+/// server won't take costs the naming, never the folder, and never its state (#1784).
+#[test]
+fn a_refused_mapi_naming_is_dropped_and_the_page_asked_again_without_it() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.refuses_extended = true;
+        s.deliver("inbox", "Plain", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    for piece in &pieces {
+        assert!(piece.errors.is_empty(), "the refusal cost the asking, not the folder: {:?}", piece.errors);
+    }
+    // (No no-afresh claim here: a first read of a mailbox begins anywhere it likes. The refusal
+    // meeting a carried state is the ordering the arm-order test above pins.)
+    let state = standin.state();
+    let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|a| a.operation == "SyncFolderItems").collect();
+    assert!(asked.first().is_some_and(|a| a.body.contains("ExtendedFieldURI")), "it was asked, once");
+    assert!(asked.iter().skip(1).all(|a| !a.body.contains("ExtendedFieldURI")), "and not asked again: the run learned");
+    assert!(pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Plain"), "the mail came down regardless");
+}
+
+/// And the world Phil's Kerio showed before the tag: asked and left unanswered, page after
+/// page would be paid for nothing. One page of silence is enough for the run: the naming is
+/// given up, said once, and no later page carries it (#1784).
+#[test]
+fn an_unanswered_mapi_naming_is_given_up_after_one_silent_page() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 200_000;
+        s.omits_read_state = true;
+        for n in 0..60 {
+            s.deliver("inbox", &format!("Heavy {n:02}"), n % 3 == 0);
+        }
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let state = standin.state();
+    let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|a| a.operation == "SyncFolderItems").collect();
+    assert!(asked.first().is_some_and(|a| a.body.contains("ExtendedFieldURI")), "it was asked, to find out");
+    assert!(asked.iter().any(|a| !a.body.contains("ExtendedFieldURI")), "and given up for the run when the first page said nothing: {}", asked.len());
+    for piece in &pieces {
+        assert!(piece.errors.is_empty(), "silence is silence, held and gone on: {:?}", piece.errors);
+    }
+}
+
+/// The world the review named, which is Phil's: the delta is refused with the bare fault —
+/// tag or no tag — and the folder is read afresh. The naming must still be ON for that
+/// afresh read, because the afresh read is where the read state comes from on this server.
+/// If the fault on the delta dropped the naming, the folder would re-list in silence and
+/// the whole feature would never deliver on exactly the folders it was built for (#1784).
+#[test]
+fn the_delta_refused_keeps_the_naming_for_the_read_afresh_it_earns() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.deliver("inbox", "First", true);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let (folder, state) = pieces
+        .iter()
+        .flat_map(|p| p.pages.iter())
+        .find(|page| page.messages.iter().any(|m| m.subject == "First"))
+        .map(|page| (page.folder.clone(), page.state.clone()))
+        .expect("a state to carry");
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 200_000;
+        s.omits_read_state = true;
+        s.answers_read_extended = true;
+        s.refuses_delta_barely = true;
+        for n in 0..60 {
+            s.deliver("inbox", &format!("Heavy {n:02}"), n % 3 == 0);
+        }
+    }
+    let request = EwsMailRequest {
+        email: "ada@example.org".into(),
+        url: URL.into(),
+        list_folders: true,
+        states: vec![mailcraft_model::sync::EwsFolderState { folder, state }],
+        ..Default::default()
+    };
+    let cancel = AtomicBool::new(false);
+    let mut again: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| again.push(piece))).unwrap();
+    for piece in &again {
+        assert!(piece.errors.is_empty(), "one refused delta, then the afresh read carried it: {:?}", piece.errors);
+    }
+    let read: Vec<(String, bool)> = again
+        .iter()
+        .flat_map(|p| &p.pages)
+        .flat_map(|page| page.messages.iter().filter(|m| m.subject.starts_with("Heavy ")).map(|m| (m.subject.clone(), m.server.read)))
+        .collect();
+    assert_eq!(read.len(), 60, "every one of them, afresh");
+    assert!(
+        read.iter().all(|(s, r)| *r == s.trim_start_matches("Heavy ").parse::<u32>().is_ok_and(|n| n % 3 == 0)),
+        "every one arrived with the state the server has, through the tag: {read:?}"
+    );
+    assert!(again.iter().flat_map(|p| &p.pages).any(|page| page.afresh), "the refused delta earned the read afresh");
+    let state = standin.state();
+    let listing_asks = state.requests.iter().filter(|a| a.operation == "SyncFolderItems" && !a.body.contains("<m:SyncState>S0")).count();
+    let listing_with_tag = state
+        .requests
+        .iter()
+        .filter(|a| a.operation == "SyncFolderItems" && !a.body.contains("<m:SyncState>S0") && a.body.contains("ExtendedFieldURI"))
+        .count();
+    assert!(
+        listing_with_tag > 1 && listing_with_tag == listing_asks,
+        "the read afresh asked the naming every page: {listing_with_tag} of {listing_asks}"
+    );
+}

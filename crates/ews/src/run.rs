@@ -186,6 +186,12 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     /// page that asked the flag is refused: a server may take `IdOnly` and only balk at the
     /// flag on top of it, and the flag is worth losing before the whole light asking is (#1784).
     pub(crate) ids_flag: bool,
+    /// The read state is named as an extended property, `PR_IS_READ`, the way Outlook for Mac
+    /// names it — the way Kerio answers it. It goes false for the run the first time a page
+    /// answers nothing about the read state even so, or the asking itself is refused (#1784).
+    pub(crate) extended: bool,
+    /// The extended asking was given up for the run: said once.
+    pub(crate) extended_said: bool,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -209,6 +215,8 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             ids_refused_said: false,
             ids_refused: false,
             ids_flag: true,
+            extended: true,
+            extended_said: false,
         }
     }
 }
@@ -721,17 +729,28 @@ impl<E: HttpExchange> Run<'_, E> {
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
         for _ in 0..MAX_PAGES {
-            let op = SyncFolderItems::new(
+            let mut op = SyncFolderItems::new(
                 folder,
                 &state,
                 self.page,
                 if self.ids { Shape::Ids { flag: self.shape == Shape::Full && self.ids_flag } } else { self.shape },
             );
+            op.extended = self.extended;
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     if page.read_unsaid > 0 && !self.read_unsaid {
                         self.read_unsaid = true;
                         log::info!("ews mail: the server gave a read-state change that says no state; it is passed over");
+                    }
+                    // (Asked the read state the Outlook way too, and the answer is silent on it
+                    // just the same: the asking is given up for the run, one page having proved
+                    // it — a server that answers answers every page (#1784).)
+                    if self.extended && !page.messages.is_empty() && !page.messages.iter().any(|m| m.server.read_said) {
+                        self.extended = false;
+                        if !self.extended_said {
+                            self.extended_said = true;
+                            log::info!("ews mail: the server says nothing of the read state even asked as an extended property; not asking again");
+                        }
                     }
                     page
                 }
@@ -774,6 +793,23 @@ impl<E: HttpExchange> Run<'_, E> {
                     // (Half of the size that taught the size lesson — the sizes above it were
                     // already refused, and re-asking them only re-pays them.)
                     self.page = (below_page / 2).max(MIN_PAGE);
+                    continue;
+                }
+                // (A refusal while the read state is also named as an extended property may be
+                // a refusal of that naming — servers older than the idea know no extended
+                // properties — and one page without it tells which it was before any lesson is
+                // drawn from the fault (#1784).)
+                // (Only a page asked from nothing can blame the naming alone: on a read that
+                // rides a state, the state itself is a suspect, and the fault belongs to the
+                // afresh answer below with the naming still on — the read afresh is exactly
+                // where the naming earns its keep (#1784, the review).)
+                Err(Asked::Code(ResponseCode::Other(_))) if self.extended && !self.ids && state.is_empty() =>
+                {
+                    self.extended = false;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");
+                    }
                     continue;
                 }
                 // (A fault in SOAP's own blaming-the-client words, on a read that goes on from a

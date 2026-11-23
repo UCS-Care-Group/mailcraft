@@ -386,7 +386,10 @@ impl State {
                 item.attachments
             ));
             xml.push_str(&people("From", std::slice::from_ref(&item.from)));
-            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId><t:IsRead>{}</t:IsRead>", escape(&item.message_id), item.read));
+            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+            if !self.omits_read_state {
+                xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+            }
         }
         if shape == "IdOnly" && wants("item:Subject") {
             // (Over the `IdOnly` base nothing comes by itself: what is asked is what is given.)
@@ -406,6 +409,14 @@ impl State {
         }
         // (Over `IdOnly` the named properties are given as the real servers give them: the ones
         // the `Default` branch sends by right come only when they are asked.)
+        if wants("ext:0E67") && self.answers_read_extended {
+            // (The read state in the MAPI tag, the way Kerio gives it and Outlook for Mac asks
+            // it: the answer is shaped identically over every base shape (#1784).)
+            xml.push_str(&format!(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0E67\" PropertyType=\"Boolean\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
+                item.read
+            ));
+        }
         if shape == "IdOnly" && wants("item:DateTimeReceived") {
             xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
         }
@@ -504,6 +515,16 @@ impl State {
             Check::is(node, TYPES, "AdditionalProperties", &[])?;
             Check::no_text(node)?;
             for one in &node.children {
+                if one.is(TYPES, "ExtendedFieldURI") {
+                    // (Any shape of an extended ask is taken — Exchange servers know the idea —
+                    // and only answered by the ones told to know this tag, `PR_IS_READ`.)
+                    Check::is(one, TYPES, "ExtendedFieldURI", &["PropertyTag", "PropertyType"])?;
+                    Check::empty(one)?;
+                    let tag = Check::attribute(one, "PropertyTag")?;
+                    Check::attribute(one, "PropertyType")?;
+                    extra.push(format!("ext:{}", tag.to_uppercase()));
+                    continue;
+                }
                 Check::is(one, TYPES, "FieldURI", &["FieldURI"])?;
                 Check::empty(one)?;
                 let uri = Check::attribute(one, "FieldURI")?;
@@ -619,6 +640,9 @@ impl State {
         let (base, _, extra) = Self::item_shape(shape, false)?;
         // (Kerio's no: a bare SOAP fault with no response code, refusing the light asking —
         // and, with the other knob, every read that goes on from a state (#1784, measured).)
+        if self.refuses_extended && extra.iter().any(|e| e == "ext:0E67") {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
         if self.refuses_ids_barely && base == "IdOnly" {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }

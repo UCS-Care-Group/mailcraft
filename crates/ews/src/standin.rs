@@ -198,6 +198,10 @@ pub struct State {
     /// A server that won't take a `SyncFolderItems` asked over the `IdOnly` base at all: it
     /// answers one with `ErrorInvalidPropertyForOperation`, as servers do that outlive the shape.
     pub refuses_ids: bool,
+    /// A server that knows the read state as an extended property — `PR_IS_READ`, how Outlook
+    /// for Mac and Kerio Connect talk (#964, #1784): it answers an `ExtendedFieldURI` ask with
+    /// the item's read state in an `ExtendedProperty`.
+    pub answers_read_extended: bool,
     /// …and one that refuses the same asking with a bare SOAP fault and no response code at
     /// all, Kerio's way of saying no (#1784, measured): the fault names only SOAP's own
     /// `Client`. With [`Self::refuses_delta_barely`], so does every read that goes on from a
@@ -205,6 +209,9 @@ pub struct State {
     pub refuses_ids_barely: bool,
     /// Every `SyncFolderItems` carrying a sync state is refused with the same bare fault.
     pub refuses_delta_barely: bool,
+    /// Every `SyncFolderItems` naming the read state as an extended property is refused with
+    /// the same bare fault — a server that won't be asked MAPI's way.
+    pub refuses_extended: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -316,9 +323,11 @@ impl Default for State {
             transport_caps_bodies: false,
             refused_bodies: 0,
             sends_mime_with_changes: 0,
+            answers_read_extended: false,
             refuses_ids: false,
             refuses_ids_barely: false,
             refuses_delta_barely: false,
+            refuses_extended: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,
