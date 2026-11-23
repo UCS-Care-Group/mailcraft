@@ -35,6 +35,8 @@ macro_rules! said {
 }
 
 #[cfg(test)]
+mod arabic_tests;
+#[cfg(test)]
 mod chinese_tests;
 #[cfg(test)]
 mod czech_tests;

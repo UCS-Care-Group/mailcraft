@@ -4554,7 +4554,7 @@ msgstr "تأخير التسليم"
 #, fuzzy
 msgid "Delayed message goes {when}"
 msgid_plural "{n} delayed messages: the next goes {when}"
-msgstr[0] "لا رسائل مؤجلة ({n})"
+msgstr[0] "لا رسائل مؤجلة ({n}): التالية تُرسل {when}"
 msgstr[1] "رسالة مؤجلة تُرسل {when} ({n})"
 msgstr[2] "رسالتان مؤجلتان: التالية تُرسل {when} ({n})"
 msgstr[3] "{n} رسائل مؤجلة: التالية تُرسل {when}"
