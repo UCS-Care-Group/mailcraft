@@ -94,6 +94,7 @@ pub(crate) enum Asked {
 }
 
 /// What ends a run.
+#[derive(Debug)]
 pub(crate) enum Stop {
     Cancelled,
     Auth,
@@ -661,7 +662,13 @@ impl<E: HttpExchange> Run<'_, E> {
                 Ok(true) => failed_in_a_row = 0,
                 // (A folder the server doesn't have: the folder list takes it away.)
                 Ok(false) => {}
-                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                Err(Asked::Stop(stop)) => {
+                    // (Which folder did the server die on? The line the user sees doesn't say,
+                    // and a stop on folder seven of eight is a different story from a stop on
+                    // folder one. One INFO, every stop, #1784.)
+                    log::info!("ews mail: the server stopped answering on folder {number} of {folders} ({folder}): {stop:?}");
+                    return Err(Asked::Stop(stop));
+                }
                 // A folder that is blocked is not a server that is failing: the other folders go on,
                 // and it doesn't count towards the folders in a row (the engine says which it was).
                 Err(Asked::Unreadable) => {
