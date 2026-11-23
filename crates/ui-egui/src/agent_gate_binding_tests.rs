@@ -236,6 +236,11 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("junk.list", r#"{"list": "safe"}"#, Setup::None),
     ("keys.import", r#"{"data": "AAAA"}"#, Setup::None),
     ("keys.remove", r#"{"address": "a@example.org", "fingerprint": "00"}"#, Setup::None),
+    // The custom dictionary (File › Options › Spelling). A yes is refused once the window has
+    // changed, so remove never needs the word to be there already.
+    ("ui.dictionary.add", r#"{"word": "colour"}"#, Setup::None),
+    ("ui.dictionary.remove", r#"{"word": "colour"}"#, Setup::None),
+    ("ui.dictionary.list", "{}", Setup::None),
     ("signature.set", r#"{"name": "x", "text": "y"}"#, Setup::None),
     ("signature.remove", r#"{"name": "Standard"}"#, Setup::None),
     ("signature.rename", r#"{"from": "Standard", "to": "y"}"#, Setup::None),

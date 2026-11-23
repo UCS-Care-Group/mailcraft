@@ -435,10 +435,8 @@ const SAFE: &[&str] = &[
     "ui.closeDialog",
     "ui.theme",
     "ui.spelling",
-    "ui.dictionary.add",
-    "ui.dictionary.remove",
+    // Ignore All: kept until MailCraft quits, never saved.
     "ui.dictionary.ignore",
-    "ui.dictionary.list",
     "ui.highContrast",
     "ui.animations",
     "ui.accent",
@@ -577,6 +575,10 @@ const ACCOUNTS: &[&str] = &[
 const MAILBOX: &[&str] = &["file.new", "file.open", "file.save", "file.saveAs"];
 
 const SETTINGS: &[&str] = &[
+    // A message must not change the owner's custom dictionary, or read it back.
+    "ui.dictionary.add",
+    "ui.dictionary.remove",
+    "ui.dictionary.list",
     // Hides the sender-warning banner of a message (#508): an agent must not be able to quiet
     // the owner's phishing warning.
     "mail.dismissWarnings",
