@@ -726,8 +726,8 @@ fn a_move_that_waited_past_a_rule_that_couldnt_tell_is_made_once_downloaded() {
 }
 
 /// Run Rules Now over an IMAP Inbox holding mail downloaded before its header lines were kept
-/// (0.12.0): a stop rule on a header can't tell, so a later rule copies nothing into another
-/// account (#566).
+/// (before a header rule, or by 0.15.0 and earlier): a stop rule on a header can't tell, so a
+/// later rule copies nothing into another account (#566).
 #[test]
 fn run_rules_now_copies_nothing_into_another_account_past_a_header_rule_that_cant_tell() {
     use mailcraft_model::sync::{FolderDelta, SyncResult};

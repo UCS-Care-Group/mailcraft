@@ -202,8 +202,9 @@ fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetch
     assert!(got.folder == inbox && got.rules_waiting.is_none());
 }
 
-/// Mail whose header lines weren't kept as they came (downloaded by 0.12.0 and earlier): an
-/// exception that looks for a word in the header can't be told, and the rule doesn't act (#566).
+/// Mail whose header lines weren't kept as they came (downloaded before a header rule, or by
+/// 0.15.0 and earlier): an exception that looks for a word in the header can't be told, and the
+/// rule doesn't act (#566).
 #[test]
 fn a_header_exception_on_mail_read_before_the_lines_were_kept_cant_be_told() {
     let rule = Rule {
