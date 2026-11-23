@@ -268,6 +268,11 @@ msgstr ""
 msgid "12 months"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "12-hour (3:05 PM)"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 msgid "2 weeks"
@@ -281,6 +286,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 msgid "2. When they have approved MailCraft, come back here and sign in again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "24-hour (15:05)"
 msgstr ""
 
 #. android, interface, name
@@ -1926,6 +1936,11 @@ msgstr ""
 msgid "Automatic"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Automatic (the language's)"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
 msgid "Automatic Replies"
@@ -2940,6 +2955,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Clipboard"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
@@ -16936,11 +16956,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Use YYYY-MM-DD"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/backstage.rs
-msgid "Use a 12-hour clock (3:05 PM)"
 msgstr ""
 
 #. interface

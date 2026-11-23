@@ -736,6 +736,22 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
     }
+    row(ui, tl!("Clock"), |ui| {
+        let (chosen, twelve) = (app.session.prefs.clock_chosen, app.session.prefs.twelve_hour);
+        let now = (chosen == Some(true)).then_some(twelve);
+        let name = |c: Option<bool>| match c {
+            None => tl!("Automatic (the language's)"),
+            Some(true) => tl!("12-hour (3:05 PM)"),
+            Some(false) => tl!("24-hour (15:05)"),
+        };
+        egui::ComboBox::from_id_salt("opt_clock").selected_text(name(now)).show_ui(ui, |ui| {
+            for (c, code) in [(None, "auto"), (Some(true), "12"), (Some(false), "24")] {
+                if ui.selectable_label(c == now, name(c)).clicked() {
+                    let _ = app.run("file.options", json!({"clock": code}));
+                }
+            }
+        });
+    });
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
@@ -993,10 +1009,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Security"), t);
     crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
-    let mut twelve = prefs.twelve_hour;
-    if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {
-        set(app, json!({"twelveHour": twelve}));
-    }
     row(ui, tl!("Week starts on"), |ui| {
         egui::ComboBox::from_id_salt("opt_week").selected_text(tl!(prefs.week_start.name())).show_ui(ui, |ui| {
             for d in [Weekday::Sun, Weekday::Mon, Weekday::Sat] {

@@ -320,6 +320,12 @@ msgstr "10 jaar"
 msgid "12 months"
 msgstr "12 maanden"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "12-hour (3:05 PM)"
+msgstr "12-uurs (3:05 PM)"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -337,6 +343,12 @@ msgstr "2 jaar"
 #, fuzzy
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. Wanneer de beheerder MailCraft heeft goedgekeurd, komt u hier terug en meldt u zich opnieuw aan."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "24-hour (15:05)"
+msgstr "24-uurs (15:05)"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -2240,6 +2252,12 @@ msgstr "AutoArchive"
 msgid "Automatic"
 msgstr "Automatisch"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Automatic (the language's)"
+msgstr "Automatisch (van de taal)"
+
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
 msgid "Automatic Replies"
@@ -3424,6 +3442,11 @@ msgstr "Klik om {name} te selecteren; dubbelklik om het te openen"
 #: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Clipboard"
 msgstr "Klembord"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Clock"
+msgstr ""
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -19823,12 +19846,6 @@ msgid "Use YYYY-MM-DD"
 msgstr "YYYY-MM-DD gebruiken"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "Een 12-uursklok gebruiken (3:05 PM)"
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use a Google app password, not your everyday Google account password."
@@ -26152,6 +26169,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Use a 12-hour clock (3:05 PM)"
+#~ msgstr "Een 12-uursklok gebruiken (3:05 PM)"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
