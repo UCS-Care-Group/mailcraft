@@ -665,8 +665,9 @@ impl<E: HttpExchange> Run<'_, E> {
                 // A code no version of the service is known for: that folder's own problem, not
                 // a server failing — the same route as a blocked folder: the engine says which
                 // by name and the other folders go on (#1784: Kerio's template-leaked `<id>`).
-                Err(Asked::Code(ResponseCode::Other(_))) => {
+                Err(Asked::Code(ResponseCode::Other(code))) => {
                     out.incomplete = true;
+                    log::warn!("ews mail: folder {number} of {folders} refused: {code}");
                     if out.blocked.len() < MAX_FOLDERS {
                         out.blocked.push(folder.clone());
                     }
