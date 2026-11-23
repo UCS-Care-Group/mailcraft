@@ -193,6 +193,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) extended: bool,
     /// The extended asking was given up for the run: said once.
     pub(crate) extended_said: bool,
+    /// The run gave the naming up: refused, or the page carrying it died on the way back. It
+    /// travels home on the result, and the runner remembers it for the account (#1784).
+    naming_refused: bool,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -217,6 +220,7 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             ids_refused: false,
             ids_flag: true,
             extended: true,
+            naming_refused: false,
             extended_said: false,
         }
     }
@@ -524,6 +528,10 @@ pub async fn sync_mail<E: HttpExchange>(
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
     let mut run = Run::new(client, exchange, cancel, wait);
+    // (The naming is a probe, and a probe is only worth its cost once per server per session:
+    // the runner carries the lesson from earlier runs in the request (#1784).)
+    run.extended = !request.naming_refused;
+    run.naming_refused = request.naming_refused;
     let mut out = Outcome::default();
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
@@ -551,6 +559,7 @@ pub async fn sync_mail<E: HttpExchange>(
         busy_for: out.busy_for,
         // (Only a run of every folder is the end of a read that may take away what the server lacks.)
         whole: out.clean() && !request.inbox_pass && request.scope == EwsScope::All,
+        naming_refused: run.naming_refused,
         stopped: out.stopped,
         auth_refused: out.auth_refused,
         blocked: out.blocked,
@@ -643,6 +652,12 @@ impl<E: HttpExchange> Run<'_, E> {
             // folders behind it. It joins nothing; a finished run lets the folder list take
             // its state away like any folder the server doesn't have (#1784, measured).)
             let placeholder = id.starts_with('<') && id.ends_with('>');
+            if placeholder {
+                // (Measured 17:14: the ban shipped and folder one was still the ghost — so
+                // what the state actually remembers isn't what the Display prints. One log
+                // with the real bytes will say what it is (#1784).)
+                log::info!("ews mail: letting go of a remembered folder named {id:?}");
+            }
             if !placeholder && !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
                 read.push(id.to_owned());
             }
@@ -825,6 +840,7 @@ impl<E: HttpExchange> Run<'_, E> {
                     if self.extended && !self.ids =>
                 {
                     self.extended = false;
+                    self.naming_refused = true;
                     if !self.extended_said {
                         self.extended_said = true;
                         log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");
@@ -841,6 +857,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 // it always did (#1784, measured).)
                 Err(Asked::Stop(Stop::Unreachable) | Asked::Lost | Asked::Bad) if self.extended => {
                     self.extended = false;
+                    self.naming_refused = true;
                     if !self.extended_said {
                         self.extended_said = true;
                         log::info!("ews mail: a page asked with the read state named the MAPI way died on the way back; not naming it again");
@@ -859,6 +876,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 // state the afresh answer below is for (#1784, the review).)
                 Err(Asked::Code(ResponseCode::Other(_))) if self.extended && !self.ids && state.is_empty() => {
                     self.extended = false;
+                    self.naming_refused = true;
                     if !self.extended_said {
                         self.extended_said = true;
                         log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");

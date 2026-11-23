@@ -829,6 +829,7 @@ fn a_connection_that_dies_on_the_naming_drops_the_naming_and_asks_again() {
     let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|a| a.operation == "SyncFolderItems").collect();
     assert!(asked.first().is_some_and(|a| a.body.contains("ExtendedFieldURI")), "the first page carried the naming");
     assert!(asked.iter().skip(1).all(|a| !a.body.contains("ExtendedFieldURI")), "the rest didn't: the death was read as the naming's");
+    assert!(pieces.iter().any(|piece| piece.naming_refused), "and the result says so, for the runner to remember across runs");
     assert!(
         pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Alive"),
         "the mail came down: the naming cost one page, not the run: {:?}",
@@ -863,5 +864,38 @@ fn a_folder_remembered_under_a_placeholder_is_never_asked_about() {
         state.requests.iter().filter(|a| a.operation == "SyncFolderItems").all(|a| !a.body.contains("id")),
         "no ask was ever spent on the placeholder: {:?}",
         state.requests.iter().filter(|a| a.operation == "SyncFolderItems").map(|a| a.body.as_str()).collect::<Vec<_>>()
+    );
+}
+
+/// The runner carries the lesson home: a request that says the naming was refused before asks
+/// for the mailbox without ever naming it. The server that crashes on the ask never gets a
+/// second chance to (#1784).
+#[test]
+fn a_run_that_earns_the_lesson_asks_the_whole_mailbox_without_the_naming() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.kills_extended = true;
+        for n in 0..3 {
+            s.deliver("inbox", &format!("After {n}"), false);
+        }
+    }
+    let request = EwsMailRequest { email: "ada@example.org".into(), url: URL.into(), list_folders: true, naming_refused: true, ..Default::default() };
+    let cancel = AtomicBool::new(false);
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| pieces.push(piece))).unwrap();
+    let state = standin.state();
+    assert!(
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").all(|a| !a.body.contains("ExtendedFieldURI")),
+        "not one ask carried it"
+    );
+    assert!(
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").all(|a| a.code == "NoError"),
+        "nothing died: nothing asked the way that dies"
+    );
+    assert_eq!(
+        pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).filter(|m| m.subject.starts_with("After ")).count(),
+        3,
+        "the whole mailbox, read clean"
     );
 }

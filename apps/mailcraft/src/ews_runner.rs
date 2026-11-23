@@ -517,15 +517,27 @@ impl Lap {
 }
 
 /// [`run_mail`] on this thread: every piece through `emit`.
+/// A server that won't have the read state named the MAPI way, learned the hard way: one page
+/// refused or one page dead per server per session, and no page after that pays it again. The
+/// live Kerio's servlet dies on the ask — every run that tried cost the server a restart and
+/// the mailbox a folder's worth of reading (#1784). Dies with the process; a restart probes once.
+static NAMING_REFUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &AtomicBool, emit: &mut dyn FnMut(EwsMailResult)) {
     let client = match client(&request.url, &request.username, &request.email, password) {
         Ok(client) => client,
         Err(why) => return emit(mailcraft_ews::failed_run(request, why)),
     };
+    let mut request = request.clone();
+    request.naming_refused = NAMING_REFUSED.load(std::sync::atomic::Ordering::Relaxed);
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
     let mut pause = |ms: u32| wait(cancel, ms);
     let mut lap = Lap::start(transport.requests_asked());
-    crate::block_on::block_on(mailcraft_ews::sync_mail(&client, &transport, request, cancel, &mut pause, &mut |piece| {
+    crate::block_on::block_on(mailcraft_ews::sync_mail(&client, &transport, &request, cancel, &mut pause, &mut |piece| {
+        if piece.naming_refused {
+            NAMING_REFUSED.store(true, std::sync::atomic::Ordering::Relaxed);
+            log::info!("ews: this server won't have the read state named the MAPI way; not asking again this session");
+        }
         let mut piece = settled(piece, transport.problem().as_ref(), transport.auth_problem());
         piece.timings = lap.take(phase_of(request.inbox_pass, &piece, lap.phase), transport.requests_asked());
         // How it signed in: File › Info says so.
