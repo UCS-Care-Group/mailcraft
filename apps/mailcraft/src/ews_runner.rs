@@ -542,8 +542,7 @@ pub(crate) fn run_mail_with(request: &EwsMailRequest, password: &str, cancel: &A
         Err(why) => return emit(mailcraft_ews::failed_run(request, why)),
     };
     let mut request = request.clone();
-    request.naming_refused = NAMING_REFUSED.load(std::sync::atomic::Ordering::Relaxed)
-        || naming_marker(&request.url).is_some_and(|p| p.exists());
+    request.naming_refused = NAMING_REFUSED.load(std::sync::atomic::Ordering::Relaxed) || naming_marker(&request.url).is_some_and(|p| p.exists());
     let transport = Transport::new(&request.trusted).with_ntlm(ntlm_key(&request.username, &request.email, password));
     let mut pause = |ms: u32| wait(cancel, ms);
     let mut lap = Lap::start(transport.requests_asked());
