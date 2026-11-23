@@ -343,6 +343,10 @@ pub struct ViewState {
     /// The Exchange server account whose organisation's address list People shows in place of
     /// the contacts (`people.addressBook`, #1262); none: the contacts.
     pub people_book: Option<Id>,
+    /// The contact folder (address book) People shows (`view.peopleFolder`); `None`: every
+    /// contact of the account chosen.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub people_folder: Option<Id>,
 }
 
 /// [`ViewState::unified`] from saved settings: a kind of folder, or none for anything else, so a
@@ -383,6 +387,7 @@ impl Default for ViewState {
             task_account: AccountChoice::All,
             people_account: AccountChoice::All,
             people_book: None,
+            people_folder: None,
         }
     }
 }

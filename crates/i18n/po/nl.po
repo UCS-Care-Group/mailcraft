@@ -680,6 +680,11 @@ msgstr "Een rapport wordt naast uw postbus weggeschreven."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "A rule kept on the server can't be changed here: delete it and make it again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs a name, and something to look for."
 msgstr "Een regel heeft een naam nodig, en iets om naar te zoeken."
@@ -1344,6 +1349,11 @@ msgstr "Alle verzonden items"
 #, fuzzy
 msgid "All accounts"
 msgstr "Alle accounts"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "All contacts"
+msgstr ""
 
 #. android, interface, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarWeek.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
@@ -3007,6 +3017,11 @@ msgstr "Automatische antwoorden wijzigen"
 msgid "Change Recurring Item"
 msgstr "Terugkerend item wijzigen"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+msgid "Change Rule"
+msgstr ""
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3043,6 +3058,11 @@ msgid "Change email address"
 msgstr "Wijzig e-mailadres"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change rule"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3065,6 +3085,11 @@ msgstr "De naam, de servers en de aanmelding van dit account wijzigen"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "De naam, de aanmelding en de offline te bewaren e-mail van dit account wijzigen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change this rule"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3687,16 +3712,36 @@ msgid "Contact Card"
 msgstr "Visitekaartje"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Contact folder name"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+msgid "Contact folder · {folder}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "Contactpersonen"
 
 #. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "Contacts (default)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contacts don't go to Deleted Items."
 msgstr "Contactpersonen gaan niet naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Contacts on this computer"
+msgstr ""
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
@@ -4357,6 +4402,11 @@ msgstr "Categorie verwijderen"
 #, fuzzy
 msgid "Delete Contact"
 msgstr "Contactpersoon verwijderen"
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Delete Contact Folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5817,7 +5867,7 @@ msgid "Fold the calendars of this group away"
 msgstr "De agenda's van deze groep invouwen"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Folder"
 msgstr "Map"
 
@@ -5869,8 +5919,8 @@ msgstr "Mapnaam"
 msgid "Folder {folder} ({n} of {of})"
 msgstr "Map {folder} ({n} van {of})"
 
-#. name
-#: crates/model/src/sync/progress.rs
+#. name, ribbon location
+#: crates/engine/src/cmd/people.rs crates/model/src/sync/progress.rs
 #, fuzzy
 msgid "Folders"
 msgstr "Mappen"
@@ -8133,6 +8183,11 @@ msgstr "Agenda's opsommen"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+msgid "List Contact Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/people.rs
 msgid "List Contacts"
 msgstr "Contactpersonen opsommen"
 
@@ -8880,6 +8935,11 @@ msgstr "Als gelezen markeren"
 msgid "Mark as Unread"
 msgstr "Als ongelezen markeren"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Mark as junk"
+msgstr ""
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
@@ -9356,6 +9416,11 @@ msgstr "Account verplaatsen"
 msgid "Move All and Send Invitations"
 msgstr "Alles verplaatsen en uitnodigingen verzenden"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+msgid "Move Contact to Folder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -9471,7 +9536,7 @@ msgid "Move to Category"
 msgstr "Naar categorie verplaatsen"
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Move to Folder"
 msgstr "Naar map verplaatsen"
 
@@ -9798,6 +9863,23 @@ msgstr "Nieuwe categorie"
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
 msgid "New Contact"
 msgstr "Nieuwe contactpersoon"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"New Contact\n"
+"Folder"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/people_view.rs
+msgid "New Contact Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "New Contact Folder…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/compose.rs
@@ -12973,6 +13055,11 @@ msgid "Rename Category"
 msgstr "Categorie hernoemen"
 
 #. command label, interface
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/dialogs.rs
+msgid "Rename Contact Folder"
+msgstr ""
+
+#. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 msgid "Rename Folder"
 msgstr "Map hernoemen"
@@ -13567,6 +13654,11 @@ msgstr "Bericht opslaan als…"
 #: crates/ui-egui/src/lib.rs
 msgid "Save Message File As"
 msgstr "Berichtbestand opslaan als"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Save Rule"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -14378,6 +14470,16 @@ msgstr "Afbeeldingen van afzenders"
 
 #. name
 #: crates/ui-egui/src/forms.rs
+msgid "Sender is in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Sender isn't in contacts"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Sender's address contains"
 msgstr "Adres van de afzender bevat"
@@ -14712,6 +14814,11 @@ msgstr "Weergeven als"
 #: crates/engine/src/cmd/calendar.rs
 msgid "Show Calendar"
 msgstr "Agenda weergeven"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contact Folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -16744,6 +16851,11 @@ msgstr "Het certificaat werd niet uitgegeven door een certificeringsautoriteit d
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
 msgstr "De verbindingstest controleert alleen of deze server antwoordt. Vraagt hij toch om inloggen, dan zegt het eerste bericht dat u verstuurt dat."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The contact folder \"{name}\" will be deleted. Its contacts will stay in All contacts."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -21032,6 +21144,11 @@ msgid "a colour is written #rrggbb"
 msgstr "een kleur wordt geschreven als #rrggbb"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "a contact folder needs a name"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "a contact needs a name, a company or an e-mail address"
@@ -21470,6 +21587,11 @@ msgstr "er kon geen beveiligde verbinding met {host} worden gemaakt: {reason}"
 msgid "couldn't reach {host}: {reason}"
 msgstr "{host} kon niet worden bereikt: {reason}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "create a contact folder first"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -21784,6 +21906,16 @@ msgstr "hij zoekt naar een naam, en de server kijkt alleen naar adressen"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "it looks in the address book, which only this computer has"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it marks mail as junk, which the server's rules can't do"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
 msgstr "hij verplaatst e-mail naar meer dan één map"
@@ -22003,6 +22135,11 @@ msgstr "geen agenda is op adres geopend"
 #, fuzzy
 msgid "no calendar with id {id}"
 msgstr "geen agenda met id {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "no contact folder with id {id}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
@@ -23705,6 +23842,11 @@ msgid "there are too many categories"
 msgstr "er zijn te veel categorieën"
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "there are too many contact folders"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "there are too many rules"
@@ -23973,6 +24115,11 @@ msgstr "dit bericht staat al in de map Uitgesteld"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verzend het daarna opnieuw"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule is kept on the server: delete it and make it again to change it"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

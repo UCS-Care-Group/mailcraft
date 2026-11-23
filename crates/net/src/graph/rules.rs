@@ -323,6 +323,9 @@ fn predicate(condition: &Condition) -> Result<(&'static str, Value), &'static st
         Condition::ToOrCcMe => ("sentToOrCcMe", json!(true)),
         Condition::NotToMe => ("notSentToMe", json!(true)),
         Condition::ReceivedBetween { .. } => return Err("the server's rules have no condition on the day mail came"),
+        Condition::FromInContacts(_) | Condition::FromNotInContacts(_) => {
+            return Err("the server's rules don't look in this computer's address book");
+        }
     })
 }
 
@@ -397,6 +400,7 @@ pub(super) fn rule_body(rule: &RemoteRule) -> Result<Value, &'static str> {
                 actions.insert("delete".into(), json!(true));
             }
             Action::Flag | Action::FlagFor(_) | Action::ClearFlag => return Err("the server's rules can't flag mail"),
+            Action::MarkJunk => return Err("the server's rules can't mark mail as junk"),
             Action::ClearCategories => return Err("the server's rules can't clear categories"),
             Action::MoveTo(_) | Action::CopyTo(_) => return Err("a folder a rule puts mail in is named by the server's id"),
         }

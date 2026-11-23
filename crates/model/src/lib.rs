@@ -72,7 +72,7 @@ pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
-pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use contact::{Contact, ContactFolder, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};
@@ -84,10 +84,10 @@ pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, DRAFT_MOVED_INTO_OUTBOX, Directory, DownloadInFull,
     FOLDERS_NOT_DELETED_YET, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, FollowUp, FollowUpsSettled, GREY_CATEGORY, GraphSwitch, IMPORTED,
-    INTO_OUTBOX, ImapStatus, MAX_CATEGORIES, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD,
-    MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, PendingFollowUp,
-    Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, categories_read_only_text, category_key, lead_rank, leads,
-    sort_as_listed,
+    INTO_OUTBOX, ImapStatus, MAX_CATEGORIES, MAX_CONTACT_FOLDERS, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED,
+    MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending,
+    PendingFollowUp, Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, categories_read_only_text, category_key, lead_rank,
+    leads, sort_as_listed,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -102,8 +102,8 @@ pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
-    Action, Condition, FlagDue, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting,
-    ServerRule, Words, fold_exceptions, same_word,
+    Action, Condition, ContactBook, FlagDue, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting,
+    RulesWaiting, ServerRule, Words, fold_exceptions, same_word,
 };
 pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;

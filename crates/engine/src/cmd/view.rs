@@ -75,6 +75,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.peopleAccount", "Show Contacts Of", "People", people_account)
             .reads()
             .params(r#"{"value": "all" | "here" | number} — every account's contacts, those kept on this computer (0 is the same), or one account's"#),
+        CommandSpec::new("view.peopleFolder", "Show Contact Folder", "People", people_folder)
+            .reads()
+            .params(r#"{"value": number | null} — People lists only the contacts in this contact folder (address book); null or 0 lists every contact again"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
     ];
@@ -410,12 +413,31 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("that account's contacts aren't read from its server"));
     }
     s.view.people_account = value;
-    // The contacts, and no longer the organisation's address list.
+    // The contacts, and no longer the organisation's address list or one contact folder.
     s.view.people_book = None;
+    s.view.people_folder = None;
     // The selected contact stays selected only where it is listed.
     let shown = people::shown_account(s);
     s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
     Ok(json!({"value": value.code()}))
+}
+
+fn people_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let value = match v.get("value") {
+        Some(Value::Null) => None,
+        Some(val) if val.as_u64() == Some(0) => None,
+        Some(_) => {
+            let id = p::req_id(v, "value")?;
+            s.mailbox.contact_folder(id).ok_or_else(|| bad("no contact folder with that id"))?;
+            Some(id)
+        }
+        None => return Err(bad("`value` is a contact folder id, 0 or null")),
+    };
+    s.view.people_book = None;
+    s.view.people_folder = value;
+    let shown: Vec<mailcraft_model::Id> = people::sorted(s, "");
+    s.sel.contact = s.sel.contact.filter(|id| shown.contains(id));
+    Ok(json!({"value": value, "contacts": shown.len()}))
 }
 
 fn reset(s: &mut Session, _: &Value) -> CmdResult {

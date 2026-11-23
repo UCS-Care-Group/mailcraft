@@ -214,3 +214,51 @@ fn an_always_move_name_follows_the_folder_when_rules_for_is_switched() {
         assert_eq!(f.name, if own { "Alice's mail" } else { "Alice to Archive" });
     }
 }
+
+/// A rule loaded into the builder comes back out as the same rule, for `rules.edit`.
+#[test]
+fn a_rule_loaded_to_change_is_spelled_out_again() {
+    let mut s = session();
+    let bob = s.run("people.new", &json!({"first": "Bob", "categories": ["Blocked"]})).unwrap();
+    assert!(bob["id"].is_u64());
+    let mut f = RulesForm::new(&s, &json!({}));
+    let receipts = folder_id(&s, "Receipts");
+    let rule = Rule {
+        id: 4242,
+        name: "Blocked".into(),
+        enabled: true,
+        conditions: vec![
+            Condition::FromInContacts(mailcraft_model::ContactBook { account: None, folder: None, category: "Blocked".into() }),
+            Condition::SubjectContains(vec!["offer".into()]),
+        ],
+        actions: vec![Action::MarkRead, Action::MoveTo(receipts), Action::MarkJunk],
+        stop: true,
+        ..Default::default()
+    };
+    f.load(&rule);
+    assert!(f.open && f.lacks().is_none());
+    let (command, params) = f.command();
+    assert_eq!(command, "rules.edit");
+    assert_eq!(
+        params,
+        json!({
+            "id": 4242,
+            "name": "Blocked",
+            "conditions": [
+                {"type": "fromInContacts", "value": {"category": "Blocked"}},
+                {"type": "subjectContains", "value": "offer"},
+            ],
+            "actions": [{"type": "markRead"}, {"type": "moveTo", "value": receipts}, {"type": "markJunk"}],
+            "stop": true,
+        })
+    );
+    // A book no contact is in any more is kept for the change.
+    let gone = Rule {
+        conditions: vec![Condition::FromNotInContacts(mailcraft_model::ContactBook { account: Some(0), folder: None, category: "Old".into() })],
+        ..rule
+    };
+    f.load(&gone);
+    assert_eq!(f.command().1["conditions"][0], json!({"type": "fromNotInContacts", "value": {"account": 0, "category": "Old"}}));
+    f.reset();
+    assert_eq!(f.command().0, "rules.add");
+}

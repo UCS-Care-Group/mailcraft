@@ -56,7 +56,7 @@ fn escape_on_a_list_in_a_dialog_leaves_the_dialog() {
         let mut h = window("view.people");
         run(&mut h, "ui.dialog", json!({"name": "contact"}));
         testing::text(&mut h, "Ada");
-        h.get_all_by_role(egui::accesskit::Role::ComboBox).next().unwrap().click();
+        h.get_all_by_role(egui::accesskit::Role::ComboBox).last().unwrap().click();
         h.run_steps(3);
         assert!(egui::Popup::is_any_open(&h.ctx), "{how}: the list is open");
         press(&mut h, Key::Escape);

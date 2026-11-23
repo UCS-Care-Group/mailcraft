@@ -311,6 +311,7 @@ const SAFE: &[&str] = &[
     // (People shows the address list; nothing is looked up for an agent: only what the owner types
     // in the window's search box is, #1262.)
     "people.addressBook",
+    "view.peopleFolder",
     "view.reset",
     "view.inspect",
     "view.days",
@@ -377,6 +378,10 @@ const SAFE: &[&str] = &[
     // People and tasks.
     "people.new",
     "people.edit",
+    "people.newFolder",
+    "people.renameFolder",
+    "people.listFolders",
+    "people.move",
     "people.select",
     "people.get",
     "people.list",
@@ -505,6 +510,7 @@ const DELETE: &[&str] = &[
     // undo is short-lived (what a server has been told of events and tasks clears it).
     "calendar.delete",
     "people.delete",
+    "people.deleteFolder",
     // A merge removes the contacts merged into the kept one.
     "people.merge",
     "tasks.delete",
@@ -581,6 +587,7 @@ const SETTINGS: &[&str] = &[
     "sync.waitBeforeSending",
     "calendar.deleteAnsweredRequests",
     "rules.add",
+    "rules.edit",
     "rules.remove",
     "rules.enable",
     "rules.list",
@@ -2971,6 +2978,11 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 "permanently delete the contact {}; contacts don't go to Deleted Items",
                 c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
             )
+        }
+        "people.deleteFolder" => {
+            let folder = p::id_strict(params, "id").ok().flatten().or(s.view.people_folder).and_then(|id| s.mailbox.contact_folder(id));
+            let label = folder.map(|f| quoted(&f.name)).unwrap_or_else(|| "(none selected)".to_string());
+            format!("delete the contact folder {label} (its contacts stay in its parent or All contacts)")
         }
         "people.merge" => {
             let name = |c: Option<u64>| c.and_then(|c| s.mailbox.contact(c)).map(|c| quoted(&c.name())).unwrap_or_else(|| "(none)".to_string());

@@ -25,7 +25,10 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} (to Deleted Items; mail there already stays)], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account of the folder in view, a shared mailbox's owner's), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [condition] (at most 20, as exceptions and actions), "exceptions"?: [condition] (any one of them holding leaves the message alone), "actions": [{"type": "moveTo"|"copyTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "flagFor", "value": "today"|"tomorrow"|"thisWeek"|"nextWeek"} | {"type": "clearFlag"} | {"type": "clearCategories"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"} (to Deleted Items; mail there already stays) | {"type": "markJunk"} (to the account's Junk E-mail)], "stop"?: bool, "alert"?: bool (a desktop alert for the mail it acts on as it arrives), "account"?: number (whose arriving mail it is for; default: the account of the folder in view, a shared mailbox's owner's), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)}, where a condition is {"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains"|"subjectOrBodyContains", "value": string or [string] (any one of the words)} | {"type": "from"|"sentTo", "value": address or [address]} | {"type": "category", "value": string or [string]} | {"type": "sentOnlyToMe"|"toMe"|"ccMe"|"toOrCcMe"|"notToMe"|"hasAttachment"|"meetingRequest"|"automaticReply"|"flagged"} | {"type": "importance", "value": "high"|"normal"|"low"} | {"type": "sensitivity", "value": "normal"|"personal"|"private"|"confidential"} | {"type": "sizeBetween", "value": {"min": KB, "max": KB}} | {"type": "receivedBetween", "value": {"from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (the days in the calendar's time zone, both included)} | {"type": "fromInContacts"|"fromNotInContacts", "value"?: {"account"?: number, "folder"?: number, "category"?: string}} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+        ),
+        CommandSpec::new("rules.edit", "Change Rule", "Home › Move", edit).params(
+            r#"{"id": number, "name": string, "conditions": [...], "exceptions"?: [...], "actions": [...], "stop"?: bool, "alert"?: bool} (as for `rules.add`) — the rule's name, conditions, exceptions, actions, Stop processing and desktop alert are replaced; it stays where it is in the list, switched on or off as it was, for the same account. A rule its account's server has is changed by deleting it and making it again"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -88,6 +91,10 @@ pub enum NotOnServer {
     /// Two exceptions of one kind that look for other things (two importances, say): the server
     /// takes one of each kind.
     TwoExceptionsOfAKind,
+    /// It looks in the address book, which the server doesn't have.
+    Contacts,
+    /// It marks mail as junk, which the server's rules don't.
+    Junk,
 }
 
 impl NotOnServer {
@@ -114,6 +121,8 @@ impl NotOnServer {
             NotOnServer::Flagged => "the server can't look at whether you flagged mail",
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
+            NotOnServer::Contacts => "it looks in the address book, which only this computer has",
+            NotOnServer::Junk => "it marks mail as junk, which the server's rules can't do",
         }
     }
 }
@@ -123,6 +132,12 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     if !mb.keeps_rules(account) {
         let imap = mb.account(account).is_some_and(|a| a.on_imap_with_microsoft() && !a.is_shared());
         return Some(if imap { NotOnServer::NotInStep } else { NotOnServer::NoServer });
+    }
+    if rule.conditions.iter().chain(&rule.exceptions).any(Condition::reads_contacts) {
+        return Some(NotOnServer::Contacts);
+    }
+    if rule.actions.contains(&Action::MarkJunk) {
+        return Some(NotOnServer::Junk);
     }
     let kind = |c: &Condition| std::mem::discriminant(c);
     if rule.conditions.iter().enumerate().any(|(i, c)| rule.conditions.iter().skip(i + 1).any(|d| kind(c) == kind(d))) {
@@ -182,7 +197,7 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
                 }
                 importance = Some(*i);
             }
-            Action::Categorize(_) | Action::MarkRead | Action::Delete => {}
+            Action::Categorize(_) | Action::MarkRead | Action::Delete | Action::MarkJunk => {}
         }
     }
     match (moves > 1, copies > 1) {
@@ -279,6 +294,25 @@ fn kb(v: &Value, key: &str) -> Result<u64, CmdError> {
         .ok_or_else(|| bad(format!("sizeBetween needs `{key}`: a size in KB")))
 }
 
+/// The address book an address-book condition looks in: `{"account"?: id (0: this computer's
+/// contacts), "category"?: string}` under `value`, or nothing for every contact.
+fn book(v: &Value) -> Result<mailcraft_model::ContactBook, CmdError> {
+    let Some(b) = v.get("value").filter(|b| !b.is_null()) else { return Ok(Default::default()) };
+    if !b.is_object() {
+        return Err(bad("an address book is {\"account\"?: number, \"folder\"?: number, \"category\"?: string}"));
+    }
+    let account = match b.get("account").filter(|a| !a.is_null()) {
+        None => None,
+        Some(a) => Some(a.as_u64().ok_or_else(|| bad("an address book's `account` is an account id, or 0 for this computer's contacts"))?),
+    };
+    let folder = match b.get("folder").filter(|f| !f.is_null()) {
+        None => None,
+        Some(f) => Some(f.as_u64().filter(|id| *id != 0).ok_or_else(|| bad("an address book's `folder` is a contact folder id"))?),
+    };
+    let category: String = p::str(b, "category").unwrap_or("").trim().chars().take(200).collect();
+    Ok(mailcraft_model::ContactBook { account, folder, category })
+}
+
 fn condition(v: &Value) -> Result<Condition, CmdError> {
     // A part named wrongly is refused, not left out: a rule without it acts on more mail (#566).
     p::only(v, &["type", "value"])?;
@@ -334,6 +368,8 @@ fn condition(v: &Value) -> Result<Condition, CmdError> {
                 _ => Condition::ReceivedBetween { from, to },
             }
         }
+        "fromInContacts" => Condition::FromInContacts(book(v)?),
+        "fromNotInContacts" => Condition::FromNotInContacts(book(v)?),
         other => return Err(bad(format!("unknown condition type \"{other}\""))),
     })
 }
@@ -361,6 +397,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
             Action::SetImportance(Importance::parse(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("importance is low, normal or high"))?)
         }
         "delete" => alone(v, kind, Action::Delete)?,
+        "markJunk" => alone(v, kind, Action::MarkJunk)?,
         other => return Err(bad(format!("unknown action type \"{other}\""))),
     })
 }
@@ -512,6 +549,52 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     let keep = if rule.keep == Keep::Server { "server" } else { "here" };
     s.mailbox.rules.push(rule);
     Ok(json!({"id": id, "keep": keep}))
+}
+
+fn edit(s: &mut Session, v: &Value) -> CmdResult {
+    p::only(v, &["id", "name", "conditions", "exceptions", "actions", "stop", "alert"])?;
+    let id = p::req_id(v, "id")?;
+    let i = changeable(s, id)?;
+    let old = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
+    if old.on_server() || old.keep == Keep::Server {
+        return Err(fail("this rule is kept on the server: delete it and make it again to change it"));
+    }
+    let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
+    let list = |key: &str| v.get(key).and_then(Value::as_array);
+    let conditions = list("conditions").ok_or_else(|| bad("`conditions` (a list) is required"))?;
+    if conditions.len() > MOST_PARTS {
+        return Err(bad(format!("`conditions` has more than {MOST_PARTS}")));
+    }
+    let conditions = conditions.iter().map(condition).collect::<Result<Vec<_>, _>>()?;
+    let exceptions = match v.get("exceptions") {
+        None | Some(Value::Null) => old.exceptions.clone(),
+        Some(Value::Array(items)) => {
+            if items.len() > MOST_PARTS {
+                return Err(bad(format!("`exceptions` has more than {MOST_PARTS}")));
+            }
+            mailcraft_model::fold_exceptions(items.iter().map(condition).collect::<Result<Vec<_>, _>>()?)?
+        }
+        Some(_) => return Err(bad("`exceptions` is a list of conditions")),
+    };
+    let actions = list("actions").ok_or_else(|| bad("`actions` (a list) is required"))?;
+    if actions.len() > MOST_PARTS {
+        return Err(bad(format!("`actions` has more than {MOST_PARTS}")));
+    }
+    let actions = once_each(actions.iter().map(|a| action(s, a)).collect::<Result<Vec<_>, _>>()?);
+    let alert = p::opt_bool(v, "alert")?.unwrap_or(old.alert);
+    if conditions.is_empty() || (actions.is_empty() && !alert) {
+        return Err(bad("a rule needs at least one condition, and an action or a desktop alert (`alert`)"));
+    }
+    let stop = p::opt_bool(v, "stop")?.unwrap_or(old.stop);
+    let r = s.mailbox.rules.get_mut(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
+    r.name = name;
+    r.conditions = conditions;
+    r.exceptions = exceptions;
+    r.actions = actions;
+    r.stop = stop;
+    r.alert = alert;
+    r.refused.clear();
+    Ok(json!({"id": id, "keep": "here"}))
 }
 
 fn changeable(s: &Session, id: Id) -> Result<usize, CmdError> {

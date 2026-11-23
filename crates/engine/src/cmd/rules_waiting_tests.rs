@@ -1419,7 +1419,7 @@ Content-Type: application/octet-stream; name=\"big.bin\"\r\nContent-Disposition:
 /// version is here, the rules go by it.
 #[test]
 fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until_it_is_fetched() {
-    use mailcraft_model::{Action, Condition, Importance, Matching, Rule, Sensitivity};
+    use mailcraft_model::{Action, Condition, ContactBook, Importance, Matching, Rule, Sensitivity};
     let conditions = [
         Condition::FromContains(vec!["ada".into()]),
         Condition::ToContains(vec!["ben".into()]),
@@ -1442,6 +1442,8 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Category(vec!["Blue".into()]),
         Condition::Flagged,
         Condition::ReceivedBetween { from: None, to: None },
+        Condition::FromInContacts(ContactBook::default()),
+        Condition::FromNotInContacts(ContactBook::default()),
     ];
     // Every kind of condition is in the list: the match has no catch-all, so a new kind can't be
     // left out of it.
@@ -1467,6 +1469,8 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Category(_) => 18,
         Condition::Flagged => 19,
         Condition::ReceivedBetween { .. } => 20,
+        Condition::FromInContacts(_) => 21,
+        Condition::FromNotInContacts(_) => 22,
     };
     assert_eq!(conditions.iter().map(kind).collect::<Vec<_>>(), (0..conditions.len()).collect::<Vec<_>>());
     for sent in [false, true] {
@@ -1526,7 +1530,7 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         assert!(m.unfetched && m.stale, "sent {sent}");
         // Nothing of it is dropped meanwhile.
         assert!(m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty() && m.has_header("Sensitivity"), "sent {sent}: {m:?}");
-        let how = Matching { addresses_only: false, me: ME, zone: s.zone() };
+        let how = Matching { addresses_only: false, me: ME, zone: s.zone(), ..Default::default() };
         for c in &conditions {
             assert!(!c.holds_in(m, &how) && c.unread_in(m), "sent {sent}: {c:?}");
             let when = Rule { enabled: true, conditions: vec![c.clone()], actions: vec![Action::MarkRead], ..Default::default() };

@@ -56,6 +56,20 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one) — a new contact is kept on this computer; the list moves to show the contact"#)
             .selection(needs_message),
+        CommandSpec::new("people.newFolder", "New Contact Folder", "People › Folders", new_folder)
+            .params(r#"{"name": string, "parent"?: number} — creates a local contact folder (address book) and switches People to show it"#),
+        CommandSpec::new("people.renameFolder", "Rename Contact Folder", "People › Folders", rename_folder)
+            .params(r#"{"id"?: number (default: the contact folder currently shown in People), "name": string} — renames the contact folder"#)
+            .when(needs_contact_folder),
+        CommandSpec::new("people.deleteFolder", "Delete Contact Folder", "People › Folders", delete_folder)
+            .params(r#"{"id"?: number (default: the contact folder currently shown in People)} — deletes the contact folder; its contacts stay in its parent (or All contacts)"#)
+            .when(needs_contact_folder),
+        CommandSpec::new("people.listFolders", "List Contact Folders", "People › Folders", list_folders)
+            .pure()
+            .params(r#"{} — lists every contact folder with its id, name, parent, path and contact count"#),
+        CommandSpec::new("people.move", "Move Contact to Folder", "People › Folders", move_contact)
+            .params(r#"{"id"?: number (default: the selected contact), "folder": number | null (0 or null: default / unfiled)} — moves a contact into another contact folder"#)
+            .selection(needs_contact),
     ]
 }
 
@@ -123,6 +137,11 @@ pub(crate) fn reveal(s: &mut Session, id: Id) {
     let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
     s.view.people_book = None;
+    if let Some(folder) = s.view.people_folder
+        && c.folder != folder
+    {
+        s.view.people_folder = None;
+    }
     let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
     if hidden {
         s.view.people_account = choice;
@@ -257,9 +276,25 @@ fn apply(c: &mut Contact, v: &Value) -> Result<(), CmdError> {
     Ok(())
 }
 
+fn folder_param(s: &Session, v: &Value) -> Result<Option<Id>, CmdError> {
+    match v.get("folder") {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(0)),
+        Some(val) if val.as_u64() == Some(0) => Ok(Some(0)),
+        Some(_) => {
+            let id = p::req_id(v, "folder")?;
+            s.mailbox.contact_folder(id).ok_or_else(|| failed!("no contact folder with id {id}", id))?;
+            Ok(Some(id))
+        }
+    }
+}
+
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let mut c = Contact::default();
     apply(&mut c, v)?;
+    if let Some(folder) = folder_param(s, v)? {
+        c.folder = folder;
+    }
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
@@ -279,6 +314,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let had = c.categories.clone();
     apply(&mut c, v)?;
+    if let Some(folder) = folder_param(s, v)? {
+        c.folder = folder;
+    }
     if c.name().is_empty() {
         return Err(fail("a contact needs a name, a company or an e-mail address"));
     }
@@ -292,7 +330,83 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 /// The contacts the People list shows, in its order ([`sorted_of`]): `people.list` and the
 /// neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
-    sorted_of(s, query, shown_account(s))
+    let ids = sorted_of(s, query, shown_account(s));
+    let Some(folder) = shown_folder(s) else {
+        return ids;
+    };
+    ids.into_iter().filter(|id| s.mailbox.contact(*id).is_some_and(|c| c.folder == folder)).collect()
+}
+
+/// The contact folder currently shown in People, while it still exists.
+pub fn shown_folder(s: &Session) -> Option<Id> {
+    s.view.people_folder.filter(|id| s.mailbox.contact_folder(*id).is_some())
+}
+
+fn needs_contact_folder(s: &Session) -> Option<&'static str> {
+    if shown_folder(s).is_none() && s.mailbox.contact_folders.is_empty() { Some("create a contact folder first") } else { None }
+}
+
+fn new_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let raw = p::req_str(v, "name")?;
+    let parent = match v.get("parent") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(p::req_id(v, "parent")?),
+    };
+    let id = s.mailbox.add_contact_folder(raw, parent)?;
+    let path = s.mailbox.contact_folder_path(id);
+    let name = s.mailbox.contact_folder(id).map(|f| f.name.clone()).unwrap_or_default();
+    s.view.people_book = None;
+    s.view.people_folder = Some(id);
+    s.sel.contact = None;
+    Ok(json!({"id": id, "name": name, "path": path}))
+}
+
+fn folder_target(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let id = p::id_strict(v, "id")?.or_else(|| shown_folder(s)).ok_or_else(|| bad("`id` is required when no contact folder is selected"))?;
+    s.mailbox.contact_folder(id).map(|f| f.id).ok_or_else(|| failed!("no contact folder with id {id}", id))
+}
+
+fn rename_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let id = folder_target(s, v)?;
+    let to = p::req_str(v, "name")?;
+    let renamed = s.mailbox.rename_contact_folder(id, to)?;
+    Ok(json!({"id": id, "name": renamed, "path": s.mailbox.contact_folder_path(id)}))
+}
+
+fn delete_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let id = folder_target(s, v)?;
+    let gone = s.mailbox.contact_folder_subtree(id);
+    let contacts = s.mailbox.remove_contact_folder(id)?;
+    if s.view.people_folder.is_some_and(|cur| gone.contains(&cur)) {
+        s.view.people_folder = None;
+    }
+    Ok(json!({"id": id, "contacts": contacts}))
+}
+
+fn list_folders(s: &mut Session, _: &Value) -> CmdResult {
+    let folders: Vec<Value> = s
+        .mailbox
+        .contact_folders_sorted()
+        .into_iter()
+        .map(|f| {
+            let count = s.mailbox.contacts.values().filter(|c| c.folder == f.id).count();
+            json!({
+                "id": f.id,
+                "name": f.name,
+                "parent": f.parent,
+                "path": s.mailbox.contact_folder_path(f.id),
+                "contacts": count,
+            })
+        })
+        .collect();
+    Ok(json!({"folders": folders}))
+}
+
+fn move_contact(s: &mut Session, v: &Value) -> CmdResult {
+    let id = own_target(s, v)?;
+    let folder = folder_param(s, v)?.ok_or_else(|| bad("`folder` is a contact folder id, 0 or null"))?;
+    s.mailbox.move_contact(id, folder)?;
+    Ok(json!({"id": id, "folder": folder}))
 }
 
 /// Contacts of `account` in the People list's order: by name, favourites first; arranged by
@@ -341,7 +455,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 
 fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
     json!({
-        "id": c.id, "name": c.name(), "fileAs": c.file_as(), "first": c.first, "middle": c.middle, "last": c.last, "displayName": c.display_name,
+        "id": c.id, "folder": c.folder, "name": c.name(), "fileAs": c.file_as(), "first": c.first, "middle": c.middle, "last": c.last, "displayName": c.display_name,
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,

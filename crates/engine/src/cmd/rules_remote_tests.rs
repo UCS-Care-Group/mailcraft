@@ -2858,3 +2858,160 @@ fn a_junk_change_asked_as_a_send_needs_settings_too() {
     assert!(matches!(check(&s, "junk.remove", &params, &[Class::Send]), Verdict::Ask(Class::Settings, _)));
     assert_eq!(check(&s, "junk.remove", &params, &[Class::Send, Class::Settings]), Verdict::Run);
 }
+
+/// `rules.add` takes Thunderbird's address-book conditions and Mark as junk; such a rule stays on
+/// this computer (the server has no address book and doesn't junk mail), and runs.
+#[test]
+fn address_book_rule_is_made_here_and_runs() {
+    let (mut s, account, _, _) = session();
+    let params = json!({
+        "name": "Strangers to Junk",
+        "account": account,
+        "conditions": [{"type": "fromNotInContacts", "value": {"account": 0}}],
+        "actions": [{"type": "markRead"}, {"type": "markJunk"}],
+    });
+    let made = run(&mut s, "rules.add", params);
+    assert_eq!(made["keep"], "here");
+    let id = made["id"].as_u64().unwrap();
+    assert_eq!(
+        rule(&s, id).conditions,
+        [Condition::FromNotInContacts(mailcraft_model::ContactBook { account: Some(0), folder: None, category: String::new() })]
+    );
+    assert_eq!(rule(&s, id).actions, [Action::MarkRead, Action::MarkJunk]);
+    // Asking for it on the server says why it can't be.
+    let refused = s.run(
+        "rules.add",
+        &json!({"name": "x", "account": account, "server": true, "conditions": [{"type": "fromInContacts"}], "actions": [{"type": "flag"}]}),
+    );
+    assert!(refused.unwrap_err().to_string().contains("address book"));
+    // A book that isn't an object is refused.
+    assert!(
+        s.run("rules.add", &json!({"name": "x", "conditions": [{"type": "fromInContacts", "value": 3}], "actions": [{"type": "flag"}]})).is_err()
+    );
+    // It runs: a stranger's mail goes to Junk E-mail, read; a contact's stays.
+    run(&mut s, "people.new", json!({"first": "Bob", "emails": [{"label": "work", "value": "bob@example.org"}]}));
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
+    let from = |email: &str| Message { account, folder: inbox, from: Address::new("", email), subject: "x".into(), ..Default::default() };
+    let eve = s.mailbox.add_message(from("eve@example.net")).unwrap();
+    let bob = s.mailbox.add_message(from("bob@example.org")).unwrap();
+    let clock = s.rule_clock();
+    assert_eq!(s.mailbox.apply_rules(eve, &clock), ["Strangers to Junk"]);
+    assert!(s.mailbox.apply_rules(bob, &clock).is_empty());
+    assert_eq!((s.mailbox.message(eve).unwrap().folder, s.mailbox.message(eve).unwrap().read), (junk, true));
+    assert_eq!(s.mailbox.message(bob).unwrap().folder, inbox);
+}
+
+/// `rules.edit` changes a rule kept here in place; one kept on the server is refused.
+#[test]
+fn a_rule_kept_here_is_changed_in_place() {
+    let (mut s, account, _, news) = session();
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({"name": "a", "account": account, "server": false,
+        "conditions": [{"type": "fromContains", "value": "x@example.org"}], "actions": [{"type": "flag"}]}),
+    );
+    let id = made["id"].as_u64().unwrap();
+    let at = s.mailbox.rules.iter().position(|r| r.id == id).unwrap();
+    run(&mut s, "rules.enable", json!({"id": id, "value": false}));
+    run(
+        &mut s,
+        "rules.edit",
+        json!({"id": id, "name": "Strangers", "stop": true,
+        "conditions": [{"type": "fromNotInContacts", "value": {"category": "Friends"}}], "actions": [{"type": "markJunk"}]}),
+    );
+    let r = rule(&s, id);
+    assert_eq!(r.name, "Strangers");
+    assert!(r.stop && !r.enabled && r.account == account && r.keep == Keep::Here);
+    assert_eq!(r.actions, [Action::MarkJunk]);
+    assert_eq!(s.mailbox.rules.iter().position(|r| r.id == id), Some(at));
+    assert!(s.run("rules.edit", &json!({"id": id, "name": "x", "conditions": [], "actions": [{"type": "flag"}]})).is_err());
+    assert!(
+        s.run("rules.edit", &json!({"id": 999_999, "name": "x", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "flag"}]})).is_err()
+    );
+    let there = run(
+        &mut s,
+        "rules.add",
+        json!({"name": "b", "account": account,
+        "conditions": [{"type": "fromContains", "value": "y@example.org"}], "actions": [{"type": "moveTo", "value": news}]}),
+    );
+    assert_eq!(there["keep"], "server");
+    let e =
+        s.run("rules.edit", &json!({"id": there["id"], "name": "c", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]}));
+    assert!(e.unwrap_err().to_string().contains("server"));
+}
+
+/// People shows one contact folder (address book) at a time when asked.
+#[test]
+fn people_shows_one_address_book() {
+    let mut s = Session::empty();
+    let blocked = run(&mut s, "people.newFolder", json!({"name": "Blocked"}))["id"].as_u64().unwrap();
+    let bob = run(&mut s, "people.new", json!({"first": "Bob", "folder": blocked}))["id"].as_u64().unwrap();
+    let ada = run(&mut s, "people.new", json!({"first": "Ada"}))["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.contact_folders.len(), 1);
+    let shown = run(&mut s, "view.peopleFolder", json!({"value": blocked}));
+    assert_eq!((shown["value"].as_u64(), shown["contacts"].as_u64()), (Some(blocked), Some(1)));
+    assert_eq!(crate::cmd::people::sorted(&s, ""), [bob]);
+    assert!(s.run("view.peopleFolder", &json!({"value": 999_999})).is_err());
+    // Picking a contact outside it shows every contact again.
+    crate::cmd::people::reveal(&mut s, ada);
+    assert_eq!(s.view.people_folder, None);
+    run(&mut s, "view.peopleFolder", json!({"value": blocked}));
+    run(&mut s, "view.peopleAccount", json!({"value": "all"}));
+    assert_eq!(crate::cmd::people::sorted(&s, "").len(), 2);
+}
+
+/// First-class contact folders (address books) can be created empty (or nested), renamed,
+/// hold contacts via `Contact::folder` (separate from colour categories), be targeted by rules,
+/// and deleted without losing contacts.
+#[test]
+fn contact_folders_create_rename_and_delete() {
+    let mut s = Session::empty();
+    let vip = run(&mut s, "people.newFolder", json!({"name": "VIP"}))["id"].as_u64().unwrap();
+    assert_eq!(s.view.people_folder, Some(vip));
+    // Duplicate (case-insensitive) and empty names are refused.
+    assert!(s.run("people.newFolder", &json!({"name": "vip"})).is_err());
+    assert!(s.run("people.newFolder", &json!({"name": "   "})).is_err());
+    // Nested subfolder under VIP.
+    let sub = run(&mut s, "people.newFolder", json!({"name": "Europe", "parent": vip}))["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.contact_folder_path(sub), "VIP/Europe");
+    // Contact lives in folder `vip` while keeping colour categories independent.
+    let c = run(&mut s, "people.new", json!({"first": "Alice", "email": "alice@example.org", "folder": vip, "categories": ["Blue category"]}))["id"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(s.mailbox.contact(c).unwrap().folder, vip);
+    assert_eq!(s.mailbox.contact(c).unwrap().categories, ["Blue category"]);
+    // Moving contact to subfolder and back.
+    run(&mut s, "people.move", json!({"id": c, "folder": sub}));
+    assert_eq!(s.mailbox.contact(c).unwrap().folder, sub);
+    run(&mut s, "people.move", json!({"id": c, "folder": vip}));
+    assert_eq!(s.mailbox.contact(c).unwrap().folder, vip);
+    // Rule targeting folder id works and stays valid across rename.
+    let r = run(
+        &mut s,
+        "rules.add",
+        json!({
+            "name": "VIP mail",
+            "conditions": [{"type": "fromInContacts", "value": {"folder": vip}}],
+            "actions": [{"type": "flag"}],
+        }),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    run(&mut s, "people.renameFolder", json!({"id": vip, "name": "Key Clients"}));
+    assert_eq!(s.mailbox.contact_folder_path(sub), "Key Clients/Europe");
+    assert_eq!(
+        rule(&s, r).conditions,
+        [Condition::FromInContacts(mailcraft_model::ContactBook { account: None, folder: Some(vip), category: String::new() })]
+    );
+    // Deleting the parent folder deletes its subfolder and moves contacts to default (0) without losing them.
+    let gone = run(&mut s, "people.deleteFolder", json!({"id": vip}));
+    assert_eq!((gone["id"].as_u64(), gone["contacts"].as_u64()), (Some(vip), Some(1)));
+    assert_eq!(s.view.people_folder, None);
+    assert!(s.mailbox.contact_folders.is_empty());
+    assert_eq!(s.mailbox.contact(c).unwrap().folder, 0);
+    assert_eq!(s.mailbox.contact(c).unwrap().categories, ["Blue category"]);
+    // Deleting an unknown folder is refused.
+    assert!(s.run("people.deleteFolder", &json!({"id": 999_999})).is_err());
+}
