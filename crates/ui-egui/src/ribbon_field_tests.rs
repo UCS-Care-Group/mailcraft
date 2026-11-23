@@ -9,7 +9,7 @@ use mailcraft_engine::Session;
 use serde_json::json;
 
 use crate::MailApp;
-use crate::ribbon::hit_id;
+use crate::ribbon::{self, Menu, hit_id};
 
 type Harness = egui_kittest::Harness<'static, MailApp>;
 
@@ -114,6 +114,70 @@ fn an_item_of_a_menu_with_a_field_still_shuts_it() {
     assert!(!egui::Popup::is_any_open(&harness.ctx), "Automatic, chosen, shuts the menu");
 }
 
+/// Every menu the ribbon can open, in the order it shows them, with the sample mailbox in view.
+fn ribbon_menus() -> Vec<Menu> {
+    let mut app = app();
+    // A composition open, so the tabs a message being written brings are asked about too.
+    let _ = app.run("mail.new", json!({}));
+    let mut out: Vec<Menu> = Vec::new();
+    for name in ribbon::tabs(&app) {
+        let tab = ribbon::describe_tab(&app, name);
+        for button in ribbon::row(&tab) {
+            for menu in ribbon::button_menus(&button) {
+                if !out.contains(&menu) {
+                    out.push(menu);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether `menu`'s contents draw a field to type in — its own contents, or, when `under` names
+/// one, the contents of the submenu of that name inside it. A message is selected and a
+/// composition open, as they are when these menus are used.
+fn draws_a_field(menu: Menu, under: Option<&str>) -> bool {
+    let mut state = app();
+    let _ = state.run("mail.new", json!({}));
+    if let Some(id) = state.session.mailbox.messages.keys().next().copied() {
+        let _ = state.run("mail.select", json!({"id": id}));
+    }
+    let mut harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .allow_missing_glyphs()
+        .with_size(egui::vec2(420.0, 800.0))
+        .build_ui_state(|ui, app: &mut MailApp| ribbon::menu_contents(ui, app, menu), state);
+    harness.run_steps(2);
+    if let Some(label) = under {
+        harness.get_by_label_contains(label).click();
+        harness.run_steps(3);
+    }
+    harness.query_all_by_role(egui::accesskit::Role::TextInput).next().is_some()
+}
+
+/// The list of menus that hold a field is checked against what the menus draw: one that draws a
+/// field without being listed shuts on a click in it, and one listed that no longer draws one is
+/// a line nobody can read. A menu new to the ribbon has to be answered in `holds_a_field` before
+/// it builds at all, and shows up here to have that answer checked (#1493).
+#[test]
+fn the_menus_that_hold_a_field_are_the_ones_that_draw_one() {
+    // One menu's field is a submenu's: Rules' folder search sits under its sender's rule.
+    let nested: [(Menu, &str); 1] = [(Menu::Rules, "Always Move Messages From This Sender")];
+    let mut listed: Vec<String> = Vec::new();
+    let mut drawn: Vec<String> = Vec::new();
+    for menu in ribbon_menus() {
+        let under = nested.iter().find(|(m, _)| *m == menu).map(|(_, label)| *label);
+        if ribbon::holds_a_field(menu) {
+            listed.push(format!("{menu:?}"));
+        }
+        if draws_a_field(menu, under) {
+            drawn.push(format!("{menu:?}"));
+        }
+    }
+    assert!(!listed.is_empty(), "the ribbon has menus with fields in them");
+    assert_eq!(listed, drawn, "listed as holding a field: {listed:?}; drawing one: {drawn:?}");
+}
+
 /// File › Signatures › Colour holds the same field, and keeps a click in it too: it shut on that
 /// click, so a colour of the owner's own could not be typed (#1464).
 #[test]
@@ -138,4 +202,30 @@ fn the_signature_colour_menu_keeps_a_click_in_its_field() {
     let body = harness.state().session.signature_edit.as_ref().unwrap().body.text().clone();
     let first = body.paragraphs().first().and_then(|p| p.runs.first()).and_then(|r| r.style.color.clone());
     assert_eq!(first.as_deref(), Some("#fdb200"), "the colour typed was applied: {body:?}");
+}
+
+/// A menu reached through a `▾` or a `…`, because the ribbon is too narrow to show it: the Font
+/// menu keeps a click made in its search field here too (#1493).
+#[test]
+fn a_folded_font_menu_keeps_a_click_made_in_its_search() {
+    let mut state = app();
+    let _ = state.run("mail.new", json!({}));
+    let mut harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .allow_missing_glyphs()
+        .with_size(egui::vec2(320.0, 700.0))
+        .build_ui_state(|ui, app: &mut MailApp| ribbon::submenu(ui, app, "Font".to_string(), Menu::Font), state);
+    harness.run_steps(2);
+    harness.get_by_label("Font").click();
+    harness.run_steps(3);
+    assert!(egui::Popup::is_any_open(&harness.ctx), "the Font menu behind the `…` is open");
+    let box_rect = harness.get_all_by_role(egui::accesskit::Role::TextInput).next().unwrap_or_else(|| panic!("the font menu's search field")).rect();
+    click(&mut harness, box_rect.center());
+    assert!(egui::Popup::is_any_open(&harness.ctx), "clicking the search field keeps the folded menu open");
+    type_text(&mut harness, "gor");
+    assert!(egui::Popup::is_any_open(&harness.ctx), "typing in it keeps the folded menu open");
+    // An item of it shuts it, as anywhere else; so does a click outside.
+    harness.get_by_label_contains("Georgia").click();
+    harness.run_steps(3);
+    assert!(!egui::Popup::is_any_open(&harness.ctx), "a family chosen shuts the menu");
 }

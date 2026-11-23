@@ -15,6 +15,7 @@ mod font_tests;
 pub(crate) mod from_list;
 #[cfg(test)]
 mod from_list_tests;
+mod picture_size;
 #[cfg(test)]
 mod picture_tests;
 #[cfg(test)]
@@ -288,6 +289,8 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
         let r = ui.available_rect_before_wrap();
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.min.y), pos2(r.max.x - 12.0, r.min.y)], Stroke::new(1.0, t.border));
     }
+
+    picture_size::show(app, ui);
 
     // The body takes what is left: the owner's text, and under it the original of a reply or
     // forward in HTML, as the reading pane shows it.

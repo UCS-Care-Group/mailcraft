@@ -48,8 +48,9 @@ internal fun actionsOf(item: AttachmentItem): List<AttachmentAction> = buildList
 /** What a tap on the row does. */
 internal fun primaryOf(item: AttachmentItem): AttachmentAction = actionsOf(item).first()
 
-/** Whether the owner is asked before an attachment of this verdict is opened (macros, scripts). */
-internal fun asksFirst(verdict: OpenVerdict): Boolean = verdict == OpenVerdict.MACROS || verdict == OpenVerdict.SCRIPTS
+/** Whether the owner is asked before an attachment of this verdict is opened (macros, scripts, active files). */
+internal fun asksFirst(verdict: OpenVerdict): Boolean =
+    verdict == OpenVerdict.MACROS || verdict == OpenVerdict.SCRIPTS || verdict == OpenVerdict.ACTIVE
 
 /** The media type to give another app for a file called [name]: from its kind, else the generic one. */
 internal fun mimeFor(name: String, byKind: (String) -> String?): String =

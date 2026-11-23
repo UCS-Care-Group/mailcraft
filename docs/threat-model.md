@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-16 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-11-22 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -41,7 +41,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   picture's server can tell from its address that the window is dark and how wide the body is, to
   within a few pixels (a sender chooses the widths it tests; PRIVACY.md).
 - **What a sender hides is kept for search and agents, and only there.** The reading pane, the
-  plain-text view and a reply's quoted original leave out what a message hides; the words of it
+  plain-text view and a reply's quoted original leave out what a message hides, and the quote
+  follows the reading pane's own reading of where that starts and ends, whatever it is nested in
+  (a template, a hidden block, an element the quote leaves out whole), at the width and in the
+  theme of the pane or window the reply was started from (what its `@media` hid there; a message
+  not read there carries only what the other places that read it showed, or what every width
+  and theme shows, and none of its body when it has more looks than can be told apart), so it never carries what the
+  pane didn't show; the words of it
   (`Message::hidden_text`, 16 KB at most, worked out when the message is read) are in the owner's
   search, rules and what an agent reads (`hiddenText` of `mail.get`), so that nothing a sender
   tucked away is out of reach of the owner's tools. For an agent it is message text like any
@@ -438,6 +444,26 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - A `.mailcraft` attachment is never opened from a message: it can only be saved
   (`crates/engine/src/opening.rs`), so a sender cannot put a mailbox with accounts of their
   choosing in front of the owner with one click.
+- On Linux and the BSDs an attachment is opened only when its kind is one the desktop knows by
+  name (`KNOWN` in `crates/engine/src/opening.rs`) and the same desktop, asked first (`gio info`,
+  `kmimetypefinder`), takes the written file for that kind; anything else can only be saved
+  (`apps/mailcraft/src/file_launcher.rs`). The desktop types a file by its first bytes when it
+  doesn't know the name, or knows two kinds for it, so what is in the file never chooses the
+  program. The types accepted for a kind include those of the doubled kinds ending in it
+  (`.tar.gz`), less some refused on purpose (a disk image `.img.xz`, compressed PostScript or
+  drawings). A file is never handed to `xdg-open`, which on a desktop it doesn't recognise goes by
+  the bytes alone. The desktop has five seconds to answer; with no answer, or neither program
+  installed, nothing is opened. Inside a Flatpak sandbox the portal types the file again with the
+  computer's own database, so a kind whose name has several types there (`opening::SEVERAL`, a
+  `.png` among them) is not opened at all, nor is a kind the database has known only a few years
+  (`opening::RECENT`: AVIF, HEIC, JPEG XL), which an older computer would type by its bytes; the
+  owner is told why and to save it. A computer whose database knows more types for a name than
+  the sandbox's remains a limit of the portal.
+- Markdown (whose viewers can show the web content in it) and keys, certificates, signatures and
+  requests (`.asc`, `.gpg`, `.pem`, `.p7m`, `.p12`, `.pfx`, `.key`, `.csr`, `.crl` and the like,
+  which their programs can take in when opened) are asked about first on every system, as web
+  pages and Office files with macros are (`opening::ACTIVE`); the window refuses to open one
+  without that yes by any route (`"confirmed": true` from the control channel).
 - The passwords and sign-ins held in memory belong to the mailbox they were given for: any
   mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
   accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).
@@ -461,10 +487,26 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
   and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
   unconfirmed, nor is a file with no account that connects to a server.
-- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
-  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
-  older version), so incoming mail is never relayed by the owner's SMTP account
-  (`Mailbox::is_send_queue`).
+- No rule moves or copies mail into an Outbox, or a folder under one, whoever made it: `rules.add`
+  and `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or
+  an older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`). A rule never deletes mail permanently: its Delete puts mail in
+  Deleted Items, and mail there already, or of an account with none, stays where it is. A rule
+  that can't yet tell whether it applies to new mail not downloaded waits until the message is
+  here whole, and so does one that copies it into another account's folder; the rules after it
+  act meanwhile, but one that moves the message into another account waits with it, and nothing
+  is moved or copied into another account after a rule that still can't tell once the message is
+  here, or at Run Rules Now. Nothing is copied of mail its server had before it was read here (a
+  first download, older mail, a mailbox the server numbered anew), nor of mail moved into the
+  Inbox on another device while the folder it left still holds it here, known by its Message-ID;
+  one with no Message-ID, or whose folder was read without it first, is new mail and may be
+  copied again. The rules leave a shared mailbox's mail alone, Run Rules Now too. A sender
+  chooses part of what a rule reads: the words, the header and, for mail of an IMAP account or
+  brought in from a file, the categories, which the message's own `Keywords` header gives, as
+  classic Outlook keeps them on such mail; a Microsoft or Exchange server removes a sender's
+  categories as mail arrives unless its administrator says otherwise (`ClearCategories`), and a
+  Microsoft account's categories are its server's. So a rule that moves or copies mail into
+  another account by a category does so on a sender's say-so there, as one by a word does.
 - An agent is asked before it deletes a contact, task, event or category (class `delete`; none
   has a Deleted Items to come back from), and before an Undo or Redo that would put back the
   accounts, rules or signatures of before. The question shows the call in full: one too long to
@@ -488,6 +530,9 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   covers `delete` for them; `--allow accounts` alone doesn't. The yes holds for that step and
   what it would take away when asked: another step meanwhile, or a message or contact that came
   down since, and the yes is refused.
+  An undo or redo that puts a message on its way onto another account's server again, or
+  changes the rules and leaves a rule switched on that copies or moves mail there, asks `send`
+  and names that server (#566).
   `ui.copySelection` (text the owner selected in a message) is never for agents, as
   `ui.copyLinkAddress` is; saving or sending an appointment in its window
   (`ui.eventWindow` `do`) runs later as the owner, so it asks `send` and the question names the
@@ -749,12 +794,22 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-22 | patch | The quote of a reply or forward follows the reading pane's own reading of where hidden content starts and ends, whatever it is nested in, at the width and in the theme of the pane or window it was read in, as the other places that read it for one not read there, else only what every look shows |
+| 2026-11-22 | minor | SEC-2: on Linux and the BSDs an attachment opens only when its kind is one the desktop knows by name and the desktop, asked first (within five seconds), takes the file for that kind or a doubled kind ending in it; files are never handed to `xdg-open`; in a Flatpak sandbox a kind whose name has several types is not opened, and the owner is told why; Markdown, keys, certificates and signatures ask first everywhere |
+| 2026-11-20 | patch | #1776: autocomplete skips Junk and Drafts, ranks by sends from Sent Items and the Outbox without trusting an incoming From, and a new message includes the owner's own addresses while search still offers them last |
+| 2026-11-18 | patch | #1674: the agent's classing of Undo and Redo: they put back what the step changed, no longer the whole mailbox |
+| 2026-11-17 | patch | #1568: a failed check gives way to Exchange Online's `compauth=none reason=905`, its word that it didn't enforce DMARC because the mail came through another service first (a filtering gateway), for a sender outside the account's own domain; no other `compauth=none` code does, such mail is still not vouched for, and the limit (a spoof of an outside domain sent past the gateway) is said |
+| 2026-11-17 | patch | #566 part 2: a rule by a category reads a sender's `Keywords` on IMAP mail, as Outlook does |
 | 2026-11-16 | minor | #1544: a reaction sent by one click: six fixed emoji, one recipient (the sender, never the Reply-To, shown beside the emoji), nothing quoted, refused for a message with a sender warning, for drafts, own mail, Junk E-mail and automated mail, held back by Undo Send, asked about for an agent |
 | 2026-11-15 | patch | Known limits: S/MIME and OpenPGP signatures are checked; encrypting and signing sent mail are not built |
 | 2026-11-14 | patch | #1262: Check Names and People's Address Book ask an Exchange server account's address list only on the owner's press or search, and read its answer within caps, keeping a name, an address, four short lines and two numbers of each person, in the window alone |
 | 2026-11-13 | minor | #834: mail in Junk E-mail is shown by names only, no attachment there is decoded for a picture; the choice between names and pictures is a checkbox in File › Options too |
+| 2026-11-12 | patch | #566 part 2: mail moved into the Inbox on another device is copied again when it has no Message-ID or its folder was read without it first |
+| 2026-11-12 | patch | #566 part 2: a rule moving new mail into another account waits too behind one that can't tell yet, and nothing is moved or copied into another account after one that still can't tell, or at Run Rules Now; a rule never deletes mail permanently: its Delete puts mail in Deleted Items, and mail there already, or of an account with none, stays |
 | 2026-11-12 | patch | #661: an agent is asked `send` before it writes a category to Outlook (sent there, renamed there, new to the list, another colour, or put back so by an undo or redo), and `delete` for an undo or redo that has one deleted there |
 | 2026-11-12 | minor | #1103: provider discovery asks the DNS for the domain's Autodiscover hosts (SRV record and `autodiscover.<domain>` alias) beside its exchangers; the Exchange search's alias step, in the place of MS-OXDISCO's plain-HTTP redirect and specified in autodiscover.md, asks the owner before the sign-in goes to the alias's host |
+| 2026-11-11 | patch | #566 part 2: a rule copying new mail into another account waits for it whole; nothing is copied of mail the server had before |
+| 2026-11-11 | patch | #566 part 2: a rule that can't tell yet waits for new mail whole; no rule for a shared mailbox's mail at Run Rules Now; an undo that sends mail or a rule onto another server asks `send` |
 | 2026-11-11 | patch | #661: the window's background jobs that are called off for another mailbox include the categories' |
 | 2026-11-11 | minor | #30 part 4: the owner's own private keys kept in the credential store (`key:openpgp:`, `key:smime:`; passphrase-protected, S/MIME on Linux and FreeBSD only) and the rules they pass; running GnuPG (fixed arguments, no shell, a time limit and a cap on its output, the direct trust model) |
 | 2026-11-08 | minor | #836: an outgoing relay the owner marked as needing no sign-in is never shown the password, even when it offers a way to sign in; not for an account that signs in on its provider's page |
@@ -773,6 +828,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-11-04 | patch | #781 review: mail another program uploads to Exchange Online keeps a forged `Internal` stamp (observed for a Graph upload), the same limit a forged topmost `Authentication-Results` already has |
 | 2026-11-04 | patch | On Exchange Online, mail Exchange stamps as from inside the organisation (`X-MS-Exchange-Organization-AuthAs: Internal`), from the account's own domain, is vouched for though it has no DMARC verdict |
 | 2026-11-03 | patch | #473: an agent's undo or redo that removes a message needs Delete, as one that removes contacts, events or tasks does; a server account's copy goes to Deleted Items on undo and is not counted as a removal |
+| 2026-10-31 | minor | #566 part 2: a rule copies mail into no Outbox either |
 | 2026-10-31 | minor | #517: a mailbox file opened or saved to later in a window takes its lock first, and one another window has open is refused; the lock follows the mailbox the window has open |
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
 | 2026-10-29 | patch | #599 review: `@media` is tested against the width the body is laid out at, to the pixel; a picture shown only under a dark or narrow `@media` is fetched when that look is shown, which tells its server the theme or width |

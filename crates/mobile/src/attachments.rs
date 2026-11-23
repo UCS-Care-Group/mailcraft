@@ -32,6 +32,9 @@ pub enum OpenVerdict {
     Macros,
     /// A web page or a drawing that can carry scripts: ask first.
     Scripts,
+    /// Markdown, or a key, certificate or signature, which the program that opens it acts on:
+    /// ask first.
+    Active,
     /// A program, a script, an installer, a package or a file of no known kind: never opened or
     /// shared from mail; it can be saved.
     Blocked,
@@ -43,6 +46,7 @@ impl From<Verdict> for OpenVerdict {
             Verdict::Open => OpenVerdict::Open,
             Verdict::Macros => OpenVerdict::Macros,
             Verdict::Scripts => OpenVerdict::Scripts,
+            Verdict::Active => OpenVerdict::Active,
             Verdict::Blocked => OpenVerdict::Blocked,
         }
     }
@@ -118,7 +122,9 @@ pub fn attachment_check(name: String) -> AttachmentCheck {
 pub(crate) fn refuse_unless_openable(check: &AttachmentCheck, confirmed: bool) -> Result<(), CoreError> {
     match check.verdict {
         OpenVerdict::Blocked => Err(CoreError::Failed { reason: check.blocked.clone() }),
-        OpenVerdict::Macros | OpenVerdict::Scripts if !confirmed => Err(bad("the owner has to be asked before this kind of file is opened")),
+        OpenVerdict::Macros | OpenVerdict::Scripts | OpenVerdict::Active if !confirmed => {
+            Err(bad("the owner has to be asked before this kind of file is opened"))
+        }
         _ => Ok(()),
     }
 }

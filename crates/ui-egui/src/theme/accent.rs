@@ -289,8 +289,9 @@ pub(crate) fn custom_ink(color: Color32, base: &Tokens) -> AccentInk {
     let req = if base.high_contrast { 7.0 } else { 4.5 };
     let surface = base.surface;
     // Fit against the window background too: in the light theme the canvas is a little darker
-    // than the sheets, so it is the strictest bound for the accent as text.
-    let accent = fg_for(color, &[surface, base.panel, base.canvas], req);
+    // than the sheets, so it is the strictest bound for the accent as text. And against the
+    // message list's flagged and shaded rows, where an unread sender is in it (#1657).
+    let accent = fg_for(color, &[surface, base.panel, base.canvas, base.flagged_row, base.row_shade()], req);
     let text = accent;
     // The accent is dark on a light window and light on a dark one, so the ink on it is the
     // opposite extreme; the fit above leaves enough margin for 4.5:1, and for 7:1 in high
@@ -354,6 +355,14 @@ pub struct AccentInk {
 }
 
 impl Tokens {
+    /// `fg` as text on `bg`: kept as it is when it reads at 4.5:1 there (7:1 in High Contrast),
+    /// otherwise darkened on a light background or lightened on a dark one until it does. For a
+    /// colour over a background it was not chosen for: a message-list row's unread sender,
+    /// overdue text and red "[Draft]" on whatever is under them ([`Tokens::list_row_layers`], #1657).
+    pub fn text_ink_on(&self, fg: Color32, bg: Color32) -> Color32 {
+        fg_for(fg, &[bg], if self.high_contrast { 7.0 } else { 4.5 })
+    }
+
     /// This palette with `ink` as its accent.
     pub fn with_accent(mut self, ink: AccentInk) -> Tokens {
         let (select, focus, band_a, band_b) = if self.dark { (0.45, 0.5, 0.35, 0.28) } else { (0.30, 0.5, 0.16, 0.16) };
