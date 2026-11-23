@@ -507,11 +507,8 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let mut out = state(s);
     // A signature's pictures come from files only (nothing is fetched); say so when the paste
     // had some.
-    let pictures = p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
-    if pictures
-        && s.signature_edit.is_some()
-        && let Some(o) = out.as_object_mut()
-    {
+    let pictures = s.signature_edit.is_some() && p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
+    if pictures && let Some(o) = out.as_object_mut() {
         o.insert("note".into(), json!("pictures in what was pasted were left out: save each one and add it with Insert Picture"));
     }
     Ok(out)
