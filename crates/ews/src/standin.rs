@@ -215,6 +215,9 @@ pub struct State {
     /// …or with a proper schema refusal, which is how Kerio was measured answering it: the
     /// refusal must be read as a refusal of the naming, never of the shape it rode in on.
     pub refuses_extended_as_schema: bool,
+    /// …and one that answers the naming with a dropped connection instead of an answer
+    /// (measured on Kerio, twice: refused at 15:41, dead at 16:15 — both worlds ship).
+    pub kills_extended: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -332,6 +335,7 @@ impl Default for State {
             refuses_delta_barely: false,
             refuses_extended: false,
             refuses_extended_as_schema: false,
+            kills_extended: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,

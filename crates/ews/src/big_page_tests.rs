@@ -810,3 +810,28 @@ fn a_naming_refused_as_a_schema_property_costs_the_naming_and_never_the_shape() 
         after.len()
     );
 }
+
+/// The other half of the measurement: a server that doesn't answer the naming at all —
+/// the connection dies mid-answer. The naming is dropped and the page asked again
+/// without it, before the network is believed; one lost page, not a lost mailbox, and
+/// every folder after reads as if nothing happened (#1784, measured at 16:15).
+#[test]
+fn a_connection_that_dies_on_the_naming_drops_the_naming_and_asks_again() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.kills_extended = true;
+        s.deliver("inbox", "Alive", false);
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let state = standin.state();
+    let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|a| a.operation == "SyncFolderItems").collect();
+    assert!(asked.first().is_some_and(|a| a.body.contains("ExtendedFieldURI")), "the first page carried the naming");
+    assert!(asked.iter().skip(1).all(|a| !a.body.contains("ExtendedFieldURI")), "the rest didn't: the death was read as the naming's");
+    assert!(
+        pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Alive"),
+        "the mail came down: the naming cost one page, not the run: {:?}",
+        pieces.iter().flat_map(|p| p.errors.clone()).collect::<Vec<_>>()
+    );
+}

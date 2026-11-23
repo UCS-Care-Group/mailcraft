@@ -643,6 +643,11 @@ impl State {
         if self.refuses_extended && extra.iter().any(|e| e == "ext:0E67") {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }
+        if self.kills_extended && extra.iter().any(|e| e == "ext:0E67") {
+            // …and one that doesn't answer at all: the connection dies mid-answer, which is
+            // what the live Kerio does with the naming on the page (16:15, measured).
+            return Ok((200, "not an envelope".into(), "an answer that isn't xml".into()));
+        }
         if self.refuses_extended_as_schema && extra.iter().any(|e| e == "ext:0E67") {
             // …and one that refuses it the way Kerio was measured to: a proper per-message
             // schema refusal, `ErrorInvalidPropertyRequest`, detail and response code and all.

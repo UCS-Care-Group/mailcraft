@@ -818,6 +818,22 @@ impl<E: HttpExchange> Run<'_, E> {
                     }
                     continue;
                 }
+                // (Measured on Kerio at 16:15: the page carrying the naming doesn't come back
+                // refused — it comes back as NOTHING, the connection dropped mid-answer. A
+                // transport that dies on the naming's first ride is read as the naming's
+                // doing: it is dropped and the page asked again without it, once, before the
+                // network is believed. State and shape are no suspects of a dropped socket,
+                // so this doesn't wait for the page to be asked from nothing — and if the
+                // network really is dead, the re-ask without the naming says so the same way
+                // it always did (#1784, measured).)
+                Err(Asked::Stop(Stop::Unreachable) | Asked::Lost | Asked::Bad) if self.extended => {
+                    self.extended = false;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: a page asked with the read state named the MAPI way died on the way back; not naming it again");
+                    }
+                    continue;
+                }
                 // (A refusal in SOAP's own words, from a page asked from nothing, is the
                 // naming's too — the guard on the state is what separates it from the lost
                 // state the afresh answer below is for (#1784, the review).)
