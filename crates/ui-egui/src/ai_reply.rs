@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! AI Email Reply Assistant: analyzes the current email and generates smart, contextual responses
-//! powered by Gemini AI, with 1-click reply drafting.
+//! powered by Gemini AI, with interactive chat adjustments and 1-click reply drafting.
 
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
@@ -20,12 +20,21 @@ pub struct ReplySuggestion {
     pub text: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct ChatMessage {
+    pub role: String, // "user" or "ai"
+    pub text: String,
+}
+
 pub struct AiReplyState {
     pub open: bool,
     pub message_id: Option<u64>,
     pub prompt: String,
     pub loading: bool,
     pub suggestions: Vec<ReplySuggestion>,
+    pub show_all_suggestions: bool,
+    pub chat_base_text: Option<String>,
+    pub chat_history: Vec<ChatMessage>,
     pub custom_reply: Option<String>,
     pub rx: Option<Receiver<(u64, Option<String>)>>,
 }
@@ -38,6 +47,9 @@ impl Default for AiReplyState {
             prompt: String::new(),
             loading: false,
             suggestions: Vec::new(),
+            show_all_suggestions: false,
+            chat_base_text: None,
+            chat_history: Vec::new(),
             custom_reply: None,
             rx: None,
         }
@@ -48,6 +60,9 @@ impl AiReplyState {
     pub fn init_for_message(&mut self, m: &Arc<Message>) {
         self.message_id = Some(m.id);
         self.custom_reply = None;
+        self.chat_base_text = None;
+        self.chat_history.clear();
+        self.show_all_suggestions = false;
         self.loading = false;
         self.prompt.clear();
         self.suggestions = generate_smart_suggestions(m);
@@ -57,6 +72,12 @@ impl AiReplyState {
         if let Some(rx) = &self.rx {
             if let Ok((msg_id, reply_opt)) = rx.try_recv() {
                 if self.message_id == Some(msg_id) {
+                    if let Some(text) = &reply_opt {
+                        self.chat_history.push(ChatMessage {
+                            role: "ai".to_string(),
+                            text: text.clone(),
+                        });
+                    }
                     self.custom_reply = reply_opt;
                     self.loading = false;
                 }
@@ -66,7 +87,23 @@ impl AiReplyState {
     }
 }
 
-fn extract_sender_names(m: &Message) -> (String, String) {
+fn is_organization_name(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    let org_keywords = [
+        "mercado", "pago", "livre", "google", "microsoft", "apple", "amazon", "netflix",
+        "banco", "bank", "nubank", "bradesco", "itau", "itaú", "santander", "inter", "caixa",
+        "suporte", "support", "atendimento", "sac", "contato", "contact", "equipe", "team",
+        "newsletter", "notificac", "notificaç", "no-reply", "noreply", "mailer", "billing",
+        "financeiro", "vendas", "sales", "store", "shop", "loja", "steam", "playstation",
+        "uber", "ifood", "magazine", "shopee", "aliexpress", "gov.br", "receita", "serviço"
+    ];
+    org_keywords.iter().any(|k| lower.contains(k))
+        || name.ends_with(" S.A.")
+        || name.ends_with(" LTDA")
+        || name.ends_with(" S/A")
+}
+
+fn extract_sender_names(m: &Message) -> (String, String, bool) {
     let full = if !m.from.name.trim().is_empty() {
         m.from.name.trim().to_string()
     } else if let Some((user, _)) = m.from.email.split_once('@') {
@@ -74,12 +111,19 @@ fn extract_sender_names(m: &Message) -> (String, String) {
     } else {
         "Colega".to_string()
     };
-    let first = full.split_whitespace().next().unwrap_or(&full).to_string();
-    (full, first)
+
+    let is_org = is_organization_name(&full) || is_organization_name(&m.from.email);
+    let greeting_name = if is_org {
+        format!("equipe {}", full)
+    } else {
+        full.split_whitespace().next().unwrap_or(&full).to_string()
+    };
+
+    (full, greeting_name, is_org)
 }
 
 fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
-    let (sender_full, sender_first) = extract_sender_names(m);
+    let (sender_full, greeting_name, is_org) = extract_sender_names(m);
     let subject = if m.subject.trim().is_empty() {
         "sua mensagem".to_string()
     } else {
@@ -88,12 +132,12 @@ fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
 
     let body_lower = m.body.text.to_lowercase();
     let is_meeting = body_lower.contains("reunião") || body_lower.contains("reuniao") || body_lower.contains("horário") || body_lower.contains("agendar");
-    let is_finance = body_lower.contains("pagamento") || body_lower.contains("boleto") || body_lower.contains("fatura") || body_lower.contains("valor");
+    let is_finance = body_lower.contains("pagamento") || body_lower.contains("boleto") || body_lower.contains("fatura") || body_lower.contains("aprovado") || body_lower.contains("valor");
 
     let (sugg1_text, sugg2_text, sugg3_text) = if is_meeting {
         (
             format!(
-                "Olá, {sender_first}!\n\n\
+                "Olá, {greeting_name}!\n\n\
                 Obrigado pelo convite para a reunião a respeito de \"{subject}\".\n\
                 Confirmo minha disponibilidade no horário proposto e já reservei na minha agenda.\n\n\
                 Nos falamos em breve!\n\n\
@@ -108,7 +152,7 @@ fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
                 Marcondes Lima"
             ),
             format!(
-                "Olá, {sender_first}!\n\n\
+                "Olá, {greeting_name}!\n\n\
                 Obrigado pelo contato sobre \"{subject}\".\n\
                 Poderia compartilhar previamente a pauta dos tópicos que abordaremos, para que eu possa me preparar com os dados necessários?\n\n\
                 Um abraço,\n\
@@ -116,34 +160,61 @@ fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
             ),
         )
     } else if is_finance {
-        (
-            format!(
-                "Olá, {sender_first}!\n\n\
-                Recebi as informações financeiras referentes a \"{subject}\".\n\
-                Os dados foram conferidos e o comprovante de pagamento/processamento será providenciado.\n\n\
-                Qualquer dúvida fico à disposição.\n\n\
-                Atenciosamente,\n\
-                Marcondes Lima"
-            ),
-            format!(
-                "Prezado(a) {sender_full},\n\n\
-                Acuso o recebimento do documento referente a \"{subject}\".\n\
-                O processo já foi encaminhado para conferência do setor responsável e retornaremos assim que concluído.\n\n\
-                Cordialmente,\n\
-                Marcondes Lima"
-            ),
-            format!(
-                "Olá, {sender_first}!\n\n\
-                Obrigado pelo envio. Em relação a \"{subject}\", você poderia me confirmar a data limite de vencimento e se há algum desconto aplicável?\n\n\
-                Aguardo seu retorno.\n\
-                Um abraço,\n\
-                Marcondes Lima"
-            ),
-        )
+        if is_org {
+            (
+                format!(
+                    "Olá, {greeting_name}!\n\n\
+                    Recebi a notificação referente a \"{subject}\".\n\
+                    Os dados foram devidamente conferidos e arquivados no controle financeiro.\n\n\
+                    Qualquer dúvida fico à disposição.\n\n\
+                    Atenciosamente,\n\
+                    Marcondes Lima"
+                ),
+                format!(
+                    "Prezada {greeting_name},\n\n\
+                    Acuso o recebimento da confirmação referente a \"{subject}\".\n\
+                    Poderiam encaminhar o comprovante detalhado ou espelho da transação em anexo para conferência contábil?\n\n\
+                    Cordialmente,\n\
+                    Marcondes Lima"
+                ),
+                format!(
+                    "Olá, {greeting_name}!\n\n\
+                    Obrigado pela atualização sobre \"{subject}\".\n\
+                    Caso haja alguma pendência ou necessidade de confirmação adicional, peço a gentileza de nos avisar.\n\n\
+                    Um abraço,\n\
+                    Marcondes Lima"
+                ),
+            )
+        } else {
+            (
+                format!(
+                    "Olá, {greeting_name}!\n\n\
+                    Recebi as informações financeiras referentes a \"{subject}\".\n\
+                    Os dados foram conferidos e o comprovante de pagamento/processamento será providenciado.\n\n\
+                    Qualquer dúvida fico à disposição.\n\n\
+                    Atenciosamente,\n\
+                    Marcondes Lima"
+                ),
+                format!(
+                    "Prezado(a) {sender_full},\n\n\
+                    Acuso o recebimento do documento referente a \"{subject}\".\n\
+                    O processo já foi encaminhado para conferência e retornaremos assim que concluído.\n\n\
+                    Cordialmente,\n\
+                    Marcondes Lima"
+                ),
+                format!(
+                    "Olá, {greeting_name}!\n\n\
+                    Obrigado pelo envio. Em relação a \"{subject}\", você poderia me confirmar a data de liquidação e se há algum detalhe adicional?\n\n\
+                    Aguardo seu retorno.\n\
+                    Um abraço,\n\
+                    Marcondes Lima"
+                ),
+            )
+        }
     } else {
         (
             format!(
-                "Olá, {sender_first}!\n\n\
+                "Olá, {greeting_name}!\n\n\
                 Obrigado pela mensagem a respeito de \"{subject}\".\n\
                 Confirmo o recebimento e o alinhamento com os pontos tratados. Permaneço à total disposição para os próximos passos.\n\n\
                 Atenciosamente,\n\
@@ -157,7 +228,7 @@ fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
                 Marcondes Lima"
             ),
             format!(
-                "Olá, {sender_first}!\n\n\
+                "Olá, {greeting_name}!\n\n\
                 Obrigado pelo contato.\n\
                 Para que possamos avançar da melhor forma no assunto \"{subject}\", você poderia detalhar os próximos passos e a previsão de prazos estimada?\n\n\
                 Aguardo seu retorno.\n\
@@ -180,41 +251,57 @@ fn generate_smart_suggestions(m: &Message) -> Vec<ReplySuggestion> {
         },
         ReplySuggestion {
             category: "Esclarecimento & Prazos".to_string(),
-            description: "Solicita detalhes complementares, cronogramas ou pauta.".to_string(),
+            description: "Solicita detalhes complementares, cronogramas ou comprovantes.".to_string(),
             text: sugg3_text,
         },
     ]
 }
 
-pub fn send_custom_prompt(app: &mut MailApp, m: &Arc<Message>, prompt_text: String) {
+pub fn send_chat_adjustment(app: &mut MailApp, m: &Arc<Message>, user_instruction: String, base_text: Option<String>) {
     app.ai_reply.loading = true;
+    app.ai_reply.chat_history.push(ChatMessage {
+        role: "user".to_string(),
+        text: user_instruction.clone(),
+    });
+
     let (tx, rx) = mpsc::channel();
     app.ai_reply.rx = Some(rx);
 
     let message_id = m.id;
-    let (sender_full, sender_first) = extract_sender_names(m);
+    let (sender_full, greeting_name, is_org) = extract_sender_names(m);
     let subject = m.subject.clone();
     let body_snippet = m.body.text.chars().take(1500).collect::<String>();
 
     std::thread::spawn(move || {
-        let reply = query_gemini_email_backend(&prompt_text, &sender_full, &sender_first, &subject, &body_snippet);
+        let reply = query_gemini_adjustment_backend(
+            &user_instruction,
+            base_text.as_deref(),
+            &sender_full,
+            &greeting_name,
+            is_org,
+            &subject,
+            &body_snippet,
+        );
         let _ = tx.send((message_id, Some(reply)));
     });
 }
 
-fn query_gemini_email_backend(
-    prompt: &str,
+fn query_gemini_adjustment_backend(
+    instruction: &str,
+    base_text: Option<&str>,
     sender_full: &str,
-    sender_first: &str,
+    greeting_name: &str,
+    is_org: bool,
     subject: &str,
     body_snippet: &str,
 ) -> String {
-    // 1. Try local Gemini endpoint if active
+    // 1. Try local Gemini bridge endpoint if active
     if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
         let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(12)));
         let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(5)));
         let payload = json!({
-            "prompt": prompt,
+            "instruction": instruction,
+            "base_text": base_text,
             "sender": sender_full,
             "subject": subject,
             "email_body": body_snippet
@@ -246,11 +333,44 @@ fn query_gemini_email_backend(
         }
     }
 
-    // 2. Intelligent contextual reply generator based on prompt intent
-    let p_lower = prompt.to_lowercase();
-    if p_lower.contains("desconto") || p_lower.contains("preco") || p_lower.contains("preço") || p_lower.contains("valor") {
+    // 2. Intelligent contextual reply rewriting based on prompt intent and base text
+    let p_lower = instruction.to_lowercase();
+    let salutation = if is_org {
+        format!("Olá, {greeting_name}!")
+    } else {
+        format!("Olá, {greeting_name}!")
+    };
+
+    if p_lower.contains("curta") || p_lower.contains("curto") || p_lower.contains("resum") || p_lower.contains("sucint") {
         format!(
-            "Olá, {sender_first}!\n\n\
+            "{salutation}\n\n\
+            Recebi sua mensagem sobre \"{subject}\". Confirmo o recebimento e o alinhamento com as informações. Qualquer dúvida estou à disposição.\n\n\
+            Atenciosamente,\n\
+            Marcondes Lima"
+        )
+    } else if p_lower.contains("formal") || p_lower.contains("profissional") {
+        let formal_salutation = if is_org {
+            format!("Prezada {greeting_name},")
+        } else {
+            format!("Prezado(a) {sender_full},")
+        };
+        format!(
+            "{formal_salutation}\n\n\
+            Acusamos o recebimento de vossa mensagem referente a \"{subject}\". Informamos que o teor do comunicado foi devidamente registrado e encaminhado aos responsáveis.\n\n\
+            Renovamos nossos votos de estima e consideração.\n\n\
+            Cordialmente,\n\
+            Marcondes Lima"
+        )
+    } else if p_lower.contains("amig") || p_lower.contains("informal") || p_lower.contains("abraço") {
+        format!(
+            "Oi, {greeting_name}!\n\n\
+            Tudo bem? Passando para agradecer pelo envio das informações sobre \"{subject}\". Já verifiquei por aqui e está tudo certo!\n\n\
+            Se precisar de qualquer coisa é só me avisar. Um grande abraço,\n\
+            Marcondes"
+        )
+    } else if p_lower.contains("desconto") || p_lower.contains("preco") || p_lower.contains("preço") || p_lower.contains("valor") {
+        format!(
+            "{salutation}\n\n\
             Agradeço pelo envio da proposta sobre \"{subject}\".\n\
             Estudamos com atenção as condições apresentadas. Gostaríamos de verificar se há margem para uma condição especial ou percentual de desconto para viabilizarmos o fechamento de imediato.\n\n\
             Fico no aguardo do seu parecer.\n\n\
@@ -259,38 +379,61 @@ fn query_gemini_email_backend(
         )
     } else if p_lower.contains("férias") || p_lower.contains("ferias") || p_lower.contains("viagem") || p_lower.contains("ausente") {
         format!(
-            "Olá, {sender_first}!\n\n\
+            "{salutation}\n\n\
             Obrigado pelo contato sobre \"{subject}\".\n\
-            Informo que estarei temporariamente ausente durante estes próximos dias, com acesso restrito a e-mails. Assim que retornar, darei prioridade máxima para responder a esta solicitação.\n\n\
-            Caso seja algo urgente, peço a gentileza de acionar nossa equipe.\n\n\
+            Informo que estarei temporariamente ausente durante estes dias, com acesso restrito a e-mails. Assim que retornar, darei prioridade máxima para responder a esta solicitação.\n\n\
+            Caso seja algo urgente, peço a gentileza de contatar nossa equipe.\n\n\
             Um abraço,\n\
+            Marcondes Lima"
+        )
+    } else if p_lower.contains("prazo") || p_lower.contains("data") || p_lower.contains("quando") {
+        format!(
+            "{salutation}\n\n\
+            Agradeço pelo contato referente a \"{subject}\".\n\
+            Você teria uma estimativa de prazo ou previsão de datas para os próximos desdobramentos?\n\n\
+            Aguardo seu retorno.\n\n\
+            Atenciosamente,\n\
             Marcondes Lima"
         )
     } else if p_lower.contains("recus") || p_lower.contains("não posso") || p_lower.contains("nao posso") || p_lower.contains("infelizmente") {
         format!(
             "Prezado(a) {sender_full},\n\n\
-            Agradeço pela consideração e pelo envio do convite/proposta em relação a \"{subject}\".\n\
-            Infelizmente, devido a compromissos assumidos anteriormente e limitações de agenda, não poderei participar no momento.\n\n\
+            Agradeço pela consideração e pelo envio da mensagem em relação a \"{subject}\".\n\
+            Infelizmente, devido a compromissos assumidos anteriormente e limitações de agenda, não poderei prosseguir neste momento.\n\n\
             Espero que tenhamos novas oportunidades futuras de cooperação.\n\n\
             Cordialmente,\n\
             Marcondes Lima"
         )
     } else {
-        format!(
-            "Olá, {sender_first}!\n\n\
-            Obrigado pelo retorno sobre \"{subject}\".\n\n\
-            Em atenção à sua mensagem: {prompt}.\n\n\
-            Estou à disposição para alinharmos quaisquer outros pontos necessários.\n\n\
-            Atenciosamente,\n\
-            Marcondes Lima"
-        )
+        // Base adjustment
+        if let Some(base) = base_text {
+            format!(
+                "{salutation}\n\n\
+                Em relação à mensagem sobre \"{subject}\": {instruction}.\n\n\
+                Detalhes alinhados conforme solicitado:\n\
+                {}\n\n\
+                Permaneço à disposição para esclarecimentos adicionais.\n\n\
+                Atenciosamente,\n\
+                Marcondes Lima",
+                base.trim()
+            )
+        } else {
+            format!(
+                "{salutation}\n\n\
+                Obrigado pelo retorno sobre \"{subject}\".\n\n\
+                Em atenção à sua mensagem: {instruction}.\n\n\
+                Estou à total disposição para alinharmos quaisquer outros pontos necessários.\n\n\
+                Atenciosamente,\n\
+                Marcondes Lima"
+            )
+        }
     }
 }
 
 pub fn render_ai_reply_panel(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens) {
     app.ai_reply.poll_incoming();
 
-    let (sender_full, _) = extract_sender_names(m);
+    let (sender_full, _, is_org) = extract_sender_names(m);
     let subject = if m.subject.trim().is_empty() {
         "(sem assunto)"
     } else {
@@ -306,9 +449,9 @@ pub fn render_ai_reply_panel(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t
     panel_frame.show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
 
-        // Header bar
+        // Header bar (fixed at top of panel)
         ui.horizontal(|ui| {
-            ui.label(RichText::new("✨").size(15.0).color(Color32::from_rgb(66, 133, 244)));
+            ui.label(RichText::new("✨").size(16.0).color(Color32::from_rgb(66, 133, 244)));
             ui.label(
                 RichText::new("Sugestões Inteligentes de Resposta (Gemini IA)")
                     .font(semibold(13.0))
@@ -330,163 +473,281 @@ pub fn render_ai_reply_panel(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t
 
         // Context line
         ui.horizontal(|ui| {
+            let sender_tag = if is_org { "Empresa/Serviço" } else { "Contato" };
             ui.label(
-                RichText::new(format!("Lendo e-mail de: {} • Assunto: {}", sender_full, subject))
+                RichText::new(format!("Lendo e-mail de: {} ({}) • Assunto: {}", sender_full, sender_tag, subject))
                     .size(11.5)
                     .color(t.text_dim),
             );
         });
 
-        ui.add_space(4.0);
+        ui.add_space(2.0);
 
-        // Suggestions cards
-        let suggestions = app.ai_reply.suggestions.clone();
+        // Actions to execute after UI loop
         let mut chosen_reply: Option<String> = None;
         let mut copy_reply: Option<String> = None;
+        let mut chat_adjust_request: Option<(String, Option<String>)> = None;
 
-        for sugg in suggestions {
-            let card_frame = egui::Frame::NONE
-                .fill(Color32::from_rgba_premultiplied(66, 133, 244, 12))
-                .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(66, 133, 244, 60)))
-                .corner_radius(6.0)
-                .inner_margin(Margin::same(10));
+        // SCROLLABLE AREA: Guarantees nothing is ever cut off on any window size
+        egui::ScrollArea::vertical()
+            .id_salt("ai_reply_scroll_area")
+            .max_height(350.0)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing = vec2(6.0, 8.0);
 
-            card_frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(&sugg.category)
-                            .font(semibold(12.5))
-                            .color(Color32::from_rgb(66, 133, 244)),
-                    );
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(&sugg.description).size(11.0).color(t.text_dim));
-                });
+                // Suggestions list: Show 2 by default, expandable to 3
+                let total_suggestions = app.ai_reply.suggestions.len();
+                let limit = if app.ai_reply.show_all_suggestions { total_suggestions } else { total_suggestions.min(2) };
+
+                for (idx, sugg) in app.ai_reply.suggestions[..limit].iter().enumerate() {
+                    let is_active_base = app.ai_reply.chat_base_text.as_ref() == Some(&sugg.text);
+
+                    let card_frame = egui::Frame::NONE
+                        .fill(if is_active_base {
+                            Color32::from_rgba_premultiplied(66, 133, 244, 25)
+                        } else {
+                            Color32::from_rgba_premultiplied(66, 133, 244, 12)
+                        })
+                        .stroke(Stroke::new(
+                            if is_active_base { 1.5 } else { 1.0 },
+                            if is_active_base { Color32::from_rgb(66, 133, 244) } else { Color32::from_rgba_premultiplied(66, 133, 244, 70) },
+                        ))
+                        .corner_radius(6.0)
+                        .inner_margin(Margin::same(10));
+
+                    card_frame.show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("Opção {}: {}", idx + 1, &sugg.category))
+                                    .font(semibold(12.5))
+                                    .color(Color32::from_rgb(66, 133, 244)),
+                            );
+                            ui.add_space(6.0);
+                            ui.label(RichText::new(&sugg.description).size(11.0).color(t.text_dim));
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Complete text with proper line wrapping - NO CUT-OFFS
+                        for line in sugg.text.lines() {
+                            if line.trim().is_empty() {
+                                ui.add_space(3.0);
+                            } else {
+                                ui.add(egui::Label::new(RichText::new(line).size(12.0).color(t.text)).wrap());
+                            }
+                        }
+
+                        ui.add_space(6.0);
+
+                        ui.horizontal(|ui| {
+                            let use_btn = egui::Button::new(
+                                RichText::new("✉️ Usar esta Resposta")
+                                    .font(semibold(11.5))
+                                    .color(t.accent_text),
+                            )
+                            .fill(t.accent)
+                            .corner_radius(4.0);
+
+                            if ui.add(use_btn).on_hover_text("Abre o editor de resposta com este texto preenchido").clicked() {
+                                chosen_reply = Some(sugg.text.clone());
+                            }
+
+                            let chat_btn = egui::Button::new(
+                                RichText::new("💬 Ajustar no Chat")
+                                    .font(semibold(11.5))
+                                    .color(Color32::from_rgb(66, 133, 244)),
+                            )
+                            .fill(Color32::from_rgba_premultiplied(66, 133, 244, 20))
+                            .corner_radius(4.0);
+
+                            if ui.add(chat_btn).on_hover_text("Carrega esta sugestão no Chat para o Gemini ajustar conforme seu pedido").clicked() {
+                                app.ai_reply.chat_base_text = Some(sugg.text.clone());
+                                app.ai_reply.prompt = "Tornar mais amigável e resumida".to_string();
+                            }
+
+                            if ui
+                                .button(RichText::new("📋 Copiar").size(11.5).color(t.text))
+                                .on_hover_text("Copia a resposta para a área de transferência")
+                                .clicked()
+                            {
+                                copy_reply = Some(sugg.text.clone());
+                            }
+                        });
+                    });
+                }
+
+                // Toggle for 3rd suggestion if there are more
+                if total_suggestions > 2 {
+                    ui.horizontal(|ui| {
+                        if !app.ai_reply.show_all_suggestions {
+                            if ui
+                                .button(RichText::new("➕ Mostrar 3ª sugestão de resposta").size(11.5).color(Color32::from_rgb(66, 133, 244)))
+                                .clicked()
+                            {
+                                app.ai_reply.show_all_suggestions = true;
+                            }
+                        } else {
+                            if ui
+                                .button(RichText::new("➖ Mostrar apenas 2 sugestões principais").size(11.5).color(t.text_dim))
+                                .clicked()
+                            {
+                                app.ai_reply.show_all_suggestions = false;
+                            }
+                        }
+                    });
+                }
 
                 ui.add_space(4.0);
 
-                // Preview box
-                let preview_text = if sugg.text.len() > 180 {
-                    format!("{}...", &sugg.text[..180])
-                } else {
-                    sugg.text.clone()
-                };
-                ui.label(RichText::new(preview_text).size(11.5).color(t.text));
+                // INTERACTIVE CHAT SECTION: Modify reply or converse with Gemini
+                let chat_frame = egui::Frame::NONE
+                    .fill(Color32::from_rgba_premultiplied(30, 35, 45, 30))
+                    .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(100, 150, 255, 60)))
+                    .corner_radius(6.0)
+                    .inner_margin(Margin::same(10));
 
-                ui.add_space(6.0);
+                chat_frame.show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("💬").size(14.0).color(Color32::from_rgb(66, 133, 244)));
+                        ui.label(
+                            RichText::new("Chat com Gemini sobre a Resposta:")
+                                .font(semibold(12.5))
+                                .color(t.text),
+                        );
 
-                ui.horizontal(|ui| {
-                    let use_btn = egui::Button::new(
-                        RichText::new("✉️ Usar esta Resposta")
-                            .font(semibold(11.5))
-                            .color(t.accent_text),
-                    )
-                    .fill(t.accent)
-                    .corner_radius(4.0);
+                        if app.ai_reply.chat_base_text.is_some() {
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.button(RichText::new("Limpar base").size(10.5).color(t.text_dim)).clicked() {
+                                    app.ai_reply.chat_base_text = None;
+                                }
+                            });
+                        }
+                    });
 
-                    if ui.add(use_btn).on_hover_text("Abre o editor de resposta com este texto preenchido").clicked() {
-                        chosen_reply = Some(sugg.text.clone());
+                    if let Some(base) = &app.ai_reply.chat_base_text {
+                        ui.horizontal_wrapped(|ui| {
+                            let snippet = if base.len() > 90 { format!("{}...", &base[..90]) } else { base.clone() };
+                            ui.label(RichText::new(format!("Base selecionada: \"{}\"", snippet.replace('\n', " "))).size(11.0).color(Color32::from_rgb(66, 133, 244)));
+                        });
                     }
 
-                    if ui
-                        .button(RichText::new("📋 Copiar").size(11.5).color(t.text))
-                        .on_hover_text("Copia a resposta para a área de transferência")
-                        .clicked()
-                    {
-                        copy_reply = Some(sugg.text);
-                    }
+                    // Quick prompt chips
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new("Ajustes rápidos:").size(11.0).color(t.text_dim));
+                        if ui.button(RichText::new("✂️ Mais curta").size(11.0)).clicked() {
+                            chat_adjust_request = Some(("Deixe a resposta mais curta e direta".to_string(), app.ai_reply.chat_base_text.clone()));
+                        }
+                        if ui.button(RichText::new("👔 Mais formal").size(11.0)).clicked() {
+                            chat_adjust_request = Some(("Reescreva em tom mais formal e polido".to_string(), app.ai_reply.chat_base_text.clone()));
+                        }
+                        if ui.button(RichText::new("😊 Mais amigável").size(11.0)).clicked() {
+                            chat_adjust_request = Some(("Reescreva em tom amigável e descontraído".to_string(), app.ai_reply.chat_base_text.clone()));
+                        }
+                        if ui.button(RichText::new("📅 Pedir prazo").size(11.0)).clicked() {
+                            chat_adjust_request = Some(("Solicite estimativa de prazos ou próximas datas".to_string(), app.ai_reply.chat_base_text.clone()));
+                        }
+                    });
+
+                    // Input field
+                    ui.horizontal(|ui| {
+                        let hint = if app.ai_reply.chat_base_text.is_some() {
+                            "Diga o que ajustar (ex: 'diga que já paguei', 'mude o prazo')..."
+                        } else {
+                            "Peça uma resposta ao Gemini (ex: 'peça desconto', 'diga que estarei viajando')..."
+                        };
+
+                        let input = egui::TextEdit::singleline(&mut app.ai_reply.prompt)
+                            .hint_text(hint)
+                            .desired_width(ui.available_width() - 110.0);
+                        let resp = ui.add(input);
+                        let enter_pressed = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                        let send_btn = egui::Button::new(
+                            RichText::new("✨ Enviar")
+                                .font(semibold(11.5))
+                                .color(t.accent_text),
+                        )
+                        .fill(t.accent)
+                        .corner_radius(4.0);
+
+                        if (ui.add(send_btn).clicked() || enter_pressed) && !app.ai_reply.prompt.trim().is_empty() {
+                            let text = app.ai_reply.prompt.trim().to_string();
+                            app.ai_reply.prompt.clear();
+                            chat_adjust_request = Some((text, app.ai_reply.chat_base_text.clone()));
+                        }
+                    });
                 });
+
+                if app.ai_reply.loading {
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new("Gemini está analisando e redigindo sua resposta...")
+                                .size(11.5)
+                                .color(Color32::from_rgb(66, 133, 244)),
+                        );
+                    });
+                }
+
+                // Custom/Adjusted reply card
+                if let Some(custom_text) = app.ai_reply.custom_reply.clone() {
+                    ui.add_space(4.0);
+                    let custom_frame = egui::Frame::NONE
+                        .fill(Color32::from_rgba_premultiplied(52, 168, 83, 16))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(52, 168, 83)))
+                        .corner_radius(6.0)
+                        .inner_margin(Margin::same(10));
+
+                    custom_frame.show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("✨ Resposta Gerada pelo Gemini:")
+                                    .font(semibold(12.5))
+                                    .color(Color32::from_rgb(52, 168, 83)),
+                            );
+                        });
+                        ui.add_space(4.0);
+
+                        for line in custom_text.lines() {
+                            if line.trim().is_empty() {
+                                ui.add_space(3.0);
+                            } else {
+                                ui.add(egui::Label::new(RichText::new(line).size(12.0).color(t.text)).wrap());
+                            }
+                        }
+
+                        ui.add_space(6.0);
+
+                        ui.horizontal(|ui| {
+                            let use_btn = egui::Button::new(
+                                RichText::new("✉️ Usar esta Resposta no E-mail")
+                                    .font(semibold(11.5))
+                                    .color(t.accent_text),
+                            )
+                            .fill(t.accent)
+                            .corner_radius(4.0);
+
+                            if ui.add(use_btn).on_hover_text("Abre o editor de resposta com este texto").clicked() {
+                                chosen_reply = Some(custom_text.clone());
+                            }
+
+                            if ui
+                                .button(RichText::new("📋 Copiar").size(11.5).color(t.text))
+                                .on_hover_text("Copia para a área de transferência")
+                                .clicked()
+                            {
+                                copy_reply = Some(custom_text.clone());
+                            }
+                        });
+                    });
+                }
             });
-            ui.add_space(4.0);
-        }
 
-        ui.add_space(6.0);
-
-        // Custom Prompt Section
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new("💡 Instrua o Gemini para uma resposta sob medida:")
-                    .font(semibold(12.0))
-                    .color(t.text),
-            );
-        });
-
-        ui.horizontal(|ui| {
-            let input = egui::TextEdit::singleline(&mut app.ai_reply.prompt)
-                .hint_text("Ex: Peça 10% de desconto; Diga que estou viajando até segunda...")
-                .desired_width(ui.available_width() - 170.0);
-            let resp = ui.add(input);
-            let enter_pressed = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-
-            let gen_btn = egui::Button::new(
-                RichText::new("✨ Gerar Resposta")
-                    .font(semibold(11.5))
-                    .color(t.accent_text),
-            )
-            .fill(t.accent)
-            .corner_radius(4.0);
-
-            if (ui.add(gen_btn).clicked() || enter_pressed) && !app.ai_reply.prompt.trim().is_empty() {
-                let prompt_text = app.ai_reply.prompt.trim().to_string();
-                app.ai_reply.prompt.clear();
-                send_custom_prompt(app, m, prompt_text);
-            }
-        });
-
-        if app.ai_reply.loading {
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label(
-                    RichText::new("Gemini está analisando o e-mail e redigindo a resposta...")
-                        .size(11.5)
-                        .color(Color32::from_rgb(66, 133, 244)),
-                );
-            });
-        }
-
-        // Custom generated reply card if present
-        if let Some(custom_text) = app.ai_reply.custom_reply.clone() {
-            ui.add_space(4.0);
-            let custom_frame = egui::Frame::NONE
-                .fill(Color32::from_rgba_premultiplied(52, 168, 83, 14))
-                .stroke(Stroke::new(1.0, Color32::from_rgb(52, 168, 83)))
-                .corner_radius(6.0)
-                .inner_margin(Margin::same(10));
-
-            custom_frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("✨ Resposta Personalizada pelo Gemini:")
-                            .font(semibold(12.5))
-                            .color(Color32::from_rgb(52, 168, 83)),
-                    );
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new(&custom_text).size(12.0).color(t.text));
-                ui.add_space(6.0);
-
-                ui.horizontal(|ui| {
-                    let use_btn = egui::Button::new(
-                        RichText::new("✉️ Usar esta Resposta")
-                            .font(semibold(11.5))
-                            .color(t.accent_text),
-                    )
-                    .fill(t.accent)
-                    .corner_radius(4.0);
-
-                    if ui.add(use_btn).on_hover_text("Abre o editor de resposta com este texto").clicked() {
-                        chosen_reply = Some(custom_text.clone());
-                    }
-
-                    if ui
-                        .button(RichText::new("📋 Copiar").size(11.5).color(t.text))
-                        .on_hover_text("Copia para a área de transferência")
-                        .clicked()
-                    {
-                        copy_reply = Some(custom_text);
-                    }
-                });
-            });
+        // Trigger chat adjustment if requested
+        if let Some((user_text, base_opt)) = chat_adjust_request {
+            send_chat_adjustment(app, m, user_text, base_opt);
         }
 
         // Handle reply actions
