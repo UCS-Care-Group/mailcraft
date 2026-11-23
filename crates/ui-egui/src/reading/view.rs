@@ -39,7 +39,7 @@ pub const FRAME_BUDGET: usize = 60_000;
 const KEPT: usize = 4;
 
 /// How many layouts are kept for windows: one each, and a few that outlive theirs for a moment.
-const KEPT_IN_WINDOWS: usize = 16;
+pub(crate) const KEPT_IN_WINDOWS: usize = 16;
 
 /// How many layouts are kept for the messages of a conversation stacked in the reading pane
 /// ([`Place::Thread`], #1778): more than it shows whole at once
@@ -121,13 +121,22 @@ impl Doc {
             Some(read) if can_download => {
                 let doc = Doc { lists: lists.clone(), responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
                 if !doc.remote.is_empty() {
-                    return doc;
+                    return doc.of_subject(&message.subject);
                 }
                 (mailcraft_html::text_blocks(&message.body.text), false, true)
             }
             _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
         };
-        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }
+        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }.of_subject(&message.subject)
+    }
+
+    /// A forward (by its subject) has no quoted history to leave out: what it carries is usually
+    /// nowhere else in the conversation ([`mailcraft_html::history::start_in`]).
+    fn of_subject(mut self, subject: &str) -> Doc {
+        if mailcraft_html::history::is_forward(subject) {
+            self.history = None;
+        }
+        self
     }
 
     /// The blocks as a body, with what is known of their pictures on the web.

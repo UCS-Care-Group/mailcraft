@@ -3592,8 +3592,9 @@ msgstr "Zavře toto okno. Nic se neuchová."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Collapse All"
-msgstr ""
+msgstr "Sbalit vše"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3817,8 +3818,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Conversation Settings"
-msgstr ""
+msgstr "Nastavení konverzací"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5657,8 +5659,9 @@ msgstr "Server Exchange · žádná použitelná adresa serveru"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Expand All"
-msgstr ""
+msgstr "Rozbalit vše"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -6980,8 +6983,9 @@ msgstr "Skrýt heslo"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Hide quoted text"
-msgstr ""
+msgstr "Skrýt citovaný text"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15314,8 +15318,9 @@ msgstr "Zobrazit školení"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
-msgstr ""
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "Zobrazit celou konverzaci v podokně čtení"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -26050,11 +26055,12 @@ msgstr[2] "{n} zpráv v konverzaci"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} message in this conversation"
 msgid_plural "{n} messages in this conversation"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} zpráva v této konverzaci"
+msgstr[1] "{n} zprávy v této konverzaci"
+msgstr[2] "{n} zpráv v této konverzaci"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -26346,11 +26352,12 @@ msgstr "Zatím {n} z {total}."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} older message of this conversation isn't shown"
 msgid_plural "{n} older messages of this conversation aren't shown"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} starší zpráva této konverzace není zobrazena"
+msgstr[1] "{n} starší zprávy této konverzace nejsou zobrazeny"
+msgstr[2] "{n} starších zpráv této konverzace není zobrazeno"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -26888,8 +26895,9 @@ msgstr "{why}. Změny, které v něm byly provedeny zde ({n}), čekají v tomto 
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "··· Show quoted text"
-msgstr ""
+msgstr "··· Zobrazit citovaný text"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

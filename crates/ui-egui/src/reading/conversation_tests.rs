@@ -296,22 +296,26 @@ fn the_layouts_of_many_stacked_messages_are_kept_from_frame_to_frame() {
 #[test]
 fn the_column_state_follows_its_rules_without_a_window() {
     use super::conversation_state::{MAX_OPEN, Open};
+    // The selections' log, as the engine keeps it: (number, message selected, what it read).
+    let log = |entries: &[(u64, Id, &[Id])]| -> std::collections::VecDeque<mailcraft_engine::ReadOnOpen> {
+        entries.iter().map(|(count, focus, ids)| mailcraft_engine::ReadOnOpen { count: *count, focus: *focus, ids: ids.to_vec() }).collect()
+    };
     let read = |id: Id| mailcraft_model::Message { id, read: true, ..Default::default() };
     let unread = |id: Id| mailcraft_model::Message { id, read: false, ..Default::default() };
     let messages: Vec<mailcraft_model::Message> = (1..=60).map(|id| if id == 3 { unread(id) } else { read(id) }).collect();
     let find = |id: Id| messages.iter().find(|m| m.id == id);
     let thread: Vec<Id> = (1..=60).collect();
     // Afresh for message 60: it and the unread one are shown whole; what selecting read too.
-    let open = Open::for_frame(None, 60, 1, (1, &[10]), &thread);
+    let open = Open::for_frame(None, 60, 1, &log(&[(1, 60, &[10])]), &thread);
     let whole = open.shown_whole(&thread, find);
     assert!(whole.contains(&60) && whole.contains(&3) && whole.contains(&10) && whole.len() == 3);
     // Kept into the next frame; the same reads aren't taken in twice, so a close stays.
-    let mut open = Open::for_frame(Some(open), 60, 2, (1, &[10]), &thread);
+    let mut open = Open::for_frame(Some(open), 60, 2, &log(&[(1, 60, &[10])]), &thread);
     open.close(10);
-    let mut open = Open::for_frame(Some(open), 60, 3, (1, &[10]), &thread);
+    let mut open = Open::for_frame(Some(open), 60, 3, &log(&[(1, 60, &[10])]), &thread);
     assert!(!open.shown_whole(&thread, find).contains(&10));
     // A newer selection of the same message that reads it again opens it again.
-    open = Open::for_frame(Some(open), 60, 4, (2, &[10]), &thread);
+    open = Open::for_frame(Some(open), 60, 4, &log(&[(1, 60, &[10]), (2, 60, &[10])]), &thread);
     assert!(open.shown_whole(&thread, find).contains(&10));
     // Expand All: the selected one and MAX_OPEN others, the newest.
     open.expand_all(&thread);
@@ -326,9 +330,13 @@ fn the_column_state_follows_its_rules_without_a_window() {
     assert!(open.quoted(60));
     open.toggle_quoted(60);
     assert!(!open.quoted(60));
-    // Off screen for a frame, or another selection: afresh.
-    let open = Open::for_frame(Some(open), 60, 9, (2, &[]), &thread);
-    assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([60, 3]));
+    // Off screen for a frame: afresh, with what the selections of the message read open again,
+    // what the owner closed forgotten.
+    let open = Open::for_frame(Some(open), 60, 9, &log(&[(1, 60, &[10]), (2, 60, &[10]), (3, 60, &[])]), &thread);
+    assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([60, 3, 10]));
+    // Another message selected since: afresh, with nothing of what 60's selections read.
+    let open = Open::for_frame(Some(open), 59, 10, &log(&[(1, 60, &[10]), (2, 60, &[10]), (3, 59, &[])]), &thread);
+    assert_eq!(open.shown_whole(&thread, find), std::collections::HashSet::from([59, 3]));
 }
 
 /// A window on a mailbox whose Inbox holds one conversation of `n` messages, none read, linked
@@ -422,4 +430,42 @@ fn a_stacked_body_longer_than_a_frame_lays_out_to_its_end_with_many_open() {
     assert!(done(&w), "the long body was still being laid out after {frames} frames");
     let open = ids.iter().filter(|id| w.state().hit.rect("conversationCard", **id).is_some()).count();
     assert_eq!(open, MAX_OPEN, "every message read on opening is shown whole");
+}
+
+#[test]
+fn a_selection_holds_in_every_body_with_49_open() {
+    use super::conversation_state::MAX_OPEN;
+    // 60 messages, none read: selecting the newest shows it and MAX_OPEN others whole.
+    let (mut w, ids) = long_conversation(60, None);
+    w.state_mut().execute("mail.select", json!({"id": *ids.last().unwrap()})).unwrap();
+    w.run_steps(3);
+    let open: Vec<Id> = ids.iter().copied().filter(|id| w.state().hit.rect("conversationCard", *id).is_some()).collect();
+    assert_eq!(open.len(), MAX_OPEN);
+    // Text selected in each in turn, frames going by: every one is still known, and selected.
+    for id in &open {
+        w.state_mut().execute("ui.selectAllInMessage", json!({"thread": id})).unwrap_or_else(|e| panic!("{id}: {e}"));
+        w.run_steps(2);
+    }
+    let ctx = w.ctx.clone();
+    let seen = super::selection_inspect(w.state(), &ctx);
+    let selected = seen.to_string();
+    for id in &open {
+        assert!(selected.contains(&format!("{{\"thread\":{id}}}")), "the selection in {id} was lost: {selected}");
+    }
+    // And the pane's own message is still selectable.
+    w.state_mut().execute("ui.selectAllInMessage", json!({"pane": true})).unwrap();
+}
+
+#[test]
+fn two_selections_before_a_frame_open_what_each_read() {
+    let (mut w, newer, older, reply) = release_checklist();
+    // The same message selected twice before the next frame, each time reading another.
+    w.state_mut().execute("mail.markUnread", json!({"ids": [older]})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    w.state_mut().execute("mail.markUnread", json!({"ids": [reply]})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    w.run_steps(3);
+    let read = |id: Id| w.state().session.mailbox.message(id).unwrap().read;
+    assert!(read(older) && read(reply));
+    assert!(drawn(&w, "conversationCard", older) && drawn(&w, "conversationCard", reply), "a message one of the selections read is closed");
 }

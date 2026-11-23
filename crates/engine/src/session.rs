@@ -273,6 +273,20 @@ pub fn enum_code<T: Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
+/// How many selections [`Session::reads_on_open`] keeps.
+pub const READS_KEPT: usize = 8;
+
+/// A selection, and the messages it marked read as it opened them ([`Session::reads_on_open`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReadOnOpen {
+    /// Its number: each selection's is one more than the one before.
+    pub count: u64,
+    /// The message it selected (0 for none).
+    pub focus: Id,
+    /// What it read.
+    pub ids: Vec<Id>,
+}
+
 /// View state that commands change (the View tab, the navigation bar, the search box).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -1287,11 +1301,10 @@ pub struct Session {
     /// an arrow key doesn't copy the mailbox and compare it afterwards. The selected message, or
     /// its whole conversation when the reading pane shows that (#1778).
     pub(crate) opened: Vec<Id>,
-    /// The messages the last selection marked read as it opened them ([`Session::read_on_open`]).
-    pub(crate) read_on_open: Vec<Id>,
-    /// How many times a selection marked messages read as it opened them: each time is told
-    /// apart, even of the same message with the same messages read again.
-    read_on_open_count: u64,
+    /// The last selections and what each read as it opened ([`Session::reads_on_open`]).
+    pub(crate) reads_on_open: std::collections::VecDeque<ReadOnOpen>,
+    /// How many selections there have been, the last one's number.
+    reads_on_open_count: u64,
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
@@ -1508,8 +1521,8 @@ impl Session {
             threads_cache: Default::default(),
             list_builds: 0,
             opened: Vec::new(),
-            read_on_open: Vec::new(),
-            read_on_open_count: 0,
+            reads_on_open: std::collections::VecDeque::new(),
+            reads_on_open_count: 0,
             sender_checks: Default::default(),
             signatures: Default::default(),
             content_source: None,
@@ -2087,25 +2100,31 @@ impl Session {
         }
     }
 
+    /// The last selections, oldest first, each with the messages it marked read as it opened
+    /// them (File › Options, #1778): of a conversation stacked in the reading pane, those that
+    /// weren't read until then, which the pane shows whole as it shows the ones not read yet. A
+    /// selection that read nothing is there too, with none. Kept for the last [`READS_KEPT`]
+    /// selections, so that a reader that takes them in once a frame misses none of several
+    /// selections in one frame.
+    pub fn reads_on_open(&self) -> &std::collections::VecDeque<ReadOnOpen> {
+        &self.reads_on_open
+    }
+
+    /// A selection begins ([`crate::cmd::mail::mark_opened`]): it is noted, having read nothing
+    /// yet.
+    pub(crate) fn note_selection(&mut self, focus: Option<Id>) {
+        self.reads_on_open_count = self.reads_on_open_count.wrapping_add(1);
+        if self.reads_on_open.len() >= READS_KEPT {
+            self.reads_on_open.pop_front();
+        }
+        self.reads_on_open.push_back(ReadOnOpen { count: self.reads_on_open_count, focus: focus.unwrap_or_default(), ids: Vec::new() });
+    }
+
     /// The message a selection opened ([`Session::opened`]) is marked read, once the command
     /// that selected it has done. After a command on the light path (`light`), whose copy of the
     /// mailbox wasn't taken, this is the one change: the list, the counts and the conversation
     /// are carried through it as through any read mark alone ([`Session::list_stands`]).
     /// Otherwise the command's own comparison sees it.
-    /// The messages the last selection marked read as it opened them (File › Options, #1778):
-    /// those of a conversation stacked in the reading pane that weren't read until then, which it
-    /// shows whole, as it shows the ones not read yet. Empty once another selection reads none.
-    pub fn read_on_open(&self) -> &[Id] {
-        &self.read_on_open
-    }
-
-    /// How many times a selection has marked messages read as it opened them
-    /// ([`Session::read_on_open`]): a reader that keeps what it did with them knows a new time by
-    /// this, even when the same message was selected again.
-    pub fn read_on_open_count(&self) -> u64 {
-        self.read_on_open_count
-    }
-
     fn mark_opened_read(&mut self, ids: &[Id], light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
         let old: Vec<Arc<Message>> = ids.iter().filter_map(|id| self.mailbox.messages.get(id).cloned()).filter(|m| !m.read && !m.draft).collect();
         if old.is_empty() {
@@ -2125,8 +2144,10 @@ impl Session {
         if marked.is_empty() {
             return;
         }
-        self.read_on_open.clone_from(&marked);
-        self.read_on_open_count = self.read_on_open_count.wrapping_add(1);
+        // What the selection, the last one noted, read.
+        if let Some(last) = self.reads_on_open.back_mut() {
+            last.ids.clone_from(&marked);
+        }
         self.dirty = true;
         if !light {
             // A new revision whatever the command's own comparison does after (an Undo or Redo

@@ -8,18 +8,26 @@
 //!
 //! - a header of the message answered as Outlook writes it, a line `From:` with `Sent:` or
 //!   `Date:` and `To:` or `Subject:` within the next lines (in English, French, German, Spanish,
-//!   Italian and Dutch), with the rule or the line of underscores Outlook draws above it;
+//!   Italian and Dutch), with the rule or the line of underscores Outlook draws above it, in a
+//!   block of its own or in the header's first block;
 //! - `-----Original Message-----` (and its dashes in other lengths);
-//! - a line `On … wrote:`, as Gmail, Apple Mail and Thunderbird introduce the text they quote;
-//! - from a block on, nothing but quoted text (`<blockquote>`, or `>` in plain text).
+//! - a line `On … wrote:`, as Gmail, Apple Mail and Thunderbird introduce the text they quote.
 //!
-//! Never from the first block (a message that is all history is shown whole), and never where
-//! the owner's reader would lose what the sender wrote between quotes: quoted text followed by
-//! more of the sender's own is an answer written in between, and is kept, also under an
-//! `On … wrote:` line. A picture or a table that isn't quoted is the sender's own as text is. The
-//! text looked at is bounded: a message of more than [`MAX_BLOCKS`] blocks is shown whole (what
-//! wasn't looked at could hold an answer), and of each block the first [`MAX_LINE_CHARS`]
-//! characters of a line.
+//! Never from the first block (a message that is all history is shown whole), never in a forward
+//! (its subject begins with `Fw:`, `Fwd:` or another language's, [`start_in`], or a line says
+//! `Forwarded message`: what it carries is usually nowhere else in the conversation), and never
+//! where the owner's reader would lose what the sender wrote between quotes: quoted text followed
+//! by more of the sender's own is an answer written in between, and is kept, also under an
+//! `On … wrote:` line. A quote at the end with nothing to say whose it is (no `On … wrote:`, no
+//! header) is a passage the sender cites, and is kept too. A picture or a table that isn't quoted
+//! is the sender's own as text is.
+//!
+//! Everything here is read from mail, so it is hostile, and the work is linear in the blocks and
+//! their spans: what each block shows is worked out once, and what follows each block (an
+//! answer after a quote) once, from the end. A message of more than [`MAX_BLOCKS`] blocks is shown
+//! whole (what wasn't looked at could hold an answer); of each block, the first
+//! [`MAX_LINE_CHARS`] characters of a line, and lines with text only, are compared; a header or
+//! a rule is looked for within [`LOOK_AHEAD`] blocks.
 
 use crate::{Block, BlockKind};
 
@@ -29,70 +37,117 @@ pub const MAX_BLOCKS: usize = 4_000;
 pub const MAX_LINE_CHARS: usize = 300;
 /// How many lines after a `From:` line the rest of a header may be found in.
 const HEADER_LINES: usize = 8;
+/// How many blocks after a rule, or after a header's first line, the rest is looked for in.
+pub const LOOK_AHEAD: usize = 12;
 
 /// The index of the block from which `blocks` is the quoted history of the conversation, if
-/// they have some after text of their own.
+/// they have some after text of their own. [`start_in`] for a message whose subject is known.
 pub fn start(blocks: &[Block]) -> Option<usize> {
-    if blocks.len() > MAX_BLOCKS {
+    start_in(blocks, "")
+}
+
+/// [`start`] for a message with the subject `subject`: a forward has none.
+pub fn start_in(blocks: &[Block], subject: &str) -> Option<usize> {
+    if blocks.len() > MAX_BLOCKS || is_forward(subject) {
         return None;
     }
-    // Each block's lines, trimmed, capped.
-    let lines: Vec<Vec<String>> = blocks.iter().map(lines_of).collect();
-    let cut = (1..blocks.len()).find(|&i| begins_history(blocks, &lines, i))?;
+    let read = Read::of(blocks);
+    if read.lines.iter().flatten().any(|l| is_forwarded_line(l)) {
+        return None;
+    }
+    let cut = (1..blocks.len()).find(|&i| read.begins_history(i))?;
     // What comes before is the sender's own: there must be something to read in it.
-    let own = blocks.get(..cut).unwrap_or_default().iter().zip(&lines).any(|(b, l)| has_content(b, l));
-    own.then_some(cut)
+    read.content.get(..cut).unwrap_or_default().iter().any(|c| *c).then_some(cut)
 }
 
-/// Whether a block shows something of its own: text, or a picture or a table, whose words are
-/// not in its spans (a rule or an empty paragraph shows nothing).
-/// The block's whole text is looked at, not only the lines sampled for headers: a block that
-/// begins with many blank lines still has what follows them.
-fn has_content(b: &Block, lines: &[String]) -> bool {
-    matches!(b.kind, BlockKind::Image { .. } | BlockKind::Table(_))
-        || lines.iter().any(|l| !l.is_empty())
-        || b.spans.iter().any(|s| s.text.chars().any(|c| !c.is_whitespace()))
+/// What is known of each block, worked out once.
+struct Read<'a> {
+    blocks: &'a [Block],
+    /// Its lines with text, trimmed and capped.
+    lines: Vec<Vec<String>>,
+    /// It shows something: text (all of it looked at, not only the lines sampled), or a picture
+    /// or a table, whose words aren't in its spans.
+    content: Vec<bool>,
+    /// From it on, the sender wrote something after quoted text: a block of their own that comes
+    /// after a quoted one. One more than the blocks: none after the last.
+    answers_from: Vec<bool>,
 }
 
-/// Whether, from block `from` on, the sender wrote something between or after quoted text: a
-/// block of their own that comes after a quoted one, an answer written in the quote.
-fn answers_in_quote(blocks: &[Block], lines: &[Vec<String>], from: usize) -> bool {
-    let mut quoted = false;
-    for (b, l) in blocks.iter().zip(lines).skip(from) {
-        if b.quote > 0 {
-            quoted = true;
-        } else if quoted && has_content(b, l) {
+impl<'a> Read<'a> {
+    fn of(blocks: &'a [Block]) -> Read<'a> {
+        let lines: Vec<Vec<String>> = blocks.iter().map(lines_of).collect();
+        let content: Vec<bool> = blocks
+            .iter()
+            .zip(&lines)
+            .map(|(b, l)| {
+                matches!(b.kind, BlockKind::Image { .. } | BlockKind::Table(_))
+                    || !l.is_empty()
+                    || b.spans.iter().any(|s| s.text.chars().any(|c| !c.is_whitespace()))
+            })
+            .collect();
+        // From the end: whether one of the sender's own blocks is at or after each, and whether
+        // a quoted block comes before such a one.
+        let mut answers_from = vec![false; blocks.len() + 1];
+        let mut own_after = false;
+        for i in (0..blocks.len()).rev() {
+            let quoted = blocks.get(i).is_some_and(|b| b.quote > 0);
+            let later = answers_from.get(i + 1).copied().unwrap_or(false);
+            if let Some(slot) = answers_from.get_mut(i) {
+                *slot = later || (quoted && own_after);
+            }
+            if !quoted && content.get(i).copied().unwrap_or(false) {
+                own_after = true;
+            }
+        }
+        Read { blocks, lines, content, answers_from }
+    }
+
+    fn lines(&self, i: usize) -> &[String] {
+        self.lines.get(i).map(Vec::as_slice).unwrap_or_default()
+    }
+
+    /// Whether the history begins at block `i`.
+    fn begins_history(&self, i: usize) -> bool {
+        let lines = self.lines(i);
+        let Some(first) = lines.first() else {
+            // A rule is where it begins when a header comes right under it.
+            return self.blocks.get(i).is_some_and(|b| matches!(b.kind, BlockKind::Rule))
+                && self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0));
+        };
+        if is_separator(first) {
+            // Its own block, the header under it; or the header's first line in the same block.
+            return if lines.len() > 1 { self.header_at(i, 1) } else { self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0)) };
+        }
+        // (A rule just above a header, Outlook's line over it, was found first: the blocks are
+        // looked at in order.)
+        if is_original_message(first) || self.header_at(i, 0) {
             return true;
         }
+        // A line that introduces a quote, unless answers are written in the quote under it.
+        is_wrote(lines) && !self.answers_from.get(i + 1).copied().unwrap_or(false)
     }
-    false
+
+    /// The first block from `from` with a line of text, within [`LOOK_AHEAD`] blocks.
+    fn next_text(&self, from: usize) -> Option<usize> {
+        (from..self.blocks.len().min(from.saturating_add(LOOK_AHEAD))).find(|&j| !self.lines(j).is_empty())
+    }
+
+    /// Whether a header of the message answered begins at line `skip` of block `i`: that line is
+    /// `From:`, and the lines that follow, in it and the next blocks, have the date and the
+    /// recipients or the subject.
+    fn header_at(&self, i: usize, skip: usize) -> bool {
+        let end = self.blocks.len().min(i.saturating_add(LOOK_AHEAD));
+        let mut following = (i..end).flat_map(|j| self.lines(j)).skip(skip);
+        if !following.next().is_some_and(|l| starts_with_any(l, &FROM)) {
+            return false;
+        }
+        let rest: Vec<&String> = following.take(HEADER_LINES).collect();
+        rest.iter().any(|l| starts_with_any(l, &SENT)) && rest.iter().any(|l| starts_with_any(l, &TO))
+    }
 }
 
-/// Whether the history begins at block `i`.
-fn begins_history(blocks: &[Block], lines: &[Vec<String>], i: usize) -> bool {
-    let Some(first) = lines.get(i).and_then(|l| l.iter().find(|l| !l.is_empty())) else {
-        // A rule or an empty line is where it begins when a header comes right under it.
-        return is_rule(blocks.get(i), lines.get(i)) && next_text(lines, i + 1).is_some_and(|j| header_at(lines, j));
-    };
-    if is_separator(first) {
-        return next_text(lines, i + 1).is_some_and(|j| header_at(lines, j));
-    }
-    // (A rule just above a header, Outlook's line over it, was found first: the blocks are
-    // looked at in order.)
-    if is_original_message(first) || header_at(lines, i) {
-        return true;
-    }
-    // A line that introduces a quote, unless answers are written in the quote under it.
-    if is_wrote(lines, i) {
-        return !answers_in_quote(blocks, lines, i + 1);
-    }
-    // From here on, quoted text alone.
-    blocks.get(i).is_some_and(|b| b.quote > 0)
-        && blocks.get(i - 1).is_some_and(|b| b.quote == 0)
-        && blocks.iter().zip(lines).skip(i).all(|(b, l)| b.quote > 0 || !has_content(b, l))
-}
-
-/// The block's text, line by line, each trimmed and at most [`MAX_LINE_CHARS`] characters.
+/// The block's lines with text, each trimmed and at most [`MAX_LINE_CHARS`] characters, from its
+/// first few kilobytes.
 fn lines_of(b: &Block) -> Vec<String> {
     let mut text = String::new();
     for span in &b.spans {
@@ -101,17 +156,7 @@ fn lines_of(b: &Block) -> Vec<String> {
             break;
         }
     }
-    // Blank lines are left out: what is looked for is in the lines with text.
     text.lines().map(str::trim).filter(|l| !l.is_empty()).take(HEADER_LINES * 2).map(|l| l.chars().take(MAX_LINE_CHARS).collect::<String>()).collect()
-}
-
-/// The first block at or after `from` with any text, by index.
-fn next_text(lines: &[Vec<String>], from: usize) -> Option<usize> {
-    (from..lines.len()).find(|&j| lines.get(j).is_some_and(|l| l.iter().any(|l| !l.is_empty())))
-}
-
-fn is_rule(b: Option<&Block>, lines: Option<&Vec<String>>) -> bool {
-    b.is_some_and(|b| matches!(b.kind, BlockKind::Rule)) || lines.and_then(|l| l.iter().find(|l| !l.is_empty())).is_some_and(|l| is_separator(l))
 }
 
 /// A line of underscores or dashes and nothing else, as some programs draw a rule in text.
@@ -127,6 +172,31 @@ fn is_original_message(line: &str) -> bool {
             .contains(&words)
 }
 
+/// A line that says what follows is a forwarded message, as Gmail (`---------- Forwarded message
+/// ---------`) and Apple Mail (`Begin forwarded message:`) write it, or in another language.
+fn is_forwarded_line(line: &str) -> bool {
+    let l = line.to_lowercase();
+    [
+        "forwarded message",
+        "begin forwarded message",
+        "message transféré",
+        "weitergeleitete nachricht",
+        "mensaje reenviado",
+        "messaggio inoltrato",
+        "doorgestuurd bericht",
+    ]
+    .iter()
+    .any(|w| l.contains(w))
+}
+
+/// Whether a subject is a forward's: its first prefix is `Fw:`, `Fwd:` or another language's
+/// (`WG:`, `TR :`, `RV:`, `I:`, `Doorst:`). A forward has no history to leave out ([`start_in`]).
+pub fn is_forward(subject: &str) -> bool {
+    let Some((prefix, _)) = subject.trim().split_once(':') else { return false };
+    let p = prefix.trim().split('[').next().unwrap_or("").trim().to_lowercase();
+    ["fw", "fwd", "wg", "tr", "rv", "i", "doorst"].contains(&p.as_str())
+}
+
 /// The names a header line of the message answered begins with, by what it says.
 const FROM: [&str; 6] = ["from:", "de:", "von:", "da:", "van:", "de :"];
 const SENT: [&str; 10] = ["sent:", "date:", "envoyé :", "envoyé:", "gesendet:", "datum:", "enviado:", "fecha:", "inviato:", "verzonden:"];
@@ -137,23 +207,10 @@ fn starts_with_any(line: &str, names: &[&str]) -> bool {
     names.iter().any(|n| l.starts_with(n))
 }
 
-/// Whether a header of the message answered begins at block `i`: its first line is `From:`, and
-/// the lines that follow, in it and the blocks after it, have the date and the recipients or the
-/// subject.
-fn header_at(lines: &[Vec<String>], i: usize) -> bool {
-    let mut following = lines.iter().skip(i).flatten().filter(|l| !l.is_empty());
-    if !following.next().is_some_and(|l| starts_with_any(l, &FROM)) {
-        return false;
-    }
-    let rest: Vec<&String> = following.take(HEADER_LINES).collect();
-    rest.iter().any(|l| starts_with_any(l, &SENT)) && rest.iter().any(|l| starts_with_any(l, &TO))
-}
-
-/// Whether block `i` is a line `On … wrote:` (possibly over two lines, as a long sender breaks it),
-/// or its forms in other languages.
-fn is_wrote(lines: &[Vec<String>], i: usize) -> bool {
-    let Some(block) = lines.get(i) else { return false };
-    let text: String = block.iter().filter(|l| !l.is_empty()).take(2).cloned().collect::<Vec<_>>().join(" ");
+/// Whether a block's lines are a line `On … wrote:` (possibly over two lines, as a long sender
+/// breaks it), or its forms in other languages.
+fn is_wrote(lines: &[String]) -> bool {
+    let text: String = lines.iter().take(2).cloned().collect::<Vec<_>>().join(" ");
     let l = text.to_lowercase();
     let n = l.chars().count();
     if !(8..=MAX_LINE_CHARS).contains(&n) {

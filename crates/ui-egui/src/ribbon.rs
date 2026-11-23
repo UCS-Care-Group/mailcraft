@@ -1876,14 +1876,7 @@ pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             // Gmail's way, beyond Outlook's (#1778): off unless the owner turns it on. It shows in
             // conversation view only, which turning it on turns on too.
             let whole = app.session.view.conversations && app.session.view.whole_conversation;
-            mi_check(
-                ui,
-                app,
-                "Show Whole Conversation in Reading Pane (Gmail Style)",
-                whole,
-                "view.conversationSettings",
-                json!({"wholeConversation": !whole}),
-            );
+            mi_check(ui, app, "Show Whole Conversation in Reading Pane", whole, "view.conversationSettings", json!({"wholeConversation": !whole}));
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;

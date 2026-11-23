@@ -48,8 +48,19 @@ fn gmail_and_apple_mail_introduce_the_quote_with_a_wrote_line() {
 fn original_message_and_plain_text_quotes_are_found() {
     let text = "Done.\n\n-----Original Message-----\nFrom: Ada\nSent: Monday\nTo: Ben\nSubject: Plan\n\nOld text\n";
     assert_eq!(kept(&text_blocks(text)).trim(), "Done.");
-    let html = "<p>Yes.</p><blockquote><p>Will you come?</p><p>Ada</p></blockquote>";
-    assert_eq!(kept(&parse(html)), "Yes.");
+    let text = "Yes.
+
+On Mon, Ada Quinn wrote:
+> Will you come?
+> Ada
+";
+    assert_eq!(kept(&text_blocks(text)).trim(), "Yes.");
+}
+
+#[test]
+fn a_quote_at_the_end_that_nothing_introduces_is_a_citation_and_kept() {
+    let html = "<p>As the manual says:</p><blockquote><p>Turn the valve slowly.</p></blockquote>";
+    assert_eq!(start(&parse(html)), None);
 }
 
 #[test]
@@ -113,22 +124,82 @@ fn a_message_longer_than_what_is_looked_at_is_shown_whole() {
 
 #[test]
 fn an_answer_after_many_blank_lines_is_the_senders_own() {
-    let html = format!(
-        "<p>See below.</p><blockquote><p>What happened?</p></blockquote><pre>{}Answer</pre>",
-        "
+    let blank = "
 "
-        .repeat(40)
-    );
+    .repeat(40);
+    let html = format!("<p>See below.</p><p>On Mon, Ada Quinn wrote:</p><blockquote><p>What happened?</p></blockquote><pre>{blank}Answer</pre>");
     assert_eq!(start(&parse(&html)), None);
     // In plain text too.
     let text = format!(
         "See below.
+
+On Mon, Ada Quinn wrote:
 > What happened?
-{}Answer
-",
-        "
+{blank}Answer
 "
-        .repeat(40)
     );
     assert_eq!(start(&text_blocks(&text)), None);
+}
+
+#[test]
+fn a_forward_keeps_what_it_forwards() {
+    use crate::history::start_in;
+    // A note over an Outlook header, in a message whose subject is a forward's.
+    let html = "<p>FYI</p><p>From: Ada Quinn</p><p>Sent: Monday</p><p>To: Ben</p><p>Subject: Plan</p><p>The plan.</p>";
+    assert_eq!(start_in(&parse(html), "FW: Plan"), None);
+    assert_eq!(start_in(&parse(html), "Fwd: Plan"), None);
+    assert_eq!(start_in(&parse(html), "WG: Plan"), None);
+    // The same as a reply is cut; a reply to a forward too.
+    assert_eq!(start_in(&parse(html), "RE: Plan"), Some(1));
+    assert_eq!(start_in(&parse(html), "RE: FW: Plan"), Some(1));
+    // Gmail's and Apple Mail's forwards say so in a line, whatever the subject.
+    let html = "<p>FYI</p><p>---------- Forwarded message ---------</p><p>From: Ada</p><p>Date: Mon</p><p>To: Ben</p><p>The plan.</p>";
+    assert_eq!(start(&parse(html)), None);
+    let text = "See this.
+
+Begin forwarded message:
+
+From: Ada
+Date: Mon
+To: Ben
+
+The plan.
+";
+    assert_eq!(start(&text_blocks(text)), None);
+}
+
+#[test]
+fn a_separator_and_the_header_in_one_block_are_found() {
+    // Plain-text Outlook: the line of underscores, then From: on the next line, no blank line.
+    let text = "Thanks.
+
+________________________________
+From: Ada Quinn
+Sent: Monday
+To: Ben
+Subject: Plan
+
+Old text
+";
+    assert_eq!(kept(&text_blocks(text)).trim(), "Thanks.");
+}
+
+#[test]
+fn a_hostile_message_is_read_in_linear_time() {
+    // About 2000 "On a wrote:" lines, a quote, then one block of 130,000 whitespace spans ending
+    // in a letter: each candidate once rescanned that block.
+    let mut html = String::from("<p>Mine.</p>");
+    for _ in 0..2_000 {
+        html.push_str("<p>On a wrote:</p>");
+    }
+    html.push_str("<blockquote><p>q</p></blockquote><pre>");
+    for i in 0..130_000 {
+        html.push_str(if i % 2 == 0 { "<b> </b>" } else { "<i> </i>" });
+    }
+    html.push_str("x</pre>");
+    let blocks = parse(&html);
+    let began = std::time::Instant::now();
+    let _ = start(&blocks);
+    let took = began.elapsed();
+    assert!(took < std::time::Duration::from_millis(250), "{took:?}");
 }

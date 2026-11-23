@@ -3595,8 +3595,9 @@ msgstr "关闭此窗口，不会保留任何内容。"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Collapse All"
-msgstr ""
+msgstr "全部折叠"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3821,8 +3822,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Conversation Settings"
-msgstr ""
+msgstr "对话设置"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5645,8 +5647,9 @@ msgstr "Exchange 服务器 · 没有可用的服务器地址"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Expand All"
-msgstr ""
+msgstr "全部展开"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -6960,8 +6963,9 @@ msgstr "隐藏密码"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Hide quoted text"
-msgstr ""
+msgstr "隐藏引用文本"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15285,8 +15289,9 @@ msgstr "显示培训内容"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
-msgstr ""
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "在阅读窗格中显示整个对话"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25852,9 +25857,10 @@ msgstr[0] "会话中有 {n} 封邮件"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} message in this conversation"
 msgid_plural "{n} messages in this conversation"
-msgstr[0] ""
+msgstr[0] "此对话中有 {n} 封邮件"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -26086,9 +26092,10 @@ msgstr "目前已完成 {total} 中的 {n}。"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} older message of this conversation isn't shown"
 msgid_plural "{n} older messages of this conversation aren't shown"
-msgstr[0] ""
+msgstr[0] "此对话中有 {n} 封较早的邮件未显示"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -26554,8 +26561,9 @@ msgstr "{why}。此处对它所做的 {n} 项更改保留在此计算机上，�
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "··· Show quoted text"
-msgstr ""
+msgstr "··· 显示引用文本"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

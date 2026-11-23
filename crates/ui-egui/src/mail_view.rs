@@ -324,7 +324,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
         crate::widgets::mi_check(
             ui,
             app,
-            "Show Whole Conversation in Reading Pane (Gmail Style)",
+            "Show Whole Conversation in Reading Pane",
             whole,
             "view.conversationSettings",
             json!({"wholeConversation": !whole}),

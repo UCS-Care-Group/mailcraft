@@ -43,8 +43,10 @@ use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
 use crate::theme::Tokens;
 
-/// How many places a selection is kept for: the reading pane and the message windows.
-const MAX_PLACES: usize = 48;
+/// How many places a selection is kept for: the reading pane, every message of a conversation it
+/// stacks that is shown whole (#1778), the message windows, the original under a reply and the
+/// sample of File › Signatures, so that none shown in a frame makes room for another.
+const MAX_PLACES: usize = mailcraft_engine::stack::WHOLE + 1 + super::view::KEPT_IN_WINDOWS + 2;
 /// The longest address "Copy Link Address" takes.
 const MAX_LINK: usize = 8192;
 /// While a drag that selects is this near the top or bottom of the body, the body scrolls.
@@ -719,11 +721,16 @@ impl PlaceState {
 
 impl Selections {
     /// The state of `place`, made when it is not there yet.
-    fn open(&mut self, place: Place) -> Option<&mut PlaceState> {
+    fn open(&mut self, place: Place, frame: u64) -> Option<&mut PlaceState> {
         if !self.places.iter().any(|s| s.place == place) {
-            // The places that were not shown for longest make room.
+            // The places that were not shown for longest make room; one shown in this frame
+            // doesn't, while any other can (#1778: its selection would be lost every frame).
+            let shown_now = |s: &PlaceState| s.frame >= frame;
+            let oldest_of = |only_earlier: bool| {
+                self.places.iter().enumerate().filter(|(_, s)| !only_earlier || !shown_now(s)).min_by_key(|(_, s)| s.frame).map(|(i, _)| i)
+            };
             if self.places.len() >= MAX_PLACES
-                && let Some(oldest) = self.places.iter().enumerate().min_by_key(|(_, s)| s.frame).map(|(i, _)| i)
+                && let Some(oldest) = oldest_of(true).or_else(|| oldest_of(false))
             {
                 self.places.swap_remove(oldest);
             }
@@ -908,7 +915,7 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_
     let escape = crate::keys::escape(ctx, ui.layer_id());
     let selections = &mut app.text_selection;
     let had_keys = selections.focus == Some(place);
-    let Some(state) = selections.open(place) else { return };
+    let Some(state) = selections.open(place, frame) else { return };
     // Another message, or the same one after it was away: nothing of before holds.
     let fresh = state.message != m.id || state.frame.saturating_add(1) < frame;
     if fresh {
@@ -1327,7 +1334,7 @@ mod tests {
         // Only so many places are kept, the ones shown longest ago making room.
         for id in 0..(MAX_PLACES as u64 * 3) {
             let place = Place::Window(100 + id);
-            assert!(all.open(place).is_some());
+            assert!(all.open(place, 20 + id).is_some());
             if let Some(state) = all.state(place) {
                 state.frame = 20 + id;
             }

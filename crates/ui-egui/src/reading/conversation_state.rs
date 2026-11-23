@@ -25,9 +25,10 @@
 //!
 //! Nothing here changes the mailbox or the selection.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Weak};
 
+use mailcraft_engine::ReadOnOpen;
 use mailcraft_model::{Id, Message};
 
 /// Most messages listed in the column (the selected one and the newest).
@@ -44,7 +45,7 @@ pub(crate) struct Open {
     frame: u64,
     /// Opened by the owner or read by selecting, the last last; at most [`MAX_STACKED`].
     opened: Vec<Id>,
-    /// [`mailcraft_engine::Session::read_on_open_count`] as last taken in.
+    /// The number of the last selection taken in ([`mailcraft_engine::Session::reads_on_open`]).
     read_count: u64,
     /// Closed by the owner, though not read yet, or selected.
     closed: BTreeSet<Id>,
@@ -59,15 +60,17 @@ pub(crate) struct Open {
 impl Open {
     /// The state for frame `frame` of the column of `focus` listing `listed`, from what was kept
     /// (`kept`): kept when it is of the same selection, shown in the frame before; else afresh,
-    /// with the messages the selection read (`reads`: its count and its messages) open. Then the
-    /// reads of a newer selection are taken in ([`Open::take_in_reads`]).
-    pub(crate) fn for_frame(kept: Option<Open>, focus: Id, frame: u64, reads: (u64, &[Id]), listed: &[Id]) -> Open {
+    /// with what the selections of `focus` at the end of `reads` read open (the last selection,
+    /// and the ones of the same message just before it, in the same frame). Then the reads of
+    /// newer selections are taken in ([`Open::take_in_reads`]).
+    pub(crate) fn for_frame(kept: Option<Open>, focus: Id, frame: u64, reads: &VecDeque<ReadOnOpen>, listed: &[Id]) -> Open {
         let mut open = match kept {
             Some(kept) if kept.focus == focus && kept.frame.saturating_add(1) >= frame => kept,
             _ => {
-                let mut open = Open { focus, ..Open::default() };
-                open.read_count = reads.0.wrapping_sub(1);
-                open
+                // From before the trailing selections of this message.
+                let before = reads.iter().rev().take_while(|r| r.focus == focus).last().map_or(u64::MAX, |r| r.count.wrapping_sub(1));
+                let latest = reads.back().map_or(0, |r| r.count);
+                Open { focus, read_count: if before == u64::MAX { latest } else { before }, ..Open::default() }
             }
         };
         open.take_in_reads(reads, listed);
@@ -75,15 +78,21 @@ impl Open {
         open
     }
 
-    /// The messages a selection newer than the last taken in read (`reads`) are opened, once:
-    /// those the column lists (`listed`), at most as many as it lists.
-    pub(crate) fn take_in_reads(&mut self, (count, ids): (u64, &[Id]), listed: &[Id]) {
-        if self.read_count == count {
-            return;
-        }
-        self.read_count = count;
+    /// What the selections of the column's message newer than the last taken in read (`reads`)
+    /// is opened, once: of the messages the column lists (`listed`), at most as many as it lists.
+    pub(crate) fn take_in_reads(&mut self, reads: &VecDeque<ReadOnOpen>, listed: &[Id]) {
+        let newer: Vec<&ReadOnOpen> = reads.iter().filter(|r| r.count > self.read_count).collect();
+        let Some(last) = newer.last() else { return };
+        self.read_count = last.count;
         let listed: HashSet<Id> = listed.iter().copied().collect();
-        for id in ids.iter().copied().filter(|id| listed.contains(id)).take(MAX_STACKED) {
+        let opened: Vec<Id> = newer
+            .iter()
+            .filter(|r| r.focus == self.focus)
+            .flat_map(|r| r.ids.iter().copied())
+            .filter(|id| listed.contains(id))
+            .take(MAX_STACKED)
+            .collect();
+        for id in opened {
             self.open(id);
         }
     }

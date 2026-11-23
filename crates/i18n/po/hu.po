@@ -3596,8 +3596,9 @@ msgstr "Becsukja az ablakot, és nem marad semmi."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Collapse All"
-msgstr ""
+msgstr "Összes összecsukása"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3820,8 +3821,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Conversation Settings"
-msgstr ""
+msgstr "Beszélgetés-beállítások"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5646,8 +5648,9 @@ msgstr "Exchange-kiszolgáló · Nincs használható kiszolgálócím"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Expand All"
-msgstr ""
+msgstr "Összes kibontása"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -6959,8 +6962,9 @@ msgstr "A jelszó elrejtése"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Hide quoted text"
-msgstr ""
+msgstr "Idézett szöveg elrejtése"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15284,8 +15288,9 @@ msgstr "Képzés megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
-msgstr ""
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "Teljes beszélgetés megjelenítése az olvasóablakban"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25933,10 +25938,11 @@ msgstr[1] "{n} üzenet a beszélgetésben"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} message in this conversation"
 msgid_plural "{n} messages in this conversation"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} üzenet ebben a beszélgetésben"
+msgstr[1] "{n} üzenet ebben a beszélgetésben"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -26198,10 +26204,11 @@ msgstr "Eddig a {total} {n}."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} older message of this conversation isn't shown"
 msgid_plural "{n} older messages of this conversation aren't shown"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "A beszélgetés {n} régebbi üzenete nem látható"
+msgstr[1] "A beszélgetés {n} régebbi üzenete nem látható"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -26703,8 +26710,9 @@ msgstr "{why}, a {n} változtatásai itt várnak a gépen."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "··· Show quoted text"
-msgstr ""
+msgstr "··· Idézett szöveg megjelenítése"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

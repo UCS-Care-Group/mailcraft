@@ -263,12 +263,12 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 /// pane's bounds ([`crate::stack::read_by_selecting`]); a message window shows the one message
 /// alone.
 pub(crate) fn mark_opened(s: &mut Session, open: bool) {
-    // Each selection starts with nothing to mark and nothing read by it, also one that reads
-    // nothing (the option off, several messages, the pane off): what an earlier selection read
-    // is not this one's, and a stacked conversation would open those messages for it.
-    // (`opened` is taken after every command anyway; `read_on_open` is what a reader asks.)
+    // Each selection starts with nothing to mark, and is noted as having read nothing yet, also
+    // one that reads nothing (the option off, several messages, the pane off): what an earlier
+    // selection read is not this one's, and a stacked conversation would open those messages for
+    // it. (`opened` is taken after every command anyway.)
     s.opened.clear();
-    s.read_on_open.clear();
+    s.note_selection(s.sel.focus());
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || (!open && s.view.reading_pane == crate::session::Pane::Off) {
         return;
     }

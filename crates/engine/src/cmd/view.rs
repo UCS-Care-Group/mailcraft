@@ -38,7 +38,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).reads().params(TOGGLE),
         CommandSpec::new("view.conversationSettings", "Conversation Settings", "View › Messages", conversation_settings)
             .reads()
-            .params(r#"{"wholeConversation"?: bool} — in conversation view, the reading pane shows the selected message's whole conversation, one message under another, the others closed to a row each but those not read yet (Gmail's way; off, the default: the selected message alone, as Outlook shows it) (#1778). Without params, says the settings"#),
+            .params(r#"{"wholeConversation"?: bool} — in conversation view, the reading pane shows the selected message's whole conversation, one message under another, the selected one and those not read yet whole, within `mailcraft_engine::stack`'s bounds (200 listed, 48 whole besides the selected one), the others a row each (off, the default: the selected message alone, with a line of the conversation's others); turning it on turns conversation view on (#1778). Without params, says the settings"#),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
             .reads()
             .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),

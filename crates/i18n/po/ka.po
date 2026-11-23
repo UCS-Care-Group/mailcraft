@@ -3585,8 +3585,9 @@ msgstr "ხურავს ამ ფანჯარას. არაფერ�
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Collapse All"
-msgstr ""
+msgstr "ყველას აკეცვა"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3810,8 +3811,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Conversation Settings"
-msgstr ""
+msgstr "მიმოწერის პარამეტრები"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5640,8 +5642,9 @@ msgstr "Exchange სერვერი · გამოსადეგი სე�
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Expand All"
-msgstr ""
+msgstr "ყველას გაშლა"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -6953,8 +6956,9 @@ msgstr "პაროლის დამალვა"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Hide quoted text"
-msgstr ""
+msgstr "ციტირებული ტექსტის დამალვა"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15229,8 +15233,9 @@ msgstr "სასწავლო მასალის ჩვენება"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
-msgstr ""
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "მთელი მიმოწერის ჩვენება კითხვის პანელში"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25850,10 +25855,11 @@ msgstr[1] "{n} წერილი მიმოწერაში"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} message in this conversation"
 msgid_plural "{n} messages in this conversation"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ამ მიმოწერაში {n} წერილია"
+msgstr[1] "ამ მიმოწერაში {n} წერილია"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -26113,10 +26119,11 @@ msgstr "ჯერჯერობით {n} / {total}."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} older message of this conversation isn't shown"
 msgid_plural "{n} older messages of this conversation aren't shown"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "ამ მიმოწერის {n} ძველი წერილი არ ჩანს"
+msgstr[1] "ამ მიმოწერის {n} ძველი წერილი არ ჩანს"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -26618,8 +26625,9 @@ msgstr "{why}. მასში აქ შეტანილი ცვლილ�
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "··· Show quoted text"
-msgstr ""
+msgstr "··· ციტირებული ტექსტის ჩვენება"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

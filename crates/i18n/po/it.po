@@ -3591,8 +3591,9 @@ msgstr "Chiude questa finestra. Non viene conservato nulla."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Collapse All"
-msgstr ""
+msgstr "Comprimi tutto"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -3817,8 +3818,9 @@ msgstr ""
 
 #. command label, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Conversation Settings"
-msgstr ""
+msgstr "Impostazioni conversazioni"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5648,8 +5650,9 @@ msgstr "Server Exchange · nessun indirizzo di server utilizzabile"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Expand All"
-msgstr ""
+msgstr "Espandi tutto"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -6960,8 +6963,9 @@ msgstr "Nascondi password"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "Hide quoted text"
-msgstr ""
+msgstr "Nascondi testo citato"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15280,8 +15284,9 @@ msgstr "Mostra formazione"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
-msgstr ""
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "Mostra l'intera conversazione nel riquadro di lettura"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25912,10 +25917,11 @@ msgstr[1] "{n} messaggi nella conversazione"
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} message in this conversation"
 msgid_plural "{n} messages in this conversation"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} messaggio in questa conversazione"
+msgstr[1] "{n} messaggi in questa conversazione"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -26177,10 +26183,11 @@ msgstr "{n} di {total} finora."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "{n} older message of this conversation isn't shown"
 msgid_plural "{n} older messages of this conversation aren't shown"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "{n} messaggio meno recente di questa conversazione non è mostrato"
+msgstr[1] "{n} messaggi meno recenti di questa conversazione non sono mostrati"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -26679,8 +26686,9 @@ msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
 
 #. interface
 #: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
 msgid "··· Show quoted text"
-msgstr ""
+msgstr "··· Mostra testo citato"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

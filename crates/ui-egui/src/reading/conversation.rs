@@ -59,7 +59,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, focus: &Arc<Message>, thread:
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let kept = ui.data(|d| d.get_temp::<Open>(key()));
-    let reads = (app.session.read_on_open_count(), app.session.read_on_open());
+    let reads = app.session.reads_on_open();
     let listed = listed(thread, focus.id);
     let mut open = Open::for_frame(kept, focus.id, ui.ctx().cumulative_frame_nr(), reads, &listed);
     title(app, ui, focus, &listed, thread.len(), &t, &mut open);

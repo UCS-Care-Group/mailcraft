@@ -12682,7 +12682,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
-msgid "Show Whole Conversation in Reading Pane (Gmail Style)"
+msgid "Show Whole Conversation in Reading Pane"
 msgstr ""
 
 #. interface
