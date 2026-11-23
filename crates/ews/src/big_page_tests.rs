@@ -854,13 +854,14 @@ fn a_folder_remembered_under_a_placeholder_is_never_asked_about() {
         states: vec![mailcraft_model::sync::EwsFolderState { folder: "<id>".into(), state: "S0".into() }],
         ..Default::default()
     };
+    let cancel = AtomicBool::new(false);
     let mut pieces: Vec<EwsMailResult> = Vec::new();
-    sync(&standin, &mut pieces);
+    block_on(sync_mail(&client(), &standin, &request, &cancel, &mut |_| true, &mut |piece| pieces.push(piece))).unwrap();
     assert!(pieces.iter().flat_map(|p| &p.pages).flat_map(|page| &page.messages).any(|m| m.subject == "Real mail"), "the healthy folders read on");
     let state = standin.state();
     assert!(
-        state.requests.iter().all(|a| !a.body.contains(">&lt;id&gt;<") && !a.body.contains("><id><")),
-        "no word was ever spent on the placeholder: {}",
-        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").count()
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").all(|a| !a.body.contains("id")),
+        "no ask was ever spent on the placeholder: {:?}",
+        state.requests.iter().filter(|a| a.operation == "SyncFolderItems").map(|a| a.body.as_str()).collect::<Vec<_>>()
     );
 }
