@@ -240,6 +240,7 @@ fn a_retried_sign_in_takes_the_second_redirect_through_the_same_slot() {
         token: format!("http://127.0.0.1:{port}/token"),
         scope: "mail.read offline_access".into(),
         consent: "graph.send".into(),
+        fewer: String::new(),
         lesser: String::new(),
     };
     let place = signins.begin().unwrap();
@@ -306,6 +307,7 @@ fn a_sign_in_called_off_while_its_tokens_are_traded_gives_no_tokens() {
             token: format!("http://127.0.0.1:{port}/token"),
             scope: "mail.read offline_access".into(),
             consent: "graph.send".into(),
+            fewer: String::new(),
             lesser: String::new(),
         };
         let place = signins.begin().unwrap();

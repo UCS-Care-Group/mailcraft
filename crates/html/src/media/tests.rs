@@ -537,3 +537,114 @@ fn envs_find_every_look_the_lists_tell_apart() {
     let under: Vec<String> = (0..MAX_ENVS / 2 - 1).map(|i| format!("(min-width: {}px)", 100 + 50 * i)).collect();
     assert!(envs(&under).1);
 }
+
+/// The widths `envs` tries are the lengths `test` reads, however the lists are written:
+/// comments in a feature, junk features in one query before the widths of another, the same
+/// width named many ways (each width counts once).
+#[test]
+fn envs_read_the_lists_as_test_reads_them() {
+    let hidden_at_real_widths = |lists: &[String]| {
+        let (found, every) = envs(lists);
+        assert!(every, "{lists:?}");
+        let looks: Vec<Vec<bool>> = found.iter().map(|env| verdicts(lists, env)).collect();
+        for width in [320.0, 800.0, 1000.0, 1600.0] {
+            assert!(looks.contains(&verdicts(lists, &at(width, false))), "{lists:?} {width}");
+        }
+    };
+    hidden_at_real_widths(&["(min-width:/**/200px) and (max-width:/**/1279px)".into(), "(min-width:/* a */1281px)".into()]);
+    let junk = "(x) and ".repeat(64);
+    hidden_at_real_widths(&[format!("{junk}(x), (min-width:200px) and (max-width:1279px)"), "(min-width:1281px)".into()]);
+    let same: Vec<String> = ["", "screen and ", "only screen and ", "all and "]
+        .iter()
+        .flat_map(|t| (0..10).map(move |n| format!("{t}(max-width: {}600px){}", " ".repeat(n), " ".repeat(n))))
+        .collect();
+    let (found, every) = envs(&same);
+    assert!(every);
+    assert_eq!(found.len(), 2);
+}
+
+/// A feature: a width (some with comments in it), a theme, or one not understood.
+fn feature_text() -> impl proptest::strategy::Strategy<Value = String> {
+    use proptest::prelude::*;
+    let length = (0u32..3_000, prop_oneof![Just("px"), Just("em"), Just("pt"), Just("rem"), Just(""), Just("PX")])
+        .prop_map(|(n, unit)| if unit == "em" || unit == "rem" { format!("{}{unit}", n as f32 / 16.0) } else { format!("{n}{unit}") });
+    let name = prop_oneof![
+        4 => Just("min-width"),
+        4 => Just("max-width"),
+        1 => Just("width"),
+        1 => Just("min-device-width"),
+        1 => Just("max-device-width"),
+        1 => Just("device-width"),
+        1 => Just("Max-Width"),
+        1 => Just("height"),
+    ];
+    prop_oneof![
+        4 => (name.clone(), length.clone()).prop_map(|(n, l)| format!("({n}:{l})")),
+        3 => (name, length).prop_map(|(n, l)| format!("({n}: /**/{l}/* c */)")),
+        1 => Just("(prefers-color-scheme: dark)".to_string()),
+        1 => Just("(prefers-color-scheme:light)".to_string()),
+    ]
+}
+
+/// A media list: queries of features (junk ones in front at times), or loose pieces of them.
+fn list_text() -> impl proptest::strategy::Strategy<Value = String> {
+    use proptest::prelude::*;
+    let query = (
+        prop_oneof![4 => Just(""), 2 => Just("screen and "), 1 => Just("only screen and "), 1 => Just("not screen and "), 1 => Just("print and ")],
+        proptest::collection::vec(feature_text(), 1..3),
+    )
+        .prop_map(|(head, features)| format!("{head}{}", features.join(" and ")))
+        .boxed();
+    // A query of junk features first, at times: what comes after it is read all the same.
+    let junk = prop_oneof![2 => Just(String::new()), 1 => (1usize..80).prop_map(|n| format!("{}(x), ", "(x) and ".repeat(n)))];
+    let loose = proptest::collection::vec(
+        prop_oneof![
+            feature_text(),
+            Just(" and ".into()),
+            Just(", ".into()),
+            Just("not ".into()),
+            Just("/*".into()),
+            Just("*/".into()),
+            Just("(".into())
+        ],
+        0..16,
+    )
+    .prop_map(|p| p.concat());
+    prop_oneof![3 => (junk, prop_oneof![3 => proptest::collection::vec(query.clone(), 1..4), 1 => proptest::collection::vec(query, 7..12)]).prop_map(|(j, q)| format!("{j}{}", q.join(", "))), 1 => loose]
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(64))]
+
+    /// When `envs` says it found every look, every width a pane can have (to 4000 pixels) in
+    /// either theme gives one of them.
+    #[test]
+    fn when_every_look_is_said_found_every_pane_has_one(lists in proptest::collection::vec(list_text(), 1..6)) {
+        let (found, every) = envs(&lists);
+        if every {
+            let looks: Vec<Vec<bool>> = found.iter().map(|env| verdicts(&lists, env)).collect();
+            for width in 0..=4_000u16 {
+                for dark in [false, true] {
+                    let env = Env { width, dark };
+                    proptest::prop_assert!(looks.contains(&verdicts(&lists, &env)), "{lists:?} {width} {dark}");
+                }
+            }
+        }
+    }
+}
+
+/// A message with as many media lists as are gathered is not said to have every look found:
+/// those past them (after 400 under a false `@media` or `<style media>`) may be tested by the pane.
+#[test]
+fn as_many_lists_as_are_gathered_are_not_every_look() {
+    let junk: String = (0..400).map(|n| format!("@media (a{n}){{}}")).collect();
+    for html in [
+        format!("<style>@media print{{{junk}}} @media (max-width:600px){{.x{{display:none}}}}</style><p>A</p><p class=x>XXX</p><p>C</p>"),
+        format!("<style media=print>{junk}</style><style>@media (max-width:600px){{.x{{display:none}}}}</style><p>A</p><p class=x>XXX</p><p>C</p>"),
+    ] {
+        assert_eq!(crate::blocks_to_text(&parse_in(&html, &at(375.0, false)).blocks).replace('\n', ""), "AC");
+        assert!(!envs(&crate::media_lists(&html)).1);
+        let carried = crate::quotable_with_pictures(&html, &mut |_, _| None, &[]);
+        assert!(!carried.contains("XXX"), "{carried}");
+    }
+}

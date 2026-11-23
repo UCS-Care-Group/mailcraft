@@ -715,16 +715,33 @@ pub(crate) mod kit {
         ui.spacing_mut().item_spacing.x = gap;
     }
 
+    /// A click on the chip `name` in [`category_chips`]: a category the item carries, in any case
+    /// of its letters, is taken off it; one it doesn't carry is put on.
+    pub fn toggle_chip(chosen: &mut Vec<String>, name: &str) {
+        let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, name));
+        chosen.retain(|c| !mailcraft_model::sync::same_category(c, name));
+        if !on {
+            chosen.push(name.to_string());
+        }
+    }
+
+    /// The chips [`category_chips`] shows: the list's categories, then the names the item carries
+    /// that the list doesn't have (no colour), each once whatever the case of its letters.
+    pub fn chips_of(all: &[Category], chosen: &[String]) -> Vec<(String, Option<Color32>)> {
+        let mut chips: Vec<(String, Option<Color32>)> = all.iter().map(|c| (c.name.clone(), Some(c32(c.color)))).collect();
+        for name in chosen {
+            if !chips.iter().any(|(n, _)| mailcraft_model::sync::same_category(n, name)) {
+                chips.push((name.clone(), None));
+            }
+        }
+        chips
+    }
+
     /// Toggle chips for the mailbox's categories, and for names the item carries that the
     /// mailbox doesn't list.
     pub fn category_chips(ui: &mut Ui, all: &[Category], chosen: &mut Vec<String>) {
         let t = Tokens::get(ui.ctx());
-        let mut chips: Vec<(String, Color32)> = all.iter().map(|c| (c.name.clone(), c32(c.color))).collect();
-        for name in chosen.iter() {
-            if !chips.iter().any(|(n, _)| n.eq_ignore_ascii_case(name)) {
-                chips.push((name.clone(), t.text_disabled));
-            }
-        }
+        let chips: Vec<(String, Color32)> = chips_of(all, chosen).into_iter().map(|(name, color)| (name, color.unwrap_or(t.text_disabled))).collect();
         if chips.is_empty() {
             ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
             return;
@@ -732,12 +749,9 @@ pub(crate) mod kit {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
             for (name, color) in chips {
-                let on = chosen.iter().any(|c| c.eq_ignore_ascii_case(&name));
+                let on = chosen.iter().any(|c| mailcraft_model::sync::same_category(c, &name));
                 if chip(ui, &name, on, color) {
-                    chosen.retain(|c| !c.eq_ignore_ascii_case(&name));
-                    if !on {
-                        chosen.push(name);
-                    }
+                    toggle_chip(chosen, &name);
                 }
             }
         });
@@ -1667,13 +1681,13 @@ mod event {
         fn wrong(&self) -> Option<&'static str> {
             let from = Date::parse_iso(&self.start);
             if !self.all_day && !(time_ok(&self.start_time, true) && time_ok(&self.end_time, true)) {
-                Some("The start and the end need a time")
+                Some(tl_later!("The start and the end need a time"))
             } else if from.is_none() {
-                Some("The range needs a day to start on")
+                Some(tl_later!("The range needs a day to start on"))
             } else if self.repeat.ends == Ends::Until && !date_ok(&self.repeat.until, true) {
-                Some("The range needs a day to end by")
+                Some(tl_later!("The range needs a day to end by"))
             } else if from.and_then(|from| self.first_day(from)).is_none() {
-                Some("No day fits this pattern")
+                Some(tl_later!("No day fits this pattern"))
             } else {
                 None
             }
@@ -2705,11 +2719,11 @@ mod event {
             let times = self.all_day || (time_ok(&self.start_time, true) && time_ok(&self.end_time, true));
             let until = self.repeat.freq.is_none() || self.repeat.ends != Ends::Until || date_ok(&self.repeat.until, true);
             if self.title.trim().is_empty() {
-                Some("Give it a title first")
+                Some(tl_later!("Give it a title first"))
             } else if !(date_ok(&self.start_date, true) && date_ok(&self.end_date, true) && times) {
-                Some("The start and the end need a date and a time")
+                Some(tl_later!("The start and the end need a date and a time"))
             } else if !until {
-                Some("The series needs a day to end by")
+                Some(tl_later!("The series needs a day to end by"))
             } else {
                 None
             }
@@ -2915,7 +2929,7 @@ mod event {
                         ui.label(tl!("No categories yet"));
                     }
                     for (name, color) in &categories {
-                        let on = self.categories.iter().any(|c| c.eq_ignore_ascii_case(name));
+                        let on = self.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name));
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(r.shrink(1.0), 3.0, *color);
@@ -2929,7 +2943,7 @@ mod event {
                                 );
                             }
                             if ui.add(egui::Button::new(kit::shown(name, 60)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
-                                self.categories.retain(|c| !c.eq_ignore_ascii_case(name));
+                                self.categories.retain(|c| !mailcraft_model::sync::same_category(c, name));
                                 if !on {
                                     self.categories.push(name.clone());
                                 }
@@ -3313,7 +3327,9 @@ mod event {
                     (command, params, if close { After::Close } else { After::Stay })
                 }
                 Act::Send { pressed } => {
-                    if let Some(missing) = self.missing().or((!self.invites() && !self.was_meeting).then_some("Name somebody to invite first")) {
+                    if let Some(missing) =
+                        self.missing().or((!self.invites() && !self.was_meeting).then_some(tl_later!("Name somebody to invite first")))
+                    {
                         self.error = tl!(missing).to_string();
                         return Verdict::Stay;
                     }
@@ -4150,14 +4166,20 @@ mod categories {
     /// The colours a category can take: the theme's twelve.
     pub const PALETTE: [Rgb; 12] = crate::theme::CATEGORY_PALETTE;
 
-    /// The first palette colour no category has yet; the first one when all are taken.
-    pub fn unused_color(list: &[Category]) -> Rgb {
-        PALETTE.iter().find(|p| !list.iter().any(|c| c.color == **p)).or(PALETTE.first()).copied().unwrap_or_default()
+    /// The first of `palette` no category of `list` has yet; the first one when all are taken.
+    fn free_in(palette: &[Rgb], list: &[Category]) -> Rgb {
+        palette.iter().find(|p| !list.iter().any(|c| c.color == **p)).or(palette.first()).copied().unwrap_or_default()
     }
 
-    /// A colour swatch that opens the palette. Returns the colour picked there, if one was.
-    fn swatch(ui: &mut Ui, color: Rgb) -> Option<Rgb> {
-        crate::widgets::color_swatch(ui, ROW_H, Some(color), None).flatten()
+    /// The colours a category of `account`'s list can take: Outlook's 25 for a list kept in step
+    /// with a Microsoft account's server (#661), the theme's twelve for any other.
+    pub fn palette_of(mailbox: &Mailbox, account: Id) -> &'static [Rgb] {
+        if mailbox.synced_list_owner(account).is_some() { &mailcraft_model::outlook_colors::OUTLOOK_COLORS } else { &PALETTE }
+    }
+
+    /// A colour swatch that opens `palette`. Returns the colour picked there, if one was.
+    fn swatch(ui: &mut Ui, color: Rgb, palette: &[Rgb]) -> Option<Rgb> {
+        crate::widgets::color_swatch_in(ui, ROW_H, Some(color), None, palette).flatten()
     }
 
     /// The lists the Categories dialog can show (#633): each account's own, then the one the rest
@@ -4200,7 +4222,8 @@ mod categories {
                 .or_else(|| s.mailbox.default_account().map(|a| a.id))
                 .and_then(|a| s.mailbox.category_list_owner(a))
                 .unwrap_or(0);
-            Some(CategoriesForm { account, new_color: unused_color(s.mailbox.categories_of(account)), focus: true, ..Default::default() })
+            let new_color = free_in(palette_of(&s.mailbox, account), s.mailbox.categories_of(account));
+            Some(CategoriesForm { account, new_color, focus: true, ..Default::default() })
         }
 
         /// Put the list of `account` in view; nothing begun on the last one carries over.
@@ -4209,7 +4232,7 @@ mod categories {
             self.editing = None;
             self.new_name.clear();
             self.error.clear();
-            self.new_color = unused_color(mailbox.categories_of(account));
+            self.new_color = free_in(palette_of(mailbox, account), mailbox.categories_of(account));
         }
 
         /// A command's `params` for the list in view.
@@ -4227,6 +4250,9 @@ mod categories {
 
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
+            // A held Space on a category's Delete is one press: its repeats would reach the button
+            // that takes its place, the next category's, and delete that one too, in Outlook too.
+            ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
             let t = Tokens::get(ui.ctx());
             let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let lists = lists(&app.session.mailbox);
@@ -4234,13 +4260,31 @@ mod categories {
                 self.show_list(&app.session.mailbox, 0);
             }
             let list = app.session.mailbox.categories_of(self.account).to_vec();
-            // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
+            let palette = palette_of(&app.session.mailbox, self.account);
+            // The list may have come to be kept in step with Outlook, or stopped, since the colour
+            // for a new category was chosen: it takes one of the colours the list now offers.
+            if !palette.contains(&self.new_color) {
+                self.new_color = free_in(palette, &list);
+            }
+            // A Microsoft account's list is kept in step with Outlook's (#661): those kept on this
+            // computer only say so, and can be added there. Any other list, once Outlook's was
+            // read, says which aren't on it (R3 spec S18).
+            let synced = app.session.mailbox.synced_list_owner(self.account);
             let outlook = app.session.mailbox.server_categories.get(&self.account);
-            let not_outlooks: Vec<bool> =
-                list.iter().map(|c| outlook.is_some_and(|names| !names.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name)))).collect();
+            let not_outlooks: Vec<bool> = list
+                .iter()
+                .map(|c| match synced {
+                    Some(owner) => app.session.mailbox.category_is_local(owner, &c.name),
+                    None => outlook.is_some_and(|names| !names.iter().any(|o| mailcraft_model::sync::same_category(o, &c.name))),
+                })
+                .collect();
+            let read_only = app.categories_read_only_line(self.account);
+            // Nothing of a read-only list can be changed here: its fields are shown greyed.
+            let editable = read_only.is_none();
             let mut run: Option<(&'static str, Value)> = None;
             let mut adding = false;
             let mut picked = None;
+            let mut ask_sync = None;
             body(ui, |ui| {
                 if lists.len() > 1 {
                     ui.horizontal(|ui| {
@@ -4256,36 +4300,61 @@ mod categories {
                     });
                     ui.add_space(6.0);
                 }
+                // A list MailCraft may not change on its server is read-only here, and says so.
+                if let Some((line, allow)) = &read_only {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(egui::RichText::new(line).color(t.text_dim));
+                        let tip = tl!("Microsoft's page opens in your browser to ask for your permission, once.");
+                        if *allow && ui.button(tl!("Allow")).on_hover_text(tip).clicked() {
+                            ask_sync = synced;
+                        }
+                    });
+                    ui.add_space(6.0);
+                }
                 for (i, c) in list.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if let Some(color) = swatch(ui, c.color) {
-                            run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
-                        }
-                        let mut text = match &self.editing {
-                            Some((name, text)) if *name == c.name => text.clone(),
-                            _ => c.name.clone(),
-                        };
-                        let width = (ui.available_width() - 44.0).max(40.0);
-                        let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
-                        let resp = crate::text_menu::field(resp);
-                        if resp.changed() {
-                            self.editing = Some((c.name.clone(), text));
-                        }
-                        // Enter, or leaving the field, renames.
-                        if crate::text_menu::left(&resp)
-                            && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
-                            && to.trim() != from
-                        {
-                            run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
-                        }
-                        if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
-                            run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
-                        }
+                        ui.add_enabled_ui(editable, |ui| {
+                            if let Some(color) = swatch(ui, c.color, palette) {
+                                run = Some(("category.set", self.on_list(json!({"name": c.name, "color": color.hex()}))));
+                            }
+                            let mut text = match &self.editing {
+                                Some((name, text)) if *name == c.name => text.clone(),
+                                _ => c.name.clone(),
+                            };
+                            let width = (ui.available_width() - 44.0).max(40.0);
+                            let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                            let resp = crate::text_menu::field(resp);
+                            if resp.changed() {
+                                self.editing = Some((c.name.clone(), text));
+                            }
+                            // Enter, or leaving the field, renames.
+                            if crate::text_menu::left(&resp)
+                                && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
+                                && to.trim() != from
+                            {
+                                run = Some(("category.rename", self.on_list(json!({"from": from, "to": to}))));
+                            }
+                            if icon_button(ui, "delete", tl!("Delete this category"), 14.0, true).clicked() {
+                                run = Some(("category.remove", self.on_list(json!({"name": c.name}))));
+                            }
+                        });
                     });
                     if not_outlooks.get(i).copied().unwrap_or(false) {
                         ui.horizontal(|ui| {
                             ui.add_space(ROW_H + ui.spacing().item_spacing.x);
-                            ui.label(egui::RichText::new(tl!("Not in Outlook's list: no colour there")).small().color(t.text_dim));
+                            match synced {
+                                Some(owner) => {
+                                    let kept = tl!("Not on Outlook's list: mail, events and to-dos you give it still carry its name to the account's server, where it has no colour");
+                                    ui.label(egui::RichText::new(tl!("Kept on this computer only")).small().color(t.text_dim)).on_hover_text(kept);
+                                    let tip = tl!("Add this category to Outlook's list, in the nearest of Outlook's colours");
+                                    if read_only.is_none() && ui.small_button(tl!("Add to Outlook")).on_hover_text(tip).clicked() {
+                                        run = Some(("category.addToOutlook", json!({"name": c.name, "account": owner})));
+                                    }
+                                }
+                                None => {
+                                    ui.label(egui::RichText::new(tl!("Not in Outlook's list: no colour there")).small().color(t.text_dim));
+                                }
+                            }
                         });
                     }
                 }
@@ -4293,31 +4362,40 @@ mod categories {
                     ui.label(egui::RichText::new(tl!("No categories yet")).color(t.text_dim));
                 }
                 ui.separator();
-                ui.horizontal(|ui| {
-                    if let Some(color) = swatch(ui, self.new_color) {
-                        self.new_color = color;
-                    }
-                    let width = (ui.available_width() - 80.0).max(40.0);
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut self.new_name)
-                            .id(field_id("new_category"))
-                            .desired_width(width)
-                            .hint_text(tl!("New category")),
-                    );
-                    let resp = crate::text_menu::field(resp);
-                    if std::mem::take(&mut self.focus) {
-                        resp.request_focus();
-                    }
-                    let named = !self.new_name.trim().is_empty();
-                    let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
-                    if named && (add || (enter && resp.lost_focus())) {
-                        run = Some(self.add_command());
-                        adding = true;
-                    }
+                ui.add_enabled_ui(editable, |ui| {
+                    ui.horizontal(|ui| {
+                        if let Some(color) = swatch(ui, self.new_color, palette) {
+                            self.new_color = color;
+                        }
+                        let width = (ui.available_width() - 80.0).max(40.0);
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(&mut self.new_name)
+                                .id(field_id("new_category"))
+                                .desired_width(width)
+                                .hint_text(tl!("New category")),
+                        );
+                        let resp = crate::text_menu::field(resp);
+                        if std::mem::take(&mut self.focus) {
+                            resp.request_focus();
+                        }
+                        let named = !self.new_name.trim().is_empty();
+                        let add = ui.add_enabled(named, egui::Button::new(tl!("Add")).min_size(vec2(56.0, 22.0))).clicked();
+                        if named && (add || (enter && resp.lost_focus())) {
+                            run = Some(self.add_command());
+                            adding = true;
+                        }
+                    })
                 });
             });
             if let Some(account) = picked {
                 self.show_list(&app.session.mailbox, account);
+            }
+            // The question takes the window's place: one put while the window is open would be
+            // under it when it is put back, and taken for a no (#661).
+            if let Some(owner) = ask_sync
+                && app.ask_sync_again(owner)
+            {
+                return true;
             }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {
@@ -4326,7 +4404,7 @@ mod categories {
                         if adding {
                             // Ready for the next one.
                             self.new_name.clear();
-                            self.new_color = unused_color(app.session.mailbox.categories_of(self.account));
+                            self.new_color = free_in(palette, app.session.mailbox.categories_of(self.account));
                             self.focus = true;
                         }
                     }
@@ -4354,8 +4432,9 @@ mod task_place_tests;
 pub(crate) mod rules {
     use egui::{Align2, Rect, Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
-    use mailcraft_engine::cmd::rules::{NotOnServer, server_cannot, server_cannot_draft};
-    use mailcraft_model::{Action, FolderKind, Id, Importance, Keep, Mailbox, Rule};
+    use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
+    use mailcraft_model::time::Date;
+    use mailcraft_model::{Action, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
@@ -4368,29 +4447,84 @@ pub(crate) mod rules {
     /// The width of a rule's button (an icon of 14 points, as `icon_button` lays it out).
     const BUTTON: f32 = 22.0;
 
-    /// What a condition looks at.
+    /// What a condition looks at, much in the order of Outlook's Rules Wizard. Each can be an
+    /// exception too.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum When {
+        /// From these people, by their whole address.
+        Person,
         #[default]
         From,
+        /// Sent to these people.
+        SentTo,
         To,
+        SentOnlyToMe,
+        ToMe,
+        CcMe,
+        ToOrCcMe,
+        NotToMe,
         Subject,
         Body,
+        SubjectOrBody,
         Attachment,
         Importance,
+        Sensitivity,
+        Size,
+        Meeting,
+        AutomaticReply,
+        Category,
+        Flagged,
+        Received,
     }
 
     impl When {
-        const ALL: [When; 6] = [When::From, When::To, When::Subject, When::Body, When::Attachment, When::Importance];
+        const ALL: [When; 21] = [
+            When::Person,
+            When::From,
+            When::SentTo,
+            When::To,
+            When::SentOnlyToMe,
+            When::ToMe,
+            When::CcMe,
+            When::ToOrCcMe,
+            When::NotToMe,
+            When::Subject,
+            When::Body,
+            When::SubjectOrBody,
+            When::Attachment,
+            When::Importance,
+            When::Sensitivity,
+            When::Size,
+            When::Meeting,
+            When::AutomaticReply,
+            When::Category,
+            When::Flagged,
+            When::Received,
+        ];
 
         fn label(self) -> &'static str {
             match self {
+                When::Person => "From",
                 When::From => "From contains",
-                When::To => "Sent to",
+                When::SentTo => "Sent to",
+                When::To => "Recipient contains",
+                When::SentOnlyToMe => "Sent only to me",
+                When::ToMe => "My address is in To",
+                When::CcMe => "My address is in Cc",
+                When::ToOrCcMe => "My address is in To or Cc",
+                When::NotToMe => "My address isn't in To",
                 When::Subject => "Subject contains",
                 When::Body => "Body contains",
+                When::SubjectOrBody => "Subject or body contains",
                 When::Attachment => "Has an attachment",
                 When::Importance => "Importance is",
+                When::Sensitivity => "Sensitivity is",
+                When::Size => "Size is between",
+                When::Meeting => "Is a meeting invitation or update",
+                When::AutomaticReply => "Is an automatic reply",
+                When::Category => "Has the category",
+                When::Flagged => "Is flagged",
+                When::Received => "Received between",
             }
         }
 
@@ -4411,32 +4545,183 @@ pub(crate) mod rules {
         /// The condition's `type` in `rules.add`.
         fn code(self) -> &'static str {
             match self {
+                When::Person => "from",
                 When::From => "fromContains",
+                When::SentTo => "sentTo",
                 When::To => "toContains",
+                When::SentOnlyToMe => "sentOnlyToMe",
+                When::ToMe => "toMe",
+                When::CcMe => "ccMe",
+                When::ToOrCcMe => "toOrCcMe",
+                When::NotToMe => "notToMe",
                 When::Subject => "subjectContains",
                 When::Body => "bodyContains",
+                When::SubjectOrBody => "subjectOrBodyContains",
                 When::Attachment => "hasAttachment",
                 When::Importance => "importance",
+                When::Sensitivity => "sensitivity",
+                When::Size => "sizeBetween",
+                When::Meeting => "meetingRequest",
+                When::AutomaticReply => "automaticReply",
+                When::Category => "category",
+                When::Flagged => "flagged",
+                When::Received => "receivedBetween",
             }
         }
 
-        /// The condition is a text to look for.
+        /// The condition is words to look for, or people's addresses: several, any one of
+        /// which is enough, set apart by semicolons.
         fn takes_text(self) -> bool {
-            !matches!(self, When::Attachment | When::Importance)
+            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody)
+        }
+
+        /// It takes people's whole addresses.
+        fn takes_people(self) -> bool {
+            matches!(self, When::Person | When::SentTo)
+        }
+
+        /// What its words are, as `same_word` compares them.
+        fn words(self) -> mailcraft_model::Words {
+            match self {
+                When::Person | When::SentTo => mailcraft_model::Words::Addresses,
+                When::Category => mailcraft_model::Words::Categories,
+                _ => mailcraft_model::Words::Text,
+            }
         }
     }
 
-    /// One condition of the rule being built.
+    /// More words than `rules.add` takes ([`MAX_WORDS_EACH`], which the keep tests hold to 20).
+    fn too_many_words() -> &'static str {
+        tl!("A condition, or the exceptions of one kind together, can look for at most 20 words or addresses.")
+    }
+
+    /// The words of a text field, set apart by semicolons as Outlook's search text is listed:
+    /// trimmed, with the empty ones left out.
+    fn split_words(text: &str) -> Vec<String> {
+        text.split(';').map(str::trim).filter(|w| !w.is_empty()).map(str::to_string).collect()
+    }
+
+    /// One condition (or exception) of the rule being built. What each kind needs is kept for
+    /// whichever is chosen.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Cond {
         kind: When,
         text: String,
         importance: Importance,
+        sensitivity: Sensitivity,
+        /// The sizes, in KB, as typed.
+        min: String,
+        max: String,
+        /// The days, as typed (`YYYY-MM-DD`); either may stay empty.
+        from: String,
+        to: String,
+        category: String,
+        /// A sender's text Always Move filled in that isn't a whole address: looked for as one
+        /// text, a semicolon in it too, as `rules.fromMessage` looks for it, while the field still
+        /// holds it as filled in.
+        whole: Option<String>,
     }
 
     impl Default for Cond {
         fn default() -> Self {
-            Cond { kind: When::From, text: String::new(), importance: Importance::High }
+            Cond {
+                kind: When::From,
+                text: String::new(),
+                importance: Importance::High,
+                sensitivity: Sensitivity::Confidential,
+                min: String::new(),
+                max: String::new(),
+                from: String::new(),
+                to: String::new(),
+                category: String::new(),
+                whole: None,
+            }
+        }
+    }
+
+    impl Cond {
+        /// The words it looks for: the field's, set apart by its semicolons, or the sender's text
+        /// as Always Move filled it in, whole.
+        fn words(&self) -> Vec<String> {
+            match &self.whole {
+                Some(whole) if *whole == self.text => vec![whole.trim().to_string()],
+                _ => split_words(&self.text),
+            }
+        }
+
+        /// The sizes it is between, when both are whole numbers and the first isn't above the
+        /// second.
+        fn sizes(&self) -> Option<(u64, u64)> {
+            let (min, max) = (self.min.trim().parse::<u64>().ok()?, self.max.trim().parse::<u64>().ok()?);
+            // As `rules.add` takes them.
+            (min <= max && i32::try_from(max).is_ok()).then_some((min, max))
+        }
+
+        /// What it still needs, in words, or `None` when it says all it needs to.
+        fn lacks(&self) -> Option<&'static str> {
+            let words = self.words();
+            if self.kind.takes_text() && words.len() > MAX_WORDS_EACH {
+                return Some(too_many_words());
+            }
+            let ok = match self.kind {
+                kind if kind.takes_people() => {
+                    // One whole address each, as `rules.add` takes a person: no longer than an
+                    // address can be.
+                    if words.iter().any(|w| !by_address(w)) {
+                        return Some(tl!("From and Sent to take whole addresses, such as someone@example.org."));
+                    }
+                    !words.is_empty()
+                }
+                kind if kind.takes_text() => {
+                    // As `rules.add` takes them: a longer word is refused, not cut.
+                    if words.iter().any(|w| w.chars().count() > MAX_WORD) {
+                        return Some(tl!("A word to look for is at most 200 characters."));
+                    }
+                    !words.is_empty()
+                }
+                When::Size => {
+                    if self.sizes().is_none() {
+                        return Some(tl!("Size is between takes two sizes in KB, the smaller first."));
+                    }
+                    true
+                }
+                When::Received => {
+                    let (from, to) = (Date::parse_iso(&self.from), Date::parse_iso(&self.to));
+                    let days = super::kit::date_ok(&self.from, false)
+                        && super::kit::date_ok(&self.to, false)
+                        && (from.is_some() || to.is_some())
+                        && from.zip(to).is_none_or(|(f, t)| f <= t);
+                    if !days {
+                        return Some(tl!("Received between takes one day or two (YYYY-MM-DD), the earlier first."));
+                    }
+                    true
+                }
+                When::Category => !self.category.trim().is_empty(),
+                _ => true,
+            };
+            (!ok).then_some(tl!("Each condition and exception needs something to look for."))
+        }
+
+        /// It as `rules.add` takes it.
+        fn param(&self) -> Value {
+            let kind = self.kind.code();
+            match self.kind {
+                k if k.takes_text() => match self.words().as_slice() {
+                    [one] => json!({"type": kind, "value": one}),
+                    words => json!({"type": kind, "value": words}),
+                },
+                When::Importance => json!({"type": kind, "value": self.importance.code()}),
+                When::Sensitivity => json!({"type": kind, "value": self.sensitivity.code()}),
+                When::Size => {
+                    let (min, max) = self.sizes().unwrap_or_default();
+                    json!({"type": kind, "value": {"min": min, "max": max}})
+                }
+                When::Received => {
+                    json!({"type": kind, "value": {"from": super::kit::date_value(&self.from), "to": super::kit::date_value(&self.to)}})
+                }
+                When::Category => json!({"type": kind, "value": self.category}),
+                _ => json!({"type": kind}),
+            }
         }
     }
 
@@ -4445,36 +4730,70 @@ pub(crate) mod rules {
     pub enum Do {
         #[default]
         Move,
+        Copy,
         Categorize,
+        ClearCategories,
         Flag,
+        ClearFlag,
         MarkRead,
         SetImportance,
         Delete,
     }
 
     impl Do {
-        const ALL: [Do; 6] = [Do::Move, Do::Categorize, Do::Flag, Do::MarkRead, Do::SetImportance, Do::Delete];
+        const ALL: [Do; 9] =
+            [Do::Move, Do::Copy, Do::Categorize, Do::ClearCategories, Do::Flag, Do::ClearFlag, Do::MarkRead, Do::SetImportance, Do::Delete];
 
         fn label(self) -> &'static str {
             match self {
                 Do::Move => "Move to folder",
+                Do::Copy => "Copy to folder",
                 Do::Categorize => "Categorize",
+                Do::ClearCategories => "Clear categories",
                 Do::Flag => "Flag",
+                Do::ClearFlag => "Clear the flag",
                 Do::MarkRead => "Mark as read",
                 Do::SetImportance => "Set importance",
                 Do::Delete => "Delete",
             }
         }
+
+        /// It puts mail in a folder.
+        fn takes_folder(self) -> bool {
+            matches!(self, Do::Move | Do::Copy)
+        }
     }
 
-    /// One action of the rule being built. The folder, category and importance are kept for
-    /// whichever kind is chosen.
+    /// One action of the rule being built. The folder, category, importance and due day are kept
+    /// for whichever kind is chosen.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Act {
         kind: Do,
         folder: Id,
         category: String,
         importance: Importance,
+        /// When a flag falls due: none for no date.
+        due: Option<FlagDue>,
+    }
+
+    impl Act {
+        /// It as `rules.add` takes it.
+        fn param(&self) -> Value {
+            match self.kind {
+                Do::Move => json!({"type": "moveTo", "value": self.folder}),
+                Do::Copy => json!({"type": "copyTo", "value": self.folder}),
+                Do::Categorize => json!({"type": "categorize", "value": self.category}),
+                Do::ClearCategories => json!({"type": "clearCategories"}),
+                Do::Flag => match self.due {
+                    Some(due) => json!({"type": "flagFor", "value": due.code()}),
+                    None => json!({"type": "flag"}),
+                },
+                Do::ClearFlag => json!({"type": "clearFlag"}),
+                Do::MarkRead => json!({"type": "markRead"}),
+                Do::SetImportance => json!({"type": "setImportance", "value": self.importance.code()}),
+                Do::Delete => json!({"type": "delete"}),
+            }
+        }
     }
 
     fn importance_label(i: Importance) -> &'static str {
@@ -4485,11 +4804,116 @@ pub(crate) mod rules {
         }
     }
 
-    fn importance_combo(ui: &mut Ui, salt: (&'static str, usize), value: &mut Importance) {
+    fn importance_combo(ui: &mut Ui, salt: impl std::hash::Hash + std::fmt::Debug, value: &mut Importance) {
         egui::ComboBox::from_id_salt(salt).width(110.0).selected_text(tl!(importance_label(*value))).show_ui(ui, |ui| {
             for i in [Importance::High, Importance::Normal, Importance::Low] {
                 if ui.selectable_label(i == *value, tl!(importance_label(i))).clicked() {
                     *value = i;
+                }
+            }
+        });
+    }
+
+    fn sensitivity_label(s: Sensitivity) -> &'static str {
+        match s {
+            Sensitivity::Normal => tlc!("sensitivity", "Normal"),
+            Sensitivity::Personal => tlc!("sensitivity", "Personal"),
+            Sensitivity::Private => tlc!("sensitivity", "Private"),
+            Sensitivity::Confidential => tlc!("sensitivity", "Confidential"),
+        }
+    }
+
+    /// When a flag falls due, as the Follow Up menu names it.
+    fn due_label(due: Option<FlagDue>) -> &'static str {
+        match due {
+            None => tl!("No Date"),
+            Some(FlagDue::Today) => tl!("Today"),
+            Some(FlagDue::Tomorrow) => tl!("Tomorrow"),
+            Some(FlagDue::ThisWeek) => tl!("This Week"),
+            Some(FlagDue::NextWeek) => tl!("Next Week"),
+        }
+    }
+
+    /// One condition or exception after its label: what it looks at, then what that needs.
+    /// `part` keeps the fields of the two lists apart. Returns `true` when its remove button was
+    /// pressed.
+    #[allow(clippy::too_many_arguments)]
+    fn cond_row(
+        ui: &mut Ui,
+        pass: &mut Pass,
+        c: &mut Cond,
+        (part, i): (&'static str, usize),
+        addresses: bool,
+        categories: &[String],
+        removable: bool,
+    ) -> bool {
+        egui::ComboBox::from_id_salt((part, i)).width(190.0).selected_text(tl!(c.kind.label_as(addresses))).truncate().show_ui(ui, |ui| {
+            for kind in When::ALL {
+                if ui.selectable_label(kind == c.kind, tl!(kind.label_as(addresses))).clicked() {
+                    c.kind = kind;
+                }
+            }
+        });
+        let width = (ui.available_width() - if removable { 30.0 } else { 0.0 }).max(60.0);
+        match c.kind {
+            When::Importance => importance_combo(ui, (part, "importance", i), &mut c.importance),
+            When::Sensitivity => {
+                choice(ui, (part, "sensitivity", i), 120.0, &mut c.sensitivity, &Sensitivity::ALL, |s| sensitivity_label(s).to_string())
+            }
+            When::Size => {
+                pass.text(ui, (part, "min", i), &mut c.min, 56.0, "0");
+                ui.label(tl!("and"));
+                pass.text(ui, (part, "max", i), &mut c.max, 56.0, "");
+                ui.label(tl!("KB"));
+            }
+            // Two days in a row: each with its calendar, without the steps a day back and forward.
+            When::Received => {
+                for (key, day) in [("from", &mut c.from), ("to", &mut c.to)] {
+                    if key == "to" {
+                        ui.label(tl!("and"));
+                    }
+                    let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 2.0);
+                    pass.date_text(ui, (part, key, i), day, false);
+                    pass.calendar(ui, (part, key, i), day, false);
+                    ui.spacing_mut().item_spacing.x = gap;
+                }
+            }
+            When::Category => {
+                let current = if c.category.is_empty() { tl!("Choose a category").to_string() } else { shown(&c.category, 200) };
+                egui::ComboBox::from_id_salt((part, "category", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
+                    for name in categories {
+                        if ui.selectable_label(mailcraft_model::sync::same_category(name, &c.category), shown(name, 200)).clicked() {
+                            c.category = name.clone();
+                        }
+                    }
+                });
+            }
+            kind if kind.takes_people() => {
+                pass.text(ui, (part, "text", i), &mut c.text, width, tl!("Addresses"))
+                    .on_hover_text(tl!("Several addresses: set them apart with a semicolon (;). Any one of them is enough."));
+            }
+            kind if kind.takes_text() => {
+                pass.text(ui, (part, "text", i), &mut c.text, width, tl!("Text to look for"))
+                    .on_hover_text(tl!("Several texts: set them apart with a semicolon (;). Any one of them is enough."));
+            }
+            _ => {}
+        }
+        removable && remove_button(ui, if part == "unless" { tl!("Remove this exception") } else { tl!("Remove this condition") })
+    }
+
+    /// A list of choices by their labels, in a box of `width`.
+    fn choice<T: Copy + PartialEq>(
+        ui: &mut Ui,
+        salt: impl std::hash::Hash + std::fmt::Debug,
+        width: f32,
+        value: &mut T,
+        all: &[T],
+        label: impl Fn(T) -> String,
+    ) {
+        egui::ComboBox::from_id_salt(salt).width(width).selected_text(label(*value)).truncate().show_ui(ui, |ui| {
+            for v in all {
+                if ui.selectable_label(*v == *value, label(*v)).clicked() {
+                    *value = *v;
                 }
             }
         });
@@ -4567,23 +4991,30 @@ pub(crate) mod rules {
     pub fn describe(mb: &Mailbox, r: &Rule) -> String {
         let addresses = mb.rule_reads_addresses(r);
         let when = r.conditions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" and ");
-        let then = r
+        let except = r.exceptions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" or ");
+        // (A rule for every account's mail names the account too: it is shown under each.)
+        let into = |verb: &str, f: Id| match mb.folder(f) {
+            Some(folder) if folder.account == r.account => format!("{verb} it to {}", crate::nav::folder_path(mb, f)),
+            Some(folder) if let Some(other) = mb.account(folder.account) => {
+                let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
+                format!("{verb} it to {} - {who}", crate::nav::folder_path(mb, f))
+            }
+            _ => format!("{verb} it to a folder that is gone"),
+        };
+        let mut then: Vec<String> = r
             .actions
             .iter()
             .map(|a| match a {
-                Action::MoveTo(f) if mb.folder(*f).is_some_and(|f| f.account == r.account || r.account == 0) => {
-                    format!("move it to {}", crate::nav::folder_path(mb, *f))
-                }
-                Action::MoveTo(f) if let Some(other) = mb.folder(*f).and_then(|f| mb.account(f.account)) => {
-                    let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
-                    format!("move it to {} - {who}", crate::nav::folder_path(mb, *f))
-                }
-                Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
+                Action::MoveTo(f) => into("move", *f),
+                Action::CopyTo(f) => into("copy", *f),
                 other => other.describe(),
             })
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("When {when}: {then}")
+            .collect();
+        if r.alert {
+            then.push("show a desktop alert".into());
+        }
+        let then = then.join(", ");
+        if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
     }
 
     /// Where a rule is kept, and why, as the dialog says it under the rule (#566).
@@ -4716,6 +5147,15 @@ pub(crate) mod rules {
         });
     }
 
+    /// The folder a move or a copy of the builder keeps when "Rules for" goes from the account
+    /// `before` to `now`: one of `before`'s own was its own mail's folder, and becomes `now`'s
+    /// first (`first`), as one that isn't among `now`'s choices does; a move or a copy into an
+    /// account's folder would otherwise put `now`'s mail on that other account's server.
+    pub(crate) fn folder_after_switch(mb: &Mailbox, before: Id, now: Id, folder: Id, choices: &[(Id, String)], first: Id) -> Id {
+        let theirs = before != now && mb.folder(folder).is_some_and(|f| f.account == before);
+        if theirs || !choices.iter().any(|f| f.0 == folder) { first } else { folder }
+    }
+
     /// The Rules dialog.
     #[derive(Clone, Debug, Default, PartialEq, Eq)]
     pub struct RulesForm {
@@ -4725,8 +5165,12 @@ pub(crate) mod rules {
         open: bool,
         name: String,
         conds: Vec<Cond>,
+        /// The exceptions: any one of them holding leaves the message alone.
+        unless: Vec<Cond>,
         acts: Vec<Act>,
         stop: bool,
+        /// A desktop alert for the mail the rule acts on as it arrives.
+        alert: bool,
         /// Keep on the server: ticked when the builder starts, the owner's to untick; while the
         /// server can't do the rule it is greyed and the rule stays here.
         server: bool,
@@ -4734,6 +5178,9 @@ pub(crate) mod rules {
         /// path. Once the rule is added, the rules are run over that folder while this is ticked.
         run_in: Option<(Id, String)>,
         then_run: bool,
+        /// Opened so: the sender the name was made of, and that name, so that the name follows
+        /// the move's folder while the owner hasn't changed it.
+        named_for: Option<(String, String)>,
         /// The folders a move can go to: id and path.
         folders: Vec<(Id, String)>,
         /// The folder and category a fresh action starts with.
@@ -4760,6 +5207,11 @@ pub(crate) mod rules {
             f
         }
 
+        /// The name Always Move Messages From This Sender gives a rule.
+        fn always_move_name(sender: &str, folder: &str) -> String {
+            crate::i18n::fmt(tl!("{sender} to {folder}"), &[("sender", sender), ("folder", folder)]).chars().take(mailcraft_model::MAX_NAME).collect()
+        }
+
         /// Fill the builder in for the mail of message `id`'s sender to go to `folder`, for the
         /// account the message came to, as `rules.fromMessage` makes it. Nothing for a message or
         /// folder that isn't there, a send queue, a sender with no address, or a shared mailbox's
@@ -4775,9 +5227,18 @@ pub(crate) mod rules {
                 return;
             }
             self.choose(mb, account);
-            let name = crate::i18n::fmt(tl!("{sender} to {folder}"), &[("sender", m.from.display()), ("folder", &target.name)]);
-            self.name = name.chars().take(mailcraft_model::MAX_NAME).collect();
-            self.conds = vec![Cond { kind: When::From, text: sender.to_string(), ..Default::default() }];
+            self.name = Self::always_move_name(m.from.display(), &target.name);
+            self.named_for = Some((m.from.display().to_string(), self.name.clone()));
+            // By the whole address, as `rules.fromMessage` makes it; a sender's that isn't one is
+            // looked for as words.
+            // (The address whole: one cut short would be somebody else's.)
+            // A longer one is said in the builder, as `rules.add` refuses it, never cut.
+            let cond = if by_address(sender) {
+                Cond { kind: When::Person, text: sender.to_string(), ..Default::default() }
+            } else {
+                Cond { kind: When::From, text: sender.to_string(), whole: Some(sender.to_string()), ..Default::default() }
+            };
+            self.conds = vec![cond];
             self.acts = vec![Act { kind: Do::Move, folder, ..self.fresh_action() }];
             self.open = true;
             self.run_in = Some((m.folder, crate::nav::folder_path(mb, m.folder)));
@@ -4786,14 +5247,21 @@ pub(crate) mod rules {
 
         /// Show the rules of `account`: a new rule is for its mail, and moves it to its folders.
         fn choose(&mut self, mb: &Mailbox, account: Id) {
+            let before = self.account;
             self.account = account;
             self.folders = move_choices(mb, account);
             self.first_folder = mb.folder_of_kind(account, FolderKind::Archive).or(self.folders.first().map(|f| f.0)).unwrap_or(0);
             let (folders, first) = (&self.folders, self.first_folder);
             for a in &mut self.acts {
-                if !folders.iter().any(|f| f.0 == a.folder) {
-                    a.folder = first;
-                }
+                a.folder = folder_after_switch(mb, before, account, a.folder, folders, first);
+            }
+            // A name Always Move made says where the mail goes: it says the new folder.
+            let moving_to = self.acts.first().filter(|a| a.kind == Do::Move).and_then(|a| mb.folder(a.folder));
+            if let (Some((sender, given)), Some(to)) = (self.named_for.as_mut(), moving_to)
+                && self.name == *given
+            {
+                self.name = Self::always_move_name(sender, &to.name);
+                given.clone_from(&self.name);
             }
             // The mail already there that the new rule may run over is the account's own.
             if self.run_in.as_ref().is_some_and(|(f, _)| mb.folder(*f).is_none_or(|f| f.account != account)) {
@@ -4806,41 +5274,31 @@ pub(crate) mod rules {
         fn reset(&mut self) {
             self.name.clear();
             self.stop = false;
+            self.alert = false;
+            self.unless.clear();
             self.server = true;
             self.run_in = None;
             self.then_run = false;
+            self.named_for = None;
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
         }
 
         fn fresh_action(&self) -> Act {
-            Act { kind: Do::Move, folder: self.first_folder, category: self.first_category.clone(), importance: Importance::High }
+            Act { kind: Do::Move, folder: self.first_folder, category: self.first_category.clone(), importance: Importance::High, due: None }
         }
 
         /// The command Add runs, with its params.
         pub fn command(&self) -> (&'static str, Value) {
-            let conditions: Vec<Value> = self
-                .conds
-                .iter()
-                .map(|c| match c.kind {
-                    When::Attachment => json!({"type": c.kind.code()}),
-                    When::Importance => json!({"type": c.kind.code(), "value": c.importance.code()}),
-                    kind => json!({"type": kind.code(), "value": c.text}),
-                })
-                .collect();
-            let actions: Vec<Value> = self
-                .acts
-                .iter()
-                .map(|a| match a.kind {
-                    Do::Move => json!({"type": "moveTo", "value": a.folder}),
-                    Do::Categorize => json!({"type": "categorize", "value": a.category}),
-                    Do::Flag => json!({"type": "flag"}),
-                    Do::MarkRead => json!({"type": "markRead"}),
-                    Do::SetImportance => json!({"type": "setImportance", "value": a.importance.code()}),
-                    Do::Delete => json!({"type": "delete"}),
-                })
-                .collect();
+            let conditions: Vec<Value> = self.conds.iter().map(Cond::param).collect();
+            let actions: Vec<Value> = self.acts.iter().map(Act::param).collect();
             let mut params = json!({"name": self.name, "conditions": conditions, "actions": actions, "stop": self.stop});
+            if !self.unless.is_empty() {
+                params["exceptions"] = json!(self.unless.iter().map(Cond::param).collect::<Vec<_>>());
+            }
+            if self.alert {
+                params["alert"] = json!(true);
+            }
             if self.account != 0 {
                 params["account"] = json!(self.account);
                 if !self.server {
@@ -4850,16 +5308,47 @@ pub(crate) mod rules {
             ("rules.add", params)
         }
 
-        /// Whether Add can run: the rule has a name, every text condition a text, every move a
-        /// folder and every Categorize a category.
-        fn ready(&self) -> bool {
-            let conds = self.conds.iter().all(|c| !c.kind.takes_text() || !c.text.trim().is_empty());
+        /// What the rule still needs before Add can run, in words: a name, all that each
+        /// condition and exception needs, something to do (an action or the alert), a folder for
+        /// every move and copy and a category for every Categorize. `None` when it can.
+        fn lacks(&self) -> Option<&'static str> {
+            if let Some(why) = self.conds.iter().chain(&self.unless).find_map(Cond::lacks) {
+                return Some(why);
+            }
+            // Exceptions of one kind are one, as `rules.add` keeps them (`fold_exceptions`): their
+            // words together, each once, are as many as a condition's.
+            let mut kinds: Vec<(When, Vec<String>)> = Vec::new();
+            for c in self.unless.iter().filter(|c| c.kind.takes_text()) {
+                let at = match kinds.iter().position(|(kind, _)| *kind == c.kind) {
+                    Some(at) => at,
+                    None => {
+                        kinds.push((c.kind, Vec::new()));
+                        kinds.len() - 1
+                    }
+                };
+                if let Some((_, all)) = kinds.get_mut(at) {
+                    for w in c.words() {
+                        if !all.iter().any(|a| mailcraft_model::same_word(c.kind.words(), a, &w)) {
+                            all.push(w);
+                        }
+                    }
+                    if all.len() > MAX_WORDS_EACH {
+                        return Some(too_many_words());
+                    }
+                }
+            }
+            if self.acts.is_empty() && !self.alert {
+                return Some(tl!("A rule needs something to do: an action, or a desktop alert."));
+            }
             let acts = self.acts.iter().all(|a| match a.kind {
-                Do::Move => a.folder != 0,
+                kind if kind.takes_folder() => a.folder != 0,
                 Do::Categorize => !a.category.trim().is_empty(),
                 _ => true,
             });
-            !self.name.trim().is_empty() && !self.conds.is_empty() && !self.acts.is_empty() && conds && acts
+            if self.name.trim().is_empty() || self.conds.is_empty() {
+                return Some(tl!("A rule needs a name, and something to look for."));
+            }
+            (!acts).then_some(tl!("Move to folder and Copy to folder need a folder; Categorize needs a category."))
         }
 
         /// Lay out the form. Returns `true` when the dialog should close.
@@ -4882,7 +5371,15 @@ pub(crate) mod rules {
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);
             let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id)).collect::<Vec<_>>();
             let categories: Vec<String> = mb.every_category().into_iter().map(|c| c.name).collect();
-            let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
+            // Run Rules Now runs the rules shown, over the folder in view when it is their account's,
+            // else over their account's Inbox: Outlook's Run in Folder, set to that account's Inbox.
+            let in_view = app.session.view.folder;
+            let over =
+                if mb.folder(in_view).is_some_and(|f| f.account == account) { Some(in_view) } else { mb.folder_of_kind(account, FolderKind::Inbox) };
+            let folder_over = over.map(|f| crate::nav::folder_path(mb, f)).unwrap_or_default();
+            // (Never a shared mailbox's folder: the dialog shows the rules of the owner's own
+            // accounts, and the rules leave a shared mailbox's mail alone.)
+            let reach = over.is_some();
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
@@ -4941,13 +5438,17 @@ pub(crate) mod rules {
                     ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
                 }
                 ui.horizontal(|ui| {
-                    let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_in_view)]);
-                    let any = !(there.is_empty() && here.is_empty());
-                    if ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip).clicked() {
-                        run = Some(("rules.run", json!({})));
+                    let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
+                    let any = !(there.is_empty() && here.is_empty()) && reach;
+                    let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
+                    if button.clicked()
+                        && let Some(folder) = over
+                    {
+                        run = Some(("rules.run", json!({"folder": folder})));
                     }
                     if let Some(n) = self.ran {
-                        let found = tln!(n, "{n} message matched", "{n} messages matched");
+                        // (What the rules changed, as the status bar says it.)
+                        let found = tln!(n, "{n} message changed", "{n} messages changed");
                         ui.label(egui::RichText::new(found).color(t.text_dim));
                     }
                 });
@@ -4994,13 +5495,13 @@ pub(crate) mod rules {
                             if let Some(((folder, _), rule)) = self.run_in.take().filter(|_| self.then_run).zip(made) {
                                 match app.execute("rules.run", json!({"folder": folder, "id": rule})) {
                                     Ok(v) => self.ran = v.get("matched").and_then(Value::as_u64),
-                                    Err(e) => self.error = e,
+                                    Err(e) => self.error = app.refusal_said(&e),
                                 }
                             }
                             self.reset();
                         }
                     }
-                    Err(e) => self.error = e,
+                    Err(e) => self.error = app.refusal_said(&e),
                 }
             }
             error(ui, &self.error);
@@ -5030,22 +5531,7 @@ pub(crate) mod rules {
             let many = self.conds.len() > 1;
             for (i, c) in self.conds.iter_mut().enumerate() {
                 row(ui, if i == 0 { tl!("When") } else { tl!("and") }, |ui| {
-                    egui::ComboBox::from_id_salt(("when", i)).width(190.0).selected_text(tl!(c.kind.label_as(on_server))).show_ui(ui, |ui| {
-                        for kind in When::ALL {
-                            if ui.selectable_label(kind == c.kind, tl!(kind.label_as(on_server))).clicked() {
-                                c.kind = kind;
-                            }
-                        }
-                    });
-                    match c.kind {
-                        When::Attachment => {}
-                        When::Importance => importance_combo(ui, ("when_importance", i), &mut c.importance),
-                        _ => {
-                            let width = (ui.available_width() - if many { 30.0 } else { 0.0 }).max(60.0);
-                            pass.text(ui, ("when_text", i), &mut c.text, width, tl!("Text to look for"));
-                        }
-                    }
-                    if many && remove_button(ui, tl!("Remove this condition")) {
+                    if cond_row(ui, pass, c, ("when", i), on_server, categories, many) {
                         drop_cond = Some(i);
                     }
                 });
@@ -5062,8 +5548,30 @@ pub(crate) mod rules {
                     self.conds.push(Cond::default());
                 }
             });
+            // Outlook's "except if": any one of them holding leaves the message alone.
+            let mut drop_unless = None;
+            for (i, c) in self.unless.iter_mut().enumerate() {
+                row(ui, if i == 0 { tl!("Except if") } else { tl!("or") }, |ui| {
+                    if cond_row(ui, pass, c, ("unless", i), on_server, categories, true) {
+                        drop_unless = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = drop_unless.filter(|i| *i < self.unless.len()) {
+                self.unless.remove(i);
+            }
+            row(ui, "", |ui| {
+                if ui
+                    .add_enabled(self.unless.len() < MAX_PARTS, egui::Button::new(tl!("+ exception")))
+                    .on_hover_text(tl!("Mail that any one exception holds for is left alone"))
+                    .clicked()
+                {
+                    self.unless.push(Cond::default());
+                }
+            });
             let mut drop_act = None;
-            let many = self.acts.len() > 1;
+            // The last action can go when the alert is all the rule does.
+            let many = self.acts.len() > 1 || self.alert;
             let folders = &self.folders;
             for (i, a) in self.acts.iter_mut().enumerate() {
                 row(ui, if i == 0 { tl!("Do") } else { tl!("and") }, |ui| {
@@ -5076,7 +5584,7 @@ pub(crate) mod rules {
                     });
                     let width = (ui.available_width() - if many { 30.0 } else { 0.0 }).max(60.0);
                     match a.kind {
-                        Do::Move => {
+                        Do::Move | Do::Copy => {
                             let current =
                                 folders.iter().find(|f| f.0 == a.folder).map_or_else(|| tl!("Choose a folder").to_string(), |f| shown(&f.1, 200));
                             egui::ComboBox::from_id_salt(("do_folder", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
@@ -5091,14 +5599,20 @@ pub(crate) mod rules {
                             let current = if a.category.is_empty() { tl!("Choose a category").to_string() } else { shown(&a.category, 200) };
                             egui::ComboBox::from_id_salt(("do_category", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
                                 for name in categories {
-                                    if ui.selectable_label(name.eq_ignore_ascii_case(&a.category), shown(name, 200)).clicked() {
+                                    if ui.selectable_label(mailcraft_model::sync::same_category(name, &a.category), shown(name, 200)).clicked() {
                                         a.category = name.clone();
                                     }
                                 }
                             });
                         }
                         Do::SetImportance => importance_combo(ui, ("do_importance", i), &mut a.importance),
-                        Do::Flag | Do::MarkRead | Do::Delete => {}
+                        // When it falls due, as Follow Up's menu offers.
+                        Do::Flag => {
+                            ui.label(tl!("due"));
+                            let dues = [None, Some(FlagDue::Today), Some(FlagDue::Tomorrow), Some(FlagDue::ThisWeek), Some(FlagDue::NextWeek)];
+                            choice(ui, ("do_due", i), 110.0, &mut a.due, &dues, |d| due_label(d).to_string());
+                        }
+                        Do::ClearCategories | Do::ClearFlag | Do::MarkRead | Do::Delete => {}
                     }
                     if many && remove_button(ui, tl!("Remove this action")) {
                         drop_act = Some(i);
@@ -5109,7 +5623,8 @@ pub(crate) mod rules {
                 self.acts.remove(i);
             }
             let mut add = false;
-            let ready = self.ready();
+            let lacks = self.lacks();
+            let ready = lacks.is_none();
             row(ui, "", |ui| {
                 if ui.add_enabled(self.acts.len() < MAX_PARTS, egui::Button::new(tl!("+ action"))).clicked() {
                     let fresh = self.fresh_action();
@@ -5118,6 +5633,9 @@ pub(crate) mod rules {
             });
             row(ui, "", |ui| {
                 ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
+                ui.checkbox(&mut self.alert, tl!("Show a desktop alert")).on_hover_text(tl!(
+                    "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+                ));
             });
             // Where it is kept: the owner says, while the server can do all of it; greyed, with why,
             // when it can't.
@@ -5167,10 +5685,13 @@ pub(crate) mod rules {
             }
             row(ui, "", |ui| {
                 add = ui.add_enabled(ready, egui::Button::new(tl!("Add Rule")).min_size(vec2(84.0, 24.0))).clicked();
-                if !ready {
-                    ui.label(egui::RichText::new(tl!("A rule needs a name, and something to look for.")).color(t.text_dim).size(11.5));
-                }
             });
+            // Under the button, wrapped within the dialog: what the rule still needs can be long.
+            if let Some(why) = lacks {
+                tall_row(ui, "", |ui| {
+                    ui.label(egui::RichText::new(why).color(t.text_dim).size(11.5));
+                });
+            }
             ready && (add || pass.submit)
         }
     }

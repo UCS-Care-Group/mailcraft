@@ -10,6 +10,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::bidi::{self, AlignFrom, Dir};
 use crate::data::{self, Budget};
 use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
@@ -18,8 +19,8 @@ use crate::sheet;
 use crate::style::{self, Css, MsoList, Size, TableDisplay};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
-    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT, MAX_ROW_SPAN,
-    MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
+    Align, BgPicture, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT,
+    MAX_ROW_SPAN, MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -38,6 +39,9 @@ const COPY_FLOOR: usize = 64 * 1024;
 
 /// Longest written-out list marker read from an Outlook list paragraph, in bytes.
 const MAX_MARKER: usize = 24;
+
+/// Most open SVG and MathML elements followed; one deeper leaves a template inside it counted.
+const MAX_FOREIGN: usize = 64;
 
 /// Most blank lines kept between two blocks.
 const MAX_SPACE: u8 = 3;
@@ -110,22 +114,150 @@ pub(crate) struct Built {
     pub dark_design: bool,
     /// The text of what the message hides, when it was asked for.
     pub hidden: String,
+    /// What of it is shown, token by token, when that was asked for.
+    pub seen: Option<Seen>,
 }
 
 pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
-    build_with(html, decode, env, keep_hidden, None)
+    build_with(html, decode, env, keep_hidden, None, ComposeTables::Off, false)
+}
+
+/// What the reading pane shows of the tokens of `html` (cut to [`crate::MAX_INPUT_WITH_PICTURES`]),
+/// in their order: the one account of what is left out (hidden, in a `<template>`, too small to
+/// read, past the caps), which the quote of a reply or forward follows (`quote.rs`), so that the
+/// two can't disagree on where it starts and ends.
+#[derive(Default)]
+pub(crate) struct Seen {
+    /// For each token read: a text whether it is shown, a tag whether what follows it is. The
+    /// tokens past the end are not read.
+    pub shown: Vec<bool>,
+    /// The last text read was cut to this many bytes, at the end of what is read.
+    pub cut: Option<usize>,
+    /// Text the pane shows in place of what a token holds, written after it: Outlook's
+    /// written-out list marker, as the pane makes it again (a number, a label or a bullet).
+    pub after: Vec<(usize, String)>,
+    /// The `<img>` tokens whose picture the pane drew, in order: each with whether it took it in
+    /// the pictures written into a message that are decoded (always, for one on the web or
+    /// attached), and the bytes it decoded of it, when it decoded.
+    pub drawn: Vec<(usize, Drew)>,
+}
+
+/// A picture the pane drew ([`Seen::drawn`]).
+#[derive(Clone, Default)]
+pub(crate) struct Drew {
+    /// Within the budget of the pictures written into a message (one on the web or attached is).
+    pub taken: bool,
+    /// What it decoded, when the reading decoded.
+    pub picture: Option<data::Picture>,
+}
+
+/// [`Seen`] of `html` read for a pane of the width and theme `env`, as the pane reads it; the
+/// pictures written into it decoded when `decode` (else only counted, as the pane counts them).
+pub(crate) fn seen(html: &str, env: &Env, decode: bool) -> Seen {
+    // lean: decoding, what the pane decodes (at most MAX_DATA_PICTURES_BYTES), in one look only.
+    build_with(html, decode, env, false, None, ComposeTables::Off, true).seen.unwrap_or_default()
+}
+
+/// [`Seen`] of `html` as each of the panes `envs` shows it: what is shown in every one of them,
+/// the pictures decoded in the first when `decode`.
+/// With none, in each look its `@media` gives it ([`crate::media_envs`]), for a message no pane
+/// has said how it read; `None` when it has more looks than are told apart (what one of the
+/// others shows can't be known).
+pub(crate) fn seen_everywhere(html: &str, envs: &[Env], decode: bool) -> Option<Seen> {
+    let looks_of_media;
+    let envs = if envs.is_empty() {
+        let (looks, every) = crate::media::envs(&crate::media_lists(html));
+        if !every {
+            return None;
+        }
+        looks_of_media = looks;
+        &looks_of_media[..]
+    } else {
+        envs
+    };
+    let mut looks = envs.iter().enumerate().map(|(n, env)| seen(html, env, decode && n == 0));
+    let Some(mut out) = looks.next() else { return Some(Seen::default()) };
+    for other in looks {
+        let (short, long) = if other.shown.len() < out.shown.len() { (other, out) } else { (out, other) };
+        let cut = match (short.cut, long.cut) {
+            (Some(a), Some(b)) if short.shown.len() == long.shown.len() => Some(a.min(b)),
+            (a, b) if short.shown.len() == long.shown.len() => a.or(b),
+            (a, _) => a,
+        };
+        let mut shown = short.shown;
+        for (s, l) in shown.iter_mut().zip(&long.shown) {
+            *s &= *l;
+        }
+        let after = both(short.after, &long.after);
+        let drawn = drawn_in_both(short.drawn, &long.drawn);
+        out = Seen { shown, cut, after, drawn };
+    }
+    Some(out)
+}
+
+/// The pictures drawn in both `a` and `b`, in token order, walked side by side once: taken when
+/// both took it, with what either decoded of it then.
+fn drawn_in_both(a: Vec<(usize, Drew)>, b: &[(usize, Drew)]) -> Vec<(usize, Drew)> {
+    let mut b = b.iter().peekable();
+    let mut out = Vec::new();
+    for (at, drew) in a {
+        while b.next_if(|other| other.0 < at).is_some() {}
+        if let Some((_, other)) = b.next_if(|other| other.0 == at) {
+            let taken = drew.taken && other.taken;
+            let picture = drew.picture.or_else(|| other.picture.clone()).filter(|_| taken);
+            out.push((at, Drew { taken, picture }));
+        }
+    }
+    out
+}
+
+/// The markers in both `a` and `b`, each in token order: walked side by side, once.
+pub(crate) fn both(a: Vec<(usize, String)>, b: &[(usize, String)]) -> Vec<(usize, String)> {
+    let mut b = b.iter().peekable();
+    let mut out = Vec::new();
+    for item in a {
+        while b.next_if(|other| (other.0, other.1.as_str()) < (item.0, item.1.as_str())).is_some() {}
+        if b.next_if(|other| **other == item).is_some() {
+            out.push(item);
+        }
+    }
+    out
 }
 
 /// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
 /// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
 /// reading rule ([`is_safe_url`]). Never for received mail.
 pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
-    build_with(html, false, &Env::default(), false, Some(accept)).blocks
+    build_with(html, false, &Env::default(), false, Some(accept), ComposeTables::Off, false).blocks
 }
 
-fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>) -> Built {
+/// Read spreadsheet geometry from the clipboard, or only from marked tables when reopening a draft.
+pub fn parse_text_with_tables(html: &str, own_link: Option<fn(&str) -> Option<String>>) -> Vec<Block> {
+    let tables = if own_link.is_some() { ComposeTables::Marked } else { ComposeTables::All };
+    build_with(html, false, &Env::default(), false, own_link, tables, false).blocks
+}
+
+#[derive(Clone, Copy)]
+enum ComposeTables {
+    Off,
+    All,
+    Marked,
+}
+
+fn build_with(
+    html: &str,
+    decode: bool,
+    env: &Env,
+    keep_hidden: bool,
+    own_link: Option<fn(&str) -> Option<String>>,
+    compose_tables: ComposeTables,
+    record: bool,
+) -> Built {
     let mut builder = Builder::new(decode);
+    builder.seen = record.then(Seen::default);
+    builder.count_only = record && !decode;
     builder.own_link = own_link;
+    builder.compose_tables = compose_tables;
     builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, crate::MAX_INPUT_WITH_PICTURES);
     builder.copies = html.len().saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
@@ -147,8 +279,7 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
             break;
         }
         if let Token::Open(tag) = &token
-            && tag.name == "img"
-            && let Some(src) = tag.raw_attr("src").filter(|src| data::is_data(src))
+            && let Some(src) = picture_text(tag)
         {
             pictures = pictures.saturating_add(src.len());
         }
@@ -156,7 +287,11 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
         if over > 0 {
             // The rest of the text that ends past the input read, as if the input ended there.
             if let Token::Text(text) = token {
-                builder.token(Token::Text(truncate(text, text.len().saturating_sub(over))));
+                let text = truncate(text, text.len().saturating_sub(over));
+                builder.token(Token::Text(text));
+                if let Some(seen) = builder.seen.as_mut() {
+                    seen.cut = Some(text.len());
+                }
             }
             break;
         }
@@ -175,7 +310,19 @@ fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: 
     }
     let dark_design = look.dark_design();
     let hidden = builder.unseen.take().unwrap_or_default();
-    Built { blocks: builder.finish(), dark_design, hidden }
+    let seen = builder.seen.take();
+    Built { blocks: builder.finish(), dark_design, hidden, seen }
+}
+
+/// The text of a picture written into the element (an `<img>`'s, or the `background` of a table,
+/// a cell or the body, #601), which isn't counted against [`MAX_INPUT`].
+fn picture_text<'a>(tag: &'a Tag<'_>) -> Option<&'a str> {
+    let attribute = match tag.name.as_ref() {
+        "img" => "src",
+        "table" | "td" | "th" | "body" => "background",
+        _ => return None,
+    };
+    tag.raw_attr(attribute).filter(|src| data::is_data(src))
 }
 
 /// For an element that asks to be a box on a line: the id of what holds it, when everything
@@ -220,6 +367,10 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    /// Whether that alignment names a side or follows the direction ([`bidi::placed`]).
+    align_from: AlignFrom,
+    /// The direction asked for (`dir`, `direction`), inherited as in a browser.
+    dir: Dir,
     /// The alignment in force comes from the `align` of a cell, a row, a `<div>` or a `<p>`, or
     /// from a `<center>`, not from a style: a table inside starts again at the left, as in a
     /// browser (its `-webkit-` alignments).
@@ -306,6 +457,9 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    align_from: AlignFrom,
+    dir: Option<Dir>,
     /// That alignment is one a table inside starts again from ([`Style::align_attr`]).
     align_attr: bool,
     /// A table: the `align` of a cell, a row, a `<div>` or a `<p>`, or a `<center>`, outside does
@@ -339,6 +493,8 @@ impl Delta {
             size: css.size,
             font: css.font.as_deref().map(Rc::from),
             align: css.align,
+            align_from: css.align_from,
+            dir: css.direction,
             line_height: css.line_height,
             ..Delta::default()
         }
@@ -346,11 +502,22 @@ impl Delta {
 
     /// The alignment the `align` of a cell, a row, a `<div>` or a `<p>` (or a `<center>`) asks
     /// for, unless a style asks for one.
-    fn or_attr_align(&mut self, align: Option<Align>) {
-        if self.align.is_none() && align.is_some() {
-            self.align = align;
+    fn or_attr_align(&mut self, value: Option<&str>) {
+        if self.align.is_none() && self.or_attr_side(value) {
             self.align_attr = true;
         }
+    }
+
+    /// The side an `align` attribute names, for an element whose style names none; whether it
+    /// gave one. `justify` is not a side: the text stays at the start of its line, as a style's
+    /// `text-align: justify` does ([`AlignFrom::Flow`]).
+    fn or_attr_side(&mut self, value: Option<&str>) -> bool {
+        let Some(align) = value.and_then(style::attr_align) else {
+            return false;
+        };
+        self.align = Some(align);
+        self.align_from = if value.is_some_and(style::attr_justify) { AlignFrom::Flow } else { AlignFrom::Side };
+        true
     }
 
     /// The style inside the element.
@@ -381,13 +548,19 @@ impl Delta {
         }
         if self.table && style.align_attr {
             style.align = Align::Left;
+            style.align_from = AlignFrom::Nothing;
             style.align_attr = false;
             style.align_reset = true;
         }
         if let Some(align) = self.align {
             style.align = align;
+            // (`align`, given as an attribute, names a side.)
+            style.align_from = if self.align_from == AlignFrom::Flow { AlignFrom::Flow } else { AlignFrom::Side };
             style.align_attr = self.align_attr;
             style.align_reset = false;
+        }
+        if let Some(dir) = self.dir {
+            style.dir = dir;
         }
         if let Some(line_height) = self.line_height {
             style.line_height = line_height;
@@ -466,11 +639,14 @@ struct BoxBuild {
     table: bool,
     /// What holds it, for telling whether a box before it is on its line ([`Frame::after_box`]).
     parent: usize,
+    bg_picture: Option<Box<BgPicture>>,
 }
 
 #[derive(Debug)]
 struct TableBuild {
     rows: Vec<Row>,
+    compose_grid: bool,
+    row_group_start: usize,
     width: Option<Length>,
     background: Option<Rgb>,
     align: Align,
@@ -505,6 +681,7 @@ struct TableBuild {
     last_row: bool,
     spacing: Option<u8>,
     inline: bool,
+    bg_picture: Option<Box<BgPicture>>,
     /// A box on a line floated to the side `align` says ([`Table::float`]).
     float: bool,
     /// What holds it, when it is a box on a line ([`BoxBuild::parent`]).
@@ -533,6 +710,7 @@ struct CellBuild {
     padding: Option<Insets>,
     radius: u8,
     valign: Option<VAlign>,
+    bg_picture: Option<Box<BgPicture>>,
 }
 
 /// What an open element is.
@@ -626,6 +804,12 @@ struct Builder {
     spans: Vec<Span>,
     kind: BlockKind,
     align: Align,
+    /// Where that alignment came from, and the direction asked for: with the block's text, the
+    /// side it stands at ([`bidi`]).
+    align_from: AlignFrom,
+    dir: Dir,
+    /// It is part of a list item ([`Block::in_item`]).
+    in_item: bool,
     line_height: Option<LineHeight>,
     /// The enclosing block's value, when an inline element supplies a tentative override.
     block_line_height: Option<LineHeight>,
@@ -648,6 +832,7 @@ struct Builder {
     unseen: Option<String>,
     /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`]).
     own_link: Option<fn(&str) -> Option<String>>,
+    compose_tables: ComposeTables,
     /// A space is due before the next hidden word.
     unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
@@ -684,6 +869,21 @@ struct Builder {
     /// What the spans and pictures still to be made may repeat of links and fonts
     /// ([`COPY_ALLOWANCE`]).
     copies: usize,
+    /// What is shown of each token read, when it is asked for ([`seen`]).
+    seen: Option<Seen>,
+    /// The picture of the `<img>` being read was drawn, for `seen`.
+    drew: Option<Drew>,
+    /// The pictures written into the message are counted as the pane counts them, not decoded
+    /// (a `seen` that doesn't decode).
+    count_only: bool,
+    /// Where in `seen` the written-out marker being read starts; once read, there and the
+    /// marker the pane makes of it, until its item's text shows it.
+    marker_at: Option<usize>,
+    marker_due: Option<(usize, String)>,
+    /// Open `<svg>` and `<math>`, whose `<template>` is none (foreign content, as in a browser):
+    /// for each, how many nodes were open when it was (so that it ends with what holds it), and
+    /// whether it is a `<math>`.
+    foreign: Vec<(usize, bool)>,
 }
 
 impl Builder {
@@ -697,6 +897,9 @@ impl Builder {
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
             align: Align::Left,
+            align_from: AlignFrom::Nothing,
+            dir: Dir::Ltr,
+            in_item: false,
             line_height: None,
             block_line_height: None,
             inline_line_height: None,
@@ -709,6 +912,7 @@ impl Builder {
             hidden: 0,
             unseen: None,
             own_link: None,
+            compose_tables: ComposeTables::Off,
             unseen_gap: false,
             implied: 0,
             quote: 0,
@@ -728,10 +932,35 @@ impl Builder {
             decode,
             budget: Budget::default(),
             copies: COPY_FLOOR,
+            seen: None,
+            drew: None,
+            count_only: false,
+            marker_at: None,
+            marker_due: None,
+            foreign: Vec::new(),
         }
     }
 
     fn token(&mut self, token: Token<'_>) {
+        // (What is left out of the pane: everything while an element around it is hidden or a
+        // `<template>` is open, and text too small to read.)
+        let text = matches!(token, Token::Text(_));
+        let shown = text && self.hidden == 0 && self.template == 0 && !self.style().tiny;
+        let capture = self.capture;
+        self.token_read(token);
+        let Some(seen) = self.seen.as_mut() else { return };
+        let at = seen.shown.len();
+        seen.shown.push(if text { shown } else { self.hidden == 0 && self.template == 0 });
+        if let Some(drew) = self.drew.take() {
+            seen.drawn.push((at, drew));
+        }
+        // A written-out marker in nothing else hidden starts here.
+        if capture == 0 && self.capture > 0 && self.hidden == self.capture && self.template == 0 {
+            self.marker_at = Some(at);
+        }
+    }
+
+    fn token_read(&mut self, token: Token<'_>) {
         match token {
             Token::Text(text) => {
                 if self.template == 0 {
@@ -741,18 +970,42 @@ impl Builder {
             Token::Open(tag) => {
                 self.pre_start = false;
                 self.note_boundary(&tag.name);
-                if tag.name == "template" {
+                // A template counts while it is what leaves its content out: not inside SVG or
+                // MathML, where it is no template, nor inside what is hidden already, which ends
+                // where it would have ended without it. (An SVG or MathML element ends with what
+                // holds it, if not before.)
+                let open = self.nodes.len();
+                self.foreign.retain(|(at, _)| *at <= open);
+                // (An HTML element that can't be in SVG or MathML ends them, as in a browser.)
+                if breaks_out_of_foreign(&tag) {
+                    self.foreign.clear();
+                }
+                if tag.name == "template" && (self.template > 0 || (self.hidden == 0 && self.foreign.is_empty())) {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
+                    if matches!(tag.name.as_str(), "svg" | "math") && !tag.self_closing && self.foreign.len() < MAX_FOREIGN {
+                        self.foreign.push((open, tag.name == "math"));
+                    }
                     self.open(&tag);
                 }
             }
             Token::Close(name) => {
                 self.pre_start = false;
                 self.note_boundary(&name);
-                if name == "template" {
-                    self.template = self.template.saturating_sub(1);
+                if name == "template" && self.template > 0 {
+                    self.template -= 1;
                 } else if self.template == 0 {
+                    // (`</svg>` ends the innermost SVG element and what is open inside it; `</p>`
+                    // and `</br>` end them all, as in a browser. lean: inside `<foreignObject>`,
+                    // `<desc>` or `<title>` an HTML element ends them too, where a browser keeps
+                    // them open: the pane then takes a `<template>` after for one, and shows less.)
+                    if matches!(name.as_str(), "p" | "br") {
+                        self.foreign.clear();
+                    } else if matches!(name.as_str(), "svg" | "math")
+                        && let Some(at) = self.foreign.iter().rposition(|(_, math)| *math == (name == "math"))
+                    {
+                        self.foreign.truncate(at);
+                    }
                     self.end(&name);
                 }
             }
@@ -786,11 +1039,11 @@ impl Builder {
         }
     }
 
-    /// The alignment of text or a picture that starts here. One written in a table or a row
-    /// outside its cells (bare, or in an element there that doesn't align it) stands before the
-    /// table, as in a browser, aligned as what is round the table is (a table starts again at
-    /// the left from some alignments: [`Style::align_attr`]).
-    fn loose_align(&self) -> Align {
+    /// The style whose alignment and direction text or a picture that starts here takes. One
+    /// written in a table or a row outside its cells (bare, or in an element there that doesn't
+    /// align it) stands before the table, as in a browser, aligned as what is round the table is
+    /// (a table starts again at the left from some alignments: [`Style::align_attr`]).
+    fn loose_style(&self) -> &Style {
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match node.kind {
                 // (A table too deep to be laid out holds its cells' content itself.)
@@ -798,13 +1051,13 @@ impl Builder {
                 Kind::Table(ref t) if t.flat => break,
                 Kind::Table(_) | Kind::Row(_) => {
                     let table = self.nodes.get(..=i).and_then(|below| below.iter().rposition(|n| matches!(n.kind, Kind::Table(_))));
-                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style).align;
+                    return table.and_then(|t| self.nodes.get(..t)).and_then(<[Node]>::last).map_or(&self.base, |n| &n.style);
                 }
                 _ if node.delta.align.is_some() => break,
                 _ => {}
             }
         }
-        self.style().align
+        self.style()
     }
 
     // ---- text ----
@@ -911,6 +1164,13 @@ impl Builder {
             self.kind = if self.pre > 0 {
                 BlockKind::Preformatted
             } else if let Some(item) = self.item.take() {
+                // (Its written-out marker is shown with it, as the pane makes it.)
+                if let (Some(seen), Some((at, marker))) = (self.seen.as_mut(), self.marker_due.take()) {
+                    if let Some(shown) = seen.shown.get_mut(at) {
+                        *shown = true;
+                    }
+                    seen.after.push((at, marker));
+                }
                 item
             } else if let Some(level) = self.heading {
                 BlockKind::Heading(level)
@@ -920,7 +1180,9 @@ impl Builder {
             } else {
                 BlockKind::Paragraph
             };
-            self.align = self.loose_align();
+            let loose = self.loose_style();
+            (self.align, self.align_from, self.dir) = (loose.align, loose.align_from, loose.dir);
+            self.in_item = matches!(self.kind, BlockKind::ListItem { .. }) || self.inside_item();
             self.start_line_height();
             self.fresh = true;
         }
@@ -1071,7 +1333,13 @@ impl Builder {
                 }
             }
         }
-        let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
+        // Text in the line of a picture stays in that line, at the picture's side, unless the
+        // message says which way it reads.
+        let dir = if beside && self.dir == Dir::Auto { Dir::Ltr } else { self.dir };
+        let rtl = bidi::rtl(dir, spans.iter().flat_map(|s| s.text.chars()));
+        let align = bidi::placed(self.align, self.align_from, rtl);
+        let block =
+            Block { quote: self.quote_depth(), align, rtl, beside, in_item: self.in_item, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -1142,6 +1410,74 @@ impl Builder {
         self.emit(block, false);
     }
 
+    /// The picture behind an element (#601), when it may have one: what its style says, else its
+    /// `background` attribute where `attribute` (a table, a cell, the body), as written for one
+    /// written into the message (`data:`), else a `cid:` address (one attached to the message).
+    /// An address on the web is none: such a picture is never used, so never asked for. None for
+    /// an element that is hidden or inside one that is (what is not shown is never asked for),
+    /// and none for one that says it is 2 pixels or less across or high: a tracking pixel, as
+    /// such an `<img>` is. Nothing is decoded here ([`Builder::bg_picture`]).
+    fn bg_source(&self, tag: &Tag<'_>, css: &Css, attribute: bool) -> Option<String> {
+        if self.hidden > 0 || css.hidden || tag.has("hidden") {
+            return None;
+        }
+        // (Any size it is given, by an attribute or a style, as for an `<img>`: a style of 1 px
+        // beside an attribute of 100 still says it is a pixel.)
+        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+        let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
+        if tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height) {
+            return None;
+        }
+        let raw = match &css.bg.image {
+            Some(image) => image.clone(),
+            None if attribute => tag.attr("background"),
+            None => None,
+        }?;
+        if data::is_data(&raw) { Some(raw) } else { bg_url(raw) }
+    }
+
+    /// The picture behind a box that is shown, from what [`Builder::bg_source`] gave: one attached
+    /// to the message kept by its address; one written into it decoded within the caps the
+    /// message's pictures share, and no picture when it can't be. For a table or a cell use
+    /// [`Builder::bg_pending`] and [`Builder::bg_decoded`] instead, which decode only for a box
+    /// that is kept.
+    fn bg_picture(&mut self, source: Option<String>, css: &Css) -> Option<Box<BgPicture>> {
+        let pending = Self::bg_pending(source, css);
+        self.bg_decoded(pending)
+    }
+
+    /// The picture behind a box as far as it is known before it is known that the box stays: a
+    /// picture written into the message is not yet decoded (`data` is `None` and `src` is all of
+    /// it), as that takes from the budget every picture of the message shares.
+    fn bg_pending(source: Option<String>, css: &Css) -> Option<Box<BgPicture>> {
+        let bg = &css.bg;
+        Some(Box::new(BgPicture {
+            src: source?,
+            data: None,
+            repeat: bg.repeat.unwrap_or_default(),
+            position: bg.position.unwrap_or_default(),
+            size: bg.size.unwrap_or_default(),
+        }))
+    }
+
+    /// What [`Builder::bg_pending`] made, for a box that is kept: a picture written into the
+    /// message is decoded now, and is no picture when it can't be.
+    fn bg_decoded(&mut self, pending: Option<Box<BgPicture>>) -> Option<Box<BgPicture>> {
+        let mut picture = pending?;
+        if data::is_data(&picture.src) && picture.data.is_none() {
+            if self.count_only {
+                // (Counted only: kept when taken, whether its bytes are a picture or not.)
+                let (src, taken) = data::counted(&picture.src, &mut self.budget);
+                picture.src = src;
+                return taken.then_some(picture);
+            }
+            let (src, data) = data::picture(&picture.src, self.decode, &mut self.budget);
+            picture.src = src;
+            picture.data = Some(data?);
+        }
+        Some(picture)
+    }
+
     fn image(&mut self, tag: &Tag<'_>) {
         if self.hidden > 0 {
             return;
@@ -1156,8 +1492,18 @@ impl Builder {
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
         let raw = tag.attr("src");
+        let mut taken = true;
         let picture = match raw.as_deref().filter(|src| data::is_data(src)) {
-            Some(written) => Some(data::picture(written, self.decode, &mut self.budget)),
+            Some(written) if self.count_only => {
+                let (src, counted) = data::counted(written, &mut self.budget);
+                taken = counted;
+                Some((src, None))
+            }
+            Some(written) => {
+                let (src, took, data) = data::picture_taken(written, self.decode, &mut self.budget);
+                taken = took;
+                Some((src, data))
+            }
             None => picture_url(raw).map(|src| (src, None)),
         };
         match picture {
@@ -1181,18 +1527,28 @@ impl Builder {
                 } else {
                     None
                 };
+                let drew = self.seen.is_some().then(|| Drew { taken, picture: data.clone() });
                 let kind = BlockKind::Image { src, width, height, link, data };
                 let count = self.frame().blocks.len();
+                // A picture where the message says its text reads from the right stands where
+                // that text does, so that it and the text beside it keep to one line.
+                let loose = self.loose_style();
+                let align = if css.centred() { Align::Center } else { bidi::placed(loose.align, loose.align_from, loose.dir == Dir::Rtl) };
                 let block = Block {
                     quote: self.quote_depth(),
-                    align: if css.centred() { Align::Center } else { self.loose_align() },
+                    align,
+                    rtl: loose.dir == Dir::Rtl,
                     beside,
+                    in_item: self.inside_item(),
                     image_padding: css.padding_insets().filter(|padding| padding.any()),
                     ..Block::new(kind, spans)
                 };
                 self.emit(block, false);
-                // (Only when it was added: past the cap there is no line to go on.)
+                // (Only when it was added: past the cap there is no line to go on, and no picture.)
                 self.after_picture = self.frame().blocks.len() > count;
+                if self.after_picture {
+                    self.drew = drew;
+                }
             }
             // No picture to load: its description is all there is, where text can be read.
             None if self.style().tiny => {}
@@ -1238,7 +1594,7 @@ impl Builder {
 
     /// Keep the composer's original cap when no pictures are being decoded.
     fn max_font_px(&self) -> u8 {
-        if self.decode { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
+        if self.decode || self.count_only { crate::MAX_FONT_PX } else { MAX_PASTE_FONT_PX }
     }
 
     /// Close the node at `index` and what is open inside it. Formatting elements opened inside
@@ -1312,13 +1668,18 @@ impl Builder {
         None
     }
 
+    /// Whether a list item is open, however far inside it: in a table or a box of its own too.
+    fn inside_item(&self) -> bool {
+        self.nodes.iter().any(|n| matches!(n.kind, Kind::Item(_)))
+    }
+
     /// Whether something open has a background of its own.
     fn tinted(&self) -> bool {
         self.nodes.iter().any(|n| match &n.kind {
-            Kind::Block(block) => block.boxed.as_ref().is_some_and(|b| b.background.is_some()),
-            Kind::Cell(cell) => cell.background.is_some(),
+            Kind::Block(block) => block.boxed.as_ref().is_some_and(|b| b.background.is_some() || b.bg_picture.is_some()),
+            Kind::Cell(cell) => cell.background.is_some() || cell.bg_picture.is_some(),
             Kind::Row(row) => row.background.is_some(),
-            Kind::Table(table) => table.background.is_some(),
+            Kind::Table(table) => table.background.is_some() || table.bg_picture.is_some(),
             _ => false,
         })
     }
@@ -1440,10 +1801,18 @@ impl Builder {
             Kind::Marker => {
                 self.capture = self.capture.saturating_sub(1);
                 if self.capture == 0 {
+                    let at = self.marker_at.take();
+                    self.marker_due = None;
                     if self.mso_item
                         && let Some(BlockKind::ListItem { marker, .. }) = &mut self.item
                     {
                         *marker = written_marker(&self.marker);
+                        let shown = match marker {
+                            Marker::Number(n) => format!("{n}."),
+                            Marker::Label(label) => label.clone(),
+                            Marker::Bullet | Marker::None => "\u{2022}".to_string(),
+                        };
+                        self.marker_due = at.map(|at| (at, format!("{shown}\u{a0}")));
                     }
                     self.marker.clear();
                 }
@@ -1452,6 +1821,7 @@ impl Builder {
                 self.flush();
                 if block.mso {
                     self.item = None;
+                    self.marker_due = None;
                     self.mso_item = false;
                 }
                 if let Some(boxed) = block.boxed {
@@ -1484,6 +1854,7 @@ impl Builder {
             Kind::Item(_) => {
                 self.flush();
                 self.item = None;
+                self.marker_due = None;
             }
             Kind::Quote { margin } => {
                 self.flush();
@@ -1533,7 +1904,14 @@ impl Builder {
         if blocks.is_empty() {
             return;
         }
-        let cell = Cell { blocks, background: boxed.background, padding: boxed.padding, radius: boxed.radius, ..Cell::default() };
+        let cell = Cell {
+            blocks,
+            background: boxed.background,
+            padding: boxed.padding,
+            radius: boxed.radius,
+            bg_picture: boxed.bg_picture,
+            ..Cell::default()
+        };
         let table = Table {
             rows: vec![Row { cells: vec![cell] }],
             columns: 1,
@@ -1556,7 +1934,8 @@ impl Builder {
         let table = Table { spaced, ..table };
         // (The margins of a box on a line are the table's own: the line is placed as a whole.)
         let inset = if boxed.inline { [0, 0] } else { boxed.margin };
-        let block = Block { quote: self.quote_depth(), align, beside, inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align, beside, in_item: self.inside_item(), inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = boxed.inline.then_some(boxed.parent);
@@ -1576,6 +1955,7 @@ impl Builder {
             padding: cell.padding,
             radius: cell.radius,
             valign: cell.valign,
+            bg_picture: cell.bg_picture,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
@@ -1596,15 +1976,14 @@ impl Builder {
         for cell in &mut cells {
             cell.background = cell.background.or(row.background);
         }
-        if cells.is_empty() {
-            return;
-        }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
             Kind::Table(table) => Some(table),
             _ => None,
         });
         if let Some(table) = table {
-            table.rows.push(Row { cells });
+            if !cells.is_empty() || table.compose_grid {
+                table.rows.push(Row { cells });
+            }
             return;
         }
         for cell in cells {
@@ -1614,16 +1993,28 @@ impl Builder {
 
     /// Turn what was read of a table into a block: a data table, a layout table, or, for a table
     /// that only wrapped a column of things, those things.
-    fn end_table(&mut self, table: TableBuild) {
+    fn end_table(&mut self, mut table: TableBuild) {
         if table.flat {
             return;
         }
-        let mut rows = table.rows;
-        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && !cell.border.any();
+        table.finish_row_group();
+        let mut rows = std::mem::take(&mut table.rows);
+        // A cell's picture written into the message is decoded now that its table is made, and not
+        // before: a cell that was not kept (past the caps, or in a table that is flat) takes
+        // nothing from the budget. One that can't be decoded is no picture, so a cell without
+        // anything else is still one that only makes room.
+        for cell in rows.iter_mut().flat_map(|r| &mut r.cells) {
+            cell.bg_picture = self.bg_decoded(cell.bg_picture.take());
+        }
+        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
         // Rows and columns that only make room make none here.
-        rows.retain(|r| !r.cells.iter().all(empty));
+        if !table.compose_grid {
+            rows.retain(|r| !r.cells.iter().all(empty));
+        }
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
-        let layout = if table.presentation {
+        let layout = if table.compose_grid {
+            false
+        } else if table.presentation {
             true
         } else if table.header || table.border {
             false
@@ -1664,13 +2055,19 @@ impl Builder {
         if rows.is_empty() {
             return;
         }
-        let columns =
-            rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS);
+        // The table's own picture, now that there is a table to put it behind.
+        table.bg_picture = self.bg_decoded(table.bg_picture.take());
+        let columns = if table.compose_grid {
+            grid_width(&rows)
+        } else {
+            rows.iter().map(|r| r.cells.iter().map(|c| usize::from(c.colspan)).sum::<usize>()).max().unwrap_or(1).clamp(1, MAX_TABLE_COLUMNS)
+        };
         // A table that only wraps a column of things is those things. Unless the things are
         // pictures and nothing else, a row each: those are slices of one picture, and stay the
         // rows of a table, for whoever draws them to set them edge to edge.
         let framed = table.lines.iter().any(Line::is_set);
         let plain = table.background.is_none()
+            && table.bg_picture.is_none()
             && !table.outline
             && !framed
             && !table.border
@@ -1682,6 +2079,7 @@ impl Builder {
             && !matches!(table.width, Some(Length::Percent(p)) if p < 100);
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
+        let bare = |c: &Cell| c.background.is_none() && c.bg_picture.is_none() && !c.border.any();
         // A table its text stands apart from ([`TableBuild::outer_align`]) stays one when it is
         // narrower than the line or holds tables floated to a side: it is stood where that
         // alignment says, a share of the line wide or as wide as the floats together, with its
@@ -1692,12 +2090,7 @@ impl Builder {
             || table.outer_align.is_some()
                 && (matches!(table.width, Some(Length::Percent(p)) if p < 100)
                     || rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).any(floated));
-        if layout
-            && plain
-            && !slices
-            && !stands
-            && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
-        {
+        if layout && plain && !slices && !stands && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(bare)) {
             let outer = table.outer_align.filter(|_| table.width.is_none());
             for (i, row) in rows.into_iter().enumerate() {
                 for mut cell in row.cells {
@@ -1716,6 +2109,7 @@ impl Builder {
         }
         let mut kind = BlockKind::Table(Table {
             rows,
+            compose_grid: table.compose_grid,
             columns: u16::try_from(columns).unwrap_or(u16::MAX),
             layout,
             border: table.border,
@@ -1726,6 +2120,7 @@ impl Builder {
             radius: table.radius,
             spacing: table.spacing,
             inline: table.inline,
+            bg_picture: table.bg_picture,
             float: table.float,
             // (The margins of a box on a line are the table's own: the line is placed as a whole.)
             box_margin: if table.inline { table.margin } else { [0, 0] },
@@ -1739,7 +2134,8 @@ impl Builder {
             t.spaced = spaced;
         }
         let inset = if table.inline { [0, 0] } else { table.margin };
-        let block = Block { quote: self.quote_depth(), align: table.align, beside, inset, ..Block::new(kind, Vec::new()) };
+        let block =
+            Block { quote: self.quote_depth(), align: table.align, beside, in_item: self.inside_item(), inset, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
         let frame = self.frame();
         frame.after_box = table.inline.then_some(table.parent);
@@ -1751,6 +2147,8 @@ impl Builder {
         self.flush();
         let build = TableBuild {
             rows: Vec::new(),
+            compose_grid: false,
+            row_group_start: 0,
             width: None,
             background: None,
             align: Align::Left,
@@ -1769,6 +2167,7 @@ impl Builder {
             last_row: false,
             spacing: None,
             inline: false,
+            bg_picture: None,
             float: false,
             parent: 0,
             outer_align: None,
@@ -1789,8 +2188,17 @@ impl Builder {
         let parent = self.can_box(tag, &css);
         let inline = parent.is_some();
         let float = if inline { floated(tag, &css) } else { None };
+        let source = if self.frames.len() < MAX_TABLE_DEPTH { self.bg_source(tag, &css, true) } else { None };
+        // (Decoded when the table is made, if it stays: [`Builder::end_table`].)
+        let bg_picture = Self::bg_pending(source, &css);
         let build = TableBuild {
             rows: Vec::new(),
+            row_group_start: 0,
+            compose_grid: match self.compose_tables {
+                ComposeTables::Off => false,
+                ComposeTables::All => true,
+                ComposeTables::Marked => tag.attr("data-mailcraft-grid").as_deref() == Some("1"),
+            },
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
             background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
             align: float
@@ -1812,6 +2220,7 @@ impl Builder {
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
             inline,
+            bg_picture,
             float: float.is_some(),
             parent: parent.unwrap_or(0),
             outer_align: (self.style().align_attr && self.style().align != Align::Left).then_some(self.style().align),
@@ -1845,12 +2254,16 @@ impl Builder {
         }
         self.flush();
         if let Some(t) = self.table_at(table) {
+            if t.rows.len() >= MAX_TABLE_ROWS {
+                t.full = true;
+                return;
+            }
             t.last_row = t.rows.len() + 1 >= MAX_TABLE_ROWS;
         }
         let css = css_of(tag);
         let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(attr("align").as_deref());
         let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
@@ -1912,11 +2325,16 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let attr = |attribute: &str| if matches!(name, "td" | "th") { tag.attr(attribute) } else { None };
-        let span = |name: &str, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(1, u32::from(max)) as u16);
+        let source = self.bg_source(tag, &css, matches!(name, "td" | "th"));
+        // (Decoded when its table is made, if it stays: [`Builder::end_table`].)
+        let bg_picture = Self::bg_pending(source, &css);
+        let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
+        let span =
+            |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
         let build = CellBuild {
             header,
-            colspan: span("colspan", MAX_TABLE_COLUMNS as u16),
-            rowspan: span("rowspan", MAX_ROW_SPAN),
+            colspan: span("colspan", 1, MAX_TABLE_COLUMNS as u16),
+            rowspan: span("rowspan", u32::from(!grid), MAX_ROW_SPAN),
             background: css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
             width: sized(&css, attr("width").and_then(|w| style::attr_length(&w))),
             border: {
@@ -1927,11 +2345,12 @@ impl Builder {
             padding: css.padding_insets(),
             radius: css.radius,
             valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
+            bg_picture,
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
         delta.bold = delta.bold.or(header.then_some(true));
-        delta.or_attr_align(attr("align").and_then(|a| style::attr_align(&a)));
+        delta.or_attr_align(attr("align").as_deref());
         if header && delta.align.is_none() && self.style().align_reset {
             delta.align = Some(Align::Center);
         }
@@ -1967,6 +2386,19 @@ impl Builder {
                 _ => {}
             }
         }
+    }
+
+    fn table_row_group(&mut self, data: bool) {
+        let grid =
+            self.overflow == 0 && self.table_index().is_some_and(|index| self.table_at(index).is_some_and(|table| table.compose_grid && !table.full));
+        if grid {
+            // A group boundary also ends its last row when the row's end tag was omitted.
+            self.end_row_tag();
+            if let Some(table) = self.table_index().and_then(|index| self.table_at(index)) {
+                table.finish_row_group();
+            }
+        }
+        self.table_part(data);
     }
 
     fn end_cell_tag(&mut self) {
@@ -2159,6 +2591,10 @@ impl Builder {
                 inline: true,
                 table: css.table,
                 parent,
+                bg_picture: {
+                    let source = self.bg_source(tag, &css, false);
+                    self.bg_picture(source, &css)
+                },
             };
             delta.background = None;
             delta.align = own_align.or(delta.align);
@@ -2312,12 +2748,12 @@ impl Builder {
         self.flush();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
-        let align = if name == "center" { Some(Align::Center) } else { tag.attr("align").and_then(|a| style::attr_align(&a)) };
+        let align = if name == "center" { Some("center".into()) } else { tag.attr("align") };
         if matches!(name, "div" | "p" | "center") {
-            delta.or_attr_align(align);
-        } else {
+            delta.or_attr_align(align.as_deref());
+        } else if delta.align.is_none() {
             // (`<body align>`, `<section align>` and the like align as a style does.)
-            delta.align = delta.align.or(align);
+            delta.or_attr_side(align.as_deref());
         }
         if let Some(own) = own {
             delta.link = own.link.clone();
@@ -2338,7 +2774,8 @@ impl Builder {
         let paragraph = name == "p" && !outlook;
         // A box on a line (`display: inline-block`) that has something to show of its own: padding,
         // a background, a frame or a width. Without them it is a block as any other.
-        let asks = background.is_some() || has_box_look(&css);
+        let source = self.bg_source(tag, &css, name == "body");
+        let asks = background.is_some() || source.is_some() || has_box_look(&css);
         let parent = if asks && name != "body" { self.can_box(tag, &css) } else { None };
         let inline = parent.is_some();
         let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
@@ -2349,7 +2786,9 @@ impl Builder {
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
-        let boxed = (background.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
+        let boxed = (background.is_some() || source.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
+        // (Decoded only for a box that is made.)
+        let bg_picture = if boxed { self.bg_picture(source, &css) } else { None };
         let padding = css.padding_insets().unwrap_or_default();
         // (A box on a line takes no margins above and below: the lines of boxes have their own gap.)
         let margins = if inline { Insets { top: 0, bottom: 0, ..css.margin_insets() } } else { css.margin_insets() };
@@ -2379,8 +2818,9 @@ impl Builder {
                 parent: parent.unwrap_or(0),
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
-                radius: if background.is_some() || outline { css.radius } else { 0 },
+                radius: if background.is_some() || bg_picture.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bg_picture,
             }),
         };
         if margin_above {
@@ -2406,6 +2846,7 @@ impl Builder {
         }
         if mso && let Some(MsoList::Level(level)) = css.mso_list {
             self.item = Some(BlockKind::ListItem { marker: Marker::Bullet, depth: level.saturating_sub(1) });
+            self.marker_due = None;
             self.mso_item = true;
         }
         true
@@ -2446,7 +2887,9 @@ impl Builder {
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         // (A heading's or a list's `align` aligns as a style does, into a table too.)
-        delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
+        if delta.align.is_none() {
+            delta.or_attr_side(tag.attr("align").as_deref());
+        }
         // A heading is bold unless it says it is not.
         if matches!(kind, Kind::Heading(_)) {
             delta.bold = delta.bold.or(Some(true));
@@ -2481,6 +2924,7 @@ impl Builder {
         }
         if self.open_structure("li", Kind::Item(depth), tag) {
             self.item = Some(BlockKind::ListItem { marker, depth });
+            self.marker_due = None;
         }
     }
 
@@ -2615,8 +3059,17 @@ impl Builder {
             "tr" => self.open_row(tag, "tr"),
             "td" => self.open_cell(tag, "td", false),
             "th" => self.open_cell(tag, "th", true),
-            "caption" | "thead" | "tfoot" => self.table_part(true),
-            "tbody" | "html" | "head" | "option" | "optgroup" => self.table_part(false),
+            "thead" | "tfoot" => self.table_row_group(true),
+            "tbody" => self.table_row_group(false),
+            "caption" => self.table_part(true),
+            "html" => {
+                // (The whole message reads the way `<html dir>` says, under what its body says.)
+                if let Some(dir) = css_of(tag).direction {
+                    self.base.dir = dir;
+                }
+                self.table_part(false);
+            }
+            "head" | "option" | "optgroup" => self.table_part(false),
             name => {
                 if let Some(name) = block_name(name) {
                     self.open_block(name, tag);
@@ -2649,7 +3102,8 @@ impl Builder {
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
             // The message's own style lasts to its end, whatever follows `</body>`.
-            "caption" | "thead" | "tbody" | "tfoot" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
+            "thead" | "tbody" | "tfoot" => self.table_row_group(false),
+            "caption" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
             name => {
                 if block_name(name).is_some() {
                     self.end_block(name);
@@ -2729,7 +3183,11 @@ fn is_block_box(node: &Node) -> bool {
 /// Whether a style gives an element something to show of its own as a box: a background, a frame,
 /// padding that is more than none, or a width.
 pub(crate) fn has_box_look(css: &Css) -> bool {
-    css.background.is_some() || css.framed() || css.padding_insets().is_some_and(Insets::any) || box_width(css).is_some()
+    css.background.is_some()
+        || css.bg.image.as_ref().and_then(Option::as_ref).is_some_and(|url| data::is_data(url) || bg_url(url.clone()).is_some())
+        || css.framed()
+        || css.padding_insets().is_some_and(Insets::any)
+        || box_width(css).is_some()
 }
 
 /// Whether the element is one the blocks leave out: hidden by its style or its `hidden`
@@ -2750,10 +3208,13 @@ pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
 /// What an element's style sheet rules and its `style` attribute say, in the order of the
 /// cascade (`sheet::css_with`).
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
-    match &tag.sheet {
+    let mut css = match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),
         Some(applied) => sheet::css_with(applied, tag.attr("style").as_deref()),
-    }
+    };
+    // (`dir` is a style a browser gives the element, which the message's own beats.)
+    css.direction = css.direction.or_else(|| tag.attr("dir").as_deref().and_then(Dir::attr));
+    css
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
@@ -2793,6 +3254,76 @@ pub(crate) fn picture_url(raw: Option<String>) -> Option<String> {
     let schemeless = url.strip_prefix("//").is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
     let url = if schemeless { format!("https:{url}") } else { url.to_string() };
     is_safe_url(&url).then_some(url)
+}
+
+impl TableBuild {
+    fn finish_row_group(&mut self) {
+        if !self.compose_grid {
+            return;
+        }
+        let explicit_end = self.rows.len();
+        let implied_end = self
+            .rows
+            .iter()
+            .enumerate()
+            .skip(self.row_group_start)
+            .flat_map(|(row, data)| data.cells.iter().map(move |cell| row + usize::from(cell.rowspan)))
+            .max()
+            .unwrap_or(explicit_end);
+        let end = explicit_end.max(implied_end);
+        if end > MAX_TABLE_ROWS {
+            // Keep the existing text fallback rather than let a span cross into the next group.
+            self.compose_grid = false;
+        } else {
+            self.rows.resize_with(end, || Row { cells: Vec::new() });
+        }
+        for (offset, row) in self.rows.iter_mut().skip(self.row_group_start).enumerate() {
+            let remaining = end - self.row_group_start - offset;
+            for cell in &mut row.cells {
+                if cell.rowspan == 0 {
+                    // An over-limit group cannot be represented faithfully in a draft.
+                    cell.rowspan = if !self.compose_grid {
+                        1
+                    } else if remaining > usize::from(MAX_ROW_SPAN) {
+                        u16::MAX
+                    } else {
+                        remaining as u16
+                    };
+                }
+            }
+        }
+        self.row_group_start = end;
+    }
+}
+
+/// Grid width including cells carried down from earlier rows. A result above the reader's
+/// column cap is kept above it so that the composer can fall back to text.
+fn grid_width(rows: &[Row]) -> usize {
+    let mut covered = [0usize; MAX_TABLE_COLUMNS];
+    let mut width = 1;
+    for row in rows {
+        let mut col = 0;
+        for cell in &row.cells {
+            while covered.get(col).is_some_and(|n| *n > 0) {
+                col += 1;
+            }
+            let end = col + usize::from(cell.colspan);
+            let Some(area) = covered.get_mut(col..end) else { return MAX_TABLE_COLUMNS + 1 };
+            area.iter_mut().for_each(|n| *n = (*n).max(usize::from(cell.rowspan)));
+            col = end;
+        }
+        width = width.max(col);
+        covered.iter_mut().for_each(|n| *n = n.saturating_sub(1));
+    }
+    width
+}
+
+/// The address of a picture behind a box attached to the message, when it may be used:
+/// [`picture_url`], and `cid:` alone. An address on the web is never used for one.
+fn bg_url(raw: String) -> Option<String> {
+    let src = picture_url(Some(raw))?;
+    let scheme = src.split_once(':').map_or("", |(scheme, _)| scheme);
+    scheme.eq_ignore_ascii_case("cid").then_some(src)
 }
 
 /// Where each cell of `rows` sits, as the reading pane places it: its first column and how many it
@@ -2948,6 +3479,58 @@ pub(crate) fn canon(name: &str) -> &str {
         "xmp" | "listing" => "pre",
         name => name,
     }
+}
+
+/// Whether a start tag ends the SVG or MathML it is in, as a browser reads it (the HTML standard's
+/// rules for foreign content): an HTML element that has no place there.
+pub(crate) fn breaks_out_of_foreign(tag: &Tag<'_>) -> bool {
+    const OUT: [&str; 44] = [
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strong",
+        "strike",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    ];
+    OUT.contains(&tag.name.as_str()) || (tag.name == "font" && ["color", "face", "size"].iter().any(|a| tag.has(a)))
 }
 
 /// Elements that start on a new line and carry no meaning of their own here.

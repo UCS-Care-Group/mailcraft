@@ -92,7 +92,6 @@ crates/time/src/text.rs
 crates/time/src/zone.rs
 crates/ui-egui/src/account_setup.rs
 crates/ui-egui/src/agent_gate.rs
-crates/ui-egui/src/calendar_sync.rs
 crates/ui-egui/src/calendar_view.rs
 crates/ui-egui/src/chrome.rs
 crates/ui-egui/src/compose/editor.rs
@@ -113,7 +112,6 @@ crates/ui-egui/src/reminders.rs
 crates/ui-egui/src/scheduling.rs
 crates/ui-egui/src/search_pills.rs
 crates/ui-egui/src/server_search.rs
-crates/ui-egui/src/sync_panel.rs
 crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs

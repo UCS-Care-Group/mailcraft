@@ -467,3 +467,37 @@ proptest! {
         prop_assert_eq!(ids.len(), held.len());
     }
 }
+
+#[test]
+fn an_event_with_an_empty_uid_is_taken_in_twice_without_a_change() {
+    for uid in ["", "   ", "\u{1}"] {
+        let mut s = session();
+        let id = subscribe(&mut s);
+        let file = ics(&[(uid, "No key", "20261114T150000Z"), (uid, "Other no key", "20261114T150000Z"), ("k", "Keyed", "20261115T150000Z")]);
+        let first = came(&mut s, id, &file, "\"v1\"");
+        assert_eq!(first["added"].as_u64(), Some(3), "uid {uid:?}: three events, none collapsed");
+        let before = s.mailbox.events.clone();
+        let again = came(&mut s, id, &file, "\"v2\"");
+        assert_eq!((again["added"].as_u64(), again["updated"].as_u64(), again["removed"].as_u64()), (Some(0), Some(0), Some(0)), "uid {uid:?}");
+        assert_eq!(s.mailbox.events, before, "uid {uid:?}");
+        // A uid filled in later: the event is replaced, never doubled.
+        let filled =
+            ics(&[("now-has-one", "No key", "20261114T150000Z"), (uid, "Other no key", "20261114T150000Z"), ("k", "Keyed", "20261115T150000Z")]);
+        came(&mut s, id, &filled, "\"v3\"");
+        assert_eq!(titles(&s, id), ["Keyed", "No key", "Other no key"], "uid {uid:?}");
+    }
+}
+
+#[test]
+fn events_without_a_uid_whose_titles_differ_only_in_what_is_tidied_away_are_one_event_each_time() {
+    // A title is tidied (trimmed, control characters gone) before it is kept, so the key of an event
+    // without a uid must be made from the tidied title, or the second take-in finds nothing it matches.
+    let mut s = session();
+    let id = subscribe(&mut s);
+    let file = ics(&[("", "Match ", "20261114T150000Z"), ("", "Match", "20261114T150000Z"), ("", "Cup\u{1}", "20261115T150000Z")]);
+    came(&mut s, id, &file, "\"v1\"");
+    let before = s.mailbox.events.clone();
+    let again = came(&mut s, id, &file, "\"v2\"");
+    assert_eq!((again["added"].as_u64(), again["updated"].as_u64(), again["removed"].as_u64()), (Some(0), Some(0), Some(0)));
+    assert_eq!(s.mailbox.events, before);
+}

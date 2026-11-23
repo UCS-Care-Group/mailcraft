@@ -6,19 +6,19 @@
 //! so [`quotable`] writes it anew from its tokens and keeps only its look: the elements and
 //! attributes that lay out and dress text, tables and pictures, by list. Nothing that runs, embeds
 //! another document, sends a form or sets a style for the whole message is carried, nor anything
-//! the sender hid, nor a picture too small to see. Pictures in the message (`cid:`) and ordinary
-//! pictures on the web stay: the recipient's program decides whether to fetch those. A picture
-//! written into the message (`data:`) is left out by [`quotable`]; [`quotable_with_pictures`]
-//! hands each one the reading pane would show (#533's checks and caps) to its caller, to go as a
+//! the sender hid, nor a picture the reading pane didn't draw. Pictures in the message (`cid:`)
+//! and ordinary pictures on the web that it drew stay: the recipient's program decides whether to
+//! fetch those. A picture written into the message (`data:`) is left out by [`quotable`];
+//! [`quotable_with_pictures`] hands each one the reading pane drew (as it decoded it) to its caller, to go as a
 //! part of its own, and refers to it by the Content-ID the caller gives it (#602).
 
-use crate::blocks::{css_of, left_out, picture_url};
-use crate::data::{self, Budget, MAX_DATA_TEXT, Picture};
+use crate::blocks::{self, css_of, picture_url};
+use crate::data::{self, Budget, Picture};
 use crate::entities::{escape, unescape};
+use crate::media::Env;
 use crate::sheet::Sheet;
-use crate::style::{self, Css};
 use crate::tokenizer::{Tag, Token, Tokenizer};
-use crate::{MAX_INPUT, is_embedded, is_safe_url, truncate};
+use crate::{MAX_INPUT_WITH_PICTURES, is_embedded, is_safe_url, truncate};
 
 /// What is given a picture written into the message being quoted, with its type (`image/png`,
 /// `image/jpeg`, `image/gif` or `image/webp`) and its bytes: the Content-ID it goes out under, or
@@ -152,8 +152,7 @@ const BLOCKS: [&str; 33] = [
 ];
 
 /// Attributes carried on any kept element (`href` and `src` have rules of their own).
-const ATTRIBUTES: [&str; 37] = [
-    "abbr",
+const ATTRIBUTES: [&str; 34] = [
     "align",
     "alt",
     "bgcolor",
@@ -183,8 +182,6 @@ const ATTRIBUTES: [&str; 37] = [
     "span",
     "start",
     "style",
-    "summary",
-    "title",
     "type",
     "valign",
     "value",
@@ -201,16 +198,26 @@ const RISKY_STYLE: [&str; 9] = ["url(", "image(", "image-set(", "expression(", "
 ///
 /// Left out with what is inside them: scripts, style sheets, frames, objects, form controls, SVG
 /// and MathML, templates, `noscript`, the head, comments, and every element hidden inline
-/// (`display:none` and the rest `style.rs` reads as hidden, or the `hidden` attribute). Left out
-/// alone: every other element not on the list, every attribute not on the list (`on…` handlers,
-/// `srcset`, `background`, `ping`, `formaction` among them), a link to anything but `http`,
-/// `https`, `mailto`, `tel` or `cid`, a picture from anywhere but the message itself or the web,
-/// a picture on the web 2 pixels or less across or high, and a `style` that loads or runs
-/// something. Text is escaped again, tags left open are closed at the end, and nesting deeper
-/// than a limit keeps its text and loses its tags. Takes any string, never panics, reads at most
-/// [`MAX_INPUT`] bytes and is linear in them.
+/// (`display:none` and the rest `style.rs` reads as hidden, or the `hidden` attribute); and,
+/// whatever it is in, everything the reading pane leaves out ([`parse`](crate::parse): what is
+/// hidden, by a style sheet too, in a template, too small to read, or past what it reads), ended
+/// where the pane ends it. Left out alone: every other element not on the list, every attribute
+/// not on the list (`on…` handlers, `srcset`, `background`, `ping`, `formaction`, and `title`,
+/// `summary` and `abbr`, which the pane never shows, among them; and the `alt` of a picture in the
+/// message, which the pane draws), a link to anything but `http`, `https`, `mailto`, `tel` or
+/// `cid`, a picture the pane didn't draw (too small to see, hidden, past its caps) or from
+/// anywhere but the message itself or the web, and a `style` that loads or runs something. Text is escaped again, tags left open are closed at the end, and nesting deeper
+/// than a limit keeps its text and loses its tags. Takes any string, never panics, reads what the
+/// reading pane reads (at most [`MAX_INPUT`](crate::MAX_INPUT) bytes besides the pictures written
+/// into the message) and is linear in it.
 pub fn quotable(html: &str) -> String {
-    quote(html, None)
+    quote(html, None, &[Env::default()])
+}
+
+/// [`quotable`], read as the panes `envs` read it, as [`quotable_with_pictures`] reads them,
+/// without the pictures written into the message (nothing of them is decoded).
+pub fn quotable_in(html: &str, envs: &[Env]) -> String {
+    quote(html, None, envs)
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
@@ -219,47 +226,67 @@ pub fn quotable(html: &str) -> String {
 /// and [`MAX_DATA_PICTURES_BYTES`](crate::MAX_DATA_PICTURES_BYTES), and not hidden) is given to
 /// `written`, and its `<img>` refers to it by the Content-ID `written` answers (`cid:…`); the
 /// others are left out. As in the reading pane, the pictures' text is not counted against
-/// [`MAX_INPUT`]: the rest of the message is read as far as it would be without them. A picture
-/// given to `written` may still be left out of what is written (one before a `<body>` that comes
-/// later, which counts against the caps all the same, as in the reading pane): the caller keeps
-/// only those the result refers to.
-pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>) -> String {
-    quote(html, Some(written))
+/// [`MAX_INPUT`](crate::MAX_INPUT): the rest of the message is read as far as it would be without
+/// them. A picture given to `written` may still be left out of what is written (one before a
+/// `<body>` that comes later, which counts against the caps all the same, as in the reading
+/// pane): the caller keeps only those the result refers to.
+///
+/// The message is read as the panes it was read in read it, at their widths and in their themes
+/// (`envs`, as for [`parse_in`](crate::parse_in)): what its `@media` hid in any of them is left
+/// out. With none (no pane said how it read it), only what every look its `@media` gives it
+/// shows is carried, and nothing of it when it has more looks than are told apart
+/// ([`crate::MAX_MEDIA_ENVS`]).
+pub fn quotable_with_pictures(html: &str, written: &mut WrittenPicture<'_>, envs: &[Env]) -> String {
+    quote(html, Some(written), envs)
 }
 
-fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
-    let carrying = written.is_some();
-    let html = truncate(html, if carrying { MAX_INPUT.saturating_add(MAX_DATA_TEXT) } else { MAX_INPUT });
+fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>, envs: &[Env]) -> String {
+    let html = truncate(html, MAX_INPUT_WITH_PICTURES);
+    // What the reading pane shows, token by token: nothing it leaves out is carried, and it is
+    // read as far as the pane reads it.
+    // (Decoded once, in one look, and only when the pictures written into it go somewhere.)
+    let decode = written.is_some();
+    let seen = match envs {
+        [env] => blocks::seen(html, env, decode),
+        // lean: a message whose looks can't all be told is not quoted at all.
+        _ => match blocks::seen_everywhere(html, envs, decode) {
+            Some(seen) => seen,
+            None => return String::new(),
+        },
+    };
+    let env = envs.first().copied().unwrap_or_default();
+    let env = &env;
+    let last = seen.shown.len().checked_sub(1);
+    let mut after = seen.after.iter().peekable();
+    let mut drawn = seen.drawn.iter().peekable();
     let mut q = Quoter { written, ..Quoter::default() };
     // The message's style sheets are read to see what the sender hid with them; they are not
     // carried.
-    let mut sheet = Sheet::read(html);
+    let mut sheet = Sheet::read_in(html, env);
     let mut opened = 0usize;
-    let mut tokens = Tokenizer::new(html);
-    // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
-    let mut pictures = 0usize;
-    while let Some(mut token) = tokens.next() {
+    for (at, mut token) in Tokenizer::new(html).enumerate() {
         if let Token::Open(tag) = &mut token {
             if let Some(sheet) = &mut sheet {
                 sheet.apply(opened, tag);
             }
             opened = opened.saturating_add(1);
-            if carrying
-                && tag.name == "img"
-                && let Some(src) = tag.raw_attr("src").filter(|src| data::is_data(src))
-            {
-                pictures = pictures.saturating_add(src.len());
-            }
         }
-        let over = tokens.pos().saturating_sub(pictures).saturating_sub(MAX_INPUT);
-        if over > 0 {
-            // The rest of the text that ends past the input read, as if the input ended there.
-            if let Token::Text(text) = token {
-                q.token(Token::Text(truncate(text, text.len().saturating_sub(over))));
-            }
+        match seen.shown.get(at) {
+            None => break,
+            Some(false) => continue,
+            Some(true) => {}
+        }
+        if let (Some(cut), Token::Text(text)) = (seen.cut.filter(|_| Some(at) == last), &token) {
+            q.token(Token::Text(truncate(text, cut)));
             break;
         }
+        while drawn.next_if(|(i, _)| *i < at).is_some() {}
+        q.drawn = drawn.next_if(|(i, _)| *i == at).map(|(_, drew)| drew.clone());
         q.token(token);
+        q.drawn = None;
+        while let Some((_, text)) = after.next_if(|(i, _)| *i == at) {
+            q.token(Token::Text(text));
+        }
     }
     q.finish()
 }
@@ -268,8 +295,9 @@ fn quote(html: &str, written: Option<&mut WrittenPicture<'_>>) -> String {
 struct Quoter<'a, 'w> {
     /// Where the pictures written into the message go, when they are carried.
     written: Option<&'a mut WrittenPicture<'w>>,
-    /// What those pictures have taken so far.
-    budget: Budget,
+    /// The `<img>` being written was drawn by the reading pane, with the picture written into the
+    /// message it decoded: the only pictures carried ([`blocks::Seen::drawn`]).
+    drawn: Option<blocks::Drew>,
     out: String,
     /// Kept elements open in what is written, outermost first.
     open: Vec<&'static str>,
@@ -294,9 +322,9 @@ impl Quoter<'_, '_> {
         {
             // What is before the body is the head, or out of place: only the body is carried.
             if !self.body {
-                // (Where the pictures go, and what they took, stay.)
-                let (written, budget) = (self.written.take(), std::mem::take(&mut self.budget));
-                *self = Quoter { body: true, written, budget, ..Quoter::default() };
+                // (Where the pictures go stays.)
+                let written = self.written.take();
+                *self = Quoter { body: true, written, ..Quoter::default() };
             }
             return;
         }
@@ -319,6 +347,11 @@ impl Quoter<'_, '_> {
         match token {
             Token::Text(_) => true,
             Token::Open(tag) => {
+                if matches!(skip.name.as_str(), "svg" | "math") && blocks::breaks_out_of_foreign(tag) {
+                    // `<svg><p>`: an HTML element ends the SVG it is in (as in the reading pane).
+                    self.skip = None;
+                    return false;
+                }
                 if skip.nested == 0 && ends_itself && closed_by(&skip.name, &tag.name) {
                     // `<p hidden>a<p>b`: the second paragraph ends the first.
                     self.skip = None;
@@ -337,8 +370,14 @@ impl Quoter<'_, '_> {
                     }
                     return true;
                 }
-                if skip.nested == 0 && ends_itself && self.open.iter().any(|o| o == name) {
-                    // `<tr><td hidden>x</tr>`: the row's end ends the cell.
+                if matches!(skip.name.as_str(), "svg" | "math") && matches!(name.as_str(), "p" | "br") {
+                    // `<svg></p>`: those end tags end the SVG too (as in the reading pane).
+                    self.skip = None;
+                    return false;
+                }
+                if skip.nested == 0 && (ends_itself || matches!(skip.name.as_str(), "svg" | "math")) && self.open.iter().any(|o| o == name) {
+                    // `<tr><td hidden>x</tr>`: the row's end ends the cell; `<div><svg></div>`:
+                    // the end of what holds an SVG picture ends it (as in the reading pane).
                     self.skip = None;
                     return false;
                 }
@@ -353,7 +392,8 @@ impl Quoter<'_, '_> {
             self.raw = true;
             return;
         }
-        if DROPPED.contains(&name) {
+        // (An SVG or MathML element written `<svg/>` has nothing in it to leave out.)
+        if DROPPED.contains(&name) && !(tag.self_closing && matches!(name, "svg" | "math")) {
             self.skip = Some(Skip { name: name.to_string(), nested: 0 });
             return;
         }
@@ -390,6 +430,8 @@ impl Quoter<'_, '_> {
             seen.push(attr.clone());
             let value = match (&picture, attr.as_str()) {
                 (Some(src), "src") => src.clone(),
+                // A picture in the message is drawn; its description is not shown.
+                (Some(src), "alt") if !web(src) => continue,
                 _ if attribute_kept(kept, &attr, &value) => value,
                 _ => continue,
             };
@@ -405,18 +447,16 @@ impl Quoter<'_, '_> {
         }
     }
 
-    /// A picture's address as it is carried, when it is carried at all: [`picture_kept`]'s, or for
-    /// a picture written into the message that the reading pane would show, the Content-ID it
-    /// goes out under, when there is somewhere for it to go. One too small to see is left out
-    /// before it is read, as in the reading pane, and takes nothing of the caps.
+    /// A picture's address as it is carried, when it is carried at all: only one the reading pane
+    /// drew ([`Quoter::drawn`]), with an address it may have; for a picture written into the
+    /// message, the Content-ID it goes out under (its bytes as the pane decoded them), when there
+    /// is somewhere for it to go.
     fn picture(&mut self, tag: &Tag<'_>) -> Option<String> {
-        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_kept(tag) };
+        let drawn = self.drawn.take()?;
+        let Some(src) = tag.attr("src").filter(|src| data::is_data(src)) else { return picture_src(tag.attr("src")) };
         let written = self.written.as_mut()?;
-        if left_out(tag, &css_of(tag)) {
-            return None;
-        }
-        let (kept, bytes) = data::picture(&src, true, &mut self.budget);
-        let bytes = bytes?;
+        let bytes = drawn.picture.filter(|_| drawn.taken)?;
+        let (kept, _) = data::picture(&src, false, &mut Budget::default());
         let mime = kept.strip_prefix("data:").unwrap_or_default();
         let cid = written(mime, &bytes)?;
         Some(format!("cid:{cid}"))
@@ -519,19 +559,6 @@ fn web(url: &str) -> bool {
     ["http:", "https:"].iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)))
 }
 
-/// A picture's address, when the picture is carried at all: it has an address it may have, and
-/// is not on the web and too small to see (a tracking pixel).
-fn picture_kept(tag: &Tag<'_>) -> Option<String> {
-    let src = picture_src(tag.attr("src"))?;
-    if is_embedded(&src) {
-        return Some(src);
-    }
-    let css = tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default();
-    let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
-    let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
-    (!(tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height))).then_some(src)
-}
-
 fn attribute_kept(element: &str, attr: &str, value: &str) -> bool {
     match attr {
         "href" => element == "a" && is_safe_url(value),
@@ -584,6 +611,8 @@ fn risky_style(style: &str) -> bool {
     RISKY_STYLE.iter().any(|r| plain.contains(r))
 }
 
+#[cfg(test)]
+mod shown_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

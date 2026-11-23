@@ -369,6 +369,11 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     assert_eq!(whole.message(id).unwrap().all_headers(), was.all_headers());
     let single = crate::io::write_mailbox(&whole).unwrap();
     assert!(String::from_utf8_lossy(&single).contains("X-MS-Exchange-AntiSpam-MessageData-0"));
+    let copy = tmp.0.join("copy.mailcraft");
+    s.run("file.saveAs", &json!({"path": copy})).unwrap();
+    let exported: Value = serde_json::from_slice(&fs::read(&copy).unwrap()).unwrap();
+    assert_eq!(exported, serde_json::from_slice::<Value>(&single).unwrap());
+    assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded(), "Save As leaves the source content on disk");
     // View Source: every line, in its place.
     let source = s.run("mail.viewSource", &json!({"id": id})).unwrap();
     let source = source["source"].as_str().unwrap();
@@ -384,4 +389,48 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     let without = s.loaded_message(id).unwrap();
     assert_eq!(without.all_headers(), was.headers);
     assert!(s.run("mail.viewSource", &json!({"id": id})).unwrap()["source"].as_str().unwrap().contains("List-Id: <news.example.org>"));
+}
+
+/// Run Rules Now brings in the header block for "except if it is an automatic reply" too: a block
+/// kept as a build from before the mark stayed on the message kept it, with the mark among its
+/// lines, leaves the reply alone, the block there or gone (#566).
+#[test]
+fn run_rules_now_reads_an_automatic_reply_mark_kept_beside_the_mailbox_file() {
+    use mailcraft_model::{Action, Condition, HeaderBlock, HeaderLine, Rule};
+    let mut mb = with_exchange_headers(2);
+    let account = mb.accounts[0].id;
+    let inbox = mb.inbox().unwrap();
+    let reports = mb.add_folder(account, None, "Reports").unwrap();
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    // The first is an automatic reply, the other isn't.
+    for id in &ids[..1] {
+        let m = mb.message_mut(*id).unwrap();
+        let mut lines = m.header_block.lines();
+        let at = lines.len() + m.headers.len();
+        lines.push(HeaderLine { at, name: "Auto-Submitted".into(), value: "auto-replied".into() });
+        m.header_block = HeaderBlock::of(&lines);
+    }
+    let subject = Condition::SubjectContains(vec!["message".into()]);
+    mb.rules.push(Rule {
+        id: 1,
+        name: "Reports".into(),
+        enabled: true,
+        conditions: vec![subject],
+        exceptions: vec![Condition::AutomaticReply],
+        actions: vec![Action::MoveTo(reports)],
+        ..Default::default()
+    });
+    let tmp = Temp::new("headers-rules-auto");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 2);
+    assert!(ids.iter().all(|id| !s.mailbox.message(*id).unwrap().header_block.is_loaded()), "kept beside the file");
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(1), "the one that isn't a reply");
+    let folder = |s: &Session, id: Id| s.mailbox.message(id).unwrap().folder;
+    assert_eq!((folder(&s, ids[0]), folder(&s, ids[1])), (inbox, reports));
+    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+    clear_cache();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0), "can't be told");
+    assert_eq!(folder(&s, ids[0]), inbox);
 }

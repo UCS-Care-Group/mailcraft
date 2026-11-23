@@ -26,12 +26,18 @@
 //! What the change made that the server has already (a copy, a draft, a folder) goes into Deleted
 //! Items, here and there, rather than being deleted for good; what the server hasn't got yet is
 //! taken away here and never made there.
+//!
+//! Events go the same way (#1674): the ones the change made, changed or deleted go back as they
+//! were before it, with the changes they were waiting to send then; every other event is as it
+//! is now, with what its server is to be told and is still looked for ([`events_stay`]). So an
+//! event that a download brought, changed or took away since the change keeps what the download
+//! did, and its server is told nothing of it.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Calendar, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
+use mailcraft_model::{AccountKind, Calendar, Event, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS, category_key};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
@@ -50,10 +56,31 @@ pub(crate) struct Touched {
     changed_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
+    /// What the change did to each account's own list of categories (#661).
+    categories: BTreeMap<Id, CategoryStep>,
     /// What the changes the step added or took away were while they waited for their copy.
     waiting: HashSet<String>,
     /// The Public keys it imported, removed or changed (#30): an undo puts back only those.
     keys: Vec<mailcraft_model::public_keys::KeyName>,
+    /// The events whose categories it changed, with the categories it left them (#661).
+    event_categories: BTreeMap<Id, Vec<String>>,
+    /// Of those, the ones a change waited to go to the server for once it was made: what it did
+    /// to them was to reach their servers, not this computer alone (#661).
+    told_events: BTreeSet<Id>,
+    /// The events it made, changed or took away, and those whose changes waiting to go to their
+    /// servers it added, changed or took away (#1674): an undo puts back only those.
+    changed_events: BTreeSet<Id>,
+}
+
+/// What a change did to one account's own list of categories (#661): each category it made,
+/// changed or took away, or put on or off this computer alone, by
+/// [`mailcraft_model::category_key`], as the change left it (its name and colour, and whether it
+/// was kept here alone; `None` when it was off the list).
+#[derive(Clone, Debug, Default)]
+struct CategoryStep {
+    left: BTreeMap<String, Option<(mailcraft_model::Category, bool)>>,
+    /// When it was made, as [`Mailbox::category_stamp`] dates what a server was found to have.
+    stamp: u64,
 }
 
 impl Touched {
@@ -78,6 +105,16 @@ impl Touched {
     /// Whether the change added, changed or took away the contact `id`.
     pub(crate) fn changed_contact(&self, id: Id) -> bool {
         self.changed_contacts.contains(&id)
+    }
+
+    /// The events whose categories the change changed, with the categories it left them (#661).
+    pub(crate) fn event_categories(&self) -> &BTreeMap<Id, Vec<String>> {
+        &self.event_categories
+    }
+
+    /// Whether what the change did to the event `id`'s categories was to reach its server (#661).
+    pub(crate) fn told_event(&self, id: Id) -> bool {
+        self.told_events.contains(&id)
     }
 }
 
@@ -190,6 +227,52 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
             }
         }
     }
+    // The events it made, changed or took away, and those whose categories it changed (one walk
+    // of both maps, as for the contacts).
+    let mut was = before.events.iter().peekable();
+    let mut is = after.events.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !Arc::ptr_eq(a, b) && a != b {
+                    t.changed_events.insert(**id);
+                    if a.categories != b.categories {
+                        t.event_categories.insert(**id, a.categories.clone());
+                    }
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                t.changed_events.insert(**id);
+                was.next();
+            }
+            (Some((id, _)), None) => {
+                t.changed_events.insert(**id);
+                was.next();
+            }
+            (_, Some((id, _))) => {
+                t.changed_events.insert(**id);
+                is.next();
+            }
+        }
+    }
+    // And those whose waiting changes it added, changed or took away (a change noted again for
+    // an event as it is, say).
+    if before.event_changes != after.event_changes {
+        let (was, is) = (by_event(&before.event_changes, |c| c.event), by_event(&after.event_changes, |c| c.event));
+        t.changed_events.extend(was.keys().chain(is.keys()).filter(|id| was.get(id) != is.get(id)).copied());
+    }
+    if !t.event_categories.is_empty() {
+        let update = mailcraft_model::remote::EventChangeKind::Update;
+        // (By the event here and its server's id for it both: another account's server may use
+        // the same id.)
+        let waiting: HashSet<(Id, &str)> =
+            after.event_changes.iter().filter(|c| c.kind == update && !c.remote.is_empty()).map(|c| (c.event, c.remote.as_str())).collect();
+        let told = |id: &Id| after.events.get(id).is_some_and(|e| waiting.contains(&(*id, e.origin.id.as_str())));
+        t.told_events = t.event_categories.keys().filter(|id| told(id)).copied().collect();
+    }
     for b in &before.folders {
         match after.folder(b.id) {
             Some(a) if a == b => {}
@@ -217,8 +300,53 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         t.waiting.extend(changed(&after.pending, &t.pending_added));
         t.waiting.extend(changed(&before.pending, &t.pending_removed));
     }
+    t.categories = touched_categories(before, after);
     t.keys = after.public_keys.differences(&before.public_keys);
     t
+}
+
+/// The categories of each account's own list that differ between `before` and `after`: made,
+/// taken away, recoloured, written otherwise, or put on or off this computer alone.
+fn touched_categories(before: &Mailbox, after: &Mailbox) -> BTreeMap<Id, CategoryStep> {
+    let mut out: BTreeMap<Id, CategoryStep> = BTreeMap::new();
+    let owners: BTreeSet<Id> = before.account_categories.keys().chain(after.account_categories.keys()).copied().collect();
+    let none: Vec<mailcraft_model::Category> = Vec::new();
+    let no_names: Vec<String> = Vec::new();
+    for owner in owners {
+        let (was, is) = (before.account_categories.get(&owner).unwrap_or(&none), after.account_categories.get(&owner).unwrap_or(&none));
+        let (was_local, is_local) =
+            (before.local_categories.get(&owner).unwrap_or(&no_names), after.local_categories.get(&owner).unwrap_or(&no_names));
+        if was == is && was_local == is_local {
+            continue;
+        }
+        // (Each list keyed once: a full list compared name by name would be a million comparisons.)
+        let keys_of = |names: &[String]| names.iter().map(|n| category_key(n)).collect::<BTreeSet<String>>();
+        let (was_by, is_by, was_kept, is_kept) = (by_key(was), by_key(is), keys_of(was_local), keys_of(is_local));
+        let keys: BTreeSet<&String> = was_by.keys().chain(is_by.keys()).chain(&was_kept).chain(&is_kept).collect();
+        let changed: Vec<String> =
+            keys.into_iter().filter(|k| was_by.get(*k) != is_by.get(*k) || was_kept.contains(*k) != is_kept.contains(*k)).cloned().collect();
+        if changed.is_empty() {
+            continue;
+        }
+        let left = changed
+            .into_iter()
+            .map(|k| {
+                let now = is_by.get(&k).map(|c| ((*c).clone(), is_kept.contains(&k)));
+                (k, now)
+            })
+            .collect();
+        out.insert(owner, CategoryStep { left, stamp: after.category_stamp });
+    }
+    out
+}
+
+/// `list` by [`category_key`], the first of two spellings of one name, as a search of it finds.
+fn by_key(list: &[mailcraft_model::Category]) -> BTreeMap<String, &mailcraft_model::Category> {
+    let mut keyed = BTreeMap::new();
+    for c in list {
+        keyed.entry(category_key(&c.name)).or_insert(c);
+    }
+    keyed
 }
 
 /// What an undo couldn't do, for saying it once.
@@ -234,6 +362,8 @@ struct Said {
     /// What the server is to be told besides (#70): a copy made in another mailbox of the
     /// owner's that goes again, a move back into the mailbox a message came from.
     queued: Vec<Queued>,
+    /// Categories the undo would have put back, which a full list had no room for (#661).
+    no_room: Vec<String>,
 }
 
 /// A subject or a name as a line about it shows it.
@@ -282,6 +412,22 @@ impl Said {
                 lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
             }
         }
+        match self.no_room.as_slice() {
+            [] => {}
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("The category '{name}' couldn't be put back: the list of categories is full."),
+                &[("name", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} category couldn't be put back: the list of categories is full.",
+                    "{n} categories couldn't be put back: the list of categories is full.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
+        }
         lines
     }
 }
@@ -302,6 +448,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
+    events_stay(&mut out, touched, now);
     subscribed_stay(&mut out, now);
     // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
     // and redo leave it as it is now, or its mark would be lost and it could be sent twice (#950).
@@ -311,6 +458,10 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
+        // A message on its way onto another account's server now still is (a rule's move of mail
+        // that came since the change, #566).
+        queue(&mut out, now, &g);
+        waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
     }
     let mut said = Said::default();
@@ -332,9 +483,22 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
         out.queued.push(q);
     }
     // What the server last gave of these is the server's, not the owner's to undo.
-    server_lists(&mut out, now, &g);
+    server_lists(&mut out, touched, now, &g, &mut said);
     out.favorites_from_server = now.favorites_from_server.clone();
+    waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// The rules waiting for the messages the change touched to be here whole are as they are now
+/// (#566): a move took them away, and moving the message back by undoing it or redoing a move
+/// doesn't bring them back, nor does it have a rule act a second time.
+fn waiting_as_now(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    for id in &touched.changed_messages {
+        let waiting = now.messages.get(id).and_then(|c| c.rules_waiting.clone());
+        if let Some(m) = out.messages.get_mut(id).filter(|m| m.rules_waiting != waiting) {
+            Arc::make_mut(m).rules_waiting = waiting;
+        }
+    }
 }
 
 /// Subscribed calendars and their events are the web's and the refresh's, never the change's to
@@ -361,18 +525,176 @@ fn subscribed_stay(out: &mut Mailbox, now: &Mailbox) {
     }
 }
 
-/// Each account's list of categories in `out` with what reads have done to it since kept: a name
-/// its server stopped listing stays gone, one it added stays, and so does the colour it gave. A
-/// first read since is made again on what `out` holds, for what comes across from the shared list
-/// and what leaves the other lists (#633). An account on one side of the step alone keeps what
-/// `out` has of it.
-fn server_lists(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
+/// The events as they are now, with what their servers are to be told ([`Mailbox::event_changes`])
+/// and what is still looked for in their downloads ([`Mailbox::event_checks`]), but for the
+/// events the change touched (#1674), which are as `out` has them, with their own. What a download
+/// brought for the others since the change (one changed on its server, one new there, one deleted
+/// there) is not the change's to undo: it stays, and their servers are told nothing of it. An
+/// event in a calendar that `out` has not (of an account that the undo takes away again, or one a
+/// download listed since) is as `out` has it, and so are the changes and checks of an account
+/// that `out` has not. When the times have been moved to another clock since the change
+/// ([`Mailbox::rebase`]), the events and theirs are as `out` has them, all by its clock, and are
+/// moved to this one again after the undo (`Session::settle_zone`): times by two clocks in one
+/// mailbox would be hours out.
+fn events_stay(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    if out.zone != now.zone {
+        return;
+    }
+    let mine = |id: &Id| touched.changed_events.contains(id);
+    // (One walk of both maps, as `touched` makes: an event the two share is as now already.)
+    let mut since: Vec<(Id, Option<Arc<Event>>)> = Vec::new();
+    let mut was = out.events.iter().peekable();
+    let mut is = now.events.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !Arc::ptr_eq(a, b) && !mine(id) {
+                    since.push((**id, Some(Arc::clone(a))));
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                if !mine(id) {
+                    since.push((**id, None));
+                }
+                was.next();
+            }
+            (Some((id, _)), None) => {
+                if !mine(id) {
+                    since.push((**id, None));
+                }
+                was.next();
+            }
+            (_, Some((id, a))) => {
+                if !mine(id) {
+                    since.push((**id, Some(Arc::clone(a))));
+                }
+                is.next();
+            }
+        }
+    }
+    let calendars: BTreeSet<Id> = out.calendars.iter().map(|c| c.id).collect();
+    for (id, e) in since {
+        match e {
+            Some(e) if calendars.contains(&e.calendar) => {
+                out.events.insert(id, e);
+            }
+            Some(_) => {}
+            None => {
+                out.events.remove(&id);
+            }
+        }
+    }
+    let accounts: BTreeSet<Id> = out.accounts.iter().map(|a| a.id).collect();
+    let then = std::mem::take(&mut out.event_changes);
+    out.event_changes = by_events(then, &now.event_changes, |c| c.event, mine, |c| accounts.contains(&c.account));
+    let then = std::mem::take(&mut out.event_checks);
+    out.event_checks = by_events(then, &now.event_checks, |c| c.event, mine, |c| accounts.contains(&c.account));
+}
+
+/// Whether an undo (or redo) to `then` of a change that did `touched` has the event `id` as `then`
+/// has it, or leaves it out when `then` has none, rather than as it is in `now` (#1674): what
+/// [`events_stay`] and [`subscribed_stay`] do with it. An event of a calendar subscribed in `now`
+/// is never taken away nor put back as another, whatever else (its calendar subscribed since the
+/// change, the clock moved since): [`subscribed_stay`] runs after [`events_stay`] and puts every
+/// one back from `now`. This says nothing of its times: after a move of the clock, the settle that
+/// follows the undo moves them again (#1709). Of the others, an event a download brought, changed
+/// or took away since the change is as now; one the change touched, or one in a calendar that
+/// `then` has not (or had subscribed), or any when the clock moved since, as `then` has it. For
+/// the question asked of an agent's undo (#494): what it would take away.
+pub(crate) fn event_as_then(then: &Mailbox, touched: &Touched, now: &Mailbox, id: Id) -> bool {
+    let Some(e) = now.event(id) else { return true };
+    let subscribed = |m: &Mailbox| m.calendar(e.calendar).map(Calendar::is_subscribed);
+    if subscribed(now) == Some(true) {
+        return false;
+    }
+    then.zone != now.zone || touched.changed_events.contains(&id) || subscribed(then).is_none_or(|was| was)
+}
+
+/// `list` by the event each is about, in its order.
+fn by_event<T>(list: &[T], event: impl Fn(&T) -> Id) -> BTreeMap<Id, Vec<&T>> {
+    let mut by: BTreeMap<Id, Vec<&T>> = BTreeMap::new();
+    for item in list {
+        by.entry(event(item)).or_default().push(item);
+    }
+    by
+}
+
+/// What `then` has of the events that are `mine`, and what `now` has of the others that it
+/// keeps: the others' in `now`'s order, and each of `then`'s for an event that is `mine`, in
+/// `then`'s order, after as many of the others' as came before it in `then` (after all of them,
+/// when `now` keeps fewer). It goes by that count, not by which entries they are. So the order
+/// across events is kept only when the others' that `now` keeps are the very ones `then` had, in
+/// the same order (nothing sent, confirmed or brought for them since): such a list comes back in
+/// `then`'s order, and one that differs from `then` only in the events that are `mine` comes back
+/// as `then` has it. Once others' were sent, confirmed or brought since, an entry of `mine` can
+/// come after one it stood before: with `then` = `[o1, m, o2]`, `o1` sent (`now` = `[o2]`) gives
+/// `[o2, m]`, and `o1` confirmed and `o3` brought (`now` = `[o2, o3]`) gives `[o2, m, o3]`. That
+/// changes only which change goes to its server first within `MAX_EVENT_OPS`, and which check is
+/// the oldest.
+fn by_events<T: Clone>(then: Vec<T>, now: &[T], event: impl Fn(&T) -> Id, mine: impl Fn(&Id) -> bool, keep: impl Fn(&T) -> bool) -> Vec<T> {
+    let mut theirs = now.iter().filter(|item| !mine(&event(item)) && keep(item));
+    let mut out = Vec::with_capacity(then.len().max(now.len()));
+    // How many of the others' `then` had before the next of `mine`, not yet taken from `now`.
+    let mut before = 0usize;
+    for item in then {
+        if mine(&event(&item)) {
+            out.extend(theirs.by_ref().take(before).cloned());
+            before = 0;
+            out.push(item);
+        } else {
+            before = before.saturating_add(1);
+        }
+    }
+    out.extend(theirs.cloned());
+    out
+}
+
+/// Each account's list of categories in `out` with what reads have done to it since kept, and
+/// what the server last had of it as it is now. A list kept in step with its server (#661) is
+/// worked out by [`in_step`]. Of an older list, a name its server stopped listing stays gone,
+/// one it added stays, and so does the colour it gave; a first read since is made again on what
+/// `out` holds, for what comes across from the shared list and what leaves the other lists
+/// (#633). An account on one side of the step alone keeps what `out` has of it, and so does one
+/// the step gave another address. Whether the host found the account may change its server's
+/// list is never undone, and a rename waits only while it still does: a job since may have done
+/// it there (#661).
+fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>, said: &mut Said) {
+    // An account the step gave another address is another mailbox on each side: what `out` knows
+    // of its server is that mailbox's, and stays as `out` has it (#661).
+    let address = |mb: &Mailbox, id: Id| mb.account(id).map(|a| a.email.trim().to_ascii_lowercase());
+    let (g, readdressed): (BTreeSet<Id>, BTreeSet<Id>) = g.iter().copied().partition(|id| address(out, *id) == address(now, *id));
+    let g = &g;
+    let writes: BTreeSet<Id> = out.category_writes.iter().copied().filter(|id| readdressed.contains(id)).collect();
+    out.category_writes.clone_from(&now.category_writes);
+    out.category_writes.retain(|id| !readdressed.contains(id));
+    out.category_writes.extend(writes);
+    // What servers were found to have of their own is as now, never undone (#661).
+    let found: BTreeMap<Id, BTreeMap<String, u64>> =
+        out.categories_found.iter().filter(|(id, _)| readdressed.contains(id)).map(|(id, f)| (*id, f.clone())).collect();
+    out.categories_found.clone_from(&now.categories_found);
+    out.categories_found.retain(|id, _| !readdressed.contains(id));
+    out.categories_found.extend(found);
+    out.category_stamp = now.category_stamp;
+    // What items on a server still wait for of a rename is as now too (#851): a rename the undo
+    // takes back is noted the other way round below ([`in_step`]), so that what the server gave
+    // the new name gets the old one again.
+    let waited_then = out.category_sweeps.clone();
+    out.category_sweeps.retain(|account, _| !g.contains(account));
+    out.category_sweeps.extend(now.category_sweeps.iter().filter(|(account, _)| g.contains(account)).map(|(account, s)| (*account, s.clone())));
     let then = out.server_categories.clone();
     out.server_categories.retain(|account, _| !g.contains(account));
     out.server_categories
         .extend(now.server_categories.iter().filter(|(account, _)| g.contains(account)).map(|(account, names)| (*account, names.clone())));
     let on = |list: Option<&Vec<String>>, name: &str| list.is_some_and(|names| names.iter().any(|n| same_category(n, name)));
     for (account, list) in now.account_categories.iter().filter(|(account, _)| g.contains(account)) {
+        let in_step_then = out.synced_categories.contains_key(account) && out.account_categories.contains_key(account);
+        if now.synced_categories.contains_key(account) && in_step_then {
+            in_step(out, *account, now, touched.categories.get(account), said);
+            continue;
+        }
         let (was, is) = (then.get(account), now.server_categories.get(account));
         out.start_account_categories(*account, is.map(Vec::as_slice).unwrap_or_default());
         let Some(own) = out.account_categories.get_mut(account) else { continue };
@@ -384,6 +706,210 @@ fn server_lists(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
                 own.push(c.clone());
             }
         }
+        // Made by a read since: what the server has of it is as now (#661), and so is what that
+        // read found was the server's, not kept here alone any more.
+        if let Some(synced) = now.synced_categories.get(account) {
+            out.synced_categories.insert(*account, synced.clone());
+            if let Some(local) = out.local_categories.get_mut(account) {
+                local.retain(|n| !synced.iter().any(|c| same_category(&c.name, n)));
+                if local.is_empty() {
+                    out.local_categories.remove(account);
+                }
+            }
+        }
+        // What else is on this list now, and not on the shared list, is the owner's or its
+        // server's since (kept here alone, still to go there, or there): it stays as it is now,
+        // but for what the step touched (#661). What came across from the shared list follows
+        // that list, as above.
+        let local_now = now.local_categories.get(account);
+        let step = touched.categories.get(account);
+        for c in list {
+            let shared = now.categories.iter().any(|t| same_category(&t.name, &c.name));
+            if shared || step.is_some_and(|t| t.left.contains_key(&category_key(&c.name))) {
+                continue;
+            }
+            let Some(own) = out.account_categories.get_mut(account) else { break };
+            if own.iter().any(|o| same_category(&o.name, &c.name)) {
+                continue;
+            }
+            own.push(c.clone());
+            if local_now.is_some_and(|names| names.iter().any(|n| same_category(n, &c.name))) {
+                out.local_categories.entry(*account).or_default().push(c.name.clone());
+            }
+        }
+        // Over the limit, what its server lists waits (the last first), and is not known there
+        // either, so that nothing is deleted there for it: what is only here is nowhere else.
+        let only_here = out.local_categories.get(account).cloned().unwrap_or_default();
+        if let Some(own) = out.account_categories.get_mut(account) {
+            while own.len() > mailcraft_model::MAX_CATEGORIES {
+                let theirs = own.iter().rposition(|c| on(is, &c.name) && !only_here.iter().any(|n| same_category(n, &c.name)));
+                let Some(gone) = theirs.map(|i| own.remove(i)) else { break };
+                if let Some(synced) = out.synced_categories.get_mut(account) {
+                    synced.retain(|c| !same_category(&c.name, &gone.name));
+                }
+                if let Some(names) = out.server_categories.get_mut(account) {
+                    names.retain(|n| !same_category(n, &gone.name));
+                }
+            }
+        }
+    }
+    let renamed: Vec<Id> = out.category_renames.keys().copied().filter(|account| g.contains(account)).collect();
+    for account in renamed {
+        out.tidy_renames(account);
+    }
+    let swept: Vec<Id> = out.category_sweeps.keys().copied().filter(|account| g.contains(account)).collect();
+    for account in swept {
+        out.tidy_sweeps(account);
+    }
+    // A rename that waited before a later one took its place (Holiday to Holiday 2026, then
+    // Holiday 2026 to Trips) waits again once the later one is taken back: the list has its
+    // name again, and the server's items still carry its old one.
+    for (account, then) in waited_then.iter().filter(|(account, _)| g.contains(account)) {
+        let replaced = now.category_sweeps.get(account).map(Vec::as_slice).unwrap_or_default();
+        out.resume_sweeps(*account, then, replaced);
+    }
+}
+
+/// `account`'s list in `out`, kept in step with its server (#661): the list as it is now, with
+/// each category the change touched (`step`) put back as `out` has it (on the list or off it,
+/// kept here alone or not), where it is still as the change left it. One that something changed
+/// since (a read that brought Outlook's own of that name, or took it away, or the server's answer
+/// to a job) stays as it is now, and so does one its server was found to have of its own since
+/// the change ([`Mailbox::category_found_since`]: brought by a read, or found there by a job that
+/// was to make it), so that an undo never deletes or makes there what the server did by itself;
+/// a name Outlook wrote in other letters keeps them unless the change was to its letters. What
+/// its server last had is as now, never undone: the next job tells it the reverse of what it had
+/// taken. When what comes back leaves no room for what the server added since, that waits, and is
+/// not known there either, so that nothing is deleted there for it; when there is none of that,
+/// what the change would bring back stays out, and the undo says so. One name it takes off there
+/// for one it brings back is a rename's way back: should the server not make the one, the other
+/// stays there.
+fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&CategoryStep>, said: &mut Said) {
+    use mailcraft_model::Category;
+    // (Each list keyed once, each name with its key: a key worked out for each comparison would
+    // be millions of them for a full list.)
+    let keyed = |list: Option<&Vec<Category>>| list.into_iter().flatten().map(|c| (category_key(&c.name), c.clone())).collect::<Vec<_>>();
+    let keyed_names = |names: Option<&Vec<String>>| names.into_iter().flatten().map(|n| (category_key(n), n.clone())).collect::<Vec<_>>();
+    let keys_of = |list: &[(String, Category)]| list.iter().map(|(k, _)| k.clone()).collect::<HashSet<String>>();
+    let mut own = keyed(now.account_categories.get(&account));
+    let mut local = keyed_names(now.local_categories.get(&account));
+    let mut synced = keyed(now.synced_categories.get(&account));
+    let target = keyed(out.account_categories.get(&account));
+    let target_local: HashSet<String> = keyed_names(out.local_categories.get(&account)).into_iter().map(|(k, _)| k).collect();
+    let find = |list: &[(String, Category)], key: &str| list.iter().find(|(k, _)| k == key).map(|(_, c)| c.clone());
+    let keys = step.map(|s| &s.left);
+    let stamp = step.map_or(0, |s| s.stamp);
+    for (key, left) in keys.into_iter().flatten() {
+        let now_is = find(&own, key).map(|c| (c, local.iter().any(|(k, _)| k == key)));
+        let mut back = find(&target, key).map(|c| (c, target_local.contains(key)));
+        let on_synced = synced.iter().any(|(k, _)| k == key);
+        // What its server was found to have of its own since the change isn't the change's to
+        // take off there: it stays as it is now (#661).
+        let off_there = matches!(back, None | Some((_, true)));
+        if off_there && on_synced && now_is.as_ref().is_some_and(|(c, _)| now.category_found_since(account, &c.name, stamp)) {
+            continue;
+        }
+        // (Whether the change was to its letters: else Outlook's letters since are kept.)
+        let letters = matches!((&back, left), (Some((b, _)), Some((l, _))) if b.name != l.name);
+        let unchanged = match (&now_is, left) {
+            (None, None) => true,
+            (Some((c, here)), Some((l, was_here))) => c.color == l.color && here == was_here && (!letters || c.name == l.name),
+            _ => false,
+        };
+        // One kept here alone since (its server refused it) goes as the change takes it away:
+        // nothing is sent for it.
+        let only_here = matches!(&now_is, Some((_, true))) && !on_synced;
+        let unchanged = unchanged || (back.is_none() && left.is_some() && only_here);
+        if !unchanged {
+            continue;
+        }
+        if let (Some((b, _)), Some((c, _)), false) = (&mut back, &now_is, letters) {
+            b.name.clone_from(&c.name);
+        }
+        local.retain(|(k, _)| k != key);
+        let at = own.iter().position(|(k, _)| k == key);
+        match (back, at) {
+            (Some((c, here)), at) => {
+                if here {
+                    local.push((key.clone(), c.name.clone()));
+                }
+                match at.and_then(|i| own.get_mut(i)) {
+                    Some((_, slot)) => *slot = c,
+                    None => {
+                        let i = target.iter().position(|(k, _)| k == key).unwrap_or(own.len()).min(own.len());
+                        own.insert(i, (key.clone(), c));
+                    }
+                }
+            }
+            (None, _) => own.retain(|(k, _)| k != key),
+        }
+    }
+    // Over the limit: what the server added since waits (the last first), then what the change
+    // would bring back. What is kept here alone, or is still to go to the server, is never
+    // dropped: it is nowhere else.
+    let then = keys_of(&keyed(out.synced_categories.get(&account)));
+    let was_now = keys_of(&keyed(now.account_categories.get(&account)));
+    let (mut synced_keys, mut local_keys) = (keys_of(&synced), local.iter().map(|(k, _)| k.clone()).collect::<HashSet<String>>());
+    let touched = |key: &str| keys.is_some_and(|k| k.contains_key(key));
+    while own.len() > mailcraft_model::MAX_CATEGORIES {
+        let added = own.iter().rposition(|(k, _)| !touched(k) && synced_keys.contains(k) && !then.contains(k) && !local_keys.contains(k));
+        let back = || own.iter().rposition(|(k, _)| touched(k) && !was_now.contains(k));
+        let (i, no_room) = match added {
+            Some(i) => (i, false),
+            None => match back() {
+                Some(i) => (i, true),
+                None => break,
+            },
+        };
+        let (gone_key, gone) = own.remove(i);
+        if no_room {
+            said.no_room.push(gone.name.clone());
+        }
+        synced.retain(|(k, _)| *k != gone_key);
+        local.retain(|(k, _)| *k != gone_key);
+        synced_keys.remove(&gone_key);
+        local_keys.remove(&gone_key);
+        if let Some(names) = out.server_categories.get_mut(&account) {
+            names.retain(|n| !same_category(n, &gone.name));
+        }
+    }
+    let own_keys: HashSet<&str> = own.iter().map(|(k, _)| k.as_str()).collect();
+    let made: Vec<&String> = keys
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+        .filter(|key| own_keys.contains(key.as_str()) && !synced_keys.contains(*key) && !local_keys.contains(*key))
+        .collect();
+    let gone: Vec<&Category> = synced.iter().filter(|(k, _)| touched(k) && !own_keys.contains(k.as_str())).map(|(_, c)| c).collect();
+    if let ([made], [gone]) = (made.as_slice(), gone.as_slice()) {
+        out.category_renames.entry(account).or_default().insert((*made).clone(), gone.name.clone());
+    }
+    // A rename taken back (#851): one name the server has leaves the list for one that comes back
+    // to it. What the server's items were given of the one gets the other again, and the one's
+    // deletion there waits for that.
+    let stays = |now: bool| -> Vec<&Category> {
+        own.iter().filter(|(k, _)| touched(k) && was_now.contains(k) == now && !local_keys.contains(k)).map(|(_, c)| c).collect()
+    };
+    // (The one that comes back may be on the list already: put back there because some of the
+    // server's items kept it. The others, which were given the new name, get it again all the
+    // same. Only a name the step itself took off the list: never one it made with the other.)
+    let took_off = |c: &&Category| step.is_some_and(|s| s.left.get(&category_key(&c.name)).is_some_and(Option::is_none));
+    let back = Some(stays(false)).filter(|back| !back.is_empty()).unwrap_or_else(|| stays(true).into_iter().filter(took_off).collect());
+    let off: Vec<&Category> =
+        synced.iter().filter(|(k, _)| touched(k) && was_now.contains(k) && !own_keys.contains(k.as_str())).map(|(_, c)| c).collect();
+    let reversed = match (back.as_slice(), off.as_slice()) {
+        ([back], [off]) => Some((off.name.clone(), back.name.clone())),
+        _ => None,
+    };
+    out.account_categories.insert(account, own.into_iter().map(|(_, c)| c).collect());
+    if local.is_empty() {
+        out.local_categories.remove(&account);
+    } else {
+        out.local_categories.insert(account, local.into_iter().map(|(_, n)| n).collect());
+    }
+    out.synced_categories.insert(account, synced.into_iter().map(|(_, c)| c).collect());
+    if let Some((from, to)) = reversed {
+        out.note_category_sweep(account, &from, &to);
     }
 }
 
@@ -667,6 +1193,13 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
                 if t.favorite != a.favorite {
                     f.favorite = t.favorite;
                 }
+                // (The owner's order, #1514: kept here alone.)
+                if t.place != a.place {
+                    f.place = t.place;
+                }
+                if t.favorite_place != a.favorite_place {
+                    f.favorite_place = t.favorite_place;
+                }
                 kept.push(f);
             }
             // Taken away by the change but put back since (the server refused).
@@ -684,7 +1217,7 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
             Some(Some(_)) if c.server.is_some() => {
                 let mut f = c.clone();
                 if let Some(deleted) = now.folder_of_kind(c.account, FolderKind::Deleted).filter(|d| *d != c.id) {
-                    f.parent = Some(deleted);
+                    f.set_parent(Some(deleted));
                 }
                 kept.push(f);
             }
@@ -995,6 +1528,26 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
+    // A message that lies, after the undo, where it waits now to be made on another account's
+    // server, still waits to be: one moved out of a Microsoft account before its server had it,
+    // which stays where it was moved ([`fields`]), or one put there since the change, in any
+    // mailbox (#566). What the queue makes already is looked up, not searched for: tens of
+    // thousands may wait after a big folder was moved onto a server.
+    let mut placed: HashSet<Id> = queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { message, .. } => Some(*message),
+            _ => None,
+        })
+        .collect();
+    for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
+        if let Queued::PlaceMessage { account, message, .. } = q
+            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
+            && placed.insert(*message)
+        {
+            queued.push(q.clone());
+        }
+    }
     for q in then.iter().filter(|q| g.contains(&q.account())) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())

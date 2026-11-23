@@ -894,16 +894,16 @@ fn a_lost_connection_keeps_what_arrived() {
     let account = account(Some(&imap), None);
     let result = sync(&request(account.clone(), local_folders()));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The newest came first; the rest, and the other folders, wait for the next run.
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    // The one that broke the connection is passed over for now (#1581): a fresh connection reads
+    // the one below it, and the other folders after it.
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen, result.folders[0].failed.clone()), (vec![1, 5], 1, vec![2]));
 
     imap.world().hang_up_at_uid = None;
     let again = sync(&request(account, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![1, 2], 6));
-    assert_eq!(remotes(&again), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
-    assert_eq!(again.new_count(), 4);
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![2], 6));
+    assert_eq!(again.new_count(), 1);
 }
 
 #[test]
@@ -2384,9 +2384,9 @@ fn a_server_that_stops_answering_ends_the_run_with_an_error() {
     let result = sync_within(&request(ada.clone(), local_folders()), patient_for(300));
     assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server took too long to answer"]);
-    // What had arrived is kept; the rest, and the other folders, wait for the next run.
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    // What had arrived is kept; the one that stalled is passed over for now on a fresh connection (#1581).
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen, result.folders[0].failed.clone()), (vec![1, 5], 1, vec![2]));
     // Silence at any other point is the same: before the sign-in is answered, in the list of
     // folders, when a mailbox is opened or looked into.
     for (silent_at, said) in [
@@ -2438,19 +2438,27 @@ fn a_connection_that_drops_in_the_middle_of_a_message_keeps_what_arrived() {
     let mut result = SyncResult::default();
     all.iter().cloned().for_each(|piece| result.absorb(piece));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The message that came whole was handed over before the connection went; half a message is none.
+    // The message that came whole was handed over before the connection went; half a message is
+    // none, and the one below it comes on a fresh connection (#1581).
+    assert_eq!(all[3].folders[0].new.iter().map(|m| m.uid).collect::<Vec<_>>(), [5]);
+    assert_eq!(remotes(&result), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
     assert_eq!(
-        all.iter().map(|piece| piece.progress.as_str()).collect::<Vec<_>>(),
-        ["Connecting to the mail server", "Found 4 folders", "Checking Inbox (1 of 4)", "Inbox: 1 of 3", ""]
+        (
+            {
+                let mut u = uids(&result.folders[0].new);
+                u.sort();
+                u
+            },
+            result.folders[0].uid_seen,
+            result.folders[0].failed.clone()
+        ),
+        (vec![1, 5], 1, vec![2])
     );
-    assert_eq!((uids(&all[3].folders[0].new), all[3].folders[0].uid_seen), (vec![5], 0));
-    assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
 
     imap.world().cut_at_uid = None;
     let again = sync(&request(ada, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![1, 2], 6, 4));
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![2], 6, 1));
 }
 
 #[test]
@@ -2668,3 +2676,7 @@ mod gmail_labels_sync;
 
 #[path = "protected_sync_tests.rs"]
 mod protected_sync;
+
+// (Sending from an account's other addresses, #797: its own file, with these helpers.)
+#[path = "sender_address_tests.rs"]
+mod sender_address_tests;
