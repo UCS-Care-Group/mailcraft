@@ -116,7 +116,7 @@ fn show_archive(s: &mut Session, v: &Value) -> CmdResult {
     let owner = archive_holder(s, v)?;
     let mut checking = false;
     if let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut()) {
-        (server.archive_hidden, server.archive_absent) = (false, 0);
+        (server.archive_hidden, server.archive_absent, server.archive_recheck) = (false, 0, true);
         // An archive the setup found in Exchange Online: the account's own server is asked once
         // whether it has it after all (nothing goes to Microsoft), [`take_archive`] (#1834 review).
         if server.cloud_archive {
@@ -216,8 +216,10 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     request.hierarchy = if own.parents { own.hierarchy.clone() } else { String::new() };
     // Whether the mailbox has an online archive is asked in a run that lists the folders (#1818),
     // and not while its owner has it hidden (account.archive.hide), nor when the setup found it
-    // kept in Exchange Online: such an archive is never shown, so nothing is asked about it.
-    request.probe_archive = request.list_folders && !request.archive && !own.archive_hidden && !own.cloud_archive;
+    // kept in Exchange Online: such an archive is never shown, so nothing is asked about it. Once
+    // the owner asked to show it, a light run asks too, until the server has answered (#1834
+    // review: a host, or an agent, may only ever ask for light runs).
+    request.probe_archive = (request.list_folders || own.archive_recheck) && !request.archive && !own.archive_hidden && !own.cloud_archive;
     let wanted = |id: &str| match &request.scope {
         EwsScope::All => true,
         EwsScope::Light { also } => inbox.as_deref() == Some(id) || also.iter().any(|a| a == id),
@@ -409,6 +411,15 @@ fn apply_ews_news(s: &mut Session, result: EwsMailResult) -> CmdResult {
 fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
     let Some(server) = s.mailbox.account(owner).filter(|a| !a.is_archive()).and_then(|a| a.ews.clone()) else { return false };
     let have = s.mailbox.archive_of(owner).map(|a| a.id);
+    // An answer settles what the owner's Show Online Archive asked (#1834 review).
+    let mut settled = false;
+    if server.archive_recheck
+        && seen != ArchiveSeen::Unknown
+        && let Some(own) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut())
+    {
+        own.archive_recheck = false;
+        settled = true;
+    }
     // The owner asked again about an archive the setup found in Exchange Online (show_archive):
     // the server's answer settles it. None here: it is in Exchange Online after all, and the owner
     // is told so once more; one here is shown as any other (#1834 review).
@@ -429,7 +440,7 @@ fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
         ArchiveSeen::Present => 0,
         ArchiveSeen::Absent => server.archive_absent.saturating_add(1).min(2),
     };
-    let mut changed = false;
+    let mut changed = settled;
     if absent != server.archive_absent
         && let Some(server) = s.mailbox.account_mut(owner).ok().and_then(|a| a.ews.as_mut())
     {

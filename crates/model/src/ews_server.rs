@@ -61,6 +61,11 @@ pub struct EwsServer {
     /// taken to be in Exchange Online again, and the owner is told why once more. Not a setting.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub cloud_recheck: bool,
+    /// The owner asked to show the online archive (`account.archive.show`, #1834 review): the
+    /// next run asks the server about it even when it is a light one that lists no folders, until
+    /// the server has answered. Not a setting.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub archive_recheck: bool,
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -80,6 +85,7 @@ impl std::fmt::Debug for EwsServer {
             .field("archive_absent", &self.archive_absent)
             .field("cloud_archive", &self.cloud_archive)
             .field("cloud_recheck", &self.cloud_recheck)
+            .field("archive_recheck", &self.archive_recheck)
             .finish()
     }
 }

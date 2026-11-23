@@ -1006,6 +1006,30 @@ fn the_archive_follows_its_owners_edits() {
     assert_eq!(s.mailbox.account(archive).unwrap().email, owner.email, "the archive's address is its owner's still");
 }
 
+/// After Show Online Archive, a light run asks the server about the archive too (a host or an
+/// agent may only ever ask for light ones), until the server has answered (#1834 review).
+#[test]
+fn after_show_a_light_run_asks_about_the_archive_once_answered_it_doesnt() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive, "a light run of a listed account doesn't ask");
+    s.run("account.archive.hide", &json!({"account": account})).unwrap();
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    assert!(ews_mail_request(&s, account, true).unwrap().probe_archive, "asked after Show");
+    // An answer that says nothing settles nothing.
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(ews_mail_request(&s, account, true).unwrap().probe_archive);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "it is back");
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive, "answered: light runs don't ask again");
+    // Answered no: settled the same way.
+    s.run("account.archive.hide", &json!({"account": account})).unwrap();
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "a full run asks as ever");
+}
+
 /// Hide Online Archive isn't taken while a change made in the archive waits to go up: nothing of
 /// it is kept here, so it would be lost; once it has gone up, it is (#1834 review).
 #[test]
