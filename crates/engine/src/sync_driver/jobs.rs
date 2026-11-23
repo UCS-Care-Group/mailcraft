@@ -52,6 +52,8 @@ job_kinds! {
     Tasks,
     /// The rules kept on the server.
     Rules,
+    /// The list of categories kept in step with Outlook (#661).
+    Categories,
     /// The automatic replies.
     AutoReplies,
     /// A sign-in on a provider's page.
@@ -75,6 +77,8 @@ pub enum Start {
     Tasks,
     /// The rules' job.
     Rules,
+    /// The categories' job (#661).
+    Categories,
     /// The automatic replies' job.
     AutoReplies,
     /// An Inbox pass by itself, between rounds.
@@ -92,6 +96,8 @@ pub struct Busy {
     pub tasks: bool,
     /// The rules' job is in flight.
     pub rules: bool,
+    /// The categories' job is in flight (#661).
+    pub categories: bool,
     /// The automatic replies' job is in flight.
     pub auto_replies: bool,
     /// A free and busy look is in flight.
@@ -125,8 +131,10 @@ impl Busy {
     pub fn blocks_every(&self, job: Start) -> bool {
         match job {
             // A Send/Receive that is about to ask Graph, or is asking, goes first: an answer
-            // asked for before a change went up could otherwise be taken in after it.
-            Start::Calendar => self.calendar || self.graph || self.mail_run || self.queued,
+            // asked for before a change went up could otherwise be taken in after it. So does a
+            // job telling a server what was done to its categories: a list read meanwhile could
+            // be from before the change, and put it back here until the next read (#661).
+            Start::Calendar => self.calendar || self.graph || self.mail_run || self.queued || self.categories,
             Start::CalendarAround => self.calendar || self.graph || self.queued,
             Start::CalendarCheck => self.calendar || self.graph,
             // The calendar's job and a Send/Receive go first.
@@ -134,6 +142,8 @@ impl Busy {
             // The calendar's job, the to-dos', the automatic replies' and a Send/Receive go first
             // (the jobs renew the same sign-in).
             Start::Rules => self.calendar || self.tasks || self.auto_replies || self.graph || self.mail_run || self.queued,
+            // The calendar's, the to-dos' and the rules' jobs and a Send/Receive go first (#661).
+            Start::Categories => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || self.queued,
             // The calendar's, the to-dos' and the rules' jobs and a Send/Receive go first; a
             // Send/Receive that is only waiting its turn doesn't hold it back.
             Start::AutoReplies => self.calendar || self.tasks || self.rules || self.graph || self.mail_run,

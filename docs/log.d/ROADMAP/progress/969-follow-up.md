@@ -1,1 +1,0 @@
-| 2026-11-15 | #969, from the review of #1327: a font this version doesn't know is read as the message's own, so a signature or a message being written keeps the rest of its look; pasted Consolas, Menlo and DejaVu Sans Mono come in as Courier New |

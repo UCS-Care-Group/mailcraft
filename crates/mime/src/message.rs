@@ -101,12 +101,19 @@ pub struct Message {
     pub read_receipt: bool,
     /// `Keywords`.
     pub categories: Vec<String>,
+    /// Written as a reaction (RFC 9078): its text, one emoji, also goes as a part marked
+    /// `Content-Disposition: reaction`. Only ever set for the owner's own message; the reader
+    /// never sets it, so mail that comes in is not taken for one.
+    pub reaction: bool,
     /// `X-Status` has `A`.
     pub answered: bool,
     /// Written from its parts even when it keeps an [`original`](Message::original).
     pub draft: bool,
     /// Every other header field that isn't MIME structure, in order.
     pub headers: Vec<(String, String)>,
+    /// Some of its header fields, recipients (To, Cc) or categories were left out as it was
+    /// read, past what is kept of one message: what they said can't be told from it.
+    pub headers_cut: bool,
     /// An Exchange `AuthAs` stamp ([`crate::AUTH_AS`]) was read from it.
     pub fresh_stamps: bool,
     /// The bytes a Digitally signed or Encrypted message came as, in CRLF lines

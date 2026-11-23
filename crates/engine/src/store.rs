@@ -78,6 +78,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::io::{BackgroundSave, ContentSource, MAX_FILE, MAX_MAILBOX_JSON, OpenProgress, SaveProgress, SaveReport, SaveStage};
 
+#[path = "store_export.rs"]
+mod export;
 #[path = "store_index.rs"]
 mod index;
 #[path = "store_pack.rs"]
@@ -3244,23 +3246,22 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
 /// Save `mailbox` to `path` as one self-contained file (an export, a copy to carry somewhere),
 /// written whole and atomically. Returns the bytes written.
 pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
-    let bytes = crate::io::write_mailbox(mailbox)?;
-    // Never write a file a later open would refuse.
-    if bytes.len() as u64 > MAX_MAILBOX_JSON {
-        return Err(format!(
-            "the mailbox is {} MB, more than one file holds ({} MB); nothing was written. A mailbox this large is kept by saving it where it is kept (content in a folder beside the mailbox file), not as one file",
-            bytes.len() >> 20,
-            MAX_MAILBOX_JSON >> 20
-        ));
-    }
+    save_single_with(path, mailbox, |id| mailbox.messages.get(&id).cloned().ok_or_else(|| format!("no message with id {id}")))
+}
+
+/// [`save_single`], fetching content only while its message is being written. The caller keeps
+/// the source mailbox alive throughout the write; no fully loaded copy or whole-file buffer.
+pub(crate) fn save_single_with(path: &Path, mailbox: &Mailbox, load: impl Fn(Id) -> Result<Arc<Message>, String>) -> Result<u64, String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
-    write_atomic(&resolve(path), &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut file = AtomicFile::create(&resolve(path)).map_err(|e| format!("{}: {e}", path.display()))?;
+    let bytes = export::write(&mut file, mailbox, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
+    file.commit().map_err(|e| format!("{}: {e}", path.display()))?;
     // The file is another one now: nothing known about the old one holds, and a state of it
     // still waiting to be written has had its turn.
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: next_seq(), swept: st.swept, pins, named_before, ..State::default() };
-    Ok(bytes.len() as u64)
+    Ok(bytes)
 }
 
 /// The content files message `m` names as it would be saved: what it keeps on disk, and what of

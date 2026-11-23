@@ -8,12 +8,13 @@ use super::jobs::*;
 use super::{CalendarFacts, RepliesFacts, RepliesPlan, RulesFacts, TasksFacts};
 use crate::Session;
 
-const ALL: [Start; 8] = [
+const ALL: [Start; 9] = [
     Start::Calendar,
     Start::CalendarAround,
     Start::CalendarCheck,
     Start::Tasks,
     Start::Rules,
+    Start::Categories,
     Start::AutoReplies,
     Start::InboxCheck,
     Start::FreeBusy,
@@ -34,7 +35,7 @@ fn nothing_at_work_blocks_nothing() {
 fn every_kind_is_listed_once() {
     let mut seen = std::collections::HashSet::new();
     assert!(JobKind::ALL.iter().all(|k| seen.insert(*k)));
-    assert_eq!(JobKind::ALL.len(), 15);
+    assert_eq!(JobKind::ALL.len(), 16);
 }
 
 #[test]
@@ -53,10 +54,11 @@ fn everything_else_at_work_holds_a_job_whichever_account_it_is_for() {
         set(&mut busy);
         busy
     };
-    let each: [fn(&mut Busy); 11] = [
+    let each: [fn(&mut Busy); 12] = [
         |b| b.calendar = true,
         |b| b.tasks = true,
         |b| b.rules = true,
+        |b| b.categories = true,
         |b| b.auto_replies = true,
         |b| b.free_busy = true,
         |b| b.graph = true,
@@ -181,4 +183,26 @@ fn the_wish_to_ask_the_calendar_at_once_is_kept_for_the_account_signing_in_thoug
     assert_eq!(plans.iter().map(|p| p.account).collect::<Vec<_>>(), vec![a]);
     s.calendar_started(&plans[0], 1e6 + 3_000.0);
     assert!(due(&mut s, Busy::default(), 1e6 + 4_000.0).is_empty());
+}
+
+#[test]
+fn the_categories_job_waits_for_the_other_jobs_of_the_sign_in_and_the_calendar_for_it() {
+    // (#661: a list of the calendar read while the categories change on the server could be from
+    // before the change.)
+    let categories = Busy { categories: true, ..Default::default() };
+    assert!(categories.blocks_every(Start::Calendar));
+    assert!(ALL.iter().filter(|j| **j != Start::Calendar).all(|j| !categories.blocks_every(*j)));
+    for busy in [
+        Busy { calendar: true, ..Default::default() },
+        Busy { tasks: true, ..Default::default() },
+        Busy { rules: true, ..Default::default() },
+        Busy { graph: true, ..Default::default() },
+        Busy { mail_run: true, ..Default::default() },
+        Busy { queued: true, ..Default::default() },
+    ] {
+        assert!(busy.blocks_every(Start::Categories), "{busy:?}");
+    }
+    for busy in [Busy { auto_replies: true, ..Default::default() }, Busy { free_busy: true, ..Default::default() }] {
+        assert!(!busy.blocks_every(Start::Categories), "{busy:?}");
+    }
 }
