@@ -28081,3 +28081,9 @@ msgstr "Čeká se na úložiště přihlašovacích údajů systému…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Pokud budete pokračovat, přihlásíte se na stránce svého zprostředkovatele identity a přístupový token, který vydá, se odešle na {hosts}. Pokračujte, jen pokud víte, že patří vašemu zprostředkovateli."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Tajný klíč klienta je uložen pro původní nastavení: chcete-li ho použít s tímto, zadejte ho znovu, jinak bude při uložení zapomenut."

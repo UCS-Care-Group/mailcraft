@@ -23027,3 +23027,8 @@ msgstr ""
 #: crates/ui-egui/src/lib.rs
 msgid "Waiting for the system's credential store…"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr ""

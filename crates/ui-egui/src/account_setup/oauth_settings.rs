@@ -148,9 +148,26 @@ impl AccountSetup {
         }
         oauth.redirect_port = port(&self.own.port).unwrap_or(oauth.redirect_port);
         if oauth.provider == OAuthProvider::Custom {
-            oauth.has_secret = !self.own.typed_secret().is_empty() || (oauth.has_secret && !self.own.forget_secret);
+            let still_kept = oauth.has_secret && !self.own.forget_secret && self.secret_settings_unchanged(&oauth);
+            oauth.has_secret = !self.own.typed_secret().is_empty() || still_kept;
         }
         Some(oauth)
+    }
+
+    /// Whether the settings a kept client secret is kept under (the identity provider, its token
+    /// and revocation addresses, the client and the mail servers) are as they were when Account
+    /// Settings opened: when one changes the secret isn't found under the new ones, and has to be
+    /// typed again (#1844 review). A new account has none kept.
+    fn secret_settings_unchanged(&self, oauth: &OAuth) -> bool {
+        let Some(edit) = self.edit.as_ref() else { return true };
+        let was = |key: &str| edit.baseline.get(key).cloned().unwrap_or(serde_json::Value::Null);
+        let text = |value: &str| serde_json::Value::String(value.trim().to_string());
+        was("issuer") == text(&oauth.issuer)
+            && was("tokenUrl") == text(&oauth.token)
+            && was("revokeUrl") == text(&oauth.revoke)
+            && was("clientId") == text(&self.client_id)
+            && was("incoming") == self.incoming.value().unwrap_or(serde_json::Value::Null)
+            && was("outgoing") == self.outgoing.value().unwrap_or(serde_json::Value::Null)
     }
 
     /// What keeps the OAuth settings from being saved, in the interface's language.
@@ -377,6 +394,8 @@ impl AccountSetup {
             }
         }
         let has_secret = self.oauth.as_ref().is_some_and(|o| o.has_secret);
+        // (One kept for settings that have changed since is not kept for these, #1844 review.)
+        let kept_for_others = has_secret && self.oauth.as_ref().is_some_and(|o| !self.secret_settings_unchanged(o));
         let Some(oauth) = self.oauth.as_mut() else { return };
         field(ui, pass, "issuer", tl!("Identity provider (issuer)"), &mut oauth.issuer, "https://id.example.org/realms/mail", 2048);
         // Another issuer: what Discover found for the one before isn't its (#1844 review).
@@ -417,13 +436,24 @@ impl AccountSetup {
         field(ui, pass, "revokeUrl", tl!("Revocation address (optional)"), &mut oauth.revoke, "https://…/revoke", 2048);
         field(ui, pass, "clientId", tl!("Client ID"), &mut self.client_id, tl!("The one registered for MailCraft"), 200);
         caption(ui, tl!("Client secret (optional)"), &t);
-        let hint =
-            if has_secret && !self.own.forget_secret { tl!("Kept: type a new one to replace it") } else { tl!("Only if your provider gave one") };
+        let hint = if has_secret && !self.own.forget_secret && !kept_for_others {
+            tl!("Kept: type a new one to replace it")
+        } else {
+            tl!("Only if your provider gave one")
+        };
         let resp = secret_field::field(ui, &mut self.own.secret.0, &mut self.own.reveal, app.secret_watch(), FIELD_MARGIN, |edit| {
             edit.id(field_id(("account", "clientSecret"))).char_limit(1024).hint_text(hint.to_owned())
         });
         pass.field(&resp);
-        if has_secret {
+        if kept_for_others && !self.own.forget_secret && self.own.typed_secret().is_empty() {
+            note(
+                ui,
+                tl!(
+                    "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+                ),
+                t.orange,
+            );
+        } else if has_secret {
             ui.checkbox(&mut self.own.forget_secret, tl!("Forget the client secret"));
         }
         note(

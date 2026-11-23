@@ -83,8 +83,8 @@ pub(super) fn sign_in_custom_refused(
     patience: Duration,
 ) -> Result<Tokens, Refused> {
     let used = registration(oauth, client_secret)?;
-    Url::parse(&used.authorize)?;
-    let token_endpoint = Url::parse(&used.token)?;
+    provider_url(&used.authorize)?;
+    let token_endpoint = provider_url(&used.token)?;
     if cancel.load(Ordering::Relaxed) {
         return Err(NetError::SignInCancelled.into());
     }
@@ -193,6 +193,35 @@ fn page(used: &mailcraft_model::OAuthDefaults, redirect_uri: &str, state: &str, 
     format!("{address}{}{}", if address.contains('?') { '&' } else { '?' }, http::form(&fields))
 }
 
+/// An address of an own identity provider, as one is spoken to: `https://` only. The settings may
+/// name an `http://` address on this computer ([`mailcraft_model::oauth::endpoint`]), but nothing
+/// is sent to one outside a test: a sign-in is never sent unencrypted, not even to this computer
+/// (#1844 review).
+pub(super) fn provider_url(text: &str) -> Result<Url, NetError> {
+    provider_url_when(text, plaintext_allowed())
+}
+
+/// [`provider_url`], with whether an `http://` address on this computer may be spoken to.
+pub(super) fn provider_url_when(text: &str, plaintext: bool) -> Result<Url, NetError> {
+    let url = Url::parse(text)?;
+    if !url.secure && !plaintext {
+        return Err(NetError::Config("your identity provider's addresses must start with https://".into()));
+    }
+    Ok(url)
+}
+
+/// Whether an identity provider may be spoken to without encryption (on this computer, as
+/// [`Url::parse`] already holds): in this crate's own tests, and in the tests of the crates on it
+/// that ask for it on their thread (`graph::standin::allow_loopback_tokens`, built with the
+/// `stand-in` feature alone).
+fn plaintext_allowed() -> bool {
+    #[cfg(any(test, feature = "stand-in"))]
+    if crate::graph::standin::loopback_tokens_allowed() {
+        return true;
+    }
+    cfg!(test)
+}
+
 /// Trade a refresh token for new tokens for the mail servers, without asking the owner anything.
 /// The tokens carry the refresh token to use next time (a new one when the provider sent one).
 /// `ProtoError::Auth`: the provider no longer takes it, and the owner has to sign in again;
@@ -200,7 +229,7 @@ fn page(used: &mailcraft_model::OAuthDefaults, redirect_uri: &str, state: &str, 
 /// as it was.
 pub fn refresh_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) -> Result<Tokens, NetError> {
     let used = registration(oauth, client_secret)?;
-    let token_endpoint = Url::parse(&used.token)?;
+    let token_endpoint = provider_url(&used.token)?;
     if refresh_token.is_empty() || !usable(refresh_token) {
         return Err(NetError::Proto(ProtoError::Auth("there is no earlier sign-in to renew".into())));
     }
@@ -224,7 +253,7 @@ pub fn revoke_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) ->
         return Ok(());
     }
     mailcraft_model::oauth::endpoint(&used.revoke).map_err(|why| NetError::Config(format!("the revocation address {why}").into()))?;
-    let endpoint = Url::parse(&used.revoke)?;
+    let endpoint = provider_url(&used.revoke)?;
     let mut fields = vec![("token", refresh_token), ("token_type_hint", "refresh_token")];
     let authorization = client_authentication(&used, client_secret, &mut fields);
     let answer = http::post_form_as(&endpoint, &fields, authorization.as_deref(), TOKEN_TIMEOUT).map_err(|e| {

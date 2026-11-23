@@ -28164,3 +28164,9 @@ msgstr "Se așteaptă depozitul de acreditări al sistemului…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Dacă continuați, vă conectați pe pagina furnizorului de identitate, iar tokenul de acces pe care îl emite este trimis la {hosts}. Continuați doar dacă știți că aparțin furnizorului dvs."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Secretul clientului este păstrat pentru setările de dinainte: introduceți-l din nou pentru a-l folosi cu acestea, altfel va fi uitat la salvare."

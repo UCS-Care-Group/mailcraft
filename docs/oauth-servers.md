@@ -82,7 +82,9 @@ secret here.
 
 On the command line, `mailcraft-cli sync` prints the provider's page to open; a client secret is
 read from `MAILCRAFT_CLIENT_SECRET` (the desktop program's credential store isn't used there), and
-without it a client that has one doesn't start the sign-in.
+without it a client that has one doesn't start the sign-in. That secret is sent to the token
+address (`tokenUrl`) the mailbox file names, and to its revocation address: set it only for a
+mailbox file you trust.
 
 ## Keycloak
 

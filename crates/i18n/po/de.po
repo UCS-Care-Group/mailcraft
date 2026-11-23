@@ -26548,3 +26548,9 @@ msgstr "Warten auf die Anmeldeinformationsverwaltung des Systems…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Wenn Sie fortfahren, melden Sie sich auf der Seite Ihres Identitätsanbieters an, und das ausgegebene Zugriffstoken wird an {hosts} gesendet. Fahren Sie nur fort, wenn Sie wissen, dass diese zu Ihrem Anbieter gehören."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Der geheime Clientschlüssel ist für die bisherigen Einstellungen gespeichert: Geben Sie ihn erneut ein, um ihn mit diesen zu verwenden, sonst wird er beim Speichern vergessen."

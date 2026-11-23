@@ -162,3 +162,19 @@ fn a_secret_kept_under_settings_that_changed_is_taken_out_of_the_store() {
     a.drop_stale_client_secret(&kept);
     assert!(store.get(&MailApp::secret_key(OAUTH_CLIENT, &kept)).is_some());
 }
+
+/// Restoring a Microsoft or Google account's default OAuth settings takes away its own client id:
+/// a refresh token held for the other client is let go of with it, so the next renewal doesn't
+/// send it for the wrong client (#1844 review).
+#[test]
+fn restoring_the_default_oauth_settings_lets_go_of_the_sign_in_for_the_other_client() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let v = json!({"email": "ada@gmail.example", "incoming": {"host": "imap.gmail.com"}, "outgoing": {"host": "smtp.gmail.com"},
+        "auth": "oauth2", "provider": "google", "clientId": "my-own-client.apps.example"});
+    let id = a.execute("account.add", v).unwrap()["id"].as_u64().unwrap();
+    let held = mailcraft_model::sync::Tokens { access: "access".into(), refresh: "refresh".into(), expires_at: NOW + 3_600, ..Default::default() };
+    a.tokens.insert(id, held);
+    a.execute("account.oauthRestoreDefaults", json!({"id": id})).unwrap();
+    assert!(a.tokens.get(&id).is_none_or(|t| t.refresh.is_empty()), "the refresh token for the other client is still held");
+}

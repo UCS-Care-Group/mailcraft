@@ -28136,3 +28136,9 @@ msgstr "Oczekiwanie na magazyn poświadczeń systemu…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Jeśli przejdziesz dalej, zalogujesz się na stronie dostawcy tożsamości, a wydany przez niego token dostępu zostanie wysłany do {hosts}. Kontynuuj tylko wtedy, gdy wiesz, że należą one do Twojego dostawcy."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Klucz tajny klienta jest zachowany dla poprzednich ustawień: wpisz go ponownie, aby użyć go z tymi, w przeciwnym razie zostanie zapomniany przy zapisywaniu."

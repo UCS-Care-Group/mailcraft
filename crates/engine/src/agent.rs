@@ -3593,6 +3593,26 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         None => text.push_str("; it signs in with a password"),
                     }
                 }
+                // How an own provider is checked and how its client secret goes to it are named
+                // when they change: one switches off the RFC 9207 check (#1844 review).
+                let checks = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom).map(|o| (o.issuer_in_response, o.client_auth))
+                };
+                if let (Some((named_was, auth_was)), Some((named, auth))) = (checks(account), new.as_ref().and_then(checks)) {
+                    match (named_was, named) {
+                        (true, false) => text.push_str(
+                            "; its identity provider's page no longer has to name itself when it sends the owner back (the RFC 9207 check is switched off)",
+                        ),
+                        (false, true) => text.push_str("; its identity provider's page has to name itself when it sends the owner back (RFC 9207)"),
+                        _ => {}
+                    }
+                    if auth_was != auth {
+                        text.push_str(match auth {
+                            mailcraft_model::ClientAuth::Basic => "; a client secret goes to the identity provider in the Authorization header",
+                            mailcraft_model::ClientAuth::Post => "; a client secret goes to the identity provider in the form",
+                        });
+                    }
+                }
                 text.push_str(&rules);
                 text.push_str(&reads);
                 return text;

@@ -28087,3 +28087,9 @@ msgstr "In attesa dell'archivio credenziali del sistema…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Se continui, accedi dalla pagina del tuo provider di identità e il token di accesso che rilascia viene inviato a {hosts}. Continua solo se sai che appartengono al tuo provider."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Il segreto client è conservato per le impostazioni precedenti: immettilo di nuovo per usarlo con queste, altrimenti verrà dimenticato al salvataggio."

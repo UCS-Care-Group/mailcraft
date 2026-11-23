@@ -389,3 +389,16 @@ fn the_owners_no_on_the_page_is_declined() {
     let (open, _) = browser_adding(true, "&error=server_error");
     assert!(!matches!(sign_in_custom_explained(&own(&server), "", "", &open, &AtomicBool::new(false)), Err(SignInEnd::Declined)));
 }
+
+/// Outside a test nothing is sent to an own identity provider without encryption, not even to
+/// this computer; https addresses are taken either way (#1844 review).
+#[test]
+fn an_own_providers_plain_http_address_is_spoken_to_only_in_a_test() {
+    for address in ["http://127.0.0.1:8080/token", "http://localhost/token", "http://[::1]/token"] {
+        assert!(matches!(custom::provider_url_when(address, false), Err(NetError::Config(_))), "{address}");
+        assert!(custom::provider_url_when(address, true).is_ok(), "{address}");
+    }
+    assert!(custom::provider_url_when("https://id.example.org/token", false).is_ok());
+    // Plain http elsewhere is never spoken to, test or not.
+    assert!(custom::provider_url_when("http://id.example.org/token", true).is_err());
+}

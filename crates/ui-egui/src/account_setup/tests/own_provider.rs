@@ -240,6 +240,31 @@ fn an_own_providers_settings_are_edited_and_its_secret_replaced_or_forgotten() {
     assert_eq!(h.state().client_secret_of(id), "");
 }
 
+/// A kept client secret is kept for the settings it was given with: when the revocation address
+/// (or the issuer, the token address, the client or a server) changes, the dialog says it has to
+/// be entered again, and saving without it says none is kept (#1844 review).
+#[test]
+fn a_secret_kept_for_settings_that_change_is_asked_for_again() {
+    let mut a = app(false);
+    let id = a
+        .execute(
+            "account.add",
+            json!({"email": "alice@example.org", "incoming": {"host": "mail.example.org"}, "outgoing": {"host": "mail.example.org"}, "auth": "oauth2", "provider": "custom", "clientId": "mailcraft", "issuer": ISSUER, "authorizeUrl": format!("{ISSUER}/auth"), "tokenUrl": format!("{ISSUER}/token"), "hasSecret": true}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let mut h = open_tall(a, json!({"id": id}));
+    assert!(!says(&h, "enter it again to use it with these"));
+    wizard_mut(&mut h).oauth.as_mut().unwrap().revoke = format!("{ISSUER}/revoke");
+    h.run_steps(3);
+    assert!(says(&h, "enter it again to use it with these"));
+    let (_, params) = wizard(&h).unwrap().edit_command().expect("a change to save");
+    assert_eq!(params["hasSecret"], false);
+    click(&mut h, "Save");
+    assert!(!h.state().session.mailbox.account(id).unwrap().oauth.as_ref().unwrap().has_secret);
+}
+
 /// The app a harness holds, for another dialog.
 fn app_with(h: Harness<'static, MailApp>) -> MailApp {
     let mut a = h.into_state();

@@ -219,3 +219,41 @@ fn an_agent_is_told_of_a_sign_in_change_however_late_in_the_address() {
     let client = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientId": "other-client"}));
     assert!(client.contains("other-client"), "{client}");
 }
+
+/// What an agent is asked to allow names switching the RFC 9207 check off (or on) and a change of
+/// how the client secret goes to the provider (#1844 review).
+#[test]
+fn an_agent_is_told_when_the_issuer_check_or_the_client_authentication_changes() {
+    let mut s = Session::empty();
+    let id = add(&mut s, &own(json!({"issuerInResponse": true})));
+    let off = crate::agent::describe(&s, "account.edit", &json!({"id": id, "issuerInResponse": false}));
+    assert!(off.contains("RFC 9207 check is switched off"), "{off}");
+    let post = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientAuth": "post"}));
+    assert!(post.contains("in the form") && !post.contains("RFC 9207"), "{post}");
+    // Nothing of either when neither changes.
+    let same = crate::agent::describe(&s, "account.edit", &json!({"id": id, "issuerInResponse": true, "clientAuth": "basic"}));
+    assert!(!same.contains("RFC 9207") && !same.contains("client secret"), "{same}");
+    s.run("account.edit", &json!({"id": id, "issuerInResponse": false})).unwrap();
+    let on = crate::agent::describe(&s, "account.edit", &json!({"id": id, "issuerInResponse": true}));
+    assert!(on.contains("has to name itself"), "{on}");
+}
+
+/// A client secret is kept under the settings it is for: when they change it is no longer found,
+/// and the account stops saying one is kept, unless the change comes with one (#1844 review).
+#[test]
+fn a_kept_client_secret_follows_the_settings_it_is_for() {
+    let mut s = Session::empty();
+    let kept = |s: &Session, id: u64| s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().has_secret;
+    let id = add(&mut s, &own(json!({"hasSecret": true})));
+    s.run("account.edit", &json!({"id": id, "displayName": "Alice", "mechanism": "xoauth2"})).unwrap();
+    assert!(kept(&s, id), "a change that leaves the settings it is for keeps it");
+    s.run("account.edit", &json!({"id": id, "revokeUrl": format!("{ISSUER}/revoke-elsewhere")})).unwrap();
+    assert!(!kept(&s, id), "another revocation address");
+    s.run("account.edit", &json!({"id": id, "hasSecret": true})).unwrap();
+    s.run("account.edit", &json!({"id": id, "issuer": "https://other.example.org/realms/mail"})).unwrap();
+    assert!(!kept(&s, id), "another issuer");
+    // A change that comes with a secret for the new settings keeps saying so.
+    s.run("account.edit", &json!({"id": id, "hasSecret": true})).unwrap();
+    s.run("account.edit", &json!({"id": id, "tokenUrl": format!("{ISSUER}/token2"), "hasSecret": true})).unwrap();
+    assert!(kept(&s, id));
+}

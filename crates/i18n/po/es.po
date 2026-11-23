@@ -28105,3 +28105,9 @@ msgstr "Esperando al almacén de credenciales del sistema…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Si continúa, iniciará sesión en la página de su proveedor de identidad y el token de acceso que este emita se enviará a {hosts}. Continúe solo si sabe que son de su proveedor."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "El secreto de cliente se guarda para la configuración anterior: escríbalo de nuevo para usarlo con esta; si no, se olvidará al guardar."

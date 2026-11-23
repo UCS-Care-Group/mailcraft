@@ -135,6 +135,8 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(_) => return Err(bad("`asCustom` is true or false")),
     };
     if let Some(o) = a.oauth.as_mut() {
+        // (The settings a kept client secret is for: it is kept under them, MailApp::secret_key.)
+        let kept_for = (o.provider == OAuthProvider::Custom && o.has_secret).then(|| o.binding());
         if let Some(provider) = provider {
             o.provider = provider;
             // (An own identity provider's addresses are none of Microsoft's or Google's.)
@@ -192,7 +194,14 @@ fn sign_in(a: &mut Account, v: &Value) -> Result<(), CmdError> {
                 ..OAuth::default()
             };
         }
+        let says_kept = own.has_secret;
         own.apply(o);
+        // A client secret kept for settings that changed is not found under the new ones: it has
+        // to be given again, and the account says so rather than that one is kept, unless the
+        // change comes with it (#1844 review).
+        if kept_for.is_some_and(|was| was != o.binding()) && says_kept != Some(true) {
+            o.has_secret = false;
+        }
         o.check().map_err(|why| bad(why.to_string()))?;
     } else if own.changes_built_in() || provider.is_some() && provider != Some(OAuthProvider::Microsoft) {
         return Err(bad("these settings are for an account that signs in on its provider's page (`auth`: \"oauth2\")"));

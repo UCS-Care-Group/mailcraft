@@ -2654,7 +2654,8 @@ impl MailApp {
         } else {
             None
         };
-        let edited = if matches!(id, "account.edit" | "account.davSet" | "account.davOff" | "account.graphSwitch") {
+        // (Restoring the default OAuth settings may change the client a sign-in is for, #1844 review.)
+        let edited = if matches!(id, "account.edit" | "account.oauthRestoreDefaults" | "account.davSet" | "account.davOff" | "account.graphSwitch") {
             // (`account.graphSwitch` names its account `account`.)
             let key = if id == "account.graphSwitch" { "account" } else { "id" };
             params.get(key).and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()

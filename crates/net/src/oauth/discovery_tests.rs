@@ -6,7 +6,7 @@ use proptest::prelude::*;
 
 use mailcraft_model::ClientAuth;
 
-use super::discovery::{absolute, addresses, client_auth_of, discover, read};
+use super::discovery::{absolute, addresses, client_auth_of, discover, may_redirect, read};
 use crate::NetError;
 use crate::fake::{FakeHttp, json_answer};
 
@@ -252,7 +252,34 @@ fn a_redirect_is_resolved_as_a_uri_reference() {
         ("//other.example.org/meta", "https://other.example.org/meta"),
         ("?y=2", "https://id.example.org/realms/mail/.well-known/openid-configuration?y=2"),
         ("/a/../../b", "https://id.example.org/b"),
+        // A path whose query holds an address is a path, not an address elsewhere.
+        ("/next?u=https://x.example", "https://id.example.org/next?u=https://x.example"),
+        ("next?u=https://x.example", "https://id.example.org/realms/mail/.well-known/next?u=https://x.example"),
+        ("HTTPS://other.example.org/doc", "HTTPS://other.example.org/doc"),
     ] {
         assert_eq!(absolute(&from, location), resolved, "{location}");
     }
+}
+
+/// Before the owner has agreed to anything, a provider on the network never sends discovery on to
+/// this computer, a private network or plain `http`; an issuer on this computer (a test's) may
+/// (#1844 review).
+#[test]
+fn a_redirect_from_the_network_to_this_computer_a_private_network_or_http_is_not_followed() {
+    let url = |text: &str| crate::http::Url::parse(text).unwrap();
+    let from = url("https://id.example.org/.well-known/openid-configuration");
+    for next in [
+        "https://127.0.0.1/x",
+        "https://localhost:8443/x",
+        "https://[::1]/x",
+        "http://127.0.0.1:8080/x",
+        "https://10.1.2.3/x",
+        "https://192.168.1.10/x",
+        "https://169.254.169.254/latest/meta-data",
+    ] {
+        assert!(!may_redirect(&from, &url(next)), "{next}");
+    }
+    assert!(may_redirect(&from, &url("https://login.example.net/.well-known/openid-configuration")));
+    let local = url("http://127.0.0.1:9000/realms/mail");
+    assert!(may_redirect(&local, &url("http://localhost:9001/x")) && may_redirect(&local, &url("https://id.example.org/x")));
 }

@@ -27499,3 +27499,9 @@ msgstr "Wachten op de referentieopslag van het systeem…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Als u doorgaat, meldt u zich aan op de pagina van uw identiteitsprovider en wordt het toegangstoken dat deze uitgeeft naar {hosts} verzonden. Ga alleen door als u weet dat dit van uw provider is."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Het clientgeheim is bewaard voor de instellingen zoals ze waren: voer het opnieuw in om het met deze te gebruiken, anders wordt het bij opslaan vergeten."

@@ -27800,3 +27800,9 @@ msgstr "正在等待系统的凭据存储…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "如果继续，你将在身份提供程序的页面上登录，它颁发的访问令牌将发送到 {hosts}。仅在你确定这些地址属于你的提供程序时才继续。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "客户端密钥是为原先的设置保存的：要在这些设置中使用，请重新输入，否则保存时会被忘记。"

@@ -5,9 +5,11 @@
 //! (`https://host/.well-known/oauth-authorization-server{path}`).
 //!
 //! Only the issuer's address goes out: no mail address, no client id, no cookie. Fetched over
-//! HTTPS alone (an `http://` address only on this computer, for tests), following at most
-//! [`MAX_REDIRECTS`] redirects, each to an address that is checked as the first was; the answer
-//! is capped by the HTTP layer.
+//! HTTPS alone (an `http://` address only on this computer, and only in tests:
+//! `custom::provider_url`), following at most [`MAX_REDIRECTS`] redirects, each to an address
+//! that is checked as the first was and that never leads from a provider on the network to this
+//! computer, a private network or plain `http` ([`may_redirect`]); the answer is capped by the
+//! HTTP layer.
 //!
 //! The document is hostile. It must name the issuer that was asked for, byte for byte (RFC 8414
 //! §3.3, OpenID Connect Discovery §4.3): a document that names another is refused, so that one
@@ -116,7 +118,8 @@ pub(crate) fn addresses(issuer: &str) -> Vec<String> {
 /// The body at `address`, following redirects to addresses that are checked as it was.
 /// `Ok(None)` when there is nothing there (a status other than 200 and a redirect).
 fn fetch(address: &str) -> Result<Option<Vec<u8>>, NetError> {
-    let mut url = Url::parse(address)?;
+    let mut url = super::custom::provider_url(address)?;
+    let first = url.clone();
     for _ in 0..=MAX_REDIRECTS {
         let request =
             http::Request { method: "GET", headers: &[("Accept", "application/json")], body: None, patience: PATIENCE, max_body: http::MAX_BODY };
@@ -126,12 +129,39 @@ fn fetch(address: &str) -> Result<Option<Vec<u8>>, NetError> {
             301 | 302 | 303 | 307 | 308 => {
                 let Some(next) = answer.location.as_deref().map(|to| absolute(&url, to)) else { return Ok(None) };
                 // (`Url::parse` refuses `http://` anywhere but on this computer.)
-                url = Url::parse(&next)?;
+                let next = Url::parse(&next)?;
+                if !may_redirect(&first, &next) {
+                    return Err(NetError::Config(
+                        "the identity provider sent its description on to an address on this computer, a private network or without https".into(),
+                    ));
+                }
+                url = next;
             }
             _ => return Ok(None),
         }
     }
     Err(NetError::Config("the identity provider sent its description on through too many redirects".into()))
+}
+
+/// Whether a redirect met fetching the description of the issuer at `first` may be followed to
+/// `next`: before the owner has agreed to anything, it never leads from a provider on the
+/// network to this computer or a private network (by an address written as one), nor from
+/// `https` to `http` (#1844 review). An issuer on this computer (a test's) may lead anywhere
+/// [`Url::parse`] takes.
+pub(super) fn may_redirect(first: &Url, next: &Url) -> bool {
+    if crate::transport::is_loopback(&first.host) {
+        return true;
+    }
+    let inside = crate::transport::is_loopback(&next.host) || next.host.parse::<std::net::IpAddr>().is_ok_and(|ip| !crate::pictures::is_public(ip));
+    next.secure && !inside
+}
+
+/// Whether `reference` starts with a scheme (RFC 3986 §3.1: a letter, then letters, digits,
+/// `+`, `-` or `.`, then `:`), which makes it an absolute address.
+fn has_scheme(reference: &str) -> bool {
+    let Some((scheme, _)) = reference.split_once(':') else { return false };
+    let mut bytes = scheme.bytes();
+    bytes.next().is_some_and(|b| b.is_ascii_alphabetic()) && bytes.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'.'))
 }
 
 /// A `Location` as an absolute address, resolved against `from` as a URI reference is (RFC 3986
@@ -140,7 +170,9 @@ fn fetch(address: &str) -> Result<Option<Vec<u8>>, NetError> {
 /// review). What comes of it is checked by [`Url::parse`] before anything is fetched.
 pub(super) fn absolute(from: &Url, location: &str) -> String {
     let location = location.trim();
-    if location.contains("://") {
+    // (Absolute by the scheme it starts with, not by a `://` anywhere: `/next?u=https://x` is a
+    // path on `from`'s host, #1844 review.)
+    if has_scheme(location) {
         return location.to_string();
     }
     let scheme = if from.secure { "https" } else { "http" };

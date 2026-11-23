@@ -27871,3 +27871,9 @@ msgstr "სისტემის ავტორიზაციის მონ�
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "თუ გააგრძელებთ, შეხვალთ თქვენი იდენტობის პროვაიდერის გვერდზე და მის მიერ გაცემული წვდომის ტოკენი გაეგზავნება {hosts}-ს. გააგრძელეთ მხოლოდ მაშინ, თუ იცით, რომ ისინი თქვენს პროვაიდერს ეკუთვნის."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "კლიენტის საიდუმლო შენახულია წინა პარამეტრებისთვის: ხელახლა შეიყვანეთ, რომ ამ პარამეტრებთან გამოიყენოთ, თორემ შენახვისას დაიკარგება."

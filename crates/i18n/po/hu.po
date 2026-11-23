@@ -27951,3 +27951,9 @@ msgstr "Várakozás a rendszer hitelesítőadat-tárolójára…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Ha folytatja, az identitásszolgáltató oldalán jelentkezik be, és az általa kiadott hozzáférési token ide lesz elküldve: {hosts}. Csak akkor folytassa, ha tudja, hogy ezek a szolgáltatójához tartoznak."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Az ügyféltitok a korábbi beállításokhoz van tárolva: írja be újra, ha ezekkel szeretné használni, különben mentéskor elvész."

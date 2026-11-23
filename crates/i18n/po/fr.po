@@ -28006,3 +28006,9 @@ msgstr "En attente du magasin d'informations d'identification du système…"
 #, fuzzy
 msgid "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
 msgstr "Si vous continuez, vous vous connectez sur la page de votre fournisseur d'identité et le jeton d'accès qu'il délivre est envoyé à {hosts}. Ne continuez que si vous savez qu'il s'agit de votre fournisseur."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+msgstr "Le secret client est conservé pour les paramètres tels qu'ils étaient : saisissez-le à nouveau pour l'utiliser avec ceux-ci, sinon il sera oublié à l'enregistrement."
