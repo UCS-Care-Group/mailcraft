@@ -1158,4 +1158,10 @@ fn a_mailbox_named_twice_has_the_flags_of_both() {
     let mut flags: Vec<String> = (0..MAX_FLAGS).map(|n| format!("$f{n}")).collect();
     merge_flags(&mut flags, vec!["$more".into(), "\\Noselect".into()]);
     assert_eq!(flags.len(), MAX_FLAGS);
+    // At the cap, `\HasChildren` of the second naming still takes the place of `\HasNoChildren`.
+    let mut full: Vec<String> = (1..MAX_FLAGS).map(|n| format!("$f{n}")).collect();
+    full.insert(0, "\\HasNoChildren".into());
+    merge_flags(&mut full, vec!["\\haschildren".into()]);
+    assert_eq!(full.len(), MAX_FLAGS);
+    assert!(full.iter().any(|f| f == "\\haschildren") && !full.iter().any(|f| f.eq_ignore_ascii_case("\\HasNoChildren")), "{full:?}");
 }

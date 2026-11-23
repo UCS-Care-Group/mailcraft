@@ -420,6 +420,10 @@ fn namespace_of(desc: Value) -> Option<Namespace> {
 pub(crate) fn merge_flags(flags: &mut Vec<String>, more: Vec<String>) {
     let open = |flags: &[String]| !flags.iter().any(|f| f.eq_ignore_ascii_case("\\Noselect") || f.eq_ignore_ascii_case("\\NonExistent"));
     let either_open = open(flags) || open(&more);
+    // Before the cap is looked at, so that `\HasChildren` has room even when it is reached.
+    if more.iter().any(|f| f.eq_ignore_ascii_case("\\HasChildren")) {
+        flags.retain(|f| !f.eq_ignore_ascii_case("\\HasNoChildren"));
+    }
     for flag in more {
         if flags.len() < MAX_FLAGS && !flags.iter().any(|f| f.eq_ignore_ascii_case(&flag)) {
             flags.push(flag);
