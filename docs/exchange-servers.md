@@ -73,6 +73,14 @@ twice for the account, and `sync.progress` gave empty `timings` for it.
 **Not tried:** NTLM, Autodiscover from an address, any change sent up (read, flag, move, draft, send),
 the Windows installer, and the window used by hand.
 
+**A shared mailbox (#482):** a real shared mailbox on the same server, to which the test mailbox has
+Full Access, added by hand under the account (Add Shared Mailbox) and read with the account's own
+server and sign-in, every request naming the shared mailbox: Send/Receive completed with no problem,
+brought down the one message sent to it, and asked for no second password. A mailbox the account has
+no rights to answers `ErrorItemNotFound`, and an address with no mailbox `ErrorNonExistentMailbox`;
+MailCraft says the server won't open the shared mailbox. Not tried: sending from it, and finding it
+through Autodiscover's list of the mailboxes an account may open (auto-mapping, not built: #930).
+
 ## Exchange Server 2010
 
 **Reported:** an organisation's own Exchange 2010 SP3 (build 14.3.513), by a tester with release
@@ -94,7 +102,7 @@ flag isn't read from the server.
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
-and modern sign-in (not built), a shared mailbox, and Autodiscover from an address.
+and modern sign-in (not built), sending from a shared mailbox, and Autodiscover from an address.
 
 ## Revision history
 
