@@ -77,7 +77,7 @@ fn microsoft(ids: &[(&str, &str)]) -> (Session, Id, Vec<Id>) {
         .enumerate()
         .map(|(n, (server, message_id))| {
             let when = 1_000 * i64::try_from(n).unwrap();
-            let server = ServerMessage { id: (*server).into(), ..Default::default() };
+            let server = ServerMessage { read_said: true, flag_said: true, id: (*server).into(), ..Default::default() };
             mb.add_message(Message { account, server: Some(server), unfetched: true, ..mail(inbox, "Invoice", message_id, when) }).unwrap()
         })
         .collect();
@@ -119,7 +119,7 @@ fn a_listing_without_a_conversation_id_keeps_the_one_known() {
     s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "F".into(), ..Default::default() });
     // A delta that says the message again without its conversation (as a JMAP window's marks do).
     let there = mailcraft_model::sync::GraphMessage {
-        server: ServerMessage { id: "AAk-1".into(), read: true, ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "AAk-1".into(), read: true, ..Default::default() },
         subject: "Invoice".into(),
         received: 5,
         ..Default::default()
@@ -186,7 +186,8 @@ fn a_changed_header_or_conversation_id_is_a_change_of_the_conversations() {
     after.message_mut(ours).unwrap().references.push("x@example.org".into());
     assert!(!crate::conversations::grouping_kept(&before, &after));
     let mut after = s.mailbox.clone();
-    after.message_mut(ours).unwrap().server = Some(ServerMessage { thread: "AAQkconvA".into(), ..Default::default() });
+    after.message_mut(ours).unwrap().server =
+        Some(ServerMessage { read_said: true, flag_said: true, thread: "AAQkconvA".into(), ..Default::default() });
     assert!(!crate::conversations::grouping_kept(&before, &after));
 }
 
@@ -197,7 +198,7 @@ fn two_known_threads_with_their_own_conversation_ids_stay_apart() {
     let (mut s, account, _) = microsoft(&[]);
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let add = |s: &mut Session, server: &str, thread: &str, message_id: &str, parent: &str, when: i64| {
-        let server = ServerMessage { id: server.into(), thread: thread.into(), ..Default::default() };
+        let server = ServerMessage { read_said: true, flag_said: true, id: server.into(), thread: thread.into(), ..Default::default() };
         let refs = if parent.is_empty() { vec![] } else { vec![parent.to_string()] };
         let m = Message { account, server: Some(server), in_reply_to: parent.into(), references: refs, ..mail(inbox, "Invoice", message_id, when) };
         s.mailbox.add_message(m).unwrap()
@@ -284,7 +285,7 @@ fn exchange_invoices() -> (Session, Id, [Id; 2]) {
     let folders = EwsFolderDeltas { changed: vec![inbox], afresh: true, ..Default::default() };
     crate::cmd::ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(folders), hierarchy: "H1".into(), ..base() }).unwrap();
     let invoice = |id: &str, from: &str, when: i64| GraphMessage {
-        server: ServerMessage { id: id.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
         message_id: format!("{id}@{from}.example"),
         subject: "Invoice for October".into(),
         sent: when - 60,

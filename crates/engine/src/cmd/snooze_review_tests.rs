@@ -167,9 +167,10 @@ fn a_return_time_across_a_change_of_the_clocks_is_the_wall_clock_time_written() 
 #[test]
 fn a_reply_that_got_its_conversation_id_in_a_later_piece_brings_it_back_then() {
     let (mut s, account, inbox, a) = local();
-    s.mailbox.message_mut(a).unwrap().server = Some(ServerMessage { thread: "C1".into(), ..Default::default() });
+    s.mailbox.message_mut(a).unwrap().server = Some(ServerMessage { read_said: true, flag_said: true, thread: "C1".into(), ..Default::default() });
     s.run("mail.snooze", &json!({"ids": [a], "until": NOW + 86_400})).unwrap();
-    let reply = arrive(&mut s, account, inbox, |m| m.server = Some(ServerMessage { id: "R".into(), ..Default::default() }));
+    let reply =
+        arrive(&mut s, account, inbox, |m| m.server = Some(ServerMessage { read_said: true, flag_said: true, id: "R".into(), ..Default::default() }));
     snooze::after(&mut s);
     assert!(waiting(&s, a), "no conversation id yet, no link");
     // A later piece brings the conversation id, below any mark taken before the run.

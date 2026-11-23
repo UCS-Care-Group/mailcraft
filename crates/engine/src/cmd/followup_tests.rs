@@ -753,7 +753,7 @@ fn microsoft() -> (Session, Id) {
     mb.accounts[0].kind = AccountKind::Microsoft;
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
     mb.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F".into(), ..Default::default() });
-    let server = ServerMessage { id: "E1".into(), folder: "F".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "E1".into(), folder: "F".into(), ..Default::default() };
     let id = mb
         .add_message(Message { account, folder: inbox, server: Some(server), subject: "Follow up".into(), read: true, ..Default::default() })
         .unwrap();

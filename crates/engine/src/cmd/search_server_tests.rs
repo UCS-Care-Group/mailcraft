@@ -40,7 +40,7 @@ fn session() -> (Session, Id, Id, Id) {
 
 fn found(id: &str, folder: &str, subject: &str, received: i64) -> GraphMessage {
     GraphMessage {
-        server: ServerMessage { id: id.into(), folder: folder.into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: folder.into(), ..Default::default() },
         subject: subject.into(),
         received,
         sent: received - 30,

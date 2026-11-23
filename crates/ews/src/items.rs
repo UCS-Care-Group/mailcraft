@@ -276,8 +276,8 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         _ => FlagStatus::None,
     };
     let when = |name: &str| flag_node.and_then(|f| f.child_in(TYPES, name)).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0));
-    let categories = item
-        .child_in(TYPES, "Categories")
+    let cats_node = item.child_in(TYPES, "Categories");
+    let categories = cats_node
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
@@ -285,9 +285,13 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         server: ServerMessage {
             id: id.to_owned(),
             read: flag(item, "IsRead"),
+            read_said: item.child_in(TYPES, "IsRead").is_some(),
             flag: status,
+            flag_said: flag_node.is_some(),
             categories,
+            categories_said: cats_node.is_some(),
             importance,
+            importance_said: item.child_in(TYPES, "Importance").is_some(),
             size: item.child_in(TYPES, "Size").and_then(|n| n.text.trim().parse().ok()).unwrap_or(0),
             flag_start: when("StartDate").filter(|_| status != FlagStatus::None),
             flag_due: when("DueDate").filter(|_| status != FlagStatus::None),

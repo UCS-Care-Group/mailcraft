@@ -304,19 +304,20 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
     let Ok(m) = mb.message_mut(id) else { return false };
     let now = &there.server;
-    if m.read == last.read {
+    if now.read_said && m.read == last.read {
         m.read = now.read;
     }
     // The marks a JMAP server keeps as keywords, as the read state (a Graph server says neither:
-    // they stay false on both sides, and what is set here stays).
-    if m.answered == last.answered {
+    // they stay false on both sides, and what is set here stays). The keywords came or they did
+    // not as a whole: whether they were named is asked once, by the read state's own word.
+    if now.read_said && m.answered == last.answered {
         m.answered = now.answered;
     }
-    if m.forwarded == last.forwarded {
+    if now.read_said && m.forwarded == last.forwarded {
         m.forwarded = now.forwarded;
     }
     // The flag is its status and its due date: changed here, both stay as they are.
-    if flag_bit_alone {
+    if flag_bit_alone && now.flag_said {
         // A JMAP server keeps `$flagged` and nothing else, so a due date or a "complete" here is
         // no change it was ever told of, and no reason to hold its word off: whether the flag was
         // changed here is told by that bit alone. Unchanged here and changed there, the server's
@@ -327,17 +328,20 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
             m.flag = now.flag;
             m.flag_due = now.flag_due;
         }
-    } else if m.flag == last.flag && m.flag_due == last.flag_due {
+    } else if now.flag_said && m.flag == last.flag && m.flag_due == last.flag_due {
         m.flag = now.flag;
         m.flag_due = now.flag_due;
     }
     // Changed on both sides: what was added and taken away here goes onto the server's list (S17).
-    if m.categories == last.categories {
-        m.categories = now.categories.clone();
-    } else if now.categories != last.categories {
-        m.categories = merge_categories(&last.categories, &m.categories, &now.categories);
+    // An answer that never named the categories says nothing of them (#1784), as for the rest.
+    if now.categories_said {
+        if m.categories == last.categories {
+            m.categories = now.categories.clone();
+        } else if now.categories != last.categories {
+            m.categories = merge_categories(&last.categories, &m.categories, &now.categories);
+        }
     }
-    if m.importance == last.importance {
+    if now.importance_said && m.importance == last.importance {
         m.importance = now.importance;
     }
     if follows {
@@ -382,7 +386,29 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // is the last one known (#795).
     let (thread, thread_asked, thread_tries) =
         if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
-    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
+    // A silent answer must not rewrite the agreed state either (#1784): the snapshot keeps what
+    // it had of every mark the answer did not name. Kept otherwise, the held value and the
+    // snapshot would differ by an invention — which reads as a change made here, waiting to go
+    // up — and a later true answer from the server would be taken for a contradiction.
+    let mut agreed = now.clone();
+    if !agreed.read_said {
+        agreed.read = last.read;
+        agreed.answered = last.answered;
+        agreed.forwarded = last.forwarded;
+    }
+    if !agreed.flag_said {
+        agreed.flag = last.flag;
+        agreed.flag_start = last.flag_start;
+        agreed.flag_due = last.flag_due;
+        agreed.flag_completed = last.flag_completed;
+    }
+    if !agreed.categories_said {
+        agreed.categories = last.categories.clone();
+    }
+    if !agreed.importance_said {
+        agreed.importance = last.importance;
+    }
+    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..agreed });
     *m != before
 }
 
@@ -815,6 +841,10 @@ mod size_tests;
 #[cfg(test)]
 #[path = "graph_down_flag_tests.rs"]
 mod flag_tests;
+
+#[cfg(test)]
+#[path = "graph_down_quiet_tests.rs"]
+mod quiet_tests;
 
 #[cfg(test)]
 #[path = "graph_sent_not_draft_tests.rs"]

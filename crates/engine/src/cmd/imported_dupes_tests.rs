@@ -142,7 +142,11 @@ fn the_clean_up_removes_only_the_local_twins_and_undo_brings_them_back() {
     // A message a JMAP or Microsoft server keeps by its own id, with no UID.
     let by_id = s
         .mailbox
-        .add_message(Message { folder: inbox, server: Some(ServerMessage { id: "E4".into(), folder: "M1".into(), ..Default::default() }), ..mail(4) })
+        .add_message(Message {
+            folder: inbox,
+            server: Some(ServerMessage { read_said: true, flag_said: true, id: "E4".into(), folder: "M1".into(), ..Default::default() }),
+            ..mail(4)
+        })
         .unwrap();
     let twin1 = local_copy(&mut s, inbox, 1);
     let twin2 = local_copy(&mut s, inbox, 2);

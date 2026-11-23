@@ -50,7 +50,7 @@ fn a_message_fetched_whole_keeps_its_headers_in_the_servers_order() {
     let fetched = got.fetched.first().unwrap();
     // What the engine does with what comes.
     let mut m = mailcraft_mime_model::parse(&fetched.mime);
-    m.server = Some(ServerMessage { id, folder: inbox, ..Default::default() });
+    m.server = Some(ServerMessage { read_said: true, flag_said: true, id, folder: inbox, ..Default::default() });
     assert_eq!(path(&m.all_headers()), PATH);
     let account = Account { kind: AccountKind::Microsoft, email: "owner@example.org".into(), ..Default::default() };
     assert!(vouched(Some(&account), &m));

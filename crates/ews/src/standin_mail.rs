@@ -398,7 +398,7 @@ impl State {
         // (The read and draft state over `IdOnly` too, as asked: Kerio answers them there like
         // every named property — and an answer without the read state would be a lie of
         // unread, which is the very fault #1784's ids asking must not carry.)
-        if shape == "IdOnly" && wants("message:IsRead") {
+        if shape == "IdOnly" && wants("message:IsRead") && !self.omits_read_state {
             xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
         }
         if shape == "IdOnly" && wants("message:IsDraft") {

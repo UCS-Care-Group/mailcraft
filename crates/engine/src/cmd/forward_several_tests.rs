@@ -254,7 +254,7 @@ fn one_that_cant_go_whole_stops_them_all_and_is_named() {
     refused(
         &mut s,
         &|m| {
-            (m.unfetched, m.server) = (true, Some(ServerMessage { id: "AAMk1".into(), ..Default::default() }));
+            (m.unfetched, m.server) = (true, Some(ServerMessage { read_said: true, flag_said: true, id: "AAMk1".into(), ..Default::default() }));
             m.body = Body { text: "Moved to Thursday".into(), html: None };
         },
         "isn't downloaded yet",
@@ -351,7 +351,8 @@ fn over_64_mb_together_is_refused_before_any_is_read_in() {
     // What the server said of one not fetched yet counts, before it is fetched.
     assert!(super::compose::forward_check(&s, &[a, b], true).is_ok());
     let m = s.mailbox.message_mut(b).unwrap();
-    (m.unfetched, m.server) = (true, Some(ServerMessage { id: "AAMk2".into(), size: 40 << 20, ..Default::default() }));
+    (m.unfetched, m.server) =
+        (true, Some(ServerMessage { read_said: true, flag_said: true, id: "AAMk2".into(), size: 40 << 20, ..Default::default() }));
     m.attachments.clear();
     let e = super::compose::forward_check(&s, &[a, b], true).unwrap_err().to_string();
     assert!(e.contains("larger than 64 MB together"), "{e}");

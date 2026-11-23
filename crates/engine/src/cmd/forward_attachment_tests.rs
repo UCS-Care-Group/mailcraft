@@ -212,7 +212,7 @@ fn what_only_stands_in_for_a_message_is_never_attached() {
     refused(
         &mut s,
         &|m| {
-            (m.unfetched, m.server) = (true, Some(ServerMessage { id: "AAMk1".into(), ..Default::default() }));
+            (m.unfetched, m.server) = (true, Some(ServerMessage { read_said: true, flag_said: true, id: "AAMk1".into(), ..Default::default() }));
             m.attachments.clear();
             m.body = Body { text: "Hi both, Round three".into(), html: None };
         },

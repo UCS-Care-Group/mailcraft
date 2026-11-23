@@ -82,7 +82,7 @@ fn a_message_the_server_took_leaves_the_outbox_and_its_original_is_marked_answer
     let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
     let folders = vec![folder("M1", "Inbox", FolderKind::Inbox), folder("M2", "Sent", FolderKind::Sent)];
     let asked = GraphMessage {
-        server: ServerMessage { id: "E1".into(), size: 900, ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "E1".into(), size: 900, ..Default::default() },
         message_id: "e1@example.org".into(),
         subject: "Lunch?".into(),
         from: Address::new("Bo", "bo@example.org"),
@@ -178,7 +178,7 @@ fn a_copy_doesnt_go_into_a_jmap_accounts_outbox() {
     let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
     let folders = vec![folder("M1", "Inbox", FolderKind::Inbox), folder("M2", "Sent", FolderKind::Sent)];
     let received = GraphMessage {
-        server: ServerMessage { id: "E1".into(), size: 900, ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "E1".into(), size: 900, ..Default::default() },
         message_id: "e1@example.org".into(),
         subject: "Invoice".into(),
         from: Address::new("Bo", "bo@example.org"),

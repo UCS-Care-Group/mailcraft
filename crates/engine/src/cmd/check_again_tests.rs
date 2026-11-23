@@ -29,7 +29,16 @@ fn read_before(kind: AccountKind, bytes: &[u8]) -> (Session, Id) {
     match kind {
         AccountKind::Imap => m.uid = 7,
         AccountKind::Local => {}
-        _ => m.server = Some(ServerMessage { id: "AAkA1".into(), folder: "F".into(), size: bytes.len() as u64, ..Default::default() }),
+        _ => {
+            m.server = Some(ServerMessage {
+                read_said: true,
+                flag_said: true,
+                id: "AAkA1".into(),
+                folder: "F".into(),
+                size: bytes.len() as u64,
+                ..Default::default()
+            })
+        }
     }
     let id = mb.add_message(m).unwrap();
     let mut s = Session::new(mb);

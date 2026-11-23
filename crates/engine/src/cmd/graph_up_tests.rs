@@ -31,7 +31,14 @@ pub(crate) fn setup() -> (Session, Id, Id, Id) {
         s.mailbox.folder_mut(folder).unwrap().server = Some(ServerFolder { id: id.into(), name: kind.default_name().into(), ..Default::default() });
     }
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), categories: vec!["Red category".into()], ..Default::default() };
+    let server = ServerMessage {
+        read_said: true,
+        flag_said: true,
+        id: "M-1".into(),
+        folder: "F-in".into(),
+        categories: vec!["Red category".into()],
+        ..Default::default()
+    };
     let m = s
         .mailbox
         .add_message(Message {
@@ -209,7 +216,7 @@ fn a_message_whose_text_or_a_file_couldnt_be_read_keeps_its_server_copy_when_mov
 fn mail_moved_to_this_computer_past_a_requests_limit_isnt_read_back_for_it() {
     let (mut s, account, m, kept) = setup();
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let server = ServerMessage { id: "M-2".into(), folder: "F-in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "M-2".into(), folder: "F-in".into(), ..Default::default() };
     let other = s.mailbox.add_message(Message { folder: inbox, subject: "Plan".into(), server: Some(server), ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m, other], "folder": kept})).unwrap();
     s.note_saved();
@@ -427,7 +434,15 @@ fn a_refused_delete_for_good_is_put_back_at_once_with_all_that_was_fetched() {
     s.mailbox.message_mut(m).unwrap().body.text = "Kept".into();
     s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
     let mut there = GraphMessage { subject: "Invoice 42".into(), ..Default::default() };
-    there.server = ServerMessage { id: "M-1".into(), folder: "F-ar".into(), read: true, importance: Importance::High, ..Default::default() };
+    there.server = ServerMessage {
+        read_said: true,
+        flag_said: true,
+        id: "M-1".into(),
+        folder: "F-ar".into(),
+        read: true,
+        importance: Importance::High,
+        ..Default::default()
+    };
     let answer = delete_answered(&mut s, account, MessageOutcome::Refused { status: 400 }, Some(there.clone()));
     assert_eq!(answer["errors"], json!(["Couldn't permanently delete 'Invoice 42': the server says it can't make that change."]));
     let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
@@ -466,7 +481,7 @@ fn a_refused_delete_for_good_keeps_the_size_known_here() {
         s.mailbox.message_mut(m).unwrap().server.as_mut().unwrap().size = 4096;
         s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
         let mut there = GraphMessage { subject: "Invoice 42".into(), ..Default::default() };
-        there.server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), size: said, ..Default::default() };
+        there.server = ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), size: said, ..Default::default() };
         delete_answered(&mut s, account, MessageOutcome::Refused { status: 403 }, Some(there));
         let back = s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap();
         assert_eq!(back.server.as_ref().map(|s| s.size), Some(kept), "the server said {said}");
@@ -480,7 +495,7 @@ fn a_refused_delete_of_a_message_being_moved_out_puts_it_back_where_the_server_h
     assert!(s.mailbox.message(m).unwrap().moving_out.is_some());
     s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
     let mut there = GraphMessage { subject: "Invoice 42".into(), ..Default::default() };
-    there.server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
+    there.server = ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
     delete_answered(&mut s, account, MessageOutcome::Refused { status: 403 }, Some(there));
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let back = s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap();
@@ -507,7 +522,11 @@ fn categories_changed_on_both_sides_merge_when_the_servers_come_down_first() {
                 id: "M-1".into(),
                 folder: "F-in".into(),
                 categories: vec!["Green category".into()],
+                categories_said: true,
                 read: true,
+                read_said: true,
+                flag_said: true,
+                importance_said: true,
                 ..Default::default()
             },
             subject: "Invoice 42".into(),

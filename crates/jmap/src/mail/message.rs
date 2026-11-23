@@ -46,6 +46,9 @@ const FIELDS: [(&str, &str, usize, bool); 6] = [
 /// The marks an email has among its keywords (RFC 8621 §2.3).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct Marks {
+    /// Whether the server named any keywords at all: the five below are then its whole say of
+    /// the marks; without the wordlist the server said nothing (#1784).
+    pub keywords: bool,
     pub read: bool,
     pub flagged: bool,
     pub answered: bool,
@@ -62,6 +65,7 @@ impl Marks {
     pub fn of(keywords: Option<&Value>) -> Marks {
         let mut marks = Marks::default();
         let Some(map) = keywords.and_then(Value::as_object) else { return marks };
+        marks.keywords = true;
         for (name, on) in map {
             if *on != Value::Bool(true) {
                 continue;
@@ -106,9 +110,14 @@ fn server(id: &str, mailbox: &str, marks: Marks, size: u64) -> ServerMessage {
         id: id.to_string(),
         folder: mailbox.to_string(),
         read: marks.read,
+        // A JMAP email that names its keywords says them all: `$seen` away is the server saying
+        // unread (#1784 draws the line the other way: an answer that names no keywords at all
+        // says nothing, and nothing is applied).
+        read_said: marks.keywords,
         answered: marks.answered,
         forwarded: marks.forwarded,
         flag: if marks.flagged { FlagStatus::Flagged } else { FlagStatus::None },
+        flag_said: marks.keywords,
         size,
         ..Default::default()
     }

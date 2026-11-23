@@ -27,7 +27,7 @@ fn setup() -> (Session, Id, Id, Id) {
             Some(ServerFolder { id: format!("F-{n}"), name: kind.default_name().into(), ..Default::default() });
     }
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let server = ServerMessage { id: "M-1".into(), folder: "F-0".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-0".into(), ..Default::default() };
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "Invoice 42".into(), server: Some(server), ..Default::default() }).unwrap();
     let local = s.mailbox.add_account(Account { name: "On this computer".into(), ..Default::default() });
     let kept = s.mailbox.add_folder(local, None, "Kept").unwrap();

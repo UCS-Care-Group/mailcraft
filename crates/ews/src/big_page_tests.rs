@@ -423,3 +423,30 @@ fn a_stepped_down_run_asks_the_light_list_without_the_flag() {
     assert!(!ids_asks.is_empty(), "the folder did take up the light asking");
     assert!(ids_asks.iter().all(|a| !a.body.contains("item:Flag")), "no light page of a stepped-down run named the flag");
 }
+
+/// The parser must read a server's silence as silence: Kerio's light lists are asked for the
+/// read state and may simply not answer it — and an answer that doesn't carry it must never be
+/// handed up as "the server says unread". The messages come up `read_said: false`; whether they
+/// were read is left for the mailbox to hold, exactly as #1784's owner found it on the real
+/// server.
+#[test]
+fn a_light_page_that_stays_silent_about_the_read_state_reports_silence_not_unread() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.sends_mime_with_changes = 200_000;
+        s.omits_read_state = true;
+        for n in 0..200 {
+            s.deliver("inbox", &format!("Heavy {n:03}"), n % 2 == 0);
+        }
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let messages: Vec<_> = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| page.messages.iter()).collect();
+    assert_eq!(messages.len(), 200, "the folder still reads through the light asking");
+    assert!(
+        messages.iter().all(|m| !m.server.read_said),
+        "every page of this server says nothing about the read state, and says so: {:?}",
+        messages.iter().take(3).map(|m| (m.subject.clone(), m.server.read, m.server.read_said)).collect::<Vec<_>>()
+    );
+}

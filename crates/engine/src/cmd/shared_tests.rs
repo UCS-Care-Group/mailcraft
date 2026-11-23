@@ -41,7 +41,7 @@ fn page(account: Id, email: &str, ids: &[&str]) -> GraphMailResult {
     let messages = ids
         .iter()
         .map(|id| GraphMessage {
-            server: ServerMessage { id: (*id).into(), folder: "in".into(), ..Default::default() },
+            server: ServerMessage { read_said: true, flag_said: true, id: (*id).into(), folder: "in".into(), ..Default::default() },
             subject: format!("{email}: {id}"),
             ..Default::default()
         })
@@ -589,7 +589,14 @@ fn mail_in(account: Id, email: &str, folder: &str, ids: &[&str], subject: &str, 
         .iter()
         .enumerate()
         .map(|(i, id)| GraphMessage {
-            server: ServerMessage { id: (*id).into(), folder: folder.into(), read: i >= unread, ..Default::default() },
+            server: ServerMessage {
+                read_said: true,
+                flag_said: true,
+                id: (*id).into(),
+                folder: folder.into(),
+                read: i >= unread,
+                ..Default::default()
+            },
             subject: subject.into(),
             sent: 1_791_900_000 + i as i64,
             received: 1_791_900_000 + i as i64,

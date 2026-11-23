@@ -324,7 +324,8 @@ fn a_pending_draft_and_an_outbox_message_reopened_from_disk_go_up_with_their_rea
     let mut fresh = message(drafts, "Fresh");
     fresh.server_draft = Some(ServerDraft { marker: "mailcraft-draft-a".into(), pending: true, saves: 1, ..Default::default() });
     let mut retitled = message(drafts, "Before");
-    retitled.server = Some(mailcraft_model::sync::ServerMessage { id: "AAkA-retitled".into(), ..Default::default() });
+    retitled.server =
+        Some(mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA-retitled".into(), ..Default::default() });
     retitled.server_draft = Some(ServerDraft {
         marker: "mailcraft-draft-b".into(),
         synced: Some(DraftState::of(&retitled)),

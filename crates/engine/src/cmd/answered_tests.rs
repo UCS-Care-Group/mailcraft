@@ -166,7 +166,7 @@ fn graph() -> (Session, Id, Id) {
         folder: inbox,
         subject: "Plans".into(),
         from: Address::new("Bo", "bo@example.org"),
-        server: Some(ServerMessage { id: "AAk1".into(), folder: "in".into(), ..Default::default() }),
+        server: Some(ServerMessage { read_said: true, flag_said: true, id: "AAk1".into(), folder: "in".into(), ..Default::default() }),
         ..Default::default()
     };
     let id = s.mailbox.add_message(original).unwrap();

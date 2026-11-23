@@ -662,12 +662,19 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         id,
         folder: folder.to_string(),
         read: read.unwrap_or(false),
+        read_said: read.is_some(),
         // Graph says neither of the marks a JMAP server keeps as keywords.
         answered: false,
         forwarded: false,
         flag,
+        // Every message page of a Graph listing selects the flag, so a Graph message object
+        // without one is a server saying unflagged; the light listing of read states arrives as
+        // a change of that alone and carries no flag to misread.
+        flag_said: true,
         categories,
+        categories_said: value.get("categories").is_some(),
         importance,
+        importance_said: value.get("importance").is_some(),
         gone: false,
         size: size_of(value),
         flag_start: flag_date(value, "startDateTime"),

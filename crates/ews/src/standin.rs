@@ -237,6 +237,10 @@ pub struct State {
     /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
     /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
     pub omits_recipients: bool,
+    /// The server is asked for the read state and answers without it: what is asked is not
+    /// always what comes back (Kerio's light lists, #1784 — the real server's silence must read
+    /// as silence, not as unread).
+    pub omits_read_state: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
@@ -318,6 +322,7 @@ impl Default for State {
             takes_any_version: false,
             lists_no_recipients: false,
             omits_recipients: false,
+            omits_read_state: false,
             versions: Vec::new(),
             directory: Vec::new(),
         }

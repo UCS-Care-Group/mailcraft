@@ -255,7 +255,8 @@ fn mail_moves_between_two_microsoft_accounts_of_ones_own() {
     let other = microsoft(&mut s, "owner@outlook.example");
     let inbox = s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap();
     let theirs = s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
     let moved = s.mailbox.message(m).unwrap();
@@ -280,7 +281,8 @@ fn a_move_between_microsoft_mailboxes_undone_leaves_the_second_servers_stamps_be
         GraphMailResult { account: other, email: TEAM.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
     apply_graph_mail(&mut s, listing).unwrap();
     let (inbox, theirs) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap());
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
@@ -342,7 +344,10 @@ fn a_move_out_of_an_imap_account_whose_copy_is_there_already_is_kept_when_the_ma
     let two = titled(&s, "Two");
     s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
     placed(&mut s, ms, OWNER, &[made("AAkA2")]);
-    let archived = GraphMessage { server: ServerMessage { id: "AAkA2".into(), folder: "ar".into(), ..Default::default() }, ..Default::default() };
+    let archived = GraphMessage {
+        server: ServerMessage { read_said: true, flag_said: true, id: "AAkA2".into(), folder: "ar".into(), ..Default::default() },
+        ..Default::default()
+    };
     let page = MessagePage { folder: "ar".into(), messages: vec![archived], ..Default::default() };
     apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], ..Default::default() }).unwrap();
     assert_eq!(s.mailbox.message(two).unwrap().folder, s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap());
@@ -481,7 +486,10 @@ fn a_refused_move_out_of_microsoft_goes_back_only_where_the_original_still_is() 
     assert_eq!(graph_mail_request(&s, ms).unwrap().places.iter().map(|p| p.message).collect::<Vec<_>>(), [two]);
     // Moved into the Archive in Outlook meanwhile (its folders read in either order): back there.
     let archived = || {
-        let there = GraphMessage { server: ServerMessage { id: "AAkA2".into(), folder: "ar".into(), ..Default::default() }, ..Default::default() };
+        let there = GraphMessage {
+            server: ServerMessage { read_said: true, flag_said: true, id: "AAkA2".into(), folder: "ar".into(), ..Default::default() },
+            ..Default::default()
+        };
         MessagePage { folder: "ar".into(), messages: vec![there], ..Default::default() }
     };
     for pages in [vec![removed(), archived()], vec![archived(), removed()]] {
@@ -996,7 +1004,8 @@ fn moved_on_from_a_copy_made_in_another_microsoft_account_that_copy_goes_only_on
     let mine = microsoft(&mut s, OWNER);
     let other = microsoft(&mut s, "owner@outlook.example");
     let (inbox, theirs) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap());
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
@@ -1020,7 +1029,13 @@ fn moved_on_from_a_copy_made_in_another_microsoft_account_that_copy_goes_only_on
         .add_message(Message {
             folder: inbox,
             subject: "Again".into(),
-            server: Some(mailcraft_model::sync::ServerMessage { id: "AAkA8".into(), folder: "in".into(), ..Default::default() }),
+            server: Some(mailcraft_model::sync::ServerMessage {
+                read_said: true,
+                flag_said: true,
+                id: "AAkA8".into(),
+                folder: "in".into(),
+                ..Default::default()
+            }),
             body: Body { text: "Again.".into(), html: None },
             ..Default::default()
         })
@@ -1057,7 +1072,8 @@ fn moved_back_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here
     let (mut s, _, kept) = imap();
     let ms = microsoft(&mut s, OWNER);
     let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let m = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
@@ -1101,7 +1117,8 @@ fn undone_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here() {
     let (mut s, _, kept) = imap();
     let ms = microsoft(&mut s, OWNER);
     let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let m = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
@@ -1179,7 +1196,8 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
     // refused.
     let (theirs, own) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap());
     s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let receipt =
         s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
@@ -1300,7 +1318,7 @@ fn a_move_into_an_outbox_undone_leaves_it_no_longer_held() {
     let (mut s, a, _) = imap();
     let ms = microsoft(&mut s, OWNER);
     let (outbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap());
-    let server = ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "R1".into(), folder: "in".into(), ..Default::default() };
     let rota = Message { folder: theirs, subject: "Rota".into(), server: Some(server), ..Default::default() };
     let rota = s.mailbox.add_message(rota).unwrap();
     s.run("mail.move", &json!({"ids": [rota], "folder": outbox})).unwrap();
@@ -1572,7 +1590,8 @@ fn a_folder_deleted_for_good_with_mail_moved_into_it_takes_its_original_along() 
         GraphMailResult { account: ms, email: OWNER.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
     apply_graph_mail(&mut s, listing).unwrap();
     let (inbox, projects) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_by_server(ms, "pr").unwrap());
-    let on_server = |id: &str, folder: &str| Some(ServerMessage { id: id.into(), folder: folder.into(), ..Default::default() });
+    let on_server =
+        |id: &str, folder: &str| Some(ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: folder.into(), ..Default::default() });
     let receipt =
         s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: on_server("AAkA7", "in"), ..Default::default() }).unwrap();
     s.mailbox.add_message(Message { folder: projects, subject: "Notes".into(), server: on_server("AAkA8", "pr"), ..Default::default() }).unwrap();
@@ -1611,7 +1630,7 @@ fn moving_many_at_once_does_what_moving_each_in_turn_does() {
     s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
     let here = kept_here(&mut s, kept, "From here");
     s.run("mail.move", &json!({"ids": [here], "folder": theirs})).unwrap();
-    let server = ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let out = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [out], "folder": kept})).unwrap();
@@ -1648,7 +1667,8 @@ fn what_is_moving_out_of_a_server_is_found_at_once_as_it_is_for_each_message() {
     // Out of a Microsoft account onto this computer.
     let ms = microsoft(&mut s, OWNER);
     let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
-    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let server =
+        mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
     let body = Body { text: "All of it.".into(), html: None };
     let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
@@ -1828,7 +1848,7 @@ fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
     let rule = json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
     s.run("rules.add", &rule).unwrap();
     let there = GraphMessage {
-        server: ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "R1".into(), folder: "in".into(), ..Default::default() },
         from: Address::new("", "boss@example.org"),
         subject: "Rota".into(),
         message_id: "rota@example.org".into(),
