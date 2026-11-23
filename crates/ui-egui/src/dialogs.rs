@@ -2378,18 +2378,18 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                             ui.painter().rect_filled(r, 4.0, t.hover);
                         }
                         let ink = if *enabled { t.text } else { t.text_disabled };
-                        let w = crate::theme::paint_clipped(
+                        crate::theme::paint_clipped(
                             ui.painter(),
                             egui::pos2(r.min.x + 10.0, r.center().y),
-                            r.width() * 0.5,
+                            r.width() * 0.42,
                             label,
                             regular(13.0),
                             ink,
                         );
                         crate::theme::paint_clipped(
                             ui.painter(),
-                            egui::pos2(r.min.x + 22.0 + w, r.center().y),
-                            (r.width() * 0.45 - w).max(60.0),
+                            egui::pos2(r.min.x + r.width() * 0.46, r.center().y),
+                            (r.width() * 0.54 - 110.0).max(60.0),
                             location,
                             regular(11.0),
                             t.text_dim,
@@ -3011,7 +3011,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             };
             let open = window(ctx, tl!("About MailCraft"), width, |ui| {
                 ui.horizontal(|ui| {
-                    for (which, label) in [(AboutTab::About, "About"), (AboutTab::Contributors, "Contributors"), (AboutTab::Testers, "Testers")] {
+                    for (which, label) in [
+                        (AboutTab::About, tl_later!("About")),
+                        (AboutTab::Contributors, tl_later!("Contributors")),
+                        (AboutTab::Testers, tl_later!("Testers")),
+                    ] {
                         if ui.selectable_label(*tab == which, tl!(label)).clicked() {
                             *tab = which;
                         }
