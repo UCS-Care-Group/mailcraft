@@ -106,6 +106,7 @@ class AttachmentRoutingTest {
     fun macrosAndScriptsAskFirst() {
         assertTrue(asksFirst(OpenVerdict.MACROS))
         assertTrue(asksFirst(OpenVerdict.SCRIPTS))
+        assertTrue(asksFirst(OpenVerdict.ACTIVE))
         assertFalse(asksFirst(OpenVerdict.OPEN))
         assertFalse(asksFirst(OpenVerdict.BLOCKED))
         // They can still be opened: after the question.
@@ -113,6 +114,8 @@ class AttachmentRoutingTest {
         // And they are not shared from the message: that would hand them on without the question.
         assertFalse(AttachmentAction.Share in actionsOf(item("budget.xlsm", OpenVerdict.MACROS)))
         assertFalse(AttachmentAction.Share in actionsOf(item("page.html", OpenVerdict.SCRIPTS)))
+        assertTrue(AttachmentAction.Open in actionsOf(item("notes.md", OpenVerdict.ACTIVE)))
+        assertFalse(AttachmentAction.Share in actionsOf(item("notes.md", OpenVerdict.ACTIVE)))
     }
 
     @Test

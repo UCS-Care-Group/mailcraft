@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZE_PX};
-pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
@@ -57,9 +57,9 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
+pub use quote::{WrittenPicture, quotable, quotable_in, quotable_with_pictures};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
-pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
+pub use text::{blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
 /// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
@@ -376,6 +376,11 @@ pub struct Block {
     /// container, nor where a line break or a block of its own came in between.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub beside: bool,
+    /// The block is part of a list item: the item itself, or a further paragraph, heading,
+    /// preformatted text, picture or table inside one, and the blocks of that table's cells. What
+    /// it looks like is its `kind`; a paste into the composer reads all of it as the item's.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_item: bool,
     /// Room above the block in pixels, from a margin of the block or the one above (the larger of
     /// the two), at most [`MAX_BOX_PX`]. When it is set it is the gap, instead of `space`'s.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
@@ -418,6 +423,7 @@ impl Block {
             rtl: false,
             space: 0,
             beside: false,
+            in_item: false,
             gap: 0,
             line_height: None,
             inset: [0, 0],
@@ -437,6 +443,9 @@ impl Block {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Table {
     pub rows: Vec<Row>,
+    /// The composer requested that empty rows and columns be preserved.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compose_grid: bool,
     /// The widest row, in columns (at most [`MAX_TABLE_COLUMNS`]).
     pub columns: u16,
     pub layout: bool,

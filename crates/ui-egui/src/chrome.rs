@@ -470,7 +470,11 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         let counts = app.session.folder_counts();
                         let unread = match mailcraft_engine::gmail::in_view(&app.session) {
                             Some(category) => counts.gmail(folder, category).unread,
-                            None => counts.unread(folder),
+                            // (Every account's folder of a kind, #625: all of theirs.)
+                            None => match mailcraft_engine::unified::in_view(&app.session) {
+                                Some(folders) => folders.iter().map(|f| counts.unread(*f)).sum(),
+                                None => counts.unread(folder),
+                            },
                         };
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
@@ -516,9 +520,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if app.session.view.module == Module::Mail {
                         let pane = app.session.view.reading_pane;
                         for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, "Reading pane off"),
-                            ("previewLines", "bottom", pane == Pane::Bottom, "Reading pane at the bottom"),
-                            ("readingPane", "right", pane == Pane::Right, "Reading pane on the right"),
+                            ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
+                            ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
+                            ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
                         ] {
                             let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
                             if on {

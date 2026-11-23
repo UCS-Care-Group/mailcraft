@@ -1,1 +1,0 @@
-- Android: reminders for meetings and tasks come at their time even when the app is closed, with Dismiss and Snooze, and nothing of them shows on a locked screen that hides private content.

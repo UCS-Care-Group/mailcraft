@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-20 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -63,6 +63,10 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
+- **New interface texts are translated in every catalogue, marked `#, fuzzy`** (a draft; a
+  best-effort translation is fine), after `cargo xtask i18n`
+  ([`docs/translating.md`](docs/translating.md#new-texts-in-a-pull-request)). Left empty, they
+  don't block a review.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Security fixes: a fix for a security finding comes with a test that covers every site of its
   root cause**, not only the one that was reported: a table over every command, reader or writer
@@ -97,7 +101,8 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **The whole suite** runs on every system when the pull request changes what every package is
   built from (`Cargo.lock`, the root `Cargo.toml`, the toolchain, `.cargo/`, `.config/`, `xtask/`,
   `.github/workflows/`, `.github/scripts/`) or a file outside every package, on every push to
-  `main`, in the merge queue, and on a run by hand.
+  `main`, and on a run by hand. The merge queue runs the whole suite on Linux alone: macOS's
+  runners are scarce, and the push to `main` after the merge runs every system.
 - **Label a pull request `full-ci`** to run the whole suite on it: adding the label starts the run.
 - **On a schedule:** coverage (nightly and on `main`, no longer on pull requests), FreeBSD and
   Windows on Arm (nightly), fuzzing of every reader (weekly, and on a pull request that changes
@@ -146,6 +151,10 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-20 | minor | New interface texts in a pull request are translated in every catalogue and marked `#, fuzzy`; left empty, they don't block a review |
+| 2026-11-17 | patch | The merge queue runs the whole suite on Linux alone; the push to `main` runs every system |
+| 2026-11-16 | minor | Continuous integration: the tiers, the cheap checks first in `quick`, a pull request's tests chosen from the packages it changes, and the `full-ci` label that runs the whole suite |
+| 2026-11-15 | patch | `cargo xtask ci` lists all its steps (i18n --check, release-notes, docs-log) |
 | 2026-11-14 | patch | `cargo xtask ci` names its wasm-clock step: no std clock or sleep in code the browser runs (#1337) |
 | 2026-11-12 | minor | An open pull request holds its feature while its author answers a review within 7 days; after that the feature is free to be built afresh |
 | 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |

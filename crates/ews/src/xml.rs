@@ -52,7 +52,7 @@ pub const MAX_SYNC_STATE: usize = 1024 * 1024;
 /// references are resolved, like any text): a user configuration's entry, among them the HTML
 /// signature of Outlook on the web. That reader holds it to a smaller size of its own
 /// ([`mailcraft_model::sync::MAX_SIGNATURE_HTML`]), so a signature somewhat past that is still
-/// read whole and refused by it; a text past this one is empty and [`Node::cut`].
+/// read whole and refused by it; a text past this one is empty and [`Node::text_cut`].
 pub const MAX_DICTIONARY_TEXT: usize = 96 * 1024;
 /// What an element costs besides its name, attributes and text: the size of a node and the
 /// allocator's share of the block that holds it in its parent's `children`. (The vectors of a
@@ -98,9 +98,9 @@ pub struct Node {
     /// The text directly inside it; empty when there is none, or it is longer than is kept, or
     /// it holds a reference to who knows what.
     pub text: String,
-    /// Its text was longer than is kept, and so is empty: for a reader to whom that is not the
-    /// same as no text.
-    pub cut: bool,
+    /// Its text was left out for being longer than is kept, or for a reference in it: `text` is
+    /// empty then, and a reader that must not take that for an empty value can tell (#566).
+    pub text_cut: bool,
     /// The elements inside it.
     pub children: Vec<Node>,
 }
@@ -281,6 +281,7 @@ impl Walk {
         let Some(mut done) = self.stack.pop() else { return Err(Malformed) };
         if done.spoiled {
             done.node.text.clear();
+            done.node.text_cut = true;
         }
         // (The room a vector grew by is not kept: a node is what it holds.)
         done.node.children.shrink_to_fit();
@@ -306,7 +307,6 @@ impl Walk {
         };
         if open.node.text.len().saturating_add(text.len()) > cap {
             open.spoiled = true;
-            open.node.cut = true;
         } else if !open.spoiled {
             let before = heap(open.node.text.len());
             open.node.text.push_str(&text);

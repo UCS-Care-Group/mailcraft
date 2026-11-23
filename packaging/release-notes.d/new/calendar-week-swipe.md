@@ -1,1 +1,0 @@
-- Android: the Calendar tab has a Week view, and a swipe left or right turns to the next or previous day, week or month.

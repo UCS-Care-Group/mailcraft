@@ -3,6 +3,7 @@
 //! Signatures through commands (R4.5.1): rich text, pictures, the two defaults, and mailboxes
 //! from before there were any of these.
 
+use mailcraft_model::rich::Align;
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -109,9 +110,16 @@ fn colour_and_font_are_formats_of_the_message() {
     run(&mut s, "format.font", json!({"value": "georgia", "from": 0, "to": 5}));
     let body = &s.compose.as_ref().unwrap().body;
     let style = body.text().style_at(3);
-    assert_eq!((style.color.as_deref(), style.font.map(|f| f.label())), (Some("#cc0000"), Some("Georgia")));
+    assert_eq!((style.color.as_deref(), style.font.as_ref().map(|f| f.label().to_string())), (Some("#cc0000"), Some("Georgia".to_string())));
     assert!(s.run("format.color", &json!({"value": "red"})).is_err());
-    assert!(s.run("format.font", &json!({"value": "Comic Sans"})).is_err());
+    // Any family can be asked for (#1493): the engine neither has the fonts of this computer nor
+    // guesses at them. What isn't a name at all is refused, and the message is left as it was.
+    run(&mut s, "format.font", json!({"value": "Comic Sans", "from": 0, "to": 5}));
+    assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).font.as_ref().map(|f| f.label()), Some("comic sans"));
+    assert!(s.run("format.font", &json!({"value": "!!!"})).is_err());
+    assert!(s.run("format.font", &json!({"value": ""})).is_err());
+    assert!(s.run("format.font", &json!({"value": "z".repeat(5000)})).is_err());
+    assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).font.as_ref().map(|f| f.label()), Some("comic sans"));
     run(&mut s, "format.color", json!({"value": null, "from": 0, "to": 5}));
     assert_eq!(s.compose.as_ref().unwrap().body.text().style_at(3).color, None);
 }
@@ -155,6 +163,36 @@ fn a_signature_with_a_logo_goes_out_with_the_picture_inside_the_message() {
     let back = mailcraft_mime_model::parse(&bytes);
     let read = back.attachments.iter().find(|a| a.content_id == pic.content_id).expect("the picture reads back");
     assert_eq!(read.data, pic.data);
+}
+
+#[test]
+fn alignment_in_the_open_signature_is_saved_and_goes_out_inside_the_table_and_above_the_picture() {
+    let mut s = session();
+    logo(&mut s);
+    run(&mut s, "signature.open", json!({"name": "Logo"}));
+    // The line the logo stands in centred, the next one right.
+    run(&mut s, "format.align", json!({"value": "center", "from": 0}));
+    run(&mut s, "format.align", json!({"value": "right", "from": 13}));
+    run(&mut s, "signature.save", json!({}));
+    run(&mut s, "signature.close", json!({}));
+    let aligns: Vec<Align> = s.mailbox.signature("Logo").unwrap().body().paragraphs().iter().map(|p| p.align).collect();
+    assert_eq!(aligns, [Align::Center, Align::Right]);
+    let sent = |s: &mut Session| {
+        run(s, "mail.new", json!({"to": "maya@lumen.example", "body": "Hello"}));
+        run(s, "compose.formatHtml", json!({}));
+        let id = run(s, "compose.send", json!({}))["id"].as_u64().unwrap();
+        s.mailbox.message(id).unwrap().body.html.clone().unwrap()
+    };
+    // Beside the picture, its lines are aligned inside the text's cell.
+    let html = sent(&mut s);
+    assert!(
+        html.contains("<td style=\"vertical-align:top\">\r\n<div style=\"text-align:center\">Avery Quinn</div>\r\n<div style=\"text-align:right\">Lumen Studio</div>"),
+        "{html}"
+    );
+    // Above the text, the picture is centred as the line it stood in was.
+    run(&mut s, "signature.layout", json!({"name": "Logo", "value": "pictureAbove"}));
+    let html = sent(&mut s);
+    assert!(html.contains("<div style=\"text-align:center\"><img src=\"cid:sig-"), "{html}");
 }
 
 #[test]
@@ -287,7 +325,7 @@ fn a_signature_pasted_from_outlook_on_the_web_keeps_its_formatting() {
     assert_eq!(text.to_plain(), "Avery Quinn\nLumen Studio\nlumen.example <https://lumen.example/>");
     let runs: Vec<_> = text.paragraphs().iter().flat_map(|p| p.runs.clone()).collect();
     let name = runs.iter().find(|r| r.text == "Avery Quinn").unwrap();
-    assert!(name.style.bold && name.style.font == Some(mailcraft_model::rich::Font::Calibri) && name.style.size == Some(12), "{name:?}");
+    assert!(name.style.bold && name.style.font == Some(mailcraft_model::rich::Built::Calibri.font()) && name.style.size == Some(12), "{name:?}");
     let org = runs.iter().find(|r| r.text == "Lumen Studio").unwrap();
     assert_eq!(org.style.color.as_deref(), Some("#1f4e79"));
     assert!(runs.iter().any(|r| r.style.link.as_deref() == Some("https://lumen.example/")));
@@ -538,6 +576,6 @@ fn a_signature_in_the_fixed_width_font_is_kept_in_it() {
     run(&mut s, "signature.save", json!({}));
     let json = serde_json::to_string(&s.mailbox).unwrap();
     let back: mailcraft_model::Mailbox = serde_json::from_str(&json).unwrap();
-    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font;
-    assert_eq!(first.map(|f| f.label()), Some("Courier New"));
+    let first = back.signature("Standard").unwrap().body().paragraphs().first().unwrap().runs.first().unwrap().style.font.clone();
+    assert_eq!(first.as_ref().map(|f| f.label()), Some("Courier New"));
 }

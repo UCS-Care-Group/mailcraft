@@ -28,8 +28,14 @@ pub mod categories_remote;
 mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
+mod category_sweep_tests;
+#[cfg(test)]
 mod category_tests;
+#[cfg(test)]
+mod clock_choice_tests;
 pub mod compose;
+#[cfg(test)]
+mod compose_send_counts_tests;
 #[cfg(test)]
 mod compose_trust_tests;
 #[cfg(test)]
@@ -49,6 +55,8 @@ pub mod ews_mail;
 mod ews_signature;
 mod ews_up;
 #[cfg(test)]
+mod failing_messages_tests;
+#[cfg(test)]
 mod favorites_tests;
 pub mod file;
 pub mod folder;
@@ -58,6 +66,8 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_new_tests;
+#[cfg(test)]
+mod folder_order_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
@@ -86,6 +96,8 @@ pub mod graph_switch;
 pub mod graph_up;
 pub mod help;
 #[cfg(test)]
+mod hidden_quote_tests;
+#[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
 #[cfg(test)]
@@ -93,6 +105,9 @@ mod imap_outbox_tests;
 pub mod imported_dupes;
 #[cfg(test)]
 mod imported_dupes_tests;
+pub mod item_from_message;
+#[cfg(test)]
+mod item_from_message_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
@@ -134,6 +149,9 @@ mod protected_moves_tests;
 mod quote_tests;
 #[cfg(test)]
 mod range_select_tests;
+pub mod react;
+#[cfg(test)]
+mod react_tests;
 #[cfg(test)]
 mod read_receipt_tests;
 #[cfg(test)]
@@ -146,9 +164,15 @@ mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+#[cfg(test)]
+mod rules_holds_tests;
+#[cfg(test)]
+mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
+#[cfg(test)]
+mod rules_waiting_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
@@ -156,6 +180,9 @@ pub mod search_server;
 mod search_suggest_tests;
 pub mod send_later;
 pub mod send_receive;
+pub mod senders;
+#[cfg(test)]
+mod senders_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]
@@ -226,6 +253,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(imported_dupes::specs());
     v.extend(tasks::specs());
+    v.extend(item_from_message::specs());
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
@@ -240,7 +268,9 @@ pub fn registry() -> Registry {
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());
     v.extend(send_later::specs());
+    v.extend(react::specs());
     v.extend(signature::specs());
+    v.extend(senders::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
     v.extend(ews_mail::specs());

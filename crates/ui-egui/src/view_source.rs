@@ -35,7 +35,7 @@ impl MailApp {
     /// After the owner ran View Source: its window, with what it answered.
     pub(crate) fn show_source(&mut self, answer: &Value) {
         if let Some(source) = Source::from_answer(answer) {
-            self.dialog = Some(crate::dialogs::Dialog::ViewSource(Box::new(source)));
+            self.set_dialog(Some(crate::dialogs::Dialog::ViewSource(Box::new(source))));
         }
     }
 }

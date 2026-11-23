@@ -55,7 +55,18 @@ pub struct FolderState {
     /// too old, so that every folder is read in full now and then.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<crate::ImapStatus>,
+    /// Messages of the folder that failed to download, by UID, and how many runs they failed
+    /// (#1581). Tried again until [`MAX_TRIES`], then left out until the owner asks for them
+    /// again (`sync.retryFailed`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub failing: std::collections::BTreeMap<u32, u8>,
 }
+
+/// How many runs a message that fails to download is tried in before it is left out (#1581).
+pub const MAX_TRIES: u8 = 3;
+
+/// Most failing messages kept for one folder (#1581): a result can say anything.
+pub const MAX_FAILING: usize = 1000;
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
 /// ([`FolderState::remote`]), messages by their UID there.
@@ -242,6 +253,19 @@ pub struct Tokens {
     /// identity token says it, and it tells an organisation's account from a personal one
     /// ([`crate::Directory::of_tenant`]). An identifier, not a secret; kept in memory like the rest.
     pub tenant: String,
+    /// Set by the one page for an older sign-in when it came back without the shared mailboxes'
+    /// and calendars' permissions (the account can't have them, so the page was asked again
+    /// without them): the tokens are good for everything else, and nobody may take them for
+    /// allowed to read or send from a shared mailbox.
+    pub shared_not_given: bool,
+    /// Set by the one page for an older sign-in when the provider had no To Do lists or mailbox
+    /// settings to give (the page was asked again for the shared mailboxes' permissions alone):
+    /// the tokens are good for the rest, and nobody may take them for allowed to keep the tasks,
+    /// rules, automatic replies and categories in step.
+    pub sync_not_given: bool,
+    /// The `scope` the token endpoint's answer states (RFC 6749 §5.1), empty when it said none:
+    /// the answer then matches what was asked. Names of permissions, not secrets.
+    pub granted_scope: String,
 }
 
 /// How long before an access token runs out it is renewed rather than used (seconds).
@@ -607,6 +631,15 @@ pub struct FolderDelta {
     /// after, so many times.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub refetch_refused: Vec<u32>,
+    /// UIDs of messages that failed to download in this run (#1581): the mailbox counts the run
+    /// against each ([`FolderState::failing`]); one that downloads is not named.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<u32>,
+    /// UIDs of [`FolderState::failing`] the server no longer lists, or that the limit on how many
+    /// messages to have here leaves out now: no longer counted (#1581). (Not `removed`: nothing of
+    /// theirs is here to take out, and a change waiting for one of them must stay.)
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub failing_gone: Vec<u32>,
     /// For a Gmail account's Inbox: which of Gmail's categories each message of it is in, as
     /// Gmail's searches said this run (#911), and Gmail's id of it. Said once, with the piece that
     /// ends the folder's reading; empty from every other server and folder.
@@ -952,6 +985,8 @@ impl SyncResult {
                         refetch_done,
                         refetch_too_large,
                         refetch_refused,
+                        failed,
+                        failing_gone,
                         gmail,
                         gmail_labels,
                     } = delta;
@@ -968,6 +1003,8 @@ impl SyncResult {
                     folder.refetch_done.extend(refetch_done);
                     folder.refetch_too_large.extend(refetch_too_large);
                     folder.refetch_refused.extend(refetch_refused);
+                    folder.failed.extend(failed);
+                    folder.failing_gone.extend(failing_gone);
                     folder.gmail.extend(gmail);
                     folder.gmail_labels.extend(gmail_labels);
                     folder.complete |= complete;
@@ -1188,6 +1225,11 @@ pub struct GraphMailRequest {
     /// with the same filter. `None`, a computer's: everything.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub since: Option<Timestamp>,
+    /// A category renamed here, for the mail on the server that isn't kept here (#851): after the
+    /// rest of the run, the server is asked for the messages that carry the old name and each is
+    /// given the new one ([`crate::Mailbox::mail_rename`]). Never for a shared mailbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rename: Option<crate::remote::CategoryRename>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1369,6 +1411,15 @@ pub struct GraphMessage {
     /// here (#611).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<bool>,
+    /// Some of its recipients (To, Cc) were left out as it was listed, past what is kept of one or
+    /// as an address that can't be kept, or the end of its subject: a rule can't tell from it what
+    /// they said until it is fetched ([`crate::Message::headers_cut`], #566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut: bool,
+    /// Some of its categories were left out as it was listed, past what is kept of one: a rule
+    /// can't tell from it what they said, fetched or not ([`crate::Message::categories_cut`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so
@@ -1567,10 +1618,31 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// The last piece of the Inbox pass: the pass is a download of its own for what the account
+    /// had before its new mail (#566), so that the next check of the Inbox, or the run after it,
+    /// starts from what the account has then. (A check that gave way to a run the owner asked for
+    /// never brings it: the window then ends the check by itself.)
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_pass_end: bool,
     /// What the server said of the conversations of the messages the run asked about
     /// ([`GraphMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<ThreadOf>,
+    /// What the server made of the run's rename of a category ([`GraphMailRequest::rename`], #851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renamed: Option<crate::remote::CategoryRenamed>,
+    /// How far the rename has got, on a piece of a run: how many of the messages found with the
+    /// old name were answered for, of how many this run found (#851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renaming: Option<RenameProgress>,
+}
+
+/// How far a run's rename of a category has got ([`GraphMailResult::renaming`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RenameProgress {
+    pub done: u32,
+    pub total: u32,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1610,10 +1682,14 @@ impl GraphMailResult {
             self.listing = piece.listing;
         }
         self.threads.extend(piece.threads);
+        if piece.renamed.is_some() {
+            self.renamed = piece.renamed;
+        }
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
+        self.inbox_pass_end = piece.inbox_pass_end;
         self.refused = piece.refused.or(self.refused);
         self.timings.absorb(&piece.timings);
         if piece.progress.is_some() {

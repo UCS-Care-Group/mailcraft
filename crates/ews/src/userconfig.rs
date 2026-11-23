@@ -74,14 +74,15 @@ const MAX_ENTRIES: usize = 2_000;
 /// The four entries of the dictionary, when any is a signature.
 fn signature_of(dictionary: &Node) -> Option<EwsSignature> {
     let mut found = EwsSignature::default();
-    // A text past what the XML reader keeps of a value reads as empty: then that one is past the sizes.
+    // A text the XML reader left out of a value (past its size, or with a reference in it) reads as
+    // empty: then that one is no signature to take.
     let mut cut = false;
     for entry in dictionary.children.iter().filter(|c| c.is(TYPES, "DictionaryEntry")).take(MAX_ENTRIES) {
         let (Some(key), Some(value)) = (entry.child_in(TYPES, "DictionaryKey"), entry.child_in(TYPES, "DictionaryValue")) else { continue };
         let kind = value.text_of("Type");
         let inner = value.child_in(TYPES, "Value");
         let text = inner.map_or("", |v| v.text.as_str());
-        let words = inner.is_some_and(|v| v.cut);
+        let words = inner.is_some_and(|v| v.text_cut);
         match (key.text_of("Value").to_ascii_lowercase().as_str(), kind) {
             ("signaturehtml", "String") => (found.html, cut) = (text.to_owned(), cut || words),
             ("signaturetext", "String") => (found.text, cut) = (text.to_owned(), cut || words),
