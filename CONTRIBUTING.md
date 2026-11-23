@@ -10,7 +10,7 @@ much as the work.
 1. **Read [AGENTS.md](AGENTS.md).** It is for people as much as for agents: never crash, mail is
    private and hostile, no vendor assets, clean room. None of it is negotiable.
 2. **Read the plan.** Work to beta follows the roadmap reset, tracked in
-   [#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Work that goes against an accepted
+   [#2](https://github.com/UCSLabs/mailcraft/issues/2). Work that goes against an accepted
    decision won't be merged, however good it is; propose a change to the decision first.
 3. **Claim an issue by commenting on it.** Comment "I'm taking this" on an open issue that nobody
    has claimed in its comments, and start: you don't wait for anyone to assign it to you (a maintainer may add the `claimed`
@@ -27,7 +27,7 @@ much as the work.
    never from that pull request's code. The pull request can still be updated and merged if nobody
    has built the feature meanwhile.
 5. **Found a bug and have the fix? Send both at once.** Open the
-   [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
+   [problem report](https://github.com/UCSLabs/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
    claim and no wait. A report without a fix is just as welcome. If the fix needs one of the
    [owners' decisions](#decisions-that-are-the-owners-not-a-contributors) below, ask in the issue
@@ -114,7 +114,7 @@ label.
 
 ## A first contribution
 
-Issues labelled [`good first issue`](https://github.com/UCS-Care-Group/mailcraft/labels/good%20first%20issue)
+Issues labelled [`good first issue`](https://github.com/UCSLabs/mailcraft/labels/good%20first%20issue)
 are small and self-contained, with the files to look at named in the issue. Comment on one to
 claim it.
 
@@ -137,9 +137,9 @@ Ask in an issue first, and don't put any of these into a pull request until the 
 ## Testing MailCraft
 
 Want to use it rather than build it? Sign up with the
-[tester form](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=tester-signup.yml).
+[tester form](https://github.com/UCSLabs/mailcraft/issues/new?template=tester-signup.yml).
 Found something wrong? Use the
-[problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml).
+[problem report](https://github.com/UCSLabs/mailcraft/issues/new?template=problem.yml).
 
 A build from this repository sends Help › Report a Problem › Send report to the project's real
 report relay (`MAILCRAFT_REPORT_URL` in `.cargo/config.toml`), where every report becomes an
