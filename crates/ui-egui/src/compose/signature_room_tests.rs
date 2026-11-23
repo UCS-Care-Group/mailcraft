@@ -86,6 +86,30 @@ fn a_reply_under_an_html_signature_shown_as_designed_keeps_its_room() {
     assert!(rect(&h, "composeBody").height() >= ROOM, "{:?}", rect(&h, "composeBody"));
 }
 
+/// An HTML signature edited as its simpler copy: the copy is laid out in the text, as any
+/// signature in it is, and only the way back to the HTML is drawn under it; the original follows
+/// that, with no room kept under the copy.
+#[test]
+fn a_reply_under_the_simpler_copy_of_an_html_signature_ends_with_it() {
+    let mut a = app();
+    a.execute("signature.html", json!({"name": "Standard", "html": "<p><b style=\"color:#1F6FEB\">Avery Quinn</b><br>Lumen Studio</p>"})).unwrap();
+    a.execute("signature.defaults", json!({"reply": "Standard"})).unwrap();
+    let id = html_original(&a);
+    a.execute("mail.reply", json!({"id": id})).unwrap();
+    a.execute("compose.signatureAsText", json!({"value": true})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    assert!(super::editor::html_signature(h.state()).is_none(), "the HTML is not drawn");
+    assert!(super::editor::unedited_html_signature(h.state()).is_some(), "the copy is unedited");
+    assert!(h.state().hit.rect("composeSignature", 0).is_none());
+    let body = rect(&h, "composeBody");
+    let back = rect(&h, "composeSignatureAsHtml");
+    let quote = rect(&h, "composeQuote");
+    assert!(body.height() < ROOM, "the copy ends the text, with no room under it: {body:?}");
+    assert!(back.min.y >= body.max.y - 1.0 && quote.min.y >= back.max.y, "the link, then the original, under the text: {body:?} {back:?} {quote:?}");
+    assert!(quote.min.y - back.max.y <= LINE, "the original follows the link: {back:?} {quote:?}");
+}
+
 #[test]
 fn a_new_message_still_fills_the_window() {
     let mut a = app();
