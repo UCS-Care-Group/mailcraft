@@ -10,9 +10,12 @@
 //!    (`mail.MUST_RESYNC`), a token is asked for first and then every folder is read from its start,
 //!    newest first, the Inbox first: each page of a folder is a piece, the first of them marked as
 //!    the start of a fresh read and the last as its end.
-//! 4. **The last piece** carries the token to go on from, only when everything the run meant to
-//!    read was read: a run cut short leaves the mailbox at the token it had, and the next run reads
-//!    again what this one didn't finish.
+//! 4. **The last piece** carries the token to go on from. A run that failed or was called off
+//!    carries none: the mailbox stays at the token it had, and the next run reads again what this
+//!    one didn't finish. A run that only reached one of its caps (more pages of changes, or of a
+//!    folder, than one run reads) is not `whole` but does carry one: the token of the last page
+//!    it read whole, with where each half-read folder goes on from (`resume`). The two belong
+//!    together and are kept together, whether the run was whole or not.
 //!
 //! Every piece says the token the run went on from, so that the engine never takes a piece in for
 //! a mailbox that has moved on meanwhile. Nothing a server wrote reaches a piece's lines.
@@ -45,9 +48,10 @@ const MAX_RELISTS: usize = 4;
 const MAX_RELISTS: usize = 2;
 /// Most messages fetched whole in one fetch.
 const MAX_FETCH: usize = 100;
-/// Most bytes of MIME one fetch holds in memory at once: at [`crate::http::RESPONSE_LIMIT`] a
-/// message, a hundred of them would be more than three gigabytes. What doesn't fit is fetched by
-/// the fetch that asks again for what this one left.
+/// Most bytes of MIME one fetch hands back: at [`crate::http::RESPONSE_LIMIT`] a message, a
+/// hundred of them would be more than three gigabytes. What doesn't fit is fetched by the fetch
+/// that asks again for what this one left. (While the answer that turns out not to fit is being
+/// read, it is held beside these: at most one message's [`crate::http::RESPONSE_LIMIT`] more.)
 const MAX_FETCH_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Why a run stopped before its end.
@@ -327,7 +331,14 @@ async fn changes<E: HttpExchange>(
 async fn messages_by_id<E: HttpExchange>(run: &Run<'_, E>, ids: &[String]) -> Result<(Vec<GraphMessage>, Vec<String>), Stop> {
     let found = run.ask(Phase::Messages, items::by_id(&run.base, &run.token, ids)).await?;
     let mut messages = match items::answer(&found) {
-        Ok(page) if page.messages.iter().all(|m| ids.contains(&m.server.id)) => page.messages,
+        // (Each message once: a copy of one would be a second message of the page, or a second
+        // removal, and enough of them a page past what is taken in.)
+        Ok(page)
+            if page.messages.iter().all(|m| ids.contains(&m.server.id))
+                && page.messages.iter().map(|m| m.server.id.as_str()).collect::<std::collections::HashSet<_>>().len() == page.messages.len() =>
+        {
+            page.messages
+        }
         Ok(_) => return Err(Phase::Messages.failed(Error::Unreadable)),
         // The chunk is faulted for an id it no longer has — or for `is:anywhere` walking a folder
         // the server already dropped, which faults any id.
@@ -366,6 +377,8 @@ async fn folder_tail<E: HttpExchange>(
 ) -> Result<Option<ZimbraResume>, Stop> {
     let fresh = start.is_none();
     let mut cursor = start;
+    // Every cursor this read has gone on from, the one it began at included.
+    let mut seen: std::collections::HashSet<(String, u64)> = cursor.iter().cloned().collect();
     for page_number in 0..MAX_FOLDER_PAGES {
         let answered = run
             .ask(Phase::Messages, items::folder_page(&run.base, &run.token, folder, cursor.as_ref().map(|(id, sort)| (id.as_str(), *sort))))
@@ -379,9 +392,10 @@ async fn folder_tail<E: HttpExchange>(
         if page.more && (page.messages.is_empty() || page.cursor.is_none()) {
             return Err(Phase::Messages.failed(Error::Unreadable));
         }
-        // A page that says more but hands back the cursor it was asked from is no page to go on
-        // from either: asking it again would read the same items every run, for ever.
-        if page.more && page.cursor == cursor {
+        // A page that says more but hands back the cursor it was asked from, or one the read
+        // went on from before, is no page to go on from either: followed, the same items would be
+        // read round and round, this run and every one after.
+        if page.more && page.cursor.as_ref().is_some_and(|next| !seen.insert(next.clone())) {
             return Err(Phase::Messages.failed(Error::Unreadable));
         }
         let last = !page.more;

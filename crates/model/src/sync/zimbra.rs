@@ -432,6 +432,7 @@ impl ZimbraMailResult {
             if (!page.folder.is_empty() && !zimbra_id_ok(&page.folder))
                 || (page.afresh && page.folder.is_empty())
                 || page.messages.iter().any(message_odd)
+                || (page.folder.is_empty() && page.messages.iter().any(|m| m.server.folder.is_empty()))
                 || !page.removed.iter().all(|id| zimbra_id_ok(id))
             {
                 return Err(ODD_ID);

@@ -127,6 +127,15 @@ fn what_is_out_of_bounds_is_refused_whole() {
     let mut odd = result();
     odd.untrusted = "nope".into();
     assert!(odd.check().is_err());
+    // A page of changes names each message's folder: one that names none, on a page that names
+    // none either, has nowhere to go.
+    let delta = |folder: &str| {
+        let mut piece = result();
+        piece.pages = vec![ZimbraMessagePage { messages: vec![message("270", folder)], ..Default::default() }];
+        piece.check()
+    };
+    assert_eq!(delta("2"), Ok(()));
+    assert!(delta("").is_err());
     // A conversation's id is a server id like any other, on a page and on a message read back
     // after a refused delete; and that one names itself and its folder as a page's does.
     let mut odd = result();

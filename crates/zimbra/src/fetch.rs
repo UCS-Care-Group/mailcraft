@@ -19,9 +19,25 @@ pub fn request(base: &str, token: &Secret, id: &str) -> Result<HttpRequest, Erro
     Ok(HttpRequest::new(Method::Get, &url, &fields, Vec::new())?.with_larger_response_limit(RESPONSE_LIMIT))
 }
 
+/// Whether a successful answer is a web page and not a message: sent as HTML, or beginning as an
+/// HTML document does, which a message (it begins with a header field) never does. A message
+/// whose own text is HTML is neither.
+fn is_page(response: &HttpResponse) -> bool {
+    let kind = response.header("Content-Type").unwrap_or_default().trim().to_ascii_lowercase();
+    if kind.starts_with("text/html") || kind.starts_with("application/xhtml") {
+        return true;
+    }
+    let start: Vec<u8> = response.body().iter().copied().skip_while(u8::is_ascii_whitespace).take(14).map(|b| b.to_ascii_lowercase()).collect();
+    start.starts_with(b"<!doctype html") || start.starts_with(b"<html")
+}
+
 /// The message's text, or what went wrong.
 pub fn answer(response: &HttpResponse) -> Result<Vec<u8>, Error> {
     match response.status() {
+        // A page where the message should be is what a server, or a proxy in front of it, answers
+        // when it doesn't take the sign-in: kept as the message's text, the message would never
+        // be asked for again.
+        200 if is_page(response) => Err(Error::AuthRefused),
         200 if !response.body().is_empty() => Ok(response.body().to_vec()),
         200 => Err(Error::Unreadable),
         401 | 403 => Err(Error::AuthRefused),

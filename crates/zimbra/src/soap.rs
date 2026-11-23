@@ -52,6 +52,13 @@ pub(crate) fn fault_code(response: &HttpResponse) -> Option<String> {
     parsed.pointer("/Body/Fault/Detail/Error/Code")?.as_str().map(str::to_string)
 }
 
+/// A status that is no success and came with no fault to read: 401 and 403 are the sign-in not
+/// taken (a proxy or a single sign-on in front of the service says it so), as the REST reader
+/// reads them, so that the owner is asked to sign in again.
+fn refused(status: u16) -> Error {
+    if matches!(status, 401 | 403) { Error::AuthRefused } else { Error::Status(status) }
+}
+
 /// The `<Name>Response` element of the answer to `name`, or what went wrong. A fault is read for
 /// its code alone; an answer that is not JSON, or has no body, or not the response asked for, is
 /// [`Error::Unreadable`]; a busy server's answer (429, 503) is [`Error::Busy`].
@@ -62,7 +69,7 @@ pub fn answer(name: &str, response: &HttpResponse) -> Result<Value, Error> {
     let parsed: Value = match serde_json::from_slice(response.body()) {
         Ok(parsed) => parsed,
         Err(_) if (200..300).contains(&response.status()) => return Err(Error::Unreadable),
-        Err(_) => return Err(Error::Status(response.status())),
+        Err(_) => return Err(refused(response.status())),
     };
     let body = parsed.get("Body").ok_or(Error::Unreadable)?;
     if let Some(fault) = body.get("Fault") {
@@ -70,7 +77,7 @@ pub fn answer(name: &str, response: &HttpResponse) -> Result<Value, Error> {
         return Err(from_code(code));
     }
     if !(200..300).contains(&response.status()) {
-        return Err(Error::Status(response.status()));
+        return Err(refused(response.status()));
     }
     let wanted = format!("{}Response", name.strip_suffix("Request").unwrap_or(name));
     match body.get(&wanted) {
