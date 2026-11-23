@@ -82,7 +82,7 @@ fn the_choice_is_saved_and_survives_a_restart() {
     let t = shown(&mut b, &egui::Context::default());
     assert!(t.dense && !t.dark);
     assert_eq!(t.canvas, Tokens::classic_light().canvas);
-    assert_eq!(t.accent, Accent::Teal.ink(false, false).accent);
+    assert_eq!(t.accent, Accent::Teal.ink(false, false, None).accent);
     // An unknown value still reads as following the system, and the rest of the file is kept.
     let bad: UiState = serde_json::from_value(json!({"theme": "classicDark", "accent": "violet"})).unwrap();
     assert_eq!((bad.theme, bad.accent), (Appearance::System, Accent::Violet));
@@ -113,8 +113,8 @@ fn the_window_shows_classic_light_with_the_accent_and_high_contrast() {
     a.execute("ui.highContrast", json!({"on": true})).unwrap();
     let strong = shown(&mut a, &ctx);
     assert!(strong.high_contrast && strong.dense && !strong.dark);
-    assert_eq!(strong.accent, Accent::Violet.ink(false, true).accent);
-    assert_eq!(strong.selection, Accent::Violet.ink(false, true).selection);
+    assert_eq!(strong.accent, Accent::Violet.ink(false, true, None).accent);
+    assert_eq!(strong.selection, Accent::Violet.ink(false, true, None).selection);
     assert_eq!(strong.text, Tokens::build(false, Accent::Violet, true).text);
 
     // The dark half is untouched; and back to Light is Light again.
@@ -184,7 +184,7 @@ fn every_module_draws_narrow_and_at_twice_the_size() {
 fn classic_light_draws_its_bands_tabs_and_rows_its_own_way_and_light_does_not() {
     for accent in Accent::ALL {
         for high in [false, true] {
-            let t = Tokens::build_classic(accent, high);
+            let t = Tokens::build_classic(accent, None, high);
             assert!(t.status_band && t.tab_caps && t.file_tab_fill && t.row_bar, "{accent:?} high contrast {high}");
             assert_eq!((t.sheet_radius, t.control_radius), (0, 0));
             let light = Tokens::build(false, accent, high);
@@ -198,7 +198,7 @@ fn classic_light_draws_its_bands_tabs_and_rows_its_own_way_and_light_does_not() 
 
 #[test]
 fn the_status_band_is_drawn_in_the_accents_ink() {
-    let t = Tokens::build_classic(Accent::Blue, false);
+    let t = Tokens::build_classic(Accent::Blue, None, false);
     let band = t.on_band(t.accent);
     assert_eq!(band.status_bar, t.accent);
     assert_eq!((band.text, band.text_dim, band.icon), (t.on_accent, t.on_accent, t.on_accent));

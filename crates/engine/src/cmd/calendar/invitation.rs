@@ -999,7 +999,7 @@ pub(super) fn forward_message(s: &Session, event: &Event, to: &[Address], note: 
     // (With its times as the item has them: in its own zone, or the one the calendar is shown in.)
     let ics = mailcraft_ical::write_in(&[&item], &[], &WriteOptions { method: "PUBLISH".into(), now }, Some(s.zone()));
     let title: String = event.title.chars().filter(|c| !c.is_control()).take(200).collect();
-    let twelve = s.prefs.twelve_hour;
+    let twelve = s.dated().conventions.twelve_hour; // text for recipients: the language's clock, not the owner's display choice
     let when = if event.all_day {
         let last = event.end.add_minutes(-1).date.max(event.start.date);
         if last == event.start.date { event.start.date.long() } else { format!("{} – {}", event.start.date.long(), last.long()) }

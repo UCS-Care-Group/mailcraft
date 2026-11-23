@@ -22,7 +22,7 @@ fn click(h: &mut Window, pos: Pos2) {
 
 fn ask(h: &mut Window) {
     let ask = Question::new("Keep Tasks in Step", "Allow it?".to_string(), "Continue", serde_json::Value::Null);
-    h.state_mut().dialog = Some(Dialog::Confirm { command: "ui.allowTasks".to_string(), params: json!({"account": 1}), ask });
+    h.state_mut().dialog = Some(Dialog::Confirm { command: "ui.allowTasks".to_string(), params: json!({"account": 1}), ask: Box::new(ask) });
     h.run_steps(3);
 }
 

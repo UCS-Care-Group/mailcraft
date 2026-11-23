@@ -12,7 +12,7 @@
 use egui::{Color32, Stroke};
 
 use super::Tokens;
-use super::accent::Accent;
+use super::accent::{Accent, DEFAULT_CUSTOM_COLOR, custom_ink};
 
 fn hex(v: u32) -> Color32 {
     Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
@@ -81,12 +81,16 @@ impl Tokens {
         }
     }
 
-    /// The tokens of Classic Light in `accent`, with high contrast on or off. High contrast gives
-    /// it the light theme's stronger greys, as it does the light theme; the corners and the
-    /// density stay Classic Light's.
-    pub fn build_classic(accent: Accent, high_contrast: bool) -> Tokens {
+    /// The tokens of Classic Light in `accent` (with `custom` as the colour when the accent is a
+    /// custom one, fitted to Classic Light's own sheets), with high contrast on or off. High
+    /// contrast gives it the light theme's stronger greys, as it does the light theme; the corners
+    /// and the density stay Classic Light's.
+    pub fn build_classic(accent: Accent, custom: Option<Color32>, high_contrast: bool) -> Tokens {
         let base = Tokens::classic_light();
         let base = if high_contrast { base.high_contrast() } else { base };
-        base.with_accent(accent.ink(false, high_contrast))
+        match accent {
+            Accent::Custom => base.with_accent(custom_ink(custom.unwrap_or(DEFAULT_CUSTOM_COLOR), &base)),
+            a => base.with_accent(a.ink(false, high_contrast, custom)),
+        }
     }
 }

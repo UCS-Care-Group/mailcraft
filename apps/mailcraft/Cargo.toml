@@ -105,6 +105,10 @@ objc2-user-notifications = { version = "0.3", default-features = false, features
 ] }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+# Local spelling in the language packs installed in Windows or macOS. The native API's
+# unsafe calls stay in this MIT OR Apache-2.0 wrapper; no dictionary data is distributed.
+# Review the platform wrapper's diff before bumping this pinned version.
+spellkit = "=0.4.2"
 # Native tray/menu-bar icon, using the existing MailCraft artwork; no GTK dependency on Unix.
 tray-icon = { version = "0.26", default-features = false }
 # A password or sign-in the owner asks to be remembered goes to the operating system's credential
@@ -147,7 +151,7 @@ base64 = { workspace = true }
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
 # Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
 # Already part of winit's X11 backend; the pure Rust connector performs authentication too.
-x11rb = { version = "0.13", default-features = false }
+x11rb = { version = "0.14", default-features = false }
 # S/MIME keys on PKCS#11 tokens (`key_holders/pkcs11.rs`, #30): smartcards through OpenSC and what
 # p11-kit's proxy gathers. Apache-2.0 (the Parsec project's); loading the module and calling it
 # are its unsafe, behind a safe API. Under it: cryptoki-sys (Apache-2.0), libloading (ISC) and

@@ -540,6 +540,7 @@ pub(super) fn contents(app: &mut MailApp, ui: &mut Ui, window: &mut Open, keyboa
     let t = Tokens::get(ui.ctx());
     let before: Vec<u64> = app.session.all_composing().map(|c| c.id).collect();
     let dialog = app.dialog.is_some();
+    let dialog_gen = app.windows.dialog_gen;
     let was = app.session.compose_id();
     app.session.show_compose(compose);
     let scope = app.hit.scope(id);
@@ -556,13 +557,14 @@ pub(super) fn contents(app: &mut MailApp, ui: &mut Ui, window: &mut Open, keyboa
     app.hit.scope(scope);
     let gone = app.session.composing_by_id(compose).is_none();
     let opened = app.session.all_composing().any(|c| !before.contains(&c.id));
-    if !dialog && app.dialog.is_some() {
-        // A dialog for this message (Insert Link, Word Count…), in the main window: the message
-        // stays current until it is answered, and the main window comes forward for it.
+    if app.dialog.is_some() && (!dialog || app.windows.dialog_gen != dialog_gen) {
+        // A dialog for this message (Insert Link, Word Count…), including one that took the
+        // place of a dialog already open: the message stays current until it is answered, and
+        // the dialog comes up over this window (inside the main one, where the windows are, it
+        // is the main window's). A dialog opened elsewhere bumps the generation too and is not
+        // claimed here.
         app.windows.focus = Some(compose);
-        if !ui.ctx().embed_viewports() {
-            ui.ctx().send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
-        }
+        app.windows.claim_dialog(compose);
     } else if !opened
         && let Some(was) = was
         && was != compose

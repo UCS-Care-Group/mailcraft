@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-14 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-11-17 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,9 +8,11 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-27 crates, 4 apps (the Android app is a Gradle project, not a Cargo member) and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
-enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
-inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
+29 crates, 4 apps (the Android app is a Gradle project, not a Cargo member) and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (four exceptions:
+inside L3, `net` drives `proto`; inside L0, `link` uses `names`; inside L2, `mime-model` reads and
+writes through `mime`, and `mime` opens TNEF streams with `tnef`, which reads code pages and rich
+text with `pst`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
 `dispatch2`, which the desktop app uses to quit the macOS way, is for the apps alone.
 
@@ -31,6 +33,7 @@ egui, eframe, winit or rfd.
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L2 | `pst` | Reader of Outlook personal folders files (`.pst`, ANSI and Unicode) from [MS-PST]: over any `Read + Seek`, a block at a time, never the whole file in memory; offsets checked; items, folders, recipients, attachments and attached messages counted against caps; what one item, one folder walk or one listing reads and keeps held to a budget for the whole call, and all that is read to a multiple of the file's size; trees that lead back to themselves, blocks named twice and keys out of order refused; damaged pages named, to a cap; what is left out named with its reason; no I/O of its own, builds for wasm |
+| L2 | `tnef` | Reader of TNEF streams (`winmail.dat`, `application/ms-tnef`) from [MS-OXTNEF]: the files of their attachments and the plain text of their message, with what isn't read (attached messages, OLE objects, attachments with no data, attributes with a wrong checksum) named; every length checked against what is left, nothing opened inside another stream, caps on attributes, files, properties and values, and never more out than went in; no I/O of its own, builds for wasm. `mime` adds the files before the stream, which it keeps |
 | L2 | `openpgp` | Checking OpenPGP Digital signatures (#30) on rPGP: a PGP/MIME message over its signed part's canonical bytes (RFC 3156) or a cleartext-signed text (RFC 9580 §7), with the four results (verified, valid but not verified, changed after signing, can't be checked; MD5, SHA-1, DSA and RSA under 2048 bits refused), and what of the message it covers: only a whole message is Verified; Public keys from attached `application/pgp-keys` parts and the `Autocrypt:` header, their self-signatures checked; whether a key is Verified is the caller's answer (no web of trust). MIME, armour and the cleartext framework read here with every size, count and depth capped; no I/O and no clock of its own, builds for wasm |
 | L2 | `smime` | S/MIME (RFC 8551) Digital signatures checked (#30), from RFC 5652 (CMS), RFC 5280 (X.509) and the algorithms' RFCs: the signer's digest against the message's, the signature (RSA of 2048 bits or more, ECDSA on P-256 or P-384, over SHA-2), and whether the certificate rests on a trust anchor the host hands in, is for signing mail and is for the From address; the same four results as OpenPGP; revocation isn't checked. No I/O, hostile input bounded |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
@@ -289,9 +292,9 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `pst`, `openpgp`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
+  `ical`, `vcard`, `pst`, `tnef`, `openpgp`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `openpgp`, `charset`, `dav_xml`, `dav_answers`, `dav_discovery`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `pst`, `tnef`, `openpgp`, `charset`, `dav_xml`, `dav_answers`, `dav_discovery`, `dav_document`, mailbox files in every form (`mailbox_file`), IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -309,7 +312,13 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-17 | patch | MB3.18: `host` holds the calendar's and the to-dos' jobs in flight (`calendar_job`, `tasks_job`), driven by the desktop and the phone alike |
+| 2026-11-17 | patch | MB3.15: the Android app row names its end-to-end run on an emulator against the Graph stand-in ([android.md](android.md)) |
+| 2026-11-15 | patch | 29 crates and 4 apps; rows for `smime` and `mobile` |
+| 2026-11-15 | patch | #209 D3: the `dav_discovery` fuzz target joins the list |
+| 2026-11-15 | patch | #209 D2: the `dav_answers` fuzz target joins the list |
 | 2026-11-14 | patch | #1376: header blocks packed in a few files in the content folder (`store_pack.rs`), not one file each; a block that can't be read fails the fresh pack, Undo-held blocks count as named, packs a kept-aside file names stay |
+| 2026-11-13 | minor | #1232: `tnef`, L2: a reader of TNEF streams (`winmail.dat`) from [MS-OXTNEF], used by `mime` and using `pst`; a `tnef` fuzz target; 29 crates, and the layering exceptions name `mime-model` too |
 | 2026-11-13 | minor | MB3.1: the Android app (`apps/mailcraft-android`, Gradle, Kotlin and Compose over `crates/mobile`) and the rule for Kotlin and Swift: only under their app folders, for the interface and platform layer, never for parsing, lint-enforced never-crash |
 | 2026-11-13 | minor | MB1.9 (last part): `sync_driver` gains `auto_replies` (`Session::auto_replies_due`/`auto_replies_started`/`auto_replies_answered`/`auto_replies_change`, the `Trouble` and `Denied` states), `free_busy` (`free_busy_look`/`free_busy_noted`/`free_busy_answered`/`free_busy_stand_in`), `sending` (the send gate and the marks as sending, `send_marking`, `send_gate_step`, `send_run_answered`, `send_hold_unanswered`, the shared mailboxes' Outbox that waits for the permission to send) and `ask` (`tasks_question`, `rules_question`, `shared_calendars_question`, from an `AskWindow`); `Driver::auto_sync` is the host's setting and survives `Driver::reset`; `Driver::forget_accounts` covers every part and runs on account removal; the window's `Facts` say only whether the host has a way to reach the server (`reachable`), and the to-dos' and rules' looks stop while working offline in the engine; the window keeps the Send/Receive round scheduler and the per-account-kind run flows, the dialogs, the provider's pages, the tokens, the job handles and the words |
 | 2026-11-13 | minor | MB1.9 (second part): `sync_driver` gains `calendar_plan` (`Session::calendar_due`, `calendar_started`, `calendar_answered`), `fetch_flow` (the waiting command, the answer's next step, the message shown, the background's accounts), `tasks` and `rules` (`tasks_due`/`tasks_answered`, `rules_due`/`rules_answered`, the permission maps); `Driver::reset` clears everything on a mailbox replace (the calendar consent, wide-stretch and shared-calendar permission state and the Favorites state too, which survived File > Open before); `calendar_answered` keeps the owner's permission state (`CalendarCame::consent_needed`, `token_refused`, `sign_in_refused`) and, with the host's own job errors (`job_errors`), the wide stretch's bookkeeping, as `tasks_answered` and `rules_answered` do; the window starts jobs, keeps tokens, dialogs and words, and the engine says what is due and takes the answer in |

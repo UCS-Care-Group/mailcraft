@@ -62,7 +62,8 @@
 //! ([`Dropped`]), and what it changed is put back.
 //!
 //! Undo: a change that hasn't been sent yet is undone like any other, and the note goes with it
-//! (the mailbox is put back whole, the notes included). Once the server has been told, the undo
+//! (the events the change touched are put back as they were, with their notes; what downloads
+//! brought for the others since stays, #1674, `crate::undo`). Once the server has been told, the undo
 //! history is forgotten, as it is when mail was moved on the server: the mailbox of before is
 //! not what the server has any more. Should an answer arrive for a change that was undone while
 //! it was on its way, the server is told the opposite ([`apply_event_outcomes`]).
@@ -1435,7 +1436,10 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
     }
     // (The zone the calendar is shown in: whole days are days there, and a series without a
     // zone of its own is told by its clock.)
-    Ok(EventsUpload { ops, zone: s.zone().id(), ..Default::default() }.for_account(owner))
+    // A category renamed here, for the events on the server that aren't kept here (#851): the
+    // account's own calendars alone, never a shared mailbox's.
+    let rename = s.mailbox.events_rename(owner.id);
+    Ok(EventsUpload { ops, zone: s.zone().id(), rename, ..Default::default() }.for_account(owner))
 }
 
 /// The sign-in of `account` changed (the owner gave a permission, say): what was held back
@@ -1487,6 +1491,8 @@ pub struct EventsApplied {
     pub unverified: usize,
     /// What the owner should hear, a line each.
     pub messages: Vec<String>,
+    /// How many events on the server were given a renamed category's new name (#851).
+    pub renamed: u32,
     /// Changes that were given up without the server taking them: one that could not be sent
     /// any more, or one about an event the server no longer has ([`Dropped`]).
     pub dropped: Vec<Dropped>,
@@ -1636,12 +1642,32 @@ pub fn apply_event_outcomes(s: &mut Session, uploaded: &EventsUploaded) -> Resul
         applied.say(dropped.message.clone());
         applied.dropped.push(dropped);
     }
+    // A renamed category, given to the events that aren't kept here (#851): what is done no
+    // longer holds the old name's deletion, and what the server wouldn't change is said.
+    let sweeps_before = s.mailbox.category_sweeps.get(&account).cloned();
+    if let Some(came) = &uploaded.renamed {
+        let mut came = came.clone();
+        came.tidy();
+        // (Said once it is done: a part that goes on with a later run says nothing yet.)
+        // (With what the runs before reached.)
+        applied.renamed = if came.done { s.mailbox.renamed_before(account, false, &came).saturating_add(came.changed) } else { 0 };
+        if let Some(line) = s.mailbox.take_renamed(account, false, &came) {
+            applied.say(line);
+        }
+    }
+    let renamed = s.mailbox.category_sweeps.get(&account) != sweeps_before.as_ref();
     applied.waiting = s.mailbox.event_changes.iter().filter(|change| change.account == account).count();
     applied.unverified = events_unverified(s, account);
     if told {
         s.forget_history();
     }
-    if told || applied.refused > 0 || !applied.dropped.is_empty() || s.mailbox.event_changes != before || s.mailbox.event_checks != checks_before {
+    if told
+        || renamed
+        || applied.refused > 0
+        || !applied.dropped.is_empty()
+        || s.mailbox.event_changes != before
+        || s.mailbox.event_checks != checks_before
+    {
         s.mailbox_changed();
     }
     Ok(applied)
@@ -3965,3 +3991,9 @@ mod cross_move_tests;
 
 #[cfg(test)]
 mod fallback_offset_tests;
+
+#[cfg(test)]
+mod undo_events_tests;
+
+#[cfg(test)]
+mod undo_gate_tests;

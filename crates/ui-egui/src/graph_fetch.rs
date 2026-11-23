@@ -114,6 +114,18 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
     }
 }
 
+/// Take in messages fetched whole in the background, as the engine takes them in for their
+/// account's kind (a JMAP account's are held to sizes first; the owner's are taken in with what
+/// waits for them, [`mailcraft_engine::Session::fetch_now_answered`]). A rule's desktop alert for
+/// one of them comes once the download is over.
+fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcraft_engine::CmdError> {
+    let said = take_in_fetch(&mut app.session, result);
+    if let Ok(said) = &said {
+        crate::alerts::downloaded(app, said);
+    }
+    said
+}
+
 impl MailApp {
     /// A command that needs its message whole waits for it to be fetched, and then runs. What is
     /// fetched, and for what the command waits, is the engine's to say
@@ -278,6 +290,10 @@ impl MailApp {
         if let Some(said) = answered.refused {
             self.status(said);
         }
+        // A rule's desktop alert for one of them comes once the download is over.
+        if let Some(said) = &answered.taken {
+            crate::alerts::downloaded(self, said);
+        }
         match answered.next {
             NowNext::Nothing => {}
             NowNext::Run(waiting) => self.run_waited(waiting),
@@ -316,7 +332,7 @@ impl MailApp {
                 );
             }
         }
-        match take_in_fetch(&mut self.session, result) {
+        match take_in(self, result) {
             Ok(said) => {
                 let progress = FetchProgress::of(&said);
                 let (done, all, large) = (progress.done, progress.all, progress.large);
