@@ -636,7 +636,10 @@ fn the_token_goes_in_the_header_or_a_cookie_and_never_in_an_address() {
         assert!(!format!("{request:?}").contains(TOKEN));
     }
     let auth = crate::auth::request(URL, "ada\r\nX: y", &Secret::new(PASSWORD)).unwrap();
-    assert!(!String::from_utf8_lossy(auth.body()).contains('\r'));
+    // (Read back as the server reads it: a `\r` written as JSON's `\\r` would pass a look at the
+    // raw body, and still reach the server.)
+    let sent: serde_json::Value = serde_json::from_slice(auth.body()).unwrap();
+    assert_eq!(sent.pointer("/Body/AuthRequest/account/_content").and_then(serde_json::Value::as_str), Some("adaX: y"));
     assert!(crate::auth::request("http://zimbra.example.org", "ada", &Secret::new(PASSWORD)).is_err());
     assert!(crate::fetch::request(URL, &token, "1&zauthtoken=x").is_err());
 }
