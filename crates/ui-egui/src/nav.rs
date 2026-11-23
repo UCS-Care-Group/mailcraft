@@ -655,19 +655,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     let y = r.center().y;
-    // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
-    // (Drafts, Junk) in a quiet grey one.
-    let mut name_end = r.max.x - COUNT_RIGHT;
-    if count != Count::Nothing {
-        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
-        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
-        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
-        let w = (galley.size().x + 12.0).max(20.0);
-        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
-        ui.painter().rect_filled(pill, 9.0, fill);
-        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
-        name_end = pill.min.x - 6.0;
-    }
+    let name_end = count_pill(ui, &t, r, count, selected);
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
     paint_clipped(
         ui.painter(),
@@ -820,16 +808,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     let resp = ui.interact(r, ui.scope_id().with(("gmail", inbox, category.code())), Sense::click());
     app.hit.add(gmail_hit(category), inbox, r);
     let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
-    if selected {
-        ui.painter().rect_filled(row, 6.0, t.accent_soft);
-        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
-    } else if resp.hovered() {
-        ui.painter().rect_filled(row, 6.0, t.hover_nav);
-    }
-    // Reached with Tab or the arrow keys (Enter or Space shows it): where the keyboard is.
-    if resp.has_focus() {
-        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
-    }
+    row_backdrop(ui, &t, row, selected, &resp);
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     let y = r.center().y;
     let mut name_end = r.max.x - COUNT_RIGHT;
@@ -881,27 +860,9 @@ fn unified_row(app: &mut MailApp, ui: &mut Ui, kind: FolderKind, count: Count, s
     let resp = ui.interact(r, ui.scope_id().with(("unified", kind.code())), Sense::click());
     app.hit.add("unifiedFolder", mailcraft_engine::unified::KINDS.iter().position(|k| *k == kind).unwrap_or(0) as Id, r);
     let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
-    if selected {
-        ui.painter().rect_filled(row, 6.0, t.accent_soft);
-        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
-    } else if resp.hovered() {
-        ui.painter().rect_filled(row, 6.0, t.hover_nav);
-    }
-    if resp.has_focus() {
-        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
-    }
+    row_backdrop(ui, &t, row, selected, &resp);
     let x = r.min.x;
-    let mut name_end = r.max.x - COUNT_RIGHT;
-    if count != Count::Nothing {
-        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
-        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
-        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
-        let w = (galley.size().x + 12.0).max(20.0);
-        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
-        ui.painter().rect_filled(pill, 9.0, fill);
-        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
-        name_end = pill.min.x - 6.0;
-    }
+    let name_end = count_pill(ui, &t, r, count, selected);
     let name = unified_name(kind);
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
     let ink = if selected { t.accent_soft_text } else { t.text };
@@ -1328,3 +1289,33 @@ mod drop_tests;
 #[cfg(test)]
 #[path = "nav_unified_tests.rs"]
 mod unified_tests;
+
+/// A folder-pane row's background: the selection (soft fill and an edge mark), the hover, and the
+/// keyboard's focus ring (reached with Tab or the arrow keys; Enter or Space shows it).
+fn row_backdrop(ui: &Ui, t: &Tokens, row: Rect, selected: bool, resp: &egui::Response) {
+    if selected {
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
+    }
+    if resp.has_focus() {
+        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
+}
+
+/// The count, flush right, in a pill: an unread count in the accent's soft colour, a total
+/// (Drafts, Junk) in a quiet grey one. Answers where the name must end.
+fn count_pill(ui: &Ui, t: &Tokens, r: Rect, count: Count, selected: bool) -> f32 {
+    if count == Count::Nothing {
+        return r.max.x - COUNT_RIGHT;
+    }
+    let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+    let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+    let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+    let w = (galley.size().x + 12.0).max(20.0);
+    let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+    ui.painter().rect_filled(pill, 9.0, fill);
+    ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
+    pill.min.x - 6.0
+}
