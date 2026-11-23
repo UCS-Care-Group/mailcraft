@@ -12619,6 +12619,12 @@ msgstr "Soukromí"
 msgid "Private"
 msgstr "Soukromé"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programy, které otevírají soubory tohoto druhu, pracují s jejich obsahem: mohou zobrazit webový obsah v nich nebo převzít klíče a certifikáty, které obsahují. Otevřete jej, jen pokud víte, kdo ho poslal, a očekáváte ho."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -19032,6 +19038,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Tato kopie MailCraftu se sama neaktualizuje."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Tato kopie MailCraftu běží v sandboxu Flatpak, kde nemůže zajistit, že se soubor tohoto druhu otevře správným programem. Uložte jej pomocí Uložit jako a otevřete jej sami."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19895,6 +19907,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "Mně"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Před otevřením přílohy se MailCraft nejprve zeptá pracovního prostředí, o jaký druh souboru jde, a není nainstalován ani gio (z GLib), ani kmimetypefinder (z KDE). Nainstalujte jeden z nich, nebo přílohu uložte pomocí Uložit jako."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs

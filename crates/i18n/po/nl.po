@@ -12181,6 +12181,12 @@ msgstr "Privacy"
 msgid "Private"
 msgstr "Persoonlijk"
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programma's die bestanden als dit openen, doen iets met de inhoud: ze kunnen webinhoud erin tonen of de sleutels en certificaten erin overnemen. Open het alleen als u weet wie het heeft gestuurd en het verwacht."
+
 #. interface
 #: crates/ui-egui/src/nav.rs
 #, fuzzy
@@ -18425,6 +18431,12 @@ msgid "This copy of MailCraft doesn't update itself."
 msgstr "Dit exemplaar van MailCraft werkt zichzelf niet bij."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Deze kopie van MailCraft draait in een Flatpak-sandbox, waar ze niet kan garanderen dat een bestand van dit soort met het juiste programma wordt geopend. Sla het op met Opslaan als en open het zelf."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
@@ -19271,6 +19283,12 @@ msgstr ""
 #, fuzzy
 msgid "To me"
 msgstr "Aan mij"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "Om een bijlage te openen vraagt MailCraft eerst aan de desktop wat voor bestand het is, en noch gio (van GLib) noch kmimetypefinder (van KDE) is geïnstalleerd. Installeer een van beide, of sla de bijlage op met Opslaan als."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
