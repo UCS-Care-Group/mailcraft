@@ -44,9 +44,11 @@ fn laid(ctx: &egui::Context, paragraph: &Paragraph, pictures: &[Picture], width:
 fn laid_counted(ctx: &egui::Context, paragraph: &Paragraph, pictures: &[Picture], width: f32) -> (Para, usize) {
     let mut layout = Layout::default();
     let mut out = None;
-    ctx.run_ui(egui::RawInput::default(), |ui| out = Some(layout.lay(ui.ctx(), paragraph, 0, false, pictures, &Tokens::light(), width)))
-        .textures_delta
-        .clear();
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        out = Some(layout.lay(ui.ctx(), paragraph, 0, false, pictures, &Tokens::light(), width, &mut crate::fonts::Chooser::new(ui.ctx())))
+    })
+    .textures_delta
+    .clear();
     (out.expect("laid out in the frame"), layout.layouts)
 }
 
@@ -211,7 +213,7 @@ fn a_picture_in_a_list_item_fits_the_room_after_its_indent() {
 
 /// The body's layout, kept between frames, synchronised with `paragraphs` at `width`.
 fn synced(ctx: &egui::Context, layout: &mut Layout, paragraphs: &[Paragraph], pictures: &[Picture], width: f32) {
-    let key = LayoutKey { width: width as u32, dark: false, scale: 1f32.to_bits(), plain: false, pictures: pictures_key(pictures), families: 0 };
+    let key = LayoutKey { width: width as u32, dark: false, scale: 1f32.to_bits(), plain: false, pictures: pictures_key(pictures), fonts: 0 };
     ctx.run_ui(egui::RawInput::default(), |ui| {
         layout.sync(ui.ctx(), paragraphs, pictures, key, &Tokens::light(), width);
     })

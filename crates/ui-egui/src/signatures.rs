@@ -318,11 +318,20 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     );
 }
 
+/// A menu that holds a text field the owner clicks in and types into, which keeps that click: the
+/// font menu's search for a family installed here (#1493).
+fn keeps_clicks(ui: &mut Ui, name: &str, content: impl FnOnce(&mut Ui)) {
+    let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| content(ui));
+}
+
 /// A rich signature: its formatting bar, the editor, its pictures and the size they add.
 fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
+        // The font menu holds a field to search in: a click inside it is for the field, not a way
+        // out of the menu (#1493).
+        keeps_clicks(ui, tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
         // The colour menu holds a field for a colour of the owner's own: a click in it is for the
         // field, not a way out of the menu, as on the ribbon (#1493, #1464).
@@ -401,14 +410,14 @@ fn fields_of(d: mailcraft_model::signature::Details) -> [String; 8] {
 }
 
 const FIELDS: [(&str, &str); 8] = [
-    ("name", "Name"),
-    ("title", "Job title"),
-    ("organisation", "Organisation"),
-    ("phone", "Phone"),
-    ("mobile", "Mobile"),
-    ("email", "Email"),
-    ("website", "Website"),
-    ("address", "Address"),
+    ("name", tl_later!("Name")),
+    ("title", tl_later!("Job title")),
+    ("organisation", tl_later!("Organisation")),
+    ("phone", tl_later!("Phone")),
+    ("mobile", tl_later!("Mobile")),
+    ("email", tl_later!("Email")),
+    ("website", tl_later!("Website")),
+    ("address", tl_later!("Address")),
 ];
 
 /// Create from details (S14): the form; changing a field lays the signature out again while it
@@ -627,3 +636,7 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
         }
     });
 }
+
+#[cfg(test)]
+#[path = "signature_menu_tests.rs"]
+mod signature_menu_tests;

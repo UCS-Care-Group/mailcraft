@@ -232,7 +232,14 @@ fn the_primary_switch_drops_the_arrivals_gmail_put_in_other_categories() {
         let ids: Vec<_> = s.mailbox.messages.keys().copied().collect();
         let found: Vec<_> = ids
             .iter()
-            .map(|id| mailcraft_engine::arrivals::Arrival { message: *id, account: 0, folder: 0, sender: String::new(), subject: String::new() })
+            .map(|id| mailcraft_engine::arrivals::Arrival {
+                message: *id,
+                account: 0,
+                folder: 0,
+                sender: String::new(),
+                subject: String::new(),
+                rule: false,
+            })
             .collect();
         assert_eq!(crate::sync::primary_only(&s.mailbox, &found).len(), found.len(), "no category: kept");
         for m in s.mailbox.messages.values_mut() {

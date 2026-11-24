@@ -81,8 +81,10 @@ fn errors_give_back_little_of_the_clients_words() {
     for (name, args) in [(long.as_str(), json!({})), ("execute", json!({"command": long}))] {
         let line = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}).to_string();
         let r: Value = serde_json::from_str(&s.handle_line(&line).unwrap()).unwrap();
+        // (Framed, as every error an agent is given is.)
         let text = r["result"]["content"][0]["text"].as_str().unwrap();
-        assert!(text.chars().count() < 260, "{} characters", text.len());
+        let frame = crate::tools::UNTRUSTED_OPEN.len() + crate::tools::UNTRUSTED_CLOSE.len();
+        assert!(text.chars().count() < 260 + frame, "{} characters", text.len());
     }
     assert_eq!(crate::server::clip("short"), "short");
     assert_eq!(crate::server::clip(&"é".repeat(300)).chars().count(), 201);
