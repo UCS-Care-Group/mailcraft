@@ -29,6 +29,7 @@ const ADD_H: f32 = 44.0;
 /// Where a row's title starts, right of the check box.
 const TITLE_X: f32 = 44.0;
 /// Where the values start in the details pane's field list.
+/// The least width of the details' name column; it grows to the widest name (and no further than 2/5 of the pane).
 const LABEL_W: f32 = 112.0;
 /// Characters of notes the details pane lays out; longer notes end with an ellipsis.
 const NOTES_MAX: usize = 20_000;
@@ -670,12 +671,24 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
             });
 
             section(ui, tl!("Details"));
+            let label_w = [tl!("Account"), tl!("Start"), tl!("Due"), tl!("Importance"), tl!("Reminder"), tl!("Categories")]
+                .into_iter()
+                .map(|label| ui.painter().layout_no_wrap(label.to_owned(), regular(12.0), t.text_dim).size().x + 30.0)
+                .fold(LABEL_W, f32::max)
+                .min((ui.available_width() * 0.4).max(LABEL_W));
             if task.origin.is_remote() || !tasks_remote::task_accounts(&app.session.mailbox).is_empty() {
-                detail(ui, "account", tl!("Account"), &widgets::place_name(&app.session.mailbox, task.origin.account), t.text);
+                detail(ui, label_w, "account", tl!("Account"), &widgets::place_name(&app.session.mailbox, task.origin.account), t.text);
             }
             let none = tl!("None");
             let date = |day: Option<Date>| day.map(Date::medium);
-            detail(ui, "calendar", tl!("Start"), date(task.start).as_deref().unwrap_or(none), if task.start.is_some() { t.text } else { t.text_dim });
+            detail(
+                ui,
+                label_w,
+                "calendar",
+                tl!("Start"),
+                date(task.start).as_deref().unwrap_or(none),
+                if task.start.is_some() { t.text } else { t.text_dim },
+            );
             let due_color = if task.is_overdue(today) {
                 t.red
             } else if task.due.is_some() {
@@ -683,25 +696,32 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
             } else {
                 t.text_dim
             };
-            detail(ui, "today", tl!("Due"), date(task.due).as_deref().unwrap_or(none), due_color);
+            detail(ui, label_w, "today", tl!("Due"), date(task.due).as_deref().unwrap_or(none), due_color);
             let importance_icon = match task.importance {
                 Importance::High => "highImportance",
                 Importance::Normal => "minus",
                 Importance::Low => "lowImportance",
             };
-            detail(ui, importance_icon, tl!("Importance"), tl!(importance_label(task.importance)), t.text);
+            detail(ui, label_w, importance_icon, tl!("Importance"), tl!(importance_label(task.importance)), t.text);
             let reminder = task.reminder.map(|at| {
                 let local = app.session.local(at);
                 crate::dates::medium_time(local, app.session.prefs.twelve_hour)
             });
-            detail(ui, "reminder", tl!("Reminder"), reminder.as_deref().unwrap_or(none), if reminder.is_some() { t.text } else { t.text_dim });
+            detail(
+                ui,
+                label_w,
+                "reminder",
+                tl!("Reminder"),
+                reminder.as_deref().unwrap_or(none),
+                if reminder.is_some() { t.text } else { t.text_dim },
+            );
             if task.categories.is_empty() {
-                detail(ui, "categorize", tl!("Categories"), none, t.text_dim);
+                detail(ui, label_w, "categorize", tl!("Categories"), none, t.text_dim);
             } else {
                 ui.horizontal_top(|ui| {
                     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-                    let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, 26.0), Sense::hover());
-                    detail_label(ui, r, "categorize", tl!("Categories"));
+                    let (r, _) = ui.allocate_exact_size(vec2(label_w, 26.0), Sense::hover());
+                    detail_label(ui, label_w, r, "categorize", tl!("Categories"));
                     ui.vertical(|ui| {
                         ui.add_space(4.0);
                         chips(app, ui, task.origin.account, &task.categories);
@@ -732,17 +752,17 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
 }
 
 /// The icon and name of a field, at the left of its line.
-fn detail_label(ui: &Ui, r: Rect, icon: &str, label: &str) {
+fn detail_label(ui: &Ui, label_w: f32, r: Rect, icon: &str, label: &str) {
     let t = Tokens::get(ui.ctx());
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 9.0, r.center().y), vec2(16.0, 16.0)), icon, t.text_dim, t.accent);
-    paint_clipped(ui.painter(), pos2(r.min.x + 26.0, r.center().y), LABEL_W - 30.0, label, regular(12.0), t.text_dim);
+    paint_clipped(ui.painter(), pos2(r.min.x + 26.0, r.center().y), label_w - 30.0, label, regular(12.0), t.text_dim);
 }
 
 /// One line of the field list: an icon, the field's name and its value.
-fn detail(ui: &mut Ui, icon: &str, label: &str, value: &str, color: Color32) {
+fn detail(ui: &mut Ui, label_w: f32, icon: &str, label: &str, value: &str, color: Color32) {
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
-    detail_label(ui, r, icon, label);
-    paint_clipped(ui.painter(), pos2(r.min.x + LABEL_W, r.center().y), (r.width() - LABEL_W).max(0.0), value, regular(12.5), color);
+    detail_label(ui, label_w, r, icon, label);
+    paint_clipped(ui.painter(), pos2(r.min.x + label_w, r.center().y), (r.width() - label_w).max(0.0), value, regular(12.5), color);
 }
 
 #[cfg(test)]

@@ -330,10 +330,29 @@ pub(crate) mod kit {
         });
     }
 
+    /// The label column's width: that of the widest label the form's last pass drew, at least
+    /// [`LABEL_W`] and at most 2/5 of the row, so a translated label isn't cut and the controls
+    /// still start on one line. (The widest is learnt a pass late; it is the same pass after pass.)
+    fn label_width(ui: &Ui, label: &str) -> f32 {
+        let font = regular(12.5);
+        let need = ui.painter().layout_no_wrap(label.to_owned(), font, Color32::PLACEHOLDER).size().x + 6.0;
+        let (key, pass) = (egui::Id::NULL.with_salt(egui::IdSalt::new(("form label column", host().id))), ui.ctx().cumulative_pass_nr());
+        // (pass of `now`, widest so far in that pass, widest in the pass before)
+        let (at, now, before) = ui.data_mut(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+        let (now, before) = if at == pass { (now, before) } else { (0.0, now) };
+        let now = now.max(need);
+        ui.data_mut(|d| d.insert_temp(key, (pass, now, before)));
+        if now > before {
+            ui.ctx().request_repaint();
+        }
+        now.max(before).max(LABEL_W).min((ui.available_width() * 0.4).max(LABEL_W))
+    }
+
     fn label_cell(ui: &mut Ui, label: &str) {
         let t = Tokens::get(ui.ctx());
-        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, ROW_H), Sense::hover());
-        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), LABEL_W - 6.0, label, regular(12.5), t.text);
+        let w = label_width(ui, label);
+        let (r, _) = ui.allocate_exact_size(vec2(w, ROW_H), Sense::hover());
+        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), w - 6.0, label, regular(12.5), t.text);
     }
 
     /// What the buttons at the bottom take of a form's height, with the gap over them.
