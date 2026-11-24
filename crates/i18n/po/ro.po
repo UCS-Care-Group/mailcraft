@@ -2216,6 +2216,12 @@ msgstr "Cere doar e-mailul, fără calendar și contacte, care pot fi conectate 
 msgid "At a date and time"
 msgstr "La o dată și o oră"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "Cel mult 20 de intrări în fiecare listă."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

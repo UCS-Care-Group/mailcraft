@@ -2144,6 +2144,12 @@ msgstr "Vraagt alleen om e-mail, zonder de agenda en de contactpersonen, die lat
 msgid "At a date and time"
 msgstr "Op een datum en tijd"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "Maximaal 20 items per lijst."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

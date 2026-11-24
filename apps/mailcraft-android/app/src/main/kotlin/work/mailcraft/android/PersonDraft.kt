@@ -24,9 +24,13 @@ internal data class PersonDraft(
     /** An address the app would not write to is refused here, not left for the core to keep. */
     val badEmail: Boolean get() = emailList.any { mailtoLink(it) == null }
 
+    /** More entries than the core keeps: refused here rather than cut without a word. */
+    val tooMany: Boolean get() = emailList.size > MAX_ENTRIES || phoneList.size > MAX_ENTRIES
+
     /** The core wants a name, a company or an address; an address has to look like one. */
     val canSave: Boolean
-        get() = !badEmail && (listOf(first, last, company).any { it.isNotBlank() } || emailList.isNotEmpty())
+        get() = !badEmail && !tooMany &&
+            (listOf(first, last, company).any { it.isNotBlank() } || emailList.isNotEmpty())
 
     fun params(): String {
         val fields = ArrayList<String>()
@@ -71,7 +75,7 @@ internal data class PersonDraft(
 
 private const val FIELDS = 7
 internal const val MAX_PERSON_LINE = 300
-private const val MAX_ENTRIES = 20
+internal const val MAX_ENTRIES = 20
 
 /** The text on one line, trimmed and cut as the core cuts it. */
 internal fun oneLine(text: String): String =
@@ -79,4 +83,3 @@ internal fun oneLine(text: String): String =
 
 internal fun entries(text: String, separators: String): List<String> =
     text.split(Regex("[$separators]")).map { oneLine(it) }.filter { it.isNotEmpty() }
-        .take(MAX_ENTRIES)

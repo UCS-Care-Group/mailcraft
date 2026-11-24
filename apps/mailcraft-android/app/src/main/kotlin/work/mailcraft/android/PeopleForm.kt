@@ -19,7 +19,7 @@ internal fun formActions(
     busy: MutableState<Boolean>,
     done: (ULong?) -> Unit,
 ): FormActions = FormActions(
-    onNew = { editor.value = PersonDraft() },
+    onNew = { if (!busy.value) editor.value = PersonDraft() },
     onDraft = { if (!busy.value) editor.value = it },
     onCancel = { if (!busy.value) editor.value = null },
     onSave = {

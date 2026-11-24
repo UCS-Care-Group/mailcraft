@@ -31,6 +31,16 @@ class PersonDraftTest {
     }
 
     @Test
+    fun moreEntriesThanTheCoreKeepsBlockSaving() {
+        val many = { n: Int -> (1..n).joinToString("\n") { "a$it@example.org" } }
+        assertTrue(PersonDraft(emails = many(20)).canSave)
+        assertFalse(PersonDraft(emails = many(21)).canSave)
+        assertTrue(PersonDraft(emails = many(21)).tooMany)
+        assertFalse(PersonDraft(first = "Ada", phones = (1..21).joinToString("\n") { "$it" }).canSave)
+        assertTrue(PersonDraft(first = "Ada", phones = (1..20).joinToString("\n") { "$it" }).canSave)
+    }
+
+    @Test
     fun theParametersAreTrimmedAndListed() {
         val d = PersonDraft(
             first = " Ada ", last = "Ex\nample", emails = "a@example.org, b@example.org;\n\n", phones = "123\n 456 ",

@@ -62,6 +62,7 @@ internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: In
 }
 
 @Composable
+@Suppress("LongMethod")
 private fun rememberPeople(
     core: Core,
     texts: Texts,
@@ -78,10 +79,15 @@ private fun rememberPeople(
     val editorState = rememberSaveable(stateSaver = PersonDraft.Saver) { mutableStateOf<PersonDraft?>(null) }
     val busyState = remember { mutableStateOf(false) }
     var added by remember { mutableIntStateOf(0) }
+    // Bumped on every reload and add: a page asked for before that is stale when it comes back.
+    var generation by remember { mutableIntStateOf(0) }
     val person by produceState<PersonState?>(null, ready, reload, open) {
         value = open?.let { if (ready) loadPerson(core, it.toULong()) else PersonState.Loading }
     }
-    LaunchedEffect(ready, reload, query, added) { if (ready) state = loadPeople(core, query, 0) }
+    LaunchedEffect(ready, reload, query, added) {
+        generation += 1
+        if (ready) state = loadPeople(core, query, 0)
+    }
     val form = formActions(scope, core, editorState, busyState) { made ->
         if (made != null) {
             notice = null
@@ -99,11 +105,12 @@ private fun rememberPeople(
             if (current != null && !current.list.complete) {
                 val asked = query
                 val offset = current.list.rows.size
+                val asking = generation
                 scope.launch {
                     val next = loadPeople(core, asked, offset)
                     val now = state as? PeopleState.Ready
                     // A window for a search the owner has since changed, or for a list that has moved on, is dropped.
-                    val unchanged = query == asked && now?.list?.rows?.size == offset
+                    val unchanged = generation == asking && query == asked && now?.list?.rows?.size == offset
                     if (next is PeopleState.Ready && now != null && unchanged) {
                         state = PeopleState.Ready(now.list.append(next.list))
                     }

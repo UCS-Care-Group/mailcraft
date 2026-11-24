@@ -2216,6 +2216,12 @@ msgstr "Kéri a leveleket egyedül, naptár és kapcsolatok nélkül, amely kés
 msgid "At a date and time"
 msgstr "Adott dátumkor és időpontban"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "Legfeljebb 20 bejegyzés listánként."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

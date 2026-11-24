@@ -2209,6 +2209,12 @@ msgstr "ითხოვს მხოლოდ ფოსტას, კალე�
 msgid "At a date and time"
 msgstr "გარკვეულ თარიღსა და დროს"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "თითოეულ სიაში მაქსიმუმ 20 ჩანაწერია."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

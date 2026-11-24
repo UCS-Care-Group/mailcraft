@@ -2210,6 +2210,12 @@ msgstr "Demande l'accès au courrier seul, sans le calendrier ni les contacts, q
 msgid "At a date and time"
 msgstr "À une date et une heure"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "20 entrées au maximum dans chaque liste."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

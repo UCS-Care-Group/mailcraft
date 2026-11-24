@@ -48,9 +48,15 @@ internal fun PersonEditor(texts: Texts, draft: PersonDraft, busy: Boolean, actio
             MAX_LIST,
             KeyboardType.Email,
             minLines = 2,
-            error = if (draft.badEmail) texts.t("One of these is not an email address.") else null,
+            error = when {
+                draft.badEmail -> texts.t("One of these is not an email address.")
+                draft.emailList.size > MAX_ENTRIES -> texts.t("At most 20 entries in each list.")
+                else -> null
+            },
         ) { actions.onDraft(draft.copy(emails = it)) }
-        Field(texts.t("Phone numbers, one per line"), draft.phones, MAX_LIST, KeyboardType.Phone, minLines = 2) {
+        Field(texts.t("Phone numbers, one per line"), draft.phones, MAX_LIST, KeyboardType.Phone, minLines = 2,
+            error = if (draft.phoneList.size > MAX_ENTRIES) texts.t("At most 20 entries in each list.") else null,
+        ) {
             actions.onDraft(draft.copy(phones = it))
         }
         Field(texts.t("Company"), draft.company, MAX_PERSON_LINE) { actions.onDraft(draft.copy(company = it)) }

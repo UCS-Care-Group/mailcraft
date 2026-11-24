@@ -1842,6 +1842,11 @@ msgstr ""
 msgid "At a date and time"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+msgid "At most 20 entries in each list."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "At most {max} contacts can be merged at once."

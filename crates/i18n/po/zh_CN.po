@@ -2214,6 +2214,12 @@ msgstr "仅连接邮件，日历和联系人可以稍后连接"
 msgid "At a date and time"
 msgstr "在指定日期和时间"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "每个列表最多 20 项。"
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy

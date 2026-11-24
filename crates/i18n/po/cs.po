@@ -2209,6 +2209,12 @@ msgstr "Žádá jen o poštu, bez kalendáře a kontaktů, které lze připojit 
 msgid "At a date and time"
 msgstr "V určité datum a čas"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "At most 20 entries in each list."
+msgstr "Nejvýše 20 položek v každém seznamu."
+
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
