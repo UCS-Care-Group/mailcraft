@@ -445,7 +445,7 @@ pub(crate) mod kit {
             let resp = ui.add(
                 egui::TextEdit::singleline(text)
                     .id(field_id(key))
-                    .desired_width(84.0)
+                    .desired_width(100.0)
                     .char_limit(10)
                     .hint_text(egui::RichText::new(tl!("YYYY-MM-DD")).size(10.5)),
             );
@@ -4434,7 +4434,7 @@ pub(crate) mod rules {
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
-    use mailcraft_model::{Action, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
+    use mailcraft_model::{Action, Condition, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
     use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
@@ -4882,7 +4882,10 @@ pub(crate) mod rules {
                 let current = if c.category.is_empty() { tl!("Choose a category").to_string() } else { shown(&c.category, 200) };
                 egui::ComboBox::from_id_salt((part, "category", i)).width(width).selected_text(current).truncate().show_ui(ui, |ui| {
                     for name in categories {
-                        if ui.selectable_label(mailcraft_model::sync::same_category(name, &c.category), shown(name, 200)).clicked() {
+                        if ui
+                            .selectable_label(mailcraft_model::sync::same_category(name, &c.category), crate::i18n::category_label(&shown(name, 200)))
+                            .clicked()
+                        {
                             c.category = name.clone();
                         }
                     }
@@ -4986,35 +4989,131 @@ pub(crate) mod rules {
         out
     }
 
+    /// A condition in words, in the interface language (the model's own wording is English, for
+    /// agents and logs).
+    fn condition_text(c: &Condition, addresses_only: bool) -> String {
+        use crate::i18n::fmt;
+        let words = |w: &[String]| w.iter().map(|t| mailcraft_model::said(t)).collect::<Vec<_>>().join(&format!(" {} ", tl!("or")));
+        let one = |s: &str, w: &[String]| fmt(s, &[("words", &words(w))]);
+        match c {
+            Condition::FromContains(t) if addresses_only => one(tl!("sender's address contains {words}"), t),
+            Condition::ToContains(t) if addresses_only => one(tl!("recipient's address contains {words}"), t),
+            Condition::FromContains(t) => one(tl!("from contains {words}"), t),
+            Condition::ToContains(t) => one(tl!("recipient contains {words}"), t),
+            Condition::SubjectContains(t) => one(tl!("subject contains {words}"), t),
+            Condition::BodyContains(t) => one(tl!("body contains {words}"), t),
+            Condition::HasAttachment => tl!("has an attachment").to_string(),
+            Condition::Importance(i) => {
+                let level = match i {
+                    Importance::Low => tl!("low"),
+                    Importance::Normal => tl!("normal"),
+                    Importance::High => tl!("high"),
+                };
+                fmt(tl!("importance is {level}"), &[("level", level)])
+            }
+            Condition::From(p) => one(tl!("from {words}"), p),
+            Condition::SentTo(p) => one(tl!("sent to {words}"), p),
+            Condition::SentOnlyToMe => tl!("sent only to me").to_string(),
+            Condition::ToMe => tl!("my address is in To").to_string(),
+            Condition::CcMe => tl!("my address is in Cc").to_string(),
+            Condition::ToOrCcMe => tl!("my address is in To or Cc").to_string(),
+            Condition::NotToMe => tl!("my address isn't in To").to_string(),
+            Condition::SubjectOrBodyContains(t) => one(tl!("subject or body contains {words}"), t),
+            Condition::Sensitivity(s) => {
+                let level = match s {
+                    Sensitivity::Normal => tl!("normal"),
+                    Sensitivity::Personal => tl!("personal"),
+                    Sensitivity::Private => tl!("private"),
+                    Sensitivity::Confidential => tl!("confidential"),
+                };
+                fmt(tl!("sensitivity is {level}"), &[("level", level)])
+            }
+            Condition::SizeBetween { min, max } => fmt(tl!("size is {min} KB to {max} KB"), &[("min", &min.to_string()), ("max", &max.to_string())]),
+            Condition::MeetingRequest => tl!("is a meeting invitation or update").to_string(),
+            Condition::AutomaticReply => tl!("is an automatic reply").to_string(),
+            Condition::Category(c) => one(tl!("category is {words}"), c),
+            Condition::Flagged => tl!("is flagged").to_string(),
+            Condition::ReceivedBetween { from, to } => {
+                let day = |d: &mailcraft_time::Date| crate::dates::medium(*d);
+                match (from, to) {
+                    (Some(f), Some(t)) => fmt(tl!("received from {from} to {to}"), &[("from", &day(f)), ("to", &day(t))]),
+                    (Some(f), None) => fmt(tl!("received on or after {day}"), &[("day", &day(f))]),
+                    (None, Some(t)) => fmt(tl!("received on or before {day}"), &[("day", &day(t))]),
+                    (None, None) => tl!("received on any day").to_string(),
+                }
+            }
+        }
+    }
+
+    /// An action that names no folder, in the interface language.
+    fn action_text(a: &Action) -> String {
+        match a {
+            Action::MoveTo(_) => tl!("move it to a folder").to_string(),
+            Action::CopyTo(_) => tl!("copy it to a folder").to_string(),
+            Action::Categorize(c) => crate::i18n::fmt(tl!("categorize it as {category}"), &[("category", &mailcraft_model::said(c))]),
+            Action::Flag => tl!("flag it").to_string(),
+            Action::MarkRead => tl!("mark it as read").to_string(),
+            Action::SetImportance(i) => {
+                let level = match i {
+                    Importance::Low => tl!("low"),
+                    Importance::Normal => tl!("normal"),
+                    Importance::High => tl!("high"),
+                };
+                crate::i18n::fmt(tl!("set importance to {level}"), &[("level", level)])
+            }
+            Action::Delete => tl!("delete it").to_string(),
+            Action::FlagFor(f) => match f {
+                FlagDue::Today => tl!("flag it for today").to_string(),
+                FlagDue::Tomorrow => tl!("flag it for tomorrow").to_string(),
+                FlagDue::ThisWeek => tl!("flag it for this week").to_string(),
+                FlagDue::NextWeek => tl!("flag it for next week").to_string(),
+            },
+            Action::ClearFlag => tl!("clear its flag").to_string(),
+            Action::ClearCategories => tl!("clear its categories").to_string(),
+        }
+    }
+
     /// The rule in words, naming the folder a move goes to:
     /// `When from contains "x": move it to Inbox/Projects, flag it`.
     pub fn describe(mb: &Mailbox, r: &Rule) -> String {
         let addresses = mb.rule_reads_addresses(r);
-        let when = r.conditions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" and ");
-        let except = r.exceptions.iter().map(|c| c.describe_as(addresses)).collect::<Vec<_>>().join(" or ");
+        let when = r.conditions.iter().map(|c| condition_text(c, addresses)).collect::<Vec<_>>().join(&format!(" {} ", tl!("and")));
+        let except = r.exceptions.iter().map(|c| condition_text(c, addresses)).collect::<Vec<_>>().join(&format!(" {} ", tl!("or")));
         // (A rule for every account's mail names the account too: it is shown under each.)
-        let into = |verb: &str, f: Id| match mb.folder(f) {
-            Some(folder) if folder.account == r.account => format!("{verb} it to {}", crate::nav::folder_path(mb, f)),
-            Some(folder) if let Some(other) = mb.account(folder.account) => {
-                let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
-                format!("{verb} it to {} - {who}", crate::nav::folder_path(mb, f))
+        let into = |copy: bool, f: Id| {
+            let (here, there, gone) = if copy {
+                (tl!("copy it to {folder}"), tl!("copy it to {folder} - {who}"), tl!("copy it to a folder that is gone"))
+            } else {
+                (tl!("move it to {folder}"), tl!("move it to {folder} - {who}"), tl!("move it to a folder that is gone"))
+            };
+            match mb.folder(f) {
+                Some(folder) if folder.account == r.account => crate::i18n::fmt(here, &[("folder", &crate::nav::folder_path(mb, f))]),
+                Some(folder) if let Some(other) = mb.account(folder.account) => {
+                    let who = if other.email.trim().is_empty() { other.name.trim() } else { other.email.trim() };
+                    crate::i18n::fmt(there, &[("folder", &crate::nav::folder_path(mb, f)), ("who", who)])
+                }
+                _ => gone.to_string(),
             }
-            _ => format!("{verb} it to a folder that is gone"),
         };
         let mut then: Vec<String> = r
             .actions
             .iter()
             .map(|a| match a {
-                Action::MoveTo(f) => into("move", *f),
-                Action::CopyTo(f) => into("copy", *f),
-                other => other.describe(),
+                Action::MoveTo(f) => into(false, *f),
+                Action::CopyTo(f) => into(true, *f),
+                other => action_text(other),
             })
             .collect();
         if r.alert {
-            then.push("show a desktop alert".into());
+            then.push(tl!("show a desktop alert").to_string());
         }
         let then = then.join(", ");
-        if except.is_empty() { format!("When {when}: {then}") } else { format!("When {when}, except if {except}: {then}") }
+        let f = crate::i18n::fmt;
+        if except.is_empty() {
+            f(tl!("When {when}: {then}"), &[("when", &when), ("then", &then)])
+        } else {
+            f(tl!("When {when}, except if {except}: {then}"), &[("when", &when), ("except", &except), ("then", &then)])
+        }
     }
 
     /// Where a rule is kept, and why, as the dialog says it under the rule (#566).
