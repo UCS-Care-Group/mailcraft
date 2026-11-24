@@ -11649,6 +11649,882 @@ msgstr "Bildeformat"
 msgid "Picture Layout"
 msgstr "Bildeoppsett"
 
+#. command label
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "Picture Size"
+msgstr "Bildestørrelse"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "Picture Size and Description"
+msgstr "Bildestørrelse og beskrivelse"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Picture above text"
+msgstr "Bilde over teksten"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Picture beside text"
+msgstr "Bilde ved siden av teksten"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs
+#, fuzzy
+msgid "Picture size"
+msgstr "Bildestørrelse"
+
+#. android, command label, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pictures"
+msgstr "Bilder"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Pictures in mail"
+msgstr "Bilder i e-post"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures not downloaded."
+msgstr "Bilder er ikke lastet ned."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures not shown."
+msgstr "Bilder vises ikke."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr "Bilder på nettet lastes ikke ned for en melding som ikke ligger i postkassen din: flytt den til en mappe først."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
+msgstr "Bilder på nettet lastes ned i hver melding du åpner. Serveren til hver avsender får da vite når du åpnet meldingen og fra hvilken internettadresse."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Pictures: {n} KB of {max} KB"
+msgstr "Bilder: {n} KB av {max} KB"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pin"
+msgstr "Fest"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pin to the top of the list"
+msgstr "Fest øverst i listen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Pink"
+msgstr "Rosa"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Pinned"
+msgstr "Festet"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Plain Text"
+msgstr "Ren tekst"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Point at a link to see where it goes."
+msgstr "Pek på en lenke for å se hvor den går."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Point at it to see why."
+msgstr "Pek på den for å se hvorfor."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Point at one to see why."
+msgstr "Pek på en for å se hvorfor."
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Policy"
+msgstr "Retningslinje"
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Pop Out"
+msgstr "Løs ut"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Postal code"
+msgstr "Postnummer"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Preferences"
+msgstr "Innstillinger"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preparing attachment preview…"
+msgstr "Gjør klar forhåndsvisning av vedlegget…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Press Send/Receive to download your mail."
+msgstr "Trykk Send/motta for å laste ned e-posten din."
+
+#. interface, name
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Preview"
+msgstr "Forhåndsvis"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Preview Attachment"
+msgstr "Forhåndsvis vedlegg"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview File"
+msgstr "Forhåndsvis fil"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PdfCraft"
+msgstr "Forhåndsvis vedlegg med lokale PdfCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PdfCraft and PhotoCraft"
+msgstr "Forhåndsvis vedlegg med lokale PdfCraft og PhotoCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview attachments with local PhotoCraft"
+msgstr "Forhåndsvis vedlegg med lokale PhotoCraft"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Preview files only when you trust the sender."
+msgstr "Forhåndsvis filer bare når du stoler på avsenderen."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Preview lines in the message list"
+msgstr "Forhåndsvisningslinjer i meldingslisten"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Previous"
+msgstr "Forrige"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Previous Message"
+msgstr "Forrige melding"
+
+#. interface
+#: crates/ui-egui/src/date_picker.rs
+#, fuzzy
+msgid "Previous Month"
+msgstr "Forrige måned"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Previous Page"
+msgstr "Forrige side"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Primary"
+msgstr "Primær"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Primary mail only"
+msgstr "Bare e-post i Primær"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."
+msgstr "Primær, Sosialt, Kampanjer, Oppdateringer og Forum, slik Gmail sorterer innboksen din. E-posten din blir liggende i innboksen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Privacy"
+msgstr "Personvern"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Private"
+msgstr "Privat"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it."
+msgstr "Programmer som åpner filer som dette, handler ut fra det som er i dem: de kan vise nettninnhold i den, eller ta inn nøklene og sertifikatene den inneholder. Åpne den bare hvis du vet hvem som sendte den og forventer den."
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Promotions"
+msgstr "Kampanjer"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Proofing"
+msgstr "Korrektur"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Properties"
+msgstr "Egenskaper"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Properties…"
+msgstr "Egenskaper…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Proposals"
+msgstr "Forslag"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Propose New Time"
+msgstr "Foreslå ny tid"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Propose New Time…"
+msgstr "Foreslå ny tid…"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Propose another time to the organizer, with a tentative answer or a decline. Nothing is sent until you say so there."
+msgstr "Foreslå en annen tid til arrangøren, med et foreløpig svar eller et avslag. Ingenting sendes før du sier det der."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Proposed"
+msgstr "Foreslått"
+
+#. interface, name
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Proposed Times"
+msgstr "Foreslåtte tider"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Proposed end"
+msgstr "Foreslått slutt"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Proposed start"
+msgstr "Foreslått start"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Proposed time"
+msgstr "Foreslått tid"
+
+#. command label
+#: crates/engine/src/cmd/keys.rs
+#, fuzzy
+msgid "Public Keys"
+msgstr "Offentlige nøkler"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Public folder"
+msgstr "Offentlig mappe"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Public keys of other people"
+msgstr "Andres offentlige nøkler"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Purple"
+msgstr "Lilla"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Purple category"
+msgstr "Lilla kategori"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Put the calendar items"
+msgstr "Legg kalenderelementene"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Put the contacts"
+msgstr "Legg kontaktene"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Put the mail"
+msgstr "Legg e-posten"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Put the tasks"
+msgstr "Legg oppgavene"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Put them into the calendar of your account, where Outlook and your other devices have them too. You are asked first."
+msgstr "Legg dem i kalenderen til kontoen din, der Outlook og de andre enhetene dine også har dem. Du blir spurt først."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "Puts the days you choose of your calendar into the message, where the cursor is."
+msgstr "Setter inn dagene du velger fra kalenderen din i meldingen, der markøren står."
+
+#. ribbon location
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "Quick Access"
+msgstr "Hurtigtilgang"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+#, fuzzy
+msgid "Quit MailCraft"
+msgstr "Avslutt MailCraft"
+
+#. command label
+#: crates/engine/src/cmd/followup.rs
+#, fuzzy
+msgid "Raise Due Reminders"
+msgstr "Vis forfalte påminnelser"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Range"
+msgstr "Område"
+
+#. command label, interface
+#: crates/engine/src/cmd/react.rs crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "React"
+msgstr "Reager"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+#, fuzzy
+msgid "Read"
+msgstr "Les"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt
+#, fuzzy
+msgid "Read / unread"
+msgstr "Lest / ulest"
+
+#. command label
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "Read Invitation"
+msgstr "Les invitasjonen"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+#, fuzzy
+msgid "Read status"
+msgstr "Lesestatus"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Read the Favorites from Outlook again now"
+msgstr "Les favorittene fra Outlook igjen nå"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Read-only"
+msgstr "Skrivebeskyttet"
+
+#. command label, ribbon, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Reading Pane"
+msgstr "Leserute"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane at the bottom"
+msgstr "Leserute nederst"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane off"
+msgstr "Leserute av"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Reading pane on the right"
+msgstr "Leserute til høyre"
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "Reading shared mailboxes needs your permission: use Send/Receive"
+msgstr "Lesing av delte postkasser krever tillatelse fra deg: bruk Send/motta"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Reading the automatic replies stopped unexpectedly"
+msgstr "Lesingen av de automatiske svarene stoppet uventet"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Reading the calendar from Microsoft…"
+msgstr "Leser kalenderen fra Microsoft…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
+#, fuzzy
+msgid "Reading what was shared"
+msgstr "Leser det som ble delt"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Reading your automatic replies from the server…"
+msgstr "Leser de automatiske svarene dine fra serveren…"
+
+#. name
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Real name"
+msgstr "Virkelig navn"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between"
+msgstr "Mottatt mellom"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Received between takes one day or two (YYYY-MM-DD), the earlier first."
+msgstr "Mottatt mellom tar én eller to dager (ÅÅÅÅ-MM-DD), den tidligste først."
+
+#. what a command says
+#: crates/engine/src/cmd/graph_down.rs
+#, fuzzy
+msgid "Receiving {name}: {read} of {total} · folder {number} of {folders}"
+msgstr "Mottar {name}: {read} av {total} · mappe {number} av {folders}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Recent"
+msgstr "Nylige"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Recent Searches"
+msgstr "Nylige søk"
+
+#. interface
+#: crates/ui-egui/src/recent_attachments.rs
+#, fuzzy
+msgid "Recent files"
+msgstr "Nylige filer"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Recent mail"
+msgstr "Nylig e-post"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Recent mail is kept on this phone, and older mail stays on your mail server. Nothing is deleted from the server."
+msgstr "Nylig e-post holdes på denne telefonen, og eldre e-post blir liggende på e-postserveren din. Ingenting slettes fra serveren."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient contains"
+msgstr "Mottaker inneholder"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient's address contains"
+msgstr "Mottakerens adresse inneholder"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Recommended"
+msgstr "Anbefalt"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Reconnect with Google"
+msgstr "Koble til Google på nytt"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Reconnect with Google if your sign-in expired or was revoked. Your downloaded mail and account settings stay in place."
+msgstr "Koble til Google på nytt hvis påloggingen din utløp eller ble trukket tilbake. Den nedlastede e-posten og kontoinnstillingene dine blir liggende."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recurrence"
+msgstr "Gjentakelse"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Red category"
+msgstr "Rød kategori"
+
+#. command label, name
+#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
+#, fuzzy
+msgid "Redo"
+msgstr "Gjør om"
+
+#. command label
+#: crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Redo Typing"
+msgstr "Gjør om skrivingen"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Redo {what}"
+msgstr "Gjør om {what}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Refresh"
+msgstr "Oppdater"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Refresh Your Certificates and Keys"
+msgstr "Oppdater sertifikatene og nøklene dine"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Related"
+msgstr "Relatert"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Remember Passwords and Sign-Ins"
+msgstr "Husk passord og pålogginger"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Remember passwords and sign-ins on this computer"
+msgstr "Husk passord og pålogginger på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Remembered in the settings; File › Options lists the senders and takes them off again."
+msgstr "Huskes i innstillingene; Fil › Innstillinger lister avsenderne og tar dem ut igjen."
+
+#. interface
+#: crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "Remind me again later"
+msgstr "Påminn meg igjen senere"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remind me if nobody replies"
+msgstr "Påminn meg hvis ingen svarer"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Remind me if nobody replies by:"
+msgstr "Påminn meg hvis ingen har svart innen:"
+
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Reminder"
+msgstr "Påminnelse"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Reminder for new appointments"
+msgstr "Påminnelse for nye avtaler"
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ChannelSpec.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailNotices.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/followup.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Reminders"
+msgstr "Påminnelser"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Reminders Window"
+msgstr "Påminnelsesvindu"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Remove"
+msgstr "Fjern"
+
+#. command label, interface
+#: crates/engine/src/cmd/account.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Account"
+msgstr "Fjern konto"
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Remove Attachment"
+msgstr "Fjern vedlegg"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "Remove Everything"
+msgstr "Fjern alt"
+
+#. command label, interface
+#: crates/engine/src/cmd/imported_dupes.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Imported Duplicates"
+msgstr "Fjern importerte duplikater"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Link"
+msgstr "Fjern lenke"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "Remove MailCraft's Data"
+msgstr "Fjern MailCrafts data"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Remove MailCraft's Data from This Computer"
+msgstr "Fjern MailCrafts data fra denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "Remove MailCraft's data from this computer…"
+msgstr "Fjern MailCrafts data fra denne datamaskinen…"
+
+#. command label
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "Remove Older Mail from This Computer"
+msgstr "Fjern eldre e-post fra denne datamaskinen"
+
+#. command label, interface
+#: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Remove Picture"
+msgstr "Fjern bilde"
+
+#. command label
+#: crates/engine/src/cmd/keys.rs
+#, fuzzy
+msgid "Remove Public Key"
+msgstr "Fjern offentlig nøkkel"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove Recurrence"
+msgstr "Fjern gjentakelse"
+
+#. command label, interface
+#: crates/engine/src/cmd/followup.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Remove Reminder"
+msgstr "Fjern påminnelse"
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Shared Calendar"
+msgstr "Fjern delt kalender"
+
+#. command label, interface
+#: crates/engine/src/cmd/shared.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Remove Shared Mailbox"
+msgstr "Fjern delt postkasse"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Remove Your Imported Key"
+msgstr "Fjern den importerte nøkkelen din"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Remove Your Key"
+msgstr "Fjern nøkkelen din"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Remove account"
+msgstr "Fjern konto"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Remove all local data?"
+msgstr "Fjerne alle lokale data?"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Remove attendees"
+msgstr "Fjern deltakere"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
+msgid "Remove filter"
+msgstr "Fjern filter"
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Remove from Calendar"
+msgstr "Fjern fra kalenderen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Remove from Favorites"
+msgstr "Fjern fra favoritter"
+
+#. command label
+#: crates/engine/src/cmd/junk.rs
+#, fuzzy
+msgid "Remove from Safe or Blocked Senders"
+msgstr "Fjern fra trygge eller blokkerte avsendere"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Remove link"
+msgstr "Fjern lenke"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -11704,6 +12580,13 @@ msgstr "Utboks"
 msgctxt "sensitivity"
 msgid "Normal"
 msgstr "Normal"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgctxt "sensitivity"
+msgid "Private"
+msgstr "Privat"
 
 #. what a command says
 #: crates/i18n/src/lib.rs
