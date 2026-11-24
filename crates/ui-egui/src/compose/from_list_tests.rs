@@ -63,3 +63,37 @@ fn each_account_is_followed_by_its_other_addresses_in_the_folder_panes_order() {
     let list = choices(&mb);
     assert!(is_current(&list[3], first, "Support@Product.example") && !is_current(&list[1], first, "support@product.example"));
 }
+
+#[test]
+fn many_sender_addresses_scroll_inside_the_window() {
+    use egui_kittest::kittest::Queryable as _;
+    use serde_json::json;
+
+    let mut a = super::tests::app();
+    let acc = a.session.mailbox.accounts[0].id;
+    a.session.mailbox.account_mut(acc).unwrap().sender_addresses =
+        (0..mailcraft_model::MAX_SENDER_ADDRESSES).map(|n| sender(&format!("alias{n}@company.example"), "")).collect();
+    a.execute("mail.new", json!({})).unwrap();
+    let mut h = super::tests::window(a);
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    h.run_steps(3);
+    let from_id = h.ctx.viewport_id();
+    let _ = from_id;
+    // Open the From menu by clicking the From row.
+    let from_rect = h.query_all_by_label("From").next().map(|n| n.rect());
+    let click_pos = match from_rect {
+        Some(r) => egui::pos2(r.max.x + 60.0, r.center().y),
+        None => egui::pos2(600.0, 145.0),
+    };
+    h.event(egui::Event::PointerMoved(click_pos));
+    h.step();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: click_pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(3);
+    let screen = h.ctx.content_rect();
+    for node in h.query_all_by_label_contains("@company.example") {
+        assert!(node.rect().max.y <= screen.max.y, "From popup item {:?} overflows window bottom {}", node.rect(), screen.max.y);
+    }
+}

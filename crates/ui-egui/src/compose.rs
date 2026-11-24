@@ -458,20 +458,22 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         // (In the order of the folder pane, #702; an account's other addresses under its own.)
         let choices = from_list::choices(&app.session.mailbox);
         egui::Popup::menu(&resp).show(|ui| {
-            for choice in choices {
-                let picked = ui
-                    .horizontal(|ui| {
-                        if !choice.from.is_empty() {
-                            ui.add_space(14.0);
-                        }
-                        ui.selectable_label(from_list::is_current(&choice, c.account, &c.from), &choice.label).clicked()
-                    })
-                    .inner;
-                if picked {
-                    let _ = app.execute("compose.set", json!({"account": choice.account, "from": choice.from}));
-                    ui.close();
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for choice in choices {
+                    let picked = ui
+                        .horizontal(|ui| {
+                            if !choice.from.is_empty() {
+                                ui.add_space(14.0);
+                            }
+                            ui.selectable_label(from_list::is_current(&choice, c.account, &c.from), &choice.label).clicked()
+                        })
+                        .inner;
+                    if picked {
+                        let _ = app.execute("compose.set", json!({"account": choice.account, "from": choice.from}));
+                        ui.close();
+                    }
                 }
-            }
+            });
         });
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
     }
