@@ -74,6 +74,9 @@ pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
+pub mod unified;
+#[cfg(test)]
+mod unified_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
 

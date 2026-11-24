@@ -49,7 +49,7 @@ impl Symbol {
                 let fill = if resp.hovered() { t.hover } else { t.surface };
                 ui.painter().rect(r, 3.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
                 // The no-break space shows as its name's initials.
-                let shown = if *c == '\u{a0}' { "NBSP".to_string() } else { c.to_string() };
+                let shown = if *c == '\u{a0}' { tl!("NBSP").to_string() } else { c.to_string() };
                 let size = if *c == '\u{a0}' { 9.0 } else { 17.0 };
                 ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, shown, regular(size), t.text);
                 app.hit.add("symbolCell", cell_id(*c), r);

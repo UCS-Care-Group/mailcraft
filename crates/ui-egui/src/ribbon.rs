@@ -1586,7 +1586,7 @@ pub fn category_menu(
             if on {
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, "✓", medium(10.0), Tokens::get(ui.ctx()).on_swatch);
             }
-            if ui.add(egui::Button::new(name.as_str()).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
+            if ui.add(egui::Button::new(crate::i18n::category_label(&name)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
                 let _ = app.run(command, json!({"category": name}));
                 ui.close();
             }
@@ -1848,7 +1848,9 @@ pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::ReadingPane => {
             let cur = app.session.view.reading_pane;
-            for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
+            for (label, code, pane) in
+                [(tl_later!("Right"), "right", Pane::Right), (tl_later!("Bottom"), "bottom", Pane::Bottom), (tl_later!("Off"), "off", Pane::Off)]
+            {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
         }
@@ -1864,7 +1866,7 @@ pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;
-            for (label, n) in [("Off", 0u8), ("1 Line", 1), ("2 Lines", 2), ("3 Lines", 3)] {
+            for (label, n) in [(tl_later!("Off"), 0u8), (tl_later!("1 Line"), 1), (tl_later!("2 Lines"), 2), (tl_later!("3 Lines"), 3)] {
                 mi_check(ui, app, label, lines == n, "view.previewLines", json!({"value": n}));
             }
             ui.separator();
