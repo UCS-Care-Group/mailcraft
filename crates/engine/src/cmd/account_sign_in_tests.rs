@@ -105,6 +105,32 @@ fn an_account_brought_back_keeps_its_mark() {
     assert_eq!(listed(&mut s, id), json!(true));
 }
 
+/// An account that no longer has a server, by an edit or by undoing the edit that gave it one,
+/// has nothing to sign in to: it isn't marked.
+#[test]
+fn an_account_left_without_a_server_loses_the_mark() {
+    let mut s = Session::empty();
+    let id = add(&mut s, json!({"email": "imap@example.org", "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}}));
+    note_sign_in_needed(&mut s, id, true);
+    s.run("account.edit", &json!({"id": id, "incoming": null, "outgoing": null})).unwrap();
+    assert_eq!(s.mailbox.account(id).unwrap().kind, mailcraft_model::AccountKind::Local);
+    assert!(!needed(&s, id));
+    assert_eq!(listed(&mut s, id), json!(false));
+    // Given a server, turned down, and the edit undone: it is the local account it was.
+    let local = add(&mut s, json!({"email": "here@example.org"}));
+    s.run("account.edit", &json!({"id": local, "incoming": {"host": "imap.example.org"}})).unwrap();
+    note_sign_in_needed(&mut s, local, true);
+    assert!(needed(&s, local));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.mailbox.account(local).unwrap().kind, mailcraft_model::AccountKind::Local);
+    assert!(!needed(&s, local));
+    // (An edit that keeps the server keeps the mark, as undoing one does: [`undo_and_redo_leave_the_mark_as_it_is_now`].)
+    let kept = add(&mut s, json!({"email": "kept@example.org", "incoming": {"host": "imap.example.org"}}));
+    note_sign_in_needed(&mut s, kept, true);
+    s.run("account.edit", &json!({"id": kept, "outgoing": {"host": "smtp.example.org"}})).unwrap();
+    assert!(needed(&s, kept));
+}
+
 struct Temp(PathBuf);
 
 impl Drop for Temp {
