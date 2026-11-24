@@ -182,8 +182,15 @@ impl SyncFolderItems {
         // The schema's own spelling, leading `0x` and all (as the Outlook capture spells every
         // tag): the bare `0E67` Kerio answers by dropping the connection, measured twice
         // 2026-11-24, servlet and all.)
+        // (The flag as MAPI knows it, `PR_FLAG_STATUS` (0x1090), next to the read tag: Kerio's
+        // schema has no `item:Flag` at all — naming it poisons the whole page, the same fault
+        // class as a misspelling, measured 2026-11-24 — and the flag its web mail sets and its
+        // IMAP clients set as `\Flagged` lives behind this tag, which answers lean inside an
+        // `IdOnly` page and maps both ways (measured the same day). Outlook asks this tag too.)
         if self.extended {
-            extra = extra.child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x0E67").attr("PropertyType", "Boolean"));
+            extra = extra
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x0E67").attr("PropertyType", "Boolean"))
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer"));
         }
         let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
@@ -290,6 +297,35 @@ fn flag(node: &Node, name: &str) -> bool {
     node.child_in(TYPES, name).is_some_and(|n| n.text.trim().eq_ignore_ascii_case("true"))
 }
 
+/// The item's flag as an extended property: `PR_FLAG_STATUS` (0x1090), the flag as MAPI
+/// numbers it ([MS-OXOFLAG], same numbering as Outlook's `OlFlagStatus`): 0 is no flag,
+/// 1 is a flag worked through, 2 is flagged; anything else is no answer. The tag is
+/// quoted as the server likes, read the way [`extended_read`] reads its own — decimal
+/// only ever matches 4240 and a prefix-less hex spelling only ever reads back as this
+/// tag, the two not colliding; a tag added this way must keep that true. On Kerio this
+/// is the only flag there is (#1784, the flag: measured 2026-11-24, the tag answers lean
+/// and follows what the web mail and IMAP's `\Flagged` set — its own web mail's flag
+/// coming back as 2, a completed follow-up as 1).
+fn extended_flag(item: &Node) -> Option<FlagStatus> {
+    item.children
+        .iter()
+        .filter(|p| p.is(TYPES, "ExtendedProperty"))
+        .find(|p| {
+            p.child_in(TYPES, "ExtendedFieldURI").and_then(|u| u.attribute("PropertyTag")).is_some_and(|tag| {
+                let tag = tag.trim();
+                tag == "4240" || u32::from_str_radix(tag.trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(0x1090)
+            })
+        })
+        .and_then(|p| p.child_in(TYPES, "Value"))
+        .and_then(|v| v.text.trim().parse::<i64>().ok())
+        .and_then(|value| match value {
+            0 => Some(FlagStatus::None),
+            1 => Some(FlagStatus::Complete),
+            2 => Some(FlagStatus::Flagged),
+            _ => None,
+        })
+}
+
 /// A `Mailbox` element as an address. An address in the server's own directory (routing type
 /// `EX`) is not an address anybody can write to: only the name is kept.
 fn mailbox(node: &Node) -> Option<Address> {
@@ -327,10 +363,19 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         _ => Importance::Normal,
     };
     let flag_node = item.child_in(TYPES, "Flag");
-    let status = match flag_node.and_then(|f| f.child_in(TYPES, "FlagStatus")).map_or("", |n| n.text.trim()) {
-        "Flagged" => FlagStatus::Flagged,
-        "Complete" => FlagStatus::Complete,
-        _ => FlagStatus::None,
+    let ext_flag = extended_flag(item);
+    // The schema flag answers with the MAPI tag beside it: the tag is a fallback for servers
+    // whose schema has no flag family at all, never an override — a `NotFlagged` answered by
+    // the node outvotes any tag value (#1784). Dates parse from the node alone: the tag says
+    // nothing of them, and the servers that answer the tag without the node have no dates
+    // to say (Kerio measured 2026-11-24), so `flag_said` covers one flag whole either way.
+    let status = match flag_node {
+        Some(f) => match f.child_in(TYPES, "FlagStatus").map_or("", |n| n.text.trim()) {
+            "Flagged" => FlagStatus::Flagged,
+            "Complete" => FlagStatus::Complete,
+            _ => FlagStatus::None,
+        },
+        None => ext_flag.unwrap_or(FlagStatus::None),
     };
     let when = |name: &str| flag_node.and_then(|f| f.child_in(TYPES, name)).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0));
     let cats_node = item.child_in(TYPES, "Categories");
@@ -339,13 +384,14 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
     let native_read = item.child_in(TYPES, "IsRead").map(|n| n.text.trim().eq_ignore_ascii_case("true"));
+    let ext_read = extended_read(item);
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
-            read: native_read.or_else(|| extended_read(item)).unwrap_or(false),
-            read_said: native_read.is_some() || extended_read(item).is_some(),
+            read: native_read.or(ext_read).unwrap_or(false),
+            read_said: native_read.is_some() || ext_read.is_some(),
             flag: status,
-            flag_said: flag_node.is_some(),
+            flag_said: flag_node.is_some() || ext_flag.is_some(),
             categories,
             categories_said: cats_node.is_some(),
             importance,

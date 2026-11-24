@@ -7,6 +7,7 @@
 use crate::standin::response;
 use crate::standin_mail::ok_message;
 use crate::*;
+use mailcraft_model::FlagStatus;
 
 fn page(changes: &str, max: u32) -> Result<ItemsPage, Error> {
     let inner =
@@ -107,6 +108,46 @@ fn the_read_state_tag_is_read_whatever_way_the_server_quotes_it() {
     }
 }
 
+/// The flag as `PR_FLAG_STATUS`: on Kerio the only flag there is — its schema answers a bare
+/// SOAP fault for `item:Flag` itself (measured 2026-11-24), while this tag answers lean and
+/// follows what the web mail and IMAP's `\Flagged` set. The values are MAPI's numbering
+/// ([MS-OXOFLAG], as Outlook's `OlFlagStatus`): 0 none, 1 a flag worked through, 2 flagged,
+/// anything else no answer; the tag quoted as the server likes. A page that answers neither
+/// door is silence, held (#1784).
+#[test]
+fn the_flag_status_tag_reads_the_flag_kerio_keeps() {
+    for (tag, value, want) in [
+        ("0x1090", "0", Some(FlagStatus::None)),
+        ("0x1090", "1", Some(FlagStatus::Complete)),
+        ("0x1090", "2", Some(FlagStatus::Flagged)),
+        ("1090", "2", Some(FlagStatus::Flagged)),
+        ("4240", "2", Some(FlagStatus::Flagged)),
+        (" 4240 ", "2", Some(FlagStatus::Flagged)),
+        ("0x1090", "3", None),
+        ("0x1090", "twelve", None),
+        ("1002", "2", None),
+    ] {
+        let xml = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/><t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"{tag}\" PropertyType=\"Integer\"/><t:Value>{value}</t:Value></t:ExtendedProperty></t:Message></t:Create>"
+        );
+        let got = page(&xml, 10).unwrap();
+        let m = &got.messages[0].server;
+        assert_eq!((m.flag, m.flag_said), (want.unwrap_or(FlagStatus::None), want.is_some()), "tag {tag}={value}");
+    }
+    // (The schema flag answers whenever its server has the flag family: the tag is a
+    // fallback, never an override — what the node says wins, including saying no flag.)
+    for (spelled, tag_value, want) in
+        [("Complete", "2", FlagStatus::Complete), ("Flagged", "1", FlagStatus::Flagged), ("NotFlagged", "2", FlagStatus::None)]
+    {
+        let xml = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/><t:Flag><t:FlagStatus>{spelled}</t:FlagStatus></t:Flag>\
+             <t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/><t:Value>{tag_value}</t:Value></t:ExtendedProperty></t:Message></t:Create>"
+        );
+        let got = page(&xml, 10).unwrap();
+        assert_eq!(got.messages[0].server.flag, want, "the schema says {spelled} and the tag says {tag_value}");
+    }
+}
+
 /// Every shape of the list asks over the `IdOnly` base with its properties named: the `Default`
 /// base is what makes Kerio answer a listing with whole messages (measured 2026-11-24: 7 KB
 /// against 287 MB over one mailbox), and a property named the wrong way is answered with a
@@ -140,6 +181,10 @@ fn every_shape_asks_the_light_base_with_its_properties_named() {
             assert_eq!(body.contains("message:ToRecipients"), recipients, "the recipients ride their shapes");
             assert_eq!(body.contains("item:Flag"), flag, "the flag rides its shapes");
             assert!(body.contains("PropertyTag=\"0x0E67\"") == extended, "the MAPI tag rides the extended asking, spelled as the schema has it");
+            assert!(
+                body.contains("PropertyTag=\"0x1090\"") == extended,
+                "and the MAPI flag tag rides with it: on Kerio it is the only flag there is"
+            );
             assert!(!body.contains("\"0E67\""), "and never the bare tag Kerio drops the connection for");
         }
     }
