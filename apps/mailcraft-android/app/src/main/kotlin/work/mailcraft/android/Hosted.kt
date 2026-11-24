@@ -74,10 +74,24 @@ private fun rememberPeople(
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf<PeopleState>(PeopleState.Loading) }
+    // The new-person form is kept by the system while the app is away.
+    val editorState = rememberSaveable(stateSaver = PersonDraft.Saver) { mutableStateOf<PersonDraft?>(null) }
+    val busyState = remember { mutableStateOf(false) }
+    var added by remember { mutableIntStateOf(0) }
     val person by produceState<PersonState?>(null, ready, reload, open) {
         value = open?.let { if (ready) loadPerson(core, it.toULong()) else PersonState.Loading }
     }
-    LaunchedEffect(ready, reload, query) { if (ready) state = loadPeople(core, query, 0) }
+    LaunchedEffect(ready, reload, query, added) { if (ready) state = loadPeople(core, query, 0) }
+    val form = formActions(scope, core, editorState, busyState) { made ->
+        if (made != null) {
+            notice = null
+            query = ""
+            open = made.toLong()
+            added += 1
+        } else {
+            notice = texts.t("That could not be saved.")
+        }
+    }
     val actions = PeopleActions(
         onQuery = { query = it.take(MAX_QUERY) },
         onMore = {
@@ -101,18 +115,19 @@ private fun rememberPeople(
             open = it.toLong()
         },
         onClose = { open = null },
+        form = form,
         onMail = {
             val done = launch(context, Intent.ACTION_SENDTO, mailtoLink(it))
-            notice = if (done) null else texts.t("No program can write to this address.")
+            notice = texts.t("No program can write to this address.").takeUnless { done }
         },
         onCall = {
             val done = launch(context, Intent.ACTION_DIAL, dialLink(it))
-            notice = if (done) null else texts.t("No program can call this number.")
+            notice = texts.t("No program can call this number.").takeUnless { done }
         },
     )
     val shown = open?.toULong()
     val card = if (shown != null) person ?: PersonState.Loading else null
-    return PeopleData(query, state, shown, card, notice) to actions
+    return PeopleData(query, state, shown, card, notice, editorState.value, busyState.value) to actions
 }
 
 private const val MAX_QUERY = 200
