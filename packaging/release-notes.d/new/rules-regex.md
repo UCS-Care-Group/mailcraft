@@ -3,4 +3,4 @@
 - Max 100 regex pattern conditions per mailbox (SubjectMatches + BodyMatches combined)
 - Patterns that are too long or complex to compile produce a clear error instead of crashing
 - Body text matched by regex patterns is limited to 10,000 characters to prevent performance issues with large messages
-- If you downgrade to an older version that doesn't support regex patterns, rules with regex conditions will load with their patterns uncompiled (they will match nothing)
+- Rules that use a pattern (subject/body matches) are not understood by versions before this one: open that mailbox with this version or newer
