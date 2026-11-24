@@ -686,6 +686,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
