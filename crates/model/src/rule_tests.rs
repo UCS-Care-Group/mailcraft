@@ -262,7 +262,7 @@ fn load_mailbox_with_too_many_patterns() {
     }
 
     // Verify the fix message was added
-    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions uncompiled")), "Fixed: {:?}", fixed);
 
     // Verify that uncompiled patterns match nothing
     for rule in &mailbox.rules {
@@ -443,7 +443,7 @@ fn hostile_mailbox_loading_does_not_compile_patterns() {
     }
 
     // Verify the fix message was added
-    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions uncompiled")), "Fixed: {:?}", fixed);
 }
 
 #[test]
@@ -520,5 +520,5 @@ fn two_condition_rule_preserved_when_over_budget() {
     }
 
     // Verify fix message was added
-    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions cut")), "Fixed: {:?}", fixed);
+    assert!(fixed.iter().any(|msg| msg.contains("pattern conditions uncompiled")), "Fixed: {:?}", fixed);
 }

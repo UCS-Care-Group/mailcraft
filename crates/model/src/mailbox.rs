@@ -4895,7 +4895,7 @@ impl Mailbox {
         }
 
         if removed > 0 {
-            fixed.push(format!("pattern conditions cut from rules to stay within {MAX_PATTERN_CONDITIONS} limit"));
+            fixed.push(format!("pattern conditions uncompiled in rules to stay within {MAX_PATTERN_CONDITIONS} limit"));
         }
 
         removed

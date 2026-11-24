@@ -14451,7 +14451,7 @@ msgstr "ვის გაეგზავნა"
 
 #. name
 #: crates/ui-egui/src/forms.rs
-msgid "Sent to addresses that start with"
+msgid "Sent to starts with"
 msgstr ""
 
 #. interface

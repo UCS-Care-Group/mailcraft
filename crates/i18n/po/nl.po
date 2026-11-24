@@ -13986,8 +13986,8 @@ msgstr "Verzonden aan"
 
 #. name
 #: crates/ui-egui/src/forms.rs
-msgid "Sent to addresses that start with"
-msgstr ""
+msgid "Sent to starts with"
+msgstr "Verzonden aan begint met"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
