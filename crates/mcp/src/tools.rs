@@ -247,6 +247,9 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "categories",
     "account",
     "calendar",
+    // An address book, as people.contactBooks names it.
+    "book",
+    "addressBook",
     "rule",
     "list",
     "name",
