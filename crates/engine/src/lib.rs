@@ -437,6 +437,8 @@ mod composing_tests;
 #[cfg(test)]
 mod counts_tests;
 #[cfg(test)]
+mod draft_in_thread_tests;
+#[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
