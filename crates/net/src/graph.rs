@@ -1991,6 +1991,9 @@ fn contact_of(entry: &Value) -> Option<RemoteContact> {
         // The day as it is written: a birthday is a day, whatever time of it the server adds.
         birthday: Some(text(entry, "birthday")).filter(|day| day.len() <= MAX_DATE).and_then(mailcraft_time::parse_iso).map(|(day, _)| day.date),
         notes: text(entry, "personalNotes").to_string(),
+        uid: String::new(),
+        book: String::new(),
+        book_id: String::new(),
         modified: instant(text(entry, "lastModifiedDateTime")).unwrap_or(0),
     };
     // Entries with nothing in them (no mobile number, no home address) go here.

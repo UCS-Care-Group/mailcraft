@@ -33,7 +33,7 @@ fn from_server(s: &mut Session, account: Id, id: &str, name: &str) -> Id {
         emails: vec![Labeled::new("work", format!("{id}@example.org"))],
         ..Default::default()
     };
-    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, contacts: vec![contact] }).unwrap();
+    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, books: Vec::new(), contacts: vec![contact] }).unwrap();
     s.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }
 
@@ -218,7 +218,7 @@ fn export_takes_every_contact_whatever_the_list_shows() {
     run(&mut s, "view.peopleAccount", json!({"value": work}));
     assert_eq!(sorted(&s, "").len(), 1);
     assert_eq!(run(&mut s, "file.exportContacts", json!({}))["contacts"], every);
-    assert_eq!(sorted_of(&s, "", AccountChoice::All).len(), every);
+    assert_eq!(sorted_of(&s, "", &super::Shown::of(AccountChoice::All)).len(), every);
 }
 
 #[test]

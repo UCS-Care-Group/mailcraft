@@ -1,0 +1,1 @@
+- Exchange calendar sync handles overlapping appointments on truncated pages and reports refused edits. [#720](https://github.com/UCS-Care-Group/mailcraft/issues/720)
