@@ -5487,6 +5487,882 @@ msgstr "Fil"
 msgid "File dialogs aren't available here"
 msgstr "Fildialoger er ikke tilgjengelige her"
 
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "File:"
+msgstr "Fil:"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."
+msgstr "Filer som dette kan inneholde makroer, som kjøres som programmer. Åpne den bare hvis du vet hvem som sendte den og forventer den."
+
+#. android, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Filter"
+msgstr "Filter"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Filter Email"
+msgstr "Filtrer e-post"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Filter Tasks"
+msgstr "Filtrer oppgaver"
+
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find"
+msgstr "Søk"
+
+#. command label
+#: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
+msgid "Find Duplicate Contacts"
+msgstr "Finn dupliserte kontakter"
+
+#. interface
+#: crates/ui-egui/src/find_replace.rs
+#, fuzzy
+msgid "Find Next"
+msgstr "Søk neste"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find Related Messages"
+msgstr "Finn relaterte meldinger"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Find a Time"
+msgstr "Finn en tid"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Find a font"
+msgstr "Finn en skrift"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Find next spelling error"
+msgstr "Finn neste stavefeil"
+
+#. interface
+#: crates/ui-egui/src/find_replace.rs
+#, fuzzy
+msgid "Find what"
+msgstr "Søk etter"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Finding your account settings…"
+msgstr "Finner kontoinnstillingene dine…"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Fingerprint (SHA-256):"
+msgstr "Fingeravtrykk (SHA-256):"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Fingerprint:"
+msgstr "Fingeravtrykk:"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
+#, fuzzy
+msgid "Finish on Microsoft's page in your browser. MailCraft is waiting."
+msgstr "Fullfør på Microsoft-siden i nettleseren din. MailCraft venter."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Finish or close the message you are writing, then try again."
+msgstr "Fullfør eller lukk meldingen du skriver, og prøv igjen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Finish signing in first (your browser is waiting)"
+msgstr "Fullfør påloggingen først (nettleseren din venter)"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Finish signing in on Microsoft's page in your browser. MailCraft is waiting."
+msgstr "Fullfør påloggingen på Microsoft-siden i nettleseren din. MailCraft venter."
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First"
+msgstr "Første"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "First Message"
+msgstr "Første melding"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "First commit"
+msgstr "Første innsending"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "First name"
+msgstr "Fornavn"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "First save Google's standard IMAP and SMTP settings and a matching email user name before switching sign-in methods."
+msgstr "Lagre Googles standard IMAP- og SMTP-innstillinger og et samsvarende e-postbrukernavn før du bytter påloggingsmåte."
+
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/swipe.rs
+#, fuzzy
+msgid "Flag"
+msgstr "Flagg"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Flag Message"
+msgstr "Flagg meldingen"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Flag for follow-up"
+msgstr "Flagg for oppfølging"
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "Flag the message and remind me:"
+msgstr "Flagg meldingen og påminn meg:"
+
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
+#, fuzzy
+msgid "Flagged"
+msgstr "Flagget"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Fold the calendars of this group away"
+msgstr "Slå sammen kalenderne i denne gruppen"
+
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#, fuzzy
+msgid "Folder"
+msgstr "Mappe"
+
+#. command label, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Folder Pane"
+msgstr "Mappepanel"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Folder Properties"
+msgstr "Mappeegenskaper"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Folder Size"
+msgstr "Mappestørrelse"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Folder Size…"
+msgstr "Mappestørrelse…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Folder name"
+msgstr "Mappenavn"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Folder {folder} ({n} of {of})"
+msgstr "Mappen {folder} ({n} av {of})"
+
+#. name
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Folders"
+msgstr "Mapper"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "Folders up to date"
+msgstr "Mappene er oppdatert"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Folder…"
+msgstr "Mappe…"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Follow Up"
+msgstr "Følg opp"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "Follow up"
+msgstr "Følg opp"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Follow up."
+msgstr "Følg opp."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Follow up. Due {date}"
+msgstr "Følg opp. Forfaller {date}"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Font"
+msgstr "Skrift"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Font Color"
+msgstr "Skriftfarge"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Font Size"
+msgstr "Skriftstørrelse"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "For IMAP accounts. Microsoft and Exchange server accounts keep mail by Mail to keep offline, in File › Info."
+msgstr "For IMAP-kontoer. Microsoft- og Exchange-serverkontoer holder e-post via E-post som holdes frakoblet, i Fil › Info."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "For a mail server your organisation runs itself. MailCraft looks for the server from your address, or you can type its address in Server settings. Nothing is sent until you press Connect."
+msgstr "For en e-postserver organisasjonen din driver selv. MailCraft leter etter serveren ut fra adressen din, eller du kan skrive adressen i Serverinnstillinger. Ingenting sendes før du trykker Koble til."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "For a relay that takes mail without a password: it is never sent yours."
+msgstr "For en relay som tar imot e-post uten passord: den får aldri ditt."
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown."
+msgstr "For en konto som logger inn med Microsoft: mappene du har under Favoritter i Outlook, i samme rekkefølge. De leses fra serveren og endres aldri der. Uten dette vises favorittene du merker i MailCraft."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, nothing of shared mailboxes is read or sent: {error}"
+msgstr "Foreløpig leses eller sendes ingenting fra delte postkasser: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Foreløpig blir reglene liggende på denne datamaskinen, de automatiske svarene dine endres ikke, og kategoriene kan ikke endres her: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks and rules stay on this computer, your automatic replies aren't changed and the categories can't be changed here: {error}"
+msgstr "Foreløpig blir oppgavene og reglene liggende på denne datamaskinen, de automatiske svarene dine endres ikke, og kategoriene kan ikke endres her: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, tasks stay on this computer and your automatic replies aren't changed: {error}"
+msgstr "Foreløpig blir oppgavene liggende på denne datamaskinen, og de automatiske svarene dine endres ikke: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "For now, your automatic replies aren't changed: {error}"
+msgstr "Foreløpig endres ikke de automatiske svarene dine: {error}"
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+#, fuzzy
+msgid "Forget"
+msgstr "Glem"
+
+#. command label
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "Forget Downloaded Calendar and Contacts"
+msgstr "Glem nedlastet kalender og kontakter"
+
+#. command label
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Forget Trusted Certificate"
+msgstr "Glem klarert sertifikat"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Forget the pictures that are kept; they are downloaded again when you ask."
+msgstr "Glem bildene som er beholdt; de lastes ned igjen når du ber om det."
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Format"
+msgstr "Format"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Format Painter"
+msgstr "Formatsøkepenn"
+
+#. ribbon location
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#, fuzzy
+msgid "Format Text"
+msgstr "Formater tekst"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Format as HTML"
+msgstr "Formater som HTML"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Format as Plain Text"
+msgstr "Formater som ren tekst"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Forums"
+msgstr "Forum"
+
+#. android, command label, interface, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward"
+msgstr "Videresend"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Forward Contact"
+msgstr "Videresend kontakt"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Forward This Occurrence…"
+msgstr "Videresend denne forekomsten…"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward as Attachment"
+msgstr "Videresend som vedlegg"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Forward…"
+msgstr "Videresend…"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Found in your domain's DNS. Your sign-in goes to a server outside your domain only after you agree."
+msgstr "Funnet i DNS-en til domenet ditt. Påloggingen din går bare til en server utenfor domenet etter at du samtykker."
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "Found in {path}. Nothing is imported until you press Import."
+msgstr "Funnet i {path}. Ingenting importeres før du trykker Importer."
+
+#. name
+#: crates/model/src/calendar.rs
+#, fuzzy
+msgid "Free"
+msgstr "Ledig"
+
+#. command label
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "Free and Busy Times"
+msgstr "Ledige og opptatte tider"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Fri"
+msgstr "fre"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Friday"
+msgstr "fredag"
+
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "From"
+msgstr "Fra"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "From Internet…"
+msgstr "Fra internett…"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "From Sender"
+msgstr "Fra avsender"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "From a mailing list."
+msgstr "Fra en e-postliste."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From and Sent to take whole addresses, such as someone@example.org."
+msgstr "Fra og Sendt til tar hele adresser, som noen@example.org."
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "From contains"
+msgstr "Fra inneholder"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "From outside your organisation."
+msgstr "Fra utenfor organisasjonen din."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
+msgstr "Fra organisasjonens adresseliste for {account}. Vises mens du ser, og beholdes ikke: Legg til i kontakter beholder en kopi på denne datamaskinen."
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "From {name}"
+msgstr "Fra {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "From:"
+msgstr "Fra:"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "Full details: and where, and the notes"
+msgstr "Alle detaljer: og hvor, og merknadene"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "Full messages: {done} of {total}"
+msgstr "Hele meldinger: {done} av {total}"
+
+#. interface, name, ribbon location
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "General"
+msgstr "Generelt"
+
+#. name
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "Georgia"
+msgstr "Georgia"
+
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Get Contact"
+msgstr "Hent kontakt"
+
+#. command label
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "Get Event"
+msgstr "Hent hendelse"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+#, fuzzy
+msgid "Get Journal Entry"
+msgstr "Hent journaloppføring"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Get Message"
+msgstr "Hent melding"
+
+#. command label
+#: crates/engine/src/cmd/notes.rs
+#, fuzzy
+msgid "Get Note"
+msgstr "Hent notat"
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+#, fuzzy
+msgid "Get Support"
+msgstr "Få hjelp"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Get Task"
+msgstr "Hent oppgave"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "Getting ready…"
+msgstr "Gjør klar…"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub is public and needs a GitHub account."
+msgstr "GitHub er offentlig og krever en GitHub-konto."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
+msgstr "GitHub-saker er offentlige: ikke legg inn e-postadresser, navn eller noe fra meldingene dine. Beskriv hva som skjedde med egne ord."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub username (optional)"
+msgstr "GitHub-brukernavn (valgfritt)"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub's page has as much as a link can carry: copy the rest from here into it."
+msgstr "GitHub-siden tar så mye som en lenke kan bære: kopier resten herfra inn i den."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub's page is open: attach the diagnostics file there, then submit. MailCraft sent nothing."
+msgstr "GitHub-siden er åpen: legg ved diagnosefilen der, og send inn. MailCraft sendte ingenting."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
+msgstr "GitHub-siden er åpen: sjekk den, og send inn. MailCraft sendte ingenting."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Give it a title first"
+msgstr "Gi den en tittel først"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "Give the report a title, on one line and in 200 characters at most."
+msgstr "Gi rapporten en tittel, på én linje og med høyst 200 tegn."
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Gmail Categories"
+msgstr "Gmail-kategorier"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Gmail and Google Workspace"
+msgstr "Gmail og Google Workspace"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Gmail categories"
+msgstr "Gmail-kategorier"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "Gmail hasn't said its id of this message yet: Send/Receive first"
+msgstr "Gmail har ikke oppgitt ID-en sin for denne meldingen ennå: kjør send/motta først"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Gmail label: {label}"
+msgstr "Gmail-etikett: {label}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "GnuPG"
+msgstr "GnuPG"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "GnuPG is installed but didn't answer ({why}): OpenPGP signing will work only with a key imported here."
+msgstr "GnuPG er installert, men svarte ikke ({why}): OpenPGP-signering virker bare med en nøkkel som er importert her."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "GnuPG isn't installed: OpenPGP signing will work only with a key imported here."
+msgstr "GnuPG er ikke installert: OpenPGP-signering virker bare med en nøkkel som er importert her."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Go"
+msgstr "Gå"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Go Back to the Previous Version"
+msgstr "Gå tilbake til forrige versjon"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Go To"
+msgstr "Gå til"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Go back to version {version}"
+msgstr "Gå tilbake til versjon {version}"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Go to Date"
+msgstr "Gå til dato"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Go to Folder"
+msgstr "Gå til mappe"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Go to the folder"
+msgstr "Gå til mappen"
+
+#. interface
+#: crates/ui-egui/src/reading/view.rs
+#, fuzzy
+msgid "Goes to {host}"
+msgstr "Går til {host}"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Going back to MailCraft {version} didn't happen: this version is still the one here."
+msgstr "Tilbakegangen til MailCraft {version} skjedde ikke: denne versjonen er fortsatt den som ligger her."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Gold"
+msgstr "Gull"
+
+#. name
+#: crates/model/src/mailbox.rs crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google"
+msgstr "Google"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Google Desktop Application ID"
+msgstr "Googles applikasjons-ID for skrivebord"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Google Desktop application ID"
+msgstr "Googles applikasjons-ID for skrivebord"
+
+#. why a mail server couldn't be used
+#: crates/net/src/lib.rs
+#, fuzzy
+msgid "Google OAuth access tokens may only be sent to Google's Gmail IMAP and SMTP servers"
+msgstr "Googles OAuth-tilgangstokener kan bare sendes til Googles Gmail IMAP- og SMTP-servere"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google blocked access to MailCraft"
+msgstr "Google blokkerte tilgangen til MailCraft"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google did not authorize MailCraft. Your mailbox was not changed. You can retry or choose an app password."
+msgstr "Google godkjente ikke MailCraft. Postkassen din ble ikke endret. Du kan prøve igjen eller velge et app-passord."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google did not confirm the unchanged account and its Gmail servers. The app-password account was not changed."
+msgstr "Google bekreftet ikke den uendrede kontoen og Gmail-serverne. App-passordkontoen ble ikke endret."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google did not confirm this unchanged account. Its previous sign-in and mail were kept."
+msgstr "Google bekreftet ikke denne uendrede kontoen. Den forrige påloggingen og e-posten ble beholdt."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google did not return to MailCraft. If you saw Error 403 or Access blocked because the app is in testing, ask the developer to add you as a test user. If your organization blocked it, ask its Workspace administrator. Otherwise, retry. Mail and settings are unchanged."
+msgstr "Google kom ikke tilbake til MailCraft. Hvis du så Feil 403 eller Tilgang blokkert fordi appen er under testing, be utvikleren legge deg til som testbruker. Hvis organisasjonen din blokkerte den, spør Workspace-administratoren deres. Ellers kan du prøve igjen. E-post og innstillinger er uendret."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password."
+msgstr "Google godtok ikke passordet. En konto med totrinnsbekreftelse trenger et app-passord: lag ett på Googles side for app-passord, og lim det inn her i stedet for det vanlige passordet ditt."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google sign-in did not finish"
+msgstr "Google-påloggingen ble ikke fullført"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google sign-in didn't work"
+msgstr "Google-påloggingen virket ikke"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google sign-in does not use Microsoft's administrator consent flow"
+msgstr "Google-pålogging bruker ikke Microsofts flyt for administratorens samtykke"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google sign-in is not configured for this build."
+msgstr "Google-pålogging er ikke satt opp for denne byggingen."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google sign-in is not configured for this build. Use an app password instead."
+msgstr "Google-pålogging er ikke satt opp for denne byggingen. Bruk et app-passord i stedet."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google sign-in is open only to invited testers while Google reviews MailCraft."
+msgstr "Google-pålogging er bare åpen for inviterte testere mens Google vurderer MailCraft."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Google sign-in needs Google's IMAP server"
+msgstr "Google-pålogging trenger Googles IMAP-server"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Google sign-in was declined"
+msgstr "Google-påloggingen ble avslått"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Grab bag"
+msgstr "Diverse"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
+msgid "Graphite"
+msgstr "Grafitt"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -5507,6 +6383,13 @@ msgstr "Slettet"
 msgctxt "folder"
 msgid "Drafts"
 msgstr "Utkast"
+
+#. folder name
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgctxt "folder"
+msgid "Folder"
+msgstr "Mappe"
 
 #. what a command says
 #: crates/i18n/src/lib.rs
