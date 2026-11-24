@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
@@ -32,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -186,7 +191,18 @@ private fun MessageBody(
     val lines = remember(view.blocks) { linesOf(view.blocks) }
     val side = Modifier.padding(horizontal = Gutter)
     // The header, banner and attachments are the app's and keep its theme; only the body is the sender's page.
-    LazyColumn(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(vertical = Gutter)) {
+    val state = rememberLazyListState()
+    val density = LocalDensity.current
+    // A short message still sits on a light sheet down to the bar below: the last item takes what is left.
+    val rest by remember(state, density) {
+        derivedStateOf { with(density) { restBelow(state).toDp() } }
+    }
+    val bottom = if (lightPage != null) 0.dp else Gutter
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        state = state,
+        contentPadding = PaddingValues(top = Gutter, bottom = bottom),
+    ) {
         item(key = "header") {
             Box(side) {
                 MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs(tools.prefs.copy(headerOpen = it)) }
@@ -202,8 +218,21 @@ private fun MessageBody(
         items(lines.size, key = { "line-$it" }) { index ->
             Page(lightPage) { Box(side) { BodyLineView(lines[index], env, paper, bodyWidth) } }
         }
-        if (lightPage != null) item(key = "end") { Page(lightPage) { Box(modifier = Modifier.padding(top = Gutter)) } }
+        if (lightPage != null) {
+            item(key = END_KEY) { Page(lightPage) { Box(modifier = Modifier.height(maxOf(Gutter, rest))) } }
+        }
     }
+}
+
+private const val END_KEY = "end"
+
+/** The pixels under the items of [state] to the foot of the list, when all the other items are in view; else 0. */
+private fun restBelow(state: LazyListState): Int {
+    val info = state.layoutInfo
+    val others = info.visibleItemsInfo.filter { it.key != END_KEY }
+    if (others.size < info.totalItemsCount - 1) return 0
+    val used = others.sumOf { it.size } + info.beforeContentPadding
+    return (info.viewportSize.height - used).coerceAtLeast(0)
 }
 
 /** [content] on the light page when there is one: its colours are the light theme's, not the window's. */
