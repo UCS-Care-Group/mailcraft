@@ -205,7 +205,39 @@ fn read_alone_a_reply_shows_what_it_quotes() {
     w.run_steps(5);
     assert!(!drawn(&w, "conversationQuoted", reply));
     let doc = view::current_doc(&w.ctx, Place::Pane, reply).unwrap();
-    assert!(doc.history.is_some());
+    assert!(doc.history.is_some(), "the reply has history to leave out");
+    let text = laid_text(&w, Place::Pane, reply);
+    assert!(text.contains("Freeze the main branch Tuesday noon"), "the quoted history isn't laid out: {text}");
+}
+
+/// The text of the body of `id` at `place`, as far as it is laid out.
+fn laid_text(w: &testing::Window, place: Place, id: Id) -> String {
+    use super::layout::ItemKind;
+    view::kept_at(&w.ctx, place, id, |laid, _| {
+        laid.items.iter().filter_map(|i| if let ItemKind::Text(t) = &i.kind { Some(t.job.text.clone()) } else { None }).collect::<Vec<_>>().join(
+            "
+",
+        )
+    })
+    .unwrap_or_default()
+}
+
+#[test]
+fn every_open_message_in_a_long_column_keeps_its_unreadable_answer() {
+    use super::conversation_state::MAX_OPEN;
+    let (mut w, ids) = long_conversation(60, None);
+    w.state_mut().execute("mail.select", json!({"id": *ids.last().unwrap()})).unwrap();
+    w.run_steps(3);
+    let open = ids.iter().filter(|id| w.state().hit.rect("conversationCard", **id).is_some()).count();
+    assert_eq!(open, MAX_OPEN);
+    // Each frame looks the selected message and every open card up: none is looked for again.
+    let key = egui::Id::unique(super::UNREADABLE_KEY);
+    let kept = |w: &testing::Window| w.ctx.data(|d| d.get_temp::<Vec<(egui::Id, bool)>>(key)).unwrap_or_default();
+    let before = kept(&w);
+    assert_eq!(before.len(), MAX_OPEN + 1, "one answer for each message shown whole");
+    w.run_steps(3);
+    assert_eq!(kept(&w), before, "an answer was looked for again");
+    assert!(before.len() <= super::unreadable_kept(w.state().windows.len()));
 }
 
 #[test]

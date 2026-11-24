@@ -375,13 +375,25 @@ pub(crate) fn has_unreadable(m: &Message, text_shown: bool) -> bool {
 /// with more windows open, so that every message on screen keeps its answer.
 const UNREADABLE_KEPT: usize = 8;
 
+/// How many [`has_unreadable`] answers are kept with `windows` open: every message the pane can
+/// show at once (the selected one and those of its conversation shown whole), and those of the
+/// windows. Bounded whatever is read: a conversation shows at most [`stack::WHOLE`] others.
+///
+/// [`stack::WHOLE`]: mailcraft_engine::stack::WHOLE
+pub(crate) fn unreadable_kept(windows: usize) -> usize {
+    UNREADABLE_KEPT.max(windows.saturating_add(2)).saturating_add(mailcraft_engine::stack::WHOLE + 1)
+}
+
 /// The line above a message that shows a character that couldn't be read ([`has_unreadable`]):
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
+/// Where [`unreadable_line`] keeps its answers, in egui's memory.
+pub(crate) const UNREADABLE_KEY: &str = "mailcraft-unreadable";
+
 fn unreadable_line(ui: &mut Ui, m: &Message, text_shown: bool, t: &Tokens, windows: usize) {
-    // Kept for the last few messages shown (the pane and windows), under one key: not one entry
-    // in egui's memory for every message ever read.
-    let key = egui::Id::unique("mailcraft-unreadable");
+    // Kept for the last few messages shown (the pane, every message of its column, and windows),
+    // under one key: not one entry in egui's memory for every message ever read.
+    let key = egui::Id::unique(UNREADABLE_KEY);
     let this = egui::Id::unique((m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len), text_shown));
     let known = ui.ctx().data(|d| d.get_temp::<Vec<(egui::Id, bool)>>(key)).unwrap_or_default();
     let unreadable = match known.iter().find(|(of, _)| *of == this) {
@@ -389,7 +401,7 @@ fn unreadable_line(ui: &mut Ui, m: &Message, text_shown: bool, t: &Tokens, windo
         None => {
             let found = has_unreadable(m, text_shown);
             let mut known = known;
-            if known.len() >= UNREADABLE_KEPT.max(windows.saturating_add(2)) {
+            if known.len() >= unreadable_kept(windows) {
                 known.remove(0);
             }
             known.push((this, found));

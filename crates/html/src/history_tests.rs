@@ -198,10 +198,11 @@ Old text
 
 #[test]
 fn a_hostile_message_is_read_in_linear_time() {
-    // About 2000 "On a wrote:" lines, a quote, then one block of 130,000 whitespace spans ending
-    // in a letter: each candidate once rescanned that block.
+    // About 8000 "On a wrote:" lines, a quote, then one block of 130,000 whitespace spans ending
+    // in a letter: each candidate once rescanned that block, a billion spans in all. Read once,
+    // it takes milliseconds; the bound is loose for slow, emulated and instrumented runs.
     let mut html = String::from("<p>Mine.</p>");
-    for _ in 0..2_000 {
+    for _ in 0..8_000 {
         html.push_str("<p>On a wrote:</p>");
     }
     html.push_str("<blockquote><p>q</p></blockquote><pre>");
@@ -213,5 +214,22 @@ fn a_hostile_message_is_read_in_linear_time() {
     let began = std::time::Instant::now();
     let _ = start(&blocks);
     let took = began.elapsed();
-    assert!(took < std::time::Duration::from_millis(250), "{took:?}");
+    assert!(took < std::time::Duration::from_secs(3), "{took:?}");
+}
+
+#[test]
+fn an_answer_in_the_quote_right_under_a_header_is_kept() {
+    let html = "<p>Hi Ada,</p><hr><div><b>From:</b> Ada<br><b>Sent:</b> Monday<br><b>To:</b> Ben</div>        <blockquote><p>Can you check the numbers?</p></blockquote><p>They look fine.</p>";
+    assert_eq!(start(&parse(html)), None);
+    // In paragraphs of their own, with a Cc line.
+    let html =
+        "<p>Hi,</p><p>From: Ada</p><p>Sent: Monday</p><p>To: Ben</p><p>Cc: Kirk</p>        <blockquote><p>Numbers?</p></blockquote><p>Fine.</p>";
+    assert_eq!(start(&parse(html)), None);
+}
+
+#[test]
+fn quotes_in_the_older_messages_under_a_header_dont_keep_them() {
+    // The message answered was itself a Gmail reply: its own quote and signature are history.
+    let html = "<p>Done.</p><hr><div><b>From:</b> Ada<br><b>Sent:</b> Monday<br><b>To:</b> Ben</div>        <p>Sure.</p><p>On Sunday, Ben wrote:</p><blockquote><p>Can you?</p></blockquote><p>Ada</p>";
+    assert_eq!(kept(&parse(html)), "Done.");
 }

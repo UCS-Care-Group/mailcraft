@@ -18,7 +18,9 @@
 //! `Forwarded message`: what it carries is usually nowhere else in the conversation), and never
 //! where the owner's reader would lose what the sender wrote between quotes: quoted text followed
 //! by more of the sender's own is an answer written in between, and is kept, also under an
-//! `On … wrote:` line. A quote at the end with nothing to say whose it is (no `On … wrote:`, no
+//! `On … wrote:` line, or under a header when the quote comes right below it (further down, the
+//! history under a header is older messages, which carry quotes and text after them of their
+//! own). A quote at the end with nothing to say whose it is (no `On … wrote:`, no
 //! header) is a passage the sender cites, and is kept too. A picture or a table that isn't quoted
 //! is the sender's own as text is.
 //!
@@ -112,19 +114,41 @@ impl<'a> Read<'a> {
         let Some(first) = lines.first() else {
             // A rule is where it begins when a header comes right under it.
             return self.blocks.get(i).is_some_and(|b| matches!(b.kind, BlockKind::Rule))
-                && self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0));
+                && self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0) && !self.answered_under(j));
         };
         if is_separator(first) {
             // Its own block, the header under it; or the header's first line in the same block.
-            return if lines.len() > 1 { self.header_at(i, 1) } else { self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0)) };
+            return if lines.len() > 1 {
+                self.header_at(i, 1) && !self.answered_under(i)
+            } else {
+                self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0) && !self.answered_under(j))
+            };
         }
         // (A rule just above a header, Outlook's line over it, was found first: the blocks are
         // looked at in order.)
         if is_original_message(first) || self.header_at(i, 0) {
-            return true;
+            return !self.answered_under(i);
         }
         // A line that introduces a quote, unless answers are written in the quote under it.
         is_wrote(lines) && !self.answers_from.get(i + 1).copied().unwrap_or(false)
+    }
+
+    /// Whether the sender answered in the quote right under the header (or the
+    /// `-----Original Message-----` line) that begins in block `i`: the first block after the
+    /// header's lines is quoted, and some of the sender's own text follows a quote. Below a header
+    /// the history is unquoted text, so a quote that opens it is the sender's doing; one further
+    /// down, in an older message the history carries, isn't looked at.
+    fn answered_under(&self, i: usize) -> bool {
+        let end = self.blocks.len().min(i.saturating_add(LOOK_AHEAD));
+        let first = (i + 1..end).find(|&j| {
+            let quoted = self.blocks.get(j).is_some_and(|b| b.quote > 0);
+            let header = self
+                .lines(j)
+                .iter()
+                .all(|l| starts_with_any(l, &FROM) || starts_with_any(l, &SENT) || starts_with_any(l, &TO) || starts_with_any(l, &CC));
+            quoted || !header
+        });
+        first.is_some_and(|j| self.blocks.get(j).is_some_and(|b| b.quote > 0) && self.answers_from.get(j).copied().unwrap_or(false))
     }
 
     /// The first block from `from` with a line of text, within [`LOOK_AHEAD`] blocks.
@@ -201,6 +225,8 @@ pub fn is_forward(subject: &str) -> bool {
 const FROM: [&str; 6] = ["from:", "de:", "von:", "da:", "van:", "de :"];
 const SENT: [&str; 10] = ["sent:", "date:", "envoyé :", "envoyé:", "gesendet:", "datum:", "enviado:", "fecha:", "inviato:", "verzonden:"];
 const TO: [&str; 9] = ["to:", "subject:", "à :", "objet :", "an:", "betreff:", "para:", "asunto:", "oggetto:"];
+/// The other lines a header may have, only to tell where it ends.
+const CC: [&str; 5] = ["cc:", "cc :", "bcc:", "importance:", "onderwerp:"];
 
 fn starts_with_any(line: &str, names: &[&str]) -> bool {
     let l = line.to_lowercase();
