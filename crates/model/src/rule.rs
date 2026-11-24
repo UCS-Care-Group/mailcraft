@@ -267,7 +267,7 @@ impl Condition {
             Condition::FromStartsWith(t) if addresses_only => format!("sender's address starts with \"{t}\""),
             Condition::ToStartsWith(t) if addresses_only => format!("recipient's address starts with \"{t}\""),
             Condition::FromStartsWith(t) => format!("from starts with \"{t}\""),
-            Condition::ToStartsWith(t) => format!("sent to addresses that start with \"{t}\""),
+            Condition::ToStartsWith(t) => format!("sent to starts with \"{t}\""),
             Condition::SubjectStartsWith(t) => format!("subject starts with \"{t}\""),
             Condition::BodyStartsWith(t) => format!("body starts with \"{t}\""),
             Condition::SubjectMatches(_) => "the subject matches a pattern".into(),

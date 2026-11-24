@@ -4517,7 +4517,7 @@ pub(crate) mod rules {
         fn what(self) -> &'static str {
             match self {
                 When::From => "From starts with",
-                When::To => "Sent to addresses that start with",
+                When::To => "Sent to starts with",
                 When::Subject => "Subject starts with",
                 When::Body => "Body starts with",
                 When::Attachment => "Has an attachment",
