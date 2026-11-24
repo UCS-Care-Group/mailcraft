@@ -318,6 +318,26 @@ impl NotesState {
             "Viagem fim de ano Bei".to_string(),
         ];
 
+        let mut custom_notebooks = default_custom;
+        if let Some(parent) = path.parent() {
+            let nb_file = parent.join("notebooks.json");
+            if let Ok(content) = fs::read_to_string(&nb_file) {
+                if let Ok(saved) = serde_json::from_str::<Vec<String>>(&content) {
+                    for s in saved {
+                        if !custom_notebooks.contains(&s) {
+                            custom_notebooks.push(s);
+                        }
+                    }
+                }
+            }
+        }
+        for n in &notes {
+            let nb = n.notebook.trim();
+            if !nb.is_empty() && !custom_notebooks.iter().any(|x| x == nb) {
+                custom_notebooks.push(nb.to_string());
+            }
+        }
+
         let mut state = Self {
             notes,
             selected_note_id: first_id,
@@ -334,7 +354,7 @@ impl NotesState {
             gemini_prompt: String::new(),
             show_new_notebook_dialog: false,
             new_notebook_name: String::new(),
-            custom_notebooks: default_custom,
+            custom_notebooks,
             status_msg: None,
             gemini_rx: None,
             gemini_loading: false,
@@ -398,6 +418,24 @@ impl NotesState {
                 self.status_msg = Some("Notas sincronizadas com sucesso!".to_string());
                 self.migrate_existing_chat_comments();
                 self.sync_editing_buffer();
+            }
+        }
+        if let Some(parent) = self.file_path.parent() {
+            let nb_file = parent.join("notebooks.json");
+            if let Ok(content) = fs::read_to_string(&nb_file) {
+                if let Ok(saved) = serde_json::from_str::<Vec<String>>(&content) {
+                    for s in saved {
+                        if !self.custom_notebooks.contains(&s) {
+                            self.custom_notebooks.push(s);
+                        }
+                    }
+                }
+            }
+        }
+        for n in &self.notes {
+            let nb = n.notebook.trim();
+            if !nb.is_empty() && !self.custom_notebooks.iter().any(|x| x == nb) {
+                self.custom_notebooks.push(nb.to_string());
             }
         }
         self.trigger_cloud_pull();
@@ -477,6 +515,16 @@ impl NotesState {
         trigger_cloud_push(self.notes.clone());
     }
 
+    pub fn save_notebooks(&self) {
+        if let Some(parent) = self.file_path.parent() {
+            let _ = fs::create_dir_all(parent);
+            let nb_file = parent.join("notebooks.json");
+            if let Ok(serialized) = serde_json::to_string_pretty(&self.custom_notebooks) {
+                let _ = fs::write(nb_file, serialized);
+            }
+        }
+    }
+
     pub fn sync_editing_buffer(&mut self) {
         if let Some(sel_id) = &self.selected_note_id {
             if let Some(note) = self.notes.iter().find(|n| &n.id == sel_id) {
@@ -534,6 +582,10 @@ impl NotesState {
     }
 
     pub fn set_note_notebook(&mut self, note_id: &str, notebook: &str) {
+        if !self.custom_notebooks.contains(&notebook.to_string()) && !notebook.trim().is_empty() {
+            self.custom_notebooks.push(notebook.to_string());
+            self.save_notebooks();
+        }
         if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
             note.notebook = notebook.to_string();
             note.modified_date = Some(now_iso());
@@ -1045,24 +1097,77 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 ui.add_space(8.0);
                 if ui.small_button("+").on_hover_text("Criar novo caderno").clicked() {
                     app.notes.show_new_notebook_dialog = true;
+                    app.notes.new_notebook_name.clear();
                 }
             });
         });
 
         if app.notes.show_new_notebook_dialog {
-            ui.horizontal(|ui| {
-                ui.add_space(8.0);
-                ui.text_edit_singleline(&mut app.notes.new_notebook_name);
-                if ui.button("OK").clicked() && !app.notes.new_notebook_name.trim().is_empty() {
-                    let name = app.notes.new_notebook_name.trim().to_string();
-                    if !app.notes.custom_notebooks.contains(&name) {
-                        app.notes.custom_notebooks.push(name.clone());
+            ui.add_space(4.0);
+            egui::Frame::NONE
+                .fill(t.surface)
+                .stroke(Stroke::new(1.0, t.accent))
+                .corner_radius(6.0)
+                .inner_margin(Margin::same(8))
+                .show(ui, |ui| {
+                    ui.label(RichText::new("Novo Caderno").size(11.0).strong().color(t.text));
+                    ui.add_space(4.0);
+
+                    let mut submit = false;
+                    let mut cancel = false;
+
+                    let width = (ui.available_width() - 4.0).max(120.0);
+                    let edit = egui::TextEdit::singleline(&mut app.notes.new_notebook_name)
+                        .hint_text("Nome do caderno...")
+                        .desired_width(width);
+                    let resp = ui.add(edit);
+
+                    if app.notes.new_notebook_name.is_empty() && !resp.has_focus() {
+                        resp.request_focus();
                     }
-                    app.notes.selected_notebook = Some(name);
-                    app.notes.new_notebook_name.clear();
-                    app.notes.show_new_notebook_dialog = false;
-                }
-            });
+
+                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        submit = true;
+                    }
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        cancel = true;
+                    }
+
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        let btn_create = egui::Button::new(
+                            RichText::new("✓ Criar").size(11.0).strong().color(t.on_accent)
+                        ).fill(t.accent).corner_radius(4.0);
+
+                        if ui.add(btn_create).on_hover_text("Criar caderno (Enter)").clicked() {
+                            submit = true;
+                        }
+
+                        if ui.button(RichText::new("Cancelar").size(11.0)).on_hover_text("Cancelar (Esc)").clicked() {
+                            cancel = true;
+                        }
+                    });
+
+                    if submit {
+                        let name = app.notes.new_notebook_name.trim().to_string();
+                        if !name.is_empty() {
+                            if !app.notes.custom_notebooks.contains(&name) {
+                                app.notes.custom_notebooks.push(name.clone());
+                            }
+                            app.notes.save_notebooks();
+                            app.notes.selected_notebook = Some(name);
+                            app.notes.filter_unorganized_only = false;
+                            app.notes.new_notebook_name.clear();
+                            app.notes.show_new_notebook_dialog = false;
+                        }
+                    }
+
+                    if cancel {
+                        app.notes.new_notebook_name.clear();
+                        app.notes.show_new_notebook_dialog = false;
+                    }
+                });
+            ui.add_space(4.0);
         }
 
         // Distinct list of all notebooks
@@ -1074,12 +1179,25 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         }
 
+        let mut notebook_to_delete: Option<String> = None;
         for nb in all_notebooks {
             let count = app.notes.notes.iter().filter(|n| n.notebook == nb).count();
             let is_sel = app.notes.selected_notebook.as_deref() == Some(&nb);
-            if nav_item(ui, "📁", &nb, count, is_sel, t) {
-                app.notes.selected_notebook = Some(nb);
+            let (clicked, delete_clicked) = nav_notebook_item(ui, "📁", &nb, count, is_sel, t);
+            if clicked {
+                app.notes.selected_notebook = Some(nb.clone());
                 app.notes.filter_unorganized_only = false;
+            }
+            if delete_clicked {
+                notebook_to_delete = Some(nb);
+            }
+        }
+
+        if let Some(del_nb) = notebook_to_delete {
+            app.notes.custom_notebooks.retain(|x| x != &del_nb);
+            app.notes.save_notebooks();
+            if app.notes.selected_notebook.as_deref() == Some(&del_nb) {
+                app.notes.selected_notebook = None;
             }
         }
     });
@@ -1104,7 +1222,12 @@ fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, 
     ui.painter().text(icon_rect.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(12.0), t.text);
 
     let text_pos = rect.min + vec2(28.0, 6.0);
-    let display_title = if title.len() > 18 { format!("{}...", &title[..16]) } else { title.to_string() };
+    let char_count = title.chars().count();
+    let display_title = if char_count > 18 {
+        format!("{}...", title.chars().take(16).collect::<String>())
+    } else {
+        title.to_string()
+    };
     ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected { t.accent_text } else { t.text });
 
     // Counter pill
@@ -1113,6 +1236,49 @@ fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, 
     ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, count_str, FontId::proportional(11.0), t.text_dim);
 
     clicked
+}
+
+fn nav_notebook_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> (bool, bool) {
+    let mut clicked = false;
+    let mut delete_clicked = false;
+    let width = ui.available_width() - 8.0;
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
+
+    if selected {
+        ui.painter().rect_filled(rect, 4.0, t.checked);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover);
+    }
+
+    if resp.clicked() {
+        clicked = true;
+    }
+
+    resp.context_menu(|ui| {
+        if ui.button(RichText::new("🗑️ Excluir caderno").color(Color32::from_rgb(220, 50, 50))).clicked() {
+            delete_clicked = true;
+            ui.close();
+        }
+    });
+
+    let icon_rect = Rect::from_min_size(rect.min + vec2(6.0, 4.0), vec2(16.0, 20.0));
+    ui.painter().text(icon_rect.center(), egui::Align2::CENTER_CENTER, icon, FontId::proportional(12.0), t.text);
+
+    let text_pos = rect.min + vec2(28.0, 6.0);
+    let char_count = title.chars().count();
+    let display_title = if char_count > 18 {
+        format!("{}...", title.chars().take(16).collect::<String>())
+    } else {
+        title.to_string()
+    };
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected { t.accent_text } else { t.text });
+
+    // Counter pill
+    let count_str = count.to_string();
+    let badge_pos = rect.max - vec2(10.0, 14.0);
+    ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, count_str, FontId::proportional(11.0), t.text_dim);
+
+    (clicked, delete_clicked)
 }
 
 fn status_dot_item(ui: &mut Ui, icon: &str, title: &str, status: &str, status_color: Color32, t: &Tokens) {
@@ -1230,7 +1396,20 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
     // Scrollable Cards List
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.add_space(6.0);
-        for id in filtered_ids {
+        if filtered_ids.is_empty() {
+            ui.add_space(30.0);
+            ui.vertical_centered(|ui| {
+                ui.label(RichText::new("Nenhuma nota neste caderno").size(13.0).color(t.text_dim));
+                ui.add_space(8.0);
+                let btn = egui::Button::new(
+                    RichText::new("➕ Criar primeira nota").size(12.0).strong().color(t.on_accent)
+                ).fill(t.accent).corner_radius(4.0);
+                if ui.add(btn).clicked() {
+                    app.notes.new_note();
+                }
+            });
+        } else {
+            for id in filtered_ids {
             let Some(note) = app.notes.notes.iter().find(|n| n.id == id).cloned() else { continue };
             let is_selected = app.notes.selected_note_id.as_deref() == Some(&note.id);
             if render_note_card(ui, &note, is_selected, t, is_dark) {
@@ -1238,6 +1417,7 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
                 app.notes.sync_editing_buffer();
             }
             ui.add_space(8.0);
+        }
         }
     });
 }
@@ -1331,7 +1511,13 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
         ui.add_space(12.0);
 
         // Notebook Badge / Dropdown
-        let available_notebooks = app.notes.custom_notebooks.clone();
+        let mut available_notebooks = app.notes.custom_notebooks.clone();
+        for n in &app.notes.notes {
+            let nb = n.notebook.trim();
+            if !nb.is_empty() && !available_notebooks.iter().any(|x| x == nb) {
+                available_notebooks.push(nb.to_string());
+            }
+        }
         egui::ComboBox::from_id_salt("notebook_select")
             .selected_text(RichText::new(format!("📁 {} ▼", &note.notebook)).size(11.0))
             .show_ui(ui, |ui| {
