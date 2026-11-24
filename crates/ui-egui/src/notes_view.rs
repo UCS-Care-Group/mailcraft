@@ -19,6 +19,13 @@ use serde_json::{Value, json};
 use crate::MailApp;
 use crate::theme::Tokens;
 
+/// Drag payload when dragging a note to a notebook/folder.
+#[derive(Clone, Debug)]
+pub(crate) struct NoteDrag {
+    pub id: String,
+    pub title: String,
+}
+
 /// A single note representation matching the Google Drive `notes.json` schema.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Note {
@@ -593,6 +600,37 @@ impl NotesState {
         }
     }
 
+    pub fn copy_note_to_notebook(&mut self, note_id: &str, target_notebook: &str) -> Option<String> {
+        let note = self.notes.iter().find(|n| n.id == note_id)?.clone();
+        let mut copy = note;
+        let now_ms = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        copy.id = format!("note_{now_ms}");
+        copy.notebook = target_notebook.to_string();
+        copy.created_date = Some(now_iso());
+        copy.modified_date = Some(now_iso());
+        let new_id = copy.id.clone();
+        if !self.custom_notebooks.contains(&target_notebook.to_string()) && !target_notebook.trim().is_empty() {
+            self.custom_notebooks.push(target_notebook.to_string());
+            self.save_notebooks();
+        }
+        self.notes.insert(0, copy);
+        self.save();
+        Some(new_id)
+    }
+
+    pub fn move_or_copy_note(&mut self, note_id: &str, target_notebook: &str, is_copy: bool) {
+        if is_copy {
+            self.copy_note_to_notebook(note_id, target_notebook);
+            self.status_msg = Some(format!("Nota copiada para '{}'", target_notebook));
+        } else {
+            self.set_note_notebook(note_id, target_notebook);
+            self.status_msg = Some(format!("Nota movida para '{}'", target_notebook));
+        }
+    }
+
     pub fn toggle_checklist_item(&mut self, note_id: &str, line_idx: usize) {
         if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
             let mut html = note.content_html.clone().unwrap_or_default();
@@ -987,6 +1025,36 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .show(ui, |ui| {
             render_note_details(app, ui, &t, is_dark);
         });
+
+    // Floating Drag and Drop Ghost tooltip
+    note_drag_ghost(ui, &t);
+}
+
+/// Floating ghost tooltip that follows the cursor while dragging a note.
+fn note_drag_ghost(ui: &Ui, t: &Tokens) {
+    let Some(drag) = egui::DragAndDrop::payload::<NoteDrag>(ui.ctx()) else { return };
+    let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
+    let is_copy = ui.input(|i| i.modifiers.ctrl || i.modifiers.alt);
+    let action_str = if is_copy { "📄 Copiar para pasta" } else { "📁 Mover para pasta" };
+    let title_display = if drag.title.trim().is_empty() { "Sem título" } else { &drag.title };
+    let title_trunc: String = title_display.chars().take(28).collect();
+    let text = format!("{action_str}: '{title_trunc}'");
+    egui::Area::new(egui::Id::unique("note_drag_ghost"))
+        .order(egui::Order::Tooltip)
+        .fixed_pos(pos + vec2(14.0, 16.0))
+        .interactable(false)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::NONE
+                .fill(t.surface)
+                .stroke(Stroke::new(1.5, t.accent))
+                .corner_radius(6.0)
+                .inner_margin(egui::Margin::symmetric(10, 6))
+                .show(ui, |ui| {
+                    ui.label(RichText::new(text).size(12.0).strong().color(t.text));
+                    let hint = if is_copy { "(Modo Cópia ativado)" } else { "(Segure Ctrl para copiar)" };
+                    ui.label(RichText::new(hint).size(10.0).color(t.text_dim));
+                });
+        });
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1053,21 +1121,32 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         // "Todas as Notas"
         let all_selected = app.notes.selected_notebook.is_none();
-        if nav_item(ui, "📑", "Todas as Notas", unorganized_count, all_selected, t) {
+        let (all_clicked, all_dropped) = nav_item(ui, "📑", "Todas as Notas", unorganized_count, all_selected, t);
+        if all_clicked {
             app.notes.selected_notebook = None;
             app.notes.filter_unorganized_only = false;
+        }
+        if let Some(drop_id) = all_dropped {
+            app.notes.set_note_notebook(&drop_id, "");
+            app.notes.status_msg = Some("Nota movida para 'Todas as Notas'".to_string());
         }
 
         // "Favoritos"
         let fav_selected = app.notes.selected_notebook.as_deref() == Some("Favoritos");
-        if nav_item(ui, "⭐", "Favoritos", fav_count, fav_selected, t) {
+        let (fav_clicked, fav_dropped) = nav_item(ui, "⭐", "Favoritos", fav_count, fav_selected, t);
+        if fav_clicked {
             app.notes.selected_notebook = Some("Favoritos".to_string());
             app.notes.filter_unorganized_only = false;
+        }
+        if let Some(drop_id) = fav_dropped {
+            app.notes.toggle_favorite(&drop_id);
+            app.notes.status_msg = Some("Nota marcada como Favorita!".to_string());
         }
 
         // "Lembretes"
         let rem_selected = app.notes.selected_notebook.as_deref() == Some("Lembretes");
-        if nav_item(ui, "⏰", "Lembretes", reminders_count, rem_selected, t) {
+        let (rem_clicked, _) = nav_item(ui, "⏰", "Lembretes", reminders_count, rem_selected, t);
+        if rem_clicked {
             app.notes.selected_notebook = Some("Lembretes".to_string());
             app.notes.filter_unorganized_only = false;
         }
@@ -1180,17 +1259,26 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
 
         let mut notebook_to_delete: Option<String> = None;
+        let mut note_dropped_on_nb: Option<(String, String, bool)> = None;
+
         for nb in all_notebooks {
             let count = app.notes.notes.iter().filter(|n| n.notebook == nb).count();
             let is_sel = app.notes.selected_notebook.as_deref() == Some(&nb);
-            let (clicked, delete_clicked) = nav_notebook_item(ui, "📁", &nb, count, is_sel, t);
+            let (clicked, delete_clicked, dropped_note) = nav_notebook_item(ui, "📁", &nb, count, is_sel, t);
             if clicked {
                 app.notes.selected_notebook = Some(nb.clone());
                 app.notes.filter_unorganized_only = false;
             }
             if delete_clicked {
-                notebook_to_delete = Some(nb);
+                notebook_to_delete = Some(nb.clone());
             }
+            if let Some((note_id, is_copy)) = dropped_note {
+                note_dropped_on_nb = Some((note_id, nb.clone(), is_copy));
+            }
+        }
+
+        if let Some((note_id, target_nb, is_copy)) = note_dropped_on_nb {
+            app.notes.move_or_copy_note(&note_id, &target_nb, is_copy);
         }
 
         if let Some(del_nb) = notebook_to_delete {
@@ -1203,12 +1291,17 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
 }
 
-fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> bool {
+fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> (bool, Option<String>) {
     let mut clicked = false;
     let width = ui.available_width() - 8.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
 
-    if selected {
+    let is_drop_hover = resp.dnd_hover_payload::<NoteDrag>().is_some();
+
+    if is_drop_hover {
+        ui.painter().rect_filled(rect, 4.0, t.checked);
+        ui.painter().rect_stroke(rect, 4.0, Stroke::new(2.0, t.accent), StrokeKind::Inside);
+    } else if selected {
         ui.painter().rect_filled(rect, 4.0, t.checked);
     } else if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
@@ -1216,6 +1309,11 @@ fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, 
 
     if resp.clicked() {
         clicked = true;
+    }
+
+    let mut dropped_id = None;
+    if let Some(drag) = resp.dnd_release_payload::<NoteDrag>() {
+        dropped_id = Some(drag.id.clone());
     }
 
     let icon_rect = Rect::from_min_size(rect.min + vec2(6.0, 4.0), vec2(16.0, 20.0));
@@ -1228,23 +1326,28 @@ fn nav_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, 
     } else {
         title.to_string()
     };
-    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected { t.accent_text } else { t.text });
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected || is_drop_hover { t.accent_text } else { t.text });
 
     // Counter pill
     let count_str = count.to_string();
     let badge_pos = rect.max - vec2(10.0, 14.0);
     ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, count_str, FontId::proportional(11.0), t.text_dim);
 
-    clicked
+    (clicked, dropped_id)
 }
 
-fn nav_notebook_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> (bool, bool) {
+fn nav_notebook_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selected: bool, t: &Tokens) -> (bool, bool, Option<(String, bool)>) {
     let mut clicked = false;
     let mut delete_clicked = false;
     let width = ui.available_width() - 8.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
 
-    if selected {
+    let is_drop_hover = resp.dnd_hover_payload::<NoteDrag>().is_some();
+
+    if is_drop_hover {
+        ui.painter().rect_filled(rect, 4.0, t.checked);
+        ui.painter().rect_stroke(rect, 4.0, Stroke::new(2.0, t.accent), StrokeKind::Inside);
+    } else if selected {
         ui.painter().rect_filled(rect, 4.0, t.checked);
     } else if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
@@ -1252,6 +1355,12 @@ fn nav_notebook_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selecte
 
     if resp.clicked() {
         clicked = true;
+    }
+
+    let mut dropped = None;
+    if let Some(drag) = resp.dnd_release_payload::<NoteDrag>() {
+        let is_copy = ui.input(|i| i.modifiers.ctrl || i.modifiers.alt);
+        dropped = Some((drag.id.clone(), is_copy));
     }
 
     resp.context_menu(|ui| {
@@ -1271,14 +1380,14 @@ fn nav_notebook_item(ui: &mut Ui, icon: &str, title: &str, count: usize, selecte
     } else {
         title.to_string()
     };
-    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected { t.accent_text } else { t.text });
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, display_title, FontId::proportional(12.0), if selected || is_drop_hover { t.accent_text } else { t.text });
 
     // Counter pill
     let count_str = count.to_string();
     let badge_pos = rect.max - vec2(10.0, 14.0);
     ui.painter().text(badge_pos, egui::Align2::RIGHT_CENTER, count_str, FontId::proportional(11.0), t.text_dim);
 
-    (clicked, delete_clicked)
+    (clicked, delete_clicked, dropped)
 }
 
 fn status_dot_item(ui: &mut Ui, icon: &str, title: &str, status: &str, status_color: Color32, t: &Tokens) {
@@ -1412,7 +1521,8 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
             for id in filtered_ids {
             let Some(note) = app.notes.notes.iter().find(|n| n.id == id).cloned() else { continue };
             let is_selected = app.notes.selected_note_id.as_deref() == Some(&note.id);
-            if render_note_card(ui, &note, is_selected, t, is_dark) {
+            let (clicked, dragged) = render_note_card(app, ui, &note, is_selected, t, is_dark);
+            if clicked || dragged {
                 app.notes.selected_note_id = Some(note.id);
                 app.notes.sync_editing_buffer();
             }
@@ -1422,13 +1532,39 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
     });
 }
 
-fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dark: bool) -> bool {
+fn render_note_card(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    note: &Note,
+    selected: bool,
+    t: &Tokens,
+    is_dark: bool,
+) -> (bool, bool) {
     let width = ui.available_width() - 16.0;
     let card_height = 84.0;
-    let (rect, resp) = ui.allocate_exact_size(vec2(width, card_height), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, card_height), Sense::click_and_drag());
 
-    let bg_color = card_background(&note.color, is_dark);
-    let border_stroke = if selected {
+    let is_dragging = resp.dragged();
+    if resp.drag_started() {
+        resp.dnd_set_drag_payload(NoteDrag {
+            id: note.id.clone(),
+            title: if note.title.trim().is_empty() { "Sem título".to_string() } else { note.title.clone() },
+        });
+    }
+
+    if is_dragging {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    }
+
+    let bg_color = if is_dragging {
+        card_background(&note.color, is_dark).linear_multiply(0.5)
+    } else {
+        card_background(&note.color, is_dark)
+    };
+
+    let border_stroke = if is_dragging {
+        Stroke::new(2.0, t.accent.linear_multiply(0.8))
+    } else if selected {
         Stroke::new(2.0, t.accent)
     } else if resp.hovered() {
         Stroke::new(1.0, t.accent.linear_multiply(0.6))
@@ -1471,7 +1607,62 @@ fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dar
         ui.painter().text(star_pos, egui::Align2::RIGHT_CENTER, "⭐", FontId::proportional(10.0), Color32::from_rgb(255, 180, 0));
     }
 
-    resp.clicked()
+    // Context Menu for Move/Copy/Favorite/Delete
+    let mut action_move = None;
+    let mut action_copy = None;
+    let mut action_fav = false;
+    let mut action_del = false;
+
+    resp.context_menu(|ui| {
+        ui.set_min_width(200.0);
+        let is_fav = note.is_favorite == Some(true);
+        if ui.button(if is_fav { "⭐ Remover dos Favoritos" } else { "⭐ Marcar como Favorito" }).clicked() {
+            action_fav = true;
+            ui.close();
+        }
+
+        ui.menu_button("📁 Mover para Caderno", |ui| {
+            for nb in &app.notes.custom_notebooks {
+                if ui.button(format!("📁 {nb}")).clicked() {
+                    action_move = Some(nb.clone());
+                    ui.close();
+                }
+            }
+        });
+
+        ui.menu_button("📄 Copiar para Caderno", |ui| {
+            for nb in &app.notes.custom_notebooks {
+                if ui.button(format!("📁 {nb}")).clicked() {
+                    action_copy = Some(nb.clone());
+                    ui.close();
+                }
+            }
+        });
+
+        ui.separator();
+        if ui.button(RichText::new("🗑️ Excluir Nota").color(Color32::from_rgb(220, 50, 50))).clicked() {
+            action_del = true;
+            ui.close();
+        }
+    });
+
+    if let Some(target) = action_move {
+        app.notes.set_note_notebook(&note.id, &target);
+        app.notes.status_msg = Some(format!("Nota movida para '{target}'"));
+    }
+    if let Some(target) = action_copy {
+        app.notes.copy_note_to_notebook(&note.id, &target);
+        app.notes.status_msg = Some(format!("Nota copiada para '{target}'"));
+    }
+    if action_fav {
+        app.notes.toggle_favorite(&note.id);
+    }
+    if action_del {
+        app.notes.selected_note_id = Some(note.id.clone());
+        app.notes.delete_selected();
+    }
+
+    (resp.clicked(), resp.drag_started())
 }
 
 fn format_date_short(iso: &str) -> String {
