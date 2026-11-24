@@ -18945,6 +18945,828 @@ msgstr "Versjon {version} retter et sikkerhetsproblem og er klar:"
 msgid "Version {version} is ready:"
 msgstr "Versjon {version} er klar:"
 
+#. command label, interface
+#: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "View All Proposals"
+msgstr "Vis alle forslag"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "View All Proposals…"
+msgstr "Vis alle forslag…"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "View Source"
+msgstr "Vis kilde"
+
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
+msgid "Violet"
+msgstr "Fiolett"
+
+#. command label
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "Wait Before Sending"
+msgstr "Vent før sending"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Wait before sending"
+msgstr "Vent før sending"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "Wait for the other attachment preview to finish."
+msgstr "Vent til den andre forhåndsvisningen av vedlegget er ferdig."
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "Waiting"
+msgstr "Venter"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Waiting for MailCraft's Google registration"
+msgstr "Venter på MailCrafts Google-registrering"
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "Waiting for the approval stopped unexpectedly"
+msgstr "Ventingen på godkjenningen stoppet uventet"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Want to be one? Sign up in #11"
+msgstr "Vil du bli en? Meld deg på i #11"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Website"
+msgstr "Nettsted"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Websites"
+msgstr "Nettsteder"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Wed"
+msgstr "ons"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Wednesday"
+msgstr "onsdag"
+
+#. android, command label, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Week"
+msgstr "Uke"
+
+#. command label
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "Week Numbers"
+msgstr "Ukenumre"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Week starts on"
+msgstr "Uken starter på"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "What MailCraft sends, and to whom"
+msgstr "Hva MailCraft sender, og til hvem"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "What happened"
+msgstr "Hva som skjedde"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "What happens to mail as it arrives"
+msgstr "Hva som skjer med e-post når den kommer"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "What is bundled in this app, and under which licence"
+msgstr "Hva som følger med i denne appen, og under hvilken lisens"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What is on the system's clipboard isn't this appointment"
+msgstr "Det som ligger på systemets utklippstavle, er ikke denne avtalen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "What it is made of"
+msgstr "Hva den er laget av"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "What the Send/Receive before came to: the last one brought nothing new"
+msgstr "Hva sendingen/mottakelsen før kom til: den siste brakte ingenting nytt"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "What the people invited are asked for is for its organizer to say."
+msgstr "Hva de inviterte blir spurt om, er opp til arrangøren."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "What to Do When Your Organisation Has to Approve MailCraft"
+msgstr "Hva du gjør når organisasjonen din må godkjenne MailCraft"
+
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "What to do next"
+msgstr "Hva du gjør nå"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied has changed since; copy it again to paste it"
+msgstr "Det som ble kopiert, er endret siden; kopier det igjen for å lime det inn"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was copied or cut has no time to be pasted at"
+msgstr "Det som ble kopiert eller klippet ut, har ingen tid å limes inn på"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "What was cut has changed since; cut it again to paste it"
+msgstr "Det som ble klippet ut, er endret siden; klipp det ut igjen for å lime det inn"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Det som ventet på at skjemaet skulle lukkes, ble avbrutt: en annen nedlasting tok plassen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
+msgstr "Det du endrer, endres bare i kalenderen din. Arrangøren og de andre inviterte får ikke vite det og har fortsatt møtet slik det var, så du kan gå glipp av det. En oppdatering fra arrangøren kan erstatte endringen din."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "What you expected (optional)"
+msgstr "Hva du forventet (valgfritt)"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "What you see isn't what was signed: treat it with care."
+msgstr "Det du ser, er ikke det som ble signert: vær forsiktig."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "What you wrote has been cleared from this window."
+msgstr "Det du skrev, er tømt fra dette vinduet."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
+msgstr "Det du skrev, er for langt for en lenke til GitHub: gjør det kortere, og legg til resten på GitHub"
+
+#. command label
+#: crates/engine/src/cmd/help.rs
+#, fuzzy
+msgid "What's New"
+msgstr "Hva er nytt"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "What's new and how to get it:"
+msgstr "Hva som er nytt og hvordan du får det:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "When"
+msgstr "Når"
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "When you switch:"
+msgstr "Når du bytter:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {when}, except if {except}: {then}"
+msgstr "Når {when}, unntatt hvis {except}: {then}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {when}: {then}"
+msgstr "Når {when}: {then}"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Where"
+msgstr "Hvor"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Where the card says the key is: MailCraft doesn't fetch it."
+msgstr "Der kortet sier nøkkelen er: MailCraft henter den ikke."
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Where they differ, the kept contact has:"
+msgstr "Der de er ulike, har kontakten som beholdes:"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "Whether it is held online is for its organizer to say."
+msgstr "Om det holdes på nettet, er opp til arrangøren."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Who has answered, and how"
+msgstr "Hvem som har svart, og hvordan"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "Who is invited is for its organizer to say."
+msgstr "Hvem som er invitert, er opp til arrangøren."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Who signed this message, and the certificate"
+msgstr "Hvem som signerte denne meldingen, og sertifikatet"
+
+#. interface
+#: crates/ui-egui/src/compose/picture_size.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Width"
+msgstr "Bredde"
+
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Window"
+msgstr "Vindu"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Windows certificate store"
+msgstr "Windows-sertifikatlager"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Windows keeps the certificate and its private key in your certificate store, and asks you before MailCraft uses it."
+msgstr "Windows oppbevarer sertifikatet og den private nøkkelen i sertifikatlagret ditt, og spør deg før MailCraft bruker det."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Without this, the calendar uses the working hours your Microsoft 365 mailbox has, once MailCraft may read them. The ones above are used until then."
+msgstr "Uten dette bruker kalenderen arbeidstidene postkassen din i Microsoft 365 har, når MailCraft får lese dem. De ovenfor brukes til da."
+
+#. command label, interface
+#: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Word Count"
+msgstr "Ordtelling"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Words"
+msgstr "Ord"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "Words, from:, to:, category:, on:…"
+msgstr "Ord, from:, to:, category:, on:…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Work"
+msgstr "Arbeid"
+
+#. command label
+#: crates/engine/src/cmd/send_receive.rs
+#, fuzzy
+msgid "Work Offline"
+msgstr "Arbeid frakoblet"
+
+#. command label, name
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs
+#, fuzzy
+msgid "Work Week"
+msgstr "Arbeidsuke"
+
+#. command label
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "Work in Calendar"
+msgstr "Arbeid i kalenderen"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Work or school mail"
+msgstr "Jobb- eller skole-e-post"
+
+#. name
+#: crates/model/src/calendar.rs
+#, fuzzy
+msgid "Working Elsewhere"
+msgstr "Arbeider andre steder"
+
+#. command label
+#: crates/engine/src/cmd/calendar_settings.rs
+#, fuzzy
+msgid "Working Hours"
+msgstr "Arbeidstider"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "Working Offline"
+msgstr "Arbeider frakoblet"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Working hours"
+msgstr "Arbeidstider"
+
+#. interface
+#: crates/ui-egui/src/send_receive.rs
+#, fuzzy
+msgid "Working offline: mail you send waits in the Outbox"
+msgstr "Arbeider frakoblet: e-post du sender, venter i utboksen"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Workplace"
+msgstr "Arbeidsplass"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "Write"
+msgstr "Skriv"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "Write a Note with the Response…"
+msgstr "Skriv en merknad med svaret…"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Write to the organizer without answering"
+msgstr "Skriv til arrangøren uten å svare"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Write to {address}"
+msgstr "Skriv til {address}"
+
+#. interface
+#: crates/ui-egui/src/compose/editor.rs
+#, fuzzy
+msgid "Write your message"
+msgstr "Skriv meldingen din"
+
+#. interface
+#: crates/ui-egui/src/compose/editor.rs
+#, fuzzy
+msgid "Write your signature"
+msgstr "Skriv signaturen din"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "YYYY-MM-DD"
+msgstr "ÅÅÅÅ-MM-DD"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Yahoo"
+msgstr "Yahoo"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Yahoo Mail"
+msgstr "Yahoo Mail"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Yellow"
+msgstr "Gul"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Yellow category"
+msgstr "Gul kategori"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Yes"
+msgstr "Ja"
+
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/DueDates.kt crates/time/src/lib.rs
+#, fuzzy
+msgid "Yesterday"
+msgstr "I går"
+
+#. interface
+#: crates/ui-egui/src/scheduling.rs
+#, fuzzy
+msgid "You"
+msgstr "Du"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "You accepted this meeting."
+msgstr "Du godtok dette møtet."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr "Du laster alltid ned bildene til denne avsenderen, men e-postserveren bekreftet ikke at denne meldingen kom fra dem, så det spørres først."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back."
+msgstr "Du kom tilbake fra Microsoft-siden uten å ha logget inn: du sa nei der, eller siden sendte deg tilbake."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "You declined this meeting."
+msgstr "Du avslo dette møtet."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "You didn't agree to send your sign-in to the server the setup led to. Type the server's address in Server settings."
+msgstr "Du samtykket ikke til å sende påloggingen din til serveren oppsettet førte til. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+#, fuzzy
+msgid "You don't have access to the calendar of {address}. They need to share it with you; if they just did, try again in an hour."
+msgstr "Du har ikke tilgang til kalenderen til {address}. De må dele den med deg; gjorde de det nettopp, prøv igjen om en time."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "You don't have access to {address}. If access was just given, try again in an hour."
+msgstr "Du har ikke tilgang til {address}. Ble tilgangen nettopp gitt, prøv igjen om en time."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "You edited the signature by hand, so the details no longer change it."
+msgstr "Du redigerte signaturen for hånd, så detaljene endrer den ikke lenger."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "You forwarded this message."
+msgstr "Du videresendte denne meldingen."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "You haven't answered this invitation yet."
+msgstr "Du har ikke svart på denne invitasjonen ennå."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "You marked this key as verified."
+msgstr "Du merket denne nøkkelen som bekreftet."
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "You may be asked to sign in with Microsoft again, to let MailCraft read and change your mail there."
+msgstr "Du kan bli bedt om å logge inn hos Microsoft igjen, for at MailCraft kan lese og endre e-posten din der."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "You organize this meeting, so there is nobody to propose another time to."
+msgstr "Du arrangerer dette møtet, så det er ingen å foreslå en annen tid til."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "You organize this meeting, so there is nobody to send an answer to."
+msgstr "Du arrangerer dette møtet, så det er ingen å sende et svar til."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "You organize this meeting."
+msgstr "Du arrangerer dette møtet."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "You organize this meeting: there is nothing to answer."
+msgstr "Du arrangerer dette møtet: det er ingenting å svare på."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "You replied to this message."
+msgstr "Du svarte på denne meldingen."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "You signed in as {signedIn}, but this account is {account}. Sign in again as {account}."
+msgstr "Du logget inn som {signedIn}, men denne kontoen er {account}. Logg inn på nytt som {account}."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "You signed in as {signedIn}, not {typed}."
+msgstr "Du logget inn som {signedIn}, ikke {typed}."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "You tentatively accepted this meeting."
+msgstr "Du godtok dette møtet foreløpig."
+
+#. interface, what a command says
+#: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
+#, fuzzy
+msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
+msgstr "Du arbeider frakoblet. Slå av Arbeid frakoblet (Send/motta) for å koble til."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Your automatic replies couldn't be read: {error}"
+msgstr "De automatiske svarene dine kunne ikke leses: {error}"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Your automatic replies weren't changed"
+msgstr "De automatiske svarene dine ble ikke endret"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Your calendar: {day}"
+msgstr "Kalenderen din: {day}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Your certificates and keys"
+msgstr "Sertifikatene og nøklene dine"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "Your data was removed"
+msgstr "Dataene dine ble fjernet"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
+msgstr "DNS-en til domenet ditt kunne ikke spørres. Sjekk nettverksforbindelsen og søk igjen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS names no server for automatic setup. MailCraft still tries the usual places for your address."
+msgstr "DNS-en til domenet ditt oppgir ingen server for automatisk oppsett. MailCraft prøver likevel de vanlige stedene for adressen din."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Your keychain keeps the certificate and its private key, and macOS asks you before MailCraft uses it."
+msgstr "Nøkkelringen din oppbevarer sertifikatet og den private nøkkelen, og macOS spør deg før MailCraft bruker det."
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+#, fuzzy
+msgid "Your mail couldn't be saved first, so nothing was sent."
+msgstr "E-posten din kunne ikke lagres først, så ingenting ble sendt."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Your mail is downloading now. The first time can take a few minutes."
+msgstr "E-posten din lastes ned nå. Første gang kan ta noen minutter."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Your mail server checked where this message came from, and the check failed, though the sender's domain asks for nothing to be done about it: the sender's address may be forged."
+msgstr "E-postserveren din sjekket hvor denne meldingen kom fra, og sjekken mislyktes, selv om domenet til avsenderen ikke ber om at noe gjøres med det: adressen til avsenderen kan være forfalsket."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
+msgstr "E-postserveren din sjekket hvor denne meldingen kom fra, og sjekken mislyktes: adressen til avsenderen kan være forfalsket."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Your mail server didn't confirm that this message came from {sender}, so MailCraft won't remember them: a sender's address can be faked."
+msgstr "E-postserveren din bekreftet ikke at denne meldingen kom fra {sender}, så MailCraft husker dem ikke: en avsenderadresse kan forfalskes."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "Your mail server doesn't vouch that this message came from its sender, so its unsubscribe link isn't used."
+msgstr "E-postserveren din garanterer ikke at denne meldingen kom fra avsenderen, så avmeldingslenken brukes ikke."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Your mail stays yours"
+msgstr "E-posten din forblir din"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "Your mailbox couldn't be opened"
+msgstr "Postkassen din kunne ikke åpnes"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Your mailbox is sending automatic replies. Click to change them."
+msgstr "Postkassen din sender automatiske svar. Klikk for å endre dem."
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "Your mailbox was repaired"
+msgstr "Postkassen din ble reparert"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Your name"
+msgstr "Navnet ditt"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your organisation doesn't allow Exchange Web Services for this account. Ask your administrator."
+msgstr "Organisasjonen din tillater ikke Exchange Web Services for denne kontoen. Spør administratoren din."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
+msgstr "Organisasjonen din lar ikke MailCraft endre de automatiske svarene dine. Spør administratoren din."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft keep this mailbox in step with Outlook"
+msgstr "Organisasjonen din lar ikke MailCraft holde denne postkassen i takt med Outlook"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "Your organisation doesn't let MailCraft read shared mailboxes and the calendars shared with you"
+msgstr "Organisasjonen din lar ikke MailCraft lese delte postkasser og kalenderne som er delt med deg"
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "Your organisation has approved MailCraft"
+msgstr "Organisasjonen din har godkjent MailCraft"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Your organisation has approved MailCraft. Now sign in with your own account."
+msgstr "Organisasjonen din har godkjent MailCraft. Logg nå inn med din egen konto."
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+#, fuzzy
+msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
+msgstr "Organisasjonen din må godkjenne MailCraft før du kan logge inn. Spør en administrator."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Your organisation has to approve MailCraft first"
+msgstr "Organisasjonen din må godkjenne MailCraft først"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "Your organisation needs an administrator to approve this first. Ask your administrator, then try again."
+msgstr "Organisasjonen din trenger at en administrator godkjenner dette først. Spør administratoren din, og prøv igjen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Your organisation needs to approve MailCraft"
+msgstr "Organisasjonen din må godkjenne MailCraft"
+
+#. interface
+#: crates/ui-egui/src
+#, fuzzy
+msgid "Your organisation's administrator has to approve this once"
+msgstr "Administratoren i organisasjonen din må godkjenne dette én gang"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Your own certificates and keys are used by MailCraft's desktop program: here Digital signatures are checked, and nothing is signed or decrypted."
+msgstr "Dine egne sertifikater og nøkler brukes av skrivebordsprogrammet til MailCraft: her sjekkes digitale signaturer, og ingenting signeres eller dekrypteres."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Your own key is removed only by you, in the window"
+msgstr "Din egen nøkkel fjernes bare av deg, i vinduet"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "Your own name."
+msgstr "Ditt eget navn."
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
