@@ -112,7 +112,7 @@ impl MoveItems {
         let here = (!self.copy).then_some(app.session.view.folder);
         ui.label(if self.copy { tl!("Copy the selected items to the folder:") } else { tl!("Move the selected items to the folder:") });
         let resp =
-            ui.add(egui::TextEdit::singleline(&mut self.query).hint_text(tl!("Search folders")).char_limit(QUERY_MAX).desired_width(f32::INFINITY));
+            ui.add(crate::rtl::singleline(&mut self.query).hint_text(tl!("Search folders")).char_limit(QUERY_MAX).desired_width(f32::INFINITY));
         let resp = crate::text_menu::field(resp);
         crate::text_menu::hold(&resp);
         let wanted = mailcraft_model::words::fold(&self.query);

@@ -423,7 +423,7 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
     let hue = if trouble { t.orange } else { t.blue };
     notice(hue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
             let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r.shrink(1.0), if trouble { "highImportance" } else { "info" }, t.text, hue);
@@ -553,7 +553,7 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     // What the host keeps of them between runs, when it keeps anything.
     let Some((count, bytes)) = app.services.picture_cache.as_ref().map(|kept| kept.usage()) else { return };
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         let kept = match count {
             0 => tl!("No downloaded pictures are kept on this computer.").to_string(),
             n => crate::i18n::fmt(
@@ -565,7 +565,11 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             "A picture you asked for is kept for a month, so that reading the message again doesn't ask its sender's server again. Nothing kept is ever run, and it is checked like a new download before it is shown."
         );
         ui.label(kept).on_hover_text(tip);
-        if ui.add_enabled(count > 0, egui::Button::new(tl!("Clear")).small()).on_hover_text(tl!("Forget the pictures that are kept; they are downloaded again when you ask.")).clicked() {
+        if ui
+            .add_enabled(count > 0, egui::Button::new(tl!("Clear")).small())
+            .on_hover_text(tl!("Forget the pictures that are kept; they are downloaded again when you ask."))
+            .clicked()
+        {
             let _ = app.run("ui.clearPictureCache", json!({}));
         }
     });
@@ -593,7 +597,7 @@ fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec
             } else {
                 (name.clone(), tl!("Ask before downloading this sender's pictures again"), json!({"sender": name, "value": false}))
             };
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 if ui.small_button(tl!("Remove")).on_hover_text(tip).clicked() {
                     let _ = app.run("ui.alwaysDownloadPictures", remove);
                 }
@@ -602,7 +606,7 @@ fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec
         }
         if pages > 1 {
             // Under each other when the page is too narrow for them side by side.
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 if ui.add_enabled(page > 0, egui::Button::new(tl!("Previous")).small()).clicked() {
                     page = page.saturating_sub(1);
                 }

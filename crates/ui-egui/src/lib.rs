@@ -228,6 +228,7 @@ pub mod ribbon;
 mod ribbon_field_tests;
 #[cfg(test)]
 mod ribbon_font_tests;
+pub mod rtl;
 pub mod rule_sync;
 #[cfg(test)]
 mod rule_sync_tests;
@@ -1187,7 +1188,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"ar"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (

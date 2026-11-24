@@ -160,7 +160,7 @@ pub fn group(ui: &mut Ui, title: &str, app: &mut MailApp, add: impl FnOnce(&mut 
     let start = ui.cursor().min;
     let inner = ui.vertical(|ui| {
         ui.set_min_width(label_w + 10.0);
-        ui.allocate_ui_with_layout(vec2(ui.available_width(), CONTENT_H), egui::Layout::left_to_right(egui::Align::Min), |ui| {
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), CONTENT_H), crate::rtl::start_to_end(egui::Align::Min), |ui| {
             ui.spacing_mut().item_spacing = vec2(1.0, 1.0);
             add(ui, app);
         });
@@ -424,7 +424,7 @@ pub fn account_choice(
     };
     let choices = std::iter::once(AccountChoice::All).chain(accounts.iter().copied().map(AccountChoice::Account)).chain([AccountChoice::Here]);
     let mut picked = None;
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.add_space(10.0);
         let width = (ui.available_width() - 10.0).max(60.0);
         egui::ComboBox::from_id_salt("account_choice").width(width).selected_text(label(current)).truncate().show_ui(ui, |ui| {
@@ -484,7 +484,7 @@ pub fn color_swatch_in(
         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
         // (The twelve in two rows of six, Outlook's 25 in five rows of five.)
         for line in palette.chunks(if palette.len() == mailcraft_model::PALETTE.len() { 6 } else { 5 }) {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 for choice in line {
                     let (cell, cell_resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
                     let current = Some(*choice) == color;

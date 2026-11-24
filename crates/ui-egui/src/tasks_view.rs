@@ -46,7 +46,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     if let Some(task) = app.session.sel.task.and_then(|id| app.session.mailbox.tasks.get(&id).cloned()) {
         let max = (ui.available_width() - 320.0).max(260.0);
-        egui::Panel::right("task_details")
+        crate::rtl::end_panel("task_details")
             .default_size(340.0f32.min(max))
             .size_range(260.0..=max)
             .resizable(true)
@@ -283,7 +283,7 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Heading>) {
 fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
-    egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
+    crate::rtl::start_panel("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
         crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
@@ -403,7 +403,7 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
     // What has been typed so far lives in egui's memory, not in the session.
     let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_default();
     let hint = add_hint(app, filter == TaskFilter::Today);
-    let edit = egui::TextEdit::singleline(&mut text)
+    let edit = crate::rtl::singleline(&mut text)
         .id(id)
         .frame(egui::Frame::NONE)
         .hint_text(hint)
@@ -635,19 +635,19 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 18, right: 14, top: 12, bottom: 20 }).show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
             // The title, with Close on the right.
-            ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            crate::rtl::horizontal(ui, |ui| {
+                ui.with_layout(crate::rtl::end_to_start(egui::Align::Min), |ui| {
                     if widgets::icon_button(ui, "close", tl!("Close"), 13.0, true).clicked() {
                         let _ = app.run("tasks.select", json!({"id": null}));
                     }
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                    ui.with_layout(crate::rtl::start_to_end(egui::Align::Min), |ui| {
                         let title = RichText::new(shown_title(task)).font(semibold(16.0)).color(if done { t.text_dim } else { t.text });
                         ui.add(egui::Label::new(if done { title.strikethrough() } else { title }).wrap());
                     });
                 });
             });
             let (status, warn) = status_text(task, today, task.completed.map(|at| app.session.local(at).date));
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 if done {
                     let (r, _) = ui.allocate_exact_size(vec2(14.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(16.0, 16.0)), "complete", t.green, t.accent);
@@ -655,7 +655,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                 ui.label(RichText::new(status).font(regular(12.0)).color(if warn { t.red } else { t.text_dim }));
             });
             ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                 if widgets::primary_button(ui, if done { tl!("Mark Incomplete") } else { tl!("Mark Complete") }, true).clicked() {
                     let _ = app.run("tasks.complete", json!({"id": id}));

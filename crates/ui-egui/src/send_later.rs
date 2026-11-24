@@ -264,7 +264,7 @@ pub(crate) fn queued_bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
     };
     let r = egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin { left: 20, right: 20, top: 6, bottom: 6 }).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
             ui.label(egui::RichText::new(said).font(crate::theme::regular(12.0)).color(t.text));
             if ui.button(tl!("Change Send Time")).clicked() {

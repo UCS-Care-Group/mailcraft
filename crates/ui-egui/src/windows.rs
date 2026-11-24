@@ -1530,7 +1530,7 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, id: u64, own_keys: 
         }
     }
     if toolbar {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
             for (n, (icon, label, command, action, kind)) in row.iter().enumerate() {
                 if n == 3 || n == 4 {

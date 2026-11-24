@@ -88,7 +88,7 @@ impl JunkForm {
     /// The pages as tabs side by side.
     fn tabs(&mut self, ui: &mut Ui) {
         let t = Tokens::get(ui.ctx());
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             let pages = [JunkList::Safe, JunkList::Blocked];
             for (i, page) in pages.into_iter().enumerate() {
@@ -138,7 +138,7 @@ impl JunkForm {
             // The list and the field take what the buttons beside them leave of the form's width.
             let width = (ui.available_width().min(WIDTH) - BUTTON_W - 12.0).max(120.0);
             if accounts.len() > 1 {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     ui.label(tl!("Account"));
                     let now = accounts.iter().find(|(id, _)| *id == self.account).map(|(_, n)| n.clone()).unwrap_or_default();
                     egui::ComboBox::from_id_salt("junk_account").selected_text(now).width(280.0).show_ui(ui, |ui| {
@@ -204,9 +204,9 @@ impl JunkForm {
                 });
             });
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.new_entry)
+                    crate::rtl::singleline(&mut self.new_entry)
                         .id(field_id(("junk_new", self.page.as_str())))
                         .desired_width(width)
                         .hint_text(tl!("someone@example.org or @example.org")),

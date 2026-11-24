@@ -446,17 +446,17 @@ impl Draft {
                 );
             }
             ui.label(tl!("Title"));
-            crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY)));
+            crate::text_menu::field(ui.add(crate::rtl::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY)));
             ui.label(tl!("What happened"));
-            let what = ui.add(egui::TextEdit::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
+            let what = ui.add(crate::rtl::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
             crate::text_menu::field(what);
             ui.label(tl!("What you expected (optional)"));
             let expected =
-                ui.add(egui::TextEdit::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
+                ui.add(crate::rtl::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
             crate::text_menu::field(expected);
             if can_send {
                 ui.label(tl!("GitHub username (optional)"));
-                let name = egui::TextEdit::singleline(&mut self.username).char_limit(USERNAME_CHARS).desired_width(240.0);
+                let name = crate::rtl::singleline(&mut self.username).char_limit(USERNAME_CHARS).desired_width(240.0);
                 crate::text_menu::field(ui.add(name));
                 ui.label(dim(tl!("Only to mention you if we make the report public on GitHub.")));
                 // The relay counts what happened and what was expected together, as UTF-16.
@@ -485,7 +485,7 @@ impl Draft {
             if self.include {
                 egui::ScrollArea::vertical().max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
                     let shown =
-                        ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                        ui.add(crate::rtl::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
                     crate::text_menu::read_only(shown);
                 });
                 ui.label(dim(if can_send {
@@ -518,7 +518,7 @@ impl Draft {
             ui.label(dim(tl!("Choose where to save the diagnostics: GitHub's page opens once they are saved.")));
         }
         if sending {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 crate::software::spinner(ui, 14.0, None);
                 ui.label(dim(tl!("Sending the report…")));
             });

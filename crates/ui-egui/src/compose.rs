@@ -47,7 +47,7 @@ fn line(ui: &mut Ui, label: &str, label_width: f32, right: f32) -> Rect {
 
 /// The text of a labelled line, `width` wide.
 fn line_edit<'t>(text: &'t mut String, id: egui::Id, hint: &str, width: f32) -> egui::TextEdit<'t> {
-    egui::TextEdit::singleline(text)
+    crate::rtl::singleline(text)
         .id(id)
         .frame(egui::Frame::NONE)
         .hint_text(hint)
@@ -259,7 +259,7 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     // Attachments, each with a way to take it off again.
     if !c.attachments.is_empty() {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 12, top: 6, bottom: 6 }).show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
+            crate::rtl::horizontal_wrapped(ui, |ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                 for (i, (name, size)) in c.attachments.iter().enumerate() {
                     let label = format!("{name}  ({size})");
@@ -380,7 +380,7 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
             }
         };
         let details = |app: &mut MailApp, ui: &mut Ui| {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
                 if window.is_none() {
                     if icon_button(ui, "close", tl!("Close"), WINDOW_ICON, true).clicked() {
                         let _ = app.run("compose.close", json!({}));
@@ -395,10 +395,10 @@ fn action_bar(app: &mut MailApp, ui: &mut Ui, c: &Shown, window: Option<u64>) {
             });
         };
         if stacked {
-            ui.horizontal_wrapped(|ui| actions(app, ui));
-            ui.horizontal(|ui| details(app, ui));
+            crate::rtl::horizontal_wrapped(ui, |ui| actions(app, ui));
+            crate::rtl::horizontal(ui, |ui| details(app, ui));
         } else {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 actions(app, ui);
                 details(app, ui);
             });

@@ -209,7 +209,7 @@ impl Calendar<'_> {
         }
         ui.add_space(4.0);
         let mut in_buttons = false;
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let today = ui.button(tl!("Today"));
             in_buttons |= today.has_focus();
             if today.clicked() {

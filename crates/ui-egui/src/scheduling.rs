@@ -625,7 +625,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
         });
     });
     // What the bars mean, and what there is to say about where they come from.
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         let entries: [(Option<ShowAs>, &str); 5] = [
             (Some(ShowAs::Busy), "Busy"),

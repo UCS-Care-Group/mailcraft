@@ -560,7 +560,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new(tln!(waiting - 1, "{n} more question is waiting.", "{n} more questions are waiting.")).color(t.text_dim));
         }
         ui.add_space(6.0);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.with_layout(crate::rtl::end_to_start(egui::Align::Center), |ui| {
             let no = primary_button(ui, no_label, true);
             let moved = bcc.then(|| ui.add(egui::Button::new(tl!("Move to Bcc")).min_size(vec2(72.0, 26.0))));
             let yes = ui.add(egui::Button::new(yes_label).min_size(vec2(72.0, 26.0)));

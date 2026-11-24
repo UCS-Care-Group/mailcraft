@@ -107,6 +107,8 @@ impl Lang {
             }
             Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            // Saudi Arabia and most of the Arab world: a 12-hour clock (ص and م), weeks from Sunday.
+            Lang::Arabic => Conventions { twelve_hour: true, week_start: 6, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }

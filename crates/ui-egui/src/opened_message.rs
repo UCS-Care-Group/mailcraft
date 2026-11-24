@@ -83,7 +83,7 @@ pub(crate) struct Asked {
 /// The bar of a window of a message file: Move to Folder, Save As.
 pub(crate) fn bar(app: &mut MailApp, ui: &mut Ui) -> Asked {
     let mut asked = Asked::default();
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
         ui.menu_button(tl!("Move to Folder"), |ui| {
             crate::ribbon::folder_menu(ui, app, |_, folder| asked.folder = Some(folder));

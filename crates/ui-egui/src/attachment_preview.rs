@@ -561,7 +561,7 @@ fn show_page(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
     egui::Frame::NONE.fill(tokens.panel).inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 6.0);
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             if let Some(pages) = preview.pages.filter(|pages| *pages > 1) {
                 let ready = preview.pending.is_none() && preview.retry_at.is_none();
                 if ui.add_enabled(ready && preview.page > 1, egui::Button::new(tl!("Previous Page"))).clicked() {
@@ -597,7 +597,7 @@ fn show_page(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
                 area = area.scroll_offset(egui::Vec2::ZERO);
             }
             area.show(ui, |ui| {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     ui.add_space(((room.x - display.x) / 2.0).max(0.0));
                     let image = ui.add(egui::Image::new((texture.id(), display)));
                     app.hit.add("attachmentPreviewImage", id, image.rect);
@@ -609,7 +609,7 @@ fn show_page(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
             if let Some(error) = preview.error {
                 ui.colored_label(tokens.red, error.text());
             } else {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                     ui.label(tl!("Preparing attachment preview…"));
                 });

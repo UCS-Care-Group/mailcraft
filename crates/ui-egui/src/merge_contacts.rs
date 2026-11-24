@@ -259,7 +259,7 @@ impl MergeContacts {
                 let Some(c) = app.session.mailbox.contact(*id) else { continue };
                 let locked = group.locked.iter().find(|(l, _)| l == id).map(|(_, why)| why.in_lang(lang));
                 let kept = self.keep == *id;
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     let mut on = locked.is_none() && (kept || !self.left_out.contains(id));
                     let tip = if kept { tl!("The kept contact is always merged") } else { tl!("Merge this contact") };
                     if ui.add_enabled(locked.is_none() && !kept, egui::Checkbox::without_text(&mut on)).on_hover_text(tip).changed() {
@@ -280,7 +280,7 @@ impl MergeContacts {
                 });
                 if let Some(why) = locked {
                     ui.add_space(-2.0);
-                    ui.horizontal(|ui| {
+                    crate::rtl::horizontal(ui, |ui| {
                         ui.add_space(48.0);
                         ui.label(RichText::new(why).color(t.text_dim).italics());
                     });

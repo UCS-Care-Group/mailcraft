@@ -35,6 +35,8 @@ macro_rules! said {
 }
 
 #[cfg(test)]
+mod arabic_tests;
+#[cfg(test)]
 mod chinese_tests;
 #[cfg(test)]
 mod czech_tests;
@@ -74,6 +76,8 @@ pub enum Lang {
     Czech,
     ChineseSimplified,
     Georgian,
+    /// Arabic, written from the right: the window is laid out mirrored ([`Lang::is_rtl`]).
+    Arabic,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -81,7 +85,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 13] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -94,6 +98,7 @@ impl Lang {
         Lang::Czech,
         Lang::ChineseSimplified,
         Lang::Georgian,
+        Lang::Arabic,
         Lang::Pseudo,
     ];
 
@@ -112,6 +117,7 @@ impl Lang {
             Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
+            Lang::Arabic => "ar",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -153,6 +159,7 @@ impl Lang {
             "pl" => Some(Lang::Polish),
             "cs" => Some(Lang::Czech),
             "ka" => Some(Lang::Georgian),
+            "ar" => Some(Lang::Arabic),
             _ => None,
         }
     }
@@ -172,6 +179,7 @@ impl Lang {
             Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
+            Lang::Arabic => "العربية",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -191,7 +199,15 @@ impl Lang {
                 | Lang::Czech
                 | Lang::ChineseSimplified
                 | Lang::Georgian
+                | Lang::Arabic
         )
+    }
+
+    /// Whether the language is written from the right (Arabic): its window is laid out as a
+    /// mirror of the English one, the panes that stand at the left standing at the right, and its
+    /// text aligned at the right.
+    pub fn is_rtl(self) -> bool {
+        matches!(self, Lang::Arabic)
     }
 
     /// Its name as the language picker shows it: in its own language, and, while it is a preview,
@@ -209,9 +225,9 @@ impl Lang {
     }
 
     /// A catalogue can be used for the interface when its glyphs are available on the target.
-    /// The browser has no system CJK fallback font yet.
+    /// The browser has no system CJK or Arabic fallback font yet.
     fn supported_on(self, browser: bool) -> bool {
-        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+        self.has_catalogue() && !(browser && matches!(self, Lang::ChineseSimplified | Lang::Arabic))
     }
 
     fn supported(self) -> bool {
@@ -492,6 +508,7 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
+        expected.push("العربية (معاينة)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -505,6 +522,12 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
+        assert_eq!(Lang::from_pref("auto", Some("ar_SA.UTF-8")), Lang::Arabic);
+        assert_eq!(Lang::from_pref("auto", Some("ar-EG")), Lang::Arabic);
+        assert_eq!(Lang::from_pref("ar", None), Lang::Arabic);
+        assert!(Lang::Arabic.is_rtl() && !Lang::English.is_rtl() && !Lang::Georgian.is_rtl());
+        // The browser has no Arabic face yet, as it has no Chinese one: desktop only.
+        assert!(Lang::Arabic.supported_on(false) && !Lang::Arabic.supported_on(true));
     }
 
     #[test]

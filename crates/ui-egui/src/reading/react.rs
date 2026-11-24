@@ -63,7 +63,7 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
             let label = ui.label(crate::i18n::fmt(tl!("to {recipient}"), &[("recipient", to)]));
             app.hit.add("reaction-to", id, label.rect);
         }
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             for (index, ((emoji, _), name)) in REACTIONS.iter().zip(names).enumerate() {
                 let r = ui.add(Button::new(egui::RichText::new(drawn(emoji)).font(regular(22.0))).frame(false).min_size(vec2(36.0, 34.0)));
                 r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));

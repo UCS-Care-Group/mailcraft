@@ -274,7 +274,7 @@ impl ProposeTime {
             day_strip(app, ui, rect, day, span, self.event, &t, twelve);
         }
         let note = ui.add(
-            egui::TextEdit::multiline(&mut self.note)
+            crate::rtl::multiline(&mut self.note)
                 .id(kit::field_id("propose_note"))
                 .hint_text(tl!("A note to the organizer (optional)"))
                 .desired_rows(2)
@@ -482,7 +482,7 @@ impl ForwardMeeting {
             pass.text(ui, "forward_to", &mut self.to, f32::INFINITY, tl!("Names or addresses, separated by ;"));
         });
         let note = ui.add(
-            egui::TextEdit::multiline(&mut self.note)
+            crate::rtl::multiline(&mut self.note)
                 .id(kit::field_id("forward_note"))
                 .hint_text(tl!("A note to go with it (optional)"))
                 .desired_rows(3)
@@ -614,7 +614,7 @@ impl Proposals {
         let mut accept: Option<usize> = None;
         egui::ScrollArea::vertical().max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
             for (n, row) in self.rows.iter().enumerate() {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     let able = self.event.is_some() && self.organizes;
                     let button = ui.add_enabled(able, egui::Button::new(tl!("Accept Proposal")).min_size(vec2(72.0, 24.0)));
                     app.hit.add("proposalAccept", n as u64, button.rect);

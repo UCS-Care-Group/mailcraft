@@ -25,9 +25,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // The column of pages: the accent with its ink on a light window; in the dark a neutral
     // column, where the accent only marks the page in view.
     let (column, ink) = (t.backstage_column, t.backstage_ink);
-    egui::Panel::left("backstage_nav").exact_size(210.0).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(column)).show(
-        ui,
-        |ui| {
+    crate::rtl::start_panel("backstage_nav")
+        .exact_size(210.0)
+        .resizable(false)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(column))
+        .show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
             ui.add_space(top + 10.0);
             // Back to the mailbox.
@@ -65,8 +68,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                     let _ = app.run("ui.backstage", json!({"value": true, "page": code}));
                 }
             }
-        },
-    );
+        });
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(t.surface).inner_margin(egui::Margin { left: 36, right: 36, top: 24, bottom: 24 }))
         .show(ui, |ui| {
@@ -253,7 +255,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.is_shared()
             && let Some(line) = app.shared_calendar_line(a.id)
         {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
             });
@@ -267,7 +269,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
         // is its tip.
         if let Some((line, details, again)) = app.sync_line(a.id) {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim)).on_hover_text(&details);
                 let tip = app.sync_tip(a.id);
@@ -281,7 +283,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if app.tasks_line(a.id).is_some()
             && let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id))
         {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
                 let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
@@ -295,7 +297,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // Where the automatic replies stand, and whether MailCraft may change them, with a way
         // to sign in again or to ask for that permission again.
         if let Some((line, again)) = app.auto_replies_line(a.id) {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
                 match again {
@@ -313,7 +315,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // Messages that failed to download in several runs and were left out, with a way to try
         // them again (#1581).
         if let Some(line) = app.left_out_line(a.id) {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(36.0);
                 ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
                 let tip = tl!(
@@ -330,7 +332,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.kind.has_offline_window() && !a.is_shared() {
             download_in_full(app, ui, a);
             // How far back mail is kept in full (#143), beside it.
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(12.0);
                 ui.label(tl!("Mail to keep offline:"));
                 crate::keep_offline::slider(app, ui, a.id, a.keep_offline);
@@ -340,7 +342,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // A mailbox of the organisation that the owner was given Full Access to (#70).
         // (Not for a personal Microsoft account, which has none.)
         if crate::shared_mailboxes::can_open_shared(a) {
-            ui.horizontal(|ui| {
+            crate::rtl::horizontal(ui, |ui| {
                 ui.add_space(12.0);
                 let link = ui.link(tl!("Add Shared Mailbox…")).on_hover_text(tl!(
                     "Open a mailbox of your organisation that you were given Full Access to, such as a team's, under this account"
@@ -436,7 +438,7 @@ fn subscribed_calendars(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     let can_update = app.services.subscription.is_some();
     for (id, name, sub) in rows {
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             ui.label(egui::RichText::new(&name).font(semibold(13.0)).color(t.text));
             ui.label(egui::RichText::new(&sub.host).font(regular(11.5)).color(t.text_dim));
         });
@@ -471,7 +473,7 @@ fn subscribed_calendars(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 .color(t.red),
             );
         }
-        ui.horizontal(|ui| {
+        crate::rtl::horizontal(ui, |ui| {
             let mut chosen = sub.interval();
             egui::ComboBox::from_id_salt(("subscription-interval", id)).selected_text(crate::subscribed::interval_words(chosen)).show_ui(ui, |ui| {
                 for minutes in crate::subscribed::INTERVALS {
@@ -491,9 +493,8 @@ fn subscribed_calendars(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if needs_address {
             let mut again = app.subscribed.again.take().filter(|(calendar, ..)| *calendar == id).unwrap_or((id, String::new(), String::new()));
             let mut submit = false;
-            ui.horizontal(|ui| {
-                let field =
-                    egui::TextEdit::singleline(&mut again.1).password(true).hint_text(tl!("The address of the calendar")).desired_width(280.0);
+            crate::rtl::horizontal(ui, |ui| {
+                let field = crate::rtl::singleline(&mut again.1).password(true).hint_text(tl!("The address of the calendar")).desired_width(280.0);
                 crate::text_menu::field(ui.add(field));
                 submit = ui.button(tl!("Use This Address")).clicked();
             });
@@ -533,7 +534,7 @@ fn download_in_full(app: &mut MailApp, ui: &mut Ui, a: &mailcraft_model::Account
     ];
     let now = choices.iter().find(|(c, _, _)| *c == a.download_in_full).map_or("", |(_, _, label)| *label);
     ui.add_space(4.0);
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.add_space(12.0);
         ui.label(tl!("Download messages in full:"));
         egui::ComboBox::from_id_salt(("download-in-full", a.id))
@@ -615,7 +616,7 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 
 /// A labelled row: the label on the left, the control after it.
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         let t = Tokens::get(ui.ctx());
         // A label longer than the column, as a translation can be, pushes its control along.
         let wide = ui.fonts_mut(|f| f.layout_no_wrap(label.to_string(), regular(12.5), t.text).size().x + 12.0).max(210.0);
@@ -699,7 +700,7 @@ fn accent_swatches(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                     if changed {
                         text = crate::theme::hex_string(color);
                     }
-                    let hex = ui.add(egui::TextEdit::singleline(&mut text).desired_width(90.0).hint_text("#RRGGBB"));
+                    let hex = ui.add(crate::rtl::singleline(&mut text).desired_width(90.0).hint_text("#RRGGBB"));
                     hex.widget_info(|| egui::WidgetInfo::labeled(egui::Role::TextInput, true, tl!("Accent colour as hex")));
                     if hex.changed()
                         && let Some(c) = crate::theme::parse_hex_color(&text)
@@ -819,7 +820,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let _ = app.run("ui.highContrast", json!({"on": strong}));
     }
     // The swatches wrap under the label in a narrow window rather than widening the page.
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         let (r, _) = ui.allocate_exact_size(vec2(210.0, 24.0), Sense::hover());
         ui.painter().text(pos2(r.min.x, r.center().y), Align2::LEFT_CENTER, tl!("Accent"), regular(12.5), t.text);
         accent_swatches(app, ui, t);
@@ -984,7 +985,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let built_in = !app.services.microsoft_client_id.is_empty();
         let mut id = app.ui.microsoft_client_id.clone();
         let hint = if built_in { tl!("The one this build came with") } else { tl!("Needed for Outlook.com and Microsoft 365 accounts") };
-        let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(340.0);
+        let edit = crate::rtl::singleline(&mut id).hint_text(hint).desired_width(340.0);
         if crate::text_menu::field(ui.add(edit)).changed() {
             let _ = app.execute("ui.microsoftClientId", json!({"value": id.trim()}));
         }
@@ -996,7 +997,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("The one this build came with")
         };
-        if ui.add(egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0)).changed() {
+        if ui.add(crate::rtl::singleline(&mut id).hint_text(hint).desired_width(300.0)).changed() {
             let _ = app.execute("ui.googleClientId", json!({"value": id.trim()}));
         }
     });
@@ -1089,7 +1090,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
     let keep = |ui: &Ui, key: &str, text: String| ui.data_mut(|data| data.insert_temp(egui::Id::unique(key), text));
     let label = |ui: &mut Ui, text: &str| {
         let mut text = text.to_string();
-        let field = egui::TextEdit::singleline(&mut text).hint_text(tl!("Label")).desired_width(80.0).char_limit(24);
+        let field = crate::rtl::singleline(&mut text).hint_text(tl!("Label")).desired_width(80.0).char_limit(24);
         crate::text_menu::field(ui.add(field)).changed().then_some(text)
     };
     let follows = Zone::named(&prefs.time_zone).is_none();
@@ -1134,7 +1135,7 @@ pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCS-Care-Group/ma
 /// The line of About that credits the people who made the program: a link to the project's
 /// contributors, shown as where it leads, in one piece.
 pub(crate) fn contributors(ui: &mut Ui) {
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         ui.label(tl!("Made by its contributors:"));
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);

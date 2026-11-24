@@ -186,7 +186,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
     if let Some(rename) = app.signature_rename.as_mut() {
         // Escape is the field's (it lets go of the name), never File's, which would close.
         let keys = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: true };
-        let edit = egui::TextEdit::singleline(&mut rename.text).id(field).desired_width(172.0).char_limit(100).event_filter(keys);
+        let edit = crate::rtl::singleline(&mut rename.text).id(field).desired_width(172.0).char_limit(100).event_filter(keys);
         let r = crate::text_menu::field(ui.add(edit));
         // Enter, or leaving the field any other way (a click elsewhere, Tab, choosing another
         // signature, Save; Back is `MailApp::leave_signature`), keeps the name; Escape lets go of
@@ -202,7 +202,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             finish_rename(app, true);
         }
     }
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         if ui.button(tl!("New")).clicked() {
             // "Signature", "Signature 2"… whichever is free.
             let name = (1..100)
@@ -259,7 +259,7 @@ pub(crate) fn finish_rename(app: &mut MailApp, keep: bool) {
 /// picture's width and description, and the size its pictures add; or its HTML source.
 fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let html = app.session.signature_edit.as_ref().and_then(|e| e.signature.html().map(str::to_string));
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         for (on, label) in [(html.is_none(), tl!("Rich text")), (html.is_some(), tl!("HTML"))] {
             if ui.add(egui::Button::selectable(on, label)).clicked() && !on {
                 app.signature_note = None;
@@ -279,7 +279,7 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         None => rich(app, ui, t),
     }
     let dirty = app.session.signature_edit.as_ref().is_some_and(|e| e.dirty);
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         if ui.add_enabled(dirty, egui::Button::new(tl!("Save"))).clicked() {
             let _ = app.run("signature.save", json!({}));
         }
@@ -295,7 +295,7 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 
 /// An HTML signature's source, as the owner writes it.
 fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
-    let edit = egui::TextEdit::multiline(&mut source)
+    let edit = crate::rtl::multiline(&mut source)
         .code_editor()
         .desired_rows(10)
         .desired_width(f32::INFINITY)
@@ -328,7 +328,7 @@ fn keeps_clicks(ui: &mut Ui, name: &str, content: impl FnOnce(&mut Ui)) {
 /// A rich signature: its formatting bar, the editor, its pictures and the size they add.
 fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         // The font menu holds a field to search in: a click inside it is for the field, not a way
         // out of the menu (#1493).
         keeps_clicks(ui, tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
@@ -385,7 +385,7 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     // What its pictures add to every message, counting those its text still holds.
     let held = e.body.text().pictures();
     let bytes: usize = e.signature.pictures().iter().filter(|p| held.contains(&p.id)).map(|p| p.data.len()).sum();
-    ui.horizontal_wrapped(|ui| {
+    crate::rtl::horizontal_wrapped(ui, |ui| {
         let kb = |n: usize| n.div_ceil(1024).to_string();
         let total = crate::i18n::fmt(tl!("Pictures: {n} KB of {max} KB"), &[("n", &kb(bytes)), ("max", &kb(MAX_PICTURES_BYTES))]);
         ui.label(egui::RichText::new(total).color(t.text_dim));
@@ -448,7 +448,7 @@ fn details_form(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             for (i, (_, label)) in FIELDS.iter().enumerate() {
                 ui.label(tl!(label));
                 if let Some(text) = form.fields.get_mut(i) {
-                    let field = if i == 7 { egui::TextEdit::multiline(text).desired_rows(2) } else { egui::TextEdit::singleline(text) };
+                    let field = if i == 7 { crate::rtl::multiline(text).desired_rows(2) } else { crate::rtl::singleline(text) };
                     let field = crate::text_menu::field(ui.add(field.desired_width(320.0).char_limit(mailcraft_model::signature::MAX_DETAIL)));
                     changed |= field.changed();
                 }
@@ -577,13 +577,13 @@ fn picture(app: &mut MailApp, ui: &mut Ui) {
     let own = crate::reading::images::Pictures::of(ui.ctx()).lock().ok().and_then(|mut c| c.size(&p.data, frame)).map(|[w, _]| w);
     let mut width = p.width.or_else(|| own.and_then(|w| u16::try_from(w).ok())).unwrap_or(MAX_WIDTH).min(MAX_WIDTH);
     let mut alt = p.alt.clone();
-    ui.horizontal(|ui| {
+    crate::rtl::horizontal(ui, |ui| {
         ui.label(tl!("Width"));
         if crate::text_menu::field(ui.add(egui::DragValue::new(&mut width).range(8..=MAX_WIDTH).suffix(" px"))).changed() {
             let _ = app.run("signature.picture.set", json!({"id": id, "width": width}));
         }
         ui.label(tl!("Description"));
-        if crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut alt).desired_width(200.0).char_limit(200))).changed() {
+        if crate::text_menu::field(ui.add(crate::rtl::singleline(&mut alt).desired_width(200.0).char_limit(200))).changed() {
             let _ = app.execute("signature.picture.set", json!({"id": id, "alt": alt}));
         }
         if ui.button(tl!("Remove Picture")).clicked() {
@@ -619,7 +619,7 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
         for (id, email, new, reply) in accounts {
             ui.label(email);
             for (key, now, label) in [("new", new, tl!("New messages")), ("reply", reply, tl!("Replies and forwards"))] {
-                ui.horizontal(|ui| {
+                crate::rtl::horizontal(ui, |ui| {
                     ui.label(label);
                     let shown = if now.is_empty() { tl!("(none)").to_string() } else { now.clone() };
                     egui::ComboBox::from_id_salt(("signature_default", id, key)).selected_text(shown).width(150.0).show_ui(ui, |ui| {

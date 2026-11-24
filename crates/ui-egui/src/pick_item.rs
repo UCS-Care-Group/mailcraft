@@ -59,7 +59,7 @@ impl Pick {
             PickKind::Message => tl!("Search by subject or sender"),
             PickKind::Contact => tl!("Search contacts"),
         };
-        let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.query).hint_text(hint).desired_width(f32::INFINITY)));
+        let resp = crate::text_menu::field(ui.add(crate::rtl::singleline(&mut self.query).hint_text(hint).desired_width(f32::INFINITY)));
         crate::text_menu::hold(&resp);
         let found = rows(app, self.kind, &self.query);
         if self.selected.is_none_or(|id| !found.iter().any(|r| r.0 == id)) {

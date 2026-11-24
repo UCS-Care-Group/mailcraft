@@ -230,7 +230,7 @@ impl FolderProperties {
     pub fn show(&mut self, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
         // On a second line when the tabs' names don't fit on one.
-        ui.horizontal_wrapped(|ui| {
+        crate::rtl::horizontal_wrapped(ui, |ui| {
             for tab in Tab::ALL {
                 if ui.selectable_label(self.tab == tab, tab.label()).clicked() {
                     self.tab = tab;
@@ -503,7 +503,7 @@ fn shown_path(folders: &HashMap<Id, &Folder>, f: &Folder) -> String {
 
 /// A cell `width` wide, what is in it at the left, or at the right (a number).
 fn cell<R>(ui: &mut Ui, width: f32, right: bool, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let layout = if right { egui::Layout::right_to_left(egui::Align::Center) } else { egui::Layout::left_to_right(egui::Align::Center) };
+    let layout = if right { crate::rtl::end_to_start(egui::Align::Center) } else { crate::rtl::start_to_end(egui::Align::Center) };
     ui.allocate_ui_with_layout(vec2(width, ROW_H), layout, |ui| {
         ui.set_width(width);
         add(ui)

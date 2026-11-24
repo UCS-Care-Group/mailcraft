@@ -68,47 +68,50 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
         return;
     }
     let t = Tokens::get(ui.ctx());
-    egui::Panel::left("modules").exact_size(RAIL_W).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(ui, |ui| {
-        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        for (n, (m, icon, id)) in module_buttons().into_iter().enumerate() {
-            let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
-            app.hit.add("module", n as u64, r);
-            let active = app.session.view.module == m;
-            // Messages dragged over Calendar, Tasks or People are taken there (#873); Mail takes nothing.
-            let takes = dropped_as(m).is_some();
-            let dragged_over = takes && resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some();
-            if dragged_over {
-                crate::drag_pointer::note_folder(ui.ctx(), true);
-                app.hit.add("moduleDrop", n as u64, r);
-                ui.painter().rect_filled(r.shrink(6.0), 4.0, t.hover);
-                ui.painter().rect_stroke(r.shrink(6.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    crate::rtl::start_panel("modules").exact_size(RAIL_W).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(
+        ui,
+        |ui| {
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            for (n, (m, icon, id)) in module_buttons().into_iter().enumerate() {
+                let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
+                app.hit.add("module", n as u64, r);
+                let active = app.session.view.module == m;
+                // Messages dragged over Calendar, Tasks or People are taken there (#873); Mail takes nothing.
+                let takes = dropped_as(m).is_some();
+                let dragged_over = takes && resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some();
+                if dragged_over {
+                    crate::drag_pointer::note_folder(ui.ctx(), true);
+                    app.hit.add("moduleDrop", n as u64, r);
+                    ui.painter().rect_filled(r.shrink(6.0), 4.0, t.hover);
+                    ui.painter().rect_stroke(r.shrink(6.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+                }
+                if active {
+                    // The module in view: a bar at the window's edge, and its icon in the accent.
+                    let bar = Rect::from_min_size(pos2(r.min.x + 6.0, r.center().y - 16.0), vec2(2.0, 32.0));
+                    ui.painter().rect_filled(bar, 1.0, t.accent);
+                } else if resp.hovered() && !dragged_over {
+                    ui.painter().rect_filled(r.shrink(6.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+                }
+                // One colour: the icons of the bar are line drawings, lit when theirs is the module in view.
+                let ink = if active { t.accent_text } else { t.icon };
+                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
+                let sc = crate::widgets::shortcut_text(app, id);
+                if takes && let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
+                    drop_on_module(app, m, &drag.0);
+                }
+                if resp.on_hover_text(format!("{} ({sc})", tl!(m.label()))).clicked() {
+                    let _ = app.run(id, json!({}));
+                }
             }
-            if active {
-                // The module in view: a bar at the window's edge, and its icon in the accent.
-                let bar = Rect::from_min_size(pos2(r.min.x + 6.0, r.center().y - 16.0), vec2(2.0, 32.0));
-                ui.painter().rect_filled(bar, 1.0, t.accent);
-            } else if resp.hovered() && !dragged_over {
-                ui.painter().rect_filled(r.shrink(6.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+            // What a .pst file's notes and journal entries will be read in: kept, with no view yet.
+            for (icon, name) in [("notes", tl!("Notes")), ("journal", tl!("Journal"))] {
+                let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::hover());
+                let ink = t.icon.linear_multiply(0.45);
+                icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
+                resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
             }
-            // One colour: the icons of the bar are line drawings, lit when theirs is the module in view.
-            let ink = if active { t.accent_text } else { t.icon };
-            icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
-            let sc = crate::widgets::shortcut_text(app, id);
-            if takes && let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
-                drop_on_module(app, m, &drag.0);
-            }
-            if resp.on_hover_text(format!("{} ({sc})", tl!(m.label()))).clicked() {
-                let _ = app.run(id, json!({}));
-            }
-        }
-        // What a .pst file's notes and journal entries will be read in: kept, with no view yet.
-        for (icon, name) in [("notes", tl!("Notes")), ("journal", tl!("Journal"))] {
-            let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::hover());
-            let ink = t.icon.linear_multiply(0.45);
-            icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), icon, ink, ink);
-            resp.on_hover_text(format!("{name}: {}", tl!("Pending development")));
-        }
-    });
+        },
+    );
 }
 
 /// What a message let go over the module `m` becomes (#873): the kind `mail.itemFromMessage`
@@ -1022,7 +1025,7 @@ fn pane_top(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 /// brings it back, where the button that hid it was.
 pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    egui::Panel::left("folders_hidden").exact_size(STRIP_W).resizable(false).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+    crate::rtl::start_panel("folders_hidden").exact_size(STRIP_W).resizable(false).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
         sheet(ui.painter(), ui.max_rect(), &t);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(4.0);
@@ -1045,7 +1048,7 @@ pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
 /// The folder pane: favourites, then every account's folders.
 pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let panel = egui::Panel::left("folders")
+    let panel = crate::rtl::start_panel("folders")
         .default_size(app.ui.folder_pane_width)
         .size_range(160.0..=420.0)
         .resizable(true)
