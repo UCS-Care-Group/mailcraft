@@ -78,15 +78,21 @@ fn tree(listed: &[ListedFolder]) -> Vec<(&str, &str, &str, FolderKind)> {
 }
 
 /// The tree is whole: every parent is listed, no name has a part of the path in it, and no two
-/// folders share a path, or a parent and a name.
+/// folders share a path, or a parent and a name, unless the server names them apart only by
+/// spaces around the last part (`shared/u/Team` and `shared/u/Team `: two folders, both shown
+/// as `Team`; the account numbers the second when it makes them).
 fn assert_whole(listed: &[ListedFolder], delimiter: char) {
     let paths: HashSet<&str> = listed.iter().map(|f| f.remote.as_str()).collect();
     assert_eq!(paths.len(), listed.len(), "a path twice");
-    let mut names: HashSet<(&str, String)> = HashSet::new();
+    let last = |remote: &'_ str| -> String { remote.rsplit_once(delimiter).map_or(remote, |(_, leaf)| leaf).to_string() };
+    let mut names: HashMap<(&str, String), Vec<String>> = HashMap::new();
     for f in listed {
         assert!(f.parent.is_empty() || paths.contains(f.parent.as_str()), "{} has no parent {}", f.remote, f.parent);
         assert!(!f.name.contains(delimiter), "{}", f.name);
-        assert!(names.insert((f.parent.as_str(), f.name.to_lowercase())), "two of {} in {:?}", f.name, f.parent);
+        let leaves = names.entry((f.parent.as_str(), f.name.to_lowercase())).or_default();
+        let leaf = last(&f.remote);
+        assert!(!leaves.contains(&leaf) && leaves.iter().all(|other| other.trim() == leaf.trim()), "two of {} in {:?}", f.name, f.parent);
+        leaves.push(leaf);
     }
 }
 
@@ -486,4 +492,33 @@ fn a_part_with_spaces_around_it_is_held_once() {
     assert_eq!(at("shared/v/  "), Some(("shared/v", "  ")));
     assert_eq!(at("shared/v/  /w"), Some(("shared/v/  ", "w")));
     assert_eq!(listed.iter().filter(|f| f.name == "Team").count(), 1, "{:?}", tree(&listed));
+}
+
+/// A listed `shared/u/Team` beside one of its user's folders under `shared/u/Team ` (spaces and
+/// all, not listed): the folder made to hold them is the server's `shared/u/Team `, shown as
+/// `Team` beside the listed one, which is left as it is; nothing lands in the wrong one.
+#[test]
+fn a_listed_folder_is_not_taken_for_one_spelt_with_spaces() {
+    use mailcraft_proto::imap::{Namespace, Namespaces};
+    let others = Others::of(&Namespaces {
+        personal: vec![Namespace { prefix: String::new(), delimiter: Some('/') }],
+        other_users: vec![Namespace { prefix: "shared/".into(), delimiter: Some('/') }],
+        shared: Vec::new(),
+    });
+    let one = |name: &str| Mailbox { name: name.into(), raw: name.into(), delimiter: Some('/'), flags: Vec::new() };
+    let mailboxes = [one("INBOX"), one("shared/u/Team"), one("shared/u/Team /missing/x"), one("shared/u/Team /y"), one("shared/u/Team/z")];
+    let plan = planned(&mailboxes, &[], false, &others);
+    let listed = listed(&plan, &others);
+    assert_whole(&listed, '/');
+    let at = |remote: &str| listed.iter().find(|f| f.remote == remote).map(|f| (f.parent.as_str(), f.name.as_str()));
+    assert_eq!(at("shared/u/Team"), Some(("shared/u", "Team")), "{:?}", tree(&listed));
+    assert_eq!(at("shared/u/Team "), Some(("shared/u", "Team")), "{:?}", tree(&listed));
+    assert_eq!(at("shared/u/Team /missing"), Some(("shared/u/Team ", "missing")));
+    assert_eq!(at("shared/u/Team /missing/x"), Some(("shared/u/Team /missing", "x")));
+    assert_eq!(at("shared/u/Team /y"), Some(("shared/u/Team ", "y")));
+    assert_eq!(at("shared/u/Team/z"), Some(("shared/u/Team", "z")));
+    assert_eq!(at("shared/u"), Some(("shared", "u")));
+    assert_eq!(listed.iter().filter(|f| f.remote == "shared/u/Team").count(), 1);
+    assert_eq!(listed.iter().filter(|f| f.remote == "shared/u/Team ").count(), 1);
+    assert_eq!(listed.iter().filter(|f| f.name == "Team").count(), 2, "{:?}", tree(&listed));
 }

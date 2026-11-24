@@ -614,14 +614,19 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
 /// where the folders above it can't be opened, or aren't listed at all (Dovecot's `shared` and
 /// `shared/alice` above `shared/alice/INBOX`): those come too, before it, as folders that only
 /// hold others, so that another's `INBOX` is not one more `INBOX` at the top of the account.
+/// Those folders find the folder above them by the server's exact path, spaces and all, so that
+/// `shared/u/Team /x` lies in `shared/u/Team ` and never in a listed `shared/u/Team` beside it.
 fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_model::sync::ListedFolder> {
     let read = plan.get(..plan.len().min(MAX_FOLDERS)).unwrap_or_default();
-    // Where each name first comes, and where the first Inbox under any spelling does.
+    // Where each name first comes, trimmed and as the server spells it, and where the first
+    // Inbox under any spelling does.
     let mut by_name: HashMap<&str, usize> = HashMap::with_capacity(read.len());
+    let mut by_path: HashMap<&str, usize> = HashMap::with_capacity(read.len());
     let mut first_inbox = None;
     for (at, (mailbox, _)) in read.iter().enumerate() {
         let name = mailbox.name.trim();
         by_name.entry(name).or_insert(at);
+        by_path.entry(mailbox.name.as_str()).or_insert(at);
         if first_inbox.is_none() && name.eq_ignore_ascii_case("inbox") {
             first_inbox = Some(at);
         }
@@ -636,16 +641,19 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
         }
         let name = mailbox.name.trim();
         // The path above is the server's own, spaces and all: it is what a folder made to hold
-        // this one is called on the server, and what is looked up is that path trimmed, as the
-        // names in `by_name` are.
+        // this one is called on the server. Another's folder looks it up as it is; the
+        // account's own looks it up trimmed, as the names in `by_name` are.
         let (path, leaf) = mailbox.delimiter.and_then(|d| mailbox.name.rsplit_once(d)).unwrap_or(("", name));
         let above = path.trim();
+        let theirs = others.has(mailbox);
         // The folder it lies in, when that is one of those read too (the Inbox under any
         // spelling: the first so spelt comes no later than one named exactly as `above`).
         let at = if above.is_empty() {
             None
         } else if above.eq_ignore_ascii_case("inbox") {
             first_inbox
+        } else if theirs {
+            by_path.get(path).copied()
         } else {
             by_name.get(above).copied()
         };
@@ -653,12 +661,12 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
         if parent.is_empty()
             && !above.is_empty()
             && let Some(delimiter) = mailbox.delimiter
-            && others.has(mailbox)
+            && theirs
         {
             // The holders count against the folders a listing may have, so that none read is
             // left out for them: past that, the folder is at the top under its whole path.
             let room = MAX_FOLDERS.saturating_sub(read.len()).saturating_sub(holders.len());
-            if hold(path, delimiter, room, read, &by_name, &mut holders, &mut out) {
+            if hold(path, delimiter, room, read, &by_path, &mut holders, &mut out) {
                 parent = path.to_string();
             }
         }
@@ -675,13 +683,15 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
 /// returns whether `path` holds now.
 ///
 /// Paths are the server's, untrimmed, so that each folder made is the one its folders name as
-/// theirs (`shared/u/Team ` above `shared/u/Team /x`); only the name shown is trimmed.
+/// theirs (`shared/u/Team ` above `shared/u/Team /x`); only the name shown is trimmed. A folder
+/// read is found by its exact path in `by_path`, so a listed `shared/u/Team` beside it is not
+/// taken for it.
 fn hold(
     path: &str,
     delimiter: char,
     room: usize,
     read: &[(&Mailbox, FolderKind)],
-    by_name: &HashMap<&str, usize>,
+    by_path: &HashMap<&str, usize>,
     holders: &mut HashSet<String>,
     out: &mut Vec<mailcraft_model::sync::ListedFolder>,
 ) -> bool {
@@ -690,7 +700,7 @@ fn hold(
     // The folder the highest one made lies in: one read, one made before, or none.
     let mut top = String::new();
     while !at.is_empty() {
-        if let Some(listed) = by_name.get(at.trim()) {
+        if let Some(listed) = by_path.get(at) {
             top = read.get(*listed).map(|(mailbox, _)| kinds::remote_name(mailbox)).unwrap_or_default();
             break;
         }
