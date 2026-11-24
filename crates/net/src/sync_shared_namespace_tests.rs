@@ -458,3 +458,32 @@ fn a_server_naming_a_prefix_without_its_delimiter() {
     assert!(tree.contains(&("shared/alice/Sent", "shared/alice", "Sent", Custom)), "{tree:?}");
     assert!(tree.contains(&("Sent", "", "Sent", Sent)), "{tree:?}");
 }
+
+/// A part of a path with spaces around it (`shared/u/Team /x`, `shared/u/Team ` not listed):
+/// the folder made to hold it is the server's `shared/u/Team `, shown as `Team`, and it holds
+/// all that lies under it; one made of spaces only is shown as it is, and nothing panics.
+#[test]
+fn a_part_with_spaces_around_it_is_held_once() {
+    use mailcraft_proto::imap::{Namespace, Namespaces};
+    let others = Others::of(&Namespaces {
+        personal: vec![Namespace { prefix: String::new(), delimiter: Some('/') }],
+        other_users: vec![Namespace { prefix: "shared/".into(), delimiter: Some('/') }],
+        shared: Vec::new(),
+    });
+    let one = |name: &str| Mailbox { name: name.into(), raw: name.into(), delimiter: Some('/'), flags: Vec::new() };
+    let mailboxes = [one("INBOX"), one("shared/u/Team /x"), one("shared/u/Team /x/sub"), one("shared/u/Team /y/z"), one("shared/v/  /w")];
+    let plan = planned(&mailboxes, &[], false, &others);
+    let listed = listed(&plan, &others);
+    assert_whole(&listed, '/');
+    let at = |remote: &str| listed.iter().find(|f| f.remote == remote).map(|f| (f.parent.as_str(), f.name.as_str()));
+    assert_eq!(at("shared/u/Team "), Some(("shared/u", "Team")), "{:?}", tree(&listed));
+    assert_eq!(at("shared/u/Team /x"), Some(("shared/u/Team ", "x")));
+    assert_eq!(at("shared/u/Team /x/sub"), Some(("shared/u/Team /x", "sub")));
+    assert_eq!(at("shared/u/Team /y"), Some(("shared/u/Team ", "y")));
+    assert_eq!(at("shared/u/Team /y/z"), Some(("shared/u/Team /y", "z")));
+    assert_eq!(at("shared/u"), Some(("shared", "u")));
+    assert_eq!(at("shared"), Some(("", "shared")));
+    assert_eq!(at("shared/v/  "), Some(("shared/v", "  ")));
+    assert_eq!(at("shared/v/  /w"), Some(("shared/v/  ", "w")));
+    assert_eq!(listed.iter().filter(|f| f.name == "Team").count(), 1, "{:?}", tree(&listed));
+}

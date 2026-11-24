@@ -635,7 +635,11 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
             continue;
         }
         let name = mailbox.name.trim();
-        let (above, leaf) = mailbox.delimiter.and_then(|d| name.rsplit_once(d)).map_or(("", name), |(above, leaf)| (above.trim(), leaf.trim()));
+        // The path above is the server's own, spaces and all: it is what a folder made to hold
+        // this one is called on the server, and what is looked up is that path trimmed, as the
+        // names in `by_name` are.
+        let (path, leaf) = mailbox.delimiter.and_then(|d| mailbox.name.rsplit_once(d)).unwrap_or(("", name));
+        let above = path.trim();
         // The folder it lies in, when that is one of those read too (the Inbox under any
         // spelling: the first so spelt comes no later than one named exactly as `above`).
         let at = if above.is_empty() {
@@ -654,11 +658,11 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
             // The holders count against the folders a listing may have, so that none read is
             // left out for them: past that, the folder is at the top under its whole path.
             let room = MAX_FOLDERS.saturating_sub(read.len()).saturating_sub(holders.len());
-            if hold(above, delimiter, room, &by_name, &mut holders, &mut out) {
-                parent = above.to_string();
+            if hold(path, delimiter, room, read, &by_name, &mut holders, &mut out) {
+                parent = path.to_string();
             }
         }
-        let name = if leaf.is_empty() || (parent.is_empty() && !above.is_empty()) { name } else { leaf };
+        let name = if parent.is_empty() && !above.is_empty() { name } else { part_shown(leaf, name) };
         out.push(mailcraft_model::sync::ListedFolder { remote, kind: *kind, parent, name: name.to_string() });
     }
     out
@@ -669,41 +673,63 @@ fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_mod
 /// part of its path. No more than [`MAX_HOLDER_LEVELS`] of them: of a path deeper than that, the
 /// highest made is at the top of the account. None at all when more would be needed than `room`;
 /// returns whether `path` holds now.
+///
+/// Paths are the server's, untrimmed, so that each folder made is the one its folders name as
+/// theirs (`shared/u/Team ` above `shared/u/Team /x`); only the name shown is trimmed.
 fn hold(
     path: &str,
     delimiter: char,
     room: usize,
+    read: &[(&Mailbox, FolderKind)],
     by_name: &HashMap<&str, usize>,
     holders: &mut HashSet<String>,
     out: &mut Vec<mailcraft_model::sync::ListedFolder>,
 ) -> bool {
     let mut above = Vec::new();
     let mut at = path;
-    while !(at.is_empty() || by_name.contains_key(at) || holders.contains(at)) {
-        if above.len() >= MAX_HOLDER_LEVELS {
-            if let Some((_, up, _)) = above.last_mut() {
-                *up = "";
-            }
+    // The folder the highest one made lies in: one read, one made before, or none.
+    let mut top = String::new();
+    while !at.is_empty() {
+        if let Some(listed) = by_name.get(at.trim()) {
+            top = read.get(*listed).map(|(mailbox, _)| kinds::remote_name(mailbox)).unwrap_or_default();
             break;
         }
-        let (up, leaf) = at.rsplit_once(delimiter).map_or(("", at), |(up, leaf)| (up.trim(), leaf.trim()));
-        above.push((at, up, leaf));
+        if holders.contains(at) {
+            top = at.to_string();
+            break;
+        }
+        if above.len() >= MAX_HOLDER_LEVELS {
+            break;
+        }
+        let (up, leaf) = at.rsplit_once(delimiter).unwrap_or(("", at));
+        above.push((at, leaf));
         at = up;
     }
     if above.len() > room {
         return false;
     }
-    for (path, up, leaf) in above.into_iter().rev() {
-        let name = if leaf.is_empty() { path } else { leaf };
+    let mut parent = top;
+    for (path, leaf) in above.into_iter().rev() {
         holders.insert(path.to_string());
         out.push(mailcraft_model::sync::ListedFolder {
             remote: path.to_string(),
             kind: FolderKind::Custom,
-            parent: up.to_string(),
-            name: name.to_string(),
+            parent: std::mem::replace(&mut parent, path.to_string()),
+            name: part_shown(leaf, path).to_string(),
         });
     }
     true
+}
+
+/// The name a folder is shown by in its parent: the last part of its path trimmed; a part
+/// that is only spaces as it is (a name made of nothing would be no name at all); and the whole
+/// path when the part is empty (`a/` with `/`).
+fn part_shown<'a>(leaf: &'a str, path: &'a str) -> &'a str {
+    match leaf.trim() {
+        "" if leaf.is_empty() => path,
+        "" => leaf,
+        trimmed => trimmed,
+    }
 }
 
 /// What is done on the incoming server: copies of what was `sent` are filed, the changes made
