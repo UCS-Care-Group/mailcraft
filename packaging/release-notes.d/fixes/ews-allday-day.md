@@ -1,0 +1,1 @@
+- All-day appointments from an Exchange server account are on the right day: an event at midnight in its own time zone, which is the evening before in UTC, was shown a day early. The day is now read in the event's own zone (or this computer's when the server names none).

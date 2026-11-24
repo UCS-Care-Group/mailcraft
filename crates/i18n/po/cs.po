@@ -1271,6 +1271,11 @@ msgid "Address Book"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Address list"
 msgstr ""
@@ -1876,6 +1881,11 @@ msgid "Apply Downloaded To-dos"
 msgstr "Použít stažené úkoly"
 
 #. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Apply Read Exchange Calendar, Contacts and To-dos"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -2222,6 +2232,11 @@ msgid "At most {max} contacts can be merged at once."
 msgstr "Najednou lze sloučit nejvýše {max} kontaktů."
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "At most {n} address books can be opened by address: remove one first."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
@@ -2232,6 +2247,11 @@ msgstr "Podle adresy lze otevřít nejvýše {n} kalendářů: nejprve jeden ode
 #, fuzzy
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "Odebírat lze nejvýše {n} kalendářů: nejprve jeden přestaňte odebírat."
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "At most {n} public folders can be shown: remove one first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -2787,7 +2807,7 @@ msgid "By Subject"
 msgstr "Podle předmětu"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "Kalendář"
@@ -2839,6 +2859,11 @@ msgstr "Kalendář a kontakty"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Kalendář a kontakty potřebují vaše oprávnění: Soubor › Informace › Připojit kalendář a kontakty"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Calendars and address books in your organisation's public folders, read with {owner}'s sign-in. The ones you tick are read at each Send/Receive, read-only, and the list of them is kept on this computer only."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
@@ -3632,7 +3657,7 @@ msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Zavřít"
@@ -4243,6 +4268,11 @@ msgstr "Kategorie Gmailu pro „{name}“ se nepodařilo načíst"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "Seznam složek se nepodařilo načíst"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Couldn't read the list of public folders from the server."
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -5745,6 +5775,11 @@ msgstr "Vše, co rozhraní dělá, je příkaz: je jich {commands} a pokrývají
 msgid "Except if"
 msgstr "Kromě případů, kdy"
 
+#. command label
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "Exchange Calendar, Contacts and To-dos to Read"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -5916,7 +5951,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Zůstaly méně než dva z těchto kontaktů, takže není co sloučit."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Soubor"
@@ -7901,6 +7936,11 @@ msgid "It is on this device only: nothing is sent to or fetched from a server."
 msgstr "Je jen v tomto zařízení: nic se neodesílá na server ani se z něj nestahuje."
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "It is read at the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "It is removed from the mail server too, and that can't be undone."
@@ -8539,6 +8579,11 @@ msgstr "Odkazy"
 msgid "List Accounts"
 msgstr "Vypsat účty"
 
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "List Again"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
@@ -8580,6 +8625,11 @@ msgstr "Vypsat zprávy"
 #, fuzzy
 msgid "List Notes"
 msgstr "Vypsat poznámky"
+
+#. command label, interface
+#: crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/public_folders.rs
+msgid "List Public Folders"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -11791,7 +11841,7 @@ msgstr ""
 "kalendář"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open & Export"
 msgstr "Otevřít a exportovat"
@@ -11861,6 +11911,18 @@ msgstr "Otevírat odpovědi a přeposlání v novém okně"
 #, fuzzy
 msgid "Open Result from the Server"
 msgstr "Otevřít výsledek ze serveru"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Open Shared\n"
+"Address Book"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/contacts_opened.rs crates/ui-egui/src/dialogs.rs
+msgid "Open Shared Address Book"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -12011,6 +12073,11 @@ msgstr "Otevřít tento kalendář"
 #, fuzzy
 msgid "Open {name}? {why}"
 msgstr "Otevřít {name}? {why}"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Opened the address book of {address}. It is read at the next Send/Receive, and kept on this computer only."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -12431,7 +12498,7 @@ msgid "Pending development"
 msgstr "Čeká na vývoj"
 
 #. android, command label, interface, name, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "People"
 msgstr "Lidé"
@@ -12876,6 +12943,23 @@ msgstr "Navržený začátek"
 msgid "Proposed time"
 msgstr "Navržený čas"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Public\n"
+"Folders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Public Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public Folders Listed"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -12885,6 +12969,11 @@ msgstr "Veřejné klíče"
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 msgid "Public folder"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public folders can be shown under an Exchange server account"
 msgstr ""
 
 #. interface
@@ -13009,6 +13098,16 @@ msgstr "Znovu teď načíst oblíbené z Outlooku"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their address book with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only, and read at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Čte se s přihlášením účtu {owner}, dokud ho ponecháte: dotyčný s vámi musí svůj kalendář sdílet. Uchovává se jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních. Microsoft se vás jednou zeptá, zda MailCraft smí číst kalendáře jiných lidí."
@@ -13070,6 +13169,11 @@ msgstr "Čtení automatických odpovědí se nečekaně zastavilo"
 #, fuzzy
 msgid "Reading the calendar from Microsoft…"
 msgstr "Načítám kalendář od Microsoftu…"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Reading the list of public folders from the server…"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
@@ -13388,6 +13492,11 @@ msgid "Remove Picture"
 msgstr "Odebrat obrázek"
 
 #. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Remove Public Folder"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
 msgid "Remove Public Key"
@@ -13404,6 +13513,11 @@ msgstr "Odebrat opakování"
 #, fuzzy
 msgid "Remove Reminder"
 msgstr "Odebrat připomenutí"
+
+#. command label
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "Remove Shared Address Book"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
@@ -14719,7 +14833,7 @@ msgid "Send & Receive"
 msgstr "Odeslat a přijmout"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Odeslat / přijmout"
@@ -15457,6 +15571,11 @@ msgstr "Zobrazit obrazové přílohy jako obrázky"
 #, fuzzy
 msgid "Show Progress"
 msgstr "Zobrazit průběh"
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Show Public Folder"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -17015,6 +17134,11 @@ msgid "That is not a sender's address"
 msgstr "To není adresa odesílatele"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "That is this account's own address: its own address book is there already."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
 msgid "That is this account's own address: its own calendar is there already."
@@ -17031,6 +17155,11 @@ msgstr "To je na hlášení příliš dlouhé: zkraťte to"
 #, fuzzy
 msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
 msgstr "To není uživatelské jméno na GitHubu: písmena, číslice a jednotlivé pomlčky, nejvýše 39. Pokud žádné nemáte, nechte pole prázdné."
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That isn't a calendar or an address book of the last listing of the public folders: list them first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17049,6 +17178,16 @@ msgstr "Ten klíč už na kartě je"
 #, fuzzy
 msgid "That paste was just made, so nothing was pasted again"
 msgstr "Toto vložení se právě provedlo, takže se nic znovu nevložilo"
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder is shown already."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder isn't shown."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -17198,6 +17337,31 @@ msgstr "Server účtu této schůzce zatím neposkytl odkaz pro připojení."
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "Server účtu ji vytvoří při odeslání schůzky; odkaz pro připojení se vrátí s ní."
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+msgid "The address book \"{name}\" is no longer available. Send/Receive may bring it back, and the contact can be changed then."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "The address book of {address} is open already."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from can only be read: the server hasn't given this account permission to change its contacts."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "The address book this contact came from is no longer in the account's list, so changes here could not reach the server. Send/Receive may bring it back."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -17581,6 +17745,11 @@ msgstr "Doména {domain} uvádí server pro automatické nastavení (Autodiscove
 #, fuzzy
 msgid "The download was called off."
 msgstr "Stahování bylo zrušeno."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The e-mail address of the person whose address book you want to open"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18106,6 +18275,11 @@ msgstr "Soukromý klíč v tomto souboru není šifrovaný, takže ho MailCraft 
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "Navržený konec musí být po navrženém začátku."
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "The public folders have no calendar or address book that you can see."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20357,6 +20531,11 @@ msgid "Typing * or - and a space at the start of a line starts a bulleted list, 
 msgstr "Napsáním * nebo - a mezery na začátku řádku začnete seznam s odrážkami, 1. nebo 1) číslovaný seznam. Zpět vrátí, co jste napsali."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Unavailable"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Under a folder on this computer:"
@@ -22138,6 +22317,11 @@ msgstr "nejprve přidejte účet (Soubor › Přidat účet)"
 msgid "add at least one recipient"
 msgstr "přidejte aspoň jednoho příjemce"
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "address books open under an Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
@@ -22985,7 +23169,7 @@ msgid "no account here keeps its rules on its server"
 msgstr "žádný účet zde neuchovává pravidla na svém serveru"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
 msgstr "žádný účet není účtem serveru Exchange"
@@ -23021,10 +23205,20 @@ msgid "no account with id {account}"
 msgstr "žádný účet s id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "žádný účet s id {id}"
+
+#. why a command can't run
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book was opened by address"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "no address book {address} is open"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -23151,6 +23345,11 @@ msgstr "v tomto podpisu není obrázek {id}"
 #, fuzzy
 msgid "no picture {id} was put in this message"
 msgstr "do této zprávy nebyl vložen obrázek {id}"
+
+#. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "no public folder is shown"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23451,6 +23650,11 @@ msgid "private"
 msgstr "soukromé"
 
 #. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "public folders open under an Exchange server account"
+msgstr ""
+
+#. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "readOnly"
@@ -23677,6 +23881,11 @@ msgid "subject or body contains {words}"
 msgstr "předmět nebo tělo obsahuje {words}"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_opened.rs
+msgid "that account can't open an address book by address"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -23856,7 +24065,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "účet nemá uživatelské jméno ani e-mailovou adresu k přihlášení"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "účet už neexistuje"
@@ -24330,7 +24539,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "výsledek by vedl k tomu, že tento účet uchovává víc stavu synchronizace, než se přijímá"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "výsledek {why}"
@@ -25035,6 +25244,11 @@ msgstr "tato verze neumí odhlásit odběr jedním kliknutím"
 #, fuzzy
 msgid "this contact has no e-mail address"
 msgstr "tento kontakt nemá e-mailovou adresu"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "this directory was for another account, not for {name}"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -25788,7 +26002,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} tuto schůzku odmítl(a)."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_directory.rs
+msgid "{name} has no Exchange server account it is opened through"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
 msgstr "{name} nemá použitelnou adresu serveru Exchange"
@@ -25896,7 +26115,7 @@ msgid "{name} isn't among the Favorites"
 msgstr "{name} není mezi oblíbenými"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_directory.rs crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} isn't an Exchange server account"
 msgstr "{name} není účet serveru Exchange"
@@ -27372,6 +27591,11 @@ msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} byl přidán novější verzí MailCraftu, {then}"
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "{why} The list is read at the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{why} What came in before stays; import the file again for the rest."
@@ -27557,36 +27781,6 @@ msgstr "−Řádky"
 #~ "Zda odpověď odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, odpověď čeká v tomto počítači a z vaší vlastní adresy se nic neodešle."
 
 #, fuzzy
-#~ msgid ""
-#~ "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
-#~ msgstr ""
-#~ "Aby mohl otevírat kalendáře jiných lidí, potřebuje MailCraft vaše oprávnění číst kalendáře, které s vámi lidé sdílejí. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Co otevřete, se uchovává jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních."
-
-#, fuzzy
-#~ msgid ""
-#~ "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
-#~ msgstr ""
-#~ "Aby mohl odesílat z {address}, potřebuje MailCraft vaše oprávnění k odesílání ze sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Zda pošta odejde jako {address}, nebo jejím jménem, rozhoduje vaše organizace. Dokud to nepovolíte, pošta čeká ve své složce Pošta k odeslání a z vaší vlastní adresy se nic neodešle."
-
-#, fuzzy
-#~ msgid ""
-#~ "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
-#~ msgstr ""
-#~ "Aby mohl zobrazit kalendáře {address}, potřebuje MailCraft vaše oprávnění číst kalendáře sdílených poštovních schránek. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Co z kalendáře smíte vidět, rozhoduje jeho vlastník a vaše organizace: na tom se nic nemění. Dokud to nepovolíte, z kalendářů {address} se nic nečte."
-
-#, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
 #~ msgstr "Vaše organizace MailCraftu nepovoluje číst kalendáře sdílených poštovních schránek"
 
@@ -27649,26 +27843,6 @@ msgstr "−Řádky"
 #, fuzzy
 #~ msgid "This account doesn't keep its rules on its server"
 #~ msgstr "Tento účet neuchovává pravidla na svém serveru"
-
-#, fuzzy
-#~ msgid ""
-#~ "To change the automatic replies of {address}, MailCraft needs your permission to change your mailbox settings. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "MailCraft changes only your automatic replies and the rules of your Inbox with it, never your categories or working hours. Reading your automatic replies doesn't need it."
-#~ msgstr ""
-#~ "Aby mohl měnit automatické odpovědi {address}, potřebuje MailCraft vaše oprávnění ke změně nastavení poštovní schránky. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "MailCraft s ním mění jen vaše automatické odpovědi a pravidla Doručené pošty, nikdy kategorie ani pracovní dobu. Ke čtení automatických odpovědí ho nepotřebuje."
-
-#, fuzzy
-#~ msgid ""
-#~ "To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
-#~ "\n"
-#~ "Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
-#~ msgstr ""
-#~ "Aby mohl uchovávat pravidla {address} na jejím serveru, kde běží, i když je MailCraft zavřený, a zobrazují se v Outlooku na webu i v telefonu, potřebuje MailCraft vaše oprávnění ke změně nastavení poštovní schránky, kde Microsoft pravidla uchovává. V prohlížeči se otevře stránka Microsoftu, která se vás jednou zeptá.\n"
-#~ "\n"
-#~ "Dokud to nepovolíte, pravidla zůstávají v tomto počítači a nic z nich se Microsoftu neodesílá."
 
 #, fuzzy
 #~ msgid "Your organisation doesn't allow MailCraft to keep rules on the server"

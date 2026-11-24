@@ -789,22 +789,16 @@ fn pane_views(app: &MailApp) -> Vec<PaneView> {
     let mailbox = &app.session.mailbox;
     let overlaid = calendar_settings::overlaid(&app.session);
     let panes = calendar_settings::panes(&app.session);
-    // A tab says its calendar's name, and whose calendar it is only where two of those in view
-    // are called the same (two accounts' "Calendar").
-    let plain = |calendar: &mailcraft_model::Calendar| {
-        let name = calendar.name.trim();
-        if name.is_empty() { tl!("Calendar").to_string() } else { tl!(clip_text(name, 200)).to_string() }
-    };
-    let names: Vec<String> = panes.iter().flat_map(|pane| &pane.calendars).filter_map(|id| mailbox.calendar(*id)).take(400).map(plain).collect();
+    // A tab says its calendar's name, and whose calendar it is when an account's server keeps
+    // it: two accounts' calendars may be called the same, and two people's "Calendar" must not
+    // be taken for one another.
     let mut views: Vec<PaneView> = Vec::new();
     for (n, pane) in panes.into_iter().take(MAX_PANES).enumerate() {
         let tab = |id: &Id| {
             let calendar = mailbox.calendar(*id)?;
-            let name = plain(calendar);
-            let twice = names.iter().filter(|other| other.eq_ignore_ascii_case(&name)).count() > 1;
             Some(Tab {
                 id: calendar.id,
-                name: if twice { calendar_label(&app.session, calendar) } else { name },
+                name: calendar_label(&app.session, calendar),
                 color: c32(calendar.shown_color()),
                 read_only: read_only(app, calendar.id),
                 overlaid: overlaid && n == 0,
@@ -1480,7 +1474,7 @@ fn calendar_groups(app: &MailApp) -> Vec<ListGroup> {
         let c = mailbox.calendar(*id)?;
         Some(CalendarRow {
             id: c.id,
-            name: c.name.clone(),
+            name: calendar_label(&app.session, c),
             color: c32(c.shown_color()),
             own_color: c.own_color,
             visible: c.visible,
