@@ -134,9 +134,8 @@ fn the_owners_own_script_stays_active_and_is_named() {
 #[test]
 fn a_server_without_managesieve_or_vacation_is_said_and_not_asked_again() {
     // Nothing listens on the port: not available, and not asked again in the session.
-    let gone = Fake::sieve(world());
-    let port = gone.port;
-    drop(gone);
+    // (A port nothing listens on: a listener's, closed at once.)
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let fake = Fake::sieve(world());
     let (mut app, account) = window(&fake);
     app.session.mailbox.account_mut(account).unwrap().sieve_port = port;
@@ -207,7 +206,7 @@ fn lists_rule(app: &mut MailApp, account: Id) -> Id {
     let made = app
         .execute(
             "rules.add",
-            json!({"name": "Lists", "account": account, "conditions": [{"type": "fromContains", "value": "list\"; discard;"}], "actions": [{"type": "moveTo", "value": lists}]}),
+            json!({"name": "Lists", "account": account, "conditions": [{"type": "fromContains", "value": "list"}, {"type": "subjectContains", "value": "[list\"; discard;"}], "actions": [{"type": "moveTo", "value": lists}]}),
         )
         .unwrap();
     made["id"].as_u64().unwrap()
@@ -222,7 +221,8 @@ fn a_rule_kept_on_the_server_goes_into_mailcrafts_script_after_the_replies() {
     app.poll_sieve();
     let text = fake.world().script(SCRIPT_NAME).unwrap().to_string();
     assert!(text.contains("fileinto \"INBOX/Lists\""), "{text}");
-    assert!(text.contains("header :contains \"from\" [\"list\\\"; discard;\"]"), "{text}");
+    assert!(text.contains("address :all :contains \"from\" [\"list\"]"), "{text}");
+    assert!(text.contains("header :contains \"subject\" [\"[list\\\"; discard;\"]"), "{text}");
     assert_eq!(fake.world().active.as_deref(), Some(SCRIPT_NAME));
     assert!(app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().on_server());
     assert_eq!(app.status_msg.as_ref().map(|(s, _)| s.as_str()), Some("Your rules are kept on the server"));
@@ -253,4 +253,21 @@ fn rules_run_here_while_the_owners_own_script_runs_on_the_server() {
     assert!(!app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().on_server());
     let said = app.status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
     assert!(said.contains("they run on this computer"), "{said}");
+}
+
+#[test]
+fn the_owners_own_scripts_rules_are_shown_and_never_written() {
+    let theirs = "require [\"fileinto\", \"vacation\"];\r\nif address :contains \"from\" \"shop.example\" { fileinto \"INBOX/Shop\"; stop; }\r\nif true { vacation \"Away.\"; }\r\n";
+    let fake = Fake::sieve(SieveWorld { scripts: vec![("roundcube".into(), theirs.into())], active: Some("roundcube".into()), ..world() });
+    let (mut app, account) = window(&fake);
+    read(&mut app, account);
+    let listed = app.execute("rules.list", json!({"account": account})).unwrap();
+    assert_eq!(listed["elsewhere"][0]["script"], "roundcube");
+    assert_eq!(listed["elsewhere"][0]["rules"].as_array().map(Vec::len), Some(1));
+    let id = listed["elsewhere"][0]["rules"][0]["id"].as_u64().unwrap();
+    assert!(app.execute("rules.remove", json!({"id": id})).is_err());
+    assert!(app.sieve_line(account).contains("set by your Sieve script \"roundcube\""), "{}", app.sieve_line(account));
+    let world = fake.world();
+    assert_eq!(world.script("roundcube"), Some(theirs));
+    assert!(!world.heard("PUTSCRIPT") && !world.heard("SETACTIVE"));
 }

@@ -42,7 +42,8 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
 /// What the server has, as `sync.applySieve` takes it.
 fn state_json(state: &SieveState) -> Value {
     let scripts: Vec<Value> = state.scripts.iter().map(|s| json!({"name": s.name, "active": s.active})).collect();
-    json!({"extensions": state.extensions, "scripts": scripts, "script": state.script})
+    let active = state.active_script.as_ref().map(|(name, text)| json!({"name": name, "text": text}));
+    json!({"extensions": state.extensions, "scripts": scripts, "script": state.script, "activeScript": active})
 }
 
 /// What went wrong, as the window says it: no ManageSieve session could be had (what was found

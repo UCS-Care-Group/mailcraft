@@ -41,9 +41,14 @@ fn test(c: &Condition, me: &[String], needs: &mut Vec<&'static str>) -> Result<S
     let to_cc = list(&["to", "cc"]);
     let mine = || if me.is_empty() { Err(NotOnServer::NoAddress) } else { Ok(list(me)) };
     Ok(match c {
-        // The header, so that a name is found as the address is, as this computer finds them.
-        Condition::FromContains(w) => format!("header :contains \"from\" {}", list(w)),
-        Condition::ToContains(w) => format!("header :contains {to_cc} {}", list(w)),
+        // In the addresses alone, as Microsoft's server reads them: a rule kept on the server reads
+        // them so here too (`Mailbox::rule_reads_addresses`). Words that can't be in an address
+        // look for a name, which the server doesn't.
+        Condition::FromContains(w) | Condition::ToContains(w) if w.iter().any(|t| !super::rules::in_an_address(t)) => {
+            return Err(NotOnServer::Names);
+        }
+        Condition::FromContains(w) => format!("address :all :contains \"from\" {}", list(w)),
+        Condition::ToContains(w) => format!("address :all :contains {to_cc} {}", list(w)),
         Condition::SubjectContains(w) => format!("header :contains \"subject\" {}", list(w)),
         Condition::BodyContains(w) => {
             needs.push("body");

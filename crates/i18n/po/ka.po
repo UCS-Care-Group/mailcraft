@@ -2616,6 +2616,12 @@ msgstr "ავტომატური პასუხები: იკითხ
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
+msgid "Automatic replies: set by your Sieve script \"{name}\", which runs on the server"
+msgstr "ავტომატური პასუხები: მათ აყენებს თქვენი Sieve-ის სკრიპტი „{name}“, რომელიც სერვერზე მუშაობს"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
 msgid "Automatic replies: the server didn't take your sign-in"
 msgstr "ავტომატური პასუხები: სერვერმა თქვენი შესვლა არ მიიღო"
 
@@ -7688,6 +7694,12 @@ msgstr "იმპორტი… {messages} / {total}"
 msgid "In Junk E-mail, preview an attachment from its menu."
 msgstr "„არასასურველ ფოსტაში“ დანართის წინასწარ სანახავად გამოიყენეთ მისი მენიუ."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In MailCraft's Sieve script, as it was changed elsewhere"
+msgstr "MailCraft-ის Sieve-ის სკრიპტში, როგორც ის სხვაგან შეიცვალა"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
@@ -7753,6 +7765,12 @@ msgstr "მონიშნულში"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "ამ კალენდარში:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In your Sieve script \"{name}\""
+msgstr "თქვენს Sieve-ის სკრიპტში „{name}“"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -7975,6 +7993,12 @@ msgstr "გამცემი:"
 #, fuzzy
 msgid "Issued to"
 msgstr "ვის გაიცა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It also sends automatic replies of its own."
+msgstr "ის საკუთარ ავტომატურ პასუხებსაც აგზავნის."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8883,6 +8907,12 @@ msgstr "შექმნეს მისმა მონაწილეებმ�
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "შექმნილია სხვა პროგრამაში ან ვებში, ნაწილებით, რომლებსაც MailCraft ვერ აჩვენებს"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in another program: MailCraft shows these rules and never changes them"
+msgstr "შექმნილია სხვა პროგრამაში: MailCraft ამ წესებს აჩვენებს და არასოდეს ცვლის"
+
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9038,6 +9068,18 @@ msgstr "MailCraft ვერ შეინახავს ავტომატუ
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft ვერ ინახავს ამ ანგარიშის წესებს მის სერვერზე"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep this account's rules on its server, so they run on this computer: {why}. {advice}"
+msgstr "MailCraft ვერ შეინახავს ამ ანგარიშის წესებს მის სერვერზე, ამიტომ ისინი ამ კომპიუტერზე სრულდება: {why}. {advice}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "MailCraft can't read the rules of this script."
+msgstr "MailCraft ამ სკრიპტის წესებს ვერ კითხულობს."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11357,6 +11399,12 @@ msgstr ""
 msgid "None yet."
 msgstr "ჯერ არაფერი."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "None."
+msgstr "არცერთი."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11841,6 +11889,18 @@ msgstr "სერვერზე"
 #, fuzzy
 msgid "On the server · Searching…"
 msgstr "სერვერზე · ძიება…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, changed elsewhere: Replace with MailCraft's would remove it"
+msgstr "სერვერზე, სხვაგან შეცვლილი: MailCraft-ის სკრიპტით ჩანაცვლება მას წაშლიდა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, made in another program: MailCraft never changes it"
+msgstr "სერვერზე, სხვა პროგრამაში შექმნილი: MailCraft მას არასოდეს ცვლის"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25959,6 +26019,11 @@ msgstr "ეს წერილი არ ჩამოტვირთულა: �
 #, fuzzy
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "ეს წაკითხვა კალენდრის სერვერის წინა პარამეტრებით მოხდა"
+
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
+msgstr "ეს წესი თქვენს Sieve-ის სკრიპტშია „{script}“ სერვერზე, რომელიც სხვა პროგრამაშია შექმნილი: MailCraft მას აჩვენებს და არასოდეს ცვლის"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

@@ -350,3 +350,87 @@ fn the_rules_window_says_what_keeps_them_off_the_server_and_offers_the_replaceme
     assert_eq!(write.last_written.as_deref(), Some(mailcraft_engine::sieve::digest(theirs).as_str()));
     assert!(write.text.contains(&format!("# rule {rule}")));
 }
+
+const THEIRS: &str = "require [\"fileinto\", \"vacation\"];\r\nif address :contains \"from\" \"shop.example\" { fileinto \"INBOX/Lists\"; stop; }\r\nif header :regex \"subject\" \"x\" { redirect \"elsewhere@example.net\"; }\r\nif true { vacation \"Away (theirs).\"; }\r\n";
+
+#[test]
+fn the_owners_own_script_is_listed_read_only_with_its_replies_said_in_file_info() {
+    let (mut app, account, answers, _) = window();
+    let (_, _) = with_rule(&mut app, account, &answers);
+    app.poll_sieve();
+    let ours = app.session.sieve.get(&account).and_then(|k| k.now.clone());
+    assert!(ours.is_some());
+    let written = jobs_last_text(&mut app);
+    let state = json!({"extensions": RULES, "scripts": [{"name": SCRIPT_NAME, "active": false}, {"name": "roundcube", "active": true}],
+        "script": written, "activeScript": {"name": "roundcube", "text": THEIRS}});
+    read(&mut app, account, &answers, SieveResult { state: Some(state), ..Default::default() });
+    assert_eq!(app.sieve_line(account), "Automatic replies: set by your Sieve script \"roundcube\", which runs on the server");
+    let theirs = app.session.sieve.get(&account).and_then(|k| k.elsewhere.clone()).unwrap();
+    assert_eq!(theirs.rules.len(), 2);
+    let id = theirs.rules[0].id;
+    // Shown in Rules and Alerts under its script, with nothing to press.
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1100.0, 900.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(3);
+    assert!(h.query_by_label("In your Sieve script \"roundcube\"").is_some());
+    assert!(h.query_by_label("It also sends automatic replies of its own.").is_some());
+    let rules_before = h.state().session.mailbox.rules.len();
+    // Whatever asks: refused, and nothing changes.
+    for (command, params) in [("rules.remove", json!({"id": id})), ("rules.enable", json!({"id": id, "value": false}))] {
+        let said = h.state_mut().execute(command, params).unwrap_err();
+        assert!(said.contains("\"roundcube\""), "{said}");
+    }
+    assert_eq!(h.state().session.mailbox.rules.len(), rules_before);
+}
+
+/// The text of the last script the window had the host write.
+fn jobs_last_text(app: &mut MailApp) -> String {
+    let account = app.sieve_accounts()[0];
+    let due = app.session.run("sync.sieveScript", &json!({"account": account})).unwrap();
+    // Nothing due: what is written is what the rules make now.
+    assert!(due["sieve"].is_null(), "{due}");
+    let known = app.session.auto_replies.get(&account).cloned().unwrap_or_default();
+    let vacation = mailcraft_engine::sieve::Vacation {
+        status: known.status,
+        start: known.start,
+        end: known.end,
+        internal: known.internal,
+        external: known.external,
+        audience: known.audience,
+    };
+    mailcraft_engine::cmd::sieve_replies::whole_script(&app.session.mailbox, account, &vacation).0
+}
+
+#[test]
+fn the_rules_window_says_what_was_found_where_the_server_was_looked_for() {
+    let (mut app, account, answers, jobs) = window();
+    let (lists, _) = with_rule(&mut app, account, &answers);
+    app.poll_sieve();
+    // A rule change that couldn't go to the server says why.
+    answers.lock().unwrap().push_back(SieveResult { account, ..unreached() });
+    let before = jobs.lock().unwrap().len();
+    app.execute(
+        "rules.add",
+        json!({"name": "News", "account": account, "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": lists}]}),
+    )
+    .unwrap();
+    app.poll_sieve();
+    assert_eq!(jobs.lock().unwrap().len(), before + 1);
+    assert_eq!(
+        said(&app),
+        "Your rules weren't changed on the server: sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use"
+    );
+    let (note, replace) = app.sieve_rules_note(account).unwrap();
+    assert_eq!(
+        note,
+        "MailCraft can't keep this account's rules on its server, so they run on this computer: sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use. On Dovecot, set ssl = no on the sieve listener."
+    );
+    assert!(!replace);
+}

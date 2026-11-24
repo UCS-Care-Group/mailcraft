@@ -187,6 +187,9 @@ pub mod senders;
 #[cfg(test)]
 mod senders_tests;
 pub mod shared;
+pub mod sieve_elsewhere;
+#[cfg(test)]
+mod sieve_elsewhere_tests;
 pub mod sieve_replies;
 #[cfg(test)]
 mod sieve_replies_tests;

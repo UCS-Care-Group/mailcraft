@@ -46,8 +46,8 @@ fn each_condition_is_the_sieve_that_does_what_it_does_here() {
     let (s, account, lists) = session(&ALL);
     let mv = vec![Action::MoveTo(lists)];
     for (condition, sieve) in [
-        (Condition::FromContains(words(&["digest"])), "header :contains \"from\" [\"digest\"]"),
-        (Condition::ToContains(words(&["team"])), "header :contains [\"to\", \"cc\"] [\"team\"]"),
+        (Condition::FromContains(words(&["digest"])), "address :all :contains \"from\" [\"digest\"]"),
+        (Condition::ToContains(words(&["team"])), "address :all :contains [\"to\", \"cc\"] [\"team\"]"),
         (Condition::SubjectContains(words(&["a", "b"])), "header :contains \"subject\" [\"a\", \"b\"]"),
         (Condition::BodyContains(words(&["x"])), "body :text :contains [\"x\"]"),
         (Condition::SubjectOrBodyContains(words(&["x"])), "anyof (header :contains \"subject\" [\"x\"], body :text :contains [\"x\"])"),
@@ -79,7 +79,7 @@ fn each_action_is_the_sieve_that_does_what_it_does_here_flags_first() {
     let b = block(&s.mailbox, &r, account).unwrap();
     assert_eq!(
         b.text,
-        "if allof (header :contains \"from\" [\"news\"], address :all :is \"to\" [\"ada@example.org\"], not anyof (header :contains \"subject\" [\"urgent\"], address :all :is \"from\" [\"boss@example.org\"])) {\r\n    addflag \"\\\\Seen\";\r\n    addflag \"\\\\Flagged\";\r\n    removeflag \"\\\\Flagged\";\r\n    fileinto :copy \"INBOX/Lists/Ünïcode\";\r\n    fileinto \"Trash\";\r\n    stop;\r\n}\r\n"
+        "if allof (address :all :contains \"from\" [\"news\"], address :all :is \"to\" [\"ada@example.org\"], not anyof (header :contains \"subject\" [\"urgent\"], address :all :is \"from\" [\"boss@example.org\"])) {\r\n    addflag \"\\\\Seen\";\r\n    addflag \"\\\\Flagged\";\r\n    removeflag \"\\\\Flagged\";\r\n    fileinto :copy \"INBOX/Lists/Ünïcode\";\r\n    fileinto \"Trash\";\r\n    stop;\r\n}\r\n"
     );
     assert_eq!(b.requires, vec!["copy", "fileinto", "imap4flags"]);
 }
@@ -100,6 +100,8 @@ fn what_sieve_cant_say_keeps_the_rule_here_and_says_which_part() {
         (rule(account, vec![Condition::ReceivedBetween { from: None, to: None }], mv.clone()), NotOnServer::Days),
         (rule(account, vec![Condition::SizeBetween { min: u64::MAX, max: u64::MAX }], mv.clone()), NotOnServer::Size),
         (rule(account, Vec::new(), mv.clone()), NotOnServer::NoConditions),
+        (rule(account, vec![Condition::FromContains(words(&["Ada Lovelace"]))], mv.clone()), NotOnServer::Names),
+        (rule(account, vec![Condition::ToContains(words(&["team\""]))], mv.clone()), NotOnServer::Names),
         (rule(account, from.clone(), vec![Action::Categorize("Red".into())]), NotOnServer::Categorize),
         (rule(account, from.clone(), vec![Action::SetImportance(mailcraft_model::Importance::Low)]), NotOnServer::SetImportance),
         (rule(account, from.clone(), vec![Action::FlagFor(mailcraft_model::FlagDue::Today)]), NotOnServer::FlagDue),
@@ -162,13 +164,17 @@ fn shape(script: &str) -> Vec<Tok> {
 
 /// A rule with every kind of value it can carry to the server set to `v`.
 fn every_value(account: Id, lists: Id, v: &str) -> Rule {
+    // (Words in an address can't have spaces, quotes or the marks that set a name apart: what is
+    // left of `v`.)
+    let a: String = v.chars().filter(|c| !c.is_whitespace() && !"\"(),:;<>[]\\".contains(*c)).collect();
+    let a = if a.is_empty() { "x".to_string() } else { a };
     Rule {
         exceptions: vec![Condition::SentTo(words(&[v])), Condition::BodyContains(words(&[v]))],
         ..rule(
             account,
             vec![
-                Condition::FromContains(words(&[v])),
-                Condition::ToContains(words(&[v, v])),
+                Condition::FromContains(words(&[&a])),
+                Condition::ToContains(words(&[&a, &a])),
                 Condition::SubjectContains(words(&[v])),
                 Condition::From(words(&[v])),
                 Condition::SubjectOrBodyContains(words(&[v])),
@@ -248,7 +254,7 @@ fn a_rule_goes_into_the_script_after_the_replies_and_is_on_the_server_once_it_ru
     let due = script_due(&s, account, false).unwrap();
     let text = due["text"].as_str().unwrap().to_string();
     assert_eq!(due["activate"], true);
-    assert!(text.contains(&format!("# rule {id}\r\nif header :contains \"from\" [\"list\"]")), "{text}");
+    assert!(text.contains(&format!("# rule {id}\r\nif address :all :contains \"from\" [\"list\"]")), "{text}");
     assert!(text.find("Automatic replies are off").unwrap() < text.find("# rule").unwrap());
     // Written and active: the rule is the server's.
     run(
@@ -297,6 +303,7 @@ fn rules_run_here_while_the_server_runs_another_script_or_a_changed_one() {
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&text))}));
     assert!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server());
     let edited = text.replace("\"list\"", "\"other\"");
+    assert_ne!(edited, text);
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&edited))}));
     assert!(!s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server());
     assert!(script_due(&s, account, false).is_none());

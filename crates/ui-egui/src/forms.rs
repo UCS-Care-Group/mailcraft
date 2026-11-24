@@ -5614,6 +5614,33 @@ pub(crate) mod rules {
                         ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
                     }
                     ui.add_space(6.0);
+                    // The rules of a Sieve script MailCraft didn't write, as the server runs them:
+                    // the owner's, shown and never changed (#9999).
+                    if let Some(e) = app.session.sieve.get(&account).and_then(|k| k.elsewhere.clone()) {
+                        let title = if e.ours {
+                            tl!("In MailCraft's Sieve script, as it was changed elsewhere").to_string()
+                        } else {
+                            crate::i18n::fmt(tl!("In your Sieve script \"{name}\""), &[("name", &shown(&e.script, 80))])
+                        };
+                        heading(ui, t, &title, tl!("Made in another program: MailCraft shows these rules and never changes them"));
+                        let mark = if e.ours {
+                            tl!("On the server, changed elsewhere: Replace with MailCraft's would remove it").to_string()
+                        } else {
+                            tl!("On the server, made in another program: MailCraft never changes it").to_string()
+                        };
+                        for r in &e.rules {
+                            rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run);
+                        }
+                        if e.unreadable {
+                            ui.label(egui::RichText::new(tl!("MailCraft can't read the rules of this script.")).color(t.text_dim).size(11.5));
+                        } else if e.rules.is_empty() {
+                            ui.label(egui::RichText::new(tl!("None.")).color(t.text_dim).size(11.5));
+                        }
+                        if e.replies && !e.ours {
+                            ui.label(egui::RichText::new(tl!("It also sends automatic replies of its own.")).color(t.text_dim).size(11.5));
+                        }
+                        ui.add_space(6.0);
+                    }
                     heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
                 }
                 for (i, r) in here.iter().enumerate() {

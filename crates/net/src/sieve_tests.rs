@@ -87,15 +87,17 @@ fn reading_signs_in_and_brings_the_scripts_and_the_one_asked_for() {
     let state = read(&account, &server, PASSWORD, "mailcraft").unwrap();
     assert_eq!(state.script.as_deref(), Some(OURS));
     assert_eq!(state.active(), Some("mailcraft"));
+    assert_eq!(state.active_script, None);
     assert_eq!(state.scripts.len(), 2);
     assert!(state.has_extension("vacation") && state.has_extension("date"));
     assert_eq!(state.implementation, "Fake Sieve");
-    // A script that isn't there is not asked for.
+    // A script that isn't there is not asked for; the active one, another's, is read to be shown.
     let state = read(&account, &server, PASSWORD, "other").unwrap();
     assert_eq!(state.script, None);
+    assert_eq!(state.active_script, Some(("mailcraft".to_string(), OURS.to_string())));
     let world = fake.world();
     assert_eq!(world.sign_ins, 2);
-    assert_eq!(world.log.iter().filter(|l| l.starts_with("GETSCRIPT")).count(), 1);
+    assert_eq!(world.log.iter().filter(|l| l.starts_with("GETSCRIPT")).count(), 2);
     // Nothing of the scripts is in debug output.
     assert!(!format!("{state:?}").contains("mine"));
 }

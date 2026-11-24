@@ -2623,6 +2623,12 @@ msgstr "Respuestas automáticas: leyendo…"
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
+msgid "Automatic replies: set by your Sieve script \"{name}\", which runs on the server"
+msgstr "Respuestas automáticas: las define su script Sieve «{name}», que se ejecuta en el servidor"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
 msgid "Automatic replies: the server didn't take your sign-in"
 msgstr "Respuestas automáticas: el servidor no aceptó su inicio de sesión"
 
@@ -7699,6 +7705,12 @@ msgstr "Importando… {messages} de {total}"
 msgid "In Junk E-mail, preview an attachment from its menu."
 msgstr "En Correo no deseado, vea una vista previa de un dato adjunto desde su menú."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In MailCraft's Sieve script, as it was changed elsewhere"
+msgstr "En el script Sieve de MailCraft, tal como se cambió en otro lugar"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
@@ -7764,6 +7776,12 @@ msgstr "En la selección"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "En este calendario:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In your Sieve script \"{name}\""
+msgstr "En su script Sieve «{name}»"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -7986,6 +8004,12 @@ msgstr "Emitido por:"
 #, fuzzy
 msgid "Issued to"
 msgstr "Emitido para"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It also sends automatic replies of its own."
+msgstr "También envía sus propias respuestas automáticas."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8907,6 +8931,12 @@ msgstr "Hecho por sus colaboradores:"
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Creada en otro programa o en la web, con partes que MailCraft no puede mostrar"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in another program: MailCraft shows these rules and never changes them"
+msgstr "Creadas en otro programa: MailCraft muestra estas reglas y nunca las cambia"
+
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9062,6 +9092,18 @@ msgstr "MailCraft no puede guardar respuestas automáticas en el servidor de est
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft no puede guardar las reglas de esta cuenta en su servidor"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep this account's rules on its server, so they run on this computer: {why}. {advice}"
+msgstr "MailCraft no puede guardar las reglas de esta cuenta en su servidor, así que se ejecutan en este equipo: {why}. {advice}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "MailCraft can't read the rules of this script."
+msgstr "MailCraft no puede leer las reglas de este script."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11391,6 +11433,12 @@ msgstr "Ninguno de esos mensajes sigue en este buzón."
 msgid "None yet."
 msgstr "Ninguna todavía."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "None."
+msgstr "Ninguna."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11876,6 +11924,18 @@ msgstr "En el servidor"
 #, fuzzy
 msgid "On the server · Searching…"
 msgstr "En el servidor · Buscando…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, changed elsewhere: Replace with MailCraft's would remove it"
+msgstr "En el servidor, cambiada en otro lugar: Reemplazar por el de MailCraft la eliminaría"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, made in another program: MailCraft never changes it"
+msgstr "En el servidor, creada en otro programa: MailCraft nunca la cambia"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -26045,6 +26105,11 @@ msgstr "este mensaje no está descargado: ábralo cuando esté en línea y vuelv
 #, fuzzy
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "esta lectura se hizo con la configuración anterior del servidor de calendario"
+
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
+msgstr "esta regla está en su script Sieve «{script}» del servidor, creado en otro programa: MailCraft la muestra y nunca la cambia"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

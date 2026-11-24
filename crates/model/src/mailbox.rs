@@ -3380,7 +3380,8 @@ impl Mailbox {
     /// kept on its account's server does, there and here, as the server does
     /// ([`crate::Matching::addresses_only`]). One kept on this computer reads names too.
     pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
-        rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
+        // (An IMAP account's server keeps them in a Sieve script that reads addresses alone too, #9999.)
+        rule.account != 0 && rule.keep == crate::Keep::Server && (self.keeps_rules(rule.account) || self.keeps_sieve_rules(rule.account))
     }
 
     /// Whether the rules for the mail of `then`'s account read `then` and `now` (the same message,

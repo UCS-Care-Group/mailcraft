@@ -54,7 +54,8 @@
 //! script sends automatic replies for a week (#9999); `"off"`, `"changed"` (changed elsewhere),
 //! `"other"` (the owner's own script runs), `"noVacation"` or `"none"` (no ManageSieve). The
 //! account's rules its server can keep go into that script with `"on"`, and the Rules window
-//! (`ui.dialog` `rules`) shows them as the server's, or says what keeps them off it.
+//! (`ui.dialog` `rules`) shows them as the server's, or says what keeps them off it; `"other"` and
+//! `"changed"` also list a webmail script's rules there, read-only.
 //! `{"host": {"categories": "allowed"}}` gives every Microsoft account the list of categories its
 //! server has (four made-up ones, the first time) and lets it be changed there (#661);
 //! `"readOnly"`, the same and none may be changed, the owner having been asked.

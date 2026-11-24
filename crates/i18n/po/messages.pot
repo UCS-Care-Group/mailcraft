@@ -2180,6 +2180,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
+msgid "Automatic replies: set by your Sieve script \"{name}\", which runs on the server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
 msgid "Automatic replies: the server didn't take your sign-in"
 msgstr ""
 
@@ -6389,6 +6394,11 @@ msgstr ""
 msgid "In Junk E-mail, preview an attachment from its menu."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "In MailCraft's Sieve script, as it was changed elsewhere"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 msgid "In Progress"
@@ -6442,6 +6452,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "In this calendar:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "In your Sieve script \"{name}\""
 msgstr ""
 
 #. interface
@@ -6627,6 +6642,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "Issued to"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It also sends automatic replies of its own."
 msgstr ""
 
 #. interface
@@ -7396,6 +7416,11 @@ msgstr ""
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Made in another program: MailCraft shows these rules and never changes them"
+msgstr ""
+
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 msgid "Mail"
@@ -7524,6 +7549,16 @@ msgstr ""
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "MailCraft can't keep this account's rules on its server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "MailCraft can't keep this account's rules on its server, so they run on this computer: {why}. {advice}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "MailCraft can't read the rules of this script."
 msgstr ""
 
 #. interface
@@ -9450,6 +9485,11 @@ msgstr ""
 msgid "None yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "None."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 msgid "Normal"
@@ -9853,6 +9893,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 msgid "On the server · Searching…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "On the server, changed elsewhere: Replace with MailCraft's would remove it"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "On the server, made in another program: MailCraft never changes it"
 msgstr ""
 
 #. interface
@@ -21635,6 +21685,9 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
 msgid "this read was made under the calendar server's earlier settings"
+
+#: crates/engine/src/cmd/rules.rs
+msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
 msgstr ""
 
 #. what a command says

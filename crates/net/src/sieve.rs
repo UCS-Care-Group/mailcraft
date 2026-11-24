@@ -222,6 +222,9 @@ pub struct SieveState {
     pub scripts: Vec<ScriptEntry>,
     /// The text of the script asked for; `None` when the server has none of that name.
     pub script: Option<String>,
+    /// The active script, by name and text, when it isn't the one asked for: the owner's own,
+    /// which the server runs, to be shown and never changed.
+    pub active_script: Option<(String, String)>,
 }
 
 impl SieveState {
@@ -243,6 +246,7 @@ impl std::fmt::Debug for SieveState {
             .field("extensions", &self.extensions)
             .field("scripts", &self.scripts.len())
             .field("script", &self.script.as_ref().map(String::len))
+            .field("active_script", &self.active_script.as_ref().map(|(_, text)| text.len()))
             .finish_non_exhaustive()
     }
 }
@@ -325,8 +329,13 @@ pub(crate) fn read_with(
         let capabilities = sieve.capabilities().clone();
         let scripts = sieve.list_scripts()?;
         let script = if scripts.iter().any(|s| s.name == name) { sieve.get_script(name)? } else { None };
+        let active = scripts.iter().find(|s| s.active && s.name != name).map(|s| s.name.clone());
+        let active_script = match active {
+            Some(other) => sieve.get_script(&other)?.map(|text| (other, text)),
+            None => None,
+        };
         let _ = sieve.logout();
-        Ok(SieveState { implementation: capabilities.implementation, extensions: capabilities.extensions, scripts, script })
+        Ok(SieveState { implementation: capabilities.implementation, extensions: capabilities.extensions, scripts, script, active_script })
     };
     run().map_err(|e: SieveError| e.without(secret))
 }

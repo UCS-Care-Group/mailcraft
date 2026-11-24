@@ -323,6 +323,9 @@ impl MailApp {
                     tl!("MailCraft's Sieve script on the server was changed elsewhere."),
                 ),
                 (None, Some(SieveTrouble::Failed(why))) => crate::i18n::with_reason(tl!("Your rules weren't changed on the server"), why),
+                (None, Some(SieveTrouble::Unavailable)) if !result.why.is_empty() => {
+                    crate::i18n::with_reason(tl!("Your rules weren't changed on the server"), &result.why)
+                }
                 (None, _) => tl!("Your rules weren't changed on the server").to_string(),
             };
             self.status(said);
@@ -398,6 +401,15 @@ impl MailApp {
         if !self.sieve_account(account) {
             return None;
         }
+        if let Some(unreached) = self.sieve_unreached(account) {
+            return Some((
+                crate::i18n::fmt(
+                    tl!("MailCraft can't keep this account's rules on its server, so they run on this computer: {why}. {advice}"),
+                    &[("why", &unreached.why), ("advice", &unreached.advice)],
+                ),
+                false,
+            ));
+        }
         if self.sieve.trouble.get(&account) == Some(&SieveTrouble::Unavailable) {
             return Some((
                 tl!("This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer.").to_string(),
@@ -445,7 +457,8 @@ impl MailApp {
     /// (MailCraft's script was changed elsewhere), `"other"` (the owner's own script is active),
     /// `"noVacation"` (Sieve without replies), `"none"` (no ManageSieve). With `"on"`, the
     /// account's rules its server can keep are in the script, and shown as the server's in the
-    /// Rules window; `"other"` and `"changed"` show there what keeps them off it. A host that never
+    /// Rules window; `"other"` and `"changed"` show there what keeps them off it, and the rules of a script made in
+    /// webmail (one shown, one with a part not known here, and replies of its own), read-only. A host that never
     /// answers is put in, so that nothing is asked.
     #[doc(hidden)]
     pub fn stand_in_sieve(&mut self, account: Id, how: &str) -> Result<(), String> {
@@ -458,6 +471,9 @@ impl MailApp {
             let scripts: Vec<Value> = active.iter().map(|name| json!({"name": name, "active": true})).collect();
             json!({"extensions": extensions, "scripts": scripts, "script": script})
         };
+        // A script of the owner's own, made in webmail, with a rule MailCraft can show, one it
+        // can't, and replies of its own.
+        let theirs = "require [\"fileinto\", \"vacation\"];\r\nif address :contains \"from\" \"shop.example\" { fileinto \"INBOX\"; stop; }\r\nif header :regex \"subject\" \"x\" { redirect \"elsewhere@example.net\"; }\r\nif true { vacation \"Away.\"; }\r\n";
         let apply = |app: &mut MailApp, params: Value| app.session.run("sync.applySieve", &params).map(|_| ()).map_err(|e| e.to_string());
         let name = mailcraft_engine::sieve::SCRIPT_NAME;
         match how {
@@ -466,10 +482,12 @@ impl MailApp {
                 Ok(())
             }
             "noVacation" => apply(self, json!({"account": account, "state": state(&["fileinto"], None, None)})),
-            "changed" => {
-                apply(self, json!({"account": account, "state": state(&all, Some(name), Some("require \"fileinto\";\r\nfileinto \"Lists\";\r\n"))}))
+            "changed" => apply(self, json!({"account": account, "state": state(&all, Some(name), Some(theirs))})),
+            "other" => {
+                let mut other = state(&all, Some("roundcube"), None);
+                other["activeScript"] = json!({"name": "roundcube", "text": theirs});
+                apply(self, json!({"account": account, "state": other}))
             }
-            "other" => apply(self, json!({"account": account, "state": state(&all, Some("roundcube"), None)})),
             _ => {
                 apply(self, json!({"account": account, "state": state(&all, None, None)}))?;
                 if how == "off" {
@@ -543,6 +561,10 @@ impl MailApp {
         }
         let line = self.auto_replies_known(account).map(|known| crate::auto_replies::summary(self, known)).unwrap_or_default();
         match sieve.active.as_deref() {
+            // The owner's own script sends replies of its own (#9999): those are what go out.
+            Some(other) if other != mailcraft_engine::sieve::SCRIPT_NAME && sieve.elsewhere.as_ref().is_some_and(|e| e.replies && !e.ours) => {
+                crate::i18n::fmt(tl!("Automatic replies: set by your Sieve script \"{name}\", which runs on the server"), &[("name", &shown(other))])
+            }
             Some(other) if other != mailcraft_engine::sieve::SCRIPT_NAME => {
                 crate::i18n::fmt(tl!("{line} · your Sieve script \"{name}\" runs instead"), &[("line", &line), ("name", &shown(other))])
             }

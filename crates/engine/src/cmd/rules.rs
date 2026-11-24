@@ -250,7 +250,7 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
 
 /// Whether `words` can be part of an address: no space, none of the marks that set a name or a
 /// comment apart from it. A rule looking for others looks for a name, which the server doesn't.
-fn in_an_address(words: &str) -> bool {
+pub(crate) fn in_an_address(words: &str) -> bool {
     !words.chars().any(|c| c.is_whitespace() || "\"(),:;<>[]\\".contains(c))
 }
 
@@ -570,7 +570,24 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id, "keep": keep}))
 }
 
+/// A rule of a Sieve script MailCraft didn't write is the owner's (#9999): refused by every
+/// command that would change or run one.
+fn elsewhere(s: &Session, id: Id) -> Result<(), CmdError> {
+    if !super::sieve_elsewhere::is_elsewhere(id) {
+        return Ok(());
+    }
+    let script = s.sieve.values().filter_map(|k| k.elsewhere.as_ref()).find(|e| e.rules.iter().any(|r| r.id == id)).map(|e| e.script.clone());
+    Err(match script {
+        Some(script) => failed!(
+            "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it",
+            script
+        ),
+        None => failed!("no rule with id {id}", id),
+    })
+}
+
 fn changeable(s: &Session, id: Id) -> Result<usize, CmdError> {
+    elsewhere(s, id)?;
     let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     if s.mailbox.rules.get(i).is_some_and(Rule::read_only) {
         return Err(fail("the server doesn't let this rule be changed"));
@@ -636,7 +653,25 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
             entry
         })
         .collect();
-    Ok(json!({"rules": rules}))
+    // The rules of the Sieve scripts MailCraft didn't write (#9999): shown, never changed.
+    let elsewhere: Vec<Value> = s
+        .sieve
+        .iter()
+        .filter(|(account, _)| p::id(v, "account").is_none_or(|a| a == **account))
+        .filter_map(|(account, k)| k.elsewhere.as_ref().map(|e| (account, e)))
+        .map(|(account, e)| {
+            let rules: Vec<Value> = e
+                .rules
+                .iter()
+                .map(|r| {
+                    let unknown = r.server.as_ref().map(|s| s.unknown.clone()).unwrap_or_default();
+                    json!({"id": r.id, "name": r.name, "text": r.describe_as(true), "stop": r.stop, "unknownParts": unknown, "readOnly": true})
+                })
+                .collect();
+            json!({"account": account, "script": e.script, "mailcraftChanged": e.ours, "replies": e.replies, "unreadable": e.unreadable, "rules": rules})
+        })
+        .collect();
+    Ok(json!({"rules": rules, "elsewhere": elsewhere}))
 }
 
 /// Run every enabled rule for the folder's account on the messages of `folder`, those its server
@@ -705,6 +740,9 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
     };
     if !s.mailbox.rules_reach(account) {
         return Err(failed!("The rules leave a shared mailbox's mail alone: its rules are its own."));
+    }
+    if let Some(rule) = only {
+        elsewhere(s, rule)?;
     }
     if let Some(rule) = only
         && !s.mailbox.rules.iter().any(|r| r.id == rule)
@@ -890,6 +928,7 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
 /// agent's question, which isn't asked of what the command refuses.
 pub(crate) fn keeping_on_server(s: &Session, v: &Value) -> Result<(usize, Rule, Id), CmdError> {
     let id = p::req_id(v, "id")?;
+    elsewhere(s, id)?;
     let i = s.mailbox.rules.iter().position(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     if rule.keep == Keep::Server {

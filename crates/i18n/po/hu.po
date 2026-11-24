@@ -2623,6 +2623,12 @@ msgstr "Automatikus válasz: olvasás…"
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
+msgid "Automatic replies: set by your Sieve script \"{name}\", which runs on the server"
+msgstr "Automatikus válaszok: az Ön „{name}” Sieve-szkriptje állítja be őket, amely a szerveren fut"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
 msgid "Automatic replies: the server didn't take your sign-in"
 msgstr "Automatikus válaszok: a szerver nem fogadta el a bejelentkezését"
 
@@ -7694,6 +7700,12 @@ msgstr "Importálás… {messages} of {total}"
 msgid "In Junk E-mail, preview an attachment from its menu."
 msgstr "A Junk E-mailben, tekintse meg a mellékleteket a menüből."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In MailCraft's Sieve script, as it was changed elsewhere"
+msgstr "A MailCraft Sieve-szkriptjében, ahogy máshol módosították"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks/status.rs
 #, fuzzy
@@ -7759,6 +7771,12 @@ msgstr "A kiválasztásban"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "Ebben a naptárban:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "In your Sieve script \"{name}\""
+msgstr "Az Ön „{name}” Sieve-szkriptjében"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -7981,6 +7999,12 @@ msgstr "Kibocsátó:"
 #, fuzzy
 msgid "Issued to"
 msgstr "Kibocsátva"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It also sends automatic replies of its own."
+msgstr "Saját automatikus válaszokat is küld."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8902,6 +8926,12 @@ msgstr "A hozzászólók készítik:"
 msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr "Készült egy másik program vagy a weben, alkatrészek MailCraft nem mutat"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in another program: MailCraft shows these rules and never changes them"
+msgstr "Másik programban készült: a MailCraft megjeleníti ezeket a szabályokat, de soha nem módosítja őket"
+
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -9057,6 +9087,18 @@ msgstr "A MailCraft nem tud automatikus válaszokat tárolni ennek a fióknak a 
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "A MailCraft nem tudja a fiók szabályait a kiszolgálón tárolni"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep this account's rules on its server, so they run on this computer: {why}. {advice}"
+msgstr "A MailCraft nem tudja ennek a fióknak a szabályait a kiszolgálóján tárolni, ezért ezen a számítógépen futnak: {why}. {advice}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "MailCraft can't read the rules of this script."
+msgstr "A MailCraft nem tudja beolvasni a szkript szabályait."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11383,6 +11425,12 @@ msgstr "Ezek közül a levelek közül egy sincs már ebben a postafiókban."
 msgid "None yet."
 msgstr "Még nincs."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "None."
+msgstr "Nincs."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/tasks/status.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11868,6 +11916,18 @@ msgstr "A kiszolgálón"
 #, fuzzy
 msgid "On the server · Searching…"
 msgstr "A szerveren keresgélünk…"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, changed elsewhere: Replace with MailCraft's would remove it"
+msgstr "A szerveren, máshol módosítva: a Csere a MailCraft szkriptjére eltávolítaná"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, made in another program: MailCraft never changes it"
+msgstr "A szerveren, másik programban készült: a MailCraft soha nem módosítja"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -26040,6 +26100,11 @@ msgstr "Ez az üzenet nincs letöltve: nyissa meg, ha már online van, majd kül
 #, fuzzy
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "ez az olvasás a naptárkiszolgáló korábbi beállításaival történt"
+
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
+msgstr "ez a szabály az Ön „{script}” Sieve-szkriptjében van a szerveren, amely másik programban készült: a MailCraft megjeleníti, de soha nem módosítja"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
