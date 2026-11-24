@@ -279,6 +279,12 @@ msgid ".pst file ({format})"
 msgstr "קובץ .pst ({format})"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "1 Line"
+msgstr "שורה 1"
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "1 day"
@@ -308,6 +314,12 @@ msgstr "שבוע אחד"
 msgid "1. Copy the message below and send it to your organisation's administrator."
 msgstr "1. העתיקו את ההודעה שלהלן ושלחו אותה למנהל המערכת של הארגון שלכם."
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "10 Minutes"
+msgstr "10 דקות"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -319,6 +331,24 @@ msgstr "10 שנים"
 #, fuzzy
 msgid "12 months"
 msgstr "12 חודשים"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "12-hour (3:05 PM)"
+msgstr "12 שעות (3:05 PM)"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "15 Minutes"
+msgstr "15 דקות"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "2 Lines"
+msgstr "2 שורות"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -338,6 +368,18 @@ msgstr "שנתיים"
 msgid "2. When they have approved MailCraft, come back here and sign in again."
 msgstr "2. לאחר שמנהל המערכת יאשר את MailCraft, חזרו לכאן והתחברו שוב."
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "24-hour (15:05)"
+msgstr "24 שעות (15:05)"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "3 Lines"
+msgstr "3 שורות"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -350,11 +392,23 @@ msgstr "3 ימים"
 msgid "3 months"
 msgstr "3 חודשים"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "30 Minutes"
+msgstr "30 דקות"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "3D Models"
 msgstr "מודלים תלת-ממדיים"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "5 Minutes"
+msgstr "5 דקות"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
@@ -362,11 +416,23 @@ msgstr "מודלים תלת-ממדיים"
 msgid "5 years"
 msgstr "5 שנים"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "6 Minutes"
+msgstr "6 דקות"
+
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsModel.kt crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "6 months"
 msgstr "6 חודשים"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "60 Minutes"
+msgstr "60 דקות"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -758,8 +824,8 @@ msgstr "מילה לחיפוש יכולה להכיל עד 200 תווים."
 msgid "AM"
 msgstr "לפנה״צ"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/lib.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "About"
 msgstr "אודות"
@@ -1189,7 +1255,7 @@ msgid "Added to Contacts"
 msgstr "נוסף לאנשי הקשר"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Address"
 msgstr "כתובת"
@@ -1300,6 +1366,18 @@ msgstr "יישור טקסט"
 msgid "All"
 msgstr "הכול"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Accounts"
+msgstr "כל החשבונות"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Archives"
+msgstr "כל הארכיונים"
+
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
@@ -1319,10 +1397,34 @@ msgid "All Categories…"
 msgstr "כל הקטגוריות…"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Deleted Items"
+msgstr "כל הפריטים שנמחקו"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Drafts"
+msgstr "כל הטיוטות"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Inboxes"
+msgstr "כל תיבות הדואר הנכנס"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "All Mailboxes"
 msgstr "כל תיבות הדואר"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "All Sent Items"
+msgstr "כל הפריטים שנשלחו"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/address_book.rs crates/ui-egui/src/widgets.rs
@@ -1442,7 +1544,7 @@ msgstr "גם Hotmail, Live ו-MSN"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Always Download Pictures from Sender"
-msgstr "הורד תמיד תמונות מהשולח"
+msgstr "הורדת תמונות מהשולח תמיד"
 
 #. command label
 #: crates/engine/src/cmd/rules.rs
@@ -1466,7 +1568,7 @@ msgstr "הורידו תמיד תמונות מכל מי שכתובתו מסתיי
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Always download pictures from {sender}"
-msgstr "הורד תמיד תמונות מאת {sender}"
+msgstr "הורדת תמונות מאת {sender} תמיד"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
@@ -2284,6 +2386,12 @@ msgstr "העברה אוטומטית לארכיון"
 msgid "Automatic"
 msgstr "אוטומטי"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Automatic (the language's)"
+msgstr "אוטומטי (לפי השפה)"
+
 #. command label, interface
 #: crates/engine/src/cmd/auto_replies.rs crates/ui-egui/src/auto_replies.rs
 #, fuzzy
@@ -2554,6 +2662,12 @@ msgstr "שולחים חסומים"
 msgid "Blue"
 msgstr "כחול"
 
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Blue category"
+msgstr "קטגוריה כחולה"
+
 #. name
 #: crates/ui-egui/src/theme/blue.rs
 #, fuzzy
@@ -2583,6 +2697,12 @@ msgstr "מודגש"
 #, fuzzy
 msgid "Bookmark"
 msgstr "סימנייה"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Bottom"
+msgstr "למטה"
 
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
@@ -2819,7 +2939,7 @@ msgid ""
 "Cancel\n"
 "All"
 msgstr ""
-"בטל\n"
+"ביטול\n"
 "הכול"
 
 #. command label
@@ -3508,6 +3628,12 @@ msgstr "לחצו כדי לבחור את {name}; לחצו לחיצה כפולה �
 msgid "Clipboard"
 msgstr "לוח"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Clock"
+msgstr "שעון"
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
@@ -3801,7 +3927,7 @@ msgid "Continues"
 msgstr "נמשך"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Contributors"
 msgstr "תורמים"
@@ -4556,7 +4682,7 @@ msgstr "מחיקה ויידוע המשתתפים"
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Delete meeting requests from the Inbox after responding"
-msgstr "מחק בקשות לפגישה מתיבת הדואר הנכנס לאחר מענה"
+msgstr "מחיקת בקשות לפגישה מתיבת הדואר הנכנס לאחר מענה"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -4838,7 +4964,7 @@ msgstr "אל תאפשר"
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Don't Delete"
-msgstr "אל תמחק"
+msgstr "לא למחוק"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5283,7 +5409,7 @@ msgid "Either button writes to {name}: your answer, and the time you propose."
 msgstr "כל אחד מהלחצנים שולח אל {name} את תשובתך ואת המועד החלופי שהצעת."
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Email"
 msgstr "דוא\"ל"
@@ -6280,7 +6406,7 @@ msgstr[1] "הועברה אל {n} אנשים"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Forward…"
-msgstr "העבר…"
+msgstr "העברה…"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -6781,6 +6907,12 @@ msgstr "התוכנה פונה אל Gravatar לקבלת תמונת השולח ו�
 #, fuzzy
 msgid "Green"
 msgstr "ירוק"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Green category"
+msgstr "קטגוריה ירוקה"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -7903,7 +8035,7 @@ msgid "January"
 msgstr "ינואר"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Job title"
 msgstr "תפקיד"
@@ -9525,7 +9657,7 @@ msgid "Minimize"
 msgstr "מזער"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Mobile"
 msgstr "טלפון נייד"
@@ -9894,8 +10026,14 @@ msgstr "הארגון שלי צריך לאשר את MailCraft תחילה: מה ל
 msgid "My outgoing server needs no sign-in"
 msgstr "שרת הדואר היוצא שלי אינו דורש התחברות"
 
+#. interface
+#: crates/ui-egui/src/symbol.rs
+#, fuzzy
+msgid "NBSP"
+msgstr "NBSP"
+
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Name"
 msgstr "שם"
@@ -11281,7 +11419,7 @@ msgid "October"
 msgstr "אוקטובר"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/spelling.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling.rs
 #, fuzzy
 msgid "Off"
 msgstr "כבוי"
@@ -11938,6 +12076,18 @@ msgstr "או שאולי אחד מאלה?"
 msgid "Orange"
 msgstr "כתום"
 
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Orange category"
+msgstr "קטגוריה כתומה"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Organisation"
+msgstr "ארגון"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -12275,7 +12425,7 @@ msgid "Permissions"
 msgstr "הרשאות"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Phone"
 msgstr "טלפון"
@@ -12727,6 +12877,12 @@ msgid "Purple"
 msgstr "סגול"
 
 #. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Purple category"
+msgstr "קטגוריה סגולה"
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "Put the calendar items"
@@ -13003,6 +13159,12 @@ msgstr "התחבר מחדש באמצעות Google אם ההתחברות שלך �
 #, fuzzy
 msgid "Recurrence"
 msgstr "חזרה"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Red category"
+msgstr "קטגוריה אדומה"
 
 #. command label, name
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
@@ -13751,6 +13913,12 @@ msgstr "טקסט עשיר"
 #, fuzzy
 msgid "Rich text"
 msgstr "טקסט עשיר"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Right"
+msgstr "ימין"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -14768,7 +14936,7 @@ msgstr[1] "לשלוח את {n} המשימות המקומיות שלך אל To Do
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Send/Receive"
-msgstr "שלח/קבל"
+msgstr "שליחה/קבלה"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14784,7 +14952,7 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Send/Receive All Folders"
-msgstr "שלח/קבל בכל התיקיות"
+msgstr "שליחה/קבלה בכל התיקיות"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
@@ -14832,19 +15000,19 @@ msgstr "שליחה וקבלה הופסקה באופן בלתי צפוי"
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "Send/Receive with Exchange Web Services"
-msgstr "שלח/קבל באמצעות Exchange Web Services"
+msgstr "שליחה/קבלה באמצעות Exchange Web Services"
 
 #. command label
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "Send/Receive with JMAP"
-msgstr "שלח/קבל באמצעות JMAP"
+msgstr "שליחה/קבלה באמצעות JMAP"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
-msgstr "שלח/קבל באמצעות Microsoft Graph"
+msgstr "שליחה/קבלה באמצעות Microsoft Graph"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -16635,6 +16803,12 @@ msgstr "אושר באופן לא סופי"
 #, fuzzy
 msgid "Tentatively accepted on {when}"
 msgstr "אושר באופן לא סופי ב־{when}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Testers"
+msgstr "בודקים"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -20421,12 +20595,6 @@ msgid "Use YYYY-MM-DD"
 msgstr "השתמש בתבנית YYYY-MM-DD"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
-#, fuzzy
-msgid "Use a 12-hour clock (3:05 PM)"
-msgstr "השתמש בשעון של 12 שעות (3:05 PM)"
-
-#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Use a Google app password, not your everyday Google account password."
@@ -20637,7 +20805,7 @@ msgid "Want to be one? Sign up in #11"
 msgstr "רוצים להצטרף? ניתן להירשם ב־#11"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Website"
 msgstr "אתר אינטרנט"
@@ -20837,6 +21005,18 @@ msgstr "מתי"
 #, fuzzy
 msgid "When you switch:"
 msgstr "בעת המעבר:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {when}, except if {except}: {then}"
+msgstr "כאשר {when}, פרט למקרה ש{except}: {then}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "When {when}: {then}"
+msgstr "כאשר {when}: {then}"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -21089,6 +21269,12 @@ msgstr "Yahoo Mail"
 #, fuzzy
 msgid "Yellow"
 msgstr "צהוב"
+
+#. interface
+#: crates/ui-egui/src/i18n.rs
+#, fuzzy
+msgid "Yellow category"
+msgstr "קטגוריה צהובה"
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/updates.rs
@@ -22009,6 +22195,12 @@ msgctxt "between e-mail addresses"
 msgid "{others}, {last}"
 msgstr "{others}, {last}"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "body contains {words}"
+msgstr "גוף ההודעה מכיל {words}"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -22033,11 +22225,35 @@ msgstr "לא ניתן לקרוא"
 msgid "cancelled"
 msgstr "בוטל"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "categorize it as {category}"
+msgstr "סיווג כקטגוריה {category}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "category is {words}"
+msgstr "הקטגוריה היא {words}"
+
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "choose a time within a year"
 msgstr "יש לבחור מועד בטווח של שנה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "clear its categories"
+msgstr "ניקוי הקטגוריות שלה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "clear its flag"
+msgstr "ניקוי הדגל שלה"
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -22057,6 +22273,12 @@ msgstr "נאסף מהדואר"
 msgid "comes once Google has reviewed MailCraft"
 msgstr "יהיה זמין לאחר ש־Google תבדוק את MailCraft"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "confidential"
+msgstr "סודי"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
@@ -22068,6 +22290,30 @@ msgstr "בעיית חיבור: {reason}"
 #, fuzzy
 msgid "contact"
 msgstr "איש קשר"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to a folder"
+msgstr "העתקה לתיקייה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to a folder that is gone"
+msgstr "העתקה לתיקייה שאינה קיימת עוד"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder}"
+msgstr "העתקה אל {folder}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder} - {who}"
+msgstr "העתקה אל {folder} - {who}"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -22086,6 +22332,12 @@ msgstr "לא ניתן היה להגיע אל {host}: {reason}"
 #, fuzzy
 msgid "day"
 msgstr "יום"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "delete it"
+msgstr "מחיקה שלה"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -22117,12 +22369,42 @@ msgstr "כולם ב־@{domain}"
 msgid "expected and replacement must be on one line"
 msgstr "הטקסט המצופה וההחלפה חייבים להיות בשורה אחת"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it"
+msgstr "סימון בדגל"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for next week"
+msgstr "סימון בדגל לשבוע הבא"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for this week"
+msgstr "סימון בדגל לשבוע זה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for today"
+msgstr "סימון בדגל להיום"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for tomorrow"
+msgstr "סימון בדגל למחר"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgctxt "folder"
 msgid "Archive"
-msgstr "העברה לארכיון"
+msgstr "ארכיון"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -22192,16 +22474,40 @@ msgid "folders are nested too deeply"
 msgstr "התיקיות מקוננות בעומק רב מדי"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "from contains {words}"
+msgstr "השולח מכיל {words}"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "from {from} to {to}"
 msgstr "מ־{from} עד {to}"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "from {words}"
+msgstr "מאת {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "has an attachment"
+msgstr "כוללת קובץ מצורף"
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "מכיל יותר מדי קבצים; יתר הקבצים לא הוסרו"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "high"
+msgstr "גבוהה"
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -22220,6 +22526,12 @@ msgstr "iCloud"
 #, fuzzy
 msgid "icloud.com, me.com and mac.com"
 msgstr "icloud.com, me.com ו־mac.com"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "importance is {level}"
+msgstr "החשיבות היא {level}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -22250,6 +22562,24 @@ msgstr "לא שלם"
 #, fuzzy
 msgid "is a link: not followed, and nothing in it was removed"
 msgstr "הוא קישור; לא נעשה מעבר ליעד הקישור, ולא הוסר דבר מתוכנו"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is a meeting invitation or update"
+msgstr "היא הזמנה לפגישה או עדכון שלה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is an automatic reply"
+msgstr "היא תשובה אוטומטית"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is flagged"
+msgstr "מסומנת בדגל"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -22455,6 +22785,18 @@ msgstr "שמו אינו שם שניתן לבדוק מול תעודת אבטחה"
 msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr "גדול מ־{mb} מ״ב: ייבא אותו דרך קובץ › יבא"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "low"
+msgstr "נמוכה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "mark it as read"
+msgstr "סימון כנקראה"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
@@ -22491,6 +22833,54 @@ msgstr "יותר דגלים מכפי שרשימה אחת יכולה להכיל"
 msgid "more than {max} folders"
 msgstr "יותר מ־{max} תיקיות"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to a folder"
+msgstr "העברה לתיקייה"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to a folder that is gone"
+msgstr "העברה לתיקייה שאינה קיימת עוד"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to {folder}"
+msgstr "העברה אל {folder}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to {folder} - {who}"
+msgstr "העברה אל {folder} - {who}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "my address is in Cc"
+msgstr "הכתובת שלי נמצאת ב-Cc"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "my address is in To"
+msgstr "הכתובת שלי נמצאת ב-To"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "my address is in To or Cc"
+msgstr "הכתובת שלי נמצאת ב-To או ב-Cc"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "my address isn't in To"
+msgstr "הכתובת שלי אינה ב-To"
+
 #. why a command can't run
 #: crates/engine/src/gmail.rs
 #, fuzzy
@@ -22502,6 +22892,12 @@ msgstr "דורש כניסה באמצעות Google"
 #, fuzzy
 msgid "needs a Gmail account"
 msgstr "דורש חשבון Gmail"
+
+#. why a command can't run
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "needs two mailboxes at least (a shared mailbox counts)"
+msgstr "נדרשות שתי תיבות דואר לפחות (תיבת דואר משותפת נספרת)"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -22532,6 +22928,12 @@ msgstr "לא שמור מפתח ציבורי עם טביעת אצבע זו עבו
 #, fuzzy
 msgid "no account has a calendar and contacts server"
 msgstr "לאף חשבון אין שרת לוח שנה ואנשי קשר"
+
+#. what a command says
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "no account has a folder of that kind"
+msgstr "לאף חשבון אין תיקייה מסוג זה"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22797,6 +23199,12 @@ msgstr "לא מוצגת תזכורת עבור אף אחת מההודעות הא�
 msgid "none of these messages is snoozed"
 msgstr "אף אחת מההודעות האלה לא נדחתה"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "normal"
+msgstr "רגיל"
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
@@ -22983,17 +23391,65 @@ msgstr "בעלים"
 msgid "past"
 msgstr "בעבר"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "personal"
+msgstr "אישי"
+
 #. what a command says
 #: crates/engine/src/cmd/picture.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "תמונות מהרשת אינן מורדות: שמור את התמונה והוסף אותה מהקובץ"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "private"
+msgstr "פרטי"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "readOnly"
 msgstr "לקריאה בלבד"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "received from {from} to {to}"
+msgstr "התקבלה מ-{from} עד {to}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "received on any day"
+msgstr "התקבלה בכל יום"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "received on or after {day}"
+msgstr "התקבלה ב-{day} או לאחריו"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "received on or before {day}"
+msgstr "התקבלה ב-{day} או לפניו"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "recipient contains {words}"
+msgstr "הנמען מכיל {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "recipient's address contains {words}"
+msgstr "כתובת הנמען מכילה {words}"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23052,6 +23508,12 @@ msgstr "יש לבחור תחילה פעילות"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "sender's address contains {words}"
+msgstr "כתובת השולח מכילה {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgctxt "sensitivity"
 msgid "Confidential"
 msgstr "סודי"
@@ -23077,6 +23539,30 @@ msgctxt "sensitivity"
 msgid "Private"
 msgstr "פרטי"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "sensitivity is {level}"
+msgstr "הרגישות היא {level}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "sent only to me"
+msgstr "נשלחה אליי בלבד"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "sent to {words}"
+msgstr "נשלחה אל {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "set importance to {level}"
+msgstr "קביעת החשיבות ל-{level}"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
 #, fuzzy
@@ -23094,6 +23580,12 @@ msgstr "תיבות דואר משותפות נפתחות תחת חשבון המס
 #, fuzzy
 msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
 msgstr "תיבות דואר משותפות נפתחות תחת חשבון שמסונכרן באמצעות Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "show a desktop alert"
+msgstr "הצגת התראה בשולחן העבודה"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -23120,10 +23612,28 @@ msgid "sign-in needed"
 msgstr "נדרשת כניסה"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "size is {min} KB to {max} KB"
+msgstr "הגודל הוא מ-{min} KB עד {max} KB"
+
+#. interface
 #: crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "someone@example.org or @example.org"
 msgstr "someone@example.org או @example.org"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "subject contains {words}"
+msgstr "הנושא מכיל {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "subject or body contains {words}"
+msgstr "הנושא או גוף ההודעה מכילים {words}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23616,6 +24126,12 @@ msgstr "בפעולת השליחה והקבלה האחרונה היו בעיות"
 #, fuzzy
 msgid "the last calendar can't be deleted"
 msgstr "לא ניתן למחוק את לוח השנה האחרון"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "הרשימה מציגה את התיקייה של כל חשבון: יש לפתוח את התיקייה של חשבון אחד, או לציין את שם התיקייה"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -26776,6 +27292,10 @@ msgstr "−בינארי"
 #, fuzzy
 msgid "−Lines"
 msgstr "−שורות"
+
+#, fuzzy
+#~ msgid "Use a 12-hour clock (3:05 PM)"
+#~ msgstr "השתמש בשעון של 12 שעות (3:05 PM)"
 
 #, fuzzy
 #~ msgid "Its {n} rule goes too; one its server keeps stays there."
