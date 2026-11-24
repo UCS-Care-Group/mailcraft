@@ -2858,6 +2858,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Confirm { command, params, ask } => {
             // The way of going ahead that was picked: what it adds to the parameters.
             let mut picked: Option<Value> = None;
+            let mut focus_action = command.as_str() == "mail.deletePermanently";
             // (A batch's list is as wide as a question with more than one way ahead.)
             let width = if ask.more.is_empty() && ask.listing.is_none() { 420.0 } else { 480.0 };
             let open = window(ctx, &ask.title, width, |ui| {
@@ -2890,7 +2891,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     app.hit.add("questionTick", 0, r.rect);
                 }
                 ui.add_space(6.0);
-                // Cancel is the one Enter and Escape reach: going ahead takes a deliberate click.
+                // Escape cancels. Delete Permanently focuses Delete once so Enter confirms it;
+                // every other question keeps going ahead as a deliberate click.
                 if answers_one_under_the_other(ui, &ask.action, &ask.more, ask.cancel.as_deref()) {
                     // Several ways of going ahead: one under the other, each saying what it does.
                     // (So is one the question's own width can't hold in a row: a row too wide for
@@ -2901,6 +2903,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         let answer = ui.add(egui::Button::new(label.as_str()).min_size(vec2(ui.available_width(), 28.0)));
                         if i == 0 {
                             app.hit.add("questionAction", 0, answer.rect);
+                            if std::mem::take(&mut focus_action) {
+                                answer.request_focus();
+                            }
                         }
                         if answer.clicked() {
                             picked = Some(with.clone());
@@ -2927,6 +2932,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         }
                         let action = ui.add(egui::Button::new(ask.action.as_str()).min_size(vec2(72.0, 26.0)));
                         app.hit.add("questionAction", 0, action.rect);
+                        if std::mem::take(&mut focus_action) {
+                            action.request_focus();
+                        }
                         if action.clicked() {
                             picked = Some(ask.with.clone());
                         }
