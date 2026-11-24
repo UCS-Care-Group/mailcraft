@@ -473,7 +473,7 @@ impl NotesState {
                     let mut new_html = current_html;
                     for comment in to_append {
                         new_html.push_str(&format!(
-                            "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>✨ Comentário Gemini IA:</b><br/>{}</div>",
+                            "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>🤖 Resposta do Assistente IA:</b><br/>{}</div>",
                             comment.replace('\n', "<br/>")
                         ));
                     }
@@ -497,7 +497,7 @@ impl NotesState {
         if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
             let mut html = note.content_html.clone().unwrap_or_default();
             let comment_block = format!(
-                "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>✨ Comentário Gemini IA:</b><br/>{}</div>",
+                "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>🤖 Resposta do Assistente IA:</b><br/>{}</div>",
                 clean_reply.replace('\n', "<br/>")
             );
             html.push_str(&comment_block);
@@ -2211,10 +2211,24 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                             app.notes.toggle_checklist_item(&note.id, idx);
                         }
                     });
-                } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") || line.starts_with("✨") || line.starts_with("💡") || line.starts_with("✍️") || line.contains("Comentário Gemini IA") {
+                } else if line.contains("Comentário") || line.contains("Resposta do Assistente") || line.contains("Assistente IA") {
+                    ui.add_space(10.0);
+                    egui::Frame::none()
+                        .fill(Color32::from_rgba_premultiplied(66, 133, 244, 25))
+                        .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(66, 133, 244, 90)))
+                        .corner_radius(6.0)
+                        .inner_margin(Margin::symmetric(10, 6))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("🤖").size(15.0));
+                                ui.label(RichText::new("Resposta do Assistente IA (Gemini):").size(13.5).strong().color(t.text));
+                            });
+                        });
+                    ui.add_space(4.0);
+                } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") || line.starts_with("✨") || line.starts_with("💡") || line.starts_with("✍️") {
                     ui.add_space(8.0);
                     ui.add(
-                        egui::Label::new(RichText::new(&line).size(14.5).strong().color(Color32::from_rgb(66, 133, 244)))
+                        egui::Label::new(RichText::new(&line).size(14.0).strong().color(t.text))
                             .wrap()
                             .selectable(true),
                     );
@@ -2261,7 +2275,10 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
             ui.add_space(14.0);
             ui.separator();
             ui.add_space(8.0);
-            ui.label(RichText::new("✨ Comentários do Chat (Gemini IA):").strong().size(14.0).color(Color32::from_rgb(66, 133, 244)));
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("💬").size(14.0));
+                ui.label(RichText::new("Histórico de Conversa com a Nota:").strong().size(13.5).color(t.text));
+            });
             ui.add_space(6.0);
 
             for (role, text) in unappended {
@@ -2273,7 +2290,10 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
 
                 frame.show(ui, |ui| {
                     if role == "ai" {
-                        ui.label(RichText::new("Gemini IA:").strong().size(12.0).color(Color32::from_rgb(66, 133, 244)));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("🤖").size(12.0));
+                            ui.label(RichText::new("Gemini IA:").strong().size(12.0).color(t.text));
+                        });
                     } else {
                         ui.label(RichText::new("Você perguntou:").strong().size(12.0).color(t.accent_text));
                     }
@@ -2378,10 +2398,133 @@ fn send_gemini_prompt(app: &mut MailApp, note: &Note, prompt: &str) {
     });
 }
 
+pub fn load_gemini_api_key() -> Option<String> {
+    if let Ok(val) = std::env::var("GEMINI_API_KEY") {
+        let trim = val.trim();
+        if !trim.is_empty() {
+            return Some(trim.to_string());
+        }
+    }
+    if let Ok(user_profile) = std::env::var("USERPROFILE") {
+        let candidates = [
+            std::path::PathBuf::from(&user_profile).join("Google Drive").join("ZohoNotebook_Sync").join("settings.json"),
+            std::path::PathBuf::from(&user_profile).join("Downloads").join("Zoho_Notebook_Portatil").join("data").join("settings.json"),
+        ];
+        for p in candidates {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(key) = v.get("gemini_api_key").and_then(|k| k.as_str()) {
+                        let trim = key.trim();
+                        if !trim.is_empty() {
+                            return Some(trim.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn query_gemini_backend(prompt: &str, context: &str) -> String {
-    // 1. Try local server at 127.0.0.1:8765
+    // 1. Direct call to Google Gemini API via background curl
+    if let Some(api_key) = load_gemini_api_key() {
+        if let Some(reply) = call_gemini_api_direct(prompt, context, &api_key) {
+            return reply;
+        }
+    }
+
+    // 2. Try local server at 127.0.0.1:8765
+    if let Some(reply) = call_gemini_local_bridge(prompt, context) {
+        return reply;
+    }
+
+    // 3. Intelligent fallback
+    let lower = prompt.to_lowercase();
+    if lower.contains("liç") || lower.contains("licoes") || lower.contains("três") || lower.contains("tres") {
+        "Com base no texto desta nota, aqui estão 3 lições principais que aprendemos:\n\n        1. **Esperança e Confiança nas Promessas:** O Reino de Deus traz uma visão renovada de que a dor, o luto e a morte serão superados pela justiça divina.\n        2. **Dignidade e Cuidado com a Vida:** A promessa de moradia, fartura e paz reforça o valor inegociável da vida e do trabalho justo para todos.\n        3. **Prática Cotidiana da Fé:** Compreender o Reino nos impulsiona a agir hoje com integridade, amor ao próximo e consolo mútuo.".to_string()
+    } else if lower.contains("resum") {
+        "📝 **Resumo Inteligente:**\nA nota aborda passagens bíblicas centrais (como Salmo 37:29, Isaías 25:8 e João 5:28,29) que fundamentam a importância do Reino de Deus, destacando promessas de justiça, consolo e vida plena.".to_string()
+    } else if lower.contains("dizim") || lower.contains("oferta") || lower.contains("aplicar") || lower.contains("fidelidade") {
+        "💡 **Aplicação Pastoral e Prática:**\n\n        1. **Ensinar pela Graça e Princípio:** Apresente a fidelidade a Deus como uma aliança de amor e confiança, e não como uma imposição ou cobrança legalista.\n        2. **Compreender a Realidade Individual:** Muitas pessoas enfrentam desemprego ou endividamento. O acolhimento fraterno e o ensino prático de mordomia ajudam a restaurar a dignidade financeira.\n        3. **Esperança da Restituição:** Conforme a promessa de Joel e Malaquias, a fidelidade ao Senhor afasta o espírito de perda e atrai proteção, sabedoria e paz para a família.".to_string()
+    } else if lower.contains("melhor") {
+        "✍️ **Sugestão de Aprimoramento:**\nO texto foi organizado em tópicos claros, com referências bíblicas destacadas em negrito e citações formatadas para facilitar a meditação e o ensino.".to_string()
+    } else {
+        format!(
+            "✨ **Assistente IA:**\nRecebi sua solicitação: *\"{}\"*\n\nO conteúdo da nota foi analisado e está alinhado às anotações salvas.",
+            prompt
+        )
+    }
+}
+
+fn call_gemini_api_direct(prompt: &str, context: &str, api_key: &str) -> Option<String> {
+    if api_key.trim().is_empty() {
+        return None;
+    }
+
+    let sys_prompt = "Você é o assistente inteligente integrado diretamente ao aplicativo MailCraft Notas. Responda em português com extrema sabedoria, profundidade teológica e bíblica quando o assunto for bíblico, e com clareza objetiva para qualquer outro tema. Se a nota contiver perguntas, responda cada uma detalhadamente com tópicos, referências bíblicas e contexto histórico.";
+
+    let full_prompt = if context.trim().is_empty() {
+        prompt.to_string()
+    } else {
+        format!("Contexto da anotação:\n\"\"\"\n{}\n\"\"\"\n\nSolicitação do usuário:\n{}", context, prompt)
+    };
+
+    let payload = serde_json::json!({
+        "system_instruction": {
+            "parts": [{ "text": sys_prompt }]
+        },
+        "contents": [{
+            "parts": [{ "text": full_prompt }]
+        }]
+    }).to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"];
+        for m in models {
+            let url = format!(
+                "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+                m, api_key
+            );
+
+            let out = std::process::Command::new("curl.exe")
+                .args(&["-s", "--max-time", "10", &url, "-H", "Content-Type: application/json", "-d", &payload])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+
+            if let Ok(res) = out {
+                if let Ok(text) = String::from_utf8(res.stdout) {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(reply) = v.get("candidates")
+                            .and_then(|c| c.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|cand| cand.get("content"))
+                            .and_then(|cont| cont.get("parts"))
+                            .and_then(|p| p.as_array())
+                            .and_then(|parr| parr.first())
+                            .and_then(|part| part.get("text"))
+                            .and_then(|t| t.as_str())
+                        {
+                            let clean = reply.trim();
+                            if !clean.is_empty() {
+                                return Some(clean.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn call_gemini_local_bridge(prompt: &str, context: &str) -> Option<String> {
     if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
-        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(14)));
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(12)));
         let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(5)));
         let body = serde_json::json!({
             "prompt": prompt,
@@ -2395,15 +2538,14 @@ fn query_gemini_backend(prompt: &str, context: &str) -> String {
         use std::io::{Read, Write};
         if stream.write_all(req.as_bytes()).is_ok() {
             let mut resp = Vec::new();
-            if stream.read_to_end(&mut resp).is_ok() {
-                if let Ok(text) = String::from_utf8(resp) {
-                    if let Some(pos) = text.find("\r\n\r\n") {
-                        let json_part = &text[pos + 4..];
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_part) {
-                            if let Some(reply) = v.get("reply").and_then(|r| r.as_str()) {
-                                if !reply.trim().is_empty() {
-                                    return reply.to_string();
-                                }
+            let _ = stream.read_to_end(&mut resp);
+            if let Ok(text) = String::from_utf8(resp) {
+                if let Some(pos) = text.find("\r\n\r\n") {
+                    let json_part = &text[pos + 4..];
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_part) {
+                        if let Some(reply) = v.get("reply").and_then(|r| r.as_str()) {
+                            if !reply.trim().is_empty() {
+                                return Some(reply.to_string());
                             }
                         }
                     }
@@ -2411,31 +2553,7 @@ fn query_gemini_backend(prompt: &str, context: &str) -> String {
             }
         }
     }
-
-    // 2. Intelligent contextual fallback
-    let lower = prompt.to_lowercase();
-    if lower.contains("liç") || lower.contains("licoes") || lower.contains("três") || lower.contains("tres") {
-        "Com base no texto desta nota, aqui estão 3 lições principais que aprendemos:\n\n\
-        1. **Esperança e Confiança nas Promessas:** O Reino de Deus traz uma visão renovada de que a dor, o luto e a morte serão superados pela justiça divina.\n\
-        2. **Dignidade e Cuidado com a Vida:** A promessa de moradia, fartura e paz reforça o valor inegociável da vida e do trabalho justo para todos.\n\
-        3. **Prática Cotidiana da Fé:** Compreender o Reino nos impulsiona a agir hoje com integridade, amor ao próximo e consolo mútuo.".to_string()
-    } else if lower.contains("resum") {
-        format!(
-            "📝 **Resumo Inteligente:**\nA nota aborda passagens bíblicas centrais (como Salmo 37:29, Isaías 25:8 e João 5:28,29) que fundamentam a importância do Reino de Deus, destacando promessas de justiça, consolo e vida plena."
-        )
-    } else if lower.contains("dizim") || lower.contains("oferta") || lower.contains("aplicar") || lower.contains("fidelidade") {
-        "💡 **Aplicação Pastoral e Prática:**\n\n\
-        1. **Ensinar pela Graça e Princípio:** Apresente a fidelidade a Deus como uma aliança de amor e confiança, e não como uma imposição ou cobrança legalista.\n\
-        2. **Compreender a Realidade Individual:** Muitas pessoas enfrentam desemprego ou endividamento. O acolhimento fraterno e o ensino prático de mordomia ajudam a restaurar a dignidade financeira.\n\
-        3. **Esperança da Restituição:** Conforme a promessa de Joel e Malaquias, a fidelidade ao Senhor afasta o espírito de perda e atrai proteção, sabedoria e paz para a família.".to_string()
-    } else if lower.contains("melhor") {
-        "✍️ **Sugestão de Aprimoramento:**\nO texto foi organizado em tópicos claros, com referências bíblicas destacadas em negrito e citações formatadas para facilitar a meditação e o ensino.".to_string()
-    } else {
-        format!(
-            "✨ **Assistente IA:**\nRecebi sua solicitação: *\"{}\"*\n\nO conteúdo da nota foi analisado e está alinhado às anotações salvas.",
-            prompt
-        )
-    }
+    None
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -295,6 +295,62 @@ fn query_gemini_adjustment_backend(
     subject: &str,
     body_snippet: &str,
 ) -> String {
+    // 0. Direct call to Google Gemini API via background curl
+    if let Some(api_key) = crate::notes_view::load_gemini_api_key() {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            let sys_prompt = "Você é o assistente executivo de e-mails do MailCraft. Sua única função é redigir respostas de e-mails profissionais, elegantes e completas com base nas instruções do usuário e no contexto do e-mail. Retorne somente o texto pronto do e-mail para envio. Nunca mencione que você é um aplicativo de anotações ou Notebook.";
+            let email_context = format!(
+                "Remetente: {}
+Assunto: {}
+Trecho do e-mail: {}
+Instrução: {}",
+                sender_full, subject, body_snippet, instruction
+            );
+            let payload = json!({
+                "system_instruction": { "parts": [{ "text": sys_prompt }] },
+                "contents": [{ "parts": [{ "text": email_context }] }]
+            }).to_string();
+
+            let models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"];
+            for m in models {
+                let url = format!(
+                    "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+                    m, api_key
+                );
+                let out = std::process::Command::new("curl.exe")
+                    .args(&["-s", "--max-time", "10", &url, "-H", "Content-Type: application/json", "-d", &payload])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+
+                if let Ok(res) = out {
+                    if let Ok(text) = String::from_utf8(res.stdout) {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                            if let Some(reply) = v.get("candidates")
+                                .and_then(|c| c.as_array())
+                                .and_then(|arr| arr.first())
+                                .and_then(|cand| cand.get("content"))
+                                .and_then(|cont| cont.get("parts"))
+                                .and_then(|p| p.as_array())
+                                .and_then(|parr| parr.first())
+                                .and_then(|part| part.get("text"))
+                                .and_then(|t| t.as_str())
+                            {
+                                let clean = reply.trim();
+                                if !clean.is_empty() {
+                                    return clean.to_string();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 1. Try local Gemini bridge endpoint if active
     if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:8765") {
         let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(18)));
