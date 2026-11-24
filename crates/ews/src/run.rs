@@ -792,6 +792,7 @@ pub async fn fetch_messages<E: HttpExchange>(
     let mut run = Run::new(client, exchange, cancel, wait);
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let mut outcome = Outcome::default();
+    log::info!("ews fetch: {} messages asked, one request each", request.ids.len().min(MAX_FETCH));
     for id in request.ids.iter().take(MAX_FETCH) {
         let op = GetItemMime::new(id);
         match run.ask(&op.element(), &|reply| op.answer(reply)).await {
@@ -819,5 +820,6 @@ pub async fn fetch_messages<E: HttpExchange>(
         }
     }
     out.errors = outcome.errors;
+    log::info!("ews fetch: {} fetched, {} missing, {} refused", out.fetched.len(), out.missing.len(), out.failed.len());
     out
 }
