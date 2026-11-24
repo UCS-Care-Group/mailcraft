@@ -1177,12 +1177,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     app.notes.poll_image_picker();
 
     // Check dropped image files from Windows Explorer / Desktop
+    #[cfg(not(target_arch = "wasm32"))]
     for f in ui.ctx().input(|i| i.raw.dropped_files.clone()) {
-        if let Some(path) = &f.path {
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-            if ["png", "jpg", "jpeg", "webp", "gif", "bmp"].contains(&ext.as_str()) {
-                app.notes.attach_image_from_path(path);
-            }
+        let path = f.path();
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if ["png", "jpg", "jpeg", "webp", "gif", "bmp"].contains(&ext.as_str()) {
+            app.notes.attach_image_from_path(path);
         }
     }
     if app.notes.cloud_syncing {
