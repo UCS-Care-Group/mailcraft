@@ -19767,6 +19767,342 @@ msgstr "Din egen nøkkel fjernes bare av deg, i vinduet"
 msgid "Your own name."
 msgstr "Ditt eget navn."
 
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Z on top"
+msgstr "Z øverst"
+
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Zoom"
+msgstr "Zoom"
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
+msgid "Zoom In"
+msgstr "Zoom inn"
+
+#. command label, interface
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
+msgid "Zoom Out"
+msgstr "Zoom ut"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Zoom the Message"
+msgstr "Zoom meldingen"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "[Draft]"
+msgstr "[Utkast]"
+
+#. interface
+#: crates/ui-egui/src/keep_offline.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "`account` is required"
+msgstr "`account` er påkrevd"
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "`answer.outcome` is read, missing, notPermitted, refused, approval or failed"
+msgstr "`answer.outcome` er read, missing, notPermitted, refused, approval eller failed"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "`minutes` is 1 to 10080"
+msgstr "`minutes` er 1 til 10080"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "`newMail` and `reminders` are true or false"
+msgstr "`newMail` og `reminders` er true eller false"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "`value` is true or false"
+msgstr "`value` er true eller false"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "`verified` is true or false"
+msgstr "`verified` er true eller false"
+
+#. what a command says
+#: crates/engine/src/cmd/senders.rs
+#, fuzzy
+msgid "a Microsoft or Exchange account sends from other addresses only as its server allows, which MailCraft doesn't ask for yet"
+msgstr "en Microsoft- eller Exchange-konto sender fra andre adresser bare slik serveren tillater, og det spør ikke MailCraft om ennå"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
+msgstr "en Microsoft-pålogging brukes bare med Microsofts egne e-postservere: denne kontoen oppgir en annen server"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a category needs a name"
+msgstr "en kategori trenger et navn"
+
+#. what a command says
+#: crates/model/src/rich.rs
+#, fuzzy
+msgid "a colour is written #rrggbb"
+msgstr "en farge skrives #rrggbb"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#, fuzzy
+msgid "a contact needs a name, a company or an e-mail address"
+msgstr "en kontakt trenger et navn, et firma eller en e-postadresse"
+
+#. what a command says
+#: crates/engine/src/cmd/keys.rs
+#, fuzzy
+msgid "a contact's card keeps at most 32 keys"
+msgstr "et kontaktkort har plass til høyst 32 nøkler"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't be put before itself"
+msgstr "en mappe kan ikke settes foran seg selv"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't move into itself"
+msgstr "en mappe kan ikke flyttes inn i seg selv"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder can't move to another account"
+msgstr "en mappe kan ikke flyttes til en annen konto"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder name can't contain /"
+msgstr "et mappenavn kan ikke inneholde /"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder needs a name"
+msgstr "en mappe trenger et navn"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "a message being written or waiting to be sent can't be snoozed"
+msgstr "en melding som skrives eller venter på å sendes, kan ikke utsettes"
+
+#. what a command says
+#: crates/model/src/pictures.rs
+#, fuzzy
+msgid "a picture in a message is a PNG, JPEG, GIF or WebP file"
+msgstr "et bilde i en melding er en PNG-, JPEG-, GIF- eller WebP-fil"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to mail in Junk E-mail"
+msgstr "en reaksjon sendes ikke til e-post i Søppelpost"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule can't move or copy mail to an Outbox: that would send it"
+msgstr "en regel kan ikke flytte eller kopiere e-post til en utboks: det ville sende den"
+
+#. what a command says
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "a task needs a title"
+msgstr "en oppgave trenger en tittel"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "add an account first"
+msgstr "legg til en konto først"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "add an account first (File › Add Account)"
+msgstr "legg til en konto først (Fil › Legg til konto)"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "add at least one recipient"
+msgstr "legg til minst én mottaker"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "an event needs a title"
+msgstr "en hendelse trenger en tittel"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "and"
+msgstr "og"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "body contains {words}"
+msgstr "brødteksten inneholder {words}"
+
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "calendar"
+msgstr "kalender"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "can't be done in the browser"
+msgstr "kan ikke gjøres i nettleseren"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "can't be read"
+msgstr "kan ikke leses"
+
+#. what a command says
+#: crates/engine/src/import_tree.rs
+#, fuzzy
+msgid "cancelled"
+msgstr "avlyst"
+
+#. what a command says
+#: crates/engine/src/cmd/send_later.rs
+#, fuzzy
+msgid "choose a time within a year"
+msgstr "velg et tidspunkt innen ett år"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "clear its categories"
+msgstr "fjern kategoriene"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "clear its flag"
+msgstr "fjern flagget"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "collected from mail"
+msgstr "samlet inn fra e-post"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "confidential"
+msgstr "fortrolig"
+
+#. what a command says
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "contact"
+msgstr "kontakt"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to a folder"
+msgstr "kopier den til en mappe"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder}"
+msgstr "kopier den til {folder}"
+
+#. name
+#: crates/model/src/calendar.rs
+#, fuzzy
+msgid "day"
+msgstr "dag"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "delete it"
+msgstr "slett den"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "due"
+msgstr "forfaller"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a password to sign in"
+msgstr "skriv inn et passord for å logge inn"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/password.rs
+#, fuzzy
+msgid "enter a user name to sign in"
+msgstr "skriv inn et brukernavn for å logge in"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it"
+msgstr "flagg den"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for next week"
+msgstr "flagg den for neste uke"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for this week"
+msgstr "flagg den for denne uken"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for today"
+msgstr "flagg den for i dag"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "flag it for tomorrow"
+msgstr "flagg den for i morgen"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
@@ -19822,6 +20158,60 @@ msgstr "Utboks"
 msgctxt "folder"
 msgid "Sent Items"
 msgstr "Sendt"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "high"
+msgstr "høy"
+
+#. interface
+#: crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "hours"
+msgstr "timer"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "iCloud"
+msgstr "iCloud"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "icloud.com, me.com and mac.com"
+msgstr "icloud.com, me.com og mac.com"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "imported"
+msgstr "importert"
+
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "incomplete"
+msgstr "uferdig"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is a meeting invitation or update"
+msgstr "er en møteinvitasjon eller oppdatering"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is an automatic reply"
+msgstr "er et automatisk svar"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "is flagged"
+msgstr "er flagget"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
