@@ -475,8 +475,14 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
+    let unified = mailcraft_engine::unified::of(&app.session);
     let scope = match app.session.view.scope {
         mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+        // Every account's folder of a kind in view (#625): those folders, or those mailboxes.
+        mailcraft_engine::Scope::Mailbox if unified.is_some() => tl!("All Accounts").to_string(),
+        mailcraft_engine::Scope::Folder | mailcraft_engine::Scope::Subfolders if let Some(kind) = unified => {
+            crate::nav::unified_name(kind).to_string()
+        }
         // The account in view, by the name the folder pane gives it (#493).
         mailcraft_engine::Scope::Mailbox => folder
             .and_then(|f| mb.account(f.account))
@@ -800,10 +806,14 @@ fn shows_folder(s: &mailcraft_engine::Session) -> bool {
     s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
 
-/// Whether the list may hold mail of more than one account: a search of every mailbox, with more
-/// than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
+/// Whether the list may hold mail of more than one account: every account's Inbox and the like
+/// (#625), or a search of every mailbox, with more than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
 /// owner knows whose mail it is, and the rows stay as they were.
 fn mixes_accounts(s: &mailcraft_engine::Session) -> bool {
+    // (Or every account's folder of a kind, #625.)
+    if mailcraft_engine::unified::of(s).is_some() {
+        return true;
+    }
     s.view.scope == mailcraft_engine::Scope::Everywhere
         && s.mailbox.accounts.len() > 1
         && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
@@ -1215,7 +1225,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // width, as for the size; tags that don't fit go into "+N", and that too when it doesn't.
     let (labels, labels_more) = list_labels(&app.session, &m);
     let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
-    let shown_folder = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten();
+    // In every account's Inbox (#625), the account it is in, where a search names the folder.
+    let unified = mailcraft_engine::unified::of(&app.session).is_some();
+    let shown_folder = (shows_folder(&app.session) || elsewhere || unified).then(|| app.session.mailbox.folder(m.folder)).flatten();
     let tail_after = shown_folder.map_or(0.0, |_| FOLDER_W + 6.0)
         + m.categories.len().min(4) as f32 * 13.0
         + if conversation { row.size().to_string().len() as f32 * 6.5 + 15.0 } else { 0.0 };
@@ -1263,7 +1275,11 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     }
     // (And under an open conversation, a message of another folder: a reply in Sent Items, #503.)
     if let Some(folder) = shown_folder {
-        let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
+        let mb = &app.session.mailbox;
+        let label = match mb.account(folder.account).filter(|_| unified && !elsewhere && !shows_folder(&app.session)) {
+            Some(a) => crate::nav::account_label(a),
+            None => crate::nav::result_folder_label(mb, folder),
+        };
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
