@@ -789,6 +789,13 @@ pub(crate) enum Saving {
 }
 
 impl Compose {
+    /// Pictures still referenced by the text, including signature pictures; deleted pictures
+    /// retained only for Undo do not count.
+    pub fn has_pictures(&self) -> bool {
+        let held = self.body.text().pictures();
+        self.pictures.iter().any(|p| held.contains(&p.id)) || self.signature.as_ref().is_some_and(|s| s.pictures.iter().any(|p| held.contains(&p.id)))
+    }
+
     /// Whether the signature in the message is still the one that went in.
     pub fn signature_unedited(&self) -> bool {
         self.signature.as_ref().is_some_and(|inserted| self.body.text().signature().as_ref() == Some(&inserted.text))

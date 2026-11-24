@@ -238,9 +238,7 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     if let Some(warning) = app.session.compose.as_ref().map(|c| c.signature_file_warning.clone()).filter(|w| !w.is_empty()) {
         ui.colored_label(t.orange, warning);
     }
-    if app.session.compose.as_ref().is_some_and(|c| {
-        c.format == mailcraft_engine::BodyFormat::Plain && (c.signature.as_ref().is_some_and(|s| !s.pictures.is_empty()) || !c.pictures.is_empty())
-    }) {
+    if app.session.compose.as_ref().is_some_and(|c| c.format == mailcraft_engine::BodyFormat::Plain && c.has_pictures()) {
         ui.horizontal_wrapped(|ui| {
             ui.colored_label(t.orange, tl!("Pictures are not included in plain-text messages. Switch to HTML to include them."));
             if ui.button(tl!("Switch to HTML")).clicked() {

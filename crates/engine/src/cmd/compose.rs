@@ -1191,7 +1191,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         },
         pictures,
         picture_seq,
-        format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
+        format: if m.body.html.is_some() && !(m.draft && m.draft_plain) { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments,
         importance: m.importance,
@@ -1306,9 +1306,10 @@ fn signature(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no signature named \"{name}\"", name));
     }
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
-    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply)
-        .ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
+    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply);
     let warning = signature_file_warning(s);
+    let sig =
+        sig.ok_or_else(|| if warning.is_empty() { fail("this account has no signature; add one in File › Options") } else { fail(warning.clone()) })?;
     let c = compose_mut(s)?;
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
@@ -1814,6 +1815,15 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     let old = c.draft.and_then(|d| s.loaded_message(d).ok().map(|m| Message::clone(&m)).or_else(|| s.mailbox.message(d).cloned()));
     let mut m = build_as(s, &c, false, old.as_ref().map(|o| o.message_id.as_str()).filter(|id| !id.is_empty()))?;
     m.draft = true;
+    // A draft is editable state, not the outgoing plain-text representation. Keep its pictures
+    // and positions without changing the format chosen by the owner. Send always uses build_as
+    // with the original Compose, so draft-only pictures never leak into a plain-text send.
+    if c.format == BodyFormat::Plain && c.has_pictures() {
+        let html = Compose { format: BodyFormat::Html, ..c.clone() };
+        m.body = body_of(&html, &m.message_id);
+        m.attachments = attachments_of(&html, &m.message_id);
+        m.draft_plain = true;
+    }
     // A reply or forward kept as a draft still knows its original, to be marked once it is sent.
     m.answers = answers_of(s, &c).or_else(|| old.as_ref().and_then(|o| o.answers.clone()));
     m.folder = s.mailbox.folder_of_kind(m.account, FolderKind::Drafts).ok_or_else(|| fail("this account has no Drafts folder"))?;

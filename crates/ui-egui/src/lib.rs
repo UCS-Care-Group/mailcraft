@@ -2273,7 +2273,10 @@ impl MailApp {
                 && (value.path.is_empty() || std::path::Path::new(&value.path).is_absolute())
         });
         if self.ui.signature_files.len() > 200 {
-            self.ui.signature_files.clear();
+            let mut keys: Vec<String> = self.ui.signature_files.keys().cloned().collect();
+            keys.sort();
+            keys.truncate(200);
+            self.ui.signature_files.retain(|key, _| keys.binary_search(key).is_ok());
         }
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);

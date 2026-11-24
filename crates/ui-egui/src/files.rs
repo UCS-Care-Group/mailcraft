@@ -265,11 +265,15 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     }
     let r = match d.after {
         AfterPick::SignatureFile { name, key } => {
-            if crate::signature_files::key_for_name(app, &name).as_deref() != Some(key.as_str()) {
+            let result = if crate::signature_files::key_for_name(app, &name).as_deref() != Some(key.as_str()) {
                 Err(tl!("The signature changed while the signature file picker was open.").to_string())
             } else {
                 app.execute("ui.signatureFile", json!({"name": name, "path": path}))
+            };
+            if let Err(why) = &result {
+                crate::signatures::refuse(app, why.clone());
             }
+            result
         }
         AfterPick::Open(purpose, asking) => opened_path(app, &purpose, &path, asking),
         AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),

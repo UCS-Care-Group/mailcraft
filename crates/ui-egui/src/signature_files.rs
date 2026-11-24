@@ -38,6 +38,7 @@ enum HistoryAction {
 
 pub(crate) struct Change {
     key: Option<String>,
+    created: Option<String>,
     step: Option<std::sync::Weak<()>>,
     moved: u64,
 }
@@ -46,6 +47,12 @@ pub(crate) fn before_command(app: &MailApp, id: &str, p: &Value) -> Change {
     Change {
         key: matches!(id, "signature.rename" | "signature.remove")
             .then(|| p.get("name").and_then(Value::as_str).and_then(|name| key_for_name(app, name)))
+            .flatten(),
+        created: (id == "signature.set")
+            .then(|| {
+                let name = mailcraft_model::clean_name(p.get("name")?.as_str()?)?;
+                app.session.mailbox.signature(&name).is_none().then_some(name)
+            })
             .flatten(),
         step: matches!(id, "edit.undo" | "edit.redo").then(|| app.session.undo_token(id == "edit.redo")).flatten(),
         moved: app.session.undo_steps_moved(),
@@ -99,6 +106,13 @@ pub(crate) fn after_command(app: &mut MailApp, id: &str, p: &Value, change: Chan
         };
         if let Some(token) = app.session.undo_token(false) {
             app.signature_file_history.0.push(HistoryEntry { token, action });
+        }
+    } else if let Some(key) = change.created.and_then(|name| key_for_name(app, &name)) {
+        // Undoing creation must detach files chosen later, while Redo restores only this
+        // signature's binding. A replacement with the same name starts without an alias.
+        app.ui.signature_files.remove(&key);
+        if let Some(token) = app.session.undo_token(false) {
+            app.signature_file_history.0.push(HistoryEntry { token, action: HistoryAction::Remove { key, source: None } });
         }
     }
     app.signature_file_preview = None;
@@ -201,7 +215,19 @@ fn configure(app: &mut MailApp, id: &str, p: &Value) -> Result<Value, String> {
         }
         value.path = path.to_string();
     }
-    if app.ui.signature_files.len() >= 200 && !app.ui.signature_files.contains_key(&key) {
+    // A removed/undone signature can reclaim its slot through Undo/Redo. Reserve those slots
+    // so restoring a step cannot exceed the same limit used when loading preferences.
+    let reserved: std::collections::HashSet<&String> = app
+        .signature_file_history
+        .0
+        .iter()
+        .filter(|entry| entry.token.strong_count() > 0)
+        .filter_map(|entry| match &entry.action {
+            HistoryAction::Remove { key, source: Some(_) } if !app.ui.signature_files.contains_key(key) => Some(key),
+            _ => None,
+        })
+        .collect();
+    if app.ui.signature_files.len().saturating_add(reserved.len()) >= 200 && !app.ui.signature_files.contains_key(&key) && !reserved.contains(&key) {
         return Err("too many signature file settings".into());
     }
     app.ui.signature_files.insert(key, value.clone());
