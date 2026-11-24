@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 private val Gutter = 16.dp
 
 /** What the list screen asks of the app. */
+@Suppress("LongParameterList")
 internal class MailListActions(
     val onSearch: (String) -> Unit,
     val onEverywhere: (Boolean) -> Unit,
@@ -54,11 +55,19 @@ internal class MailListActions(
     val onNoticeShown: (Int) -> Unit,
     /** A row was tapped: open its message. */
     val onOpen: (InboxRow) -> Unit = {},
+    /** Reply to a message (continue it, in Drafts), from the row's actions. */
+    val onReply: (InboxRow) -> Unit = {},
 ) {
     /** These actions with a tap on a row doing [open]. */
     fun withOpen(open: (InboxRow) -> Unit) = MailListActions(
         onSearch, onEverywhere, onFilter, onConversations, onSplit, onRefresh, onRange, onTriage, onUndo,
-        onNoticeShown, open,
+        onNoticeShown, open, onReply,
+    )
+
+    /** These actions with Reply on a row doing [reply]. */
+    fun withReply(reply: (InboxRow) -> Unit) = MailListActions(
+        onSearch, onEverywhere, onFilter, onConversations, onSplit, onRefresh, onRange, onTriage, onUndo,
+        onNoticeShown, onOpen, reply,
     )
 
     companion object {
@@ -78,7 +87,7 @@ internal class MailListContext(
 )
 
 /**
- * The Mail tab's list: a bar with the search and the funnel, the Inbox split's tabs, how fresh the
+ * The Mail tab's list: the filter chips (search and funnel are in the top bar), the Inbox split's tabs, how fresh the
  * list is, and the rows. A row swipes (the two actions the owner chose) and a long press opens all
  * its actions; the list is pulled down to check for mail.
  */
@@ -162,7 +171,7 @@ private fun Rows(context: MailListContext, ui: MailListUi, actions: MailListActi
         }
     }
     menuFor?.let { row ->
-        RowActionsSheet(context, row, actions.onTriage) { menuFor = null }
+        RowActionsSheet(context, row, actions.onTriage, actions.onReply) { menuFor = null }
     }
 }
 
