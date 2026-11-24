@@ -410,18 +410,15 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
-    let marker = e(s.interface_language.t(ORIGINAL));
     let mut out = String::from(QUOTE_MARK);
-    out.push_str("<br><div><b>----- ");
-    out.push_str(&marker);
-    out.push_str(" -----</b><br>\r\n");
-    out.push_str(&format!("<b>{from}</b> {}<br>\r\n", e(&m.from.full())));
-    out.push_str(&format!("<b>{sent}</b> {}<br>\r\n", e(&sent_on(s, m))));
+    out.push_str("<hr style=\"border:none;border-top:solid #E1E1E1 1.0pt\"><div>");
+    out.push_str(&format!("<b>{from}</b> {}<br>", e(&m.from.full())));
+    out.push_str(&format!("<b>{sent}</b> {}<br>", e(&sent_on(s, m))));
     if !m.to.is_empty() {
-        out.push_str(&format!("<b>{to}</b> {}<br>\r\n", e(&quoted_list(&m.to))));
+        out.push_str(&format!("<b>{to}</b> {}<br>", e(&quoted_list(&m.to))));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("<b>{cc}</b> {}<br>\r\n", e(&quoted_list(&m.cc))));
+        out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
@@ -561,24 +558,14 @@ fn rich_from_html_candidates(
             return Some(id);
         }
         let a = match_attachment(candidates, &img.cid)?;
-        if mailcraft_model::pictures::picture_mime(&a.data).is_none() {
-            return None;
-        }
+        mailcraft_model::pictures::picture_mime(&a.data)?;
         if let Some(existing) = pictures.iter().find(|p| p.data.as_slice() == a.data.as_slice()) {
             cid_map.insert(img.cid.clone(), existing.id);
             held.insert(existing.id);
             return Some(existing.id);
         }
         let name = if a.name.is_empty() { "picture.png" } else { &a.name };
-        let id = mailcraft_model::pictures::add(
-            pictures,
-            picture_seq,
-            &held,
-            name,
-            a.data.to_vec(),
-            Some(&img.alt),
-            img.width,
-        ).ok()?;
+        let id = mailcraft_model::pictures::add(pictures, picture_seq, &held, name, a.data.to_vec(), Some(&img.alt), img.width).ok()?;
         held.insert(id);
         cid_map.insert(img.cid.clone(), id);
         Some(id)
@@ -645,39 +632,26 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
+    // An original in HTML is carried below with its look; one in plain text is quoted in the body.
+    let quote = match &m.body.html {
+        Some(html) if quoting => {
+            let (html, written) = quoted_html(s, &m, html);
+            let text = quote_text(s.interface_language.t(ORIGINAL), &html);
+            // The pictures the quote still shows: not those of what was left out of it. (A
+            // forward carries the original's own as its attachments.) And those written into
+            // the original, which go with both (#602).
+            let mut pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
+            pictures.extend(written);
+            Some(Quote { text, html, pictures })
+        }
+        _ => None,
+    };
+    let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
     // From the address the original was sent to (#797).
     let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
-
-    let mut pictures: Vec<Picture> = Vec::new();
-    let mut picture_seq: u32 = 0;
-    let quoted_rich = if quoting {
-        if let Some(html) = &m.body.html {
-            let (html, written) = quoted_html(s, &m, html);
-            let candidates: Vec<&Attachment> = written.iter().chain(m.attachments.iter()).collect();
-            let body_pics = std::collections::HashSet::new();
-            let rich = rich_from_html_candidates(&html, &candidates, &mut pictures, &mut picture_seq, &body_pics);
-            Some(rich)
-        } else {
-            let text = quoted(s, &m);
-            Some(mailcraft_model::RichText::from_plain(text.trim_start_matches('\n')))
-        }
-    } else {
-        None
-    };
-
-    let mut body_rich = mailcraft_model::RichText::from_plain("\n");
-    if let Some(qr) = quoted_rich {
-        let _ = body_rich.insert_rich(1, &qr);
-    }
-
-    let referenced: std::collections::HashSet<u32> = body_rich.pictures().into_iter().collect();
-    let held_pic_data: Vec<&[u8]> = pictures.iter().filter(|p| referenced.contains(&p.id)).map(|p| p.data.as_slice()).collect();
-    let attachments = if mode == ComposeMode::Forward {
-        m.attachments.iter().filter(|a| !held_pic_data.iter().any(|d| *d == a.data.as_slice())).cloned().collect()
-    } else {
-        Vec::new()
-    };
+    // A line to write on, a blank one, then the signature above the original.
+    let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
 
     let mut c = Compose {
         mode,
@@ -687,15 +661,13 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         to: format_list(&to),
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
-        body: RichBody::new(body_rich),
+        body: RichBody::from_plain(&body),
         // A reply is written the way the original was: HTML to HTML, plain text to plain text.
         format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
-        quote: None,
-        attachments,
+        quote,
+        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
-        pictures,
-        picture_seq,
         ..Default::default()
     };
     if let Some(sig) = &sig {

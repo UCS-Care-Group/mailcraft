@@ -4999,6 +4999,11 @@ msgid "Edit Message"
 msgstr "Üzenet szerkesztése"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Quoted Message as Text"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -11496,8 +11501,8 @@ msgstr "Szervező: saját naptár"
 msgid "Organizer: {name}"
 msgstr "Szervező: {name}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Original message"
 msgstr "Eredeti üzenet"
@@ -12677,6 +12682,11 @@ msgstr "Kép eltávolítása"
 #, fuzzy
 msgid "Remove Public Key"
 msgstr "A nyilvános kulcs eltávolítása"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Remove Quoted Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

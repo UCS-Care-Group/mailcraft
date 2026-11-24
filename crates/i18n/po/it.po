@@ -4999,6 +4999,11 @@ msgid "Edit Message"
 msgstr "Modifica messaggio"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Quoted Message as Text"
+msgstr "Modifica cronologia come testo"
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -11496,8 +11501,8 @@ msgstr "Organizzatore: il proprio calendario"
 msgid "Organizer: {name}"
 msgstr "Organizzatore: {name}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Original message"
 msgstr "Messaggio originale"
@@ -12671,6 +12676,11 @@ msgstr "Rimuovi immagine"
 #, fuzzy
 msgid "Remove Public Key"
 msgstr "Rimuovi chiave pubblica"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Remove Quoted Message"
+msgstr "Rimuovi cronologia"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25886,18 +25896,12 @@ msgstr "−Righe"
 #~ msgstr[0] "{n} messaggio verrà eliminato definitivamente."
 #~ msgstr[1] "{n} messaggi verranno eliminati definitivamente."
 
-msgid "Edit as text"
-msgstr "Modifica come testo"
+#~ msgid "Edit as text"
+#~ msgstr "Modifica come testo"
 
-msgid "Remove quoted conversation from this reply"
-msgstr "Rimuovi la conversazione precedente da questa risposta"
+#~ msgid "Remove quoted conversation from this reply"
+#~ msgstr "Rimuovi la conversazione precedente da questa risposta"
 
-msgid "Convert quoted message to editable text to delete or change parts of it"
-msgstr "Converti la conversazione precedente in testo modificabile per eliminarne o cambiarne delle parti"
-
-msgid "Remove Quoted Message"
-msgstr "Rimuovi cronologia"
-
-msgid "Edit Quoted Message as Text"
-msgstr "Modifica cronologia come testo"
+#~ msgid "Convert quoted message to editable text to delete or change parts of it"
+#~ msgstr "Converti la conversazione precedente in testo modificabile per eliminarne o cambiarne delle parti"
 

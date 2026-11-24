@@ -50,8 +50,9 @@ pub fn mark_unreadable(mb: &mut Mailbox) -> usize {
             && !m.draft
             && !m.unfetched
             && !m.incomplete
+            && m.not_downloaded == 0
             && m.moving_out.is_none();
-        if candidate && (unreadable(m) || m.not_downloaded > 0 || m.has_header(NOT_DOWNLOADED)) {
+        if candidate && unreadable(m) {
             std::sync::Arc::make_mut(m).refetch = true;
             marked = marked.saturating_add(1);
         }

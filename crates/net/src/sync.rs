@@ -1891,7 +1891,9 @@ mod tests {
         );
         assert_eq!((m.read, m.flag, m.date, m.received), (true, FlagStatus::Flagged, 1_057_049_557, 1_057_053_157));
         assert!(
-            m.body.text.starts_with("This message is too large to download: it is 161 MB on the server, and MailCraft takes messages of up to 150 MB.")
+            m.body
+                .text
+                .starts_with("This message is too large to download: it is 161 MB on the server, and MailCraft takes messages of up to 150 MB.")
         );
         assert!(m.body.html.is_none() && m.attachments.is_empty());
         // Its mark says how large it is, once: a sender can't plant another.

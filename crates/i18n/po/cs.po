@@ -5001,6 +5001,11 @@ msgid "Edit Message"
 msgstr "Upravit zprávu"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Quoted Message as Text"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -11518,8 +11523,8 @@ msgstr "Organizátor: váš vlastní kalendář"
 msgid "Organizer: {name}"
 msgstr "Organizátor: {name}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Original message"
 msgstr "Původní zpráva"
@@ -12701,6 +12706,11 @@ msgstr "Odebrat obrázek"
 #, fuzzy
 msgid "Remove Public Key"
 msgstr "Odebrat veřejný klíč"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Remove Quoted Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

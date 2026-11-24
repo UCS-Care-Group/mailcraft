@@ -4723,6 +4723,11 @@ msgid "Edit Message"
 msgstr "Nachricht bearbeiten"
 
 #. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Edit Quoted Message as Text"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -10760,8 +10765,8 @@ msgstr "Organisator: Ihr eigener Kalender"
 msgid "Organizer: {name}"
 msgstr "Organisator: {name}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Original message"
 msgstr "Ursprüngliche Nachricht"
@@ -11859,6 +11864,11 @@ msgstr "Bild entfernen"
 #: crates/engine/src/cmd/keys.rs
 msgid "Remove Public Key"
 msgstr "Öffentlichen Schlüssel entfernen"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+msgid "Remove Quoted Message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs

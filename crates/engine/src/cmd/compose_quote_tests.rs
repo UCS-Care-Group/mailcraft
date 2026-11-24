@@ -37,4 +37,3 @@ fn match_attachment_resolves_bracketed_percent_and_filename() {
     assert_eq!(match_attachment(&candidates, "photo-unique").map(|a| a.name.as_str()), Some("photo.jpg"));
     assert_eq!(match_attachment(&candidates, "photo.jpg").map(|a| a.name.as_str()), Some("photo.jpg"));
 }
-
