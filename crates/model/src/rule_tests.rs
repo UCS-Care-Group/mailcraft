@@ -334,22 +334,23 @@ fn body_pattern_caps_text_to_max_length() {
     // Create a pattern that looks for text at a specific position
     let pattern = Pattern::new(r"ZZZ".to_string()).unwrap();
 
-    // Body with "ZZZ" at position 5000 (within cap)
+    // Body with "ZZZ" at position 5000 (within cap of 10000 chars)
     let short_body = "a".repeat(4997) + "ZZZ";
     let m = Message { body: Body { text: short_body, html: None }, ..Default::default() };
     assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern should match within cap");
 
-    // Body with "ZZZ" at position 15000 (beyond cap)
+    // Body with 15000 chars - "ZZZ" is at position 15000 which is beyond cap (10000 chars)
+    // The body doesn't contain "ZZZ" in the first 10000 chars, so it shouldn't match
     let long_body = "a".repeat(15000);
     let m = Message { body: Body { text: long_body, html: None }, ..Default::default() };
     assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern beyond cap should not match");
 
-    // Body with "ZZZ" at position 5000 within a 15000 char body (the first 10000 chars)
+    // Body with "ZZZ" at position 5000 within a 15000 char body (the first 10000 chars contain "ZZZ")
     let mixed_body = "a".repeat(5000) + "ZZZ" + &"b".repeat(9999);
     let m = Message { body: Body { text: mixed_body, html: None }, ..Default::default() };
     assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern in first 10000 chars should match");
 
-    // Verify hidden text is also capped
+    // Verify hidden text is also capped - hidden text with "ZZZ" at position 5000 matches
     let hidden_with_zzz = "a".repeat(5000) + "ZZZ" + &"c".repeat(5000);
     let m = Message { body: Body { text: "short body".to_string(), html: None }, hidden_text: hidden_with_zzz, ..Default::default() };
     assert!(Condition::BodyMatches(pattern).matches(&m), "Hidden text within cap should match");

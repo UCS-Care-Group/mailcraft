@@ -4858,10 +4858,10 @@ impl Mailbox {
             let mut compile_errors = 0;
             for rule in &mut self.rules {
                 for cond in &mut rule.conditions {
-                    if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
-                        if !p.ensure_compiled() {
-                            compile_errors += 1;
-                        }
+                    if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond
+                        && !p.ensure_compiled()
+                    {
+                        compile_errors += 1;
                     }
                 }
             }
@@ -4877,14 +4877,19 @@ impl Mailbox {
         let mut removed = 0;
         let mut compiled_kept = 0;
         let target_compiled = MAX_PATTERN_CONDITIONS;
+        let mut compile_errors = 0;
 
         for rule in &mut self.rules {
             for cond in &mut rule.conditions {
                 if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
                     if compiled_kept < target_compiled {
                         // Keep this pattern compiled (compile if not already)
-                        p.ensure_compiled();
-                        compiled_kept += 1;
+                        if !p.ensure_compiled() {
+                            // This pattern is within budget but failed to compile
+                            compile_errors += 1;
+                        } else {
+                            compiled_kept += 1;
+                        }
                     } else {
                         // Over budget - uncompile this pattern
                         p.uncompile();
@@ -4896,6 +4901,9 @@ impl Mailbox {
 
         if removed > 0 {
             fixed.push(format!("pattern conditions uncompiled in rules to stay within {MAX_PATTERN_CONDITIONS} limit"));
+        }
+        if compile_errors > 0 {
+            fixed.push(format!("{} patterns could not be compiled and will match nothing", compile_errors));
         }
 
         removed
