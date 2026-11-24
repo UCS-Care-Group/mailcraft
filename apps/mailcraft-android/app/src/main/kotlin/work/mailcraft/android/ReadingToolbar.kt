@@ -98,6 +98,9 @@ internal fun ReadingToolbar(
                 tools.onTriage(triage, picked)
                 if (triage.destructive) tools.onLeave()
             },
+            // The reading view opens the sheet only at a picker, never at its action list, so Reply
+            // is not offered here; the reply bar below the message does that.
+            onReply = { picker = null },
             onClose = { picker = null },
             start = page,
         )
