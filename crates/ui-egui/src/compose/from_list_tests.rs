@@ -93,4 +93,14 @@ fn many_sender_addresses_scroll_inside_the_window() {
     let items: Vec<_> = h.query_all_by_label_contains("@company.example").collect();
     assert!(!items.is_empty(), "From popup menu should list sender addresses");
     assert!(menu.height() <= 320.5 && menu.max.y <= screen.max.y, "From popup scroll area {menu:?} overflows window bottom {}", screen.max.y);
+    // Clicking the scrollbar area inside the popup keeps the menu open (`CloseOnClickOutside`).
+    let scrollbar_pos = egui::pos2(menu.max.x - 2.0, menu.center().y);
+    h.event(egui::Event::PointerMoved(scrollbar_pos));
+    h.step();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: scrollbar_pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(2);
+    assert!(h.state().hit.rect("composeFromMenu", 0).is_some(), "From popup menu stays open after clicking inside its scroll area");
 }
