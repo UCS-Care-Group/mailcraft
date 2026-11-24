@@ -37,10 +37,27 @@ impl Others {
     /// The account's own `INBOX` never is (RFC 3501).
     pub(crate) fn has(&self, mailbox: &Mailbox) -> bool {
         let raw = mailbox.raw.as_str();
-        !is_inbox(mailbox)
-            && self.prefixes.iter().any(|(prefix, delimiter)| {
-                raw.starts_with(prefix.as_str()) || delimiter.and_then(|d| prefix.strip_suffix(d)).is_some_and(|top| !top.is_empty() && raw == top)
-            })
+        !is_inbox(mailbox) && self.prefixes.iter().any(|(prefix, delimiter)| within(raw, prefix, *delimiter))
+    }
+}
+
+/// Whether the mailbox named `raw` is in the namespace of `prefix`, or is its top. RFC 2342
+/// doesn't make a prefix end with its delimiter, so a name is in it only at a part's edge:
+/// under `shared` (or `shared/`) with `/` are `shared` and `shared/bob/x`, never `shared-notes`
+/// or `shared2/x`. A namespace with no delimiter (NIL) is flat: it has no parts to tell an edge
+/// by, only the prefix, so every name that begins with the prefix is in it. That errs on the
+/// safe side: an account's own mailbox taken for another's only loses a standard job, while
+/// another's taken for the account's own could be filled with its sent mail or emptied as its
+/// Deleted Items.
+fn within(raw: &str, prefix: &str, delimiter: Option<char>) -> bool {
+    let Some(d) = delimiter else {
+        return raw.starts_with(prefix);
+    };
+    match prefix.strip_suffix(d) {
+        // `shared/`: everything under it, and `shared` itself.
+        Some(top) => raw.starts_with(prefix) || (!top.is_empty() && raw == top),
+        // `shared`: itself, and everything under `shared/`.
+        None => raw == prefix || raw.strip_prefix(prefix).is_some_and(|rest| rest.starts_with(d)),
     }
 }
 

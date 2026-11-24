@@ -381,3 +381,80 @@ fn a_refused_or_failed_namespace_question() {
     assert!(result.errors.iter().all(|e| e.starts_with("Couldn't ask the server which folders are other people's")), "{:?}", result.errors);
     assert!(result.listed.is_empty());
 }
+
+/// A namespace whose prefix doesn't end with its delimiter (RFC 2342 doesn't ask it to): with
+/// `shared` and `/`, the account's own `shared-notes` and `shared2/x` are its own, keep their
+/// standard jobs and have nothing made above them; `shared` and `shared/bob/x` are another's.
+#[test]
+fn a_prefix_without_its_delimiter_takes_in_only_what_is_under_it() {
+    use mailcraft_proto::imap::{Namespace, Namespaces};
+    let others = Others::of(&Namespaces {
+        personal: vec![Namespace { prefix: String::new(), delimiter: Some('/') }],
+        other_users: vec![Namespace { prefix: "shared".into(), delimiter: Some('/') }],
+        shared: vec![Namespace { prefix: "#flat.".into(), delimiter: None }],
+    });
+    let one = |name: &str, flag: &str| Mailbox { name: name.into(), raw: name.into(), delimiter: Some('/'), flags: vec![flag.into()] };
+    let mailboxes = [
+        one("INBOX", "\\HasNoChildren"),
+        one("shared/bob/Sent", "\\Sent"),
+        one("shared-notes", "\\Sent"),
+        one("shared2/x", "\\Trash"),
+        one("shared", "\\Drafts"),
+        one("sharedDrafts", "\\Drafts"),
+        one("#flat.Junk", "\\Junk"),
+        one("#flatter", "\\Junk"),
+    ];
+    let has = |name: &str| mailboxes.iter().find(|m| m.raw == name).is_some_and(|m| others.has(m));
+    for (name, theirs) in [
+        ("INBOX", false),
+        ("shared/bob/Sent", true),
+        ("shared", true),
+        ("shared-notes", false),
+        ("shared2/x", false),
+        ("sharedDrafts", false),
+        ("#flat.Junk", true),
+        ("#flatter", false),
+    ] {
+        assert_eq!(has(name), theirs, "{name}");
+    }
+    let plan = planned(&mailboxes, &[], false, &others);
+    let kind = |name: &str| plan.iter().find(|(m, _)| m.raw == name).map(|(_, kind)| *kind);
+    use FolderKind::*;
+    assert_eq!(kind("shared/bob/Sent"), Some(Custom));
+    assert_eq!(kind("shared-notes"), Some(Sent));
+    assert_eq!(kind("shared2/x"), Some(Deleted));
+    assert_eq!(kind("shared"), Some(Custom));
+    assert_eq!(kind("sharedDrafts"), Some(Drafts));
+    assert_eq!(kind("#flat.Junk"), Some(Custom));
+    assert_eq!(kind("#flatter"), Some(Junk));
+    // `shared/bob` is made to hold Bob's folder; nothing is made above the account's `shared2/x`.
+    let listed = listed(&plan, &others);
+    let at = |remote: &str| listed.iter().find(|f| f.remote == remote).map(|f| (f.parent.as_str(), f.name.as_str()));
+    assert_eq!(at("shared/bob/Sent"), Some(("shared/bob", "Sent")));
+    assert_eq!(at("shared/bob"), Some(("shared", "bob")));
+    assert_eq!(at("shared2/x"), Some(("", "shared2/x")));
+    assert_eq!(at("shared2"), None);
+    assert_eq!(at("shared-notes"), Some(("", "shared-notes")));
+}
+
+/// The same through a whole synchronisation, the server naming `shared` with no `/` at its end.
+#[test]
+fn a_server_naming_a_prefix_without_its_delimiter() {
+    let mut world = dovecot('/');
+    world.namespace_others = "((\"shared\" \"/\")) ((\"Public/\" \"/\"))".into();
+    world.mailboxes.push(mailbox("shared-notes", "\\HasNoChildren \\Drafts", &["Note"]));
+    world.mailboxes.push(mailbox("shared2", "\\HasChildren", &[]));
+    world.mailboxes.push(mailbox("shared2/x", "\\HasNoChildren \\Trash", &[]));
+    let imap = Fake::imap(world);
+    let result = sync(&request(&imap));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_whole(&result.listed, '/');
+    let tree = tree(&result.listed);
+    use FolderKind::*;
+    assert!(tree.contains(&("shared-notes", "", "shared-notes", Drafts)), "{tree:?}");
+    assert!(tree.contains(&("shared2", "", "shared2", Custom)), "{tree:?}");
+    assert!(tree.contains(&("shared2/x", "shared2", "x", Deleted)), "{tree:?}");
+    assert!(tree.contains(&("shared/bob", "shared", "bob", Custom)), "{tree:?}");
+    assert!(tree.contains(&("shared/alice/Sent", "shared/alice", "Sent", Custom)), "{tree:?}");
+    assert!(tree.contains(&("Sent", "", "Sent", Sent)), "{tree:?}");
+}
