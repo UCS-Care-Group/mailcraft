@@ -80,6 +80,8 @@ internal class ReadingController(
 
     /** The open message [id] was flagged or unflagged (null: unchanged) or marked read or unread, by the toolbar. */
     fun triaged(id: ULong, unread: Boolean? = null, flagged: Boolean? = null) {
+        // Marked unread on purpose: the next open reads it again.
+        if (unread == true) forget(id)
         state.update {
             val opened = it.opened
             if (it.id != id || opened == null) return@update it
