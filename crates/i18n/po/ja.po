@@ -475,13 +475,13 @@ msgstr "予定表の変更をまだ送信できませんでした。再試行さ
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
-msgstr "空き時間のみを表示する予定表には、コピーできる予定がありません。読み取り可能な予定表のいずれかを開いてください。"
+msgstr "空き時間情報 (予定ありの時間帯) のみを表示する予定表には、コピーできる予定がありません。読み取り可能な予定表のいずれかを開いてください。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has nothing that can be deleted."
-msgstr "空き時間のみを表示する予定表には、削除できるものがありません。"
+msgstr "空き時間情報 (予定ありの時間帯) のみを表示する予定表には、削除できるものがありません。"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -26722,7 +26722,7 @@ msgstr[0] "{n} 件選択中"
 #, fuzzy
 msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
 msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
-msgstr[0] "差出人 {n} 件を除外しました。サーバーが保証していないメール、迷惑メール内のメール、差出人に関する警告があるメール、または保証の有無が不明なメールです。"
+msgstr[0] "差出人 {n} 件を除外しました。サーバーが保証していないメール、迷惑メール内のメール、差出人に関する警告があるメール、または配信停止の方法が示されていないメールです。"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
