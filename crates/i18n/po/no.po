@@ -17367,6 +17367,762 @@ msgstr "Det er mer i denne digitale signaturen enn MailCraft sjekker for én mel
 msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
 msgstr "Det er ingen postkasse på {address}, eller kalenderen dens kan ikke nås gjennom Microsoft."
 
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "There's no mailbox at {address}."
+msgstr "Det er ingen postkasse på {address}."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Thesaurus"
+msgstr "Begrepsordbok"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These are meetings somebody else organizes; you are invited to them. Deleting them takes them out of your calendar only, and the organizer is not told that you won't come. Declining them tells the organizer, if you choose."
+msgstr "Dette er møter noen andre arrangerer; du er invitert til dem. Å slette dem tar dem bare ut av kalenderen din, og arrangøren får ikke vite at du ikke kommer. Avslår du dem, får arrangøren vite det hvis du velger det."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "These are the answers this computer has been told of."
+msgstr "Dette er svarene denne datamaskinen har fått vite om."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "These calendar items can't be shown to you as one batch, so nothing was asked or done."
+msgstr "Disse kalenderelementene kan ikke vises for deg som én samling, så ingenting ble spurt om eller gjort."
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "These contacts can't be merged here: fewer than two of them can be changed."
+msgstr "Disse kontaktene kan ikke flettes her: færre enn to av dem kan endres."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "These could not be removed. Remove them yourself:"
+msgstr "Disse kunne ikke fjernes. Fjern dem selv:"
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
+#, fuzzy
+msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
+msgstr "Disse oppgavene finnes bare på denne datamaskinen. Velg Microsoft-kontoen hvis To Do skal få dem. Til du velger, blir de liggende her og ingenting av dem sendes."
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
+#, fuzzy
+msgid "These tasks exist only on this computer. If you send them, they are kept in step with Microsoft To Do. Until you do, they stay here and nothing of them is sent. File › Info offers this again."
+msgstr "Disse oppgavene finnes bare på denne datamaskinen. Sender du dem, holdes de i takt med Microsoft To Do. Til du gjør det, blir de liggende her og ingenting av dem sendes. Fil › Info tilbyr dette igjen."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "These were left alone:"
+msgstr "Disse ble latt i fred:"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "They are on the web, and fetching them would tell the sender that you opened this message."
+msgstr "De ligger på nettet, og å hente dem ville fortelle avsenderen at du åpnet denne meldingen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "They are removed from the mail server too, and that can't be undone."
+msgstr "De fjernes fra e-postserveren også, og det kan ikke angres."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "They are removed from the mail server too."
+msgstr "De fjernes fra e-postserveren også."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "They are saved to a file you choose, which you attach to the issue on GitHub. They are never put in the link."
+msgstr "De lagres i en fil du velger, som du legger ved saken på GitHub. De settes aldri inn i lenken."
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "They share {what}."
+msgstr "De deler {what}."
+
+#. interface, name, ribbon
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "This Week"
+msgstr "Denne uken"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account does not use Google sign-in."
+msgstr "Denne kontoen bruker ikke Google-pålogging."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This account doesn't send mail from MailCraft, so it can't unsubscribe by mail."
+msgstr "Denne kontoen sender ikke e-post fra MailCraft, så den kan ikke meldes av på e-post."
+
+#. interface
+#: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "This account doesn't sign in with Microsoft"
+msgstr "Denne kontoen logger ikke inn med Microsoft"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This account has no mail server to send the answer through."
+msgstr "Denne kontoen har ingen e-postserver å sende svaret gjennom."
+
+#. interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/server_sync.rs crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "This account has no sign-in with Microsoft"
+msgstr "Denne kontoen har ingen pålogging med Microsoft"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account is no longer in the mailbox."
+msgstr "Denne kontoen er ikke i postkassen lenger."
+
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "This account may not change its categories through Microsoft Graph"
+msgstr "Denne kontoen kan ikke endre kategoriene sine gjennom Microsoft Graph"
+
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
+#, fuzzy
+msgid "This account may not change its rules on the server"
+msgstr "Denne kontoen kan ikke endre reglene sine på serveren"
+
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
+#, fuzzy
+msgid "This account may not use its to-dos through Microsoft Graph"
+msgstr "Denne kontoen kan ikke bruke oppgavene sine gjennom Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account no longer uses an app password"
+msgstr "Denne kontoen bruker ikke app-passord lenger"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account was added by a newer version of MailCraft. This version keeps it as it is and doesn't send or receive with it: use the newer version for that, and to change its settings."
+msgstr "Denne kontoen ble lagt til av en nyere versjon av MailCraft. Denne versjonen beholder den som den er og sender eller mottar ikke med den: bruk den nyere versjonen til det, og til å endre innstillingene."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account was removed before Google sign-in began"
+msgstr "Denne kontoen ble fjernet før Google-påloggingen begynte"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This account was removed while Google sign-in was open"
+msgstr "Denne kontoen ble fjernet mens Google-påloggingen var åpen"
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "This attachment could not be previewed."
+msgstr "Dette vedlegget kunne ikke forhåndsvises."
+
+#. interface
+#: crates/ui-egui/src/attachment_preview.rs
+#, fuzzy
+msgid "This attachment is too large to preview."
+msgstr "Dette vedlegget er for stort til å forhåndsvises."
+
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
+#, fuzzy
+msgid "This build can't ask a server when other people are busy: only your own calendar is shown."
+msgstr "Denne byggingen kan ikke spørre en server om når andre er opptatt: bare din egen kalender vises."
+
+#. interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "This build can't connect to Microsoft"
+msgstr "Denne byggingen kan ikke koble til Microsoft"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/sending.rs
+#, fuzzy
+msgid "This build can't connect to mail servers"
+msgstr "Denne byggingen kan ikke koble til e-postservere"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "This build can't connect to mail servers (a browser can't open mail connections). Use the desktop app, or bring mail in with File › Import."
+msgstr "Denne byggingen kan ikke koble til e-postservere (en nettleser kan ikke åpne e-postforbindelser). Bruk skrivebordsappen, eller hent inn e-post med Fil › Importer."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This build can't connect to mail servers, so the settings were kept without being tried. Bring mail in with File › Import, or use the desktop app."
+msgstr "Denne byggingen kan ikke koble til e-postservere, så innstillingene ble beholdt uten å prøves. Hent inn e-post med Fil › Importer, eller bruk skrivebordsappen."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This build can't connect to mail servers. The account can still be added."
+msgstr "Denne byggingen kan ikke koble til e-postservere. Kontoen kan likevel legges til."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This build can't connect to mail servers. Use the desktop app to add an Exchange server account."
+msgstr "Denne byggingen kan ikke koble til e-postservere. Bruk skrivebordsappen for å legge til en Exchange-serverkonto."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+msgstr "Denne byggingen kan ikke koble til e-postservere. Bruk skrivebordsappen, eller hent inn e-post med Fil › Importer."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "This build can't download pictures"
+msgstr "Denne byggingen kan ikke laste ned bilder"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "This build can't download pictures: they stay placeholders."
+msgstr "Denne byggingen kan ikke laste ned bilder: de blir stående som plassholdere."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This build can't look anything up. Type the server's address in Server settings."
+msgstr "Denne byggingen kan ikke slå noe opp. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "This build can't make a link for an administrator."
+msgstr "Denne byggingen kan ikke lage en lenke til en administrator."
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "This build can't open Microsoft's approval page. Copy the message for an administrator instead."
+msgstr "Denne byggingen kan ikke åpne godkjenningssiden til Microsoft. Kopier meldingen til en administrator i stedet."
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "This build can't reach the account's calendar."
+msgstr "Denne byggingen når ikke kalenderen til kontoen."
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "This build can't reach the account's server."
+msgstr "Denne byggingen når ikke serveren til kontoen."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This build can't reach the server to change automatic replies. Use the desktop app."
+msgstr "Denne byggingen når ikke serveren for å endre automatiske svar. Bruk skrivebordsappen."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "This build can't sign in to this kind of account. Use the desktop app."
+msgstr "Denne byggingen kan ikke logge inn på denne typen konto. Bruk skrivebordsappen."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This build can't unsubscribe in one click."
+msgstr "Denne byggingen kan ikke melde av med ett klikk."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "This build doesn't check for new versions."
+msgstr "Denne byggingen ser ikke etter nye versjoner."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This calendar can only be read: new items can't go to it"
+msgstr "Denne kalenderen kan bare leses: nye elementer kan ikke legges i den"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "This calendar is a copy of one on the web. Unsubscribe from it to remove it."
+msgstr "Denne kalenderen er en kopi av en på nettet. Avslutt abonnementet for å fjerne den."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer."
+msgstr "Denne kalenderen er ikke koblet til kontoen din ennå. Det som endres andre steder, vises ikke her, og det du endrer her, blir liggende på denne datamaskinen."
+
+#. what a command says
+#: crates/engine/src/cmd/category.rs
+#, fuzzy
+msgid "This category is on more events of calendars kept on a server than can wait to be sent at once: nothing was changed."
+msgstr "Denne kategorien er på flere hendelser i kalendere som holdes på en server, enn det som kan vente på å sendes samtidig: ingenting ble endret."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
+msgstr "Nøkkelen i dette sertifikatet er av et slag MailCraft ikke bruker: bare ECDSA på P-256 eller P-384 importeres her."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
+msgstr "Denne datamaskinen stoler ikke på sertifikatet serveren på {host} viser. Er dette serveren til organisasjonen din, kan du stole på dette ene sertifikatet for denne kontoen."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "This computer's certification authorities haven't been read yet: the signature is checked again when they are."
+msgstr "Sertifiseringsmyndighetene til denne datamaskinen er ikke lest ennå: signaturen sjekkes igjen når de er det."
+
+#. interface
+#: crates/ui-egui/src/zones.rs
+#, fuzzy
+msgid "This computer's time"
+msgstr "Tiden på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "This computer's, wherever it goes"
+msgstr "Denne datamaskinens, uansett hvor den går"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This contact will be permanently deleted."
+msgstr "Denne kontakten blir slettet for godt."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "This copy of MailCraft doesn't update itself."
+msgstr "Denne kopien av MailCraft oppdaterer ikke seg selv."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "This copy of MailCraft runs in a Flatpak sandbox, where it can't make sure that a file of this kind opens with the right program. Save it with Save As and open it yourself."
+msgstr "Denne kopien av MailCraft kjører i en Flatpak-sandkasse, der den ikke kan sørge for at en fil av dette slaget åpnes med riktig program. Lagre den med Lagre som og åpne den selv."
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This device only"
+msgstr "Bare denne enheten"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This domain's servers have no automatic setup. Type the server's address in Server settings."
+msgstr "Serverne i dette domenet har ikke automatisk oppsett. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "This file can't be imported: {why}"
+msgstr "Denne filen kan ikke importeres: {why}"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "This file has a password. Nothing is imported without it."
+msgstr "Denne filen har et passord. Ingenting importeres uten det."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
+msgid "This folder"
+msgstr "Denne mappen"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "This invitation can't be answered from here, so no other time can be proposed for it."
+msgstr "Denne invitasjonen kan ikke besvares herfra, så ingen annen tid kan foreslås for den."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This invitation doesn't say when the meeting is."
+msgstr "Denne invitasjonen sier ikke når møtet er."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
+msgstr "Denne invitasjonen sier ikke hvilket møte den gjelder, så den kan ikke besvares."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "This is a development build: it checks only when you press Check for Updates."
+msgstr "Dette er en utviklingsbygging: den sjekker bare når du trykker Se etter oppdateringer."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This is about one occurrence of a series."
+msgstr "Dette gjelder én forekomst av en serie."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "This is about the occurrence on {day} only."
+msgstr "Dette gjelder bare forekomsten {day}."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This is an RSA certificate, which MailCraft doesn't use by itself on this system: put it on a smartcard or token (PKCS#11), where MailCraft finds it."
+msgstr "Dette er et RSA-sertifikat, som MailCraft ikke bruker på egen hånd på dette systemet: legg det på et smartkort eller en token (PKCS#11), der MailCraft finner det."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This is an RSA key, which MailCraft doesn't use by itself: keep it in GnuPG, whose agent MailCraft signs with, and leave it out of here."
+msgstr "Dette er en RSA-nøkkel, som MailCraft ikke bruker på egen hånd: behold den i GnuPG, hvis agent MailCraft signerer med, og la den være utenfor her."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This is not somebody else's meeting: a message can't call it off."
+msgstr "Dette er ikke noen andres møte: en melding kan ikke avlyse det."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This isn't an online meeting."
+msgstr "Dette er ikke et nettmøte."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "This isn't the account you typed"
+msgstr "Dette er ikke kontoen du skrev"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This item has changes that aren't saved. Save them?"
+msgstr "Dette elementet har endringer som ikke er lagret. Vil du lagre dem?"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This item hasn't reached the server of {who} yet. Forward it once it is there (in a moment)."
+msgstr "Dette elementet har ikke nådd serveren til {who} ennå. Videresend det når det er der (om et øyeblikk)."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This item is still on its way to the account's server. Move it once it is there (in a moment)."
+msgstr "Dette elementet er fortsatt på vei til serveren til kontoen. Flytt det når det er der (om et øyeblikk)."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This key can't make Digital signatures: none of its keys may sign, or its secret parts aren't in the file."
+msgstr "Denne nøkkelen kan ikke lage digitale signaturer: ingen av nøklene i den kan signere, eller de hemmelige delene er ikke i filen."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This key has no passphrase, so MailCraft doesn't keep it. Add one in GnuPG (gpg --edit-key <key>, then passwd) and import it again."
+msgstr "Denne nøkkelen har ingen passfrase, så MailCraft beholder den ikke. Legg til en i GnuPG (gpg --edit-key <key>, og så passwd) og importer den igjen."
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "This key signs with an algorithm MailCraft doesn't use: only Ed25519 and ECDSA keys are imported here."
+msgstr "Denne nøkkelen signerer med en algoritme MailCraft ikke bruker: bare Ed25519- og ECDSA-nøkler importeres her."
+
+#. what a command says
+#: crates/mobile/src/sync.rs
+#, fuzzy
+msgid "This kind of account can't be sent and received on the phone yet."
+msgstr "Denne typen konto kan ikke sendes og mottas på telefonen ennå."
+
+#. interface
+#: crates/ui-egui/src/reading/view.rs
+#, fuzzy
+msgid "This link goes somewhere other than its text says."
+msgstr "Denne lenken går et annet sted enn teksten sier."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt
+#, fuzzy
+msgid "This link goes to"
+msgstr "Denne lenken går til"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list unsubscribes on its own page, at {host}. It opens in your browser: visiting it tells the list that this address is read."
+msgstr "Denne listen melder av på sin egen side, hos {host}. Den åpnes i nettleseren din: å besøke den forteller listen at denne adressen leses."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This list's page isn't one that can be opened."
+msgstr "Siden til denne listen er ikke en som kan åpnes."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "This mailbox is in Microsoft 365"
+msgstr "Denne postkassen er i Microsoft 365"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "This mailbox is on this device only"
+msgstr "Denne postkassen finnes bare på denne enheten"
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
+msgid "This mailbox was opened from a file. Its accounts connect to:"
+msgstr "Denne postkassen ble åpnet fra en fil. Kontoene i den kobler til:"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "This mailbox was opened from a file: confirm its servers first"
+msgstr "Denne postkassen ble åpnet fra en fil: bekreft serverne først"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This meeting"
+msgstr "Dette møtet"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "This meeting hasn't reached the server of {who} yet."
+msgstr "Dette møtet har ikke nådd serveren til {who} ennå."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This meeting is in a calendar that can't be changed from here."
+msgstr "Dette møtet er i en kalender som ikke kan endres herfra."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This meeting is over."
+msgstr "Dette møtet er over."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This meeting was called off by its organizer."
+msgstr "Dette møtet ble avlyst av arrangøren."
+
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
+#, fuzzy
+msgid "This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown."
+msgstr "Kalenderen til dette møtet ligger på denne datamaskinen, som ikke kan si når andre er opptatt: bare din egen kalender vises."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "This meeting's link isn't one that can be opened."
+msgstr "Lenken til dette møtet er ikke en som kan åpnes."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "This message came from outside your organisation."
+msgstr "Denne meldingen kom fra utenfor organisasjonen din."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This message carries no invitation."
+msgstr "Denne meldingen inneholder ingen invitasjon."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This message didn't come from the address of the meeting's organizer."
+msgstr "Denne meldingen kom ikke fra adressen til arrangøren av møtet."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This message doesn't call a meeting off."
+msgstr "Denne meldingen avlyser ikke noe møte."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This message doesn't propose another time for a meeting."
+msgstr "Denne meldingen foreslår ikke en annen tid for noe møte."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "This message doesn't say how to unsubscribe from it."
+msgstr "Denne meldingen sier ikke hvordan du melder deg av den."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr "Denne meldingen lastes ned når meldingene som lastes ned nå, er her."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message has a warning about its sender: move it to Junk E-mail instead of unsubscribing."
+msgstr "Denne meldingen har en advarsel om avsenderen: flytt den til Søppelpost i stedet for å melde deg av."
+
+#. interface
+#: crates/ui-egui/src/reading/view.rs
+#, fuzzy
+msgid "This message has no text."
+msgstr "Denne meldingen har ingen tekst."
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "This message has pictures on the web. This build can't download them."
+msgstr "Denne meldingen har bilder på nettet. Denne byggingen kan ikke laste dem ned."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message hasn't been sent."
+msgstr "Denne meldingen er ikke sendt."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is delayed. It goes {when}."
+msgstr "Denne meldingen er utsatt. Den går {when}."
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "This message is due and goes with the next Send/Receive."
+msgstr "Denne meldingen forfaller og går ved neste send/motta."
+
+#. what a command says
+#: crates/engine/src/cmd/unsubscribe.rs
+#, fuzzy
+msgid "This message is in Junk E-mail: delete it rather than unsubscribing."
+msgstr "Denne meldingen ligger i Søppelpost: slett den i stedet for å melde deg av."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This message isn't an invitation that can be answered."
+msgstr "Denne meldingen er ikke en invitasjon som kan besvares."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself."
+msgstr "Denne meldingen er ikke fra arrangøren av det møtet, så den kan ikke avlyse det: ta møtet ut av kalenderen selv."
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message isn't on this computer yet. It will download when you're online."
+msgstr "Denne meldingen er ikke på denne datamaskinen ennå. Den lastes ned når du er på nett."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "This message lays itself out in more ways than MailCraft could check, so a link in one of them may go somewhere other than its text says."
+msgstr "Denne meldingen legger seg ut på flere måter enn MailCraft kunne sjekke, så en lenke i en av dem kan gå et annet sted enn teksten sier."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "This message may not be what it seems."
+msgstr "Denne meldingen er kanskje ikke det den ser ut som."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "This message was changed after it was signed."
+msgstr "Denne meldingen ble endret etter at den ble signert."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message was sent with High importance."
+msgstr "Denne meldingen ble sendt med høy viktighet."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message was sent with Low importance."
+msgstr "Denne meldingen ble sendt med lav viktighet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This message will be permanently deleted."
+msgstr "Denne meldingen blir slettet for godt."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "This message's Digital signature can't be checked."
+msgstr "Den digitale signaturen til denne meldingen kan ikke sjekkes."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
+msgstr "Denne innlimingen trenger et svar fra eieren først, og denne kommandoen spør aldri: ingenting ble limt inn"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "This person could not be read."
+msgstr "Denne personen kunne ikke leses."
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
