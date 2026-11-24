@@ -156,6 +156,12 @@ pub struct ItemUpdate {
     pub reply_to: Option<Vec<Address>>,
     /// `message:IsReadReceiptRequested` (a draft).
     pub read_receipt: Option<bool>,
+    /// The flag as `PR_FLAG_STATUS` (0x1090) instead of `item:Flag`: for a server whose schema
+    /// has no flag family, which is how Kerio takes it — measured 2026-11-24, this shape
+    /// answered `NoError` there and the flag appeared as IMAP's `\Flagged` and in the web mail
+    /// at once, `0` clearing it. The flag's dates are `item:Flag`'s alone: a tag carries the
+    /// status and nothing else (#1784, the flag).
+    pub flag_tag: Option<FlagStatus>,
 }
 
 impl ItemUpdate {
@@ -208,6 +214,16 @@ impl ItemUpdate {
         }
         if let Some(flag) = &self.flag {
             put(Self::set("item:Flag", "t:Message", flag_element(flag)));
+        }
+        if let Some(status) = self.flag_tag {
+            let uri = || Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer");
+            let value = match status {
+                FlagStatus::None => "0",
+                FlagStatus::Complete => "1",
+                FlagStatus::Flagged => "2",
+            };
+            let property = Element::new("t:ExtendedProperty").child(uri()).child(Element::new("t:Value").text(value));
+            put(Element::new("t:SetItemField").child(uri()).child(Element::new("t:Message").child(property)));
         }
         if let Some(categories) = &self.categories {
             if categories.is_empty() {

@@ -162,6 +162,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) shape: Shape,
     /// The server has no follow-up flag: flags stay here (E7), said once.
     pub(crate) flag_lacking: bool,
+    /// A server with no flag family in its schema took the flag over the MAPI tag instead:
+    /// said once (#1784, the flag).
+    pub(crate) flag_by_tag: bool,
     /// A read-state change that said no state was passed over: said once a run, with no id.
     pub(crate) read_unsaid: bool,
     /// The ids of the server's other own folders ([`OWN`]) it has, as far as it said (#779): a
@@ -218,6 +221,7 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             wait,
             shape: Shape::Full,
             flag_lacking: false,
+            flag_by_tag: false,
             read_unsaid: false,
             own: HashSet::new(),
             reread_folders: false,
