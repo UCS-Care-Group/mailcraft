@@ -13,7 +13,7 @@ use keyring_core::api::{CredentialApi, CredentialStoreApi};
 use keyring_core::{Credential, CredentialStore, Entry, Error, mock};
 use mailcraft_host::{SecretError, SecretStore, StoreTrouble};
 
-use super::os::{Layout, OsStore, SERVICE, WHOLE};
+use super::os::{Layout, NOTED, OsStore, SERVICE, WHOLE, Writes};
 use super::{MAX_PIECES, PIECE};
 
 /// What the store was asked, by item name.
@@ -412,4 +412,92 @@ fn a_delete_between_the_look_and_the_pieces_read_is_not_undone() {
 
     assert_eq!(store.get(key), None);
     assert_eq!(there(&mock, &format!("{key}#{WHOLE}")), None, "not written back");
+}
+
+/// Another account's new token written while this one's pieces are read doesn't stop this one's
+/// move, nor make its sign-in read as absent.
+#[test]
+fn another_keys_write_during_the_move_out_of_pieces_lets_it_go_on() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    let other = "refresh:two@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "one-token");
+    let writer = Arc::downgrade(&store);
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = writer.upgrade() {
+                store.set("refresh:two@example.org|graph", "two-token").unwrap();
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key).as_deref(), Some("one-token"));
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("one-token"), "moved into one item");
+    for part in ["n", "0"] {
+        assert_eq!(there(&mock, &format!("{key}#{part}")), None, "piece #{part} removed");
+    }
+    assert_eq!(store.get(other).as_deref(), Some("two-token"));
+}
+
+/// Each key's writes are told apart, and past the keys that can be noted one by one, a write of
+/// an unnoted key counts as a write of every key (the move is put off, never run over a write).
+#[test]
+fn writes_are_told_apart_by_key_and_too_many_keys_count_for_all() {
+    let mut writes = Writes::default();
+    writes.note("a");
+    let before = 1;
+    writes.note("b");
+    assert!(!writes.changed_since("a", before), "b's write is not a's");
+    assert!(writes.changed_since("b", before));
+    writes.note("a");
+    assert!(writes.changed_since("a", before));
+
+    let mut full = Writes::default();
+    for i in 0..NOTED {
+        full.note(&format!("key-{i}"));
+    }
+    let before = NOTED as u64;
+    assert!(!full.changed_since("key-0", before));
+    full.note("one-too-many");
+    assert!(full.changed_since("key-0", before), "an unnoted write may have been any key's");
+    assert!(full.changed_since("never-written", before));
+}
+
+/// A new token written after the first of two old pieces is read sweeps the second before it is
+/// read: the read gives the new token, not nothing.
+#[test]
+fn a_write_that_sweeps_a_piece_still_to_be_read_gives_the_new_secret() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "2");
+    put(&mock, &format!("{key}#0"), "old-");
+    put(&mock, &format!("{key}#1"), "token");
+    let writer = Arc::downgrade(&store);
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = writer.upgrade() {
+                store.set("refresh:one@example.org|graph", "newer-token").unwrap();
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key).as_deref(), Some("newer-token"));
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("newer-token"));
+    for part in ["n", "0", "1"] {
+        assert_eq!(there(&mock, &format!("{key}#{part}")), None, "piece #{part} removed");
+    }
+}
+
+/// With no write meanwhile, a piece that is missing still means nothing whole is kept.
+#[test]
+fn a_missing_piece_with_no_write_meanwhile_is_nothing() {
+    let (store, mock, _) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "2");
+    put(&mock, &format!("{key}#0"), "half-");
+    assert_eq!(store.get(key), None);
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")), None, "nothing half made is moved");
 }

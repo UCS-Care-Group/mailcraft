@@ -127,12 +127,45 @@ mod os {
         /// so that writing a secret again (a refresh token, after each refresh) doesn't remove
         /// them again.
         cleared: Mutex<HashSet<String>>,
-        /// Kept whole: how many writes and deletes have been made through this store. Held while
-        /// one is made, so that moving a secret out of its old pieces (read on the background
-        /// thread, with no lock held while the keychain may ask) writes only if no write or
-        /// delete came in since it read them: never over a newer secret, nor bringing back one
-        /// the owner removed.
-        writes: Mutex<u64>,
+        /// Kept whole: the writes and deletes made through this store. Held while one is made,
+        /// so that moving a secret out of its old pieces (read on the background thread, with no
+        /// lock held while the keychain may ask) writes only if no write or delete of that key
+        /// came in since it looked: never over a newer secret, nor bringing back one the owner
+        /// removed.
+        writes: Mutex<Writes>,
+    }
+
+    /// Most keys whose last write is noted one by one; past it, any write counts for every key.
+    pub(super) const NOTED: usize = 1000;
+
+    /// The writes and deletes made through a store kept whole.
+    #[derive(Default)]
+    pub(super) struct Writes {
+        /// How many, all keys together.
+        count: u64,
+        /// The count at each key's last write or delete, so that one account's refresh doesn't
+        /// stop another's move out of its pieces.
+        last: std::collections::HashMap<String, u64>,
+        /// The count at the last write of a key that found no room in `last`: a change to any key
+        /// since then may have been to the one asked about.
+        unnoted: u64,
+    }
+
+    impl Writes {
+        /// Note a write or delete of `key`.
+        pub(super) fn note(&mut self, key: &str) {
+            self.count = self.count.wrapping_add(1);
+            if self.last.len() < NOTED || self.last.contains_key(key) {
+                self.last.insert(key.to_string(), self.count);
+            } else {
+                self.unnoted = self.count;
+            }
+        }
+
+        /// Whether `key` may have been written or deleted since the count was `before`.
+        pub(super) fn changed_since(&self, key: &str, before: u64) -> bool {
+            self.unnoted > before || self.last.get(key).is_some_and(|&at| at > before)
+        }
     }
 
     impl Default for OsStore {
@@ -150,7 +183,14 @@ mod os {
 
         /// [`with`](Self::with), laid out as `layout` says (tests try both on any system).
         pub(super) fn with_layout(connect: Connect, layout: Layout) -> Self {
-            Self { trouble: Mutex::new(None), store: Mutex::new(None), connect, layout, cleared: Mutex::new(HashSet::new()), writes: Mutex::new(0) }
+            Self {
+                trouble: Mutex::new(None),
+                store: Mutex::new(None),
+                connect,
+                layout,
+                cleared: Mutex::new(HashSet::new()),
+                writes: Mutex::new(Writes::default()),
+            }
         }
 
         /// Remember why the store couldn't be used, when that is what `e` says.
@@ -207,9 +247,9 @@ mod os {
             }
         }
 
-        /// The count of writes and deletes, held: a poisoned lock still counts (nothing kept
-        /// under it can be left half made).
-        fn writing(&self) -> std::sync::MutexGuard<'_, u64> {
+        /// The writes and deletes, held: a poisoned lock still counts (nothing kept under it can
+        /// be left half made).
+        fn writing(&self) -> std::sync::MutexGuard<'_, Writes> {
             self.writes.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
         }
 
@@ -300,26 +340,30 @@ mod os {
         }
 
         fn get_whole(&self, key: &str) -> Option<String> {
-            // Counted before the item is looked for: a write after this, even one that lands
-            // between the look and the pieces' read and couldn't sweep the pieces, stops the move.
-            let before = *self.writing();
+            // Counted before the item is looked for: a write of this key after this, even one that
+            // lands between the look and the pieces' read and couldn't sweep the pieces, stops the
+            // move. (Another key's write doesn't.)
+            let before = self.writing().count;
             match self.read_whole(key) {
                 Ok(Some(secret)) => Some(secret),
                 Err(()) => None,
                 // Not kept whole: perhaps in pieces, by an earlier version. Moved into one item,
                 // so that the next start asks about one item, not about each piece.
                 Ok(None) => {
-                    let secret = self.get_pieces(key)?;
+                    // (Kept until the writes are looked at: a write of this key while the pieces
+                    // are read may have swept one still to be read, and its secret is the answer.)
+                    let pieces = self.get_pieces(key);
                     let writes = self.writing();
-                    // A write or delete came in while the pieces were read: it may be a newer
-                    // secret, or the owner removing this one. What it left stands, and is what is
+                    // A write or delete of this key came in while the pieces were read: it may be
+                    // a newer secret, or the owner removing this one. What it left stands, and is what is
                     // given back (nothing, when it was a delete): the pieces' value is older than
                     // it, and a caller would keep it as current. (Read again with no lock held;
                     // an item this build just wrote, or none, asks the owner nothing.)
-                    if *writes != before {
+                    if writes.changed_since(key, before) {
                         drop(writes);
                         return self.read_whole(key).ok().flatten();
                     }
+                    let secret = pieces?;
                     if let Err(e) = self.set_whole(key, &secret) {
                         // (Kept as it was: the pieces stay until a write succeeds.)
                         log::warn!("couldn't move a remembered sign-in into one keychain item: {e}");
@@ -374,8 +418,9 @@ mod os {
             match self.layout {
                 Layout::Pieces => self.set_pieces(key, secret),
                 Layout::Whole => {
+                    // (Held while the write is made: the move out of pieces waits for it.)
                     let mut writes = self.writing();
-                    *writes = writes.wrapping_add(1);
+                    writes.note(key);
                     self.set_whole(key, secret)
                 }
             }
@@ -385,8 +430,9 @@ mod os {
             match self.layout {
                 Layout::Pieces => self.delete_pieces(key),
                 Layout::Whole => {
+                    // (Held while the write is made: the move out of pieces waits for it.)
                     let mut writes = self.writing();
-                    *writes = writes.wrapping_add(1);
+                    writes.note(key);
                     self.delete_whole(key);
                 }
             }
