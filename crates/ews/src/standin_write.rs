@@ -76,6 +76,7 @@ impl State {
         let [one] = holder.children.as_slice() else { return Err(invalid(format!("{} names one folder", holder.name))) };
         if one.is(TYPES, "DistinguishedFolderId") {
             Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
+            self.mailbox_of(one)?;
             Ok(self.folder(Check::attribute(one, "Id")?, true).cloned())
         } else {
             Check::is(one, TYPES, "FolderId", &["Id", "ChangeKey"])?;

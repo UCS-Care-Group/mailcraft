@@ -1794,6 +1794,9 @@ pub struct MailApp {
     /// A shared mailbox being added whose first run waits for the Send/Receive under way, which
     /// was called off for it: it starts as soon as that one has stopped.
     shared_check_next: Option<Id>,
+    /// The shared mailbox opened through an Exchange server account (#482) whose Send/Receive asked
+    /// for its owner's password: the password typed goes with its run, not the owner's.
+    pub(crate) ews_password_then: Option<Id>,
     /// The next sign-in asks for mail alone (account setup's "mail only").
     mail_only_next: bool,
     /// A sign-in the host is waiting on (the owner is in the browser).
@@ -2095,6 +2098,7 @@ impl MailApp {
             shared_refused: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
+            ews_password_then: None,
             mail_only_next: false,
             signing_in: None,
             setup_sign_in: None,
@@ -3957,7 +3961,8 @@ impl MailApp {
             return Err(tl!("This build can't connect to Microsoft").to_string());
         }
         // A shared mailbox is read with its owner's sign-in, at its own address (#70).
-        if self.session.mailbox.account(account).is_some_and(|a| a.is_shared()) {
+        // (A shared mailbox opened through an Exchange server account is read as any Exchange account is.)
+        if self.session.mailbox.account(account).is_some_and(|a| a.is_shared() && a.kind == mailcraft_model::AccountKind::Microsoft) {
             return self.start_shared_mail(account, quiet);
         }
         use mailcraft_engine::sync_driver::{MailRefusal, MailStart, plan_graph_mail};
@@ -4126,10 +4131,11 @@ impl MailApp {
     fn can_sync_quietly(&self, account: Id) -> bool {
         // A shared mailbox the server wouldn't open waits for the owner to ask (#70); one that
         // can be read is read with its owner's sign-in.
-        if self.shared_refused.contains_key(&account) {
+        // (Nor one whose own run stopped at the certificate question: that is its own.)
+        if self.shared_refused.contains_key(&account) || self.jmap_refused.contains(&account) {
             return false;
         }
-        let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+        let account = self.session.mailbox.opened_through(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
         // (A JMAP account's secret is in memory only, never with the operating system; and one its
         // server turned down waits for the owner.)

@@ -92,27 +92,58 @@ pub fn has_address_list(mb: &Mailbox, account: Id) -> bool {
     ews_account(mb, account).is_ok()
 }
 
-/// The account `account` and its server, when it is an Exchange server account whose server
-/// settings may be used ([`EwsServer::problem`]: a mailbox file can say anything).
+/// The account `account` and the server settings its requests go with, when it is an Exchange
+/// server account whose settings may be used ([`EwsServer::problem`]: a mailbox file can say
+/// anything).
+///
+/// A shared mailbox opened through an Exchange server account (#482) goes with its owner's
+/// settings as they are now, and with no others: the password it signs in with is the owner's, so
+/// it goes only to the server the owner chose. When the owner's can't be used (or the owner is
+/// gone) it is refused, whatever its own copy says; that copy is only where its own sync state is
+/// kept ([`own_state`]).
 fn ews_account(mb: &Mailbox, account: Id) -> Result<(&Account, &EwsServer), CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Exchange {
         return Err(failed!("{name} isn't an Exchange server account", name = a.name));
+    }
+    if a.is_shared() {
+        let owner = mb
+            .ews_owner_of(account)
+            .ok_or_else(|| failed!("{name} is a shared mailbox whose account is gone: remove it and add it again", name = a.name))?;
+        let server = owner.ews.as_ref().filter(|server| server.problem().is_none());
+        let server = server.ok_or_else(|| failed!("{name} has no Exchange server address that can be used", name = owner.name))?;
+        return Ok((a, server));
     }
     let server = a.ews.as_ref().filter(|server| server.problem().is_none());
     let server = server.ok_or_else(|| failed!("{name} has no Exchange server address that can be used", name = a.name))?;
     Ok((a, server))
 }
 
+/// Where `account`'s own sync state is: its own server settings' (for a shared mailbox, its copy
+/// of its owner's, which holds nothing else that is used).
+fn own_state(mb: &Mailbox, account: Id) -> Option<&EwsServer> {
+    mb.account(account).and_then(|a| a.ews.as_ref())
+}
+
+/// Where the server is for `account`, the name it signs in with and the certificate it trusts,
+/// from `server` as [`ews_account`] gave it: a shared mailbox (#482) signs in as its owner does
+/// ([`Account::sign_in_name`]), never with its own address.
+fn connection(mb: &Mailbox, a: &Account, server: &EwsServer) -> (String, String, String) {
+    let username = mb.ews_owner_of(a.id).map_or_else(|| server.username.clone(), Account::sign_in_name);
+    (server.url.clone(), username, server.trusted.clone())
+}
+
 /// The request for `account` with what every run says: where the server is, whose mailbox it is.
 fn base(s: &Session, account: Id) -> Result<EwsMailRequest, CmdError> {
     let (a, server) = ews_account(&s.mailbox, account)?;
+    let (url, username, trusted) = connection(&s.mailbox, a, server);
     Ok(EwsMailRequest {
         account,
         email: a.email.clone(),
-        url: server.url.clone(),
-        username: server.username.clone(),
-        trusted: server.trusted.clone(),
+        url,
+        username,
+        trusted,
+        mailbox: a.shared_mailbox().unwrap_or_default(),
         ..Default::default()
     })
 }
@@ -131,7 +162,6 @@ fn base(s: &Session, account: Id) -> Result<EwsMailRequest, CmdError> {
 ///   ([`ews_inbox_request`]) sends and changes nothing.
 pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMailRequest, CmdError> {
     let mut request = base(s, account)?;
-    let (_, server) = ews_account(&s.mailbox, account)?;
     let mb = &s.mailbox;
     let listed = mb.folders.iter().any(|f| f.account == account && f.server.is_some());
     let server_id = |folder: Id| mb.folder(folder).filter(|f| f.account == account).and_then(|f| f.server.as_ref()).map(|server| server.id.clone());
@@ -149,7 +179,7 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     request.sends = super::graph_send::sends(s, account);
     request.list_folders = !light || !listed;
     // (A folder list read before the folder above each was asked for is read afresh, once.)
-    request.hierarchy = if server.parents { server.hierarchy.clone() } else { String::new() };
+    request.hierarchy = own_state(mb, account).filter(|own| own.parents).map(|own| own.hierarchy.clone()).unwrap_or_default();
     let wanted = |id: &str| match &request.scope {
         EwsScope::All => true,
         EwsScope::Light { also } => inbox.as_deref() == Some(id) || also.iter().any(|a| a == id),
@@ -222,15 +252,8 @@ pub fn ews_fetch_request(s: &Session, account: Id, message: Option<Id>, most: us
             .filter(|id| ews_down::is_id(id))
             .collect(),
     };
-    Ok(EwsFetchRequest {
-        account,
-        email: a.email.clone(),
-        url: server.url.clone(),
-        username: server.username.clone(),
-        trusted: server.trusted.clone(),
-        ids,
-        background: message.is_none(),
-    })
+    let (url, username, trusted) = connection(&s.mailbox, a, server);
+    Ok(EwsFetchRequest { account, email: a.email.clone(), url, username, trusted, ids, background: message.is_none() })
 }
 
 /// The names `texts` to look up in the address list of the account the message being written goes
@@ -259,14 +282,9 @@ pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Re
             asked.push(text);
         }
     }
-    Ok(EwsResolveRequest {
-        account,
-        email: a.email.clone(),
-        url: server.url.clone(),
-        username: server.username.clone(),
-        trusted: server.trusted.clone(),
-        texts: asked,
-    })
+    // (A shared mailbox's address list is its owner's server's, asked as the owner.)
+    let (url, username, trusted) = connection(&s.mailbox, a, server);
+    Ok(EwsResolveRequest { account, email: a.email.clone(), url, username, trusted, texts: asked })
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {
@@ -298,7 +316,7 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String
     if !email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()) {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
-    if !url.is_empty() && server.url.trim() != url.trim() {
+    if !url.is_empty() && connection(mb, a, server).0.trim() != url.trim() {
         return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
     }
     Ok(a.name.clone())

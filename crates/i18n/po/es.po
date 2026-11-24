@@ -3427,6 +3427,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "Comprobando la dirección con Microsoft…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "Comprobando la dirección con el servidor…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11977,6 +11983,12 @@ msgstr "Se abrió el calendario de {name}. Aparece en Calendarios compartidos, s
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Se abre con el servidor y la contraseña de {owner}. Requiere Acceso total al buzón, que concede el administrador de su organización. Lo que cambie en él se aplica en él."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "Se abre con el inicio de sesión de {owner}. Requiere Acceso total al buzón, que concede el administrador de su organización. Microsoft le pide una vez que permita a MailCraft leer y cambiar buzones compartidos. Lo que cambie en él se aplica en él. El correo que escriba en él sale de su dirección, y enviar como él requiere el permiso Enviar como o Enviar en nombre de: Microsoft se lo vuelve a pedir en su primer envío."
 
@@ -18479,6 +18491,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "No se pudo agregar el buzón compartido"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "No se pudo leer el buzón compartido."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21978,6 +21996,12 @@ msgstr "un buzón compartido no tiene carpeta de pospuestos"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "a un buzón compartido se accede con la configuración de servidor de la cuenta con la que se abre: cambie la de esa cuenta"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "un buzón compartido guarda sin conexión tanto correo como la cuenta con la que se abre: cambie el de esa cuenta"
 
@@ -22052,6 +22076,18 @@ msgstr "agregue primero una cuenta (Archivo › Agregar cuenta)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "agregue al menos un destinatario"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "una cuenta de servidor Exchange necesita una dirección de servidor que se pueda usar para abrir un buzón compartido"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "el servidor y el nombre de usuario de una cuenta de servidor Exchange no se pueden cambiar mientras el correo de un buzón compartido abierto con ella esté aquí: quite primero el buzón compartido"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23524,14 +23560,14 @@ msgstr "buzón compartido"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph o con una cuenta de servidor Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph o que es una cuenta de servidor Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25737,7 +25773,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} es una cuenta JMAP, y esta versión todavía no envía ni recibe con ese tipo de cuenta"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} es un buzón compartido cuya cuenta ya no existe: quítelo y vuelva a agregarlo"
@@ -27236,6 +27272,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Líneas"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta sincronizada a través de Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "los buzones compartidos se abren con una cuenta que se sincroniza a través de Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

@@ -141,3 +141,19 @@ fn every_entry_of_the_order_in_a_file_counts() {
     let read = crate::from_json(&serde_json::to_vec(&value).unwrap(), room).unwrap();
     assert!(read.account_order.is_empty());
 }
+
+/// A shared mailbox opened through an Exchange server account (#482) is listed under it too, not
+/// after whichever account follows it, and moves with it.
+#[test]
+fn a_shared_mailbox_of_an_exchange_server_account_is_listed_under_it() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "a@example.org");
+    let local = mb.accounts[0].id;
+    let ews = EwsServer { url: "https://exchange.example.org/EWS/Exchange.asmx".into(), ..Default::default() };
+    let owner = mb.add_account(Account { email: "b@example.org".into(), kind: AccountKind::Exchange, ews: Some(ews), ..Default::default() });
+    let imap = Server { host: "imap.example.org".into(), port: 993, security: Security::Tls };
+    let other = mb.add_account(Account { email: "c@example.org".into(), kind: AccountKind::Imap, incoming: Some(imap), ..Default::default() });
+    let shared = mb.add_shared_mailbox(owner, "team@example.org").unwrap();
+    assert_eq!(order(&mb), [local, owner, shared, other]);
+    assert_eq!(mb.move_account(other, Some(owner)), Ok(true));
+    assert_eq!(order(&mb), [local, other, owner, shared]);
+}

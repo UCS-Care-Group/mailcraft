@@ -389,7 +389,7 @@ fn refuse_send_queue(s: &Session, folder: Id) -> Result<(), CmdError> {
 /// shared mailbox's mail alone, and are made for the account it is opened through).
 fn own_account(mb: &Mailbox, account: Id) -> Id {
     match mb.account(account) {
-        Some(a) if a.is_shared() => mb.owner_of(account).map_or(account, |o| o.id),
+        Some(a) if a.is_shared() => mb.opened_through(account).map_or(account, |o| o.id),
         _ => account,
     }
 }

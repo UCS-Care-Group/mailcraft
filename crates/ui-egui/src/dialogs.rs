@@ -930,7 +930,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         text = format!("{text} {stay}");
     }
     // The switch is the account's, and a shared mailbox's is its owner's.
-    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.owner_of(a).map_or(a, |o| o.id)).collect();
+    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.opened_through(a).map_or(a, |o| o.id)).collect();
     owners.sort_unstable();
     owners.dedup();
     let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };
@@ -2508,7 +2508,29 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::SharedMailbox { account, address, error, checking } => {
             let mut submit = false;
-            let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            let (owner, exchange) = app
+                .session
+                .mailbox
+                .account(*account)
+                .map(|a| (a.email.clone(), a.kind == mailcraft_model::AccountKind::Exchange))
+                .unwrap_or_default();
+            // (An Exchange server account's is opened with its own server and password, #482: no
+            // Microsoft sign-in is asked for.)
+            let (about, checking_words) = if exchange {
+                (
+                    tl!(
+                        "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+                    ),
+                    tl!("Checking the address with the server…"),
+                )
+            } else {
+                (
+                    tl!(
+                        "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
+                    ),
+                    tl!("Checking the address with Microsoft…"),
+                )
+            };
             // (One that is being checked and is gone was answered: [`MailApp::finish_shared_check`].)
             if checking.is_some_and(|id| !app.shared_checking.contains(&id)) {
                 *checking = None;
@@ -2520,16 +2542,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 if checking.is_none() && error.is_empty() {
                     crate::text_menu::hold(&resp);
                 }
-                ui.label(
-                    egui::RichText::new(crate::i18n::fmt(
-                        tl!("Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."),
-                        &[("owner", &owner)],
-                    ))
-                    .color(t.text_dim)
-                    .size(11.0),
-                );
+                ui.label(egui::RichText::new(crate::i18n::fmt(about, &[("owner", &owner)])).color(t.text_dim).size(11.0));
                 if checking.is_some() {
-                    ui.label(egui::RichText::new(tl!("Checking the address with Microsoft…")).color(t.text_dim));
+                    ui.label(egui::RichText::new(checking_words).color(t.text_dim));
                 }
                 if !error.is_empty() {
                     ui.label(egui::RichText::new(error.as_str()).color(t.red));
@@ -2796,13 +2811,15 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             close |= !open;
             if submit {
-                let r = app.execute("ui.sync", json!({"account": account, "password": password}));
+                let r = app.sign_in_answered(*account, Some(password.as_str()));
                 // The typed password doesn't linger in the dialog's memory.
                 password.clear();
                 if let Err(e) = r {
                     app.status(e);
                 }
                 close = true;
+            } else if close {
+                let _ = app.sign_in_answered(*account, None);
             }
         }
         Dialog::Report { title, lines, .. } => {

@@ -3432,6 +3432,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "Sprawdzanie adresu w Microsoft…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "Sprawdzanie adresu na serwerze…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -12011,6 +12017,12 @@ msgstr "Otwarto kalendarz użytkownika {name}. Jest wymieniony w sekcji Kalendar
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Otwarto przy użyciu serwera i hasła użytkownika {owner}. Wymaga to pełnego dostępu do skrzynki pocztowej, który nadaje administrator Twojej organizacji. To, co w niej zmienisz, trafia do niej."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "Otwarto przy użyciu logowania użytkownika {owner}. Wymaga to pełnego dostępu do skrzynki pocztowej, który nadaje administrator Twojej organizacji. Microsoft raz zapyta, czy pozwolić programowi MailCraft odczytywać i zmieniać udostępnione skrzynki pocztowe. To, co w niej zmienisz, trafia do niej. Wiadomości napisane w niej są wysyłane z jej adresu, a wysyłanie jako ta skrzynka wymaga uprawnienia Wyślij jako lub Wyślij w imieniu: Microsoft zapyta jeszcze raz przy pierwszym wysłaniu."
 
@@ -18538,6 +18550,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Nie można dodać udostępnionej skrzynki pocztowej"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Nie można odczytać udostępnionej skrzynki pocztowej."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -22059,6 +22077,12 @@ msgstr "udostępniona skrzynka pocztowa nie ma folderu Uśpione"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "udostępniona skrzynka pocztowa jest osiągana przez ustawienia serwera konta, przez które jest otwarta: zmień ustawienia tego konta"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "udostępniona skrzynka pocztowa przechowuje offline tyle poczty, co konto, przez które jest otwarta: zmień ustawienie tego konta"
 
@@ -22133,6 +22157,18 @@ msgstr "najpierw dodaj konto (Plik › Dodaj konto)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "dodaj co najmniej jednego odbiorcę"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "konto serwera Exchange potrzebuje adresu serwera, którego można użyć, aby otworzyć udostępnioną skrzynkę pocztową"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "serwera i nazwy użytkownika konta serwera Exchange nie można zmienić, dopóki poczta udostępnionej skrzynki pocztowej otwartej przez to konto jest tutaj: najpierw usuń udostępnioną skrzynkę pocztową"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23609,14 +23645,14 @@ msgstr "skrzynka współdzielona"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph lub na koncie serwera Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph lub jest kontem serwera Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25826,7 +25862,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} to konto JMAP, a ta wersja nie wysyła jeszcze i nie odbiera poczty za jego pomocą"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} to udostępniona skrzynka pocztowa, której konta już nie ma: usuń ją i dodaj ponownie"
@@ -27600,6 +27636,14 @@ msgstr "−Wiersze"
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
 #~ msgstr "Administrator Twojej organizacji musi raz zatwierdzić odczytywanie kalendarzy udostępnionych skrzynek pocztowych: Plik › Informacje"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "udostępnione skrzynki pocztowe otwierają się na koncie synchronizowanym przez Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "udostępnione skrzynki pocztowe otwierają się na koncie, które jest synchronizowane przez Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

@@ -474,14 +474,15 @@ impl State {
         let [one] = node.children.as_slice() else { return Err(invalid("SyncFolderId names one folder")) };
         let found = if one.is(TYPES, "DistinguishedFolderId") {
             Check::is(one, TYPES, "DistinguishedFolderId", &["Id", "ChangeKey"])?;
+            self.mailbox_of(one)?;
             self.folder(Check::attribute(one, "Id")?, true)
         } else if one.is(TYPES, "FolderId") {
             Check::is(one, TYPES, "FolderId", &["Id", "ChangeKey"])?;
+            Check::empty(one)?;
             self.folder(Check::attribute(one, "Id")?, false)
         } else {
             return Err(invalid("SyncFolderId has no place for that"));
         };
-        Check::empty(one)?;
         found.cloned().ok_or(Refusal { code: "ErrorFolderNotFound", why: "no such folder".into() })
     }
 
@@ -569,6 +570,9 @@ impl State {
         let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
         let (base, _, extra) = Self::item_shape(shape, false)?;
         let folder = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
+        if !folder.distinguished.is_empty() && self.unsyncable.contains(&folder.distinguished) {
+            return Err(Refusal { code: "ErrorFolderNotFound", why: "the caller's rights to it were taken away".into() });
+        }
         let max = Check::required(operation, parts.get(4).copied().flatten(), "MaxChangesReturned")?;
         Check::is(max, MESSAGES, "MaxChangesReturned", &[])?;
         Check::no_children(max)?;

@@ -23,11 +23,19 @@ pub struct Client {
     authorization: Secret,
     /// The version asked for ([`Version::index`]): lowered once when the server doesn't know it.
     version: AtomicU8,
+    /// Another mailbox the requests are for (a shared mailbox), by its address: every distinguished
+    /// folder a request names is then that mailbox's ([`Element::in_mailbox`]).
+    mailbox: Option<String>,
 }
 
 impl Clone for Client {
     fn clone(&self) -> Self {
-        Self { endpoint: self.endpoint.clone(), authorization: self.authorization.clone(), version: AtomicU8::new(self.version().index()) }
+        Self {
+            endpoint: self.endpoint.clone(),
+            authorization: self.authorization.clone(),
+            version: AtomicU8::new(self.version().index()),
+            mailbox: self.mailbox.clone(),
+        }
     }
 }
 
@@ -43,13 +51,23 @@ impl Client {
     /// `http` only to this machine), sending `authorization` as the `Authorization` field.
     pub fn new(endpoint: &str, authorization: Secret) -> Result<Self, Error> {
         check_endpoint(endpoint)?;
-        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: AtomicU8::new(Version::default().index()) })
+        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: AtomicU8::new(Version::default().index()), mailbox: None })
     }
 
     /// Asks for the schema of `version`.
     #[must_use]
     pub fn with_version(self, version: Version) -> Self {
         self.version.store(version.index(), Ordering::Relaxed);
+        self
+    }
+
+    /// Speaks for another mailbox the credential has been given access to (a shared mailbox, #482),
+    /// by its address; an empty address is the credential's own mailbox. The folders by id and the
+    /// items need nothing more (their ids say whose they are); the distinguished folders do.
+    #[must_use]
+    pub fn with_mailbox(mut self, address: &str) -> Self {
+        let address = address.trim();
+        self.mailbox = (!address.is_empty()).then(|| address.to_owned());
         self
     }
 
@@ -64,8 +82,14 @@ impl Client {
         self.request_in(self.version(), operation)
     }
 
+    /// The request for `operation` in `version`, naming [`Client::with_mailbox`]'s mailbox (when
+    /// there is one) on every distinguished folder: the fallback version's request too.
     fn request_in(&self, version: Version, operation: &Element) -> Result<HttpRequest, Error> {
-        Ok(HttpRequest::soap(&self.endpoint, &self.authorization, envelope(version, operation))?)
+        let body = match &self.mailbox {
+            Some(address) => envelope(version, &operation.in_mailbox(address)),
+            None => envelope(version, operation),
+        };
+        Ok(HttpRequest::soap(&self.endpoint, &self.authorization, body)?)
     }
 
     /// Sends `operation` and judges the answer to the point of its response messages.

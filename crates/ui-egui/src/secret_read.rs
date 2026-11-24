@@ -185,7 +185,7 @@ impl MailApp {
         if !self.ui.remember_sign_in || self.services.secrets.is_none() {
             return false;
         }
-        let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+        let account = self.session.mailbox.opened_through(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
         // (A JMAP account's secret is never with the store; an Exchange server account's is, under
         // the name that holds its server's address and its user name, #252.)

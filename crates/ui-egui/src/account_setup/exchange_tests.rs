@@ -882,3 +882,32 @@ fn a_server_typed_on_a_microsoft_host_is_handed_over_with_nothing_sent() {
         assert!(wizard(&h).is_some_and(|w| w.password.0.is_empty()), "the password is wiped");
     }
 }
+
+/// A shared mailbox opened through the account (#482) whose run met a certificate that needs a
+/// say: the review is of the owner's server, the answer is kept on the owner's settings (the ones
+/// its runs go with, not its own copy), and the shared mailbox's question is answered with it.
+#[test]
+fn a_shared_mailboxs_certificate_is_reviewed_and_trusted_for_its_owner() {
+    let host = Host::default();
+    let (mut a, owner) = trusting(&host);
+    let shared = a.session.mailbox.add_shared_mailbox(owner, "team@example.org").unwrap();
+    a.ews_certificate.insert(shared, "cd".repeat(32));
+    a.jmap_refused.insert(shared);
+    a.execute("ui.dialog", json!({"name": "account", "id": shared, "page": "certificate"})).unwrap();
+    let mut h = window(a);
+    host.last(|job| {
+        assert!(job.certificate_only && job.password.is_empty());
+        assert_eq!((job.url.as_str(), job.email.as_str()), (URL, ME), "the owner's server, looked at for the owner");
+    });
+    host.end(EwsSetupEnd::Certificate(EwsCertificate { fingerprint: "cd".repeat(32), ..certificate(true) }));
+    h.run_steps(5);
+    h.get_by_role_and_label(Role::CheckBox, "Trust this certificate for this account").click();
+    h.run_steps(3);
+    click(&mut h, "Continue");
+    assert!(wizard(&h).is_none_or(|w| w.finished()), "the dialog is done");
+    let s = h.state();
+    let trusted = |id: Id| s.session.mailbox.account(id).and_then(|a| a.ews.as_ref()).map(|e| e.trusted.clone());
+    assert_eq!(trusted(owner), Some("cd".repeat(32)), "kept on the owner's settings");
+    assert_eq!(trusted(shared), Some("cd".repeat(32)), "and its copy follows");
+    assert!(!s.ews_certificate.contains_key(&shared) && !s.jmap_refused.contains(&shared), "nothing of the question is left");
+}

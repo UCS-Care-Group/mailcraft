@@ -2848,6 +2848,11 @@ msgid "Checking the address with Microsoft…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Checking the address with the server…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "Checking the calendar connection…"
 msgstr ""
@@ -9935,6 +9940,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr ""
 
@@ -15332,6 +15342,11 @@ msgid "The shared mailbox couldn't be added"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "The shared mailbox couldn't be read."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The shared mailbox opened through it is removed from this device too."
 msgstr ""
@@ -18238,6 +18253,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr ""
 
@@ -18299,6 +18319,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "add at least one recipient"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
 msgstr ""
 
 #. what a command says
@@ -19532,12 +19562,12 @@ msgstr ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
 msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
 msgstr ""
 
 #. interface
@@ -21382,7 +21412,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr ""
 

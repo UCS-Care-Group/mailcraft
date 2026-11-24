@@ -164,7 +164,7 @@ impl OfflineWindow {
             .iter()
             .filter(|a| a.kind.has_offline_window())
             .filter_map(|a| {
-                let mine = a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account);
+                let mine = a.id == account || mb.opened_through(a.id).is_some_and(|o| o.id == account);
                 let k = if mine { keep } else { mb.keep_offline_of(a.id) };
                 k.since(now).map(|t| (a.id, t))
             })

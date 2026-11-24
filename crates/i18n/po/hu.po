@@ -3427,6 +3427,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "A cím ellenőrzése a Microsoft-al…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "A cím ellenőrzése a kiszolgálón…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11969,6 +11975,12 @@ msgstr "Megnyitotta a {name} naptárát, és csak ezen a számítógépen van a 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Megnyitva {owner} kiszolgálójával és jelszavával. Teljes hozzáférést igényel a postafiókhoz, amelyet a szervezet rendszergazdája ad meg. Amit benne módosít, az oda kerül."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "Megnyitva {owner} bejelentkezéssel. Teljes hozzáférést igényel a postafiókához, amit a szervezet ad. A Microsoft egyszer kéri, hogy hagyja MailCraft-t olvasni és megváltoztatni a megosztott postafiókákat. Mit változtat meg benne. A levélben a címéről ír, és küld, ahogy kell Küldés As vagy Küldés Befel engedély: A Microsoft az első elküldésekor még egyszer kéri."
 
@@ -18473,6 +18485,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "A megosztott postafiókát nem sikerült hozzáadni."
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "A megosztott postafiókot nem sikerült beolvasni."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21972,6 +21990,12 @@ msgstr "egy megosztott postafiókban nincs Snoozed mappa"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "a megosztott postafiók a megnyitásához használt fiók szerverbeállításain keresztül érhető el. Módosítsa annak a fióknak a beállításait."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "a megosztott postafiók a megnyitásához használt fiók beállítása szerint tárol leveleket kapcsolat nélküli használatra. Módosítsa annak a fióknak a beállítását."
 
@@ -22046,6 +22070,18 @@ msgstr "előbb adjon hozzá egy fiókot (Fájl › Fiók hozzáadása)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "legalább egy címzett hozzáadása"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "a megosztott postafiók megnyitásához az Exchange szerverfióknak használható szervercímre van szüksége"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "az Exchange szerverfiók szervere és felhasználóneve nem módosítható, amíg egy rajta keresztül megnyitott megosztott postafiók levelezése itt van: először távolítsa el a megosztott postafiókot"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23519,14 +23555,14 @@ msgstr "megosztott postafiók"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "megosztott postafiókok nyithatók egy Microsoft Graph-on keresztül vezetett fiók alatt"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "megosztott postafiókok egy Microsoft Graph-on keresztül vezetett fiók vagy egy Exchange szerverfiók alatt nyithatók"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "megosztott postafiókok nyitnak egy fiók alatt, amely lépést tart a Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "megosztott postafiókok olyan fiók alatt nyithatók, amelyet Microsoft Graph-on keresztül vezetnek, vagy amely Exchange szerverfiók"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25733,7 +25769,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "A(z) {name} JMAP-fiók. Ez a verzió még nem támogatja az üzenetek küldését és fogadását ilyen fiókkal."
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "A(z) {name} megosztott postafiókhoz tartozó fiók már nincs meg. Távolítsa el a megosztott postafiókot, majd adja hozzá újra."
@@ -27379,6 +27415,14 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
 #~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "megosztott postafiókok nyithatók egy Microsoft Graph-on keresztül vezetett fiók alatt"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "megosztott postafiókok nyitnak egy fiók alatt, amely lépést tart a Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

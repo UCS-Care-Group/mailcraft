@@ -593,6 +593,9 @@ pub(crate) fn added_by_newer(a: &Account, then: &'static str) -> CmdError {
     failed!("{who} was added by a newer version of MailCraft, {then}", who = super::remote::who(a), then = mailcraft_i18n::Arg::words(then))
 }
 
+/// Why a shared mailbox's Exchange server settings can't be changed by themselves (#482).
+const SHARED_EWS: &str = "a shared mailbox is reached through the server settings of the account it is opened through: change that account's";
+
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let mut a = s.mailbox.account(id).cloned().ok_or_else(|| failed!("no account with id {id}", id))?;
@@ -601,6 +604,11 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
+    // A shared mailbox opened through an Exchange server account (#482) is reached with its owner's
+    // server settings and password, and with no others: the owner's password goes nowhere else.
+    if before.is_shared() && v.get("ews").is_some() {
+        return Err(fail(SHARED_EWS));
+    }
     let named_by_address = before.named_by_address();
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
@@ -635,6 +643,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
                 "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one",
             ));
         }
+    }
+    // The shared mailboxes opened through it (#482) are reached with its server and its user name:
+    // once one's mail is here, its ids are that server's, for that user.
+    let dependents: Vec<Id> = s.mailbox.accounts.iter().filter(|x| s.mailbox.ews_owner_of(x.id).is_some_and(|o| o.id == id)).map(|x| x.id).collect();
+    if other_mailbox && dependents.iter().any(|shared| listed_ews(s, *shared)) {
+        return Err(fail(
+            "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first",
+        ));
     }
     // And once its mail is here, those ids are one account's at one session: another session
     // address, even on the same server, or another address of the owner's, may be another account
@@ -688,6 +704,21 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
     }
+    // Its shared mailboxes' copies of its settings follow (what File › Info shows of them); a
+    // shared mailbox read nothing yet of what is another mailbox now.
+    if let Some(owner) = s.mailbox.account(id).filter(|o| o.kind == AccountKind::Exchange)
+        && let Some(server) = owner.ews.clone()
+    {
+        let sign_in = owner.sign_in_name();
+        for shared in &dependents {
+            if let Some(copy) = s.mailbox.account_mut(*shared).ok().and_then(|x| x.ews.as_mut()) {
+                (copy.url, copy.username, copy.trusted) = (server.url.clone(), sign_in.clone(), server.trusted.clone());
+            }
+            if other_mailbox {
+                forget_ews_states(&mut s.mailbox, *shared);
+            }
+        }
+    }
     // So is one that isn't a Microsoft account any more: nothing keeps its list in step with
     // Outlook, and it is the owner's to change here; should it be one again, its server's list is
     // read as a new address's is.
@@ -712,7 +743,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 /// listed afresh at their next run (MB3.16).
 fn relist(mb: &mut mailcraft_model::Mailbox, account: Id) {
     let accounts: Vec<Id> =
-        mb.accounts.iter().filter(|a| a.id == account || mb.owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
+        mb.accounts.iter().filter(|a| a.id == account || mb.opened_through(a.id).is_some_and(|o| o.id == account)).map(|a| a.id).collect();
     relist_accounts(mb, &accounts);
 }
 
@@ -732,6 +763,10 @@ fn forget_ews_certificate(s: &mut Session, v: &Value) -> CmdResult {
     let a = s.mailbox.account_mut(id)?;
     if a.kind != AccountKind::Exchange {
         return Err(failed!("{name} isn't an Exchange server account", name = a.name));
+    }
+    // (A shared mailbox trusts what its owner trusts, #482.)
+    if a.is_shared() {
+        return Err(fail(SHARED_EWS));
     }
     let server = a.ews.as_mut().ok_or_else(|| fail("this Exchange server account has no server settings"))?;
     let forgotten = !server.trusted.is_empty();

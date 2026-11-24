@@ -94,6 +94,15 @@ impl EwsServer {
         }
     }
 
+    /// The copy of `owner`'s settings a shared mailbox opened through it keeps (#482): the server,
+    /// the certificate it trusts and `sign_in`, the name the owner signs in with. Only the
+    /// settings: whatever else the owner's hold (where its folder list goes on from, and the like)
+    /// is the owner's mailbox's, and starts empty here.
+    #[must_use]
+    pub fn copy_for_shared(owner: &EwsServer, sign_in: String) -> EwsServer {
+        EwsServer { url: owner.url.clone(), username: sign_in, trusted: owner.trusted.clone(), ..EwsServer::default() }
+    }
+
     /// Why these settings can't be used, when they can't.
     pub fn problem(&self) -> Option<&'static str> {
         Self::check_url(&self.url)

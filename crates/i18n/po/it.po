@@ -3423,6 +3423,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "Verifica dell'indirizzo con Microsoft…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "Verifica dell'indirizzo con il server…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11969,6 +11975,12 @@ msgstr "Aperto il calendario di {name}. È elencato in Calendari condivisi, solo
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Aperta con il server e la password di {owner}. Richiede l'Accesso completo alla cassetta postale, concesso dall'amministratore dell'organizzazione. Le modifiche apportate vengono applicate a essa."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "Aperta con l'accesso di {owner}. Richiede l'Accesso completo alla cassetta postale, concesso dall'amministratore dell'organizzazione. Microsoft chiede una volta di consentire a MailCraft di leggere e modificare le cassette postali condivise. Le modifiche apportate vengono applicate a essa. La posta scritta al suo interno parte dal suo indirizzo, e inviare a suo nome richiede l'autorizzazione Invia come o Invia per conto di: Microsoft lo chiede ancora una volta al primo invio."
 
@@ -18458,6 +18470,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Impossibile aggiungere la cassetta postale condivisa"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Impossibile leggere la cassetta postale condivisa."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21953,6 +21971,12 @@ msgstr "una cassetta postale condivisa non ha una cartella Posticipati"
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "una cassetta postale condivisa si raggiunge con le impostazioni del server dell'account tramite cui è aperta: modificare quelle di quell'account"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "una cassetta postale condivisa conserva offline tanta posta quanto l'account tramite cui è aperta: modificare l'impostazione di quell'account"
 
@@ -22027,6 +22051,18 @@ msgstr "aggiungere prima un account (File › Aggiungi account)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "aggiungere almeno un destinatario"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "un account di server Exchange ha bisogno di un indirizzo di server utilizzabile per aprire una cassetta postale condivisa"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "il server e il nome utente di un account di server Exchange non possono essere cambiati finché la posta di una cassetta postale condivisa aperta tramite esso è qui: rimuovi prima la cassetta postale condivisa"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23499,14 +23535,14 @@ msgstr "cassetta postale condivisa"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph o sotto un account di server Exchange"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph o è un account di server Exchange"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25712,7 +25748,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} è un account JMAP, e questa versione non invia e riceve ancora con questo tipo di account"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} è una cassetta postale condivisa il cui account non c'è più: rimuoverla e aggiungerla di nuovo"
@@ -27211,6 +27247,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account sincronizzato tramite Microsoft Graph"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "le cassette postali condivise si aprono sotto un account che è sincronizzato tramite Microsoft Graph"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

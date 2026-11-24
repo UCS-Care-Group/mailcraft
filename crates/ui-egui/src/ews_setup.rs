@@ -192,12 +192,18 @@ impl MailApp {
 
 /// File › Info under an Exchange server account's card (#252): where it connects, as whom, how the
 /// last run signed in, the certificate it trusts (with Forget), and a certificate that needs the
-/// owner's say again (with a way to answer).
+/// owner's say again (with a way to answer). A shared mailbox opened through an Exchange server
+/// account (#482) shows its owner's settings, the ones its runs go with, and its certificate is
+/// trusted, forgotten and reviewed for the owner.
 pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::Tokens, a: &mailcraft_model::Account) {
     use crate::forms::kit::shown;
     use crate::theme::regular;
     use serde_json::json;
-    let Some(server) = a.ews.as_ref() else { return };
+    let settings = app.ews_sign_in_of(a.id);
+    let Some((server, sign_in)) = app.session.mailbox.account(settings).and_then(|o| o.ews.clone().map(|server| (server, o.sign_in_name()))) else {
+        return;
+    };
+    let server = &server;
     // (Close together: they belong to the card above.)
     ui.spacing_mut().item_spacing.y = 2.0;
     let line = |ui: &mut egui::Ui, text: String| {
@@ -207,7 +213,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
         });
     };
     line(ui, crate::i18n::fmt(tl!("Server: {address}"), &[("address", &shown(server.url.trim(), 160))]));
-    let user = if server.username.trim().is_empty() { shown(a.email.trim(), 160) } else { shown(server.username.trim(), 160) };
+    let user = shown(sign_in.trim(), 160);
     line(ui, crate::i18n::fmt(tl!("User name: {name}"), &[("name", &user)]));
     let how = app.ews_sign_in_words(a.id).map_or_else(|| tl!("not known until the first Send/Receive").to_string(), str::to_string);
     line(ui, crate::i18n::fmt(tl!("Signs in with: {how}"), &[("how", &how)]));
@@ -219,7 +225,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
                 "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
             );
             if ui.link(tl!("Forget")).on_hover_text(tip).clicked() {
-                let _ = app.run("account.forgetEwsCertificate", json!({"id": a.id}));
+                let _ = app.run("account.forgetEwsCertificate", json!({"id": settings}));
             }
         });
         ui.horizontal(|ui| {
@@ -239,7 +245,7 @@ pub(crate) fn info_rows(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::
             ui.label(egui::RichText::new(tl!("The server shows a certificate that needs your say.")).font(regular(11.5)).color(t.orange));
             let tip = tl!("Look at the certificate the server shows now. Nothing is signed in while you decide.");
             if ui.link(tl!("Review certificate…")).on_hover_text(tip).clicked() {
-                let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id, "page": "certificate"}));
+                let _ = app.run("ui.dialog", json!({"name": "account", "id": settings, "page": "certificate"}));
             }
         });
     }

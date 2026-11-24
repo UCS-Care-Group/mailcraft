@@ -177,6 +177,12 @@ pub struct EwsMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// The address of the shared mailbox the run is for (#482), when the account is one opened
+    /// through an Exchange server account: the server is the owner's, the sign-in is the owner's, and
+    /// every distinguished folder the run names (the Inbox, the top of the mail, Drafts, Sent Items)
+    /// is this mailbox's. Empty for an account's own mailbox. Never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub mailbox: String,
 }
 
 /// Messages of an Exchange server account to fetch whole (their MIME content), by server id, in

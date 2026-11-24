@@ -870,6 +870,15 @@ impl Account {
         self.shared_of.as_ref().map(|_| self.email.clone())
     }
 
+    /// The name an Exchange server account signs in with: the server settings' user name, or else the
+    /// account's address. A shared mailbox opened through it signs in with this name, not with its own address.
+    pub fn sign_in_name(&self) -> String {
+        match self.ews.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()) {
+            Some(name) => name.to_owned(),
+            None => self.email.trim().to_owned(),
+        }
+    }
+
     /// The name the servers know the owner by: the login name, or else the address.
     pub fn login(&self) -> &str {
         let user = self.username.trim();
@@ -1694,13 +1703,10 @@ impl Mailbox {
         self.accounts.iter().filter(|a| a.shared_of == Some(account) && a.id != account).collect()
     }
 
-    /// The account whose sign-in reads the shared mailbox `account`: a Microsoft account that is
-    /// no shared mailbox itself. `None` for an account that isn't a shared mailbox, and for one
-    /// whose owner is gone or can't be one (a file may say anything).
     /// The **mail to keep offline** of `account`: its own, and for a shared mailbox its owner's
-    /// (#143: it has none of its own). All for an account that isn't here.
+    /// (#143: it has none of its own; [`Mailbox::opened_through`]). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
-        self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+        self.opened_through(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
     }
 
     /// The earliest received time of `account`'s mail that is listed from its server at `now`:
@@ -1719,11 +1725,32 @@ impl Mailbox {
     }
 
     /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
-    /// and for a shared mailbox its owner's.
+    /// and for a shared mailbox its owner's ([`Mailbox::opened_through`]).
     pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
-        self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
+        self.opened_through(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
     }
 
+    /// The Exchange server account whose server, user name and password read the shared mailbox
+    /// `account` (#482): its owner, when that is an Exchange server account that is no shared
+    /// mailbox itself. `None` for any other account.
+    pub fn ews_owner_of(&self, account: Id) -> Option<&Account> {
+        let owner = self.account(account)?.shared_of.filter(|owner| *owner != account)?;
+        self.account(owner).filter(|o| o.kind == AccountKind::Exchange && !o.is_shared())
+    }
+
+    /// The account the shared mailbox `account` is opened through, and whose settings it follows
+    /// (the mail to keep offline, Download messages in full, asking before deleting a conversation):
+    /// its owner, a Microsoft account ([`Mailbox::owner_of`]) or an Exchange server account
+    /// ([`Mailbox::ews_owner_of`]). `None` for an account that isn't a shared mailbox, and for one
+    /// whose owner is gone or can't be one (a file may say anything).
+    pub fn opened_through(&self, account: Id) -> Option<&Account> {
+        self.owner_of(account).or_else(|| self.ews_owner_of(account))
+    }
+
+    /// The account whose sign-in reads the shared mailbox `account` through Microsoft Graph: a
+    /// Microsoft account that is no shared mailbox itself. `None` for an account that isn't a
+    /// shared mailbox, and for one whose owner is gone or can't be one (a file may say anything).
+    /// Of either kind: [`Mailbox::opened_through`].
     pub fn owner_of(&self, account: Id) -> Option<&Account> {
         let owner = self.account(account)?.shared_of.filter(|owner| *owner != account)?;
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
@@ -1751,7 +1778,7 @@ impl Mailbox {
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
         for a in own {
             out.push(a);
-            out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
+            out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.opened_through(s.id).is_some()));
         }
         // (A shared mailbox whose owner is missing.)
         let placed: HashSet<Id> = out.iter().map(|a| a.id).collect();
@@ -1789,18 +1816,28 @@ impl Mailbox {
         Ok(moved)
     }
 
-    /// Open the shared mailbox at `address` under the Microsoft account `owner`: an account of
-    /// its own kind ([`AccountKind::Microsoft`]) with its standard folders, read with the owner's
-    /// sign-in ([`Account::shared_of`]). Nothing is asked of any server here: whether the owner
-    /// may open it is found at its first Send/Receive. Its id.
+    /// Open the shared mailbox at `address` under the account `owner`: a Microsoft account kept in
+    /// step through Graph, or an Exchange server account (#482). An account of its own, of its
+    /// owner's kind, with its standard folders, read with the owner's sign-in
+    /// ([`Account::shared_of`]). Over Exchange Web Services it is reached with the owner's server,
+    /// user name, trusted certificate and password, and with no others (its own copy of the
+    /// settings is for showing, and is kept in step when the owner's are edited: `account.edit`),
+    /// with this mailbox's address named in each request.
+    /// Nothing is asked of any server here: whether the owner may open it is found at its first
+    /// Send/Receive. Its id.
     pub fn add_shared_mailbox(&mut self, owner: Id, address: &str) -> Result<Id, ModelError> {
         let address = crate::mailbox_address(address).ok_or_else(|| invalid("that isn't an e-mail address"))?;
         let o = self.account(owner).ok_or(not_found("account", owner))?;
         if o.is_shared() {
             return Err(invalid("a shared mailbox can't open another one: name the account it is opened through"));
         }
-        if o.kind != AccountKind::Microsoft {
-            return Err(invalid("shared mailboxes open under an account that is kept in step through Microsoft Graph"));
+        if !matches!(o.kind, AccountKind::Microsoft | AccountKind::Exchange) {
+            return Err(invalid(
+                "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account",
+            ));
+        }
+        if o.kind == AccountKind::Exchange && o.ews.as_ref().is_none_or(|server| server.problem().is_some()) {
+            return Err(invalid("an Exchange server account needs a server address that can be used to open a shared mailbox"));
         }
         if o.oauth.as_ref().is_some_and(|oauth| oauth.is_personal(&o.email)) {
             return Err(invalid("a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"));
@@ -1815,12 +1852,20 @@ impl Mailbox {
             return Err(invalid(format!("an account opens {MAX_SHARED} shared mailboxes at most")));
         }
         let download_in_full = o.download_in_full;
+        // (Over Exchange Web Services: a copy of the owner's server settings and of the name the owner
+        // signs in with, for what is shown; the requests go with the owner's own, as they are then.
+        // What is not a setting, the folder list's sync state and the like, is this mailbox's own
+        // and starts empty.)
+        let ews = (o.kind == AccountKind::Exchange)
+            .then(|| o.ews.as_ref().map(|server| crate::EwsServer::copy_for_shared(server, o.sign_in_name())))
+            .flatten();
         let shared = Account {
             name: address.clone(),
             email: address,
-            kind: AccountKind::Microsoft,
+            kind: o.kind,
             download_in_full,
             shared_of: Some(owner),
+            ews,
             // A colour of its own, as `account.add` gives a new account (#893).
             color: Some(self.unused_account_color()),
             ..Default::default()

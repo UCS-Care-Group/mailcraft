@@ -3417,6 +3417,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "მისამართის შემოწმება Microsoft-თან…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "მისამართის შემოწმება სერვერთან…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11942,6 +11948,12 @@ msgstr "გაიხსნა კალენდარი ({name}). ის ჩ�
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "გაიხსნა ანგარიშის {owner} სერვერითა და პაროლით. მას საფოსტო ყუთზე სრული წვდომა (Full Access) სჭირდება, რომელსაც თქვენი ორგანიზაციის ადმინისტრატორი იძლევა. რასაც მასში შეცვლით, იქვე აისახება."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "გაიხსნა ანგარიშით {owner}. მას საფოსტო ყუთზე სრული წვდომა (Full Access) სჭირდება, რომელსაც თქვენი ორგანიზაციის ადმინისტრატორი იძლევა. Microsoft ერთხელ გკითხავთ, მისცეთ თუ არა MailCraft-ს საერთო საფოსტო ყუთების წაკითხვისა და შეცვლის უფლება. რასაც მასში შეცვლით, იქვე აისახება. მასში დაწერილი ფოსტა მისი მისამართიდან იგზავნება, მისი სახელით გაგზავნას კი Send As ან Send on Behalf ნებართვა სჭირდება: Microsoft პირველი გაგზავნისას კიდევ ერთხელ გკითხავთ."
 
@@ -18406,6 +18418,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "საერთო საფოსტო ყუთი ვერ დაემატა"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "საერთო საფოსტო ყუთის წაკითხვა ვერ მოხერხდა."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -21896,6 +21914,12 @@ msgstr "საერთო საფოსტო ყუთს გადადე
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "საერთო საფოსტო ყუთთან წვდომა ხდება იმ ანგარიშის სერვერის პარამეტრებით, რომლითაც ის იხსნება: შეცვალეთ იმ ანგარიშისა"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "საერთო საფოსტო ყუთი ოფლაინ იმდენ ფოსტას ინახავს, რამდენსაც ანგარიში, რომლითაც ის არის გახსნილი: შეცვალეთ იმ ანგარიშის პარამეტრი"
 
@@ -21970,6 +21994,18 @@ msgstr "ჯერ დაამატეთ ანგარიში (ფაი�
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "დაამატეთ ერთი მიმღები მაინც"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "Exchange სერვერის ანგარიშს სჭირდება სერვერის მისამართი, რომლითაც საერთო საფოსტო ყუთის გახსნა შეიძლება"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "Exchange სერვერის ანგარიშის სერვერისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, სანამ მისით გახსნილი საერთო საფოსტო ყუთის ფოსტა აქაა: ჯერ საერთო საფოსტო ყუთი წაშალეთ"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23443,14 +23479,14 @@ msgstr "საერთო საფოსტო ყუთი"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით ან Exchange სერვერის ანგარიშით"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება ან Exchange სერვერის ანგარიშია"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -25650,7 +25686,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} JMAP ანგარიშია და ეს ვერსია მასთან ჯერ ვერ აგზავნის და იღებს"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} საერთო საფოსტო ყუთია, რომლის ანგარიშიც აღარ არსებობს: წაშალეთ და ხელახლა დაამატეთ"
@@ -27147,6 +27183,14 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "საერთო საფოსტო ყუთები იხსნება Microsoft Graph-ით სინქრონიზებული ანგარიშით"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "საერთო საფოსტო ყუთები იხსნება ანგარიშით, რომელიც Microsoft Graph-ით სინქრონიზდება"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

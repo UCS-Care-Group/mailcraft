@@ -3249,6 +3249,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "Adresse wird bei Microsoft geprüft…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "Adresse wird beim Server geprüft…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11247,6 +11253,12 @@ msgstr "Der Kalender von {name} wurde geöffnet. Er wird nur auf diesem Computer
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Mit dem Server und dem Kennwort von {owner} geöffnet. Dafür ist Vollzugriff auf das Postfach nötig, den der Administrator Ihrer Organisation erteilt. Was Sie darin ändern, wird dorthin übertragen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
 msgstr "Mit der Anmeldung von {owner} geöffnet. Dafür ist Vollzugriff auf das Postfach nötig, den der Administrator Ihrer Organisation erteilt. Microsoft fragt Sie einmal, ob MailCraft freigegebene Postfächer lesen und ändern darf. Was Sie darin ändern, wird dorthin übertragen. E-Mails, die Sie darin schreiben, kommen von seiner Adresse, und das Senden in seinem Namen erfordert die Berechtigung „Senden als“ oder „Senden im Auftrag von“: Microsoft fragt Sie beim ersten Senden noch einmal."
 
@@ -17368,6 +17380,12 @@ msgid "The shared mailbox couldn't be added"
 msgstr "Das freigegebene Postfach konnte nicht hinzugefügt werden"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be read."
+msgstr "Das freigegebene Postfach konnte nicht gelesen werden."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The shared mailbox opened through it is removed from this device too."
@@ -20685,6 +20703,12 @@ msgstr "ein freigegebenes Postfach hat keinen Ordner für zurückgestellte Nachr
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
+msgid "a shared mailbox is reached through the server settings of the account it is opened through: change that account's"
+msgstr "ein freigegebenes Postfach wird über die Servereinstellungen des Kontos erreicht, über das es geöffnet ist: Ändern Sie die Einstellungen dieses Kontos"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
 msgstr "ein freigegebenes Postfach hält so viele E-Mails offline wie das Konto, über das es geöffnet ist: Ändern Sie die Einstellung dieses Kontos"
 
@@ -20758,6 +20782,18 @@ msgstr "fügen Sie zuerst ein Konto hinzu (Datei › Konto hinzufügen)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "fügen Sie mindestens einen Empfänger hinzu"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an Exchange server account needs a server address that can be used to open a shared mailbox"
+msgstr "ein Exchange-Server-Konto braucht eine verwendbare Serveradresse, um ein freigegebenes Postfach zu öffnen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server and user name can't be changed while a shared mailbox opened through it has mail here: remove the shared mailbox first"
+msgstr "Server und Benutzername eines Exchange-Server-Kontos können nicht geändert werden, solange E-Mails eines darüber geöffneten freigegebenen Postfachs hier gespeichert sind: Entfernen Sie zuerst das freigegebene Postfach"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -22158,14 +22194,14 @@ msgstr "freigegebenes Postfach"
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
 #, fuzzy
-msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
-msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
+msgid "shared mailboxes open under an account kept in step through Microsoft Graph, or an Exchange server account"
+msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird, oder unter einem Exchange-Server-Konto"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
-msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
-msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph or is an Exchange server account"
+msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird oder ein Exchange-Server-Konto ist"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24261,7 +24297,7 @@ msgid "{name} is a JMAP account, and this version doesn't send and receive with 
 msgstr "{name} ist ein JMAP-Konto, und diese Version kann damit noch nicht senden und empfangen"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden ist: Entfernen Sie es und fügen Sie es erneut hinzu"
@@ -25683,6 +25719,14 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account kept in step through Microsoft Graph"
+#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
+
+#, fuzzy
+#~ msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+#~ msgstr "freigegebene Postfächer werden unter einem Konto geöffnet, das über Microsoft Graph auf dem neuesten Stand gehalten wird"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"
