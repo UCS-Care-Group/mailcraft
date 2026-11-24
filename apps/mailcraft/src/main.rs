@@ -118,6 +118,8 @@ mod unconfirmed_flow;
 mod update_flow;
 mod updater;
 mod wipe;
+#[cfg(any(target_os = "linux", test))]
+mod wheel_input;
 
 use std::path::PathBuf;
 
@@ -226,6 +228,8 @@ impl eframe::App for App {
         self.6.after_frame(ctx);
     }
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        #[cfg(target_os = "linux")]
+        wheel_input::smooth_discrete_wheel_events(&mut raw.events);
         // On Linux and the BSDs, the desktop's light or dark preference (`desktop_theme`), for
         // "Use system setting": winit has none there.
         #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
