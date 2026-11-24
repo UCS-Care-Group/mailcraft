@@ -275,3 +275,29 @@ fn an_exchange_password_is_kept_once_the_server_answers_with_its_folders() {
     assert_eq!(kept(&a, &store, id), None);
     assert!(!a.passwords.contains_key(&id), "the next Send/Receive asks");
 }
+
+/// A refresh token handed back unchanged (each job of a sync hands back the account's newest) is
+/// not written again: on macOS each write of a keychain item a build doesn't yet trust asks the
+/// owner for the keychain password. A new one is written, once.
+#[test]
+fn an_unchanged_secret_is_not_written_again() {
+    let store = Store::default();
+    let mut a = app(&store);
+    a.ui.remember_sign_in = true;
+    a.execute("account.add", json!({"email": "avery@mail.example", "auth": "oauth2", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    let account = a.account_at("avery@mail.example").map_or(0, |x| x.id);
+
+    a.remember("refresh", account, "invented-refresh-one");
+    assert_eq!(store.writes(), 1);
+    for _ in 0..5 {
+        a.remember("refresh", account, "invented-refresh-one");
+    }
+    assert_eq!(store.writes(), 1, "the same token is not written again");
+
+    a.remember("refresh", account, "invented-refresh-two");
+    a.remember("refresh", account, "invented-refresh-two");
+    assert_eq!(store.writes(), 2, "a new token is written once");
+    assert_eq!(a.remembered("refresh", account).as_deref(), Some("invented-refresh-two"));
+    let key = MailApp::secret_key("refresh", a.session.mailbox.account(account).unwrap());
+    assert_eq!(store.get(&key).as_deref(), Some("invented-refresh-two"));
+}
