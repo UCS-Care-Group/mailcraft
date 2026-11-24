@@ -1,24 +1,13 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Correct the phase winit reports for discrete wheel input on Linux before egui smooths it.
+//! Linux's Wayland discrete wheel producer already emits `Line` events with `Moved` phases.
+//! Keep this hook as an explicit boundary for platform-specific input handling; no phase rewrite
+//! is needed. Point-based touchpad events pass through unchanged as well.
 
 #[cfg(test)]
 #[path = "wheel_input_tests.rs"]
 mod tests;
 
-/// Wayland can report `TouchPhase::Start` for a mouse wheel without a later `End`. egui treats
-/// that as an active touchpad gesture and skips smoothing; line-unit events are discrete wheels,
-/// so let egui handle them as ordinary scroll steps. Point-unit touchpad deltas stay untouched.
-pub(crate) fn smooth_discrete_wheel_events(events: &mut [egui::Event]) {
-    for event in events {
-        if let egui::Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Line,
-            phase,
-            ..
-        } = event
-            && *phase == egui::TouchPhase::Start
-        {
-            *phase = egui::TouchPhase::Move;
-        }
-    }
-}
+/// Wayland discrete line-wheel events already arrive with `TouchPhase::Move` from winit.
+/// Do not rewrite `Start`: the producer does not emit it for discrete wheel events.
+pub(crate) fn smooth_discrete_wheel_events(_events: &mut [egui::Event]) {}

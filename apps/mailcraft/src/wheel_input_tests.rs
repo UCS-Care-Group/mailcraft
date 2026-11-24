@@ -25,11 +25,11 @@ fn first_frame_scroll(event: Event) -> Vec2 {
 }
 
 #[test]
-fn discrete_wheel_start_is_smoothed_without_changing_touchpad_phases() {
+fn discrete_wheel_move_is_smoothed_and_touchpad_phases_are_unchanged() {
+    // winit 0.30's Wayland pointer handler reports discrete scroll as LineDelta with Moved phase.
     let mut events = [
-        wheel(MouseWheelUnit::Line, TouchPhase::Start),
-        wheel(MouseWheelUnit::Line, TouchPhase::End),
         wheel(MouseWheelUnit::Line, TouchPhase::Move),
+        wheel(MouseWheelUnit::Line, TouchPhase::Start),
         wheel(MouseWheelUnit::Point, TouchPhase::Start),
         wheel(MouseWheelUnit::Point, TouchPhase::Move),
     ];
@@ -44,24 +44,17 @@ fn discrete_wheel_start_is_smoothed_without_changing_touchpad_phases() {
             ..
         }
     ));
+    // Even a synthetic/unexpected Start is no longer rewritten.
     assert!(matches!(
         &events[1],
         Event::MouseWheel {
             unit: MouseWheelUnit::Line,
-            phase: TouchPhase::End,
+            phase: TouchPhase::Start,
             ..
         }
     ));
     assert!(matches!(
         &events[2],
-        Event::MouseWheel {
-            unit: MouseWheelUnit::Line,
-            phase: TouchPhase::Move,
-            ..
-        }
-    ));
-    assert!(matches!(
-        &events[3],
         Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             phase: TouchPhase::Start,
@@ -69,21 +62,15 @@ fn discrete_wheel_start_is_smoothed_without_changing_touchpad_phases() {
         }
     ));
     assert!(matches!(
-        &events[4],
+        &events[3],
         Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             phase: TouchPhase::Move,
             ..
         }
     ));
-}
 
-#[test]
-fn wayland_discrete_wheel_start_is_eased_by_egui() {
-    let mut event = wheel(MouseWheelUnit::Line, TouchPhase::Start);
-    super::smooth_discrete_wheel_events(std::slice::from_mut(&mut event));
-
-    let delta = first_frame_scroll(event);
+    let delta = first_frame_scroll(wheel(MouseWheelUnit::Line, TouchPhase::Move));
     assert!(delta.y < 0.0 && delta.y > -40.0, "the first frame applied {delta:?}");
 }
 
