@@ -196,13 +196,12 @@ fn a_header_rule_reads_the_headers_mail_came_with_and_not_mailcrafts_own() {
     };
     for word in ["pst", "mailcraft", "00200024", "marker"] {
         assert!(!Condition::HeaderContains(words(&[word])).matches(&m), "{word}");
-        assert!(!m.header_contains(word), "{word}");
     }
     assert!(Condition::HeaderContains(words(&["harbor"])).matches(&m));
     // A name too short to be one of ours, or with a letter outside ASCII where ours has its
     // dash, is read as it came.
     let odd = Message { headers: vec![("X-MailCraft".into(), "plain".into()), ("X-MailCraft\u{e9}x".into(), "accent".into())], ..Default::default() };
-    assert!(odd.header_contains("plain") && odd.header_contains("accent"));
+    assert!(Condition::HeaderContains(words(&["plain"])).matches(&odd) && Condition::HeaderContains(words(&["accent"])).matches(&odd));
 }
 
 #[test]

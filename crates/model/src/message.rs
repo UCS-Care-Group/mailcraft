@@ -359,13 +359,14 @@ pub struct Message {
     /// The lines of its header MailCraft reads into the message itself (From, To, Cc, Bcc,
     /// Reply-To, Subject, Message-ID, In-Reply-To, References, Date, MIME-Version, the Content-
     /// lines, Importance, X-Priority, Keywords, Status, X-Status) or keeps among its other lines
-    /// only decoded (a line with encoded words), as they came, one `name: value` to a line, at most
-    /// [`MAX_READ_HEADER`] bytes: with the others ([`Message::headers`], [`Message::header_block`]),
-    /// the header as it came, for a rule with words in the header alone, and never written into a
-    /// message (#566). Kept only while a rule for its account looks for words in the header
-    /// ([`crate::Mailbox::keeps_header_as_it_came`]). Empty for a message read before it was kept
-    /// or while no such rule was there, or made here: a header rule can't tell of such a message
-    /// ([`crate::Condition::unread_in`]).
+    /// only decoded (a line with encoded words), as they came, one `name: value` to a line (a
+    /// folded line joined), at most [`MAX_READ_HEADER`] bytes: with the others
+    /// ([`Message::headers`], [`Message::header_block`]), the header as it came, for a rule with
+    /// words in the header alone, and never written into a message (#566). Kept for mail read
+    /// while a rule for its account looks for words in the header
+    /// ([`crate::Mailbox::keeps_header_as_it_came`]), and left as it is when that rule goes. Empty
+    /// for a message read before it was kept or while no such rule was there, or made here: a
+    /// header rule can't tell of such a message ([`crate::Condition::unread_in`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub read_header: String,
     /// [`Message::read_header`] ran past [`MAX_READ_HEADER`] as it was read: a rule with words in
@@ -914,20 +915,15 @@ impl Message {
         })
     }
 
-    /// Whether a line of its header holds `word`, whatever the letters' case: the header as it
-    /// came, but for MailCraft's own lines (`X-MailCraft-…`, such as where a .pst import found it),
-    /// which it wasn't sent with ([`Message::header_lines_lowered`]).
-    pub fn header_contains(&self, word: &str) -> bool {
-        let word = word.to_lowercase();
-        self.header_lines_lowered().iter().any(|line| line.contains(&word))
-    }
-
-    /// The lines of its header [`Message::header_contains`] looks in, in lower case: made once for
-    /// all the words looked for. Those read into the message as they came ([`Message::read_header`])
-    /// and those kept beside it, of a field not read so, its block among them while it is in memory
-    /// ([`Message::all_headers`]); for a message read before they were kept, or made here, those it
-    /// models written as it has them instead (a rule can't tell of what isn't among them, nor of a
-    /// block kept outside memory, [`crate::Condition::unread_in`]).
+    /// The lines of its header a rule with words in the header looks in
+    /// ([`crate::Condition::HeaderContains`]), in lower case: made once for all the words looked
+    /// for. The header as it came, but for MailCraft's own lines (`X-MailCraft-…`, such as where a
+    /// .pst import found it), which it wasn't sent with. Those read into the message as they came
+    /// ([`Message::read_header`]) and those kept beside it, of a field not read so, its block
+    /// among them while it is in memory ([`Message::all_headers`]); for a message read before they
+    /// were kept, or made here, those it models written as it has them instead (a rule can't tell
+    /// of what isn't among them, nor of a block kept outside memory,
+    /// [`crate::Condition::unread_in`]).
     pub fn header_lines_lowered(&self) -> Vec<String> {
         let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
         let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));

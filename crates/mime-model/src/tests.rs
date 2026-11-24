@@ -812,7 +812,7 @@ fn exchanges_direction_is_kept_past_the_header_cap() {
 
 /// A field past the 2,000 a header is split into, after fields that trip none of the other caps
 /// (2,000 `MIME-Version` lines, 36 KB): the message says its header was cut, so an exception
-/// that looks for a word in it can't tell, and the rule doesn't delete the message (#566).
+/// that reads the header can't tell, and the rule doesn't delete the message (#566).
 #[test]
 fn a_field_past_the_split_cap_is_said_cut() {
     use mailcraft_model::{Action, Condition, Rule};
@@ -823,12 +823,35 @@ fn a_field_past_the_split_cap_is_said_cut() {
         name: "r".into(),
         enabled: true,
         conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
-        exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
+        exceptions: vec![Condition::Sensitivity(mailcraft_model::Sensitivity::Private)],
         actions: vec![Action::Delete],
         ..Default::default()
     };
     assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
-    assert!(m.headers_cut || m.header_contains("keep-this"), "a field left out, and nothing says so");
+    assert!(m.headers_cut, "a field left out, and nothing says so");
+}
+
+/// The same field past the split cap, of an exception that looks for a word in the header: the
+/// word is in the line left out, and the exception can't tell, so the rule doesn't delete the
+/// message (#566).
+#[test]
+fn a_field_past_the_split_cap_leaves_a_header_exception_unable_to_tell() {
+    use mailcraft_model::{Action, Condition, Rule};
+    let filler = "MIME-Version: 1.0\r\n".repeat(2_000);
+    let raw = format!("From: a@example.org\r\nSubject: offer\r\n{filler}X-Gateway: keep-this\r\n\r\nbody\r\n");
+    let m = parse(raw.as_bytes());
+    let keep = Condition::HeaderContains(vec!["keep-this".into()]);
+    let rule = Rule {
+        name: "r".into(),
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
+        exceptions: vec![keep.clone()],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    assert!(m.headers_cut && !m.read_header_cut);
+    assert!(!keep.matches(&m) && keep.unread_in(&m), "the word is found, or the exception says it can tell");
+    assert!(!rule.matches(&m), "the rule deletes a message its exception was to leave alone");
 }
 
 /// A rule with words in the message header finds them in any line of it as it came: those kept,
@@ -989,7 +1012,7 @@ fn lines_kept_as_they_came_cut_short_leave_only_a_header_rule_unable_to_tell() {
     assert!(m.read_header_cut && !m.headers_cut);
     let words = |w: &str| vec![w.to_string()];
     assert!(Condition::HeaderContains(words("no-such-word")).unread_in(&m));
-    assert!(m.header_contains("boss@example.org") && m.header_contains("far-down"));
+    assert!(Condition::HeaderContains(words("boss@example.org")).matches(&m) && Condition::HeaderContains(words("far-down")).matches(&m));
     for told in [
         Condition::AutomaticReply,
         Condition::ToMe,

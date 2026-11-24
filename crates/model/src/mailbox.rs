@@ -3295,12 +3295,15 @@ impl Mailbox {
     /// Whether a rule for `account`'s mail (its own or every account's, switched on or off, kept
     /// here or on its server) looks for words in the header (#566): only then is a message's header
     /// kept as it came ([`crate::Message::read_header`], up to 64 KB a message), so that the
-    /// mailbox doesn't grow with it for the mail of an account no such rule reads. Of mail that
-    /// came before such a rule, a word not found can't be told ([`crate::Condition::unread_in`]).
+    /// mailbox doesn't grow with it for the mail of an account no such rule reads: never a shared
+    /// mailbox's, which the rules leave alone ([`Mailbox::rules_reach`]). Of mail that came before
+    /// such a rule, a word not found can't be told ([`crate::Condition::unread_in`]).
     pub fn keeps_header_as_it_came(&self, account: Id) -> bool {
-        self.rules
-            .iter()
-            .any(|r| r.is_for(account) && r.conditions.iter().chain(&r.exceptions).any(|c| matches!(c, crate::Condition::HeaderContains(_))))
+        self.rules_reach(account)
+            && self
+                .rules
+                .iter()
+                .any(|r| r.is_for(account) && r.conditions.iter().chain(&r.exceptions).any(|c| matches!(c, crate::Condition::HeaderContains(_))))
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one

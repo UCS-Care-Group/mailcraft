@@ -71,6 +71,12 @@ fn the_header_as_it_came_is_kept_only_for_an_account_a_rule_reads_it_for() {
     s.mailbox.rules[0].account = 0;
     arrives(&mut s, ada, 1, vec![received(1, "Every account's")]);
     assert!(!kept(&s, "Every account's").is_empty());
+    // But not a shared mailbox's, whose mail the rules leave alone.
+    let team = imap(&mut s, "team@mail.example");
+    let at = s.mailbox.accounts.iter().position(|a| a.id == team).unwrap();
+    s.mailbox.accounts[at].shared_of = Some(ada);
+    arrives(&mut s, team, 1, vec![received(2, "Shared")]);
+    assert_eq!(kept(&s, "Shared"), "");
 }
 
 /// Run Rules Now after a rule with words in the header is made: the mail that came before can't

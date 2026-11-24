@@ -82,7 +82,7 @@ pub enum Condition {
     /// It is not in To.
     NotToMe,
     SubjectOrBodyContains(#[serde(with = "words")] Vec<String>),
-    /// A line of the header holds one of the words ([`Message::header_contains`]).
+    /// A line of the header holds one of the words ([`Message::header_lines_lowered`]).
     HeaderContains(#[serde(with = "words")] Vec<String>),
     Sensitivity(Sensitivity),
     /// Its size is between these, in KB, both included.

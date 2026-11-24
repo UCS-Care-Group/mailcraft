@@ -106,10 +106,12 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
         name: "r".into(),
         enabled: true,
         conditions: vec![Condition::SubjectContains(vec!["offer".into()])],
-        exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])],
+        exceptions: vec![Condition::Sensitivity(mailcraft_model::Sensitivity::Private)],
         actions: vec![Action::Delete],
         ..Default::default()
     };
+    // And one whose exception looks for the word in the line left out.
+    let header_rule = Rule { exceptions: vec![Condition::HeaderContains(vec!["keep-this".into()])], ..rule.clone() };
     let read = [
         ("parse", vec![parse(plain.as_bytes())]),
         ("parse_fetched", vec![parse_fetched(plain.as_bytes())]),
@@ -123,6 +125,7 @@ fn every_way_in_carries_the_cut_mark_and_the_lines_read() {
             assert!(m.headers_cut, "{way}: the cut mark is lost");
             assert!(m.read_header.contains("Subject: offer\n"), "{way}: {:?}", m.read_header);
             assert!(!rule.matches(m), "{way}: the rule deletes a message its exception was to leave alone");
+            assert!(!header_rule.matches(m), "{way}: the header rule deletes a message its exception was to leave alone");
         }
     }
     // Lines read into the message past the 64 KB kept of them as they came: every way in says
