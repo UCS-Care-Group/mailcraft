@@ -289,6 +289,9 @@ pub struct NotesState {
     pub cloud_rx: Option<std::sync::mpsc::Receiver<Vec<Note>>>,
     pub cloud_syncing: bool,
     pub image_textures: HashMap<String, egui::TextureHandle>,
+    #[allow(clippy::type_complexity)]
+    pub pending_image_rx: Option<std::sync::mpsc::Receiver<String>>,
+    pub show_reminder_dialog: bool,
 }
 
 impl Default for NotesState {
@@ -368,6 +371,8 @@ impl NotesState {
             cloud_rx: None,
             cloud_syncing: false,
             image_textures: HashMap::new(),
+            pending_image_rx: None,
+            show_reminder_dialog: false,
         };
         state.migrate_existing_chat_comments();
         state.sync_editing_buffer();
@@ -629,6 +634,204 @@ impl NotesState {
             self.set_note_notebook(note_id, target_notebook);
             self.status_msg = Some(format!("Nota movida para '{}'", target_notebook));
         }
+    }
+
+    /// Returns the directory where images for notes are stored.
+    pub fn images_dir(&self) -> PathBuf {
+        let base = if let Some(parent) = self.file_path.parent() {
+            parent.join("images")
+        } else if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            PathBuf::from(&user_profile).join("Google Drive").join("ZohoNotebook_Sync").join("images")
+        } else {
+            PathBuf::from("images")
+        };
+        let _ = fs::create_dir_all(&base);
+        base
+    }
+
+    /// Open native file dialog in a non-blocking background thread to pick an image/photo.
+    pub fn open_image_picker(&mut self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.pending_image_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let ps_script = "$ProgressPreference = 'SilentlyContinue';                 [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null;                 $dlg = New-Object System.Windows.Forms.OpenFileDialog;                 $dlg.Title = 'Selecionar Foto para a Nota (Zoho Notas)';                 $dlg.Filter = 'Imagens (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|Todos os arquivos (*.*)|*.*';                 if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {                     Write-Output $dlg.FileName                 }";
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                let out = std::process::Command::new("powershell")
+                    .args(&["-NoProfile", "-Command", ps_script])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output();
+                if let Ok(res) = out {
+                    let picked = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                    if !picked.is_empty() {
+                        let _ = tx.send(picked);
+                    }
+                }
+            }
+        });
+    }
+
+    /// Check if a picked image path has arrived from the background thread.
+    pub fn poll_image_picker(&mut self) {
+        if let Some(rx) = &self.pending_image_rx {
+            if let Ok(picked_path) = rx.try_recv() {
+                self.attach_image_from_path(std::path::Path::new(&picked_path));
+            }
+        }
+    }
+
+    /// Attach an image from a given file path to the currently selected note.
+    pub fn attach_image_from_path(&mut self, src_path: &std::path::Path) {
+        if !src_path.exists() {
+            return;
+        }
+        let sel_id = match &self.selected_note_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+
+        let ext = src_path.extension().and_then(|e| e.to_str()).unwrap_or("png");
+        let now_ms = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        let orig_stem = src_path.file_stem().and_then(|s| s.to_str()).unwrap_or("foto");
+        let clean_stem: String = orig_stem.chars().filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect();
+        let target_filename = format!("img_{now_ms}_{clean_stem}.{ext}");
+
+        let target_dir = self.images_dir();
+        let target_path = target_dir.join(&target_filename);
+
+        if fs::copy(src_path, &target_path).is_ok() {
+            if let Some(note) = self.notes.iter_mut().find(|n| n.id == sel_id) {
+                let mut html = note.content_html.clone().unwrap_or_default();
+                let img_tag = format!("<br/><div><img src='images/{target_filename}' /></div><br/>");
+                html.push_str(&img_tag);
+                note.content_html = Some(html);
+                note.modified_date = Some(now_iso());
+                self.status_msg = Some("Foto adicionada com sucesso!".to_string());
+            }
+            self.sync_editing_buffer();
+            self.save();
+        }
+    }
+
+    /// Paste PNG image directly from bytes to the currently selected note.
+    pub fn paste_image_from_bytes(&mut self, png_bytes: &[u8]) {
+        let sel_id = match &self.selected_note_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+        let now_ms = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        let target_filename = format!("img_{now_ms}_clip.png");
+        let target_dir = self.images_dir();
+        let target_path = target_dir.join(&target_filename);
+
+        if fs::write(&target_path, png_bytes).is_ok() {
+            if let Some(note) = self.notes.iter_mut().find(|n| n.id == sel_id) {
+                let mut html = note.content_html.clone().unwrap_or_default();
+                let img_tag = format!("<br/><div><img src='images/{target_filename}' /></div><br/>");
+                html.push_str(&img_tag);
+                note.content_html = Some(html);
+                note.modified_date = Some(now_iso());
+                self.status_msg = Some("Foto colada com sucesso!".to_string());
+            }
+            self.sync_editing_buffer();
+            self.save();
+        }
+    }
+
+    /// Try to paste an image from clipboard (RichClipboard or Windows native).
+    pub fn try_paste_clipboard_image(&mut self, clipboard: &Option<Box<dyn crate::RichClipboard>>) -> bool {
+        if let Some(png) = clipboard.as_ref().and_then(|c| c.image()) {
+            self.paste_image_from_bytes(&png);
+            return true;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let temp_png = std::env::temp_dir().join(format!("mailcraft_clip_{}.png", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)));
+            let temp_str = temp_png.to_string_lossy().to_string();
+            let ps = format!(
+                "$ProgressPreference='SilentlyContinue'; [void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');                 $img = [System.Windows.Forms.Clipboard]::GetImage();                 if ($img) {{ $img.Save('{temp_str}', [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'OK' }}"
+            );
+            let out = std::process::Command::new("powershell")
+                .args(&["-NoProfile", "-Command", &ps])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+            if let Ok(res) = out {
+                if String::from_utf8_lossy(&res.stdout).contains("OK") && temp_png.exists() {
+                    if let Ok(bytes) = fs::read(&temp_png) {
+                        let _ = fs::remove_file(&temp_png);
+                        self.paste_image_from_bytes(&bytes);
+                        return true;
+                    }
+                }
+            }
+        }
+        self.status_msg = Some("Nenhuma foto copiada. Use Win+Shift+S para copiar uma imagem.".to_string());
+        false
+    }
+
+    /// Add a checklist item to the selected note.
+    pub fn add_checklist_item_to_selected(&mut self) {
+        let sel_id = match &self.selected_note_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == sel_id) {
+            let mut html = note.content_html.clone().unwrap_or_default();
+            if !html.is_empty() && !html.ends_with("<br/>") && !html.ends_with("</div>") {
+                html.push_str("<br/>");
+            }
+            html.push_str("<div>[ ] Nova tarefa</div>");
+            note.content_html = Some(html);
+            note.modified_date = Some(now_iso());
+            self.status_msg = Some("Item de checklist adicionado!".to_string());
+        }
+        self.sync_editing_buffer();
+        self.save();
+    }
+
+    /// Set reminder on the selected note.
+    pub fn set_selected_note_reminder(&mut self, date_str: Option<String>) {
+        let sel_id = match &self.selected_note_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == sel_id) {
+            note.reminder_date = date_str.clone();
+            note.modified_date = Some(now_iso());
+            if let Some(d) = date_str {
+                self.status_msg = Some(format!("Lembrete definido para {}", d));
+            } else {
+                self.status_msg = Some("Lembrete removido".to_string());
+            }
+        }
+        self.save();
+    }
+
+    /// Remove an image from note's content_html.
+    pub fn remove_image_from_selected(&mut self, src: &str) {
+        let sel_id = match &self.selected_note_id {
+            Some(id) => id.clone(),
+            None => return,
+        };
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == sel_id) {
+            let html = note.content_html.clone().unwrap_or_default();
+            let mut new_html = html.clone();
+            if let Some(idx) = new_html.find(src) {
+                let tag_start = new_html[..idx].rfind("<img").unwrap_or(idx);
+                let tag_end = new_html[idx..].find('>').map(|e| idx + e + 1).unwrap_or(idx + src.len());
+                new_html.replace_range(tag_start..tag_end, "");
+            }
+            note.content_html = Some(new_html);
+            note.modified_date = Some(now_iso());
+            self.status_msg = Some("Foto removida da nota.".to_string());
+        }
+        self.sync_editing_buffer();
+        self.save();
     }
 
     pub fn toggle_checklist_item(&mut self, note_id: &str, line_idx: usize) {
@@ -971,6 +1174,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 
     // Poll background cloud synchronization with Google Drive
     app.notes.poll_cloud_sync();
+    app.notes.poll_image_picker();
+
+    // Check dropped image files from Windows Explorer / Desktop
+    for f in ui.ctx().input(|i| i.raw.dropped_files.clone()) {
+        if let Some(path) = &f.path {
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            if ["png", "jpg", "jpeg", "webp", "gif", "bmp"].contains(&ext.as_str()) {
+                app.notes.attach_image_from_path(path);
+            }
+        }
+    }
     if app.notes.cloud_syncing {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
     }
@@ -1744,9 +1958,45 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
             app.notes.toggle_favorite(&sel_id);
         }
 
+        ui.add_space(4.0);
+
+        // 📷 Adicionar Foto Button
+        let btn_photo = egui::Button::new(RichText::new("📷 Foto").size(11.0).strong().color(Color32::WHITE))
+            .fill(Color32::from_rgb(33, 150, 243))
+            .corner_radius(4.0);
+        if ui.add(btn_photo).on_hover_text("Adicionar foto ou imagem do computador nesta nota").clicked() {
+            app.notes.open_image_picker();
+        }
+
+        // 📋 Colar Foto Button
+        let btn_paste = egui::Button::new(RichText::new("📋 Colar Foto").size(11.0))
+            .corner_radius(4.0);
+        if ui.add(btn_paste).on_hover_text("Colar foto da área de transferência (Print / Win+Shift+S)").clicked() {
+            app.notes.try_paste_clipboard_image(&app.services.clipboard);
+        }
+
+        // ☑️ Checklist Button
+        if ui.button(RichText::new("☑️ + Tarefa").size(11.0)).on_hover_text("Adicionar item de tarefa/checklist").clicked() {
+            app.notes.add_checklist_item_to_selected();
+        }
+
+        // ⏰ Lembrete Button
+        let reminder_label = if let Some(r_date) = &note.reminder_date {
+            format!("⏰ {}", r_date)
+        } else {
+            "⏰ Lembrete".to_string()
+        };
+        let is_rem = note.reminder_date.is_some();
+        let rem_btn = egui::Button::new(
+            RichText::new(&reminder_label).size(11.0).color(if is_rem { Color32::from_rgb(255, 180, 0) } else { t.text })
+        ).fill(if is_rem { t.checked } else { t.surface }).corner_radius(4.0);
+        if ui.add(rem_btn).on_hover_text("Definir lembrete para esta nota").clicked() {
+            app.notes.show_reminder_dialog = !app.notes.show_reminder_dialog;
+        }
+
         // View/Edit mode toggle
-        let edit_label = if app.notes.is_editing_raw { "👁️ Ver Checklist" } else { "✏️ Editar Texto" };
-        if ui.button(edit_label).clicked() {
+        let edit_label = if app.notes.is_editing_raw { "👁️ Ver Nota" } else { "✏️ Editar Texto" };
+        if ui.button(RichText::new(edit_label).size(11.0)).clicked() {
             if app.notes.is_editing_raw {
                 app.notes.save_note_edits();
             }
@@ -1754,7 +2004,7 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
         }
 
         // Delete button
-        if ui.button("🗑️ Excluir").clicked() {
+        if ui.button(RichText::new("🗑️ Excluir").size(11.0).color(Color32::from_rgb(220, 50, 50))).clicked() {
             app.notes.delete_selected();
             return;
         }
@@ -1764,6 +2014,41 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
             ui.label(RichText::new("Salvo automaticamente").size(10.0).color(t.text_dim));
         });
     });
+
+    if app.notes.show_reminder_dialog {
+        ui.add_space(4.0);
+        egui::Frame::NONE
+            .fill(t.surface)
+            .stroke(Stroke::new(1.0, Color32::from_rgb(255, 180, 0)))
+            .corner_radius(6.0)
+            .inner_margin(Margin::same(8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("⏰ Definir Lembrete:").strong().size(11.0).color(t.text));
+                    if ui.button("Hoje às 18:00").clicked() {
+                        app.notes.set_selected_note_reminder(Some("Hoje às 18:00".to_string()));
+                        app.notes.show_reminder_dialog = false;
+                    }
+                    if ui.button("Amanhã às 09:00").clicked() {
+                        app.notes.set_selected_note_reminder(Some("Amanhã às 09:00".to_string()));
+                        app.notes.show_reminder_dialog = false;
+                    }
+                    if ui.button("Próxima Segunda").clicked() {
+                        app.notes.set_selected_note_reminder(Some("Próxima Segunda às 09:00".to_string()));
+                        app.notes.show_reminder_dialog = false;
+                    }
+                    if note.reminder_date.is_some() {
+                        if ui.button(RichText::new("🗑️ Remover").color(Color32::from_rgb(220, 50, 50))).clicked() {
+                            app.notes.set_selected_note_reminder(None);
+                            app.notes.show_reminder_dialog = false;
+                        }
+                    }
+                    if ui.small_button("✕").clicked() {
+                        app.notes.show_reminder_dialog = false;
+                    }
+                });
+            });
+    }
 
     ui.add_space(6.0);
     ui.separator();
@@ -1825,7 +2110,35 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
     let lines = extract_clean_lines(&html);
 
     if items.is_empty() {
-        ui.label(RichText::new("Nota vazia. Clique em 'Editar Texto' para adicionar conteúdo.").color(t.text_dim));
+        ui.add_space(16.0);
+        ui.label(RichText::new("Esta nota ainda está vazia. Escolha uma ação:").size(13.0).color(t.text_dim));
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            let btn_p = egui::Button::new(RichText::new("📷 Adicionar Foto").size(12.0).strong().color(Color32::WHITE))
+                .fill(Color32::from_rgb(33, 150, 243))
+                .corner_radius(6.0);
+            if ui.add(btn_p).on_hover_text("Escolher foto ou imagem no computador").clicked() {
+                app.notes.open_image_picker();
+            }
+
+            let btn_c = egui::Button::new(RichText::new("📋 Colar Foto (Print)").size(12.0))
+                .corner_radius(6.0);
+            if ui.add(btn_c).on_hover_text("Colar imagem do PrintScreen (Win+Shift+S)").clicked() {
+                app.notes.try_paste_clipboard_image(&app.services.clipboard);
+            }
+
+            let btn_t = egui::Button::new(RichText::new("☑️ Criar Checklist").size(12.0))
+                .corner_radius(6.0);
+            if ui.add(btn_t).clicked() {
+                app.notes.add_checklist_item_to_selected();
+            }
+
+            let btn_e = egui::Button::new(RichText::new("✏️ Escrever Texto").size(12.0))
+                .corner_radius(6.0);
+            if ui.add(btn_e).clicked() {
+                app.notes.is_editing_raw = true;
+            }
+        });
         return;
     }
 
@@ -1834,14 +2147,20 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
     for item in items {
         match item {
             ContentItem::Image(src) => {
+                let mut remove_this = false;
                 if let Some(texture) = get_or_load_note_image(ui.ctx(), &mut app.notes.image_textures, &src, &notes_path) {
                     let size = texture.size_vec2();
-                    let max_w = (ui.available_width() - 24.0).max(100.0).min(680.0);
+                    let max_w = (ui.available_width() - 36.0).max(100.0).min(680.0);
                     let scale = if size.x > max_w { max_w / size.x } else { 1.0 };
                     let display_size = vec2(size.x * scale, size.y * scale);
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
                         ui.add(egui::Image::new(&texture).fit_to_exact_size(display_size).corner_radius(8.0));
+                        ui.vertical(|ui| {
+                            if ui.small_button("🗑️").on_hover_text("Remover esta foto da nota").clicked() {
+                                remove_this = true;
+                            }
+                        });
                     });
                     ui.add_space(8.0);
                 } else {
@@ -1853,6 +2172,9 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                         ui.label(RichText::new(format!("🖼 [Foto: {}]", label)).size(12.5).color(t.text_dim));
                     });
                     ui.add_space(4.0);
+                }
+                if remove_this {
+                    app.notes.remove_image_from_selected(&src);
                 }
             }
             ContentItem::Line(line, idx) => {
