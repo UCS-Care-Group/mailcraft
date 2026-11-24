@@ -71,20 +71,16 @@ fn many_sender_addresses_scroll_inside_the_window() {
 
     let mut a = super::tests::app();
     let acc = a.session.mailbox.accounts[0].id;
+    a.session.mailbox.account_mut(acc).unwrap().kind = AccountKind::Imap;
     a.session.mailbox.account_mut(acc).unwrap().sender_addresses =
         (0..mailcraft_model::MAX_SENDER_ADDRESSES).map(|n| sender(&format!("alias{n}@company.example"), "")).collect();
     a.execute("mail.new", json!({})).unwrap();
     let mut h = super::tests::window(a);
     h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
     h.run_steps(3);
-    let from_id = h.ctx.viewport_id();
-    let _ = from_id;
-    // Open the From menu by clicking the From row.
-    let from_rect = h.query_all_by_label("From").next().map(|n| n.rect());
-    let click_pos = match from_rect {
-        Some(r) => egui::pos2(r.max.x + 60.0, r.center().y),
-        None => egui::pos2(600.0, 145.0),
-    };
+    // Open the From menu by clicking the From picker rect.
+    let pick = h.state().hit.rect("composeFrom", 0).expect("From picker is shown when an account has sender addresses");
+    let click_pos = pick.center();
     h.event(egui::Event::PointerMoved(click_pos));
     h.step();
     for pressed in [true, false] {
@@ -93,7 +89,8 @@ fn many_sender_addresses_scroll_inside_the_window() {
     }
     h.run_steps(3);
     let screen = h.ctx.content_rect();
-    for node in h.query_all_by_label_contains("@company.example") {
-        assert!(node.rect().max.y <= screen.max.y, "From popup item {:?} overflows window bottom {}", node.rect(), screen.max.y);
-    }
+    let menu = h.state().hit.rect("composeFromMenu", 0).expect("From popup menu opens and renders its scroll area");
+    let items: Vec<_> = h.query_all_by_label_contains("@company.example").collect();
+    assert!(!items.is_empty(), "From popup menu should list sender addresses");
+    assert!(menu.height() <= 320.5 && menu.max.y <= screen.max.y, "From popup scroll area {menu:?} overflows window bottom {}", screen.max.y);
 }

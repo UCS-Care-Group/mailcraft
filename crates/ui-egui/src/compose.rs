@@ -450,6 +450,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         let current = from_list::current(&app.session.mailbox, c.account, &c.from);
         let end = r.max.x - 12.0;
         let pick = Rect::from_min_max(pos2((r.min.x + 16.0 + label_width).min(end), r.min.y + 4.0), pos2(end, r.max.y - 4.0));
+        app.hit.add("composeFrom", 0, pick);
         let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
@@ -458,7 +459,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         // (In the order of the folder pane, #702; an account's other addresses under its own.)
         let choices = from_list::choices(&app.session.mailbox);
         egui::Popup::menu(&resp).show(|ui| {
-            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+            let out = egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                 for choice in choices {
                     let picked = ui
                         .horizontal(|ui| {
@@ -474,6 +475,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
                     }
                 }
             });
+            app.hit.add("composeFromMenu", 0, out.inner_rect);
         });
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
     }
