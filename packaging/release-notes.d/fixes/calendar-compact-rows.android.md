@@ -1,0 +1,1 @@
+- The Day and Week views of the Calendar fit a working day on a phone screen: shorter hour rows, a minimum height for short events that follows the font size.

@@ -81,7 +81,10 @@ private val Gutter = 16.dp
 private val Small = 8.dp
 internal val Hairline = 1.dp
 internal val Bar = 4.dp
-internal val HourHeight = 64.dp
+/** One hour of the day and week views: short enough that 8:00 to 18:00 fits a phone screen. */
+internal val HourHeight = 44.dp
+/** No block is shorter than this, so a quarter-hour event can still be touched. */
+private val MinBlock = 24.dp
 private val HourGutter = 76.dp
 private val MonthCell = 64.dp
 private val Dot = 6.dp
@@ -333,7 +336,7 @@ private fun Agenda(
 }
 
 internal val CalendarFabRoom = 88.dp
-internal val ShortBlock = 40.dp
+internal val ShortBlock = 56.dp
 
 @Composable
 private fun AgendaRow(texts: Texts, e: CalendarEvent, day: LocalDate, locale: Locale, actions: CalendarActions) {
@@ -524,7 +527,10 @@ internal fun EventBlock(
 ) {
     val columnWidth = width / p.columns
     val top = HourHeight * (p.startMinute.toFloat() / MINUTES_IN_HOUR)
-    val height = HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR)
+    // At least a touch target and one line of the owner's font size, so a short block's title still reads.
+    val line = with(LocalDensity.current) { MaterialTheme.typography.labelMedium.lineHeight.toDp() } + inset * 2
+    val height = (HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR))
+        .coerceAtLeast(maxOf(MinBlock, line))
     val speech = if (spoken == null) Modifier else Modifier.clearAndSetSemantics { contentDescription = spoken }
     Column(
         modifier = Modifier
