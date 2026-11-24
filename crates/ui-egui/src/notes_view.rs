@@ -7,6 +7,7 @@
 //! 2. Middle list: Colored note cards with previews, dates, favorite stars, and pending/all filters.
 //! 3. Right detail view: Interactive checklist with clickable checkboxes, rich note editor, and Gemini AI chat.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -280,6 +281,7 @@ pub struct NotesState {
     pub gemini_loading: bool,
     pub cloud_rx: Option<std::sync::mpsc::Receiver<Vec<Note>>>,
     pub cloud_syncing: bool,
+    pub image_textures: HashMap<String, egui::TextureHandle>,
 }
 
 impl Default for NotesState {
@@ -338,6 +340,7 @@ impl NotesState {
             gemini_loading: false,
             cloud_rx: None,
             cloud_syncing: false,
+            image_textures: HashMap::new(),
         };
         state.migrate_existing_chat_comments();
         state.sync_editing_buffer();
@@ -739,6 +742,124 @@ fn extract_clean_lines(html: &str) -> Vec<String> {
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+#[derive(Clone, Debug)]
+enum ContentItem {
+    Line(String, usize),
+    Image(String),
+}
+
+fn extract_img_src(img_tag: &str) -> Option<String> {
+    let pos = img_tag.find("src=")?;
+    let after_src = &img_tag[pos + 4..];
+    let quote = after_src.chars().next()?;
+    if quote == '"' || quote == '\'' {
+        let val_start = 1;
+        let val_end = after_src[val_start..].find(quote)?;
+        Some(after_src[val_start..val_start + val_end].to_string())
+    } else {
+        let val_end = after_src.find(|c: char| c.is_whitespace() || c == '>').unwrap_or(after_src.len());
+        Some(after_src[..val_end].to_string())
+    }
+}
+
+fn extract_content_items(html: &str) -> Vec<ContentItem> {
+    let mut items = Vec::new();
+    let mut rest = html;
+    let mut current_line_idx = 0;
+
+    while let Some(img_start) = rest.find("<img") {
+        let before = &rest[..img_start];
+        for line in extract_clean_lines(before) {
+            items.push(ContentItem::Line(line, current_line_idx));
+            current_line_idx += 1;
+        }
+
+        if let Some(tag_end) = rest[img_start..].find('>') {
+            let img_tag = &rest[img_start..img_start + tag_end + 1];
+            if let Some(src) = extract_img_src(img_tag) {
+                let trimmed = src.trim();
+                if !trimmed.is_empty() {
+                    items.push(ContentItem::Image(trimmed.to_string()));
+                }
+            }
+            rest = &rest[img_start + tag_end + 1..];
+        } else {
+            rest = &rest[img_start + 4..];
+        }
+    }
+
+    for line in extract_clean_lines(rest) {
+        items.push(ContentItem::Line(line, current_line_idx));
+        current_line_idx += 1;
+    }
+
+    items
+}
+
+fn get_or_load_note_image(
+    ctx: &egui::Context,
+    textures: &mut HashMap<String, egui::TextureHandle>,
+    src: &str,
+    notes_file_path: &std::path::Path,
+) -> Option<egui::TextureHandle> {
+    if let Some(tex) = textures.get(src) {
+        return Some(tex.clone());
+    }
+
+    let image_bytes: Vec<u8> = if src.starts_with("data:image/") {
+        let comma_pos = src.find(',')?;
+        let b64_str = &src[comma_pos + 1..];
+        crate::files::base64_lite::decode(b64_str)?
+    } else {
+        let clean = src.trim().replace('\\', "/");
+        let filename = clean.rsplit('/').next().unwrap_or(&clean);
+        if filename.is_empty() {
+            return None;
+        }
+
+        let mut candidates: Vec<PathBuf> = Vec::new();
+
+        if let Some(parent) = notes_file_path.parent() {
+            candidates.push(parent.join("images").join(filename));
+            candidates.push(parent.join("data").join("images").join(filename));
+        }
+
+        if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            candidates.push(PathBuf::from(&user_profile).join("Google Drive").join("ZohoNotebook_Sync").join("images").join(filename));
+            candidates.push(PathBuf::from(&user_profile).join("Downloads").join("Zoho_Notebook_Portatil").join("data").join("images").join(filename));
+        }
+
+        candidates.push(PathBuf::from(r"C:\Users\marcondes.lima\Downloads\Zoho_Notebook_Portatil\data\images").join(filename));
+        candidates.push(PathBuf::from(r"C:\Users\marcondes.lima\Google Drive\ZohoNotebook_Sync\images").join(filename));
+
+        let mut found = None;
+        for cand in candidates {
+            if cand.exists() {
+                if let Ok(bytes) = fs::read(&cand) {
+                    found = Some(bytes);
+                    break;
+                }
+            }
+        }
+        found?
+    };
+
+    let color_image = crate::reading::images::decode(&image_bytes, 1920, 1920).or_else(|| {
+        let dyn_img = image::load_from_memory(&image_bytes).ok()?;
+        let rgba = dyn_img.to_rgba8();
+        let size = [rgba.width() as usize, rgba.height() as usize];
+        Some(egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()))
+    })?;
+
+    let texture = ctx.load_texture(
+        format!("note-img-{}", textures.len()),
+        color_image,
+        egui::TextureOptions::LINEAR,
+    );
+    textures.insert(src.to_string(), texture.clone());
+    Some(texture)
 }
 
 /// Pastel palette colors for note background customization.
@@ -1150,7 +1271,12 @@ fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dar
     // Preview snippet
     let preview_pos = rect.min + vec2(12.0, 30.0);
     let snippet = note.preview.as_deref().unwrap_or("").trim();
-    let truncated_snippet: String = snippet.chars().take(60).collect();
+    let display_snippet = if snippet.is_empty() && note.content_html.as_deref().unwrap_or("").contains("<img") {
+        "\u{1f4f7} [Foto/Imagem]".to_string()
+    } else {
+        snippet.to_string()
+    };
+    let truncated_snippet: String = display_snippet.chars().take(60).collect();
     let dim_ink = if is_dark { Color32::from_rgb(190, 190, 190) } else { Color32::from_rgb(70, 70, 70) };
     ui.painter().text(preview_pos, egui::Align2::LEFT_TOP, truncated_snippet, FontId::proportional(11.0), dim_ink);
 
@@ -1318,74 +1444,102 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
 
 fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &Tokens) {
     let html = note.content_html.clone().unwrap_or_default();
+    let items = extract_content_items(&html);
     let lines = extract_clean_lines(&html);
 
-    if lines.is_empty() {
+    if items.is_empty() {
         ui.label(RichText::new("Nota vazia. Clique em 'Editar Texto' para adicionar conteúdo.").color(t.text_dim));
         return;
     }
 
-    for (idx, line) in lines.iter().enumerate() {
-        if line.starts_with("[ ]") {
-            let mut checked = false;
-            let label = line[3..].trim();
-            ui.horizontal_top(|ui| {
-                if ui.checkbox(&mut checked, "").clicked() {
-                    app.notes.toggle_checklist_item(&note.id, idx);
+    let notes_path = app.notes.file_path.clone();
+
+    for item in items {
+        match item {
+            ContentItem::Image(src) => {
+                if let Some(texture) = get_or_load_note_image(ui.ctx(), &mut app.notes.image_textures, &src, &notes_path) {
+                    let size = texture.size_vec2();
+                    let max_w = (ui.available_width() - 24.0).max(100.0).min(680.0);
+                    let scale = if size.x > max_w { max_w / size.x } else { 1.0 };
+                    let display_size = vec2(size.x * scale, size.y * scale);
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Image::new(&texture).fit_to_exact_size(display_size).corner_radius(8.0));
+                    });
+                    ui.add_space(8.0);
+                } else {
+                    let clean = src.trim().replace('\\', "/");
+                    let fname = clean.rsplit('/').next().unwrap_or(&clean);
+                    let label = if fname.len() > 30 { &fname[..30] } else { fname };
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("\u{1f5bc} [Foto: {}]", label)).size(12.5).color(t.text_dim));
+                    });
+                    ui.add_space(4.0);
                 }
-                let resp = ui.add(
-                    egui::Label::new(RichText::new(label).size(13.5).color(t.text))
-                        .wrap()
-                        .selectable(true),
-                );
-                if resp.clicked() {
-                    app.notes.toggle_checklist_item(&note.id, idx);
+            }
+            ContentItem::Line(line, idx) => {
+                if line.starts_with("[ ]") {
+                    let mut checked = false;
+                    let label = line[3..].trim();
+                    ui.horizontal_top(|ui| {
+                        if ui.checkbox(&mut checked, "").clicked() {
+                            app.notes.toggle_checklist_item(&note.id, idx);
+                        }
+                        let resp = ui.add(
+                            egui::Label::new(RichText::new(label).size(13.5).color(t.text))
+                                .wrap()
+                                .selectable(true),
+                        );
+                        if resp.clicked() {
+                            app.notes.toggle_checklist_item(&note.id, idx);
+                        }
+                    });
+                } else if line.starts_with("[x]") || line.starts_with("[X]") {
+                    let mut checked = true;
+                    let label = line[3..].trim();
+                    ui.horizontal_top(|ui| {
+                        if ui.checkbox(&mut checked, "").clicked() {
+                            app.notes.toggle_checklist_item(&note.id, idx);
+                        }
+                        let strike_text = RichText::new(label).size(13.5).strikethrough().color(t.text_dim);
+                        let resp = ui.add(
+                            egui::Label::new(strike_text)
+                                .wrap()
+                                .selectable(true),
+                        );
+                        if resp.clicked() {
+                            app.notes.toggle_checklist_item(&note.id, idx);
+                        }
+                    });
+                } else if line.starts_with("###") || line.starts_with("\U0001f4cb") || line.starts_with("\U0001f6e0\ufe0f") || line.starts_with("\u2728") || line.starts_with("\U0001f4a1") || line.starts_with("\u270d\ufe0f") || line.contains("Comentário Gemini IA") {
+                    ui.add_space(8.0);
+                    ui.add(
+                        egui::Label::new(RichText::new(&line).size(14.5).strong().color(Color32::from_rgb(66, 133, 244)))
+                            .wrap()
+                            .selectable(true),
+                    );
+                    ui.add_space(4.0);
+                } else if line.starts_with("\u2022") || line.starts_with("-") {
+                    ui.horizontal_top(|ui| {
+                        ui.label(RichText::new("\u2022").size(13.5).color(t.text));
+                        let bullet_text = line.trim_start_matches(|c| c == '\u2022' || c == '-' || c == ' ');
+                        ui.add(
+                            egui::Label::new(RichText::new(bullet_text).size(13.5).color(t.text))
+                                .wrap()
+                                .selectable(true),
+                        );
+                    });
+                } else {
+                    ui.add(
+                        egui::Label::new(RichText::new(&line).size(13.5).color(t.text))
+                            .wrap()
+                            .selectable(true),
+                    );
                 }
-            });
-        } else if line.starts_with("[x]") || line.starts_with("[X]") {
-            let mut checked = true;
-            let label = line[3..].trim();
-            ui.horizontal_top(|ui| {
-                if ui.checkbox(&mut checked, "").clicked() {
-                    app.notes.toggle_checklist_item(&note.id, idx);
-                }
-                let strike_text = RichText::new(label).size(13.5).strikethrough().color(t.text_dim);
-                let resp = ui.add(
-                    egui::Label::new(strike_text)
-                        .wrap()
-                        .selectable(true),
-                );
-                if resp.clicked() {
-                    app.notes.toggle_checklist_item(&note.id, idx);
-                }
-            });
-        } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") || line.starts_with("✨") || line.starts_with("💡") || line.starts_with("✍️") || line.contains("Comentário Gemini IA") {
-            ui.add_space(8.0);
-            ui.add(
-                egui::Label::new(RichText::new(line).size(14.5).strong().color(Color32::from_rgb(66, 133, 244)))
-                    .wrap()
-                    .selectable(true),
-            );
-            ui.add_space(4.0);
-        } else if line.starts_with("•") || line.starts_with("-") {
-            ui.horizontal_top(|ui| {
-                ui.label(RichText::new("•").size(13.5).color(t.text));
-                let bullet_text = line.trim_start_matches(|c| c == '•' || c == '-' || c == ' ');
-                ui.add(
-                    egui::Label::new(RichText::new(bullet_text).size(13.5).color(t.text))
-                        .wrap()
-                        .selectable(true),
-                );
-            });
-        } else {
-            // General text, bible quotes, paragraphs - full word-wrapping within the box
-            ui.add(
-                egui::Label::new(RichText::new(line).size(13.5).color(t.text))
-                    .wrap()
-                    .selectable(true),
-            );
+                ui.add_space(5.0);
+            }
         }
-        ui.add_space(5.0);
     }
 
     // Display Gemini Chat comments after the last line of the note
