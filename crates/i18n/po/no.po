@@ -8115,6 +8115,864 @@ msgstr "E-post kan ikke importeres til en utboks: den ville blitt sendt."
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr "E-post kan ikke importeres til en utboks: den ville blitt sendt. Velg en annen mappe."
 
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file again brings the rest."
+msgstr "E-post kommer inn etter hvert som den leses. Avbryt beholder det som er kommet inn; importerer du filen igjen, kommer resten."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Mail folder"
+msgstr "E-postmappe"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Mail folder: the account's {folder}"
+msgstr "E-postmappe: kontoens {folder}"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
+msgstr "E-post fra en annen postkasse kan ikke legges i en utboks: neste send/motta ville sende den"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
+msgstr "E-post i Søppelpost spør fortsatt først. Fil › Innstillinger slår dette av igjen."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
+msgstr "E-post i utboksen til denne delte postkassen venter: å sende fra delte postkasser krever tillatelse fra deg. Bruk Send/motta."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer"
+msgstr "E-post flyttes og kopieres bare mellom en delt postkasse og postkassene til dens egen konto: flytt den dit, eller til en mappe på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "Mail on the servers is not touched."
+msgstr "E-posten på serverne blir ikke rørt."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "Mail on the servers is not touched. This can't be undone."
+msgstr "E-posten på serverne blir ikke rørt. Dette kan ikke angres."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Mail on this phone"
+msgstr "E-post på denne telefonen"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Mail only"
+msgstr "Bare e-post"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Mail that any one exception holds for is left alone"
+msgstr "E-post som noe av unntakene gjelder, blir stående urørt"
+
+#. command label, interface
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Mail to Keep Offline"
+msgstr "E-post som holdes frakoblet"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Mail to keep offline"
+msgstr "E-post som holdes frakoblet"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Mail to keep offline:"
+msgstr "E-post som holdes frakoblet:"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "Mail, accounts and sign-ins on this phone"
+msgstr "E-post, kontoer og pålogginger på denne telefonen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Mail, calendar, people and tasks, written from scratch in Rust."
+msgstr "E-post, kalender, personer og oppgaver, skrevet fra grunnen av i Rust."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Mail, calendar, people and tasks, written from scratch in Rust. It runs natively on macOS, Windows, Linux and BSD, and in the browser."
+msgstr "E-post, kalender, personer og oppgaver, skrevet fra grunnen av i Rust. Det kjører direkte på macOS, Windows, Linux og BSD, og i nettleseren."
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
+msgstr "MailCraft kan nå holde {account} i takt med Microsoft gjennom Microsoft Graph, slik Outlook på nettet gjør, i stedet for IMAP. Mappene, flaggene, kategoriene og utkastene dine samsvarer da med det du ser i Outlook, og e-posten fortsetter å komme selv der organisasjonen din har slått av IMAP."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't keep this account's rules on its server"
+msgstr "MailCraft kan ikke holde reglene til denne kontoen på serveren"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
+msgstr "MailCraft kan ikke logge inn på denne serveren på denne måten ennå (den vil ha Kerberos). Spør administratoren din om den kan ta brukernavn og passord over en kryptert forbindelse."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "MailCraft carries the software below. The Rust libraries of its core are listed with their versions in the source repository."
+msgstr "MailCraft inneholder programvaren nedenfor. Rust-bibliotekene i kjernen er listet med versjonene sine i kildekodelageret."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "MailCraft couldn't open a browser for Microsoft's page."
+msgstr "MailCraft kunne ikke åpne en nettleser for Microsoft-siden."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "MailCraft couldn't open a browser for Microsoft's page. Install or enable a browser, then try again."
+msgstr "MailCraft kunne ikke åpne en nettleser for Microsoft-siden. Installer eller slå på en nettleser, og prøv igjen."
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page."
+msgstr "MailCraft kunne ikke åpne nettleseren din for godkjenningssiden til Microsoft. Kopier meldingen i stedet: lenken i den åpner samme side."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "MailCraft couldn't save your latest changes yet. It will try again; if the app closes first they may be lost."
+msgstr "MailCraft kunne ikke lagre de siste endringene dine ennå. Det prøver igjen; hvis appen lukkes først, kan de gå tapt."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
+msgstr "MailCraft kunne ikke legge til side den lagrede postkassen den ikke kunne lese, så endringene lagres ikke denne gangen. Frigjør plass og start appen på nytt."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
+msgstr "MailCraft sletter ikke mappene til en JMAP-konto ennå: neste send/motta ville hente dem tilbake"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
+msgstr "MailCraft kjenner ikke innstillingene for denne adressen. Serverne nedenfor er bare et anslag gjort ut fra domenet: sjekk dem med leverandøren eller administratoren din før du kobler til."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told"
+msgstr "MailCraft gir ikke mappene til en JMAP-konto nytt navn eller flytter dem ennå: serveren ville ikke få vite det"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
+msgstr "MailCraft støtter ikke POP ennå. Bruk IMAP-serveren til leverandøren din i stedet (vanligvis imap.<domenet ditt>, port 993)."
+
+#. interface
+#: crates/ui-egui/src/software.rs
+#, fuzzy
+msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
+msgstr "MailCraft tegner uten grafikkortet, noe som bruker mye prosessortid. Å installere eller oppdatere grafikkdriveren løser vanligvis dette."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+msgstr "MailCraft er åpen kildekode (MIT eller Apache-2.0). Hver knapp her kjører en kommando som skript og agenter også kan kjøre: se Søk i kommandoer."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
+msgstr "MailCraft er åpen kildekode, under lisensene MIT og Apache 2.0."
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."
+msgstr "MailCraft testes på ekte e-post, av folk som bruker det hver dag og sier fra når noe går galt. Takk."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft is up to date ({version})."
+msgstr "MailCraft er oppdatert ({version})."
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_permission.rs
+#, fuzzy
+msgid "MailCraft isn't allowed to read other people's calendars yet."
+msgstr "MailCraft har ikke tillatelse til å lese andres kalendere ennå."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
+msgstr "MailCraft holder høyst {n} nøkler importert her, og har så mange: fjern en du ikke bruker, og importer denne."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
+msgstr "MailCraft holder den i minnet til du lukker appen. Den skrives aldri til disk."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "MailCraft keeps the file, still protected by its passphrase, in the system's credential store. Only an ECDSA certificate (P-256 or P-384) is kept this way: an RSA one belongs on a smartcard or token (PKCS#11)."
+msgstr "MailCraft oppbevarer filen, fortsatt beskyttet av passfrasen, i systemets legitimasjonslager. Bare et ECDSA-sertifikat (P-256 eller P-384) oppbevares slik: et RSA-sertifikat hører hjemme på et smartkort eller en token (PKCS#11)."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "MailCraft keeps this account's rules on this computer: the rule runs while MailCraft is open."
+msgstr "MailCraft holder reglene til denne kontoen på denne datamaskinen: regelen kjører mens MailCraft er åpent."
+
+#. what a command says
+#: crates/model/src/mailbox.rs crates/model/src/mailbox_bulk.rs
+#, fuzzy
+msgid "MailCraft moves a JMAP account's mail only between the folders its server has: the next Send/Receive would bring it back"
+msgstr "MailCraft flytter e-post i en JMAP-konto bare mellom mappene serveren har: neste send/motta ville hente den tilbake"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft needs you to sign in again to read your automatic replies: Microsoft's page opens in your browser. Mail and your calendar work as they are meanwhile."
+msgstr "MailCraft trenger at du logger inn på nytt for å lese de automatiske svarene dine: Microsoft-siden åpnes i nettleseren din. E-post og kalender virker som de er imens."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft needs your permission to change your automatic replies first: File › Info › Ask again."
+msgstr "MailCraft trenger tillatelse fra deg for å endre de automatiske svarene dine først: Fil › Info › Spør igjen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "MailCraft needs your system browser to sign in. You can also use a Google app password."
+msgstr "MailCraft trenger systemnettleseren din for å logge inn. Du kan også bruke et Google-app-passord."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft now installs its updates itself. Turn this off in File › About."
+msgstr "MailCraft installerer nå oppdateringene sine selv. Slå dette av i Fil › Om."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph"
+msgstr "MailCraft når reglene til denne kontoen på serveren når den bytter til Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "MailCraft reads the key without its passphrase and keeps the file, still protected by it, in the system's credential store. The key must have a passphrase and sign with Ed25519 or ECDSA; MailCraft asks for the passphrase when you sign."
+msgstr "MailCraft leser nøkkelen uten passfrasen og oppbevarer filen, fortsatt beskyttet av den, i systemets legitimasjonslager. Nøkkelen må ha en passfrase og signere med Ed25519 eller ECDSA; MailCraft spør etter passfrasen når du signerer."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "MailCraft sends {host} the address this list gave for unsubscribing, which may identify you to it, and nothing else: no cookies, no sign-in. Like any connection, it also shows your internet address."
+msgstr "MailCraft sender {host} adressen denne listen oppgav for avmelding, som kan identifisere deg overfor den, og ingenting annet: ingen informasjonskapsler, ingen pålogging. Som enhver forbindelse viser den også internettadressen din."
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
+msgstr "MailCraft starter med en tom postkasse og lar filen være som den er."
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "MailCraft stopped reading it before it was done."
+msgstr "MailCraft sluttet å lese den før den var ferdig."
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+#, fuzzy
+msgid "MailCraft stopped reading the .pst file before it was done: what came in is kept"
+msgstr "MailCraft sluttet å lese .pst-filen før den var ferdig: det som kom inn, beholdes"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "MailCraft tries the usual places for your address."
+msgstr "MailCraft prøver de vanlige stedene for adressen din."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "MailCraft wasn't allowed to keep this mailbox in step with Outlook: {error}"
+msgstr "MailCraft fikk ikke holde denne postkassen i takt med Outlook: {error}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr "MailCraft har ingen konto etterpå: Fil › Legg til konto setter opp en igjen."
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+#, fuzzy
+msgid "MailCraft will keep running"
+msgstr "MailCraft fortsetter å kjøre"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "MailCraft will read and change the shared mailboxes you have access to. Microsoft's page opens in your browser to ask you."
+msgstr "MailCraft vil lese og endre de delte postkassene du har tilgang til. Microsoft-siden åpnes i nettleseren din og spør deg."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "MailCraft will read and change your Microsoft To Do lists and tasks. Microsoft's page opens in your browser to ask you. Until you say yes, your tasks stay on this phone."
+msgstr "MailCraft vil lese og endre listene og oppgavene dine i Microsoft To Do. Microsoft-siden åpnes i nettleseren din og spør deg. Til du sier ja, blir oppgavene dine liggende på denne telefonen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "MailCraft will send mail from a shared mailbox, as it or on its behalf. Microsoft's page opens in your browser to ask you."
+msgstr "MailCraft vil sende e-post fra en delt postkasse, som den eller på dens vegne. Microsoft-siden åpnes i nettleseren din og spør deg."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} didn't start."
+msgstr "MailCraft {version} startet ikke."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} is available"
+msgstr "MailCraft {version} er tilgjengelig"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} is available and fixes a security problem"
+msgstr "MailCraft {version} er tilgjengelig og retter et sikkerhetsproblem"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "MailCraft {version} wasn't installed: this version is still the one here."
+msgstr "MailCraft {version} ble ikke installert: denne versjonen er fortsatt den som ligger her."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "MailCraft's Google Desktop registration is not yet configured for this build."
+msgstr "MailCrafts Google Desktop-registrering er ikke satt opp for denne byggingen ennå."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "MailCraft's data has been removed already"
+msgstr "MailCrafts data er allerede fjernet"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "MailCraft's data has been removed: nothing is sent or received"
+msgstr "MailCrafts data er fjernet: ingenting sendes eller mottas"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "MailCraft's search for your keys stopped without an answer. Try again."
+msgstr "MailCrafts søk etter nøklene dine stoppet uten svar. Prøv igjen."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Mailbox"
+msgstr "Postkasse"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Make a signature with New."
+msgstr "Lag en signatur med Ny."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Make an Item from a Message"
+msgstr "Lag et element av en melding"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Make it repeat…"
+msgstr "La den gjenta seg…"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Make the signature from these details"
+msgstr "Lag signaturen fra disse detaljene"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Manage Calendars"
+msgstr "Administrer kalendere"
+
+#. command label, interface
+#: crates/engine/src/cmd/rules.rs crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Manage Rules"
+msgstr "Administrer regler"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Manage Rules…"
+msgstr "Administrer regler…"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Manage Task"
+msgstr "Administrer oppgave"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Many organisations let only an administrator approve a new program. Nothing is wrong with your account or your phone."
+msgstr "Mange organisasjoner lar bare en administrator godkjenne et nytt program. Ingenting er galt med kontoen eller telefonen din."
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgid "Mar"
+msgstr "mar"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgid "March"
+msgstr "mars"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Mark All as Read"
+msgstr "Merk alle som lest"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Mark Complete"
+msgstr "Merk som fullført"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Mark Incomplete"
+msgstr "Merk som ikke fullført"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Mark Key Verified"
+msgstr "Merk nøkkelen som bekreftet"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Mark a message as read when it is opened in the reading pane"
+msgstr "Merk en melding som lest når den åpnes i leseruten"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Mark as Read"
+msgstr "Merk som lest"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Mark as Unread"
+msgstr "Merk som ulest"
+
+#. android, interface, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
+#, fuzzy
+msgid "Mark as read"
+msgstr "Merk som lest"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Mark as unread"
+msgstr "Merk som ulest"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Mark as verified"
+msgstr "Merk som bekreftet"
+
+#. interface
+#: crates/ui-egui/src/find_replace.rs
+#, fuzzy
+msgid "Match case"
+msgstr "Skill mellom store og små bokstaver"
+
+#. date and time
+#: crates/i18n/src/date.rs
+#, fuzzy
+msgid "May"
+msgstr "mai"
+
+#. command label, interface, ribbon, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Meeting"
+msgstr "Møte"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Shell.kt
+#, fuzzy
+msgid "Menu"
+msgstr "Meny"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Merge"
+msgstr "Flett"
+
+#. command label
+#: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
+msgid "Merge Contacts"
+msgstr "Flett kontakter"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Merge Duplicate Contacts"
+msgstr "Flett dupliserte kontakter"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Merge this contact"
+msgstr "Flett denne kontakten"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Merged PRs"
+msgstr "Sammenslåtte PR-er"
+
+#. android, interface, name, ribbon, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Message"
+msgstr "Melding"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Message Preview"
+msgstr "Forhåndsvisning av melding"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message queued. Sending from this phone is not available yet."
+msgstr "Meldingen er satt i kø. Sending fra denne telefonen er ikke tilgjengelig ennå."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeHost.kt
+#, fuzzy
+msgid "Message sent."
+msgstr "Meldingen er sendt."
+
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Messages"
+msgstr "Meldinger"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Messages (.eml, .mbox), calendars (.ics) and contacts (.vcf)"
+msgstr "Meldinger (.eml, .mbox), kalendere (.ics) og kontakter (.vcf)"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Messages already in that folder are left out."
+msgstr "Meldinger som allerede ligger i den mappen, utelates."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
+msgstr "Meldinger vises uten å kjøre noe i dem, og bildene en melding har på nettet, lastes bare ned når du ber om det. Passord holdes i minnet bare mens appen er åpen."
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Messages from Sender"
+msgstr "Meldinger fra avsender"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder and the folders under it"
+msgstr "Meldinger i mappen og mappene under den"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder itself"
+msgstr "Meldinger i selve mappen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr "Meldinger beholder fargene avsenderne valgte, på en hvit side, mens resten av vinduet forblir mørkt."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+#, fuzzy
+msgid "Messages of this account can't be downloaded on the phone yet."
+msgstr "Meldinger i denne kontoen kan ikke lastes ned på telefonen ennå."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Messages on a Light Background"
+msgstr "Meldinger på lys bakgrunn"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Messages to download per folder"
+msgstr "Meldinger som lastes ned per mappe"
+
+#. name
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Microsoft"
+msgstr "Microsoft"
+
+#. name
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Microsoft 365"
+msgstr "Microsoft 365"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Microsoft 365 mail is added as a Microsoft account: you sign in on Microsoft's own page in your browser, and MailCraft never sees your password."
+msgstr "Microsoft 365-e-post legges til som en Microsoft-konto: du logger inn på Microsofts egen side i nettleseren din, og MailCraft ser aldri passordet ditt."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Microsoft Application ID"
+msgstr "Microsoft-applikasjons-ID"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Microsoft account"
+msgstr "Microsoft-konto"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Microsoft answered: {words}"
+msgstr "Microsoft svarte: {words}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Microsoft application ID"
+msgstr "Microsoft-applikasjons-ID"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "Microsoft doesn't offer this for this kind of account."
+msgstr "Microsoft tilbyr ikke dette for denne typen konto."
+
+#. name
+#: crates/model/src/sync.rs
+#, fuzzy
+msgid "Microsoft has no mailbox at this address"
+msgstr "Microsoft har ingen postkasse på denne adressen"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Microsoft needs an application ID"
+msgstr "Microsoft trenger en applikasjons-ID"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Microsoft no longer takes the sign-in"
+msgstr "Microsoft godtar ikke påloggingen lenger"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
+msgstr "Microsoft godtar ikke påloggingen din lenger. Logg inn på nytt for å lese og endre de automatiske svarene dine."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Microsoft only lets a registered application show its sign-in page, and this build of MailCraft has no registration of its own yet."
+msgstr "Microsoft lar bare et registrert program vise påloggingssiden sin, og denne byggingen av MailCraft har ingen egen registrering ennå."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "Microsoft won't open this shared mailbox for you: Send/Receive tries again"
+msgstr "Microsoft vil ikke åpne denne delte postkassen for deg: send/motta prøver igjen"
+
+#. name
+#: crates/model/src/sync.rs
+#, fuzzy
+msgid "Microsoft won't open this shared mailbox for you: you need Full Access to it"
+msgstr "Microsoft vil ikke åpne denne delte postkassen for deg: du trenger full tilgang til den"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Microsoft's approval page is open in your browser"
+msgstr "Microsofts godkjenningsside er åpen i nettleseren din"
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "Microsoft's approval page is open in your browser…"
+msgstr "Microsofts godkjenningsside er åpen i nettleseren din…"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "Microsoft's page came back without giving it. You can try again."
+msgstr "Microsoft-siden kom tilbake uten å gi det. Du kan prøve igjen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "Microsoft's page came back without signing you in. You can try again."
+msgstr "Microsoft-siden kom tilbake uten å logge deg inn. Du kan prøve igjen."
+
+#. interface
+#: crates/ui-egui/src/approval.rs
+#, fuzzy
+msgid "Microsoft's page came back without the approval: it was declined there, or left before it was given."
+msgstr "Microsoft-siden kom tilbake uten godkjenningen: den ble avslått der, eller forlatt før den ble gitt."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Microsoft's page opens in your browser to ask for your permission, once."
+msgstr "Microsoft-siden åpnes i nettleseren din og ber om tillatelse, én gang."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Microsoft's page said so."
+msgstr "Microsoft-siden sa det."
+
+#. interface
+#: crates/ui-egui/src/mail_view/server_rows.rs
+#, fuzzy
+msgid "Microsoft's server couldn't be reached. Click to try again."
+msgstr "Microsofts server kunne ikke nås. Klikk for å prøve igjen."
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Middle name"
+msgstr "Mellomnavn"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+#, fuzzy
+msgid "Minimize"
+msgstr "Minimer"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Mobile"
+msgstr "Mobil"
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Module bar"
+msgstr "Modullinje"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Mon"
+msgstr "man"
+
+#. date and time, name
+#: crates/i18n/src/date.rs crates/time/src/lib.rs
+#, fuzzy
+msgid "Monday"
+msgstr "mandag"
+
+#. android, command label, name, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Month"
+msgstr "Måned"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
