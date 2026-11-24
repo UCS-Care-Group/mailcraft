@@ -1,4 +1,4 @@
-- Regex patterns in rules are limited to 200 characters (down from 1000) to prevent memory exhaustion
+- Regex patterns in rules are limited to 200 characters to prevent memory exhaustion
 - Plain text conditions (Contains, Starts With) in rules are limited to 200 characters
 - Max 100 regex pattern conditions per mailbox (SubjectMatches + BodyMatches combined)
 - Patterns that are too long or complex to compile produce a clear error instead of crashing

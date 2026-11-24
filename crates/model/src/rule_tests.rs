@@ -382,7 +382,7 @@ fn hostile_mailbox_loading_does_not_compile_patterns() {
     // Create 150 patterns (exceeds MAX_PATTERN_CONDITIONS of 100)
     let mut mailbox = Mailbox::default();
     for i in 0..150 {
-        // Use a valid pattern string (under MAX_PATTERN_LENGTH of 200 chars)
+        // Use a valid pattern string (MAX_PATTERN_LENGTH up to 200 characters)
         let pattern = Pattern::uncompiled(format!("pattern{}", i));
 
         mailbox.rules.push(Rule {

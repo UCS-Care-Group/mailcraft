@@ -4844,6 +4844,7 @@ impl Mailbox {
     /// Truncates rules so that SubjectMatches and BodyMatches conditions total at most
     /// MAX_PATTERN_CONDITIONS (100). Rules with pattern conditions beyond the limit have
     /// their patterns uncompiled (set to match nothing).
+    /// Reports invalid patterns that cannot be compiled to `fixed`.
     /// Returns the number of pattern conditions removed.
     pub fn fix_pattern_memory(&mut self, fixed: &mut Vec<String>) -> usize {
         // Count pattern conditions in all rules
@@ -4854,12 +4855,18 @@ impl Mailbox {
 
         if pattern_count <= MAX_PATTERN_CONDITIONS {
             // All patterns are within budget - compile them all
+            let mut compile_errors = 0;
             for rule in &mut self.rules {
                 for cond in &mut rule.conditions {
                     if let Condition::SubjectMatches(p) | Condition::BodyMatches(p) = cond {
-                        p.ensure_compiled();
+                        if !p.ensure_compiled() {
+                            compile_errors += 1;
+                        }
                     }
                 }
+            }
+            if compile_errors > 0 {
+                fixed.push(format!("{} patterns could not be compiled and will match nothing", compile_errors));
             }
             return 0;
         }

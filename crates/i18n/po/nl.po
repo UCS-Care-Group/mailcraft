@@ -2385,7 +2385,6 @@ msgstr ""
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
-#, fuzzy
 msgid "Bold"
 msgstr "Vet"
 
