@@ -652,6 +652,31 @@ fn a_message_is_fetched_whole_and_the_missing_and_the_refused_are_told() {
     assert!(got.fetched.is_empty() && got.failed.len() == 2);
 }
 
+/// A server whose answer for one message is longer than the request's limit.
+struct TooBigFor<'a>(&'a StandIn, String);
+
+impl HttpExchange for TooBigFor<'_> {
+    fn exchange(&self, request: &HttpRequest) -> impl std::future::Future<Output = Result<HttpResponse, TransportError>> {
+        let big = String::from_utf8_lossy(request.body()).contains(&self.1);
+        let done = block_on(self.0.exchange(request)).unwrap();
+        std::future::ready(if big { Err(TransportError::BodyTooLarge) } else { done })
+    }
+}
+
+#[test]
+fn a_message_past_the_size_limit_is_passed_over_and_the_rest_is_fetched() {
+    let standin = StandIn::new();
+    let big = standin.state().deliver("inbox", "Huge attachment", false);
+    let small = standin.state().deliver("inbox", "Kickoff", false);
+    let fetch = EwsFetchRequest { email: "ada@example.org".into(), url: URL.into(), ids: vec![big.clone(), small.clone()], ..Default::default() };
+    let got = block_on(fetch_messages(&client(), &TooBigFor(&standin, big.clone()), &fetch, &AtomicBool::new(false), &mut |_| true)).unwrap();
+    // The one answer past the limit is that message's own trouble: not "can't reach the server".
+    assert_eq!(got.failed, vec![big]);
+    assert_eq!(got.fetched.len(), 1);
+    assert_eq!(got.fetched[0].id, small);
+    assert!(!got.offline && got.errors.is_empty(), "{:?}", got.errors);
+}
+
 #[test]
 fn a_fetch_with_a_refused_sign_in_says_so() {
     let standin = StandIn::new();

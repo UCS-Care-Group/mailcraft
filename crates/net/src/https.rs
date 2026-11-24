@@ -215,6 +215,11 @@ pub fn is_closed(error: &NetError) -> bool {
     http::is_closed(error)
 }
 
+/// Whether an error of an exchange says that the answer is longer than was asked for.
+pub fn is_too_long(error: &NetError) -> bool {
+    http::is_too_long(error)
+}
+
 /// Eight random bytes from the system's generator: the client challenge of an NTLM sign-in.
 pub fn client_challenge() -> Result<[u8; 8], NetError> {
     use ring::rand::SecureRandom;
