@@ -37,9 +37,9 @@ internal fun ReadingToolbar(
     view: MessageView,
     darkWindow: Boolean,
     light: Boolean,
+    onTriaged: (ULong, Boolean?, Boolean?) -> Unit,
     onLight: (Boolean) -> Unit,
 ) {
-    var flagged by remember(view.id) { mutableStateOf(view.flagged) }
     var picker by remember(view.id) { mutableStateOf<SheetPage?>(null) }
     var menu by remember { mutableStateOf(false) }
     val row = rowOf(view)
@@ -54,12 +54,13 @@ internal fun ReadingToolbar(
         ) {
             Tool(ListIcons.Archive, texts.t("Archive")) { leave(Triage.Archive) }
             Tool(ListIcons.Delete, texts.t("Delete")) { leave(Triage.Delete) }
-            Tool(ListIcons.Flag, if (flagged) texts.t("Clear flag") else texts.t("Flag")) {
-                tools.onTriage(Triage.Flag(on = !flagged), row)
-                flagged = !flagged
+            Tool(ListIcons.Flag, if (view.flagged) texts.t("Clear flag") else texts.t("Flag")) {
+                tools.onTriage(Triage.Flag(on = !view.flagged), row)
+                onTriaged(view.id, null, !view.flagged)
             }
             Tool(ListIcons.Read, if (view.unread) texts.t("Mark as read") else texts.t("Mark as unread")) {
                 tools.onTriage(Triage.MarkRead(read = view.unread), row)
+                onTriaged(view.id, !view.unread, null)
                 if (!view.unread) tools.onLeave()
             }
             Tool(ListIcons.Move, texts.t("Move to…")) { picker = SheetPage.Move }

@@ -67,6 +67,8 @@ internal class ReadingActions(
     val attachments: AttachmentActions = AttachmentActions.None,
     /** Start writing: a reply, a forward, a draft continued, or a message for a `mailto:` link. */
     val onCompose: (ComposeStart) -> Unit = {},
+    /** The toolbar flagged or marked read the open message: the view follows. */
+    val onTriaged: (id: ULong, unread: Boolean?, flagged: Boolean?) -> Unit = { _, _, _ -> },
 ) {
     companion object {
         val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
@@ -137,7 +139,9 @@ internal fun ReadingPane(
                         .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
                     Column(modifier = Modifier.fillMaxSize()) {
                         tools.context?.let {
-                            ReadingToolbar(texts, tools, it, opened.view, dark, light) { on -> pageChoice = on }
+                            ReadingToolbar(texts, tools, it, opened.view, dark, light, actions.onTriaged) { on ->
+                                pageChoice = on
+                            }
                             HorizontalDivider()
                         }
                         MessageBody(

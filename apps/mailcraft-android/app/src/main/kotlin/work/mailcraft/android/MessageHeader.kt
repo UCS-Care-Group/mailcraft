@@ -61,6 +61,15 @@ internal fun MessageHeader(texts: Texts, view: MessageView, open: Boolean, onTog
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    senderDomain(view.from)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     if (view.to.isNotEmpty()) {
                         Text(
                             "${texts.t("To")}: ${view.to.joinToString(", ") { shortName(it) }}",
@@ -82,6 +91,10 @@ internal fun MessageHeader(texts: Texts, view: MessageView, open: Boolean, onTog
         }
     }
 }
+
+/** The part of the real From address after its last @, lower-cased; null when there is none. Never from the name. */
+internal fun senderDomain(who: AddressRecord): String? =
+    who.address.substringAfterLast('@', "").trim().lowercase().ifEmpty { null }
 
 /** A person as they are shown in one line: the name, or the address when there is none. */
 internal fun shortName(who: AddressRecord): String = who.name.ifBlank { who.address }
