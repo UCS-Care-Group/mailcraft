@@ -40,6 +40,24 @@ pub struct EwsServer {
     /// list that goes on from where it was would never bring them.) Not a setting.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub parents: bool,
+    /// A fingerprint ([`crate::sync::fingerprint`]) of the HTML and the text of the signature the
+    /// server last gave and MailCraft took in (#484), 0 for none yet: the server's signature is
+    /// taken in again only when its words are not these, so that what the owner changed here stays
+    /// until the server's own change. (Whether the server adds it to new mail and replies is left
+    /// out: that is read only the first time, and a change of it alone is no new signature.) Not a
+    /// setting: an edit of the settings leaves it as it is.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub signature_seen: u64,
+    /// What the signature taken in from the server (#484) is called here, empty before there is
+    /// one. Only the signature of this name is ever written by what the server gives, so one the
+    /// owner made is never written over, whatever it is called; renaming it here follows it, and
+    /// removing it empties this. Not a setting.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub signature_name: String,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 /// The address, the name and the fingerprint stay out of debug output, which may reach a log.
@@ -51,6 +69,8 @@ impl std::fmt::Debug for EwsServer {
             .field("trusted", &!self.trusted.is_empty())
             .field("hierarchy", &!self.hierarchy.is_empty())
             .field("parents", &self.parents)
+            .field("signature_seen", &(self.signature_seen != 0))
+            .field("signature_name", &!self.signature_name.is_empty())
             .finish()
     }
 }

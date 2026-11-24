@@ -15323,8 +15323,8 @@ msgstr "Handtekeningen"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Handtekeningen worden op deze computer bewaard. Ze kunnen niet met Outlook worden bijgehouden: stel ze op een ander apparaat daar in, of plak er een uit Outlook op het web (Instellingen › Handtekeningen)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Handtekeningen worden op deze computer bewaard. Ze kunnen niet met Outlook worden bijgehouden: stel ze op een ander apparaat daar in, of plak er een uit Outlook op het web (Instellingen › Handtekeningen). Een Exchange-serveraccount neemt de daar opgeslagen handtekening over onder een naam naar het account en leest die alleen."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -26613,6 +26613,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Handtekeningen worden op deze computer bewaard. Ze kunnen niet met Outlook worden bijgehouden: stel ze op een ander apparaat daar in, of plak er een uit Outlook op het web (Instellingen › Handtekeningen)."
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

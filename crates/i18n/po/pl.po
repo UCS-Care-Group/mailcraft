@@ -15915,8 +15915,8 @@ msgstr "Podpisy"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Podpisy są przechowywane na tym komputerze. Nie można ich synchronizować z Outlookiem: na innym urządzeniu skonfiguruj je tam albo wklej podpis z Outlooka w sieci Web (Ustawienia › Podpisy)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Podpisy są przechowywane na tym komputerze. Nie można ich synchronizować z Outlookiem: na innym urządzeniu skonfiguruj je tam albo wklej podpis z Outlooka w sieci Web (Ustawienia › Podpisy). Konto serwera Exchange przejmuje zapisany tam podpis pod nazwą od konta i tylko go odczytuje."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27600,6 +27600,10 @@ msgstr "−Wiersze"
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
 #~ msgstr "Administrator Twojej organizacji musi raz zatwierdzić odczytywanie kalendarzy udostępnionych skrzynek pocztowych: Plik › Informacje"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Podpisy są przechowywane na tym komputerze. Nie można ich synchronizować z Outlookiem: na innym urządzeniu skonfiguruj je tam albo wklej podpis z Outlooka w sieci Web (Ustawienia › Podpisy)."
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

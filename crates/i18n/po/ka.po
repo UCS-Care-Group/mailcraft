@@ -15803,8 +15803,8 @@ msgstr "ხელმოწერები"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "ხელმოწერები ინახება ამ კომპიუტერზე. მათი Outlook-თან სინქრონიზაცია შეუძლებელია: სხვა მოწყობილობაზე იქვე დააყენეთ ან ჩასვით Outlook-ის ვებვერსიიდან (Settings › Signatures)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "ხელმოწერები ამ კომპიუტერზე ინახება. მათი Outlook-თან შეთანხმებით შენახვა შეუძლებელია: სხვა მოწყობილობაზე იქვე დააყენეთ ისინი, ან ჩასვით ერთ-ერთი Outlook-იდან ვებში (პარამეტრები › ხელმოწერები). Exchange სერვერის ანგარიში იღებს იქ შენახულს, ანგარიშის მიხედვით დასახელებულს, და მხოლოდ კითხულობს მას."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27147,6 +27147,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "ხელმოწერები ინახება ამ კომპიუტერზე. მათი Outlook-თან სინქრონიზაცია შეუძლებელია: სხვა მოწყობილობაზე იქვე დააყენეთ ან ჩასვით Outlook-ის ვებვერსიიდან (Settings › Signatures)."
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

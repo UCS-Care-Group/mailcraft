@@ -73,6 +73,34 @@ twice for the account, and `sync.progress` gave empty `timings` for it.
 **Not tried:** NTLM, Autodiscover from an address, any change sent up (read, flag, move, draft, send),
 the Windows installer, and the window used by hand.
 
+### The signature of Outlook on the web (#484)
+
+**Seen:** an Exchange Server 2019 (15.2), on premises, Basic over TLS, a mailbox kept for testing, with a
+build of the change driven through the control channel. Signatures were written into the mailbox's
+options for the test and the options put back as they were afterwards.
+
+| What | Result | Notes |
+|---|---|---|
+| Where it is | `GetUserConfiguration` of `OWA.UserOptions` in the root folder, its `Dictionary` | The operation is [MS-OXWSUSRCFG]'s. A mailbox whose owner never saved a signature has a few options and no signature in it |
+| The names | `signaturehtml`, `signaturetext` (String), `autoaddsignature`, `autoaddsignatureonreply` (Boolean), in lower case | The names are in no protocol specification; `Set-MailboxMessageConfiguration`'s `SignatureHtml`, `SignatureText`, `AutoAddSignature` and `AutoAddSignatureOnReply` are their public counterpart. An entry written under the lower-case names shows in Outlook on the web's own options; under the camel-case names it does not, so MailCraft matches them whatever the case |
+| Taken in | Works | As a signature named for the account (`<address> (Exchange)`, or `<address> (Exchange 2)` when the owner already has one by that name), and the account starts new mail with it when none was chosen |
+| A large signature | Kept and given back whole | A signature of some 120 KB (a picture written into its HTML) was stored and given back whole to a request written by hand. MailCraft takes no signature from such an answer, neither the HTML nor the plain text beside it (a test keeps that shape) |
+
+What MailCraft does with it, and what it leaves out:
+
+- It is read, never written: nothing goes back to the server. The server's new words come in on the
+  next Send/Receive that reads every folder; until then an edit made here stays. A change of only
+  whether the server adds it to new mail or replies brings nothing in: those set the account's
+  defaults the first time only.
+- Only the signature it made is ever changed. A signature of the owner's with the same name is left as
+  it is, and the server's is called `<address> (Exchange 2)`. Renamed here, it is still the server's;
+  removed here, it comes back only with a change saved on the server, as a new signature.
+- HTML over 64 KB is no signature (not the plain-text one alone either). HTML that shows a picture as
+  a part of the message (`cid:`) would go out with a broken picture, since the account is not given
+  those parts: it is kept as rich text, its words and look, without those pictures.
+- Not tried: a signature with a picture saved in Outlook on the web itself, a shared mailbox's own
+  options, and any other build of Exchange.
+
 ## Exchange Server 2010
 
 **Reported:** an organisation's own Exchange 2010 SP3 (build 14.3.513), by a tester with release

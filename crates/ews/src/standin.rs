@@ -183,6 +183,8 @@ pub struct State {
     pub lacks_conversation: bool,
     /// Every `GetItem` is told that the server is busy, as [`State::busy`] tells it.
     pub busy_get_item: bool,
+    /// Every request of these operations (`GetUserConfiguration`) is told so too.
+    pub busy_ops: Vec<String>,
     /// A server that ignores `MaxChangesReturned` and gives every change it has in one answer.
     pub ignores_max: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
@@ -199,6 +201,10 @@ pub struct State {
     /// (`folder:FolderClass` among the additional properties), as Grommunio does: its Default
     /// shape leaves it out (E8).
     pub class_only_when_asked: bool,
+    /// The dictionary of the `OWA.UserOptions` configuration of the root folder (#484): `None` for a
+    /// mailbox that has none (`ErrorItemNotFound`, as one whose options were never saved), else
+    /// its entries as `(key, type, values)`.
+    pub user_options: Option<Vec<(String, String, Vec<String>)>>,
     /// Distinguished names this server's schema lacks (an older or another server's): a request
     /// that names one is a schema fault (`ErrorSchemaValidation`, HTTP 500), as for any name the
     /// schema hasn't.
@@ -207,6 +213,9 @@ pub struct State {
     /// status and nothing else (403: a server that won't let them be seen; 401, 429), to see what
     /// a client does when only that request is refused.
     pub refuse_names: Option<(Vec<String>, u16)>,
+    /// Every request of one of these operations (`GetUserConfiguration`) is answered with this
+    /// HTTP status and nothing else (401: a password turned down at that request alone).
+    pub refuse_ops: Option<(Vec<String>, u16)>,
     /// The server behaves as an organisation's own Exchange 2010 SP3 does (#1349): it knows no
     /// version after `Exchange2010_SP2` (`ErrorInvalidServerVersion`, a fault, HTTP 500); its
     /// schema has neither `item:Preview` nor `item:Flag` (a schema fault, HTTP 500, when
@@ -293,6 +302,7 @@ impl Default for State {
             lacks_preview: false,
             lacks_conversation: false,
             busy_get_item: false,
+            busy_ops: Vec::new(),
             ignores_max: false,
             bad_items_in: String::new(),
             issued: 0,
@@ -300,8 +310,10 @@ impl Default for State {
             outgoing: Vec::new(),
             deletes: Vec::new(),
             class_only_when_asked: false,
+            user_options: None,
             unknown_names: Vec::new(),
             refuse_names: None,
+            refuse_ops: None,
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
@@ -487,7 +499,7 @@ impl State {
             ));
             return Ok((500, "ErrorInternalServerError".into(), body));
         }
-        if self.busy_get_item && operation.name == "GetItem" {
+        if (self.busy_get_item && operation.name == "GetItem") || self.busy_ops.contains(&operation.name) {
             self.busy.0 = self.busy.0.max(1);
         }
         if self.busy.0 > 0 {
@@ -511,6 +523,7 @@ impl State {
             "SyncFolderHierarchy" => self.sync_hierarchy(operation),
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
+            "GetUserConfiguration" => self.get_user_configuration(operation),
             "ResolveNames" => self.resolve_names(operation),
             name if crate::standin_write::HANDLED.contains(&name) => {
                 self.writes.push(name.to_owned());
@@ -575,10 +588,16 @@ impl State {
         Ok((200, first, response("GetFolder", &messages)))
     }
 
-    /// The status [`State::refuse_names`] answers `request` with, when it names one of them.
+    /// The status [`State::refuse_names`] answers `request` with, when it names one of them, or
+    /// [`State::refuse_ops`], when it is one of those operations.
     fn refused_name(&self, request: &HttpRequest) -> Option<u16> {
-        let (names, status) = self.refuse_names.as_ref()?;
         let body = String::from_utf8_lossy(request.body());
+        if let Some((ops, status)) = self.refuse_ops.as_ref()
+            && ops.iter().any(|op| body.contains(&format!(":{op} ")) || body.contains(&format!(":{op}>")))
+        {
+            return Some(*status);
+        }
+        let (names, status) = self.refuse_names.as_ref()?;
         (body.contains("GetFolder") && names.iter().any(|name| body.contains(&format!("Id=\"{name}\"")))).then_some(*status)
     }
 

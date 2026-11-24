@@ -741,10 +741,14 @@ fn forget_ews_certificate(s: &mut Session, v: &Value) -> CmdResult {
 
 /// An Exchange server account's sync states belong to the mailbox they were given for: forgotten,
 /// where the account's folder list went on from and where each of its folders did, so that the
-/// next run reads from the start (#252).
+/// next run reads from the start (#252); and the signature the old one's server gave (#484), so
+/// that the other mailbox's is taken in as the first one is, beside the old one's, which stays as
+/// a signature of the owner's.
 fn forget_ews_states(mb: &mut mailcraft_model::Mailbox, account: Id) {
     if let Some(server) = mb.account_mut(account).ok().and_then(|a| a.ews.as_mut()) {
         server.hierarchy.clear();
+        server.signature_seen = 0;
+        server.signature_name.clear();
     }
     for f in mb.folders.iter_mut().filter(|f| f.account == account) {
         if let Some(server) = f.server.as_mut() {

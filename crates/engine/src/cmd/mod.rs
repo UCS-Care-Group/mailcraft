@@ -52,6 +52,7 @@ mod device_limits_tests;
 pub mod edit;
 mod ews_down;
 pub mod ews_mail;
+mod ews_signature;
 mod ews_up;
 #[cfg(test)]
 mod failing_messages_tests;

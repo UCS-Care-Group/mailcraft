@@ -15889,8 +15889,8 @@ msgstr "Podpisy"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Podpisy se uchovávají v tomto počítači. Nelze je synchronizovat s Outlookem: na jiném zařízení je nastavte tam, nebo jeden vložte z Outlooku na webu (Nastavení › Podpisy)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Podpisy se uchovávají v tomto počítači. Nelze je synchronizovat s Outlookem: na jiném zařízení je nastavte tam, nebo jeden vložte z Outlooku na webu (Nastavení › Podpisy). Účet serveru Exchange převezme podpis uložený tam pod názvem podle účtu a pouze ho čte."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27565,6 +27565,10 @@ msgstr "−Řádky"
 #, fuzzy
 #~ msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
 #~ msgstr "Správce vaší organizace musí jednou schválit čtení kalendářů sdílených poštovních schránek: Soubor › Informace"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Podpisy se uchovávají v tomto počítači. Nelze je synchronizovat s Outlookem: na jiném zařízení je nastavte tam, nebo jeden vložte z Outlooku na webu (Nastavení › Podpisy)."
 
 #, fuzzy
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"

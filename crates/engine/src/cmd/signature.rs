@@ -86,6 +86,15 @@ fn reopen(s: &mut Session, name: &str) {
     }
 }
 
+/// The open signature, while it is `name` and has no changes, shows what `name` holds now: a
+/// signature changed by something other than its editor (an Exchange server's, #484) is not
+/// saved back over with what it was. One with changes is the owner's, to save or to discard.
+pub(crate) fn follow_unedited(s: &mut Session, name: &str) {
+    if s.signature_edit.as_ref().is_some_and(|e| !e.dirty) {
+        reopen(s, name);
+    }
+}
+
 fn details(s: &mut Session, v: &Value) -> CmdResult {
     let given = v.get("details").filter(|d| d.is_object()).ok_or_else(|| bad("`details` is an object of the details"))?;
     let mut d: mailcraft_model::signature::Details =
@@ -233,6 +242,10 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
         for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&name)) {
             x.signature.clear();
         }
+        // The signature an Exchange server gave is no longer here: the server's next change is a new one (#484).
+        if let Some(server) = a.ews.as_mut().filter(|server| server.signature_name.eq_ignore_ascii_case(&name)) {
+            server.signature_name.clear();
+        }
     }
     done()
 }
@@ -258,6 +271,10 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
         a.reply_signature = Some(if reply.eq_ignore_ascii_case(&from) { to.clone() } else { reply });
         for x in a.sender_addresses.iter_mut().filter(|x| x.signature.eq_ignore_ascii_case(&from)) {
             x.signature = to.clone();
+        }
+        // The signature an Exchange server gave is still it, by its new name (#484).
+        if let Some(server) = a.ews.as_mut().filter(|server| server.signature_name.eq_ignore_ascii_case(&from)) {
+            server.signature_name.clone_from(&to);
         }
     }
     Ok(json!({"name": to}))

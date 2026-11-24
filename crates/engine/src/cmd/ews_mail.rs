@@ -166,6 +166,8 @@ pub fn ews_mail_request(s: &Session, account: Id, light: bool) -> Result<EwsMail
     // The conversation ids of mail listed before they were asked for, in a run of every folder (#795).
     if !light {
         request.threads = super::thread_ids::to_ask(mb, account);
+        // And the owner's signature, which Outlook on the web keeps in the mailbox (#484).
+        request.signature = true;
     }
     Ok(request)
 }
@@ -292,14 +294,20 @@ fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
 /// run was for, and at the server the run read when the result says which (`url`). (An answer for
 /// another account, the mailbox having been replaced while the run was under way, would tie this
 /// one's folders to a stranger's server; so would an answer from the server an account named
-/// before its address was changed.)
-fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str) -> Result<String, CmdError> {
+/// before its address was changed.) Nor, when the result says the name it signed in as
+/// (`username`), one signed in as another name: that may be another mailbox, whose signature
+/// (#484) and states are not this one's.
+fn receiving(mb: &Mailbox, account: Id, email: &str, url: &str, username: &str) -> Result<String, CmdError> {
     let (a, server) = ews_account(mb, account)?;
     if !email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()) {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
     if !url.is_empty() && server.url.trim() != url.trim() {
         return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
+    }
+    let signs_in_as = Some(server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(a.email.trim());
+    if !username.trim().is_empty() && !signs_in_as.eq_ignore_ascii_case(username.trim()) {
+        return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
     Ok(a.name.clone())
 }
@@ -337,7 +345,7 @@ fn apply_ews_news(s: &mut Session, result: EwsMailResult) -> CmdResult {
 fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     result.check().map_err(|why| failed!("the result {why}", why = mailcraft_i18n::Arg::words(why)))?;
     let account = result.account;
-    let name = receiving(&s.mailbox, account, &result.email, &result.url)?;
+    let name = receiving(&s.mailbox, account, &result.email, &result.url, &result.username)?;
     let (result, cut) = ews_down::bounded(result);
     if ews_down::state_bytes_after(&s.mailbox, account, &result) > MAX_EWS_STATE_BYTES {
         // (The sync states kept for one account are held to a total, as one is held to a size: a
@@ -447,7 +455,13 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
+    // The signature the server keeps for the owner (#484).
+    let signed = result.signature.as_ref().and_then(|found| super::ews_signature::take(&mut s.mailbox, account, found));
+    if let Some(name) = &signed {
+        // An open copy with no changes shows it, so that saving it doesn't put the old one back.
+        super::signature::follow_unedited(s, name);
+    }
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded || signed.is_some() {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.
@@ -542,7 +556,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
 /// wouldn't give, as for Graph.
 pub fn apply_ews_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
     let account = result.account;
-    receiving(&s.mailbox, account, &result.email, "")?;
+    receiving(&s.mailbox, account, &result.email, "", "")?;
     let result = ews_down::bounded_fetch(result);
     let missing: Vec<(Id, String)> = result.missing.iter().map(|id| (account, id.clone())).collect();
     let answer = graph_mail::apply_graph_fetch(s, result)?;

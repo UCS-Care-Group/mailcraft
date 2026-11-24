@@ -26,6 +26,8 @@
 //!   server offers.
 //! - [`folder`], [`client`]: `GetFolder` by distinguished name, and [`Client::check`], which
 //!   tests an account with it.
+//! - [`userconfig`]: `GetUserConfiguration` of the options Outlook on the web keeps in a mailbox, read for
+//!   the owner's signature (#484).
 //! - [`hierarchy`], [`items`], [`run`]: mail down (#252, E6): `SyncFolderHierarchy`,
 //!   `SyncFolderItems` (headers and a preview first) and `GetItem` with the MIME content, each a
 //!   request and a reader of its answer; and [`sync_mail`] and [`fetch_messages`], which run them
@@ -87,6 +89,9 @@ pub mod run;
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod soap;
 mod up;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+pub mod userconfig;
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod xml;
 
@@ -102,6 +107,8 @@ pub mod standin_directory;
 pub mod standin_mail;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_ntlm;
+#[cfg(any(test, feature = "stand-in"))]
+pub mod standin_userconfig;
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin_write;
 
@@ -144,3 +151,4 @@ pub use reply::{Message, Reply};
 pub use resolve::{Candidate, RecipientKind, ResolveNames, Resolved};
 pub use run::{failed_run, fetch_messages, sync_mail};
 pub use soap::{Element, Version};
+pub use userconfig::GetUserOptions;

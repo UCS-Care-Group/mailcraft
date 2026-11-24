@@ -43,8 +43,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, EwsSignature, FolderChange, GraphFetchResult,
+    GraphFetched, GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
@@ -55,12 +55,13 @@ use crate::http::{HttpExchange, TransportError};
 use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_RECIPIENTS_ASKED, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
+use crate::userconfig::GetUserOptions;
 
 /// How many changes one page of a folder asks for: enough that a large folder is a few hundred
 /// requests, few enough that a page is quick to take in.
 pub const PAGE: u32 = 200;
 /// How many times one request is made again for a busy server.
-const BUSY_TRIES: u32 = 3;
+pub(crate) const BUSY_TRIES: u32 = 3;
 /// The most folders one run reads, and the most pages of one folder.
 const MAX_FOLDERS: usize = 2_000;
 const MAX_PAGES: usize = 5_000;
@@ -461,7 +462,15 @@ impl<E: HttpExchange> Run<'_, E> {
 }
 
 pub(crate) fn base(request: &EwsMailRequest) -> EwsMailResult {
-    EwsMailResult { account: request.account, email: request.email.clone(), url: request.url.clone(), ..EwsMailResult::default() }
+    // (The name it signs in as: the user name, or the address when there is none.)
+    let username = if request.username.trim().is_empty() { &request.email } else { &request.username };
+    EwsMailResult {
+        account: request.account,
+        email: request.email.clone(),
+        url: request.url.clone(),
+        username: username.clone(),
+        ..EwsMailResult::default()
+    }
 }
 
 /// Runs `request` against the server `client` speaks to, handing the run back in pieces through
@@ -492,6 +501,12 @@ pub async fn sync_mail<E: HttpExchange>(
     } else {
         run.conversations(&request.threads, &mut out).await
     };
+    // And the signature the server keeps for the owner (#484), on the same terms: never worth failing the run for.
+    let signature = if request.signature && !request.inbox_pass && !out.stopped && out.busy_for.is_none() && !out.auth_refused {
+        run.signature(&mut out).await
+    } else {
+        None
+    };
     if !out.blocked.is_empty() {
         // (Once a run, and no id: the engine names the folders by what the owner calls them.)
         log::warn!("ews mail: {} folders hold a change that can't be taken in; they are left where they were", out.blocked.len());
@@ -506,11 +521,41 @@ pub async fn sync_mail<E: HttpExchange>(
         auth_refused: out.auth_refused,
         blocked: out.blocked,
         threads,
+        signature,
         ..base(request)
     });
 }
 
 impl<E: HttpExchange> Run<'_, E> {
+    /// The signature the server keeps in the owner's options ([`GetUserOptions`]), or none: the
+    /// server has none, refuses to say, or was not asked for now. Whatever goes wrong is told in
+    /// the log alone; a signature is a convenience. A server too busy to say is told in the log
+    /// too, and the run goes on as whole: all its mail was read, and a server that kept turning
+    /// down only this request would otherwise keep every run from being whole, and mail removed
+    /// on the server would stay here. Cancel or a password turned down still stops the run here,
+    /// and is said in `outcome` as for any request.
+    async fn signature(&mut self, outcome: &mut Outcome) -> Option<EwsSignature> {
+        let op = GetUserOptions;
+        match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+            Ok(found) => {
+                log::info!("ews mail: the server {}", if found.is_some() { "has a signature" } else { "has no signature" });
+                found
+            }
+            Err(Asked::Stop(Stop::Busy(seconds))) => {
+                log::info!("ews mail: the server was too busy to say the signature (it asked for {seconds} s); a later run asks again");
+                None
+            }
+            Err(Asked::Stop(why)) => {
+                outcome.stop(why);
+                None
+            }
+            Err(_) => {
+                log::info!("ews mail: the signature wasn't read now; a later run asks again");
+                None
+            }
+        }
+    }
+
     /// The conversation of each of the items `ids` ([`GetItemConversations`]), a hundred to a
     /// request, at most [`MAX_THREAD_ASKS`]: what the server answered for, until it doesn't. A busy
     /// server is said in `outcome`; a request it refused is each of its items refused.

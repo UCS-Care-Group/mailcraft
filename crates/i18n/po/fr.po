@@ -15793,8 +15793,8 @@ msgstr "Signatures"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures). Un compte de serveur Exchange reprend celle qui y est enregistrée, sous un nom tiré du compte, et ne fait que la lire."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27138,6 +27138,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Lignes"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Les signatures sont conservées sur cet ordinateur. Elles ne peuvent pas être synchronisées avec Outlook : sur un autre appareil, configurez-les sur place, ou collez-en une depuis Outlook sur le web (Paramètres › Signatures)."
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

@@ -15911,8 +15911,8 @@ msgstr "Semnături"
 #. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
-msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
-msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
+msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures). An Exchange server account takes in the one saved there, under a name for the account, and only reads it."
+msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături). Un cont de server Exchange preia semnătura salvată acolo, cu un nume după cont, și doar o citește."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -27447,6 +27447,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Signatures are kept on this computer. They can't be kept in step with Outlook: on another device set them up there, or paste one from Outlook on the web (Settings › Signatures)."
+#~ msgstr "Semnăturile se păstrează pe acest computer. Nu pot fi sincronizate cu Outlook: pe alt dispozitiv configurați-le acolo sau lipiți una din Outlook pe web (Setări › Semnături)."
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

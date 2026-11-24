@@ -177,6 +177,54 @@ pub struct EwsMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// Ask for the signature the server keeps for the owner (Outlook on the web's, #484), after
+    /// the rest of the run. Asked with a run that lists the folders, never in the Inbox pass.
+    #[serde(skip_serializing_if = "is_false")]
+    pub signature: bool,
+}
+
+/// The signature an Exchange server keeps for its owner (Outlook on the web's options, #484): the
+/// HTML one and the plain one, and whether the server adds it to new messages and to replies.
+/// Hostile input: it is held to [`MAX_SIGNATURE_HTML`] and [`MAX_SIGNATURE_TEXT`] and then shown
+/// through the same reader as any other signature (nothing in it runs).
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EwsSignature {
+    /// The HTML signature; empty for none.
+    pub html: String,
+    /// The plain-text signature; empty for none.
+    pub text: String,
+    /// The server adds it to new messages.
+    pub on_new: bool,
+    /// The server adds it to replies and forwards.
+    pub on_reply: bool,
+}
+
+/// Longest HTML signature taken from a server, in bytes (a signature of the owner's own is held
+/// to the same size).
+pub const MAX_SIGNATURE_HTML: usize = 64 * 1024;
+/// Longest plain-text signature taken from a server, in characters.
+pub const MAX_SIGNATURE_TEXT: usize = 10_000;
+
+impl EwsSignature {
+    /// Neither an HTML nor a plain-text signature.
+    pub fn is_empty(&self) -> bool {
+        self.html.trim().is_empty() && self.text.trim().is_empty()
+    }
+}
+
+impl EwsSignature {
+    /// Whether it is within [`MAX_SIGNATURE_HTML`] and [`MAX_SIGNATURE_TEXT`].
+    pub fn within_bounds(&self) -> bool {
+        self.html.len() <= MAX_SIGNATURE_HTML && self.text.chars().take(MAX_SIGNATURE_TEXT + 1).count() <= MAX_SIGNATURE_TEXT
+    }
+}
+
+/// Only sizes: a signature is the owner's own text.
+impl std::fmt::Debug for EwsSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EwsSignature").field("html", &self.html.len()).field("text", &self.text.len()).finish()
+    }
 }
 
 /// Messages of an Exchange server account to fetch whole (their MIME content), by server id, in
@@ -287,6 +335,10 @@ pub struct EwsMailResult {
     /// ([`EwsMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<ThreadOf>,
+    /// The signature the server keeps for the owner, when the run asked for it
+    /// ([`EwsMailRequest::signature`], #484) and the server has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<EwsSignature>,
 
     /// The address of the account the run was for: an answer is not taken in by another account
     /// that happens to have the id.
@@ -296,6 +348,11 @@ pub struct EwsMailResult {
     /// the account names another server. Never logged.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+    /// The name the run signed in as (its request's user name, or its address when it named none):
+    /// an answer is not taken in once the account signs in as another, which may open another
+    /// mailbox. Empty: not said. Never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
     /// What became of the changes of folders sent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<FolderChangeDone>,
@@ -415,7 +472,10 @@ impl EwsMailResult {
     pub fn check(&self) -> Result<(), &'static str> {
         const TOO_MANY: &str = "has more in it than is taken in";
         const ODD_ID: &str = "has a server id that can't be one";
-        if self.email.len() > crate::EwsServer::MAX_USERNAME || self.url.len() > crate::EwsServer::MAX_URL {
+        if self.email.len() > crate::EwsServer::MAX_USERNAME
+            || self.username.len() > crate::EwsServer::MAX_USERNAME
+            || self.url.len() > crate::EwsServer::MAX_URL
+        {
             return Err("names an account or a server that is too long");
         }
         if self.pages.len() > MAX_EWS_PAGES || self.errors.len() > MAX_EWS_ERRORS {
@@ -437,6 +497,9 @@ impl EwsMailResult {
         }
         if !self.threads.iter().all(|t| id_ok(&t.id) && t.thread.len() <= super::MAX_THREAD_ID) {
             return Err(ODD_ID);
+        }
+        if self.signature.as_ref().is_some_and(|signature| !signature.within_bounds()) {
+            return Err(TOO_MANY);
         }
         if !state_ok(&self.hierarchy) {
             return Err("has a folder state that can't be one");
@@ -523,6 +586,9 @@ impl EwsMailResult {
         self.pages.extend(piece.pages);
         self.blocked.extend(piece.blocked);
         self.threads.extend(piece.threads);
+        if piece.signature.is_some() {
+            self.signature = piece.signature;
+        }
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
@@ -574,6 +640,7 @@ impl std::fmt::Debug for EwsMailRequest {
             .field("inbox_pass", &self.inbox_pass)
             .field("full", &self.full)
             .field("background", &self.background)
+            .field("signature", &self.signature)
             .finish()
     }
 }
@@ -610,6 +677,7 @@ impl std::fmt::Debug for EwsMailResult {
             .field("partial", &self.partial)
             .field("whole", &self.whole)
             .field("stopped", &self.stopped)
+            .field("signature", &self.signature.is_some())
             .field("progress", &self.progress.is_some())
             .field("auth_refused", &self.auth_refused)
             .field("untrusted", &!self.untrusted.is_empty())

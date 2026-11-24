@@ -65,7 +65,15 @@ fn an_exchange_account_is_added_and_its_commands_answer() {
     assert!(a.incoming.is_none() && a.outgoing.is_none() && a.oauth.is_none() && a.jmap.is_none());
     assert_eq!(
         a.ews,
-        Some(EwsServer { url: URL.into(), username: "CORP\\ada".into(), trusted: String::new(), hierarchy: String::new(), parents: false })
+        Some(EwsServer {
+            url: URL.into(),
+            username: "CORP\\ada".into(),
+            trusted: String::new(),
+            hierarchy: String::new(),
+            parents: false,
+            signature_seen: 0,
+            signature_name: String::new()
+        })
     );
     // It has the standard folders a server account has.
     assert!(s.mailbox.folder_of_kind(id, FolderKind::Inbox).is_some());
