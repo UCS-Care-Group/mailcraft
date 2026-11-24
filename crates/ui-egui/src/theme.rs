@@ -676,7 +676,7 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
         "DroidSansFallback.ttf",
     ],
     &["NotoSansCJK-Regular.ttc", "NotoSansCJKkr-Regular.otf", "NotoSansKR-Regular.otf", "NanumGothic.ttf", "UnDotum.ttf"],
-    &["NotoSansHebrew-Regular.ttf"],
+    &["NotoSansHebrew-Regular.ttf", "NotoSansHebrew[wdth,wght].ttf"],
     &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
     &["NotoSansThai-Regular.ttf"],
     &["NotoSansDevanagari-Regular.ttf"],
