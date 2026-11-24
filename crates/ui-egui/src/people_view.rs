@@ -856,6 +856,27 @@ pub(crate) fn chips(app: &MailApp, ui: &mut Ui, account: Id, categories: &[Strin
     });
 }
 
+pub fn whatsapp_url(phone: &str) -> Option<String> {
+    let trimmed = phone.trim();
+    let has_plus = trimmed.starts_with('+');
+    let digits: String = trimmed.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let number = if has_plus {
+        digits
+    } else if digits.starts_with("55") && (digits.len() == 12 || digits.len() == 13) {
+        digits
+    } else if digits.len() == 10 || digits.len() == 11 {
+        format!("55{digits}")
+    } else if digits.starts_with('0') && (digits.len() == 11 || digits.len() == 12) {
+        format!("55{}", &digits[1..])
+    } else {
+        digits
+    };
+    Some(format!("https://web.whatsapp.com/send?phone={number}"))
+}
+
 fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let id = c.id;
     ui.horizontal(|ui| {
@@ -873,6 +894,16 @@ fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
         }
         if widgets::icon_text_button(ui, "delete", tl!("Delete"), true).clicked() {
             let _ = app.run("people.delete", json!({"id": id}));
+        }
+        let wa_phone = c.phones.iter().find(|p| {
+            let l = p.label.to_lowercase();
+            l.contains("móvel") || l.contains("movel") || l.contains("celular") || l.contains("mobile")
+        }).or_else(|| c.phones.first());
+        if let Some(url) = wa_phone.and_then(|p| whatsapp_url(&p.value)) {
+            let tip = "Conversar no WhatsApp Web";
+            if widgets::icon_text_button(ui, "whatsapp", "WhatsApp", true).on_hover_text(tip).clicked() {
+                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+            }
         }
     });
 }
@@ -953,7 +984,15 @@ fn card_contact(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
         }
     }
     for p in phones {
-        field(ui, "phone", &one_line(&p.value, 200), &label_text(&p.label), false);
+        let shown = one_line(&p.value, 200);
+        if let Some(url) = whatsapp_url(&p.value) {
+            let tip = format!("Conversar com {} no WhatsApp Web", shown);
+            if field(ui, "whatsapp", &shown, &label_text(&p.label), true).on_hover_text(tip).clicked() {
+                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+            }
+        } else {
+            field(ui, "phone", &shown, &label_text(&p.label), false);
+        }
     }
 }
 
