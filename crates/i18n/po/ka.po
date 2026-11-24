@@ -804,6 +804,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "თქვენი საკუთარი იდენტობის პროვაიდერით შესვლა არასოდეს იგზავნება Microsoft-ის ან Google-ის ფოსტის სერვერებზე: შეცვალეთ ზემოთ მოცემული სერვერები თქვენი საკუთარით."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20236,6 +20242,12 @@ msgid ""
 "\n"
 "Until you allow it, nothing of those mailboxes and calendars is read, mail and meeting answers from a shared mailbox wait on this computer, and nothing is sent from your own address in their place."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "საკუთარი იდენტობის პროვაიდერით შესასვლელად ჯერ შეცვალეთ შემომავალი და გამავალი სერვერები თქვენი საკუთარით: მისგან მიღებული შესვლა არასოდეს იგზავნება {provider}-ის სერვერებზე."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

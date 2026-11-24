@@ -899,6 +899,17 @@ impl Account {
         self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom)
     }
 
+    /// The account's incoming or outgoing server that is Microsoft's or Google's
+    /// ([`crate::is_microsoft_or_google_host`]): one a sign-in with an own identity provider is
+    /// never sent to, so such an account can't name it (#1844 review).
+    pub fn microsoft_or_google_server(&self) -> Option<&str> {
+        [self.incoming.as_ref(), self.outgoing.as_ref()]
+            .into_iter()
+            .flatten()
+            .map(|server| server.host.as_str())
+            .find(|host| crate::is_microsoft_or_google_host(host))
+    }
+
     /// A Microsoft account (it signs in with Microsoft) that is still kept in step by IMAP and
     /// SMTP: one that can switch to Microsoft Graph (R3.7).
     pub fn on_imap_with_microsoft(&self) -> bool {

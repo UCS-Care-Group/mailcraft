@@ -754,6 +754,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Eine kurze Notiz mit dem Link zu dieser Seite zum Einfügen in E-Mail oder Chat. MailCraft sendet selbst nichts."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "Eine Anmeldung bei Ihrem eigenen Identitätsanbieter wird nie an die Mailserver von Microsoft oder Google gesendet: Ändern Sie die Server oben in Ihre eigenen."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Eine Webadresse, eine E-Mail-Adresse, eine Telefonnummer (tel:) oder eine andere Adresse wie ms-settings:network-vpn. Wenn nichts ausgewählt ist, wird die Adresse unverändert eingefügt."
@@ -19121,6 +19127,12 @@ msgstr ""
 "Um aus den freigegebenen Postfächern, die Sie mit {address} öffnen, zu lesen und zu senden und die für Sie freigegebenen Kalender anzuzeigen, braucht MailCraft Ihre Erlaubnis. Die Seite von Microsoft öffnet sich in Ihrem Browser und fragt Sie einmal nach allem, was MailCraft nutzt und Sie noch nicht erlaubt haben.\n"
 "\n"
 "Bis Sie es erlauben, wird nichts aus diesen Postfächern und Kalendern gelesen, E-Mails und Antworten auf Besprechungen aus einem freigegebenen Postfach warten auf diesem Computer, und nichts wird stattdessen von Ihrer eigenen Adresse gesendet."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Um sich bei Ihrem eigenen Identitätsanbieter anzumelden, ändern Sie zuerst den Posteingangs- und Postausgangsserver in Ihre eigenen: Eine Anmeldung von dort wird nie an die Server von {provider} gesendet."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

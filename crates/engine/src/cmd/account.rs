@@ -638,6 +638,17 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     if a.signs_in_with_own_provider() && a.kind != AccountKind::Imap {
         return Err(bad("only an account with IMAP and SMTP servers signs in with your own identity provider"));
     }
+    // Never with Microsoft's or Google's mail servers: a token from an own provider is never sent
+    // there (their sign-in comes from their own providers), so such an account would never
+    // synchronise (#1844 review).
+    if a.signs_in_with_own_provider()
+        && let Some(host) = a.microsoft_or_google_server()
+    {
+        let host: String = host.trim().chars().take(254).collect();
+        return Err(bad(format!(
+            "{host} is Microsoft's or Google's mail server, which never takes a sign-in with your own identity provider: change the incoming and outgoing servers to your own too"
+        )));
+    }
     // Only an account with an outgoing server that signs in with a password has the choice.
     if a.oauth.is_some() || a.outgoing.is_none() {
         a.outgoing_without_sign_in = false;

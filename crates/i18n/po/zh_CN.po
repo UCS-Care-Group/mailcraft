@@ -808,6 +808,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天中。MailCraft 本身不会发送任何内容。"
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "使用你自己的身份提供方的登录绝不会发送到 Microsoft 或 Google 的邮件服务器：请把上面的服务器改成你自己的。"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20290,6 +20296,12 @@ msgstr ""
 "要读取你通过 {address} 打开的共享邮箱并从中发送邮件，以及显示与你共享的日历，MailCraft 需要你的许可。Microsoft 的页面将在浏览器中打开，一次性询问 MailCraft 使用但你尚未允许的所有权限。\n"
 "\n"
 "在你允许之前，不会读取这些邮箱和日历的任何内容，来自共享邮箱的邮件和会议答复会在这台电脑上等待，也不会改用你自己的地址发送任何内容。"
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "要使用你自己的身份提供方登录，请先把接收和发送服务器改成你自己的：来自它的登录绝不会发送到 {provider} 的服务器。"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

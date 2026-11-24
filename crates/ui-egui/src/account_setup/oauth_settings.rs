@@ -306,6 +306,15 @@ impl AccountSetup {
         servers.dedup();
         let servers = if servers.is_empty() { tl!("the incoming and outgoing servers above").to_string() } else { servers.join(", ") };
         note(ui, &fmt(tl!("The sign-in is only sent to: {servers}"), &[("servers", &servers)]), t.text_dim);
+        if [&self.incoming.host, &self.outgoing.host].into_iter().any(|host| mailcraft_model::is_microsoft_or_google_host(host)) {
+            note(
+                ui,
+                tl!(
+                    "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+                ),
+                t.orange,
+            );
+        }
     }
 
     /// Microsoft's or Google's built-in values, shown; the client id, tenant and port, edited.
@@ -331,6 +340,22 @@ impl AccountSetup {
         // through Graph has none, and an own provider's token goes to its own servers, #1844
         // review.)
         if self.incoming.host.trim().is_empty() || self.outgoing.host.trim().is_empty() {
+            return;
+        }
+        // Nor while they are Microsoft's or Google's: an own provider's token is never sent there,
+        // so the servers change first (#1844 review).
+        if [&self.incoming.host, &self.outgoing.host].into_iter().any(|host| mailcraft_model::is_microsoft_or_google_host(host)) {
+            note(
+                ui,
+                &fmt(
+                    tl!(
+                        "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+                    ),
+                    &[("provider", provider.label())],
+                ),
+                t.text_dim,
+            );
+            self.own.asking = false;
             return;
         }
         if !self.own.asking {

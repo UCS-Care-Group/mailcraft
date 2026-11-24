@@ -2268,6 +2268,27 @@ fn clip(s: &str, n: usize) -> String {
     if clean.chars().count() > n { format!("{}…", clean.chars().take(n).collect::<String>()) } else { clean.to_string() }
 }
 
+/// An address the owner's sign-in goes to, as an agent's request says it: a short one whole; a
+/// long one with its scheme, host and port always whole (where it goes), and only the path and
+/// query after them shortened, from their start and their end, so that two that differ late are
+/// told apart (#1844 review).
+fn address_said(address: &str) -> String {
+    let clean = clip(address, usize::MAX);
+    if clean.chars().count() <= 120 {
+        return clean;
+    }
+    // (`/`, `?` and `#` are ASCII: the cut is at a character's boundary.)
+    let after_scheme = clean.find("://").map_or(0, |at| at.saturating_add(3));
+    let end = clean.get(after_scheme..).and_then(|rest| rest.find(['/', '?', '#'])).map_or(clean.len(), |at| after_scheme.saturating_add(at));
+    let (origin, rest) = clean.split_at_checked(end).unwrap_or((clean.as_str(), ""));
+    if rest.chars().count() <= 80 {
+        return clean;
+    }
+    let head: String = rest.chars().take(38).collect();
+    let tail: String = rest.chars().rev().take(40).collect::<Vec<_>>().into_iter().rev().collect();
+    format!("{origin}{head}…{tail}")
+}
+
 fn quoted(s: &str) -> String {
     let c = clip(s, 80);
     if c.is_empty() { "(no subject)".to_string() } else { format!("\u{201c}{c}\u{201d}") }
@@ -3560,16 +3581,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != was) {
                     match now {
                         Some((mailcraft_model::OAuthProvider::Custom, page, token, client, revoke)) => {
-                            // (Each from its start and its end, so that two that differ late are
-                            // told apart.)
-                            let said = |address: &str| {
-                                let clean = clip(address, usize::MAX);
-                                if clean.chars().count() <= 120 {
-                                    return clean;
-                                }
-                                let tail: String = clean.chars().rev().take(40).collect::<Vec<_>>().into_iter().rev().collect();
-                                format!("{}{tail}", clip(&clean, 78))
-                            };
+                            let said = address_said;
                             text.push_str(&format!(
                                 "; it signs in with its own identity provider, on the page {}, with tokens from {}",
                                 said(&page),

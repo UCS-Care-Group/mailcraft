@@ -805,6 +805,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Een korte notitie met de link naar die pagina, om in e-mail of chat te plakken. MailCraft verstuurt zelf niets."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "Een aanmelding bij uw eigen identiteitsprovider wordt nooit naar de mailservers van Microsoft of Google gestuurd: vervang de servers hierboven door uw eigen servers."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -19732,6 +19738,12 @@ msgstr ""
 "Om de gedeelde postvakken die u met {address} opent te lezen en eruit te verzenden, en om de met u gedeelde agenda's te tonen, heeft MailCraft uw toestemming nodig. De pagina van Microsoft wordt in uw browser geopend om u één keer te vragen naar alles wat MailCraft gebruikt en wat u nog niet hebt toegestaan.\n"
 "\n"
 "Totdat u het toestaat, wordt er niets van die postvakken en agenda's gelezen, wachten e-mail en antwoorden op vergaderingen uit een gedeeld postvak op deze computer, en wordt er in hun plaats niets vanaf uw eigen adres verzonden."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Om u aan te melden bij uw eigen identiteitsprovider, vervangt u eerst de inkomende en uitgaande server door uw eigen servers: een aanmelding daarvan wordt nooit naar de servers van {provider} gestuurd."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

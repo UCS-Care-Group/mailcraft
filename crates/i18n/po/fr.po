@@ -806,6 +806,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Une courte note avec le lien de cette page, à coller dans un e-mail ou une discussion. MailCraft n'envoie rien lui-même."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "Une connexion avec votre propre fournisseur d'identité n'est jamais envoyée aux serveurs de messagerie de Microsoft ou de Google : remplacez les serveurs ci-dessus par les vôtres."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Une adresse web, une adresse e-mail, un numéro de téléphone (tel:) ou une autre adresse comme ms-settings:network-vpn. Sans sélection, l'adresse est insérée telle quelle."
@@ -20231,6 +20237,12 @@ msgstr ""
 "Pour lire les boîtes aux lettres partagées que vous ouvrez avec {address} et envoyer depuis celles-ci, et pour afficher les calendriers partagés avec vous, MailCraft a besoin de votre autorisation. La page de Microsoft s'ouvre dans votre navigateur pour vous demander, une seule fois, tout ce que MailCraft utilise et que vous n'avez pas encore autorisé.\n"
 "\n"
 "Tant que vous ne l'autorisez pas, rien de ces boîtes aux lettres et calendriers n'est lu, les messages et réponses aux réunions d'une boîte aux lettres partagée attendent sur cet ordinateur, et rien n'est envoyé depuis votre propre adresse à leur place."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Pour vous connecter avec votre propre fournisseur d'identité, remplacez d'abord les serveurs entrant et sortant par les vôtres : une connexion venant de lui n'est jamais envoyée aux serveurs de {provider}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

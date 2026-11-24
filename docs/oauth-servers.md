@@ -70,7 +70,9 @@ Discover notes that, and an answer that doesn't is refused too.
 **File › Info › Account Settings** shows every value the sign-in uses and lets you change them.
 For a Microsoft or Google account it shows their built-in values; only the application ID (and
 Microsoft's tenant) can change there, and **Use your own identity provider instead…** turns the
-account into one with its own provider, after a question, starting from the values it had.
+account into one with its own provider, after a question, starting from the values it had. It is
+offered once the incoming and outgoing servers are your own: a sign-in from your own provider is
+never sent to Microsoft's or Google's mail servers, so an account that names them is refused.
 
 The sign-in is remembered (when File › Options says to remember sign-ins) under a name that holds
 the provider, its token and revocation addresses, the client id and both mail servers: changing any of them, from

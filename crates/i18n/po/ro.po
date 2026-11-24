@@ -808,6 +808,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "O scurtă notă cu linkul către acea pagină, de lipit într-un e-mail sau într-un chat. MailCraft nu trimite nimic singur."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "O autentificare cu propriul furnizor de identitate nu este trimisă niciodată către serverele de e-mail Microsoft sau Google: înlocuiți serverele de mai sus cu ale dumneavoastră."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20381,6 +20387,12 @@ msgstr ""
 "Pentru a citi și a trimite din cutiile poștale partajate pe care le deschizi cu {address} și pentru a afișa calendarele partajate cu tine, MailCraft are nevoie de permisiunea ta. Pagina Microsoft se deschide în browser ca să te întrebe, o singură dată, despre tot ce folosește MailCraft și nu ai permis încă.\n"
 "\n"
 "Până nu permiți, nimic din acele cutii poștale și calendare nu este citit, mesajele și răspunsurile la întâlniri dintr-o cutie poștală partajată așteaptă pe acest computer și nimic nu este trimis în locul lor de la propria ta adresă."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Pentru a vă autentifica cu propriul furnizor de identitate, înlocuiți mai întâi serverele de intrare și de ieșire cu ale dumneavoastră: o autentificare de la acesta nu este trimisă niciodată către serverele {provider}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

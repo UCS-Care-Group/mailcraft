@@ -223,7 +223,43 @@ fn a_cancelled_renewal_after_a_refused_token_may_be_tried_again() {
         rx,
         cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
     });
-    a.token_retried = Some(id);
+    a.token_retried.insert(id);
     a.execute("ui.cancelSignIn", json!({})).unwrap();
-    assert_eq!(a.token_retried, None);
+    assert!(!a.token_retried.contains(&id));
+}
+
+/// A renewal after a refused token that can't start (another account's sign-in is waiting) marks
+/// nothing and ends nothing: the other account keeps its one retry, never a second (#1844 review).
+#[test]
+fn a_renewal_that_cant_start_leaves_another_accounts_retry_alone() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let first = own_account(&mut a);
+    let v = json!({"email": "bo@example.org", "incoming": {"host": "mail.example.org"}, "outgoing": {"host": "mail.example.org"},
+        "auth": "oauth2", "provider": "custom", "clientId": "mailcraft", "issuer": ISSUER,
+        "authorizeUrl": format!("{ISSUER}/auth"), "tokenUrl": format!("{ISSUER}/token")});
+    let second = a.execute("account.add", v).unwrap()["id"].as_u64().unwrap();
+    let (_kept, rx) = std::sync::mpsc::channel();
+    a.signing_in = Some(crate::SigningIn {
+        graph: false,
+        favorites: false,
+        quiet: true,
+        account: first,
+        snapshot: a.session.mailbox.account(first).cloned(),
+        shared: None,
+        sync: false,
+        browser: false,
+        opening: a.session.openings(),
+        rx,
+        cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    });
+    a.token_retried.insert(first);
+    a.tokens.insert(second, mailcraft_model::sync::Tokens { refresh: "not-a-real-refresh-token".into(), ..Default::default() });
+    a.retry_refused_token(second, true);
+    assert!(a.token_retried.contains(&first), "the first account's retry was ended");
+    assert!(!a.token_retried.contains(&second), "a renewal that never started was marked");
+    // Nor when this build can't sign in at all.
+    a.signing_in = None;
+    a.retry_refused_token(second, true);
+    assert_eq!(a.token_retried.iter().copied().collect::<Vec<_>>(), [first]);
 }

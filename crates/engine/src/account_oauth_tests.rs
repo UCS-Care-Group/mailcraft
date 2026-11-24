@@ -99,8 +99,21 @@ fn microsofts_and_googles_built_in_values_are_changed_only_by_becoming_an_own_pr
     let error = s.run("account.edit", &json!({"id": id, "tokenUrl": "https://id.example.org/token"})).unwrap_err().to_string();
     assert!(error.contains("asCustom"), "{error}");
     assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().provider, OAuthProvider::Google);
-    // …and taken when it is to be an own provider, from the values it had.
-    s.run("account.edit", &json!({"id": id, "asCustom": true, "clientId": "mine", "tokenUrl": "https://id.example.org/token"})).unwrap();
+    // …and, while it names Gmail's servers, refused even as an own provider: such a token never
+    // goes there, so the account would never synchronise (#1844 review)…
+    let error = s
+        .run("account.edit", &json!({"id": id, "asCustom": true, "clientId": "mine", "tokenUrl": "https://id.example.org/token"}))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("imap.gmail.com") && error.contains("own identity provider"), "{error}");
+    assert_eq!(s.mailbox.account(id).unwrap().oauth.as_ref().unwrap().provider, OAuthProvider::Google);
+    // …and taken when it is to be an own provider with servers of its own, from the values it had.
+    let own_servers = json!({"incoming": {"host": "mail.example.org", "port": 993}, "outgoing": {"host": "mail.example.org", "port": 465}});
+    let mut edit = json!({"id": id, "asCustom": true, "clientId": "mine", "tokenUrl": "https://id.example.org/token"});
+    if let (Some(edit), Value::Object(servers)) = (edit.as_object_mut(), own_servers) {
+        edit.extend(servers);
+    }
+    s.run("account.edit", &edit).unwrap();
     let oauth = s.mailbox.account(id).unwrap().oauth.clone().unwrap();
     assert_eq!(oauth.provider, OAuthProvider::Custom);
     assert_eq!((oauth.token.as_str(), oauth.authorize.as_str()), ("https://id.example.org/token", "https://accounts.google.com/o/oauth2/v2/auth"));
@@ -256,4 +269,54 @@ fn a_kept_client_secret_follows_the_settings_it_is_for() {
     s.run("account.edit", &json!({"id": id, "hasSecret": true})).unwrap();
     s.run("account.edit", &json!({"id": id, "tokenUrl": format!("{ISSUER}/token2"), "hasSecret": true})).unwrap();
     assert!(kept(&s, id));
+}
+
+/// An own identity provider's token never goes to Microsoft's or Google's mail servers, so an
+/// account that would send it there is refused when it is set up or edited, whichever server it
+/// is and whichever cloud (#1844 review).
+#[test]
+fn an_own_provider_is_refused_with_microsofts_or_googles_mail_servers() {
+    let mut s = Session::empty();
+    let before = s.mailbox.accounts.len();
+    for (incoming, outgoing) in [
+        ("outlook.office365.com", "mail.example.org"),
+        ("mail.example.org", "smtp.office365.com"),
+        ("imap.gmail.com", "smtp.gmail.com"),
+        ("outlook.office365.us", "outlook.office365.us"),
+        ("IMAP.GMAIL.COM.", "mail.example.org"),
+    ] {
+        let v = own(json!({"incoming": {"host": incoming, "port": 993}, "outgoing": {"host": outgoing, "port": 465}}));
+        let error = s.run("account.add", &v).unwrap_err().to_string();
+        assert!(error.contains("own identity provider"), "{incoming} {outgoing}: {error}");
+        assert_eq!(s.mailbox.accounts.len(), before, "{incoming} {outgoing}");
+    }
+    // An own account can't be moved onto them either, and is left as it was.
+    let id = add(&mut s, &own(json!({})));
+    assert!(s.run("account.edit", &json!({"id": id, "outgoing": {"host": "smtp.gmail.com", "port": 465}})).is_err());
+    let a = s.mailbox.account(id).unwrap();
+    assert_eq!(a.outgoing.as_ref().map(|o| o.host.as_str()), Some("mail.example.org"));
+    // A Microsoft account on Microsoft's servers keeps its own sign-in.
+    let ms =
+        add(&mut s, &json!({"email": "noor@example.org", "incoming": {"host": "outlook.office365.com"}, "auth": "oauth2", "provider": "microsoft"}));
+    assert_eq!(s.mailbox.account(ms).unwrap().oauth.as_ref().unwrap().provider, OAuthProvider::Microsoft);
+}
+
+/// A long address the sign-in goes to is never shortened in its host: two that differ only at the
+/// end of the domain are told apart, the path alone is shortened, and a short one is said whole
+/// (#1844 review).
+#[test]
+fn an_agent_is_always_shown_the_whole_host_a_sign_in_goes_to() {
+    let mut s = Session::empty();
+    let id = add(&mut s, &own(json!({})));
+    let host = format!("id.{}example.", "very-long-subdomain.".repeat(5));
+    let path = format!("/realms/{}/protocol/openid-connect/token", "p".repeat(90));
+    for suffix in ["org", "net"] {
+        let token = format!("https://{host}{suffix}:8443{path}");
+        let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "tokenUrl": token}));
+        assert!(said.contains(&format!("https://{host}{suffix}:8443/realms/")), "{said}");
+        assert!(said.contains("openid-connect/token") && !said.contains(&path), "the path is shortened: {said}");
+    }
+    let short = format!("{ISSUER}/token-elsewhere");
+    let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "tokenUrl": short}));
+    assert!(said.contains(&short), "{said}");
 }

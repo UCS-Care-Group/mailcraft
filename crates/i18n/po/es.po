@@ -807,6 +807,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Una nota breve con el enlace a esa página, para pegar en un correo o un chat. MailCraft no envía nada por sí mismo."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "Un inicio de sesión con su propio proveedor de identidad nunca se envía a los servidores de correo de Microsoft o Google: cambie los servidores de arriba por los suyos."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20316,6 +20322,12 @@ msgstr ""
 "Para leer y enviar desde los buzones compartidos que abres con {address}, y para mostrar los calendarios compartidos contigo, MailCraft necesita tu permiso. La página de Microsoft se abre en tu navegador para pedirte, una sola vez, todo lo que MailCraft usa y que aún no has permitido.\n"
 "\n"
 "Hasta que lo permitas, no se lee nada de esos buzones y calendarios, el correo y las respuestas a reuniones de un buzón compartido esperan en este equipo, y no se envía nada desde tu propia dirección en su lugar."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Para iniciar sesión con su propio proveedor de identidad, cambie primero los servidores de entrada y salida por los suyos: un inicio de sesión suyo nunca se envía a los servidores de {provider}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

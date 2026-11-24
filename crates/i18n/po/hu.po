@@ -811,6 +811,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Rövid üzenet az oldal hivatkozásával, e-mailbe vagy csevegésbe illesztéshez. A MailCraft maga nem küld semmit."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "A saját identitásszolgáltatóval történő bejelentkezés soha nem kerül a Microsoft vagy a Google levelezőkiszolgálóira: cserélje a fenti kiszolgálókat a sajátjaira."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20308,6 +20314,12 @@ msgstr ""
 "A(z) {address} címmel megnyitott megosztott postafiókok olvasásához és az azokból való küldéshez, valamint az Önnel megosztott naptárak megjelenítéséhez a MailCraftnak szüksége van az Ön engedélyére. A Microsoft oldala megnyílik a böngészőben, és egyszer rákérdez mindenre, amit a MailCraft használ, és Ön még nem engedélyezett.\n"
 "\n"
 "Amíg nem engedélyezi, semmi sem olvasható ezekből a postafiókokból és naptárakból, a megosztott postafiókból küldendő levelek és értekezlet-válaszok ezen a számítógépen várnak, és semmi sem megy el helyettük az Ön saját címéről."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "A saját identitásszolgáltatóval való bejelentkezéshez először cserélje a bejövő és a kimenő kiszolgálót a sajátjaira: az onnan származó bejelentkezés soha nem kerül a(z) {provider} kiszolgálóira."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

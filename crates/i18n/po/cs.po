@@ -807,6 +807,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Krátká poznámka s odkazem na tu stránku, kterou vložíte do pošty nebo chatu. MailCraft sám nic neodesílá."
 
 #. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+msgstr "Přihlášení u vlastního poskytovatele identity se nikdy neposílá na poštovní servery Microsoftu ani Googlu: změňte servery výše na vlastní."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -20356,6 +20362,12 @@ msgstr ""
 "Aby MailCraft mohl číst a odesílat ze sdílených poštovních schránek, které otevíráte přes {address}, a zobrazovat kalendáře, které s vámi sdílejí, potřebuje vaše oprávnění. V prohlížeči se otevře stránka Microsoftu, která vás jednou požádá o vše, co MailCraft používá a co jste zatím nepovolili.\n"
 "\n"
 "Dokud to nepovolíte, nic z těchto schránek a kalendářů se nečte, pošta a odpovědi na schůzky ze sdílené schránky čekají v tomto počítači a nic se místo nich neodešle z vaší vlastní adresy."
+
+#. interface
+#: crates/ui-egui/src/account_setup/oauth_settings.rs
+#, fuzzy
+msgid "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+msgstr "Chcete-li se přihlašovat u vlastního poskytovatele identity, nejprve změňte server příchozí a odchozí pošty na vlastní: přihlášení od něj se nikdy neposílá na servery {provider}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs

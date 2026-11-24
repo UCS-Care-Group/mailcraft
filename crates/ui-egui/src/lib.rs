@@ -1849,9 +1849,10 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
-    /// The account whose access token a server refused during a run, renewed and tried once more
-    /// in the same Send/Receive: a second refusal waits for the next one, never a third try.
-    token_retried: Option<Id>,
+    /// The accounts whose access token a server refused during a run, renewed and tried once more
+    /// in the same Send/Receive: a second refusal waits for the next one, never a third try. Each
+    /// account's own: another account's renewal neither replaces nor ends it (#1844 review).
+    token_retried: std::collections::HashSet<Id>,
     /// The password the run in flight went with, until the system is asked to remember it: once
     /// a run (#802).
     sync_password: Option<String>,
@@ -2144,7 +2145,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
-            token_retried: None,
+            token_retried: Default::default(),
             sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
@@ -3213,9 +3214,7 @@ impl MailApp {
                     self.session.sync_status = tl!("Sign-in cancelled").to_string();
                     // A renewal after a refused token that was called off: the next run may try
                     // again (its answer, which would have said so, is never read now, #1844 review).
-                    if self.token_retried == Some(s.account) {
-                        self.token_retried = None;
-                    }
+                    self.token_retried.remove(&s.account);
                     // The one page for an older sign-in: what waited for it takes it as a no (not
                     // put again by itself), and a shared mailbox being added is taken off again
                     // with the reason, not left checking.
@@ -3312,9 +3311,7 @@ impl MailApp {
         {
             pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             self.session.sync_status.clear();
-            if self.token_retried == Some(account) {
-                self.token_retried = None;
-            }
+            self.token_retried.remove(&account);
         }
     }
 
@@ -4892,9 +4889,7 @@ impl MailApp {
                 // (A renewal nobody asked for goes on as quietly as it began: no page opens for
                 // the run after it, #1844 review.)
                 if let Err(e) = self.start_sync(&json!({"account": account, "quiet": !asked_for})) {
-                    if self.token_retried == Some(account) {
-                        self.token_retried = None;
-                    }
+                    self.token_retried.remove(&account);
                     self.session.sync_status.clear();
                     self.status(e);
                 }
@@ -4915,9 +4910,7 @@ impl MailApp {
                     tokens.access.clear();
                 }
                 // A renewal after a refused token that came to nothing: the next run may try again.
-                if self.token_retried == Some(account) {
-                    self.token_retried = None;
-                }
+                self.token_retried.remove(&account);
                 self.session.sync_status.clear();
                 self.note_sync_problems(account, std::slice::from_ref(&e), false);
                 self.sign_in_came_to_nothing(account, &e, asked_for);
@@ -4940,10 +4933,14 @@ impl MailApp {
             return;
         }
         log::info!("send/receive: the server refused the access token; renewing it and trying once more");
-        self.token_retried = Some(account);
-        if let Err(e) = self.begin_sign_in(account, oauth, &address, refresh, quiet, false) {
-            log::warn!("send/receive: the renewal after a refused token didn't start ({e})");
-            self.token_retried = None;
+        // (Marked only once the renewal is on its way, and only for this account: one that
+        // can't start, another account's sign-in waiting, say, leaves every other account's mark
+        // as it was. Its words are not logged: they may name the address, #1844 review.)
+        match self.begin_sign_in(account, oauth, &address, refresh, quiet, false) {
+            Ok(()) => {
+                self.token_retried.insert(account);
+            }
+            Err(_) => log::warn!("send/receive: the renewal after a refused token didn't start"),
         }
     }
 
@@ -5247,10 +5244,7 @@ impl MailApp {
             let quiet = run.is_none_or(|(_, _, _, quiet)| quiet);
             // (Only this account's run ends the one retry it had: another account's leaves it,
             // #1844 review.)
-            let retried = self.token_retried == Some(account);
-            if retried {
-                self.token_retried = None;
-            }
+            let retried = self.token_retried.remove(&account);
             let totals = std::mem::take(&mut self.sync_totals);
             let refused = std::mem::take(&mut self.sync_refused);
             if refused {

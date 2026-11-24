@@ -182,6 +182,17 @@ fn a_google_account_becomes_one_with_its_own_provider_only_after_the_question() 
     assert!(says(&h, "Google (built in)") && says(&h, "https://oauth2.googleapis.com/token"));
     // Where a built-in provider's token goes isn't only the mail servers: no list claims so.
     assert!(!says(&h, "The sign-in is only sent to"));
+    // While its servers are Gmail's it can't be one: an own provider's sign-in never goes there,
+    // and the owner is told to change the servers first (#1844 review).
+    assert!(says(&h, "first change the incoming and outgoing servers to your own"));
+    assert!(h.query_by_role_and_label(Role::Button, "Use your own identity provider instead…").is_none());
+    {
+        let w = wizard_mut(&mut h);
+        w.incoming.host = "mail.example.org".into();
+        w.outgoing.host = "mail.example.org".into();
+    }
+    h.run_steps(3);
+    assert!(!says(&h, "first change the incoming and outgoing servers to your own"));
     click(&mut h, "Use your own identity provider instead…");
     assert!(says(&h, "will no longer be Google's"));
     click(&mut h, "Keep the built-in settings");
@@ -197,6 +208,8 @@ fn a_google_account_becomes_one_with_its_own_provider_only_after_the_question() 
     click(&mut h, "Save");
     let oauth = h.state().session.mailbox.account(id).unwrap().oauth.clone().unwrap();
     assert_eq!((oauth.provider, oauth.client_id.as_str(), oauth.mechanism), (OAuthProvider::Custom, "my-own-client", SaslChoice::XOAuth2));
+    let saved = h.state().session.mailbox.account(id).unwrap();
+    assert_eq!(saved.microsoft_or_google_server(), None);
 }
 
 /// A Microsoft account kept in step through Microsoft Graph has no mail servers, and its token goes
