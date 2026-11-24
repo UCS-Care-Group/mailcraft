@@ -155,6 +155,32 @@ fn a_refusal_in_a_run_that_stops_early_still_marks_the_account() {
     assert!(asks_password(&a, id));
 }
 
+/// A run that was for the address the account had before (it was edited while the run was under
+/// way) changes no mark, at once or at its end: the engine takes none of its pieces in either.
+#[test]
+fn a_run_for_the_address_the_account_had_before_leaves_the_mark_as_it_is() {
+    let mut a = app();
+    let runs = imap_host(&mut a);
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    let before = |run: Vec<SyncResult>| -> Vec<SyncResult> {
+        run.into_iter().map(|piece| SyncResult { email: "before@mail.example".into(), ..piece }).collect()
+    };
+    runs.lock().unwrap().push_back(before(turned_down(REFUSED)));
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    settle(&mut a);
+    assert!(!needed(&a, id), "the old address's refusal doesn't mark this one");
+    // Marked by a run of its own, a run the old address's server let in leaves the mark.
+    runs.lock().unwrap().push_back(turned_down(REFUSED));
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    settle(&mut a);
+    assert!(needed(&a, id));
+    runs.lock().unwrap().push_back(before(let_in()));
+    a.execute("ui.sync", json!({"account": id, "password": TYPED})).unwrap();
+    settle(&mut a);
+    assert!(needed(&a, id), "the old address's sign-in doesn't take the mark away");
+}
+
 fn add_google(a: &mut MailApp) -> Id {
     a.execute(
         "account.add",

@@ -4976,11 +4976,19 @@ impl MailApp {
             let last = pieces.last().is_some_and(|piece| !piece.partial);
             let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
             let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
-            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
-                let e = e.to_lowercase();
-                // Microsoft's word for a token that ran out during the run.
-                e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
-            });
+            // (Pieces of a run for the address the account had before, edited while the run was
+            // under way, say nothing of its sign-in: the engine doesn't take them in either.)
+            let ours = self
+                .session
+                .mailbox
+                .account(account)
+                .is_some_and(|a| pieces.iter().all(|piece| piece.email.is_empty() || a.email.trim().eq_ignore_ascii_case(piece.email.trim())));
+            let refused = ours
+                && pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
+                    let e = e.to_lowercase();
+                    // Microsoft's word for a token that ran out during the run.
+                    e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
+                });
             self.sync_refused |= refused;
             // Said as soon as it is known, even when the run ends without its last piece (#1556).
             if refused {
@@ -4989,7 +4997,7 @@ impl MailApp {
             if signed_in {
                 self.keep_accepted_password(account);
                 // The server let the run in: the sign-in went through (#1556).
-                if !self.sync_refused {
+                if ours && !self.sync_refused {
                     self.note_sign_in_needed(account, false);
                 }
             }

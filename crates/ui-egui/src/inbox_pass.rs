@@ -302,6 +302,12 @@ impl MailApp {
         let check = self.inbox_check.running.take() == Some(account);
         self.inbox_check.cancel = None;
         self.keep_inbox_tokens(account, &result);
+        // A sign-in turned down in it is said as a whole run's is (#1556), the quiet check's too:
+        // the round may end before another run of the account's says it. (A permission still to
+        // be given is no sign-in that ran out.)
+        if result.mail.is_none() && result.sign_in_refused && !result.consent_needed {
+            self.note_sign_in_needed(account, true);
+        }
         let problems: Vec<String> = std::mem::take(&mut self.graph_problems).into_iter().chain(result.errors).collect();
         if check && problems.is_empty() {
             self.inbox_check.failing.remove(&account);
