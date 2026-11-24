@@ -94,7 +94,7 @@ msgstr "\"{name}\" sera supprimé définitivement."
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "\"{name}\", {when}"
-msgstr "\"{name} \", {when}"
+msgstr "\"{name}\", {when}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -110,7 +110,7 @@ msgstr "\"{set}\" ne précise pas les messages à modifier"
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "\"{set}\" is not a set of messages"
-msgstr "\"{set}\"n'est pas un ensemble de messages"
+msgstr "\"{set}\" n'est pas un ensemble de messages"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -452,7 +452,7 @@ msgstr "Une modification apportée au calendrier d'une boîte aux lettres partag
 #. interface
 #: crates/ui-egui/src/symbol.rs
 msgid "A code point written U+2192 or 2192, or a decimal number after #."
-msgstr "Un point de code noté U+2192 ou 2192, ou un nombre décimal suivi du signe #."
+msgstr "Un point de code noté U+2192 ou 2192, ou un nombre décimal précédé du signe #."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
