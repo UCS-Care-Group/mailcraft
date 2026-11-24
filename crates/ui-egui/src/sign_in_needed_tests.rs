@@ -468,15 +468,19 @@ fn signed_in_on_the_sync_page(who: &str) -> (MailApp, Id) {
     let owner = a.execute("account.add", json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     a.tokens.insert(owner, tokens("ms-1"));
     a.note_sign_in_needed(owner, true);
-    // (No run that starts after it ever answers: what the sign-in did is all that is looked at.)
-    a.services.graph = Some(Box::new(|_req: GraphRequest| {
-        let (tx, rx) = mpsc::channel::<GraphResult>();
-        std::mem::forget(tx);
+    // (No run that starts after it ever answers: what the sign-in did is all that is looked at.
+    // Each run's sender is kept, unused, as long as the app is, so the run stays unanswered
+    // rather than ending.)
+    let graph_senders: Arc<Mutex<Vec<mpsc::Sender<GraphResult>>>> = Arc::default();
+    a.services.graph = Some(Box::new(move |_req: GraphRequest| {
+        let (tx, rx) = mpsc::channel();
+        graph_senders.lock().unwrap().push(tx);
         rx
     }));
-    a.services.sync = Some(Box::new(|_req: SyncRequest| {
-        let (tx, rx) = mpsc::channel::<SyncResult>();
-        std::mem::forget(tx);
+    let sync_senders: Arc<Mutex<Vec<mpsc::Sender<SyncResult>>>> = Arc::default();
+    a.services.sync = Some(Box::new(move |_req: SyncRequest| {
+        let (tx, rx) = mpsc::channel();
+        sync_senders.lock().unwrap().push(tx);
         rx
     }));
     let (answers, _) = sign_in_host(&mut a);
