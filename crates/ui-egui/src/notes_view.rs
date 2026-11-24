@@ -2213,7 +2213,7 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                     });
                 } else if line.contains("Comentário") || line.contains("Resposta do Assistente") || line.contains("Assistente IA") {
                     ui.add_space(10.0);
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(Color32::from_rgba_premultiplied(66, 133, 244, 25))
                         .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(66, 133, 244, 90)))
                         .corner_radius(6.0)
