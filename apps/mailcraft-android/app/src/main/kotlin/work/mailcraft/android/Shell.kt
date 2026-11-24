@@ -6,6 +6,7 @@
 package work.mailcraft.android
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -44,6 +47,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import uniffi.mailcraft_mobile.ComposeStart
 
 /**
  * Everything the shell draws, as plain values: it reads no core and no system service. A bag of
@@ -291,6 +295,12 @@ private fun ShellScreen(
             onBack = if (nav.message != null) ({ nav.back()?.let(onNav) }) else null,
             snackbar = snackbar,
             onNewMessage = if (nav.tab == Tab.Mail && nav.message == null) actions.writing.onNewMessage else null,
+            mailBar = if (nav.tab == Tab.Mail) data.mail.query?.let { MailBar(it, actions.mail) } else null,
+            onDrafts = if (nav.tab == Tab.Mail && nav.message == null) {
+                draftsOpener(data, actions, onNav, nav)
+            } else {
+                null
+            },
         ) { modifier, expanded ->
             TabBody(texts, data, actions, calendar, nav, onNav, modifier, expanded)
         }
@@ -315,7 +325,12 @@ private fun TabBody(
         Tab.Mail -> if (data.accounts.isEmpty() && data.outline == OutlineStatus.Ready) {
             NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
         } else {
-            val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
+            val reply = { row: InboxRow ->
+                actions.reading.onCompose(
+                    if (isDraftRow(data.accounts, row)) ComposeStart.Draft(row.id) else ComposeStart.Reply(row.id),
+                )
+            }
+            val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }.withReply(reply)
             MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
         }
         Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
@@ -361,8 +376,33 @@ private fun SpaceQuestion(texts: Texts, data: ShellData, actions: SettingsAction
     RemovalDialogs(texts, data.settingsUi.removal, actions)
 }
 
+private val FabGap = Arrangement.spacedBy(12.dp)
+
+/** What the top bar holds on the Mail tab: the search and the funnel, over the list's query. */
+private class MailBar(val query: MailQuery, val actions: MailListActions)
+
+/**
+ * Opens the Drafts folder of the account whose folder is on show (the first account when none is),
+ * found by the folder's role; null when there is none, or it is the folder on show.
+ */
+private fun draftsOpener(
+    data: ShellData,
+    actions: ShellActions,
+    onNav: (NavState) -> Unit,
+    nav: NavState,
+): (() -> Unit)? {
+    val account = data.accounts.firstOrNull { a -> a.folders.any { it.id == data.folderId } }
+        ?: data.accounts.firstOrNull()
+    val drafts = account?.folders?.firstOrNull { it.kind == "drafts" } ?: return null
+    if (drafts.id == data.folderId) return null
+    return {
+        actions.onFolder(account, drafts)
+        onNav(nav.select(Tab.Mail))
+    }
+}
+
 @Composable
-@Suppress("LongMethod")
+@Suppress("LongMethod", "LongParameterList")
 private fun MainFrame(
     texts: Texts,
     tab: Tab,
@@ -372,8 +412,11 @@ private fun MainFrame(
     onBack: (() -> Unit)?,
     snackbar: SnackbarHostState,
     onNewMessage: (() -> Unit)?,
+    mailBar: MailBar?,
+    onDrafts: (() -> Unit)?,
     content: @Composable (Modifier, Boolean) -> Unit,
 ) {
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val expanded = maxWidth >= ExpandedWidth
         val largeText = LocalDensity.current.fontScale > LARGE_TEXT
@@ -393,8 +436,22 @@ private fun MainFrame(
             Scaffold(
                 modifier = Modifier.weight(1f),
                 topBar = {
+                    // The list's search and funnel sit in the bar (not beside a message that is open on a phone).
+                    val bar = mailBar?.takeIf { onBack == null || expanded }
+                    val searching = bar != null && (searchOpen || bar.query.search.isNotBlank())
                     TopAppBar(
-                        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        title = {
+                            if (bar != null && searching) {
+                                MailSearchField(texts, bar.query, bar.actions)
+                            } else {
+                                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        },
+                        actions = {
+                            if (bar != null) {
+                                MailBarActions(texts, bar.query, bar.actions, searching, { searchOpen = it })
+                            }
+                        },
                         navigationIcon = {
                             if (onBack != null) {
                                 IconButton(onClick = onBack) {
@@ -411,8 +468,15 @@ private fun MainFrame(
                 snackbarHost = { SnackbarHost(snackbar) },
                 floatingActionButton = {
                     if (onNewMessage != null) {
-                        FloatingActionButton(onClick = onNewMessage) {
-                            Icon(AppIcons.Plus, contentDescription = texts.t("New message"))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = FabGap) {
+                            if (onDrafts != null) {
+                                SmallFloatingActionButton(onClick = onDrafts) {
+                                    Icon(ListIcons.Drafts, contentDescription = texts.t("Drafts"))
+                                }
+                            }
+                            FloatingActionButton(onClick = onNewMessage) {
+                                Icon(AppIcons.Plus, contentDescription = texts.t("New message"))
+                            }
                         }
                     }
                 },
