@@ -5031,8 +5031,8 @@ pub(crate) mod rules {
                 let char_count = trimmed.chars().count();
 
                 if c.op == Op::Matches {
-                    // Regex patterns: must be valid regex and <=200 chars
-                    mailcraft_model::regex_is_ok(trimmed) && char_count <= mailcraft_model::MAX_PATTERN_LENGTH
+                    // Regex patterns: must be valid regex and <=200 chars (validate raw text, not trimmed)
+                    mailcraft_model::regex_is_ok(&c.text) && c.text.chars().count() <= mailcraft_model::MAX_PATTERN_LENGTH
                 } else {
                     // Plain text (Contains/StartsWith): non-empty and <=200 chars
                     char_count <= mailcraft_model::MAX_TEXT_LENGTH
