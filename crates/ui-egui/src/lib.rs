@@ -312,6 +312,8 @@ mod theme_choice_tests;
 mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
+mod unified_restore_tests;
+#[cfg(test)]
 mod update_switches_tests;
 pub mod updates;
 mod view_source;
@@ -2202,6 +2204,8 @@ impl MailApp {
         let mut ui = self.ui.clone();
         ui.options = self.session.prefs.clone();
         ui.view = self.session.view.clone();
+        // All Accounts only while it is what the list shows (#625).
+        ui.view.unified = mailcraft_engine::unified::of(&self.session);
         ui.task_account_address = self.choice_address(ui.view.task_account);
         ui.people_account_address = self.choice_address(ui.view.people_account);
         // What is searched for and looked at belongs to the run, not to the next one.
@@ -2269,6 +2273,14 @@ impl MailApp {
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
+        // All Accounts open at quit opens again (#625), where this mailbox still has two mailboxes
+        // to put together and a folder of that kind; else the usual folder.
+        if let Some(kind) = saved.unified.filter(|k| mailcraft_engine::unified::KINDS.contains(k))
+            && mailcraft_engine::unified::offered(mailbox)
+            && let Some(anchor) = mailcraft_engine::unified::anchor(mailbox, kind)
+        {
+            (v.folder, v.unified) = (anchor, Some(kind));
+        }
     }
 
     /// Whether a command exists and is enabled.
@@ -2282,6 +2294,9 @@ impl MailApp {
             Some(_) if id == "sync.cancel" => self.syncing(),
             // Run Rules Now over the folder in view: greyed where the rules leave the mail alone (a
             // shared mailbox's), as in the folder's menu and the Rules dialog.
+            // Empty Folder over every account's Deleted Items (#625): which account's, the window
+            // can't say; a folder's own menu names it.
+            Some(_) if id == "folder.empty" && mailcraft_engine::unified::of(&self.session).is_some() => false,
             Some(s) if id == "rules.run" => {
                 let mb = &self.session.mailbox;
                 (s.enabled)(&self.session).is_none() && mb.folder(self.session.view.folder).is_some_and(|f| mb.rules_reach(f.account))
@@ -5082,6 +5097,10 @@ impl MailApp {
             self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
         match self.session.view.module {
             Module::Mail => {
+                // Every account's Inbox and the like (#625): no one account's.
+                if let Some(kind) = mailcraft_engine::unified::of(&self.session) {
+                    return crate::nav::unified_name(kind).to_string();
+                }
                 let folder = self.session.mailbox.folder(self.session.view.folder).map_or(tl!("Mail"), crate::nav::folder_name);
                 match account.filter(|a| !a.is_empty()) {
                     Some(a) => i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder), ("mailbox", &a)]),
@@ -6270,6 +6289,8 @@ pub fn now_ms() -> f64 {
     }
 }
 
+#[cfg(test)]
+mod catalogue_gaps_tests;
 #[cfg(test)]
 mod privacy_tests;
 #[cfg(test)]
