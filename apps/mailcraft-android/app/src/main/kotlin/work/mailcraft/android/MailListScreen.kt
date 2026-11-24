@@ -38,6 +38,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 private val Gutter = 16.dp
 
+/** Room under the last row for the floating buttons: the button (56dp) and its margins. */
+private val FabClearance = 88.dp
+
 /** What the list screen asks of the app. */
 @Suppress("LongParameterList")
 internal class MailListActions(
@@ -161,7 +164,11 @@ private fun Rows(context: MailListContext, ui: MailListUi, actions: MailListActi
             .collect { (first, last) -> actions.onRange(first, last) }
     }
     LaunchedEffect(ui.query) { state.scrollToItem(0) }
-    LazyColumn(state = state, contentPadding = PaddingValues(bottom = Gutter), modifier = Modifier.fillMaxSize()) {
+    LazyColumn(
+        state = state,
+        contentPadding = PaddingValues(bottom = FabClearance),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         items(
             count = ui.snapshot.total,
             key = { index -> ui.snapshot.row(index)?.id?.toString() ?: "page-$index" },
