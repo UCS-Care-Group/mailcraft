@@ -765,6 +765,29 @@ fn the_callers_own_mailbox_names_no_mailbox_at_all() {
 }
 
 #[test]
+fn a_shared_inbox_found_and_then_not_read_leaves_the_run_unfinished() {
+    // (Its folders are found, and then its rights are taken away: Exchange answers the Inbox's
+    // `SyncFolderItems` with `ErrorFolderNotFound`.)
+    let standin = delegate_stand_in();
+    standin.state().deliver("inbox", "For the team", false);
+    standin.state().unsyncable = vec!["inbox".into()];
+    let (pieces, _) = run_as(&client().with_mailbox(SHARED), &standin, &EwsMailRequest { mailbox: SHARED.into(), ..request() });
+    assert!(subjects(&pieces).is_empty());
+    assert!(!last(&pieces).whole, "{:?}", last(&pieces));
+    assert_eq!(last(&pieces).errors, vec![crate::run::SHARED_NOT_OPENED.to_owned()]);
+}
+
+#[test]
+fn a_folder_of_ones_own_found_and_then_gone_is_passed_over() {
+    // (The caller's own mailbox: a folder found and then gone is left to the folder list.)
+    let standin = StandIn::new();
+    standin.state().deliver("inbox", "Mine", false);
+    standin.state().unsyncable = vec!["inbox".into()];
+    let (pieces, _) = run(&standin, &request());
+    assert!(last(&pieces).whole && last(&pieces).errors.is_empty(), "{:?}", last(&pieces));
+}
+
+#[test]
 fn a_shared_mailbox_whose_inbox_alone_is_refused_is_one_the_server_wont_open() {
     // (The server answers the other folders, so nothing stops the run; the Inbox isn't among them.)
     let standin = delegate_stand_in();

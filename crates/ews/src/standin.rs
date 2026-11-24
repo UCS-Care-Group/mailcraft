@@ -206,6 +206,10 @@ pub struct State {
     /// Mailboxes that exist but whose folders the caller may not open (a mailbox they have no rights
     /// to): `ErrorItemNotFound`, as Exchange answers. Any other address is `ErrorNonExistentMailbox`.
     pub no_access: Vec<String>,
+    /// Distinguished names of folders that are found but whose `SyncFolderItems` is answered
+    /// `ErrorFolderNotFound`, as Exchange answers once the caller's rights to the mailbox are
+    /// taken away after its folders were found.
+    pub unsyncable: Vec<String>,
     /// Distinguished names this server's schema lacks (an older or another server's): a request
     /// that names one is a schema fault (`ErrorSchemaValidation`, HTTP 500), as for any name the
     /// schema hasn't.
@@ -309,6 +313,7 @@ impl Default for State {
             class_only_when_asked: false,
             mailbox: None,
             no_access: Vec::new(),
+            unsyncable: Vec::new(),
             unknown_names: Vec::new(),
             refuse_names: None,
             exchange2010: false,

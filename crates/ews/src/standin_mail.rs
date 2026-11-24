@@ -570,6 +570,9 @@ impl State {
         let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
         let (base, _, extra) = Self::item_shape(shape, false)?;
         let folder = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
+        if !folder.distinguished.is_empty() && self.unsyncable.contains(&folder.distinguished) {
+            return Err(Refusal { code: "ErrorFolderNotFound", why: "the caller's rights to it were taken away".into() });
+        }
         let max = Check::required(operation, parts.get(4).copied().flatten(), "MaxChangesReturned")?;
         Check::is(max, MESSAGES, "MaxChangesReturned", &[])?;
         Check::no_children(max)?;

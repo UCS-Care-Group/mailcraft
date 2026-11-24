@@ -626,6 +626,13 @@ impl<E: HttpExchange> Run<'_, E> {
             let state = states.get(folder.as_str()).copied().unwrap_or_default();
             match self.folder(request, folder, state, (number, folders), emit).await {
                 Ok(true) => failed_in_a_row = 0,
+                // A shared mailbox's Inbox that was found and then isn't read: the server won't open
+                // the mailbox after all (its rights were taken away in between, which Exchange says
+                // as `ErrorFolderNotFound` too), so the run isn't whole.
+                Ok(false) if !request.mailbox.is_empty() && specials.inbox.as_deref() == Some(folder.as_str()) => {
+                    out.incomplete = true;
+                    out.line(SHARED_NOT_OPENED);
+                }
                 // (A folder the server doesn't have: the folder list takes it away.)
                 Ok(false) => {}
                 Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
