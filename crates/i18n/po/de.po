@@ -11623,6 +11623,11 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr "Bilder werden immer heruntergeladen von ({n}):"
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Pictures in mail"
 msgstr "Bilder in E-Mails"
@@ -15434,6 +15439,11 @@ msgstr "Wechseln"
 #: crates/ui-egui/src/account_setup.rs
 msgid "Switch to Google sign-in"
 msgstr "Auf Google-Anmeldung umstellen"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Switch to HTML"
+msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs

@@ -8,8 +8,12 @@ The file is read again when a new message, reply or forward starts. Editing the 
 
 Supported files are UTF-8 text (`.txt`, `.text`), HTML (`.html`, `.htm`), and PNG, JPEG or GIF images. Text is limited to 10,000 characters, HTML to 64 KB, and images to 256 KB, matching the existing signature limits. Images are included as inline attachments rather than links to the file. HTML uses MailCraft's existing HTML signature support and its limitations; it does not load other local files or fetch remote resources while reading the signature file.
 
+Plain-text replies remain plain text. If a signature contains pictures, the editor warns that plain-text output omits them and offers **Switch to HTML**. HTML output includes the pictures as inline attachments. Reopened drafts retain their saved images even when the external signature file changes. An empty text file means no signature, without substituting the saved contents.
+
 If the file is missing, unreadable, unsupported, damaged or too large, Preview and the message editor show a warning and use the selected signature's saved contents instead. If those contents are empty, the message starts without a signature.
 
 Paths are stored in this installation's `ui.json`, scoped to the mailbox path and signature name. They are not stored in exported mailbox files. A mailbox opened elsewhere cannot choose a file on that computer as its signature. Renaming a signature keeps its file source; deleting it removes the local file binding. After moving or renaming a mailbox file, select the signature file again. Agents cannot configure signature file paths or open their picker.
+
+Undo and Redo of a signature rename or removal restore its local file binding with that operation. A newly created signature does not inherit the removed signature's binding. A pending file choice is cancelled if its target is renamed, removed or restored by Undo/Redo.
 
 The option is unavailable in the browser build, which cannot retain access to arbitrary local filesystem paths.

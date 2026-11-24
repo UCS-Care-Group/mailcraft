@@ -285,11 +285,20 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let tab = ui.add_enabled(!cfg!(target_arch = "wasm32"), egui::Button::selectable(file_tab, tl!("File")));
         app.hit.add("signatureFileTab", 0, tab.rect);
         if tab.clicked() {
-            let _ = app.run("ui.signatureFile", json!({"name": name, "enabled": true}));
+            if let Err(why) = app.run("ui.signatureFile", json!({"name": name, "enabled": true})) {
+                refuse(app, why);
+            } else {
+                app.signature_note = None;
+            }
         }
     });
     if crate::signature_files::setting_for_name(app, &name).enabled {
         file_source(app, ui, &name);
+        if let Some(note) = &app.signature_note
+            && note.error
+        {
+            ui.colored_label(t.red, &note.text);
+        }
         preview(app, ui, t);
         return;
     }
@@ -320,7 +329,11 @@ fn file_source(app: &mut MailApp, ui: &mut Ui, name: &str) {
         let choose = ui.button(tl!("Choose…"));
         app.hit.add("signatureFileChoose", 0, choose.rect);
         if choose.clicked() {
-            let _ = app.run("ui.chooseSignatureFile", json!({"name": name}));
+            if let Err(why) = app.run("ui.chooseSignatureFile", json!({"name": name})) {
+                refuse(app, why);
+            } else {
+                app.signature_note = None;
+            }
         }
     });
     if ui.button(tl!("Refresh Preview")).clicked() {

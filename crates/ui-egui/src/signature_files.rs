@@ -22,6 +22,88 @@ pub struct Setting {
     pub path: String,
 }
 
+/// Only weak step identities and changed keys are kept, never aliases for removed signatures.
+#[derive(Default)]
+pub(crate) struct History(Vec<HistoryEntry>);
+
+struct HistoryEntry {
+    token: std::sync::Weak<()>,
+    action: HistoryAction,
+}
+
+enum HistoryAction {
+    Rename { from: String, to: String },
+    Remove { key: String, source: Option<Setting> },
+}
+
+pub(crate) struct Change {
+    key: Option<String>,
+    step: Option<std::sync::Weak<()>>,
+    moved: u64,
+}
+
+pub(crate) fn before_command(app: &MailApp, id: &str, p: &Value) -> Change {
+    Change {
+        key: matches!(id, "signature.rename" | "signature.remove")
+            .then(|| p.get("name").and_then(Value::as_str).and_then(|name| key_for_name(app, name)))
+            .flatten(),
+        step: matches!(id, "edit.undo" | "edit.redo").then(|| app.session.undo_token(id == "edit.redo")).flatten(),
+        moved: app.session.undo_steps_moved(),
+    }
+}
+
+pub(crate) fn after_command(app: &mut MailApp, id: &str, p: &Value, change: Change) {
+    app.signature_file_history.0.retain(|entry| entry.token.strong_count() > 0);
+    if app.session.undo_steps_moved() == change.moved {
+        return;
+    }
+    if let Some(step) = change.step {
+        // Undo may change the identity of any signature, even if it has no file source.
+        files::invalidate_signature(app, None);
+        if let Some(entry) = app.signature_file_history.0.iter_mut().find(|entry| entry.token.ptr_eq(&step)) {
+            match &mut entry.action {
+                HistoryAction::Rename { from, to } => {
+                    let source = app.ui.signature_files.remove(from);
+                    app.ui.signature_files.remove(to);
+                    if let Some(source) = source {
+                        app.ui.signature_files.insert(to.clone(), source);
+                    }
+                    std::mem::swap(from, to);
+                }
+                HistoryAction::Remove { key, source } => {
+                    let previous = app.ui.signature_files.remove(key);
+                    if let Some(value) = source.take() {
+                        app.ui.signature_files.insert(key.clone(), value);
+                    }
+                    *source = previous;
+                }
+            }
+        }
+    } else if let Some(old) = change.key {
+        files::invalidate_signature(app, p.get("name").and_then(Value::as_str));
+        if id == "signature.rename" && p.get("to").and_then(Value::as_str).and_then(|name| key_for_name(app, name)).as_ref() == Some(&old) {
+            app.signature_file_preview = None;
+            return;
+        }
+        let source = app.ui.signature_files.remove(&old);
+        let action = if id == "signature.rename"
+            && let Some(key) = p.get("to").and_then(Value::as_str).and_then(|name| key_for_name(app, name))
+        {
+            app.ui.signature_files.remove(&key);
+            if let Some(source) = source {
+                app.ui.signature_files.insert(key.clone(), source);
+            }
+            HistoryAction::Rename { from: key, to: old }
+        } else {
+            HistoryAction::Remove { key: old, source }
+        };
+        if let Some(token) = app.session.undo_token(false) {
+            app.signature_file_history.0.push(HistoryEntry { token, action });
+        }
+    }
+    app.signature_file_preview = None;
+}
+
 /// Scope a local source to the mailbox and signature. Accounts assign it using their usual selectors.
 pub(crate) fn key_for_name(app: &MailApp, name: &str) -> Option<String> {
     let signature = app.session.mailbox.signature(name)?;

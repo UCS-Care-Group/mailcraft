@@ -1674,6 +1674,7 @@ pub struct MailApp {
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
     pub(crate) signature_file_preview: Option<(String, String, Result<mailcraft_model::Signature, String>)>,
+    pub(crate) signature_file_history: signature_files::History,
     /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
     signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
@@ -2059,6 +2060,7 @@ impl MailApp {
             signatures_shown: false,
             signature_note: None,
             signature_file_preview: None,
+            signature_file_history: Default::default(),
             signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
@@ -2649,22 +2651,11 @@ impl MailApp {
             return Err(e);
         }
         let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
-        let signature_key = matches!(id, "signature.rename" | "signature.remove")
-            .then(|| params.get("name").and_then(Value::as_str).and_then(|name| signature_files::key_for_name(self, name)))
-            .flatten();
+        let signature_change = signature_files::before_command(self, id, &params);
         signature_files::prepare(self);
         let r = self.session.run(id, &params);
-        if r.is_ok()
-            && let Some(old) = signature_key
-            && let Some(source) = self.ui.signature_files.remove(&old)
-        {
-            if id == "signature.rename"
-                && let Some(new) = params.get("to").and_then(Value::as_str)
-                && let Some(key) = signature_files::key_for_name(self, new)
-            {
-                self.ui.signature_files.insert(key, source);
-            }
-            self.signature_file_preview = None;
+        if r.is_ok() {
+            signature_files::after_command(self, id, &params, signature_change);
         }
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();

@@ -3,6 +3,7 @@
 //! External signature files: local settings, fresh reads, snapshots and fallback (#1878).
 
 use super::*;
+use crate::files::base64_lite;
 use crate::{Services, UiState};
 use mailcraft_engine::{Session, sample};
 use mailcraft_model::Id;
@@ -102,6 +103,175 @@ fn image_signature_is_an_inline_attachment_in_a_saved_message() {
     let message = app.session.mailbox.message(draft).unwrap();
     assert!(message.body.html.as_ref().unwrap().contains("cid:"));
     assert!(message.attachments.iter().any(|a| a.mime == "image/png" && !a.data.is_empty()));
+    let original = message.attachments.iter().find(|a| a.mime == "image/png").unwrap().data.clone();
+    app.execute("compose.close", json!({})).unwrap();
+    // Reopening uses the draft's snapshot even when its source no longer decodes.
+    std::fs::write(&path, b"changed externally").unwrap();
+    app.execute("mail.editDraft", json!({"id":draft})).unwrap();
+    let compose = app.session.compose.as_ref().unwrap();
+    assert_eq!(compose.pictures.len(), 1);
+    assert_eq!(compose.body.text().pictures(), vec![compose.pictures[0].id]);
+    assert!(compose.attachments.iter().all(|a| a.mime != "image/png"));
+    app.execute("compose.saveDraft", json!({})).unwrap();
+    let message = app.session.mailbox.message(draft).unwrap();
+    assert!(message.body.html.as_ref().unwrap().contains("cid:pic-"));
+    assert_eq!(message.attachments.iter().filter(|a| a.mime == "image/png").count(), 1);
+    assert_eq!(message.attachments.iter().find(|a| a.mime == "image/png").unwrap().data, original);
+}
+
+#[test]
+fn empty_file_means_no_signature_instead_of_an_empty_snapshot_or_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut app, account) = app();
+    for text in ["", " \n\t"] {
+        let path = write(&dir, "empty.txt", text.as_bytes());
+        configure(&mut app, account, &path, true);
+        assert!(!compose_text(&mut app, account).contains("Usual signature"));
+        let c = app.session.compose.as_ref().unwrap();
+        assert!(c.signature.is_none());
+        assert!(c.signature_file_warning.is_empty());
+    }
+}
+
+#[test]
+fn reopened_signature_and_body_images_keep_distinct_ids_and_survive_another_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("signature.png");
+    image::RgbaImage::from_pixel(4, 4, image::Rgba([90, 60, 30, 255])).save(&path).unwrap();
+    let (mut app, account) = app();
+    configure(&mut app, account, &path, true);
+    compose_text(&mut app, account);
+    app.execute("insert.picture", json!({"data":base64_lite::encode(&std::fs::read(&path).unwrap()), "file":"body.png", "at":0})).unwrap();
+    app.execute("compose.saveDraft", json!({})).unwrap();
+    let draft = app.session.compose.as_ref().unwrap().draft.unwrap();
+    for _ in 0..2 {
+        app.execute("compose.close", json!({})).unwrap();
+        app.execute("mail.editDraft", json!({"id":draft})).unwrap();
+        let c = app.session.compose.as_ref().unwrap();
+        assert_eq!(c.pictures.len(), 2);
+        assert_ne!(c.pictures[0].id, c.pictures[1].id);
+        assert_eq!(c.body.text().pictures().len(), 2);
+        app.execute("compose.saveDraft", json!({})).unwrap();
+        assert_eq!(app.session.mailbox.message(draft).unwrap().attachments.iter().filter(|a| a.inline).count(), 2);
+    }
+}
+
+#[test]
+fn file_tab_and_choose_surface_command_failures_in_the_page() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut w = crate::people_view::testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("ui.backstage", json!({"value":true,"page":"signatures"})).unwrap();
+    w.run_steps(3);
+    for n in 0..200 {
+        w.state_mut().ui.signature_files.insert(format!("unused-{n}"), Setting::default());
+    }
+    let file = w.state().hit.rect("signatureFileTab", 0).unwrap();
+    crate::people_view::testing::click(&mut w, file.center(), egui::PointerButton::Primary, 1);
+    w.run_steps(3);
+    assert!(w.get_by_label("too many signature file settings").rect().is_positive());
+    w.state_mut().ui.signature_files.clear();
+    let file = w.state().hit.rect("signatureFileTab", 0).unwrap();
+    crate::people_view::testing::click(&mut w, file.center(), egui::PointerButton::Primary, 1);
+    w.run_steps(3);
+    w.get_by_label(tl!("Choose…")).click();
+    w.run_steps(3);
+    assert!(w.state().signature_note.as_ref().is_some_and(|note| note.error));
+    let error = w.state().signature_note.as_ref().unwrap().text.clone();
+    assert!(w.get_by_label(&error).rect().is_positive());
+}
+
+#[test]
+fn undo_and_redo_follow_the_exact_signature_operation_and_keep_no_old_aliases() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write(&dir, "signature.txt", b"File signature");
+    let (mut app, account) = app();
+    configure(&mut app, account, &path, true);
+    app.execute("signature.rename", json!({"name":"Usual","to":"Renamed"})).unwrap();
+    assert!(!setting_for_name(&app, "Usual").enabled);
+    app.execute("edit.undo", json!({})).unwrap();
+    assert!(setting_for_name(&app, "Usual").enabled);
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    app.execute("edit.redo", json!({})).unwrap();
+    assert!(setting_for_name(&app, "Renamed").enabled);
+    app.execute("signature.remove", json!({"name":"Renamed"})).unwrap();
+    app.execute("edit.undo", json!({})).unwrap();
+    assert!(setting_for_name(&app, "Renamed").enabled);
+    app.execute("edit.redo", json!({})).unwrap();
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    // A new branch of history must not accidentally reuse the removed signature's source.
+    app.execute("signature.set", json!({"name":"Renamed","text":"Replacement"})).unwrap();
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    app.execute("edit.undo", json!({})).unwrap();
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    app.execute("edit.undo", json!({})).unwrap();
+    assert!(setting_for_name(&app, "Renamed").enabled);
+    app.execute("edit.undo", json!({})).unwrap();
+    assert!(setting_for_name(&app, "Usual").enabled);
+    app.execute("signature.set", json!({"name":"Renamed","text":"Unrelated"})).unwrap();
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    assert_eq!(setting_for_name(&app, "Usual").path, path.to_str().unwrap());
+}
+
+#[test]
+fn undo_rename_moves_a_file_chosen_after_the_rename_and_redo_keeps_later_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = write(&dir, "first.txt", b"First file");
+    let second = write(&dir, "second.txt", b"Second file");
+    let (mut app, account) = app();
+    app.execute("signature.rename", json!({"name":"Usual","to":"Renamed"})).unwrap();
+    configure(&mut app, account, &first, true);
+    app.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(setting_for_name(&app, "Usual").path, first.to_str().unwrap());
+    assert!(!setting_for_name(&app, "Renamed").enabled);
+    configure(&mut app, account, &second, true);
+    app.execute("edit.redo", json!({})).unwrap();
+    assert_eq!(setting_for_name(&app, "Renamed").path, second.to_str().unwrap());
+    assert!(!setting_for_name(&app, "Usual").enabled);
+}
+
+#[test]
+fn signature_picker_is_cancelled_when_the_original_target_is_removed_or_renamed() {
+    use std::sync::mpsc::channel;
+    for command in ["signature.remove", "signature.rename"] {
+        let (mut app, _) = app();
+        let (_tx, rx) = channel();
+        let rx = std::cell::RefCell::new(Some(rx));
+        app.services.file_dialog = Some(Box::new(move |_| rx.borrow_mut().take().unwrap()));
+        app.execute("ui.chooseSignatureFile", json!({"name":"Usual"})).unwrap();
+        app.execute(command, json!({"name":"Usual","to":"Renamed"})).unwrap();
+        app.execute("signature.set", json!({"name":"Usual","text":"Replacement"})).unwrap();
+        assert!(app.file_dialog.is_none());
+        assert!(!setting_for_name(&app, "Usual").enabled);
+    }
+}
+
+#[test]
+fn plain_reply_warns_and_offers_html_before_sending_the_image_signature() {
+    use egui_kittest::kittest::Queryable as _;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("signature.png");
+    image::RgbaImage::from_pixel(4, 4, image::Rgba([30, 60, 90, 255])).save(&path).unwrap();
+    let mut w = crate::people_view::testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    let account = w.state().session.mailbox.default_account().unwrap().id;
+    configure(w.state_mut(), account, &path, true);
+    let source = w.state().session.mailbox.messages.values().find(|m| m.account == account && !m.draft && m.body.html.is_none()).unwrap().id;
+    w.state_mut().execute("mail.reply", json!({"id":source})).unwrap();
+    w.run_steps(3);
+    assert_eq!(w.state().session.compose.as_ref().unwrap().format, mailcraft_engine::BodyFormat::Plain);
+    assert!(w.get_by_label(tl!("Pictures are not included in plain-text messages. Switch to HTML to include them.")).rect().is_positive());
+    w.get_by_label(tl!("Switch to HTML")).click();
+    w.run_steps(3);
+    assert_eq!(w.state().session.compose.as_ref().unwrap().format, mailcraft_engine::BodyFormat::Html);
+    w.state_mut().execute("compose.saveDraft", json!({})).unwrap();
+    let id = w.state().session.compose.as_ref().unwrap().draft.unwrap();
+    let message = w.state().session.mailbox.message(id).unwrap();
+    assert!(message.body.html.as_ref().unwrap().contains("cid:sig-"));
+    assert!(message.attachments.iter().any(|a| a.inline && a.mime == "image/png"));
+    w.state_mut().execute("compose.formatPlain", json!({})).unwrap();
+    w.state_mut().execute("compose.saveDraft", json!({})).unwrap();
+    assert!(w.state().session.mailbox.message(id).unwrap().body.html.is_none());
 }
 
 #[test]

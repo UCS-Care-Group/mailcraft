@@ -217,7 +217,9 @@ fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, re
     let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
     if let Some(load) = &s.signature_file {
         match load(&name) {
-            Ok(Some(signature)) => return Some(signature),
+            Ok(Some(signature)) => {
+                return (!signature.plain().trim().is_empty() || !signature.pictures().is_empty() || signature.html().is_some()).then_some(signature);
+            }
             Ok(None) => {}
             Err(why) => {
                 if let Ok(mut warning) = s.signature_file_warning.lock() {
@@ -1140,23 +1142,33 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // The pictures the owner put in the text come back where they were (#547), once each, checked
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
+    let mut taken: Vec<String> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
         mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
-            let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
-            if pictures.iter().any(|p| p.id == id) {
-                return Some(id);
+            if let Some(at) = taken.iter().position(|cid| *cid == img.cid) {
+                return pictures.get(at).map(|p| p.id);
             }
             let a = m.attachments.iter().find(|a| a.inline && a.content_id == img.cid)?;
+            // Signature pictures become ordinary body pictures on reopen. Allocate above every
+            // existing pic- id so a signature id cannot collide with one later in the document.
+            let id = if let Some(id) = img.cid.strip_prefix(PICTURE_CID) {
+                id.split('.').next()?.parse().ok()?
+            } else {
+                img.cid.strip_prefix("sig-")?.split('.').next()?.parse::<u32>().ok()?;
+                let highest = m
+                    .attachments
+                    .iter()
+                    .filter_map(|a| a.content_id.strip_prefix(PICTURE_CID)?.split('.').next()?.parse::<u32>().ok())
+                    .chain(pictures.iter().map(|p| p.id))
+                    .max();
+                highest.map_or(Some(mailcraft_model::pictures::FIRST_ID), |id| id.checked_add(1))?
+            };
             let picture = mailcraft_model::pictures::take(&pictures, id, &a.name, a.data.to_vec(), &img.alt, img.width)?;
             pictures.push(picture);
+            taken.push(img.cid.clone());
             Some(id)
         })
     });
-    let taken: Vec<String> = pictures
-        .iter()
-        .filter_map(|p| m.attachments.iter().find(|a| a.inline && a.content_id.starts_with(&format!("{PICTURE_CID}{}.", p.id))))
-        .map(|a| a.content_id.clone())
-        .collect();
     let picture_seq = pictures.iter().map(|p| p.id.saturating_sub(mailcraft_model::pictures::FIRST_ID).saturating_add(1)).max().unwrap_or(0);
     let attachments: Vec<Attachment> = match &quote {
         Some(q) => m.attachments.iter().filter(|a| !q.pictures.contains(a)).cloned().collect(),

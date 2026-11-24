@@ -1118,6 +1118,8 @@ pub struct Clock {
 
 #[derive(Clone)]
 pub(crate) struct Undo {
+    /// Stable identity shared with a host's local sidecar across Undo and Redo.
+    token: Arc<()>,
     label: &'static str,
     pub(crate) mailbox: Mailbox,
     /// What the step did to the Microsoft accounts' mail, for keeping them in step when it is
@@ -3506,13 +3508,29 @@ impl Session {
     // ---- undo ----
 
     fn snapshot(&self, label: &'static str) -> Undo {
-        Undo { label, mailbox: self.mailbox.clone(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
+        Undo {
+            token: Arc::new(()),
+            label,
+            mailbox: self.mailbox.clone(),
+            touched: Default::default(),
+            sel: self.sel.clone(),
+            folder: self.view.folder,
+            mail: false,
+        }
     }
 
     /// [`Session::snapshot`] without the mailbox, for a command that doesn't change it
     /// ([`Session::run`]): never kept as a step of the history.
     fn snapshot_light(&self, label: &'static str) -> Undo {
-        Undo { label, mailbox: Mailbox::default(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
+        Undo {
+            token: Arc::new(()),
+            label,
+            mailbox: Mailbox::default(),
+            touched: Default::default(),
+            sel: self.sel.clone(),
+            folder: self.view.folder,
+            mail: false,
+        }
     }
 
     /// A .pst import that came in a batch at a time, kept as one step to undo: the mailbox as it
@@ -3648,6 +3666,12 @@ impl Session {
         self.steps_moved
     }
 
+    /// Identity of the next step, for host-local settings that must follow that operation.
+    /// A weak reference expires when the step leaves both stacks; no mailbox data is exposed.
+    pub fn undo_token(&self, redo: bool) -> Option<std::sync::Weak<()>> {
+        (if redo { &self.redo } else { &self.history }).last().map(|u| Arc::downgrade(&u.token))
+    }
+
     /// What the last undo or redo couldn't do, in words (empty when it did everything).
     pub fn undo_said(&self) -> &[String] {
         &self.undo_said
@@ -3741,7 +3765,15 @@ impl Session {
         self.ews_run_cut.clear();
         self.run_had.clear();
         let mail = u.mail;
-        let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
+        let cur = Undo {
+            token: u.token,
+            label: u.label,
+            mailbox: now,
+            touched,
+            sel: std::mem::replace(&mut self.sel, u.sel),
+            folder: self.view.folder,
+            mail,
+        };
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;

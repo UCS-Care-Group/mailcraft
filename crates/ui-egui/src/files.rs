@@ -66,6 +66,16 @@ pub struct PendingDialog {
     from: Option<u64>,
 }
 
+/// A target that was removed, renamed or restored must not receive an earlier picker's result.
+pub(crate) fn invalidate_signature(app: &mut MailApp, name: Option<&str>) {
+    if app.file_dialog.as_ref().is_some_and(|d| {
+        matches!(&d.after, AfterPick::SignatureFile { name: target, .. }
+        if name.is_none_or(|name| name.eq_ignore_ascii_case(target)))
+    }) {
+        app.file_dialog = None;
+    }
+}
+
 /// Commands that write a file, and the name they suggest.
 fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     let s = &app.session;

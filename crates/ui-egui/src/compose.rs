@@ -238,6 +238,16 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     if let Some(warning) = app.session.compose.as_ref().map(|c| c.signature_file_warning.clone()).filter(|w| !w.is_empty()) {
         ui.colored_label(t.orange, warning);
     }
+    if app.session.compose.as_ref().is_some_and(|c| {
+        c.format == mailcraft_engine::BodyFormat::Plain && (c.signature.as_ref().is_some_and(|s| !s.pictures.is_empty()) || !c.pictures.is_empty())
+    }) {
+        ui.horizontal_wrapped(|ui| {
+            ui.colored_label(t.orange, tl!("Pictures are not included in plain-text messages. Switch to HTML to include them."));
+            if ui.button(tl!("Switch to HTML")).clicked() {
+                let _ = app.run("compose.formatHtml", json!({}));
+            }
+        });
+    }
 
     // In the reading pane, what this is and the actions; a window of its own has them in its
     // ribbon, and Send beside the lines, as a message's window has it (#286).
