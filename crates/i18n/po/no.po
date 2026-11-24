@@ -1,0 +1,15 @@
+# MailCraft's interface in Norwegian Bokmal. Kept up to date by `cargo xtask i18n`; see docs/translating.md.
+# An entry marked fuzzy is a draft no native speaker has reviewed yet.
+msgid ""
+msgstr ""
+"Project-Id-Version: MailCraft\n"
+"Language: no\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: crates/i18n/src/lib.rs
+#, fuzzy
+msgid "{language} (preview)"
+msgstr "{language} (forhåndsvisning)"
