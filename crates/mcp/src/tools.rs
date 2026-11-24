@@ -285,10 +285,12 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "department",
     "phone",
     "website",
-    // Hosts, links and keys an answer gave.
+    // Hosts, links and keys an answer gave. `src` is the picture a message shows
+    // (`cid:…`, `data:<n>`, or the address), copied back from that message.
     "host",
     "mx",
     "url",
+    "src",
     "mailto",
     "fingerprint",
 ];
