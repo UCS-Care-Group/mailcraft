@@ -79,18 +79,34 @@ impl MailApp {
         self.session.mailbox.ews_owner_of(account).map_or(account, |owner| owner.id)
     }
 
+    /// `account` and the shared mailboxes opened through it (#482): what is reached with its server
+    /// and password.
+    fn ews_reached_with(&self, account: Id) -> Vec<Id> {
+        let mailbox = &self.session.mailbox;
+        std::iter::once(account)
+            .chain(mailbox.accounts.iter().filter(|a| mailbox.ews_owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id))
+            .collect()
+    }
+
+    /// `signer`'s password went through: what is reached with it and was held by its being turned
+    /// down (#482: the shared mailboxes too, whose runs sign in with it) is read by itself again.
+    /// One whose own run waits on the certificate question still waits.
+    fn ews_password_accepted(&mut self, signer: Id) {
+        for id in self.ews_reached_with(signer) {
+            if !self.ews_certificate.contains_key(&id) {
+                self.jmap_refused.remove(&id);
+            }
+        }
+    }
+
     /// The owner has had their say on the certificate of `account`'s server (it is trusted now, or
     /// the server shows one that needs no say): nothing waits on it any more, for the account and
     /// for the shared mailboxes opened through it (#482), which are reached with its settings. The
     /// run that stopped at the question goes on at once (the first, when more than one did: the
     /// others go with the next round); the account's own when none did.
     pub(crate) fn ews_certificate_settled(&mut self, account: Id) {
-        let mailbox = &self.session.mailbox;
-        let reached: Vec<Id> = std::iter::once(account)
-            .chain(mailbox.accounts.iter().filter(|a| mailbox.ews_owner_of(a.id).is_some_and(|o| o.id == account)).map(|a| a.id))
-            .collect();
         let mut waited = None;
-        for id in reached {
+        for id in self.ews_reached_with(account) {
             self.jmap_refused.remove(&id);
             if self.ews_certificate.remove(&id).is_some() {
                 waited = waited.or(Some(id));
@@ -304,6 +320,7 @@ impl MailApp {
                 let signer = self.ews_sign_in_of(account);
                 self.keep_accepted_password(signer);
                 self.ews_certificate.remove(&account);
+                self.ews_password_accepted(signer);
                 self.note_sync_problems(account, &[], true);
             }
             self.sync_password = None;
