@@ -590,6 +590,47 @@ fn a_messages_picture_is_sized_by_a_corner_that_stays_under_the_pointer_wherever
 }
 
 #[test]
+fn a_picture_between_words_of_a_centred_line_keeps_its_middle_and_its_corner_under_the_pointer() {
+    // Text before and after the picture: its width is the row's too, so the row centres again
+    // around it as it grows, on both sides.
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    type_in(&mut h, "Hello world, look: ");
+    *board.0.borrow_mut() = (Some(png(80, 40)), None);
+    h.event(Event::Paste(String::new()));
+    h.run_steps(2);
+    type_in(&mut h, " and more");
+    key_with(&mut h, Modifiers::COMMAND, Key::E);
+    let at = "Hello world, look: ".chars().count();
+    h.state_mut().execute("compose.select", json!({"from": at, "to": at + 1})).unwrap();
+    h.run_steps(4);
+    let area = body(&h);
+    let (frame, corner) = frame_and_corner(&h, area);
+    let (frame, corner) = (frame.expect("the picture's frame"), corner.expect("its corner"));
+    assert!(frame.min.x > area.min.x + 40.0, "the picture stands between words: {frame:?} in {area:?}");
+    let middle = frame.center().x;
+    let from = corner.center();
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    let to = from + vec2(20.0, 0.0);
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + vec2(5.0 * n as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(to, false));
+    h.run_steps(3);
+    let width = h.state().session.compose.as_ref().unwrap().pictures.first().and_then(|p| p.width);
+    assert_eq!(width, Some(120));
+    let (frame, corner) = frame_and_corner(&h, area);
+    let (frame, corner) = (frame.expect("the frame once it was let go"), corner.expect("the corner once it was let go"));
+    assert!(near(frame.center().x, middle), "its middle stays: {frame:?}, was at {middle}");
+    assert!(near(corner.center().x, to.x), "the corner is at {corner:?}, the pointer at {to:?}");
+}
+
+#[test]
 fn a_centred_line_is_drawn_left_once_the_message_is_plain_text_and_centred_again_as_html() {
     let mut h = writing();
     let line = "centred";
