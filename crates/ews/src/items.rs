@@ -43,28 +43,34 @@ const MAX_CATEGORY: usize = 255;
 /// and received at no time, by nobody, at the bottom of the Inbox and the last to be fetched.
 const LISTED: [&str; 6] = ["item:DateTimeReceived", "item:DateTimeSent", "item:Size", "item:Importance", "message:From", "message:InternetMessageId"];
 
-/// Which properties `SyncFolderItems` asks for besides the default ones.
+/// Which shape of properties `SyncFolderItems` asks. Every one of them asks over the `IdOnly`
+/// base and names everything it needs — since 2026-11-24 the shapes differ only in which
+/// properties they can afford to name, on servers that refuse some (measured on the lab: the
+/// `Default` base is what makes Kerio answer a listing with whole messages, see
+/// [`SyncFolderItems::element`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
-    /// The recipients, the categories, the preview and the flag. (Not the conversation, #795: a
-    /// server that didn't know it would lose the preview and the flag with it; it is asked by
-    /// itself, [`GetItemConversations`].)
+    /// Everything a list shows: the recipients, the categories, the preview and the flag named
+    /// with the rest. (Not the conversation, #795: a server that didn't know it would lose the
+    /// preview and the flag with it; it is asked by itself, [`GetItemConversations`].)
     Full,
-    /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
+    /// Without the preview and the flag: for a server that doesn't know them (it answers
+    /// `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
-    /// The categories alone, over the `Default` base shape: for a server that won't give the
-    /// recipients in `SyncFolderItems` (Exchange 2007 and 2010 answer
-    /// `ErrorInvalidPropertyForOperation`, #1349). The recipients are then asked with `GetItem`
-    /// ([`GetItemRecipients`]), where Microsoft documents them.
+    /// Without the recipients either: for a server that won't give them in `SyncFolderItems`
+    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The
+    /// recipients are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft
+    /// documents them. (What this leaves to name is exactly what [`Shape::Ids`] asks without
+    /// its flag — the same bytes on the wire, which is why a `Bare` run takes no ids fallback:
+    /// it is already asking the sparsest ask there is.)
     Bare,
-    /// The `IdOnly` base shape, with the subject, the attachment flag, the categories, the read
-    /// and draft state and what a list shows the default shape to lack ([`LISTED`]) asked by
-    /// name: for a server that hangs whole messages on every item of the changes whatever else is
-    /// asked (Kerio Connect's servlet, #964 — which measures to answer this shape with the asked
-    /// properties alone). The list comes light; the bodies come later as they always do, and the
-    /// preview with them. The read state is asked even here: an answer that omits it parses as
-    /// unread, and an `Update` so parsed turns read messages unread on the way in (#1784).
+    /// The names of the run's schema shape, less the preview and the recipients — for the
+    /// page that wants only what a change says: the bodies stay at home, opened when read.
+    /// This is also the fallback for a server that answers a page heavy with named extras by
+    /// hanging whole messages on every item of it (Kerio's servlet, #964 — which measures to
+    /// answer this sparse naming with the properties alone). The read state is asked even
+    /// here: an answer that omits it parses as unread, and an `Update` so parsed turns read
+    /// messages unread on the way in (#1784).
     /// `flag` says whether the run's schema shape asks the flag: when it does (`Full`), an ids
     /// page asks `item:Flag` too, so a sparse `Update` under ids says what the flag is rather
     /// than nothing; a leaner run's server is one that doesn't know the flag, and asking it
@@ -129,22 +135,32 @@ impl SyncFolderItems {
         Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape, extended: false }
     }
 
-    /// The operation as the schema has it: `ItemShape` (the `Default` shape and what a list
-    /// shows that it may lack, [`LISTED`]), `SyncFolderId`, `SyncState`, `MaxChangesReturned`,
-    /// `SyncScope`.
+    /// The operation as the schema has it: `ItemShape` (the `IdOnly` base with every property a
+    /// list shows it may lack named — [`LISTED`] and the shape's own; the `Default` base is no
+    /// longer asked of anyone), `SyncFolderId`, `SyncState`, `MaxChangesReturned`, `SyncScope`.
+    ///
+    /// (The `Default` base was measured into retirement on the lab server, 2026-11-24: six
+    /// messages of 215 MB between them answer as 7 KB over `IdOnly` with everything named —
+    /// which is Outlook for Mac's own ask, captured through a proxy — and as 287 MB, whole
+    /// MIME bodies and all, over `Default` with four properties named on top. Kerio's servlet
+    /// hangs the message on every item of a `Default` page; naming the properties is what
+    /// keeps the answer to the properties. Nothing the parser reads was ever a reason to ask
+    /// `Default`: every property a list shows is named below, and the id and change key the
+    /// base also brings come over `IdOnly` like everything else.)
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
         let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
-        if let Shape::Ids { flag } = self.shape {
-            // (Over the `IdOnly` base nothing comes by itself: the subject, the attachment flag
-            // and the read and draft state are named with the rest. The read state above all:
-            // an answer without it parses as unread, and an `Update` so parsed turns read
-            // messages unread on the way in (#1784, benandez's repro).)
-            extra = extra.child(uri("item:Subject")).child(uri("item:HasAttachments")).child(uri("message:IsRead")).child(uri("message:IsDraft"));
-            if flag {
-                extra = extra.child(uri("item:Flag"));
-            }
-        }
+        // (What the `Default` base used to bring by itself, now named for every shape: the
+        // subject, the attachment flag and the read and draft state. The read state above
+        // all: an answer without it parses as unread, and an `Update` so parsed turns read
+        // messages unread on the way in (#1784, benandez's repro). Kerio 10.0.9 answers
+        // `message:IsRead` both ways — measured 2026-11-24 across read and unread messages
+        // in one mailbox; older builds answer it silent, which is what the extended tag
+        // below is still there for. `item:IsDraft`, not `message:` it: the schema puts the
+        // flag on the item, and Kerio answers a bare SOAP fault for the misnamed one,
+        // measured 2026-11-24 — which is likely some of the old "refuses the ids asking"
+        // behaviour, the asking earning a refusal its name had not earned.)
+        extra = extra.child(uri("item:Subject")).child(uri("item:HasAttachments")).child(uri("message:IsRead")).child(uri("item:IsDraft"));
         if self.shape == Shape::Full || self.shape == Shape::Lean {
             extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
         }
@@ -152,15 +168,24 @@ impl SyncFolderItems {
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        // (The read state as MAPI knows it, `PR_IS_READ` (0x0E67), next to the SOAP one: Kerio
-        // answers the listing silently over `IsRead` yet answers this tag, which is how Outlook
-        // for Mac knows a message is read on it (#964, #1784). Named where the rest is named —
-        // the same base shapes, the same refusal to learn from.)
-        if self.extended {
-            extra = extra.child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0E67").attr("PropertyType", "Boolean"));
+        // (`Ids` asks the flag only when its run's schema shape does: a server lean enough to
+        // have lost the flag refuses it, and the refusal would lose the page.)
+        if let Shape::Ids { flag: true } = self.shape {
+            extra = extra.child(uri("item:Flag"));
         }
-        let base = if matches!(self.shape, Shape::Ids { .. }) { "IdOnly" } else { "Default" };
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text(base)).child(extra);
+        // (The read state as MAPI knows it, `PR_IS_READ` (0x0E67), next to the SOAP one: older
+        // Kerio answers the listing silently over `IsRead` yet answers this tag, which is how
+        // Outlook for Mac knows a message is read on it (#964, #1784). It rides every page of
+        // the run, the schema shapes with the sparse one: measured 2026-11-24, the tag answers
+        // lean inside an `IdOnly` page over 215 MB of mail — the old crash was the weight of
+        // what the page asked for, not the door.
+        // The schema's own spelling, leading `0x` and all (as the Outlook capture spells every
+        // tag): the bare `0E67` Kerio answers by dropping the connection, measured twice
+        // 2026-11-24, servlet and all.)
+        if self.extended {
+            extra = extra.child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x0E67").attr("PropertyType", "Boolean"));
+        }
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {

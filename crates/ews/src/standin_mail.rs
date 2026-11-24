@@ -22,7 +22,7 @@ const FIELD_URIS: &[&str] = &[
     "message:CcRecipients",
     "message:From",
     "message:IsRead",
-    "message:IsDraft",
+    "item:IsDraft",
     "item:Categories",
     "item:Importance",
     "item:Subject",
@@ -404,7 +404,7 @@ impl State {
         if shape == "IdOnly" && wants("message:IsRead") && !self.omits_read_state {
             xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
         }
-        if shape == "IdOnly" && wants("message:IsDraft") {
+        if shape == "IdOnly" && wants("item:IsDraft") {
             xml.push_str(&format!("<t:IsDraft>{}</t:IsDraft>", item.draft));
         }
         // (Over `IdOnly` the named properties are given as the real servers give them: the ones
@@ -413,7 +413,7 @@ impl State {
             // (The read state in the MAPI tag, the way Kerio gives it and Outlook for Mac asks
             // it: the answer is shaped identically over every base shape (#1784).)
             xml.push_str(&format!(
-                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0E67\" PropertyType=\"Boolean\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x0E67\" PropertyType=\"Boolean\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
                 item.read
             ));
         }
@@ -473,12 +473,22 @@ impl State {
         xml
     }
 
+    /// Whether a `SyncFolderItems` ask is the sparse one: the `IdOnly` base with nothing of
+    /// the list's weight named — no preview, no recipients. What a Kerio-like server pads, and
+    /// what a shape-refusing server refuses, turns on this and not on the base shape: every
+    /// ask names its properties over `IdOnly` now, and the shapes differ only in how heavy a
+    /// list they ask (measured 2026-11-24).
+    fn sparse_ask(base: &str, extra: &[String]) -> bool {
+        base == "IdOnly" && !extra.iter().any(|e| e == "item:Preview" || e == "message:ToRecipients")
+    }
+
     /// The item as `SyncFolderItems` gives it: as `message_xml`, but a server that sends whole
-    /// messages with the changes (Kerio Connect, #964) hangs their MIME on every item — save
-    /// when the base shape asked is `IdOnly`, which it answers with the properties alone.
+    /// messages with the changes (Kerio Connect, #964) hangs their MIME on every item of the
+    /// list — save when the ask is the sparse one ([`Self::sparse_ask`]), which it answers
+    /// with the properties alone: the whole of the fallback's deal.
     fn sync_item_xml(&self, item: &Item, base: &str, extra: &[String]) -> String {
         let xml = self.message_xml(item, base, extra);
-        if self.sends_mime_with_changes == 0 || base == "IdOnly" {
+        if self.sends_mime_with_changes == 0 || Self::sparse_ask(base, extra) {
             return xml;
         }
         let mime = "x".repeat(self.sends_mime_with_changes);
@@ -522,7 +532,11 @@ impl State {
                     Check::empty(one)?;
                     let tag = Check::attribute(one, "PropertyTag")?;
                     Check::attribute(one, "PropertyType")?;
-                    extra.push(format!("ext:{}", tag.to_uppercase()));
+                    // (Normalised: `0E67` and `0x0E67` are the same tag, however the ask spells
+                    // it — the schema spells it with the `0x`, which is what the client asks.)
+                    let tag = tag.to_uppercase();
+                    let tag = tag.strip_prefix("0X").unwrap_or(&tag);
+                    extra.push(format!("ext:{tag}"));
                     continue;
                 }
                 Check::is(one, TYPES, "FieldURI", &["FieldURI"])?;
@@ -657,13 +671,13 @@ impl State {
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
             ));
         }
-        if self.refuses_ids_barely && base == "IdOnly" {
+        if self.refuses_ids_barely && Self::sparse_ask(&base, &extra) {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }
         if self.refuses_delta_barely && parts.get(2).copied().flatten().is_some_and(|state| !state.text.trim().is_empty()) {
             return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
         }
-        if base == "IdOnly" && self.refuses_ids {
+        if Self::sparse_ask(&base, &extra) && self.refuses_ids {
             return Ok((
                 200,
                 "ErrorInvalidPropertyForOperation".into(),

@@ -26,6 +26,13 @@ fn client() -> Client {
     Client::new(URL, Secret::new(AUTHORIZATION)).unwrap()
 }
 
+/// Whether a `SyncFolderItems` body is the sparse asking — the `IdOnly` base with nothing of
+/// the list's weight named. Every ask is `IdOnly` since the `Default` base was measured into
+/// retirement (2026-11-24); what tells the shapes apart is which properties they name.
+fn asked_sparse(body: &str) -> bool {
+    body.contains("<t:BaseShape>IdOnly</t:BaseShape>") && !body.contains("item:Preview") && !body.contains("message:ToRecipients")
+}
+
 fn request() -> EwsMailRequest {
     EwsMailRequest { email: "ada@example.org".into(), url: URL.into(), list_folders: true, ..Default::default() }
 }
@@ -187,18 +194,14 @@ fn a_server_that_sends_whole_messages_with_the_changes_is_asked_as_ids() {
     // is read after the heavy one and asked in the schema shape at the full page.)
     let folder_of = |b: &str| -> String { b.split("FolderId Id=\"").nth(1).unwrap_or_default().split('"').next().unwrap_or_default().to_string() };
     let inbox = state.folders.iter().find(|f| f.distinguished == "inbox").map(|f| f.id.clone()).unwrap_or_default();
-    let id_only: Vec<(usize, String)> = asked
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>"))
-        .map(|(i, a)| (i, folder_of(&a.body)))
-        .collect();
+    let id_only: Vec<(usize, String)> =
+        asked.iter().enumerate().filter(|(_, a)| asked_sparse(&a.body)).map(|(i, a)| (i, folder_of(&a.body))).collect();
     assert!(!id_only.is_empty(), "a page was asked as ids");
     assert!(id_only.iter().all(|(_, f)| *f == inbox), "only the heavy folder was asked as ids: {id_only:?}");
     let after: Vec<&&crate::standin::Asked> = asked[id_only.last().unwrap().0 + 1..].iter().filter(|a| folder_of(&a.body) != inbox).collect();
     assert!(!after.is_empty(), "a light folder is read after the heavy one — the precondition of what follows");
     for a in &after {
-        assert!(a.body.contains("<t:BaseShape>Default</t:BaseShape>"), "the light folder keeps the schema shape");
+        assert!(a.body.contains("item:Preview"), "the light folder keeps the schema shape");
         assert!(a.body.contains("<m:MaxChangesReturned>200</m:MaxChangesReturned>"), "and the light folder starts at the full page");
     }
     assert!(asked.len() <= 8, "two refusals teach the shape, and every folder after reads light: {} asks", asked.len());
@@ -232,11 +235,11 @@ fn a_server_that_refuses_both_the_weight_and_the_ids_asking_costs_one_problem_an
     read.sort();
     read.dedup();
     assert!(read.len() > 2, "the run went on past the folder it couldn't read: {} folders asked", read.len());
-    let ids = asked.iter().filter(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    let ids = asked.iter().filter(|a| asked_sparse(&a.body)).count();
     assert_eq!(ids, 2, "the ids asking is tried twice — with the flag and without — and given up for the run when both are refused: {ids}");
     // (The phantom damage the re-review named: the schema step-downs must not fire on a page
     // that never asked their fields. A later folder still asked with the preview proves it.)
-    let first_ids = asked.iter().position(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).unwrap_or_default();
+    let first_ids = asked.iter().position(|a| asked_sparse(&a.body)).expect("a sparse page was asked by now");
     assert!(
         asked[first_ids + 1..].iter().any(|a| a.body.contains("item:Preview")),
         "the shape of the run was untouched: later folders are still asked with the preview"
@@ -281,10 +284,7 @@ fn lone_refusals_on_either_side_of_a_read_page_only_halve_never_switch_the_shape
     }
     let state = standin.state();
     let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems").collect();
-    assert!(
-        !asked.iter().any(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")),
-        "no page of this folder was ever asked as ids: the refusals were never consecutive"
-    );
+    assert!(!asked.iter().any(|a| asked_sparse(&a.body)), "no page of this folder was ever asked as ids: the refusals were never consecutive");
     assert!(
         asked.iter().any(|a| a.body.contains("<m:MaxChangesReturned>50</m:MaxChangesReturned>")),
         "the second lone refusal halved once more, to fifty"
@@ -317,7 +317,7 @@ fn a_refused_ids_asking_falls_back_to_halving_that_eventually_fits() {
     assert!(pieces.last().is_some_and(|p| p.whole), "the folder's delta reached its end");
     let state = standin.state();
     let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems").collect();
-    let ids = asked.iter().filter(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    let ids = asked.iter().filter(|a| asked_sparse(&a.body)).count();
     assert_eq!(ids, 2, "the refused asking is probed twice for the whole run — once with the flag, once without — then remembered: {ids}");
     assert!(asked.len() <= 24, "the halving is bounded and the reading is steady: {} asks", asked.len());
 }
@@ -354,7 +354,7 @@ fn read_messages_listed_with_the_light_shape_arrive_read() {
     assert!(wrong.is_empty(), "read stayed read and unread stayed unread under the light list: {wrong:?}");
     let state = standin.state();
     assert!(
-        state.requests.iter().any(|r| r.operation == "SyncFolderItems" && r.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")),
+        state.requests.iter().any(|r| r.operation == "SyncFolderItems" && asked_sparse(&r.body)),
         "the folder did switch to the light asking, which is where the fault lived"
     );
 }
@@ -386,10 +386,7 @@ fn a_flagged_message_listed_with_the_light_shape_arrives_flagged() {
     assert_eq!(flagged, 7, "the seven flagged messages stayed flagged under the light list");
     let state = standin.state();
     assert!(
-        state
-            .requests
-            .iter()
-            .any(|r| r.operation == "SyncFolderItems" && r.body.contains("<t:BaseShape>IdOnly</t:BaseShape>") && r.body.contains("item:Flag")),
+        state.requests.iter().any(|r| r.operation == "SyncFolderItems" && asked_sparse(&r.body) && r.body.contains("item:Flag")),
         "it was the light asking that named the flag, as the full run's shape does"
     );
 }
@@ -418,8 +415,7 @@ fn a_stepped_down_run_asks_the_light_list_without_the_flag() {
         assert!(piece.errors.is_empty(), "no problem: the light asking stayed inside what this schema has: {:?}", piece.errors);
     }
     let state = standin.state();
-    let ids_asks: Vec<&crate::standin::Asked> =
-        state.requests.iter().filter(|r| r.operation == "SyncFolderItems" && r.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).collect();
+    let ids_asks: Vec<&crate::standin::Asked> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems" && asked_sparse(&r.body)).collect();
     assert!(!ids_asks.is_empty(), "the folder did take up the light asking");
     assert!(ids_asks.iter().all(|a| !a.body.contains("item:Flag")), "no light page of a stepped-down run named the flag");
 }
@@ -449,6 +445,33 @@ fn a_light_page_that_stays_silent_about_the_read_state_reports_silence_not_unrea
         "every page of this server says nothing about the read state, and says so: {:?}",
         messages.iter().take(3).map(|m| (m.subject.clone(), m.server.read, m.server.read_said)).collect::<Vec<_>>()
     );
+}
+
+/// A server that keeps the whole-folder run at the full schema shape and says nothing about the
+/// read state over `IsRead` — an older Kerio — yet answers the MAPI tag: the naming rides every
+/// page of the run, not only the sparse ones, so the read state never waits on a folder
+/// switching shape to survive (#1784, the review's regression question — measured as answered
+/// on the production server #964 was filed against).
+#[test]
+fn a_run_that_stays_full_still_learns_the_read_state_from_the_mapi_tag() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.omits_read_state = true;
+        s.answers_read_extended = true;
+        for n in 0..10 {
+            s.deliver("inbox", &format!("Tagged {n:03}"), n % 2 == 0);
+        }
+    }
+    let mut pieces: Vec<EwsMailResult> = Vec::new();
+    sync(&standin, &mut pieces);
+    let messages: Vec<_> = pieces.iter().flat_map(|p| &p.pages).flat_map(|page| page.messages.iter()).collect();
+    assert_eq!(messages.len(), 10, "the folder reads at the schema shape, nothing heavy here");
+    let state = standin.state();
+    assert!(!state.requests.iter().any(|r| r.operation == "SyncFolderItems" && asked_sparse(&r.body)), "nothing ever had reason to ask sparse");
+    assert!(messages.iter().all(|m| m.server.read_said), "every message's read state was said, by the tag");
+    let read: Vec<&str> = messages.iter().filter(|m| m.server.read).map(|m| m.subject.as_str()).collect();
+    assert_eq!(read.len(), 5, "the read ones arrive read on a full-shape page: {read:?}");
 }
 
 /// Kerio's folder listing was measured naming a folder with the id `<id>` — its own template
@@ -514,7 +537,7 @@ fn a_light_list_refused_with_a_bare_fault_falls_back_likewise() {
     assert!(pieces.last().is_some_and(|p| p.whole), "the folder's delta reached its end");
     let state = standin.state();
     let asked: Vec<&crate::standin::Asked> = state.requests.iter().filter(|r| r.operation == "SyncFolderItems").collect();
-    let ids = asked.iter().filter(|a| a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    let ids = asked.iter().filter(|a| asked_sparse(&a.body)).count();
     assert_eq!(ids, 2, "the refused asking is probed twice for the run and then remembered, named or not: {ids}");
 }
 
@@ -606,7 +629,7 @@ fn a_bare_client_fault_on_a_state_carried_page_refuses_the_light_asking_not_the_
         again.iter().flat_map(|p| &p.pages).find(|page| page.messages.iter().any(|m| m.subject.starts_with("Big "))).expect("the changes came down");
     assert!(!inbox.afresh, "the folder was not thrown away and re-listed: its state was kept (from={:?})", inbox.from);
     let state = standin.state();
-    let ids = state.requests.iter().filter(|a| a.operation == "SyncFolderItems" && a.body.contains("<t:BaseShape>IdOnly</t:BaseShape>")).count();
+    let ids = state.requests.iter().filter(|a| a.operation == "SyncFolderItems" && asked_sparse(&a.body)).count();
     assert_eq!(ids, 2, "probed twice for the run — with the flag and without — then given up: {ids}");
 }
 

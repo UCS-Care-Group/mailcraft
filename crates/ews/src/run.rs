@@ -976,7 +976,10 @@ impl<E: HttpExchange> Run<'_, E> {
                                 self.page_said = true;
                                 log::info!("ews mail: the server's answers are too big to read; asking for fewer changes at a time");
                             }
-                        } else if !self.ids_refused {
+                        } else if !self.ids_refused && self.shape != Shape::Bare {
+                            // (Never from `Bare`: over the sparse base it already asks every
+                            // byte the ids asking would, and an identical request can teach
+                            // nothing.)
                             self.ids = true;
                             below_page = self.page;
                             self.page = PAGE;

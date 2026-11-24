@@ -106,3 +106,44 @@ fn the_read_state_tag_is_read_whatever_way_the_server_quotes_it() {
         assert_eq!((m.read, m.read_said), (want.unwrap_or(false), want.is_some()), "tag {tag}={value}");
     }
 }
+
+/// Every shape of the list asks over the `IdOnly` base with its properties named: the `Default`
+/// base is what makes Kerio answer a listing with whole messages (measured 2026-11-24: 7 KB
+/// against 287 MB over one mailbox), and a property named the wrong way is answered with a
+/// refusal the asking never earned (`message:IsDraft` and the bare `0E67`, both measured the
+/// same day). This test is the wire contract those measurements taught.
+#[test]
+fn every_shape_asks_the_light_base_with_its_properties_named() {
+    for (shape, preview, recipients, flag) in [
+        (Shape::Full, true, true, true),
+        (Shape::Lean, false, true, false),
+        (Shape::Bare, false, false, false),
+        (Shape::Ids { flag: false }, false, false, false),
+        (Shape::Ids { flag: true }, false, false, true),
+    ] {
+        for extended in [false, true] {
+            let mut ask = SyncFolderItems::new("FOLDER", "", 200, shape);
+            ask.extended = extended;
+            let body = ask.element().write();
+            assert!(body.contains("<t:BaseShape>IdOnly</t:BaseShape>"), "the {shape:?} asks the light base");
+            assert!(!body.contains("Default"), "the {shape:?} never asks the base that weighs whole messages");
+            assert!(
+                body.contains("item:Subject")
+                    && body.contains("message:IsRead")
+                    && body.contains("item:IsDraft")
+                    && body.contains("item:Categories")
+                    && body.contains("item:HasAttachments"),
+                "the {shape:?} names what a list shows: {body}"
+            );
+            assert!(!body.contains("message:IsDraft"), "…and names the draft state the way the schema has it");
+            assert_eq!(body.contains("item:Preview"), preview, "the preview rides its shape alone");
+            assert_eq!(body.contains("message:ToRecipients"), recipients, "the recipients ride their shapes");
+            assert_eq!(body.contains("item:Flag"), flag, "the flag rides its shapes");
+            assert!(body.contains("PropertyTag=\"0x0E67\"") == extended, "the MAPI tag rides the extended asking, spelled as the schema has it");
+            assert!(!body.contains("\"0E67\""), "and never the bare tag Kerio drops the connection for");
+        }
+    }
+    let bare = SyncFolderItems::new("FOLDER", "", 200, Shape::Bare).element().write();
+    let ids = SyncFolderItems::new("FOLDER", "", 200, Shape::Ids { flag: false }).element().write();
+    assert_eq!(bare, ids, "`Bare` asks exactly the ids asking: the run's guard against a pointless fallback rests on these being the same bytes");
+}

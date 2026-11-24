@@ -192,11 +192,16 @@ pub struct State {
     /// door that refused, so a test can tell it from the reader's refusal.
     pub refused_bodies: usize,
     /// A servlet like Kerio Connect's (#964): every `SyncFolderItems` item carries its whole
-    /// `MimeContent` of this many bytes — unless the base shape asked is `IdOnly`, which it
-    /// answers with the asked properties alone. Zero: as the schema has it.
+    /// `MimeContent` of this many bytes — unless the ask is the sparse one, the `IdOnly` base
+    /// with nothing of the list's weight named ([`Self::refuses_ids`] for what it is worth),
+    /// which it answers with the asked properties alone. Zero: as the schema has it. (The
+    /// padding was measured off the `Default` base, which no client asks any more — measured
+    /// 2026-11-24, a named ask answers lean base shape and all; the knob keeps the heavy-page
+    /// lesson tested for servers that pad by their own rules.)
     pub sends_mime_with_changes: usize,
-    /// A server that won't take a `SyncFolderItems` asked over the `IdOnly` base at all: it
-    /// answers one with `ErrorInvalidPropertyForOperation`, as servers do that outlive the shape.
+    /// A server that won't take the sparse ask at all — the `IdOnly` base with nothing of the
+    /// list's weight named: it answers one with `ErrorInvalidPropertyForOperation`, as
+    /// servers do that outlive the asking.
     pub refuses_ids: bool,
     /// A server that knows the read state as an extended property — `PR_IS_READ`, how Outlook
     /// for Mac and Kerio Connect talk (#964, #1784): it answers an `ExtendedFieldURI` ask with
