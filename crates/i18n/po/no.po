@@ -2997,6 +2997,906 @@ msgstr "Kategorier: skrivebeskyttet her (MailCraft kan ikke endre dem)"
 msgid "Categories: read-only here ({why})"
 msgstr "Kategorier: skrivebeskyttet her ({why})"
 
+#. interface
+#: crates/ui-egui/src/category_sync.rs
+#, fuzzy
+msgid "Categories: read-only here until MailCraft can check whether it may change them"
+msgstr "Kategorier: skrivebeskyttet her til MailCraft kan sjekke om den kan endre dem"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
+#, fuzzy
+msgid "Categories…"
+msgstr "Kategorier…"
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Categorize"
+msgstr "Kategoriser"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes Allowed"
+msgstr "Kategoriendringer tillatt"
+
+#. command label
+#: crates/engine/src/cmd/categories_remote.rs
+#, fuzzy
+msgid "Category Changes to Send"
+msgstr "Kategoriendringer som skal sendes"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Cc"
+msgstr "Kopi"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Cc and Bcc"
+msgstr "Kopi og blindkopi"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Cc:"
+msgstr "Kopi:"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Cc: {names}"
+msgstr "Kopi: {names}"
+
+#. interface
+#: crates/ui-egui/src/reading/react.rs
+#, fuzzy
+msgid "Celebrate"
+msgstr "Feire"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Certificates"
+msgstr "Sertifikater"
+
+#. command label
+#: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
+msgid "Change Automatic Replies"
+msgstr "Endre automatiske svar"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Change Recurring Item"
+msgstr "Endre gjentatt element"
+
+#. command label, interface, name
+#: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Change Send Time"
+msgstr "Endre sendetid"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Change This Meeting?"
+msgstr "Endre dette møtet?"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Change View"
+msgstr "Endre visning"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Change Your Copy of This Meeting?"
+msgstr "Endre din kopi av dette møtet?"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Change account settings"
+msgstr "Endre kontoinnstillinger"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Change email address"
+msgstr "Endre e-postadresse"
+
+#. interface
+#: crates/ui-egui/src/widgets.rs
+#, fuzzy
+msgid "Change the colour"
+msgstr "Endre fargen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
+msgstr "Endre navnet mappepanelet viser for denne delte postkassen, og fargen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Change this account's name, servers and sign-in"
+msgstr "Endre navnet, serverne og påloggingen til denne kontoen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr "Endre navnet, påloggingen og e-posten som skal holdes frakoblet for denne kontoen"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Changed after it was signed"
+msgstr "Endret etter at den ble signert"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Changed: saved when you choose another signature or leave this page."
+msgstr "Endret: lagres når du velger en annen signatur eller forlater denne siden."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change…"
+msgstr "Endre…"
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "Changing the calendar needs your permission: File › Info › Connect calendar and contacts"
+msgstr "Endring av kalenderen trenger tillatelse fra deg: Fil › Info › Koble til kalender og kontakter"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Changing your automatic replies needs your permission, once: when you press OK, Microsoft's page opens in your browser to ask you. Reading them doesn't need it."
+msgstr "Å endre de automatiske svarene dine krever tillatelse fra deg, én gang: når du trykker OK, åpnes Microsoft-siden i nettleseren din og spør deg. Å lese dem krever det ikke."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask again: Microsoft's page opens in your browser."
+msgstr "Endring av de automatiske svarene dine ble ikke tillatt ({why}). Trykk OK for å spørre igjen: Microsoft-siden åpnes i nettleseren din."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Changing your automatic replies…"
+msgstr "Endrer de automatiske svarene dine…"
+
+#. interface
+#: crates/ui-egui/src/symbol.rs
+#, fuzzy
+msgid "Character code"
+msgstr "Tegnkode"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Characters (no spaces)"
+msgstr "Tegn (uten mellomrom)"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Characters (with spaces)"
+msgstr "Tegn (med mellomrom)"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Chart"
+msgstr "Diagram"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check Accessibility"
+msgstr "Sjekk tilgjengelighet"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Check Again"
+msgstr "Sjekk igjen"
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Check Calendar Connection"
+msgstr "Sjekk kalenderforbindelsen"
+
+#. command label, interface
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Check Names"
+msgstr "Sjekk navn"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Check Now"
+msgstr "Sjekk nå"
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check Recipients"
+msgstr "Sjekk mottakere"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Check both servers before you connect."
+msgstr "Sjekk begge serverne før du kobler til."
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr "Se etter nye versjoner av MailCraft daglig, og last ned og installer dem når du avslutter? Bare GitHub spørres; ingenting om deg eller e-posten din sendes."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Check for New Versions"
+msgstr "Se etter nye versjoner"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Check for Updates"
+msgstr "Se etter oppdateringer"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check for new fonts"
+msgstr "Se etter nye skrifter"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Check for new versions"
+msgstr "Se etter nye versjoner"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Check spelling with a local dictionary"
+msgstr "Stavekontroller med en lokal ordbok"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Check the account's settings"
+msgstr "Sjekk innstillingene til kontoen"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "Check the recipients before this message goes:"
+msgstr "Sjekk mottakerne før denne meldingen sendes:"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Checked with its certification authority"
+msgstr "Sjekket mot sertifiseringsmyndigheten"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Checking for a new version…"
+msgstr "Ser etter en ny versjon…"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Checking the account stopped unexpectedly"
+msgstr "Sjekken av kontoen stoppet uventet"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Checking the account…"
+msgstr "Sjekker kontoen…"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with Microsoft…"
+msgstr "Sjekker adressen hos Microsoft…"
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "Checking the calendar connection…"
+msgstr "Sjekker kalenderforbindelsen…"
+
+#. what a command says
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Checking {folder} ({done} of {total})"
+msgstr "Sjekker {folder} ({done} av {total})"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Checking: the report comes in a moment…"
+msgstr "Sjekker: rapporten kommer om et øyeblikk…"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Checking…"
+msgstr "Sjekker…"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "Choose Default Signature"
+msgstr "Velg standardsignatur"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Choose Google sign-in, or select Use an app password instead."
+msgstr "Velg Google-pålogging, eller velg Bruk et app-passord i stedet."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Choose a category"
+msgstr "Velg en kategori"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Choose a date…"
+msgstr "Velg en dato…"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "Choose a first and a last day, at most a year apart."
+msgstr "Velg en første og en siste dag, høyst ett år fra hverandre."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Choose a folder"
+msgstr "Velg en mappe"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose default signatures"
+msgstr "Velg standardsignaturer"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Choose the kind of account"
+msgstr "Velg hva slags konto"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "Choose where to save the diagnostics: GitHub's page opens once they are saved."
+msgstr "Velg hvor diagnosen skal lagres: GitHub-siden åpnes når den er lagret."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so."
+msgstr "Velg om disse oppgavene skal sendes til en Microsoft-kontos To Do. Ingenting sendes uten at du sier det."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Choose who this is sent from"
+msgstr "Velg hvem dette sendes fra"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "City"
+msgstr "By"
+
+#. name
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Classic Ribbon"
+msgstr "Klassisk bånd"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clean Up"
+msgstr "Rydd opp"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Clear"
+msgstr "Tøm"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clear All Categories"
+msgstr "Fjern alle kategorier"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clear All Formatting"
+msgstr "Fjern all formatering"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Clear Downloaded Pictures"
+msgstr "Tøm nedlastede bilder"
+
+#. command label, interface
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clear Flag"
+msgstr "Fjern flagg"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clear Formatting"
+msgstr "Fjern formatering"
+
+#. interface
+#: crates/ui-egui/src/ribbon/view_menus.rs
+#, fuzzy
+msgid "Clear Recent Searches"
+msgstr "Tøm nylige søk"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear categories"
+msgstr "Fjern kategorier"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+#, fuzzy
+msgid "Clear filters"
+msgstr "Fjern filtre"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Clear flag"
+msgstr "Fjern flagg"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Clear search"
+msgstr "Tøm søket"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Clear search (Esc)"
+msgstr "Tøm søket (Esc)"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Clear the flag"
+msgstr "Fjern flagget"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Click to select {name}; double-click to open it"
+msgstr "Klikk for å velge {name}; dobbeltklikk for å åpne"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Clipboard"
+msgstr "Utklippstavle"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Clock"
+msgstr "Klokke"
+
+#. android, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#, fuzzy
+msgid "Close"
+msgstr "Lukk"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Close Dialog"
+msgstr "Lukk dialogen"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "Close MailCraft, install the new version and start it again. Otherwise it is installed when you quit."
+msgstr "Lukk MailCraft, installer den nye versjonen og start den igjen. Ellers installeres den når du avslutter."
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Close Message"
+msgstr "Lukk meldingen"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Close Search"
+msgstr "Lukk søket"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "Close Signature"
+msgstr "Lukk signaturen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Close Window"
+msgstr "Lukk vinduet"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "Close and keep as draft"
+msgstr "Lukk og behold som utkast"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."
+msgstr "Lukk denne delte postkassen og fjern e-posten som er lagret for den her. Ingenting endres på serveren."
+
+#. command label, interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Close to system tray"
+msgstr "Lukk til systemkurven"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then copy"
+msgstr "Lukk det som er åpent først, og kopier så"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then cut"
+msgstr "Lukk det som er åpent først, og klipp ut så"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Close what is open first, then paste"
+msgstr "Lukk det som er åpent først, og lim inn så"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Closed the page? This opens the provider's sign-in page afresh."
+msgstr "Lukket du siden? Dette åpner påloggingssiden til leverandøren på nytt."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Closes this window. Nothing is kept."
+msgstr "Lukker dette vinduet. Ingenting beholdes."
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Collapse Conversation"
+msgstr "Slå sammen samtalen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Collapse the Ribbon"
+msgstr "Slå sammen båndet"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Colour"
+msgstr "Farge"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Commits"
+msgstr "Innsendinger"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Communicate"
+msgstr "Kommuniser"
+
+#. name
+#: crates/engine/src/cmd/view/display.rs
+#, fuzzy
+msgid "Compact"
+msgstr "Komprimer"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Company"
+msgstr "Firma"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Compare fingerprint…"
+msgstr "Sammenlign fingeravtrykk…"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Compare it with the fingerprint the person gives you another way: in person, by phone, or on their business card. Mark the key as verified only if every character matches."
+msgstr "Sammenlign det med fingeravtrykket personen gir deg på en annen måte: personlig, på telefon eller på visittkortet. Merk nøkkelen som bekreftet bare hvis hvert tegn stemmer."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Compare the key's fingerprint with the person's, and mark it as verified"
+msgstr "Sammenlign nøkkelens fingeravtrykk med personens, og merk den som bekreftet"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "Compare the signer's key's fingerprint with theirs, and mark it as verified"
+msgstr "Sammenlign fingeravtrykket til avsenderens nøkkel med deres, og merk den som bekreftet"
+
+#. interface, name, what a command says
+#: crates/engine/src/cmd/tasks/status.rs crates/engine/src/session.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Completed"
+msgstr "Fullført"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "Completed on {date}"
+msgstr "Fullført {date}"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Completed."
+msgstr "Fullført."
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
+msgid "Confirm Servers"
+msgstr "Bekreft serverne"
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+#, fuzzy
+msgid "Confirm servers"
+msgstr "Bekreft serverne"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Connect"
+msgstr "Koble til"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Connect Calendar and Contacts"
+msgstr "Koble til kalender og kontakter"
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "Connect Outlook's Favorites"
+msgstr "Koble til favorittene i Outlook"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Connect calendar and contacts"
+msgstr "Koble til kalender og kontakter"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Connect to Microsoft (mail, calendar and contacts)"
+msgstr "Koble til Microsoft (e-post, kalender og kontakter)"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Connect to show your category colours and working hours"
+msgstr "Koble til for å vise kategorifargene og arbeidstidene dine"
+
+#. what a command says
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Connecting to the mail server"
+msgstr "Kobler til e-postserveren"
+
+#. interface, ribbon location
+#: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Contact"
+msgstr "Kontakt"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/calendar/share.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Contact Attendees"
+msgstr "Kontakt deltakerne"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Contact Card"
+msgstr "Kontaktkort"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
+msgid "Contacts"
+msgstr "Kontakter"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Contacts don't go to Deleted Items."
+msgstr "Kontakter går ikke til Slettet."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Continue"
+msgstr "Fortsett"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "Continue editing"
+msgstr "Fortsett å redigere"
+
+#. interface
+#: crates/ui-egui/src/close_to_tray.rs
+#, fuzzy
+msgid "Continue in tray"
+msgstr "Fortsett i systemkurven"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
+#, fuzzy
+msgid "Continues"
+msgstr "Fortsetter"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Contributors"
+msgstr "Bidragsytere"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "Contributors choose their own names; see docs/contributors.md."
+msgstr "Bidragsytere velger sine egne navn; se docs/contributors.md."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
+#, fuzzy
+msgid "Conversations"
+msgstr "Samtaler"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
+#, fuzzy
+msgid "Copied. Paste it into mail or chat for your administrator."
+msgstr "Kopiert. Lim det inn i e-post eller chat til administratoren din."
+
+#. name
+#: crates/engine/src/sync_driver/favorites.rs
+#, fuzzy
+msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
+msgstr "Kopierer en kort melding med adressen til Microsoft-siden der en administrator i organisasjonen din godkjenner MailCraft, én gang for alle. Ingenting sendes: lim det inn i e-post eller chat selv."
+
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/view_source.rs
+#, fuzzy
+msgid "Copy"
+msgstr "Kopier"
+
+#. command label, interface
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Copy Diagnostics"
+msgstr "Kopier diagnose"
+
+#. command label
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "Copy Event"
+msgstr "Kopier hendelse"
+
+#. interface, name
+#: crates/ui-egui/src/move_items.rs
+#, fuzzy
+msgid "Copy Items"
+msgstr "Kopier elementer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Copy Link"
+msgstr "Kopier lenke"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Copy Link Address"
+msgstr "Kopier lenkeadresse"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Copy Selected Text"
+msgstr "Kopier merket tekst"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Copy a Link for Your Administrator"
+msgstr "Kopier en lenke til administratoren din"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Copy a Message for My Administrator"
+msgstr "Kopier en melding til administratoren min"
+
+#. interface, name
+#: crates/engine/src/sync_driver/favorites.rs crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "Copy a message for my administrator"
+msgstr "Kopier en melding til administratoren min"
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
