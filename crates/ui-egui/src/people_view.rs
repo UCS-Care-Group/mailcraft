@@ -871,10 +871,13 @@ pub fn whatsapp_url(phone: &str) -> Option<String> {
         format!("55{digits}")
     } else if digits.starts_with('0') && (digits.len() == 11 || digits.len() == 12) {
         format!("55{}", &digits[1..])
+    } else if digits.len() == 8 || digits.len() == 9 {
+        // Local numbers without DDD (defaults to user's primary DDD 75)
+        format!("5575{digits}")
     } else {
         digits
     };
-    Some(format!("https://web.whatsapp.com/send?phone={number}"))
+    Some(format!("https://web.whatsapp.com/send/?phone={number}"))
 }
 
 fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
@@ -900,7 +903,7 @@ fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
             l.contains("móvel") || l.contains("movel") || l.contains("celular") || l.contains("mobile")
         }).or_else(|| c.phones.first());
         if let Some(url) = wa_phone.and_then(|p| whatsapp_url(&p.value)) {
-            let tip = "Conversar no WhatsApp Web";
+            let tip = format!("Conversar com {} no WhatsApp Web", c.name());
             if widgets::icon_text_button(ui, "whatsapp", "WhatsApp", true).on_hover_text(tip).clicked() {
                 ui.ctx().open_url(egui::OpenUrl::new_tab(url));
             }

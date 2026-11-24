@@ -105,8 +105,23 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
         }
         let ink = if resp.hovered() { wa_green } else { t.icon };
         icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), "whatsapp", ink, ink);
-        if resp.on_hover_text("WhatsApp Web").clicked() {
-            ui.ctx().open_url(egui::OpenUrl::new_tab("https://web.whatsapp.com"));
+
+        let selected_contact = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id));
+        let contact_wa_url = selected_contact.as_ref().and_then(|c| {
+            let wa_phone = c.phones.iter().find(|p| {
+                let l = p.label.to_lowercase();
+                l.contains("móvel") || l.contains("movel") || l.contains("celular") || l.contains("mobile")
+            }).or_else(|| c.phones.first())?;
+            crate::people_view::whatsapp_url(&wa_phone.value)
+        });
+
+        let (tip, url) = match (selected_contact, contact_wa_url) {
+            (Some(c), Some(u)) => (format!("Conversar com {} no WhatsApp Web", c.name()), u),
+            _ => ("WhatsApp Web".to_string(), "https://web.whatsapp.com".to_string()),
+        };
+
+        if resp.on_hover_text(&tip).clicked() {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
         }
     });
 }
