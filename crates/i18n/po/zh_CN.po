@@ -2221,6 +2221,12 @@ msgstr "立即向账户服务器查询此会议附近的日历日程。"
 msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
 msgstr "请邮件列表停止向你发送邮件。MailCraft 会先询问你，并说明方式。"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask the server for your automatic replies again."
+msgstr "再次向服务器读取您的自动答复。"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2487,23 +2493,23 @@ msgstr "正在发送 {address} 的自动回复"
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
-msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
-msgstr "自动回复保存在邮件服务器上。目前 MailCraft 只能为通过 Microsoft 登录的账户设置自动回复：IMAP 没有标准设置方式（将来可能支持 Sieve 假期回复）。"
+msgid "Automatic replies are kept on the mail server: MailCraft sets them for accounts that sign in with Microsoft, and for IMAP accounts whose server keeps Sieve scripts (ManageSieve)"
+msgstr "自动回复保存在邮件服务器上：MailCraft 可为通过 Microsoft 登录的账户，以及服务器保存 Sieve 脚本（ManageSieve）的 IMAP 账户设置自动回复"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
 msgstr "自动回复已关闭"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
 msgstr "自动回复已开启"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "自动回复已设置为在您选择的时间范围内发送"
@@ -2519,6 +2525,12 @@ msgstr "自动回复：MailCraft 可以更改"
 #, fuzzy
 msgid "Automatic replies: MailCraft needs you to sign in again to read them"
 msgstr "自动回复：请重新登录以读取"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft's Sieve script was changed elsewhere, and is left as it is"
+msgstr "自动回复：MailCraft 的 Sieve 脚本已在别处被更改，因此保持原样"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2545,7 +2557,7 @@ msgid "Automatic replies: changing them waits for your permission"
 msgstr "自动回复：等待您授权更改"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: couldn't be read ({why})"
 msgstr "自动回复：无法读取（{why}）"
@@ -2563,7 +2575,25 @@ msgid "Automatic replies: from {start} to {end}"
 msgstr "自动回复：从 {start} 到 {end}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available ({why})"
+msgstr "自动答复：不可用（{why}）"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server doesn't offer Sieve scripts (ManageSieve)"
+msgstr "自动回复：不可用，此服务器不提供 Sieve 脚本（ManageSieve）"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server's Sieve scripts can't send them"
+msgstr "自动回复：不可用，此服务器的 Sieve 脚本无法发送自动回复"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: not read yet"
 msgstr "自动回复：尚未读取"
@@ -2581,10 +2611,16 @@ msgid "Automatic replies: on, until you turn them off"
 msgstr "自动回复：已开启，直到您将其关闭"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: reading…"
 msgstr "自动回复：正在读取…"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: the server didn't take your sign-in"
+msgstr "自动回复：服务器未接受你的登录"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -3339,7 +3375,7 @@ msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask a
 msgstr "未获准更改自动回复（{why}）。点击“确定”可再次请求授权，Microsoft 页面会在浏览器中打开。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Changing your automatic replies…"
 msgstr "正在更改自动回复…"
@@ -9008,6 +9044,12 @@ msgstr "邮件、日历、联系人和任务程序，完全使用 Rust 编写。
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft 现在可以像 Outlook 网页版一样，通过 Microsoft Graph 而非 IMAP 将 {account} 与 Microsoft 同步。您的文件夹、标记、类别和草稿将与 Outlook 中看到的一致，即使组织关闭了 IMAP，您仍能收到邮件。"
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep automatic replies on this account's server: {why}. {advice}"
+msgstr "MailCraft 无法在此账户的服务器上保存自动答复：{why}。{advice}"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -9308,6 +9350,18 @@ msgstr "MailCraft {version} 未安装；当前仍使用原版本。"
 #, fuzzy
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "此构建版本尚未配置 MailCraft 的 Google 桌面应用注册。"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
+msgstr "MailCraft 写入服务器的 Sieve 脚本此后已在别处被更改，因此 MailCraft 保持原样。若要在此设置自动回复，请用 MailCraft 的脚本替换它：在别处对它所做的更改将会丢失。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere."
+msgstr "MailCraft 在服务器上的 Sieve 脚本已在别处被更改。"
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
@@ -13391,7 +13445,7 @@ msgid "Reading shared mailboxes needs your permission: use Send/Receive"
 msgstr "读取共享邮箱需要您的许可：请使用“发送/接收”"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Reading the automatic replies stopped unexpectedly"
 msgstr "读取自动回复时意外中断"
@@ -13983,6 +14037,12 @@ msgstr "用 .mailcraft 文件替换当前打开的邮箱"
 #, fuzzy
 msgid "Replace with"
 msgstr "替换为"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Replace with MailCraft's"
+msgstr "替换为 MailCraft 的脚本"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16096,6 +16156,12 @@ msgid "Sieve scripts are only read from and written to the account's own mail se
 msgstr "Sieve 脚本只会从该账户自己的邮件服务器读取，也只写入该服务器"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Sieve server (Automatic Replies)"
+msgstr "Sieve 服务器（自动回复）"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Sign In"
@@ -16240,7 +16306,7 @@ msgid "Sign in with Microsoft once more to let MailCraft read the folders you ke
 msgstr "请再次登录 Microsoft，允许 MailCraft 读取 Outlook 收藏夹下的文件夹。程序只读取这些文件夹，不会更改它们，也不会更改其他内容。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "首先使用“发送/接收”登录，然后更改您的自动回复。"
@@ -17469,6 +17535,11 @@ msgstr "整个系列"
 msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
 msgstr "UCS Labs 的名称和标志是 UCS Care Group Limited 的商标；请参阅 TRADEMARKS.md。"
 
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
+msgstr "Sieve 服务器是主机名；若端口不是 4190，请在冒号后写明端口"
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18139,6 +18210,12 @@ msgid "The incoming mail server isn't a host name (letters, digits, dots and das
 msgstr "接收邮件服务器不是有效的主机名（应使用字母、数字、点和连字符）"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The incoming server, port 4190"
+msgstr "收件服务器，端口 4190"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License 1.1). Every icon is drawn in code and is original work. No artwork, fonts or text from other mail programs are included."
@@ -18767,6 +18844,12 @@ msgstr "服务器未发送邮件。请几分钟后重试。"
 #, fuzzy
 msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
 msgstr "服务器未接受对 {name}{why} 的更改：它已恢复为服务器上的样子。"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
+msgstr "服务器未接受你的登录。请在账户设置中检查该账户的密码。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19475,6 +19558,12 @@ msgstr "此账户的收藏夹来自 Outlook，并在 Outlook 中更改（也可�
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "暂时无法读取此账户的日历：“发送/接收”会先登录该账户。"
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
+msgstr "此账户的服务器不提供 Sieve 脚本（ManageSieve），因此 MailCraft 无法在其上保存自动回复。"
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -19584,7 +19673,7 @@ msgid "This build can't reach the account's server."
 msgstr "此版本无法连接到账户的服务器。"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "此版本无法连接服务器以更改自动回复。请使用桌面应用。"
@@ -20272,6 +20361,18 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "此系列尚在发送到该账户服务器的途中。请稍候，待它到达后再更改其中某一天。"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server can't send them only during a time range."
+msgstr "此服务器无法只在某个时间范围内发送自动回复。"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
+msgstr "此服务器保存 Sieve 脚本，但这些脚本无法发送自动回复（缺少 vacation 扩展）。"
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
@@ -20700,7 +20801,7 @@ msgid "Try Signing In Again"
 msgstr "尝试重新登录"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "重试"
@@ -21498,6 +21599,12 @@ msgid "When opened"
 msgstr "打开时"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "When you press OK, MailCraft's Sieve script on the server is replaced with these automatic replies."
+msgstr "按“确定”后，服务器上 MailCraft 的 Sieve 脚本将被替换为这些自动回复。"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "When you switch:"
@@ -21532,6 +21639,12 @@ msgstr "密钥的位置由名片给出；MailCraft 不会获取该密钥。"
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "存在差异时，保留的联系人包含："
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Where your server keeps Sieve scripts (ManageSieve), if not on the incoming server at port 4190. Your sign-in is sent there."
+msgstr "若服务器不在收件服务器的 4190 端口保存 Sieve 脚本（ManageSieve），请在此填写其位置。你的登录信息会发送到那里。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21920,11 +22033,23 @@ msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工�
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
+msgstr "服务器上运行的是你的 Sieve 脚本“{name}”，而不是 MailCraft 的：这些回复保存在那里，但在它运行期间不会发送。MailCraft 从不关闭你的脚本。"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies couldn't be read: {error}"
 msgstr "无法读取您的自动回复：{error}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your automatic replies were saved on the server, but another Sieve script of yours runs there, so they aren't sent"
+msgstr "你的自动回复已保存到服务器，但那里运行着你的另一个 Sieve 脚本，因此不会发送"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Your automatic replies weren't changed"
 msgstr "您的自动回复未更改"
@@ -25074,6 +25199,12 @@ msgstr "服务器没有发送该脚本"
 msgid "the server didn't take it ({why})"
 msgstr "服务器未接受该请求（{why}）"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server didn't take your sign-in."
+msgstr "服务器未接受你的登录。"
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -25091,6 +25222,12 @@ msgstr "服务器不允许更改此规则"
 #, fuzzy
 msgid "the server doesn't offer STARTTLS"
 msgstr "服务器不提供 STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "服务器不提供 Sieve 脚本（ManageSieve）。"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -26297,6 +26434,12 @@ msgstr "{line} · 上次运行时无法读取：{folders}"
 #, fuzzy
 msgid "{line} · the server's certificate needs your say"
 msgstr "{line} · 服务器证书需要您确认"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "{line} · your Sieve script \"{name}\" runs instead"
+msgstr "{line} · 改为运行你的 Sieve 脚本“{name}”"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -27910,6 +28053,9 @@ msgstr "−行"
 #, fuzzy
 #~ msgid "contact"
 #~ msgstr "联系人"
+
+#~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
+#~ msgstr "自动回复保存在邮件服务器上。目前 MailCraft 只能为通过 Microsoft 登录的账户设置自动回复：IMAP 没有标准设置方式（将来可能支持 Sieve 假期回复）。"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

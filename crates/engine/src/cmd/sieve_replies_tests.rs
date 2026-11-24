@@ -190,3 +190,39 @@ fn only_the_host_takes_in_what_the_server_said_and_a_change_needs_the_owner() {
     assert_eq!(agent::access("sync.applySieve"), Some(Access::Never));
     assert_eq!(agent::access("account.setAutomaticReplies"), Some(Access::Owner(Class::Send)));
 }
+
+#[test]
+fn a_script_changed_elsewhere_is_replaced_only_when_asked_and_only_as_it_was_read() {
+    let (mut s, account) = session();
+    let theirs = "require \"fileinto\";\r\nfileinto \"Lists\";\r\n";
+    read(&mut s, account, state(&ALL, Some(SCRIPT_NAME), Some(theirs)));
+    let asked = json!({"account": account, "status": "alwaysEnabled", "internal": "Away.", "replace": true});
+    let change = run(&mut s, "account.setAutomaticReplies", asked);
+    // What is written over is the script as it was read, by its digest: changed again since, it stays.
+    assert_eq!(change["sieve"]["lastWritten"], digest(theirs));
+    assert_eq!(read_vacation(change["sieve"]["text"].as_str().unwrap()).unwrap().internal, "Away.");
+    assert!(s.run("account.setAutomaticReplies", &json!({"account": account, "status": "disabled", "replace": "yes"})).is_err());
+    // Removed elsewhere: replaced by writing it anew.
+    let (mut s, account) = session();
+    s.mailbox.account_mut(account).unwrap().sieve_written = digest("keep;");
+    read(&mut s, account, state(&ALL, None, None));
+    let change = run(&mut s, "account.setAutomaticReplies", json!({"account": account, "status": "disabled", "replace": true}));
+    assert_eq!(change["sieve"]["lastWritten"], Value::Null);
+}
+
+#[test]
+fn the_owner_may_name_another_managesieve_server_and_an_agent_is_asked_about_it() {
+    let (mut s, account) = session();
+    run(&mut s, "account.edit", json!({"id": account, "sieve": {"host": "sieve.example.org.", "port": 4191}}));
+    let a = s.mailbox.account(account).unwrap();
+    assert_eq!((a.sieve_host.as_str(), a.sieve_port), ("sieve.example.org", 4191));
+    for wrong in [json!({"host": "a b"}), json!({"host": "x/y"}), json!({"port": 70_000}), json!({"host": 5}), json!("x")] {
+        assert!(s.run("account.edit", &json!({"id": account, "sieve": wrong})).is_err(), "{wrong}");
+    }
+    let what = agent::describe(&s, "account.edit", &json!({"id": account, "sieve": {"host": "elsewhere.example.net"}}));
+    assert!(what.contains("sieve elsewhere.example.net"), "{what}");
+    assert_eq!(agent::access("account.edit"), Some(Access::Owner(Class::Accounts)));
+    run(&mut s, "account.edit", json!({"id": account, "sieve": null}));
+    let a = s.mailbox.account(account).unwrap();
+    assert_eq!((a.sieve_host.as_str(), a.sieve_port), ("", 0));
+}

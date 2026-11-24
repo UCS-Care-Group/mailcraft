@@ -2218,6 +2218,12 @@ msgstr "Požádat teď server účtu o kalendář kolem této schůzky."
 msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
 msgstr "Požádat konferenci, aby vám přestala posílat poštu. MailCraft se nejprve zeptá a řekne jak."
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask the server for your automatic replies again."
+msgstr "Znovu se zeptat serveru na vaše automatické odpovědi."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2486,23 +2492,23 @@ msgstr "Pro {address} se odesílají automatické odpovědi"
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
-msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
-msgstr "Automatické odpovědi jsou uloženy na poštovním serveru a MailCraft je zatím umí nastavit jen u účtů, které se přihlašují přes Microsoft: IMAP nemá standardní způsob, jak je nastavit (odpovědi o nepřítomnosti přes Sieve možná přibudou později)"
+msgid "Automatic replies are kept on the mail server: MailCraft sets them for accounts that sign in with Microsoft, and for IMAP accounts whose server keeps Sieve scripts (ManageSieve)"
+msgstr "Automatické odpovědi jsou uloženy na poštovním serveru: MailCraft je nastavuje u účtů, které se přihlašují přes Microsoft, a u účtů IMAP, jejichž server uchovává skripty Sieve (ManageSieve)"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
 msgstr "Automatické odpovědi jsou vypnuté"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
 msgstr "Automatické odpovědi jsou zapnuté"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "Automatické odpovědi jsou nastaveny na zvolené období"
@@ -2518,6 +2524,12 @@ msgstr "Automatické odpovědi: MailCraft je smí měnit"
 #, fuzzy
 msgid "Automatic replies: MailCraft needs you to sign in again to read them"
 msgstr "Automatické odpovědi: MailCraft potřebuje, abyste se znovu přihlásili, aby je mohl načíst"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft's Sieve script was changed elsewhere, and is left as it is"
+msgstr "Automatické odpovědi: skript Sieve od MailCraftu byl změněn jinde a zůstává, jak je"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2544,7 +2556,7 @@ msgid "Automatic replies: changing them waits for your permission"
 msgstr "Automatické odpovědi: změna čeká na vaše oprávnění"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: couldn't be read ({why})"
 msgstr "Automatické odpovědi: nepodařilo se načíst ({why})"
@@ -2562,7 +2574,25 @@ msgid "Automatic replies: from {start} to {end}"
 msgstr "Automatické odpovědi: od {start} do {end}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available ({why})"
+msgstr "Automatické odpovědi: nejsou k dispozici ({why})"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server doesn't offer Sieve scripts (ManageSieve)"
+msgstr "Automatické odpovědi: nejsou k dispozici, tento server nenabízí skripty Sieve (ManageSieve)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server's Sieve scripts can't send them"
+msgstr "Automatické odpovědi: nejsou k dispozici, skripty Sieve tohoto serveru je neumí posílat"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: not read yet"
 msgstr "Automatické odpovědi: zatím nenačteny"
@@ -2580,10 +2610,16 @@ msgid "Automatic replies: on, until you turn them off"
 msgstr "Automatické odpovědi: zapnuto, dokud je nevypnete"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: reading…"
 msgstr "Automatické odpovědi: načítám…"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: the server didn't take your sign-in"
+msgstr "Automatické odpovědi: server nepřijal vaše přihlášení"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -3338,7 +3374,7 @@ msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask a
 msgstr "Změna automatických odpovědí nebyla povolena ({why}). Stisknutím OK požádáte znovu: v prohlížeči se otevře stránka Microsoftu."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Changing your automatic replies…"
 msgstr "Měním automatické odpovědi…"
@@ -9032,6 +9068,12 @@ msgstr "Pošta, kalendář, lidé a úkoly, napsané od nuly v Rustu. Běží na
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft teď může účet {account} synchronizovat s Microsoftem přes Microsoft Graph, stejně jako Outlook na webu, místo přes IMAP. Vaše složky, příznaky, kategorie a koncepty pak odpovídají tomu, co vidíte v Outlooku, a pošta chodí i tam, kde vaše organizace IMAP vypnula."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep automatic replies on this account's server: {why}. {advice}"
+msgstr "MailCraft nemůže uchovávat automatické odpovědi na serveru tohoto účtu: {why}. {advice}"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -9334,6 +9376,18 @@ msgstr "MailCraft {version} nebyl nainstalován: zde je stále tato verze."
 #, fuzzy
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "Registrace desktopové aplikace Google pro MailCraft zatím není pro toto sestavení nakonfigurována."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
+msgstr "Skript Sieve od MailCraftu byl na serveru od svého zápisu změněn jinde, proto ho MailCraft nechává, jak je. Chcete-li zde nastavit automatické odpovědi, nahraďte ho skriptem MailCraftu: co se v něm jinde změnilo, bude ztraceno."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere."
+msgstr "skript Sieve od MailCraftu byl na serveru změněn jinde."
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
@@ -13418,7 +13472,7 @@ msgid "Reading shared mailboxes needs your permission: use Send/Receive"
 msgstr "Čtení sdílených poštovních schránek vyžaduje vaše oprávnění: použijte Odeslat/přijmout"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Reading the automatic replies stopped unexpectedly"
 msgstr "Čtení automatických odpovědí se nečekaně zastavilo"
@@ -14010,6 +14064,12 @@ msgstr "Nahradit otevřené souborem .mailcraft"
 #, fuzzy
 msgid "Replace with"
 msgstr "Nahradit čím"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Replace with MailCraft's"
+msgstr "Nahradit skriptem MailCraftu"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16131,6 +16191,12 @@ msgid "Sieve scripts are only read from and written to the account's own mail se
 msgstr "Skripty Sieve se čtou a zapisují jen na vlastním poštovním serveru účtu"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Sieve server (Automatic Replies)"
+msgstr "Server Sieve (automatické odpovědi)"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Sign In"
@@ -16275,7 +16341,7 @@ msgid "Sign in with Microsoft once more to let MailCraft read the folders you ke
 msgstr "Přihlaste se ještě jednou přes Microsoft, aby MailCraft mohl číst složky, které máte v Outlooku v Oblíbených. Jen se čtou, nikdy nemění, a vše ostatní zůstává beze změny."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "Nejprve se přihlaste pomocí Odeslat/přijmout, pak změňte automatické odpovědi."
@@ -17504,6 +17570,11 @@ msgstr "Celou řadu"
 msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
 msgstr "Název a logo UCS Labs jsou ochranné známky společnosti UCS Care Group Limited; viz TRADEMARKS.md."
 
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
+msgstr "Server Sieve je název hostitele, s portem za dvojtečkou, pokud to není 4190"
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18178,6 +18249,12 @@ msgid "The incoming mail server isn't a host name (letters, digits, dots and das
 msgstr "Server příchozí pošty není název hostitele (písmena, číslice, tečky a pomlčky)"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The incoming server, port 4190"
+msgstr "Server příchozí pošty, port 4190"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License 1.1). Every icon is drawn in code and is original work. No artwork, fonts or text from other mail programs are included."
@@ -18806,6 +18883,12 @@ msgstr "Server zprávy neodeslal. Zkuste to za několik minut znovu."
 #, fuzzy
 msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
 msgstr "Server nepřijal změnu kontaktu {name}{why}: je opět takový, jak jej má server."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
+msgstr "Server nepřijal vaše přihlášení. Zkontrolujte heslo účtu v Nastavení účtu."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19526,6 +19609,12 @@ msgstr "Oblíbené tohoto účtu pocházejí z Outlooku a mění se tam (Soubor 
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Kalendáře tohoto účtu se zatím nelze ptát: Odeslat/přijmout ho nejprve přihlásí."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
+msgstr "Server tohoto účtu nenabízí skripty Sieve (ManageSieve), takže na něm MailCraft nemůže uchovávat automatické odpovědi."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -19635,7 +19724,7 @@ msgid "This build can't reach the account's server."
 msgstr "Toto sestavení se nedostane k serveru účtu."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "Toto sestavení se nedostane k serveru, aby změnilo automatické odpovědi. Použijte desktopovou aplikaci."
@@ -20343,6 +20432,18 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "Tato řada je stále na cestě na server účtu. Některý z jejích dnů změňte, až tam bude (za chvíli)."
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server can't send them only during a time range."
+msgstr "Tento server je neumí posílat jen v určitém časovém rozmezí."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
+msgstr "Tento server uchovává skripty Sieve, ale neumějí posílat automatické odpovědi (nemá rozšíření vacation)."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
@@ -20770,7 +20871,7 @@ msgid "Try Signing In Again"
 msgstr "Zkusit se znovu přihlásit"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Zkusit znovu"
@@ -21575,6 +21676,12 @@ msgid "When opened"
 msgstr "Při otevření"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "When you press OK, MailCraft's Sieve script on the server is replaced with these automatic replies."
+msgstr "Po stisknutí OK bude skript Sieve od MailCraftu na serveru nahrazen těmito automatickými odpověďmi."
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "When you switch:"
@@ -21609,6 +21716,12 @@ msgstr "Tam, kde karta uvádí, že klíč je: MailCraft ho nestahuje."
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "Kde se liší, má ponechaný kontakt:"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Where your server keeps Sieve scripts (ManageSieve), if not on the incoming server at port 4190. Your sign-in is sent there."
+msgstr "Kde váš server uchovává skripty Sieve (ManageSieve), pokud to není server příchozí pošty na portu 4190. Posílá se tam vaše přihlášení."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21996,11 +22109,23 @@ msgstr "Pracujete offline. Chcete-li se připojit, vypněte Pracovat offline (Od
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
+msgstr "Na serveru běží místo skriptu MailCraftu váš skript Sieve „{name}“: tyto odpovědi jsou tam uloženy, ale dokud běží, neposílají se. MailCraft váš skript nikdy nevypne."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies couldn't be read: {error}"
 msgstr "Automatické odpovědi nešlo načíst: {error}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your automatic replies were saved on the server, but another Sieve script of yours runs there, so they aren't sent"
+msgstr "Vaše automatické odpovědi byly uloženy na server, ale běží tam jiný váš skript Sieve, takže se neposílají"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Your automatic replies weren't changed"
 msgstr "Vaše automatické odpovědi nebyly změněny"
@@ -25155,6 +25280,12 @@ msgstr "server skript neposlal"
 msgid "the server didn't take it ({why})"
 msgstr "server to nepřijal ({why})"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server didn't take your sign-in."
+msgstr "server nepřijal vaše přihlášení."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -25172,6 +25303,12 @@ msgstr "server nedovoluje toto pravidlo změnit"
 #, fuzzy
 msgid "the server doesn't offer STARTTLS"
 msgstr "server nenabízí STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "server nenabízí skripty Sieve (ManageSieve)."
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -26384,6 +26521,12 @@ msgstr "{line} · při posledním běhu nešlo přečíst: {folders}"
 #, fuzzy
 msgid "{line} · the server's certificate needs your say"
 msgstr "{line} · certifikát serveru vyžaduje vaše rozhodnutí"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "{line} · your Sieve script \"{name}\" runs instead"
+msgstr "{line} · místo toho běží váš skript Sieve „{name}“"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -28260,6 +28403,9 @@ msgstr "−Řádky"
 #, fuzzy
 #~ msgid "contact"
 #~ msgstr "kontakt"
+
+#~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
+#~ msgstr "Automatické odpovědi jsou uloženy na poštovním serveru a MailCraft je zatím umí nastavit jen u účtů, které se přihlašují přes Microsoft: IMAP nemá standardní způsob, jak je nastavit (odpovědi o nepřítomnosti přes Sieve možná přibudou později)"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

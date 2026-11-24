@@ -595,6 +595,14 @@ pub struct Account {
     /// isn't a digest is read as none.
     #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
     pub sieve_written: String,
+    /// For an IMAP account: the ManageSieve server the owner named in Account Settings, when it
+    /// isn't the IMAP server's host (#9999); empty: the IMAP host. A host named here is the
+    /// owner's own choice of where the sign-in goes, as the IMAP host is.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub sieve_host: String,
+    /// Its port; 0: ManageSieve's own, 4190.
+    #[serde(skip_serializing_if = "crate::is_zero_u16", deserialize_with = "crate::sync::lenient_or_default")]
+    pub sieve_port: u16,
 }
 
 impl Account {

@@ -2217,6 +2217,12 @@ msgstr "ანგარიშის სერვერისგან კალ�
 msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
 msgstr "სთხოვეთ სიას, აღარ გამოგიგზავნოთ თავისი ფოსტა. MailCraft ჯერ დაგეკითხებათ და გეტყვით, როგორ."
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask the server for your automatic replies again."
+msgstr "სერვერს კვლავ ჰკითხეთ თქვენი ავტომატური პასუხები."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2484,23 +2490,23 @@ msgstr "ავტომატური პასუხები იგზავ�
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
-msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
-msgstr "ავტომატური პასუხები საფოსტო სერვერზე ინახება და MailCraft-ს ჯერჯერობით მათი დაყენება მხოლოდ იმ ანგარიშებისთვის შეუძლია, რომლებიც Microsoft-ით შედიან: IMAP-ს მათი დაყენების სტანდარტული გზა არ აქვს (Sieve-ის შვებულების პასუხები შეიძლება მოგვიანებით დაემატოს)"
+msgid "Automatic replies are kept on the mail server: MailCraft sets them for accounts that sign in with Microsoft, and for IMAP accounts whose server keeps Sieve scripts (ManageSieve)"
+msgstr "ავტომატური პასუხები საფოსტო სერვერზე ინახება: MailCraft მათ აყენებს Microsoft-ით შესულ ანგარიშებზე და იმ IMAP ანგარიშებზე, რომელთა სერვერი Sieve-ის სკრიპტებს ინახავს (ManageSieve)"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
 msgstr "ავტომატური პასუხები გამორთულია"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
 msgstr "ავტომატური პასუხები ჩართულია"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "ავტომატური პასუხები დაყენებულია თქვენ მიერ არჩეული დროის შუალედისთვის"
@@ -2516,6 +2522,12 @@ msgstr "ავტომატური პასუხები: MailCraft-ს �
 #, fuzzy
 msgid "Automatic replies: MailCraft needs you to sign in again to read them"
 msgstr "ავტომატური პასუხები: მათ წასაკითხად MailCraft-ს თქვენი ხელახლა შესვლა სჭირდება"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft's Sieve script was changed elsewhere, and is left as it is"
+msgstr "ავტომატური პასუხები: MailCraft-ის Sieve-ის სკრიპტი სხვაგან შეიცვალა და რჩება ისე, როგორც არის"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2542,7 +2554,7 @@ msgid "Automatic replies: changing them waits for your permission"
 msgstr "ავტომატური პასუხები: შეცვლა თქვენს ნებართვას ელოდება"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: couldn't be read ({why})"
 msgstr "ავტომატური პასუხები: ვერ წაიკითხა ({why})"
@@ -2560,7 +2572,25 @@ msgid "Automatic replies: from {start} to {end}"
 msgstr "ავტომატური პასუხები: {start} – {end}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available ({why})"
+msgstr "ავტომატური პასუხები: მიუწვდომელია ({why})"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server doesn't offer Sieve scripts (ManageSieve)"
+msgstr "ავტომატური პასუხები: მიუწვდომელია, ეს სერვერი Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server's Sieve scripts can't send them"
+msgstr "ავტომატური პასუხები: მიუწვდომელია, ამ სერვერის Sieve-ის სკრიპტებს მათი გაგზავნა არ შეუძლიათ"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: not read yet"
 msgstr "ავტომატური პასუხები: ჯერ არ წაკითხულა"
@@ -2578,10 +2608,16 @@ msgid "Automatic replies: on, until you turn them off"
 msgstr "ავტომატური პასუხები: ჩართულია, სანამ არ გამორთავთ"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: reading…"
 msgstr "ავტომატური პასუხები: იკითხება…"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: the server didn't take your sign-in"
+msgstr "ავტომატური პასუხები: სერვერმა თქვენი შესვლა არ მიიღო"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -3331,7 +3367,7 @@ msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask a
 msgstr "ავტომატური პასუხების შეცვლა არ დაიშვა ({why}). ხელახლა მოსათხოვად დააჭირეთ OK-ს: ბრაუზერში Microsoft-ის გვერდი გაიხსნება."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Changing your automatic replies…"
 msgstr "ავტომატური პასუხები იცვლება…"
@@ -8991,6 +9027,12 @@ msgstr "ფოსტა, კალენდარი, ადამიანე�
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft-ს ახლა შეუძლია {account} Microsoft-თან სინქრონიზებული იყოს Microsoft Graph-ის მეშვეობით, ისე, როგორც Outlook-ის ვებვერსია აკეთებს, IMAP-ის ნაცვლად. მაშინ თქვენი საქაღალდეები, დროშები, კატეგორიები და მონახაზები დაემთხვევა იმას, რასაც Outlook-ში ხედავთ, ფოსტა კი მოსვლას განაგრძობს იქაც, სადაც თქვენმა ორგანიზაციამ IMAP გამორთო."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep automatic replies on this account's server: {why}. {advice}"
+msgstr "MailCraft ვერ შეინახავს ავტომატურ პასუხებს ამ ანგარიშის სერვერზე: {why}. {advice}"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -9292,6 +9334,18 @@ msgstr "MailCraft {version} არ დაინსტალირდა: აქ 
 #, fuzzy
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "MailCraft-ის Google Desktop რეგისტრაცია ამ ანაწყობში ჯერ არ არის კონფიგურირებული."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
+msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე მისი ჩაწერის შემდეგ სხვაგან შეიცვალა, ამიტომ MailCraft მას ისე ტოვებს. აქ ავტომატური პასუხების დასაყენებლად ჩაანაცვლეთ ის MailCraft-ის სკრიპტით: რაც მასში სხვაგან შეიცვალა, დაიკარგება."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere."
+msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე სხვაგან შეიცვალა."
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
@@ -13356,7 +13410,7 @@ msgid "Reading shared mailboxes needs your permission: use Send/Receive"
 msgstr "საერთო საფოსტო ყუთების წაკითხვას თქვენი ნებართვა სჭირდება: გამოიყენეთ გაგზავნა/მიღება"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Reading the automatic replies stopped unexpectedly"
 msgstr "ავტომატური პასუხების წაკითხვა მოულოდნელად შეწყდა"
@@ -13941,6 +13995,12 @@ msgstr "გახსნილის ჩანაცვლება .mailcraft �
 #, fuzzy
 msgid "Replace with"
 msgstr "ჩანაცვლება ამით"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Replace with MailCraft's"
+msgstr "MailCraft-ის სკრიპტით ჩანაცვლება"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -16043,6 +16103,12 @@ msgid "Sieve scripts are only read from and written to the account's own mail se
 msgstr "Sieve-ის სკრიპტები მხოლოდ ანგარიშის საკუთარ საფოსტო სერვერზე იკითხება და იწერება"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Sieve server (Automatic Replies)"
+msgstr "Sieve-ის სერვერი (ავტომატური პასუხები)"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Sign In"
@@ -16187,7 +16253,7 @@ msgid "Sign in with Microsoft once more to let MailCraft read the folders you ke
 msgstr "კიდევ ერთხელ შედით Microsoft-ით, რომ MailCraft-მა შეძლოს Outlook-ში რჩეულებში შენახული საქაღალდეების წაკითხვა. ისინი მხოლოდ იკითხება, არასოდეს იცვლება, და დანარჩენი ყველაფერი ისე რჩება, როგორც არის."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "ჯერ შედით „გაგზავნა/მიღებით“, შემდეგ შეცვალეთ ავტომატური პასუხები."
@@ -17410,6 +17476,11 @@ msgstr "მთელი სერია"
 msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
 msgstr "UCS Labs-ის სახელი და ლოგო UCS Care Group Limited-ის სავაჭრო ნიშნებია; იხილეთ TRADEMARKS.md."
 
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
+msgstr "Sieve-ის სერვერი ჰოსტის სახელია, ორწერტილის შემდეგ პორტით, თუ ის 4190 არ არის"
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -18083,6 +18154,12 @@ msgid "The incoming mail server isn't a host name (letters, digits, dots and das
 msgstr "შემომავალი ფოსტის სერვერი ჰოსტის სახელი არ არის (ასოები, ციფრები, წერტილები და ტირეები)"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The incoming server, port 4190"
+msgstr "შემომავალი სერვერი, პორტი 4190"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License 1.1). Every icon is drawn in code and is original work. No artwork, fonts or text from other mail programs are included."
@@ -18706,6 +18783,12 @@ msgstr "სერვერმა წერილები არ გააგზ
 #, fuzzy
 msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
 msgstr "სერვერმა არ მიიღო ცვლილება {name}{why}: ის ისევ ისეთია, როგორიც სერვერზეა."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
+msgstr "სერვერმა თქვენი შესვლა არ მიიღო. შეამოწმეთ ანგარიშის პაროლი ანგარიშის პარამეტრებში."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19418,6 +19501,12 @@ msgstr "ამ ანგარიშის რჩეულები Outlook-ი�
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "ამ ანგარიშის კალენდრის გამოკითხვა ჯერ შეუძლებელია: „გაგზავნა/მიღება“ ჯერ მასში შევა."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
+msgstr "ამ ანგარიშის სერვერი Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve), ამიტომ MailCraft იქ ავტომატურ პასუხებს ვერ შეინახავს."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -19526,7 +19615,7 @@ msgid "This build can't reach the account's server."
 msgstr "ამ ანაწყობს ანგარიშის სერვერზე წვდომა არ აქვს."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "ამ ანაწყობს ავტომატური პასუხების შესაცვლელად სერვერზე წვდომა არ აქვს. გამოიყენეთ სამაგიდო აპლიკაცია."
@@ -20224,6 +20313,18 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "ეს სერია ჯერ კიდევ გზაშია ანგარიშის სერვერისკენ. მისი რომელიმე დღე შეცვალეთ, როცა იქ აღმოჩნდება (ცოტა ხანში)."
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server can't send them only during a time range."
+msgstr "ამ სერვერს მათი მხოლოდ დროის შუალედში გაგზავნა არ შეუძლია."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
+msgstr "ეს სერვერი Sieve-ის სკრიპტებს ინახავს, მაგრამ მათ ავტომატური პასუხების გაგზავნა არ შეუძლიათ (vacation გაფართოება არ აქვს)."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
@@ -20648,7 +20749,7 @@ msgid "Try Signing In Again"
 msgstr "შესვლის ხელახლა ცდა"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "ხელახლა ცდა"
@@ -21449,6 +21550,12 @@ msgid "When opened"
 msgstr "გახსნისას"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "When you press OK, MailCraft's Sieve script on the server is replaced with these automatic replies."
+msgstr "OK-ზე დაჭერისას MailCraft-ის Sieve-ის სკრიპტი სერვერზე ამ ავტომატური პასუხებით ჩანაცვლდება."
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "When you switch:"
@@ -21483,6 +21590,12 @@ msgstr "სადაც ბარათის თანახმად გას
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "სადაც ისინი განსხვავდება, დატოვებულ კონტაქტს აქვს:"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Where your server keeps Sieve scripts (ManageSieve), if not on the incoming server at port 4190. Your sign-in is sent there."
+msgstr "სადაც თქვენი სერვერი Sieve-ის სკრიპტებს ინახავს (ManageSieve), თუ არა შემომავალ სერვერზე 4190 პორტზე. თქვენი შესვლა იქ იგზავნება."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21868,11 +21981,23 @@ msgstr "ოფლაინ მუშაობთ. დასაკავშირ
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
+msgstr "სერვერზე MailCraft-ის ნაცვლად თქვენი Sieve-ის სკრიპტი „{name}“ მუშაობს: ეს პასუხები იქ ინახება, მაგრამ სანამ ის მუშაობს, არ იგზავნება. MailCraft თქვენს სკრიპტს არასოდეს გამორთავს."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies couldn't be read: {error}"
 msgstr "თქვენი ავტომატური პასუხების წაკითხვა ვერ მოხერხდა: {error}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your automatic replies were saved on the server, but another Sieve script of yours runs there, so they aren't sent"
+msgstr "თქვენი ავტომატური პასუხები სერვერზე შეინახა, მაგრამ იქ თქვენი სხვა Sieve-ის სკრიპტი მუშაობს, ამიტომ ისინი არ იგზავნება"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Your automatic replies weren't changed"
 msgstr "თქვენი ავტომატური პასუხები არ შეცვლილა"
@@ -25017,6 +25142,12 @@ msgstr "სერვერმა სკრიპტი არ გამოგზ
 msgid "the server didn't take it ({why})"
 msgstr "სერვერმა არ მიიღო ({why})"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server didn't take your sign-in."
+msgstr "სერვერმა თქვენი შესვლა არ მიიღო."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -25034,6 +25165,12 @@ msgstr "სერვერი ამ წესის შეცვლის ს�
 #, fuzzy
 msgid "the server doesn't offer STARTTLS"
 msgstr "სერვერი STARTTLS-ს არ გვთავაზობს"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "სერვერი Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve)."
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -26238,6 +26375,12 @@ msgstr "{line} · ბოლო გაშვებისას წაკითხ
 #, fuzzy
 msgid "{line} · the server's certificate needs your say"
 msgstr "{line} · სერვერის სერტიფიკატს თქვენი გადაწყვეტილება სჭირდება"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "{line} · your Sieve script \"{name}\" runs instead"
+msgstr "{line} · მის ნაცვლად თქვენი Sieve-ის სკრიპტი „{name}“ მუშაობს"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -27981,6 +28124,9 @@ msgstr ""
 #, fuzzy
 #~ msgid "contact"
 #~ msgstr "კონტაქტი"
+
+#~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
+#~ msgstr "ავტომატური პასუხები საფოსტო სერვერზე ინახება და MailCraft-ს ჯერჯერობით მათი დაყენება მხოლოდ იმ ანგარიშებისთვის შეუძლია, რომლებიც Microsoft-ით შედიან: IMAP-ს მათი დაყენების სტანდარტული გზა არ აქვს (Sieve-ის შვებულების პასუხები შეიძლება მოგვიანებით დაემატოს)"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

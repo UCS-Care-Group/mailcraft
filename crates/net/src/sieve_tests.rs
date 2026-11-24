@@ -60,6 +60,15 @@ fn the_server_is_the_imap_host_on_port_4190_with_starttls() {
     assert_eq!(server_for(&account).unwrap().security, Security::StartTls);
     account.incoming = None;
     assert!(matches!(server_for(&account), Err(NetError::Config(_))));
+    // The host and port the owner named; plain only where both are on this computer.
+    account.incoming = Some(Server { host: "mail.example.org".into(), port: 993, security: Security::Tls });
+    account.sieve_host = "sieve.example.org".into();
+    account.sieve_port = 2000;
+    assert_eq!(server_for(&account).unwrap(), Server { host: "sieve.example.org".into(), port: 2000, security: Security::StartTls });
+    account.incoming = Some(Server { host: "127.0.0.1".into(), port: 143, security: Security::None });
+    assert_eq!(server_for(&account).unwrap().security, Security::StartTls);
+    account.sieve_host = "localhost".into();
+    assert_eq!(server_for(&account).unwrap().security, Security::None);
     // Port 0 means ManageSieve's own.
     assert_eq!(
         crate::transport::port(&Server { host: "x".into(), port: 0, security: Security::StartTls }, crate::transport::Service::ManageSieve),
@@ -242,6 +251,11 @@ fn the_sign_in_never_goes_to_a_host_other_than_the_mail_servers() {
     account.incoming = None;
     assert!(matches!(read(&account, &server, PASSWORD, "mailcraft"), Err(SieveError::Net(NetError::Config(_)))));
     assert_eq!(fake.world().connections, 0);
+    // A host the owner named in Account Settings is one the sign-in may go to.
+    account.incoming = Some(Server { host: "localhost".into(), port: 1, security: Security::None });
+    account.sieve_host = "127.0.0.1".into();
+    read(&account, &server, PASSWORD, "mailcraft").unwrap();
+    account.sieve_host.clear();
     // The same host however it is written.
     account.incoming = Some(Server { host: "[127.0.0.1].".into(), port: 1, security: Security::None });
     read(&account, &server, PASSWORD, "mailcraft").unwrap();

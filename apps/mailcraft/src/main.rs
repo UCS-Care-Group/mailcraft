@@ -64,6 +64,18 @@ mod file_dialogs;
 mod file_launcher;
 #[cfg(windows)]
 mod recent_attachments;
+mod sieve_job;
+#[cfg(test)]
+mod sieve_replies_flow;
+// The fake servers of `mailcraft-net`'s tests, for the flow tests here (#9999).
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../../crates/net/src/fake.rs"]
+mod fake;
+#[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../../crates/net/src/fake_sieve.rs"]
+mod fake_sieve;
 // OpenPGP keys kept in GnuPG, through gpg-agent (#30): signing and decrypting (parts 5 and 6) use it.
 #[cfg_attr(not(test), expect(dead_code, reason = "#30 part 5 signs through it"))]
 mod gpg_agent;
@@ -1111,6 +1123,7 @@ fn services(
     let rules_ctx = ctx.clone();
     let categories_ctx = ctx.clone();
     let replies_ctx = ctx.clone();
+    let sieve_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
@@ -1239,6 +1252,9 @@ fn services(
         // File › Info › Automatic Replies of a Microsoft account, read and changed on its server.
         graph_auto_replies: Some(Box::new(move |job: mailcraft_ui_egui::auto_replies::AutoRepliesJob| {
             background(&replies_ctx, "automatic replies", move || auto_replies_job(job))
+        })),
+        sieve: Some(Box::new(move |job: mailcraft_ui_egui::sieve_replies::SieveJob| {
+            background(&sieve_ctx, "sieve scripts", move || sieve_job::sieve_job(job))
         })),
         discover: Some(Box::new(move |domain| {
             background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))

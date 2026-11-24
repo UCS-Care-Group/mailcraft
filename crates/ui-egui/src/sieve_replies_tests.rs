@@ -1,0 +1,261 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! An IMAP account's Automatic Replies in the window (#9999): the job, File › Info's line, and the
+//! dialog in its Sieve shape. The host's answers are written out by hand, as `mailcraft-net`'s
+//! `sieve` brings them.
+
+use std::collections::VecDeque;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+
+use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
+use mailcraft_engine::Session;
+use mailcraft_engine::sieve::SCRIPT_NAME;
+use mailcraft_model::Id;
+use serde_json::{Value, json};
+
+use crate::auto_replies::Draft;
+use crate::dialogs::Dialog;
+use crate::sieve_replies::{SieveJob, SieveResult, SieveTrouble, SieveWrite};
+use crate::{MailApp, Services};
+
+/// 2026-09-21T13:46:40Z.
+const NOW: i64 = 1_790_000_000;
+
+type Answers = Arc<Mutex<VecDeque<SieveResult>>>;
+type Jobs = Arc<Mutex<Vec<(Id, Option<SieveWrite>, String)>>>;
+
+/// A window with an IMAP account whose password was typed, and a host that answers from a queue.
+fn window() -> (MailApp, Id, Answers, Jobs) {
+    let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    app.autosave = false;
+    let added = app.execute("account.add", json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    app.stand_in_password(account, "an invented password");
+    let (answers, jobs): (Answers, Jobs) = Default::default();
+    let (to_answer, log) = (answers.clone(), jobs.clone());
+    app.services.sieve = Some(Box::new(move |job: SieveJob| {
+        log.lock().unwrap().push((job.account.id, job.write.clone(), job.secret.clone()));
+        let (tx, rx) = mpsc::channel();
+        tx.send(to_answer.lock().unwrap().pop_front().unwrap_or_default()).unwrap();
+        rx
+    }));
+    (app, account, answers, jobs)
+}
+
+fn state(extensions: &[&str], active: Option<&str>, script: Option<&str>) -> Value {
+    let scripts: Vec<Value> = active.iter().map(|name| json!({"name": name, "active": true})).collect();
+    json!({"extensions": extensions, "scripts": scripts, "script": script})
+}
+
+const ALL: [&str; 3] = ["vacation", "date", "relational"];
+
+/// The window reads them, and the host answers with `result`.
+fn read(app: &mut MailApp, account: Id, answers: &Answers, result: SieveResult) {
+    answers.lock().unwrap().push_back(SieveResult { account, ..result });
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    app.poll_sieve();
+}
+
+fn said(app: &MailApp) -> String {
+    app.status_msg.clone().unwrap_or_default().0
+}
+
+#[test]
+fn a_read_goes_to_the_host_with_the_password_and_is_taken_in() {
+    let (mut app, account, answers, jobs) = window();
+    assert_eq!(app.sieve_line(account), "Automatic replies: not read yet");
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, None, None)), ..Default::default() });
+    assert_eq!(jobs.lock().unwrap().as_slice(), &[(account, None, "an invented password".to_string())]);
+    assert_eq!(app.sieve_line(account), "Automatic replies: off");
+    // Read a moment ago: not asked again.
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    // Offline: nothing goes.
+    app.sieve.read.clear();
+    app.session.prefs.offline = true;
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn a_change_writes_the_engines_script_and_says_how_it_went() {
+    let (mut app, account, answers, jobs) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, None, None)), ..Default::default() });
+    // The host writes, then reads back what the server has: here, what was written.
+    let change =
+        app.session.run("account.setAutomaticReplies", &json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    let text = change["sieve"]["text"].as_str().unwrap().to_string();
+    answers.lock().unwrap().push_back(SieveResult {
+        account,
+        state: Some(state(&ALL, Some(SCRIPT_NAME), Some(&text))),
+        written: Some("done".into()),
+        ..Default::default()
+    });
+    app.execute("account.setAutomaticReplies", json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    app.poll_sieve();
+    let write = jobs.lock().unwrap()[1].1.clone().unwrap();
+    assert_eq!((write.name.as_str(), write.text.as_str(), write.last_written, write.activate), (SCRIPT_NAME, text.as_str(), None, true));
+    assert_eq!(said(&app), "Automatic replies are on");
+    assert_eq!(app.auto_replies_on(), vec![account]);
+    assert_eq!(app.sieve_line(account), "Automatic replies: on, until you turn them off");
+}
+
+#[test]
+fn what_the_server_cant_do_is_said_in_file_info() {
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { unavailable: true, ..Default::default() });
+    assert!(app.sieve_line(account).contains("doesn't offer Sieve scripts"));
+    assert_eq!(app.sieve.trouble.get(&account), Some(&SieveTrouble::Unavailable));
+
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { sign_in_refused: true, ..Default::default() });
+    assert!(app.sieve_line(account).contains("didn't take your sign-in"));
+
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&["fileinto"], None, None)), ..Default::default() });
+    assert!(app.sieve_line(account).contains("can't send them"));
+
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, Some(SCRIPT_NAME), Some("keep;"))), ..Default::default() });
+    assert!(app.sieve_line(account).contains("changed elsewhere"));
+
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, Some("roundcube"), None)), ..Default::default() });
+    assert_eq!(app.sieve_line(account), "Automatic replies: off · your Sieve script \"roundcube\" runs instead");
+}
+
+#[test]
+fn without_a_password_nothing_is_asked() {
+    let (mut app, account, _, jobs) = window();
+    app.passwords.clear();
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    assert!(jobs.lock().unwrap().is_empty());
+}
+
+/// What the host found where the server was looked for, as `mailcraft-net` says it: a port that
+/// expects encryption from the first byte.
+fn unreached() -> SieveResult {
+    SieveResult {
+        unavailable: true,
+        why: "sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use".into(),
+        advice: "On Dovecot, set ssl = no on the sieve listener.".into(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn what_was_found_where_the_server_was_looked_for_is_said_everywhere() {
+    let (mut app, account, answers, jobs) = window();
+    read(&mut app, account, &answers, unreached());
+    assert_eq!(app.sieve.trouble.get(&account), Some(&SieveTrouble::Unavailable));
+    // File › Info's line names where, and offers Try again with what to do as its tip.
+    assert_eq!(
+        app.sieve_line(account),
+        "Automatic replies: not available (sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use)"
+    );
+    let (_, again) = app.auto_replies_line(account).unwrap();
+    assert_eq!(again, Some(crate::auto_replies::Again::TryAgain("On Dovecot, set ssl = no on the sieve listener.".into())));
+    // Not asked again unasked...
+    app.sieve.read.clear();
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    // ...but at Try Again, and then it is said no more once the server answers.
+    answers.lock().unwrap().push_back(SieveResult { account, state: Some(state(&ALL, None, None)), ..Default::default() });
+    app.sieve_try_again(account);
+    app.poll_sieve();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+    assert_eq!(app.sieve_line(account), "Automatic replies: off");
+    assert!(app.sieve_unreached(account).is_none() && app.auto_replies_line(account).unwrap().1.is_none());
+
+    // Another Sieve server named in Account Settings is asked at once.
+    let (mut app, account, answers, jobs) = window();
+    read(&mut app, account, &answers, unreached());
+    app.execute("account.edit", json!({"id": account, "sieve": {"host": "imap.example.org", "port": 4191}})).unwrap();
+    app.sieve.read.clear();
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+
+    // A change that couldn't go says why in the status bar.
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, None, None)), ..Default::default() });
+    answers.lock().unwrap().push_back(SieveResult { account, ..unreached() });
+    app.execute("account.setAutomaticReplies", json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    app.poll_sieve();
+    assert_eq!(
+        said(&app),
+        "Your automatic replies weren't changed: sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use"
+    );
+}
+
+#[test]
+fn the_dialog_says_what_was_found_and_offers_try_again() {
+    let (mut app, account, answers, jobs) = window();
+    read(&mut app, account, &answers, unreached());
+    let mut h = dialog(app, account);
+    assert!(!draft(&h).editable(h.state()));
+    assert!(
+        h.query_by_label(
+            "MailCraft can't keep automatic replies on this account's server: sieve.example.org:4190 expects an encrypted connection from the start, which ManageSieve doesn't use. On Dovecot, set ssl = no on the sieve listener."
+        )
+        .is_some()
+    );
+    let before = jobs.lock().unwrap().len();
+    h.get_by_label("Try again").click();
+    h.run_steps(2);
+    assert_eq!(jobs.lock().unwrap().len(), before + 1);
+}
+
+/// The window drawing the dialog for `account`.
+fn dialog(mut app: MailApp, account: Id) -> Harness<'static, MailApp> {
+    let draft = Draft::open(&mut app, &json!({"account": account})).unwrap();
+    app.dialog = Some(Dialog::AutomaticReplies(Box::new(draft)));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1000.0, 760.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(3);
+    h
+}
+
+fn draft<'a>(h: &'a Harness<'static, MailApp>) -> &'a Draft {
+    match h.state().dialog.as_ref() {
+        Some(Dialog::AutomaticReplies(d)) => d,
+        _ => panic!("no Automatic Replies dialog"),
+    }
+}
+
+#[test]
+fn the_dialog_offers_what_a_sieve_server_can_keep() {
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&["vacation"], None, None)), ..Default::default() });
+    let mut h = dialog(app, account);
+    assert!(draft(&h).sieve && draft(&h).editable(h.state()));
+    // No time range without date tests, said; no "my contacts only" outside.
+    assert!(h.query_by_label("This server can't send them only during a time range.").is_some());
+    h.get_by_label("Send automatic replies").click();
+    h.run_steps(2);
+    h.get_by_label("Outside My Organization (On)").click();
+    h.run_steps(2);
+    assert!(h.query_by_label("Only my contacts").is_none());
+    assert!(h.query_by_label("Reply to people outside my organization").is_some());
+    assert_eq!(draft(&h).params()["audience"], "all");
+}
+
+#[test]
+fn a_script_changed_elsewhere_is_replaced_only_by_the_owners_click() {
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, Some(SCRIPT_NAME), Some("keep;"))), ..Default::default() });
+    let mut h = dialog(app, account);
+    assert!(!draft(&h).editable(h.state()));
+    h.get_by_label("Replace with MailCraft's").click();
+    h.run_steps(2);
+    assert!(draft(&h).replace && draft(&h).editable(h.state()));
+    assert_eq!(draft(&h).params()["replace"], true);
+    assert!(h.query_by_label("Replace with MailCraft's").is_none());
+}

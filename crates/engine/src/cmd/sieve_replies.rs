@@ -57,6 +57,9 @@ pub struct SieveKnown {
     pub active: Option<String>,
     /// MailCraft's script isn't what MailCraft last wrote there.
     pub changed_elsewhere: bool,
+    /// The digest of MailCraft's script as the server has it now; `None` when it has none. What
+    /// a replacement the owner asks for is written over, and nothing else.
+    pub now: Option<String>,
 }
 
 impl SieveKnown {
@@ -97,10 +100,23 @@ pub(super) fn set(s: &Session, account: Id, status: AutoReplyStatus, audience: O
     if !sieve.takes_replies() {
         return Err(fail(NO_VACATION));
     }
-    if sieve.changed_elsewhere {
+    // A script changed elsewhere is replaced only when the owner asks for that, and only as the
+    // server had it when it was read: what changed there since is left alone all the same.
+    let replace = match v.get("replace") {
+        None | Some(Value::Null | Value::Bool(false)) => false,
+        Some(Value::Bool(true)) => true,
+        Some(_) => return Err(bad("`replace` is true or false")),
+    };
+    if sieve.changed_elsewhere && !replace {
         return Err(fail(CHANGED_ELSEWHERE));
     }
-    let known = s.auto_replies.get(&account).ok_or_else(|| fail(NOT_READ))?;
+    let blank = Known::default();
+    let known = match s.auto_replies.get(&account) {
+        Some(known) => known,
+        // (What was changed elsewhere isn't read: a replacement starts from nothing.)
+        None if sieve.changed_elsewhere => &blank,
+        None => return Err(fail(NOT_READ)),
+    };
     let audience = audience.unwrap_or(known.audience);
     if audience == ExternalAudience::ContactsOnly {
         return Err(fail(NO_CONTACTS));
@@ -128,9 +144,10 @@ pub(super) fn set(s: &Session, account: Id, status: AutoReplyStatus, audience: O
         audience,
     };
     let text = vacation_script(&vacation, &owner_of(a));
+    let last_written = if sieve.changed_elsewhere { sieve.now.clone() } else { a.sieve_digest().map(str::to_string) };
     Ok(json!({
         "account": account,
-        "sieve": {"name": SCRIPT_NAME, "text": text, "lastWritten": a.sieve_digest(), "activate": status != AutoReplyStatus::Disabled},
+        "sieve": {"name": SCRIPT_NAME, "text": text, "lastWritten": last_written, "activate": status != AutoReplyStatus::Disabled},
         "pending": "automaticReplies",
     }))
 }
@@ -206,7 +223,8 @@ fn apply_command(s: &mut Session, v: &Value) -> CmdResult {
         _ => None,
     };
     let changed_elsewhere = vacation.is_none();
-    s.sieve.insert(account, SieveKnown { extensions, active: active.clone(), changed_elsewhere });
+    let now = script.map(digest);
+    s.sieve.insert(account, SieveKnown { extensions, active: active.clone(), changed_elsewhere, now });
     let known = vacation.map(|vacation| match vacation {
         Some(v) => Known { status: v.status, start: v.start, end: v.end, internal: v.internal, external: v.external, audience: v.audience },
         None => Known::default(),

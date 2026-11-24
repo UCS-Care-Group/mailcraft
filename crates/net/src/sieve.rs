@@ -4,9 +4,10 @@
 //! ManageSieve (RFC 5804, [`mailcraft_proto::managesieve`]): where Automatic Replies and rules
 //! kept on the server live on a server that isn't Microsoft's.
 //!
-//! **Where the sign-in goes.** The ManageSieve server is the account's IMAP server, on port 4190
-//! ([`server_for`]); the password or token goes to that host and to no other ([`read`] and
-//! [`write`] refuse any other before a connection is made), and a server's referral to another
+//! **Where the sign-in goes.** The ManageSieve server is the account's IMAP server, on port 4190,
+//! or the host and port its owner named in Account Settings ([`server_for`]); the password or
+//! token goes to those hosts and to no other ([`read`] and [`write`] refuse any other before a
+//! connection is made), and a server's referral to another
 //! one is never followed. The connection is STARTTLS (RFC 5804 §2.2): a server that doesn't offer
 //! it is an error, never a reason to go on in the clear; only a server on this computer (the
 //! tests' fake one) is spoken to without encryption. A sign-in token goes only where
@@ -292,12 +293,16 @@ pub fn digest(script: &str) -> String {
     digest.as_ref().iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// The ManageSieve server of an IMAP account: its incoming server's host, on [`PORT`], with
-/// STARTTLS (without encryption only when the IMAP server is on this computer and has none).
+/// The ManageSieve server of an IMAP account: the host and port the owner named in Account
+/// Settings ([`Account::sieve_host`], [`Account::sieve_port`]), else its incoming server's host on
+/// [`PORT`]; with STARTTLS (without encryption only when the IMAP server is on this computer and
+/// has none, and so is this one).
 pub fn server_for(account: &Account) -> Result<Server, NetError> {
     let incoming = account.incoming.as_ref().ok_or_else(|| NetError::Config(said!("the account has no incoming server")))?;
-    let security = if incoming.security == Security::None && transport::is_loopback(&incoming.host) { Security::None } else { Security::StartTls };
-    Ok(Server { host: incoming.host.trim().to_string(), port: PORT, security })
+    let host = if account.sieve_host.trim().is_empty() { incoming.host.trim() } else { account.sieve_host.trim() };
+    let plain = incoming.security == Security::None && transport::is_loopback(&incoming.host) && transport::is_loopback(host);
+    let port = if account.sieve_port == 0 { PORT } else { account.sieve_port };
+    Ok(Server { host: host.to_string(), port, security: if plain { Security::None } else { Security::StartTls } })
 }
 
 /// Sign in to the ManageSieve server and read what it has: its capabilities, its scripts, and
@@ -392,12 +397,13 @@ fn host_key(host: &str) -> String {
     host.trim_end_matches('.').to_ascii_lowercase()
 }
 
-/// Whether `server` is the host of the account's incoming server, the one place its sign-in may go.
+/// Whether `server` is the host of the account's incoming server, or the ManageSieve host its
+/// owner named: the places its sign-in may go.
 fn is_mail_server(account: &Account, server: &Server) -> bool {
-    account.incoming.as_ref().is_some_and(|incoming| {
-        let key = host_key(&incoming.host);
-        !key.is_empty() && key == host_key(&server.host)
-    })
+    let wanted = host_key(&server.host);
+    let named = host_key(&account.sieve_host);
+    let incoming = account.incoming.as_ref().map(|incoming| host_key(&incoming.host)).unwrap_or_default();
+    account.incoming.is_some() && !wanted.is_empty() && (wanted == incoming || wanted == named)
 }
 
 /// Connect, make the connection secure, and sign in.

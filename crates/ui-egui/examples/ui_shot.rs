@@ -50,6 +50,9 @@
 //! asks whether the tasks that exist only here are to be sent to it (#248).
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
 //! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
+//! `{"host": {"sieve": "on"}}` gives every IMAP account a ManageSieve server whose MailCraft
+//! script sends automatic replies for a week (#9999); `"off"`, `"changed"` (changed elsewhere),
+//! `"other"` (the owner's own script runs), `"noVacation"` or `"none"` (no ManageSieve).
 //! `{"host": {"categories": "allowed"}}` gives every Microsoft account the list of categories its
 //! server has (four made-up ones, the first time) and lets it be changed there (#661);
 //! `"readOnly"`, the same and none may be changed, the owner having been asked.
@@ -871,6 +874,15 @@ fn main() {
                 }));
                 for account in mailcraft_engine::cmd::auto_replies::reply_accounts(&app.session.mailbox) {
                     let _ = app.stand_in_auto_replies(account, &setting, how != "readOnly");
+                }
+            }
+            // Every IMAP account's Sieve server, as `ManageSieve` would bring it (#9999).
+            if let Some(how) = said.get("sieve").and_then(|v| v.as_str()) {
+                let app = harness.state_mut();
+                let imap: Vec<u64> =
+                    app.session.mailbox.accounts.iter().filter(|a| mailcraft_engine::cmd::sieve_replies::is_sieve_account(a)).map(|a| a.id).collect();
+                for account in imap {
+                    let _ = app.stand_in_sieve(account, how);
                 }
             }
             // Every Microsoft account's list as its server gave it (four made-up categories), then

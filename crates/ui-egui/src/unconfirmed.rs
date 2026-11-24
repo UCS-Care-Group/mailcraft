@@ -51,6 +51,7 @@ pub(crate) struct Held {
     ews: Option<Box<dyn Fn(crate::ews_mail::EwsJob) -> Receiver<mailcraft_model::sync::EwsMailResult>>>,
     ews_fetch: Option<Box<dyn Fn(crate::ews_mail::EwsFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     ews_resolve: Option<Box<dyn Fn(crate::check_names::EwsResolveJob) -> Receiver<mailcraft_model::sync::EwsResolveResult>>>,
+    sieve: Option<Box<dyn Fn(crate::sieve_replies::SieveJob) -> Receiver<crate::sieve_replies::SieveResult>>>,
 }
 
 /// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
@@ -76,6 +77,11 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
             })
             .unwrap_or_default()
     };
+    // (The ManageSieve server the owner named, for an account that has one, #9999.)
+    let sieve = |a: &Account| match (a.sieve_host.trim(), a.sieve_port) {
+        ("", 0) => String::new(),
+        (host, port) => format!("\u{1}sieve={}:{port}", host.to_ascii_lowercase()),
+    };
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
@@ -86,7 +92,7 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
                 a.kind,
                 server(&a.incoming),
                 server(&a.outgoing),
-                jmap(a) + &ews(a)
+                jmap(a) + &ews(a) + &sieve(a)
             )
         })
         .collect();
@@ -171,6 +177,7 @@ impl MailApp {
             ews: s.ews.take(),
             ews_fetch: s.ews_fetch.take(),
             ews_resolve: s.ews_resolve.take(),
+            sieve: s.sieve.take(),
         };
     }
 
@@ -191,6 +198,7 @@ impl MailApp {
         s.ews = held.ews.or(s.ews.take());
         s.ews_fetch = held.ews_fetch.or(s.ews_fetch.take());
         s.ews_resolve = held.ews_resolve.or(s.ews_resolve.take());
+        s.sieve = held.sieve.or(s.sieve.take());
     }
 
     /// `ui.confirmServers`: the owner has seen where every account connects and says yes. Kept

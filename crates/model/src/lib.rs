@@ -158,6 +158,10 @@ pub fn clean_name(s: &str) -> Option<String> {
 }
 
 /// For leaving an id out of what is written when there is none.
+pub(crate) fn is_zero_u16(n: &u16) -> bool {
+    *n == 0
+}
+
 pub(crate) fn is_zero_id(id: &Id) -> bool {
     *id == 0
 }

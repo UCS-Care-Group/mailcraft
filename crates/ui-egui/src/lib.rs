@@ -135,6 +135,9 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+pub mod sieve_replies;
+#[cfg(test)]
+mod sieve_replies_tests;
 
 /// The fonts of this computer that text is drawn in: what a message asks for and what the
 /// composer offers, the index of what is installed and the faces read for it.
@@ -431,6 +434,10 @@ pub struct Services {
     /// ([`auto_replies`]): a token of its own, then Graph's mailbox settings. Absent in the
     /// browser: File › Info then has no Automatic Replies.
     pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
+    /// Read and write an IMAP account's Sieve script on its ManageSieve server
+    /// ([`sieve_replies`], #9999): Automatic Replies for servers that aren't Microsoft's. Absent
+    /// in the browser.
+    pub sieve: Option<Box<dyn Fn(sieve_replies::SieveJob) -> Receiver<sieve_replies::SieveResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -1794,6 +1801,8 @@ pub struct MailApp {
     pub(crate) category_sync: category_sync::CategorySync,
     /// The automatic replies' jobs, and what is said of them ([`auto_replies`]).
     pub(crate) auto_replies: auto_replies::AutoRepliesSync,
+    /// The Sieve scripts' jobs, and what is said of them ([`sieve_replies`]).
+    pub(crate) sieve: sieve_replies::SieveSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
@@ -2109,6 +2118,7 @@ impl MailApp {
             rules: Default::default(),
             category_sync: Default::default(),
             auto_replies: Default::default(),
+            sieve: Default::default(),
             open_shared: Default::default(),
             subscribed: Default::default(),
             dav: Default::default(),
@@ -5311,6 +5321,7 @@ impl MailApp {
         }
         self.take_in_sync_answers(now_ms());
         self.poll_auto_replies();
+        self.poll_sieve();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_resolving();
@@ -5352,6 +5363,7 @@ impl MailApp {
             self.categories_tick(ctx);
             // The automatic replies, read now and then so that the status bar can say they are on.
             self.auto_replies_tick(ctx);
+            self.sieve_tick(ctx);
         }
         // Snoozed mail whose Return time has come (#949).
         self.snooze_tick();

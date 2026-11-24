@@ -2156,6 +2156,12 @@ msgstr "Vraag de server van het account nu om de agenda rond deze vergadering."
 msgid "Ask the list to stop sending you its mail. MailCraft asks first and says how."
 msgstr "De lijst vragen u geen e-mail meer te sturen. MailCraft vraagt het eerst en zegt hoe."
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask the server for your automatic replies again."
+msgstr "De server opnieuw om uw automatische antwoorden vragen."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Ask to be told when the message is read"
@@ -2414,23 +2420,23 @@ msgstr "Er worden automatische antwoorden verzonden voor {address}"
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
-msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
-msgstr "Automatische antwoorden blijven op de e-mailserver, en MailCraft kan ze tot nu toe alleen instellen voor accounts die zich aanmelden met Microsoft: IMAP heeft geen standaardmanier om ze in te stellen (vakantieantwoorden via Sieve kunnen later komen)"
+msgid "Automatic replies are kept on the mail server: MailCraft sets them for accounts that sign in with Microsoft, and for IMAP accounts whose server keeps Sieve scripts (ManageSieve)"
+msgstr "Automatische antwoorden blijven op de e-mailserver: MailCraft stelt ze in voor accounts die zich aanmelden met Microsoft, en voor IMAP-accounts waarvan de server Sieve-scripts bewaart (ManageSieve)"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are off"
 msgstr "Automatische antwoorden zijn uitgeschakeld"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are on"
 msgstr "Automatische antwoorden zijn ingeschakeld"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies are set for the time range you chose"
 msgstr "Automatische antwoorden zijn ingesteld voor de periode die u hebt gekozen"
@@ -2446,6 +2452,12 @@ msgstr "Automatische antwoorden: MailCraft mag ze wijzigen"
 #, fuzzy
 msgid "Automatic replies: MailCraft needs you to sign in again to read them"
 msgstr "Automatische antwoorden: MailCraft heeft nodig dat u zich opnieuw aanmeldt om ze te lezen"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: MailCraft's Sieve script was changed elsewhere, and is left as it is"
+msgstr "Automatische antwoorden: het Sieve-script van MailCraft is elders gewijzigd en blijft zoals het is"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -2472,7 +2484,7 @@ msgid "Automatic replies: changing them waits for your permission"
 msgstr "Automatische antwoorden: wijzigen wacht op uw toestemming"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: couldn't be read ({why})"
 msgstr "Automatische antwoorden: kon niet worden gelezen ({why})"
@@ -2490,7 +2502,25 @@ msgid "Automatic replies: from {start} to {end}"
 msgstr "Automatische antwoorden: van {start} tot {end}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available ({why})"
+msgstr "Automatische antwoorden: niet beschikbaar ({why})"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server doesn't offer Sieve scripts (ManageSieve)"
+msgstr "Automatische antwoorden: niet beschikbaar, deze server biedt geen Sieve-scripts (ManageSieve)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: not available, this server's Sieve scripts can't send them"
+msgstr "Automatische antwoorden: niet beschikbaar, de Sieve-scripts van deze server kunnen ze niet versturen"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: not read yet"
 msgstr "Automatische antwoorden: nog niet gelezen"
@@ -2508,10 +2538,16 @@ msgid "Automatic replies: on, until you turn them off"
 msgstr "Automatische antwoorden: aan, tot u ze uitschakelt"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Automatic replies: reading…"
 msgstr "Automatische antwoorden: bezig met lezen…"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Automatic replies: the server didn't take your sign-in"
+msgstr "Automatische antwoorden: de server nam uw aanmelding niet aan"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -3245,7 +3281,7 @@ msgid "Changing your automatic replies wasn't allowed ({why}). Press OK to ask a
 msgstr "Het wijzigen van uw automatische antwoorden was niet toegestaan ({why}). Druk op OK om opnieuw te vragen: de pagina van Microsoft opent in uw browser."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Changing your automatic replies…"
 msgstr "Bezig met wijzigen van uw automatische antwoorden…"
@@ -8703,6 +8739,12 @@ msgstr "E-mail, agenda, personen en taken, van de grond af geschreven in Rust. H
 msgid "MailCraft can now keep {account} in step with Microsoft through Microsoft Graph, the way Outlook on the web does, instead of IMAP. Your folders, flags, categories and drafts then match what you see in Outlook, and your mail keeps coming even where your organisation has turned IMAP off."
 msgstr "MailCraft kan {account} nu bijhouden bij Microsoft via Microsoft Graph, zoals Outlook op het web dat doet, in plaats van via IMAP. Uw mappen, markeringen, categorieën en concepten komen dan overeen met wat u in Outlook ziet, en uw e-mail blijft binnenkomen ook waar uw organisatie IMAP heeft uitgeschakeld."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft can't keep automatic replies on this account's server: {why}. {advice}"
+msgstr "MailCraft kan geen automatische antwoorden op de server van dit account bewaren: {why}. {advice}"
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -9000,6 +9042,18 @@ msgstr "MailCraft {version} is niet geïnstalleerd: deze versie is nog steeds de
 #, fuzzy
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "De registratie van MailCraft als Google-bureaubladtoepassing is nog niet geconfigureerd voor deze build."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
+msgstr "Het Sieve-script van MailCraft op de server is sinds MailCraft het schreef elders gewijzigd, dus laat MailCraft het zoals het is. Om uw automatische antwoorden hier in te stellen, vervangt u het door dat van MailCraft: wat er elders in is gewijzigd, gaat verloren."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere."
+msgstr "het Sieve-script van MailCraft op de server is elders gewijzigd."
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
@@ -12977,7 +13031,7 @@ msgid "Reading shared mailboxes needs your permission: use Send/Receive"
 msgstr "Het lezen van gedeelde postvakken vereist uw toestemming: gebruik Verzenden/ontvangen"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Reading the automatic replies stopped unexpectedly"
 msgstr "Het lezen van de automatische antwoorden is onverwacht gestopt"
@@ -13541,6 +13595,12 @@ msgstr "Wat geopend is vervangen door een .mailcraft-bestand"
 #, fuzzy
 msgid "Replace with"
 msgstr "Vervangen door"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "Replace with MailCraft's"
+msgstr "Vervangen door dat van MailCraft"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15577,6 +15637,12 @@ msgid "Sieve scripts are only read from and written to the account's own mail se
 msgstr "Sieve-scripts worden alleen gelezen van en geschreven naar de eigen e-mailserver van het account"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Sieve server (Automatic Replies)"
+msgstr "Sieve-server (automatische antwoorden)"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Sign In"
@@ -15720,7 +15786,7 @@ msgid "Sign in with Microsoft once more to let MailCraft read the folders you ke
 msgstr "Meld u nog een keer aan met Microsoft zodat MailCraft de mappen mag lezen die u in Outlook onder Favorieten bewaart. Ze worden alleen gelezen, nooit gewijzigd, en al het overige blijft zoals het is."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "Meld u eerst aan met Verzenden/ontvangen en wijzig daarna uw automatische antwoorden."
@@ -16922,6 +16988,11 @@ msgstr "De hele reeks"
 msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
 msgstr "De naam en het logo van UCS Labs zijn handelsmerken van UCS Care Group Limited; zie TRADEMARKS.md."
 
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
+msgstr "De Sieve-server is een hostnaam, met een poort na een dubbele punt als die niet 4190 is"
+
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -17593,6 +17664,12 @@ msgid "The incoming mail server isn't a host name (letters, digits, dots and das
 msgstr "De inkomende e-mailserver is geen hostnaam (letters, cijfers, punten en streepjes)"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The incoming server, port 4190"
+msgstr "De inkomende server, poort 4190"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License 1.1). Every icon is drawn in code and is original work. No artwork, fonts or text from other mail programs are included."
@@ -18221,6 +18298,12 @@ msgstr "De server heeft de berichten niet verzonden. Probeer het over een paar m
 #, fuzzy
 msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
 msgstr "De server heeft de wijziging aan {name}{why} niet geaccepteerd: het contact is weer zoals de server het heeft."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
+msgstr "De server nam uw aanmelding niet aan. Controleer het wachtwoord van het account in Accountinstellingen."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18930,6 +19013,12 @@ msgstr "De favorieten van dit account komen uit Outlook en worden daar gewijzigd
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvangen meldt deze eerst aan."
 
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
+msgstr "De server van dit account biedt geen Sieve-scripts (ManageSieve), dus MailCraft kan daar geen automatische antwoorden bewaren."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -19038,7 +19127,7 @@ msgid "This build can't reach the account's server."
 msgstr "Deze build kan de server van het account niet bereiken."
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "Deze build kan de server niet bereiken om automatische antwoorden te wijzigen. Gebruik de desktop-app."
@@ -19736,6 +19825,18 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr "Deze reeks is nog onderweg naar de server van het account. Wijzig een van de dagen zodra deze daar is (zo meteen)."
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server can't send them only during a time range."
+msgstr "Deze server kan ze niet alleen tijdens een periode versturen."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
+msgstr "Deze server bewaart Sieve-scripts, maar die kunnen geen automatische antwoorden versturen (de extensie vacation ontbreekt)."
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "This shared mailbox's account is gone"
@@ -20148,7 +20249,7 @@ msgid "Try Signing In Again"
 msgstr "Opnieuw aanmelden"
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/reading/remote.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Try again"
 msgstr "Opnieuw proberen"
@@ -20934,6 +21035,12 @@ msgid "When opened"
 msgstr "Bij openen"
 
 #. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "When you press OK, MailCraft's Sieve script on the server is replaced with these automatic replies."
+msgstr "Als u op OK drukt, wordt het Sieve-script van MailCraft op de server vervangen door deze automatische antwoorden."
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "When you switch:"
@@ -20968,6 +21075,12 @@ msgstr "Waar de kaart zegt dat de sleutel is: MailCraft haalt hem niet op."
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "Waar ze verschillen, heeft de behouden contactpersoon:"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Where your server keeps Sieve scripts (ManageSieve), if not on the incoming server at port 4190. Your sign-in is sent there."
+msgstr "Waar uw server Sieve-scripts bewaart (ManageSieve), als dat niet op de inkomende server op poort 4190 is. Uw aanmelding wordt daarheen gestuurd."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -21343,11 +21456,23 @@ msgstr "U werkt offline. Schakel Offline werken uit (Verzenden/ontvangen) om ver
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
+msgstr "Op de server draait uw Sieve-script ‘{name}’ in plaats van dat van MailCraft: deze antwoorden worden daar bewaard, maar niet verstuurd zolang het draait. MailCraft zet uw script nooit uit."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
 msgid "Your automatic replies couldn't be read: {error}"
 msgstr "Uw automatische antwoorden konden niet worden gelezen: {error}"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your automatic replies were saved on the server, but another Sieve script of yours runs there, so they aren't sent"
+msgstr "Uw automatische antwoorden zijn op de server opgeslagen, maar daar draait een ander Sieve-script van u, dus ze worden niet verstuurd"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Your automatic replies weren't changed"
 msgstr "Uw automatische antwoorden zijn niet gewijzigd"
@@ -24488,6 +24613,12 @@ msgstr "de server heeft het script niet verstuurd"
 msgid "the server didn't take it ({why})"
 msgstr "de server heeft hem niet geaccepteerd ({why})"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server didn't take your sign-in."
+msgstr "de server nam uw aanmelding niet aan."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -24505,6 +24636,12 @@ msgstr "de server staat niet toe dat deze regel wordt gewijzigd"
 #, fuzzy
 msgid "the server doesn't offer STARTTLS"
 msgstr "de server biedt geen STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "de server biedt geen Sieve-scripts (ManageSieve)."
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
@@ -25711,6 +25848,12 @@ msgstr "{line} · kon in de laatste ronde niet worden gelezen: {folders}"
 #, fuzzy
 msgid "{line} · the server's certificate needs your say"
 msgstr "{line} · het certificaat van de server heeft uw akkoord nodig"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "{line} · your Sieve script \"{name}\" runs instead"
+msgstr "{line} · in plaats daarvan draait uw Sieve-script ‘{name}’"
 
 #. date and time
 #: crates/i18n/src/date.rs
@@ -27456,6 +27599,9 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "contact"
 #~ msgstr "contact"
+
+#~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
+#~ msgstr "Automatische antwoorden blijven op de e-mailserver, en MailCraft kan ze tot nu toe alleen instellen voor accounts die zich aanmelden met Microsoft: IMAP heeft geen standaardmanier om ze in te stellen (vakantieantwoorden via Sieve kunnen later komen)"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

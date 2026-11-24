@@ -472,6 +472,9 @@ pub struct AccountSetup {
     /// The outgoing server takes mail without a sign-in (a relay, #836): it is never shown the
     /// password. Only for an account that signs in with one.
     outgoing_without_sign_in: bool,
+    /// Account Settings of an IMAP account: the ManageSieve server its Automatic Replies are kept
+    /// on, as `host` or `host:port`; empty: the incoming server's host, port 4190 (#9999).
+    sieve_server: String,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
@@ -630,6 +633,7 @@ impl AccountSetup {
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
             outgoing_without_sign_in: false,
+            sieve_server: String::new(),
             settings_open: false,
             guessed: false,
             found: None,
@@ -729,6 +733,12 @@ impl AccountSetup {
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
         w.outgoing_without_sign_in = a.outgoing_without_sign_in;
+        w.sieve_server = match (a.sieve_host.as_str(), a.sieve_port) {
+            ("", 0) => String::new(),
+            (host, 0) => line(host, LINE),
+            ("", port) => format!("{}:{port}", a.incoming.as_ref().map(|s| s.host.trim()).unwrap_or_default()),
+            (host, port) => format!("{}:{port}", line(host, LINE)),
+        };
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -915,6 +925,17 @@ impl AccountSetup {
         } else if self.outgoing.value().is_some() {
             m.insert("outgoingWithoutSignIn".into(), json!(self.outgoing_without_sign_in));
         }
+        // (Account Settings alone: its baseline is taken on that page, before `edit` is set.)
+        if self.edit.is_some() || self.page == Page::Settings {
+            m.insert(
+                "sieve".into(),
+                match sieve_server(&self.sieve_server) {
+                    Some((host, 0)) if host.is_empty() => Value::Null,
+                    Some((host, port)) => json!({"host": host, "port": port}),
+                    None => json!({"host": self.sieve_server.trim()}),
+                },
+            );
+        }
         m
     }
 
@@ -934,6 +955,9 @@ impl AccountSetup {
         }
         if incoming.port().is_none() || outgoing.port().is_none() {
             return Some(tl!("A port is a number from 1 to 65535").to_string());
+        }
+        if self.edit.is_some() && sieve_server(&self.sieve_server).is_none() {
+            return Some(tl!("The Sieve server is a host name, with a port after a colon if it isn't 4190").to_string());
         }
         if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
             return Some(
@@ -2631,7 +2655,28 @@ impl AccountSetup {
                 );
             }
         }
+        // Where an existing account's Automatic Replies are kept, when its server keeps Sieve
+        // scripts somewhere other than its IMAP host on port 4190 (#9999). The account's sign-in
+        // goes there: the owner names it here, nobody else.
+        if self.edit.is_some() {
+            field(ui, pass, "sieve", tl!("Sieve server (Automatic Replies)"), &mut self.sieve_server, tl!("The incoming server, port 4190"), LINE)
+                .on_hover_text(tl!(
+                    "Where your server keeps Sieve scripts (ManageSieve), if not on the incoming server at port 4190. Your sign-in is sent there."
+                ));
+        }
     }
+}
+
+/// A ManageSieve server as Account Settings takes it: `host`, `host:port` or `[v6]:port`, or empty
+/// for the incoming server's; the host and the port (0: 4190), or `None` when it can't be used.
+fn sieve_server(text: &str) -> Option<(String, u16)> {
+    let text = text.trim();
+    let (host, port) = match text.rsplit_once(':') {
+        Some((host, port)) if !host.contains(':') || host.ends_with(']') => (host, port.parse::<u16>().ok().filter(|p| *p > 0)?),
+        _ => (text, 0),
+    };
+    let usable = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ':' | '[' | ']');
+    (host.len() <= 253 && host.chars().all(usable)).then(|| (host.to_string(), port))
 }
 
 /// Where a password that works is kept, for the line under its field.
@@ -2920,6 +2965,8 @@ mod tests {
     mod relay_without_sign_in;
     /// The password's eye (#438).
     mod reveal;
+    /// The ManageSieve server of an IMAP account's Automatic Replies (#9999).
+    mod sieve_server;
     /// An address at a domain nobody here knows (#761).
     mod unknown_domain;
 
