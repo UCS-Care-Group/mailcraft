@@ -360,9 +360,11 @@ fn undo_reserves_file_slots_and_restored_preferences_keep_the_other_links() {
 
 #[test]
 fn manual_insertion_reports_the_file_error_when_no_fallback_can_be_inserted() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing-signature.txt");
     let (mut app, account) = app();
     app.execute("signature.set", json!({"name":"Usual","text":""})).unwrap();
-    app.execute("ui.signatureFile", json!({"name":"Usual","enabled":true,"path":"/nonexistent-signature.txt"})).unwrap();
+    app.execute("ui.signatureFile", json!({"name":"Usual","enabled":true,"path":missing})).unwrap();
     compose_text(&mut app, account);
     let before = app.session.compose.as_ref().unwrap().clone();
     let error = app.execute("compose.signature", json!({"name":"Usual"})).unwrap_err();
@@ -373,6 +375,8 @@ fn manual_insertion_reports_the_file_error_when_no_fallback_can_be_inserted() {
 #[test]
 fn picker_completion_displays_validation_failures_on_the_signature_page() {
     use std::sync::mpsc::channel;
+    let dir = tempfile::tempdir().unwrap();
+    let picked = dir.path().join("signature.txt");
     for stale in [false, true] {
         let (mut app, _) = app();
         let (tx, rx) = channel();
@@ -380,14 +384,15 @@ fn picker_completion_displays_validation_failures_on_the_signature_page() {
         app.services.file_dialog = Some(Box::new(move |_| rx.borrow_mut().take().unwrap()));
         app.execute("ui.chooseSignatureFile", json!({"name":"Usual"})).unwrap();
         if stale {
-            app.session.path = Some("/another.mailcraft".into());
+            app.session.path = Some(dir.path().join("another.mailcraft"));
         } else {
             for n in 0..200 {
                 app.ui.signature_files.insert(format!("other-{n}"), Setting::default());
             }
         }
-        tx.send(Some(vec!["/signature.txt".into()])).unwrap();
+        tx.send(Some(vec![picked.to_str().unwrap().into()])).unwrap();
         let error = files::poll(&mut app).unwrap().unwrap_err();
+        assert!(if stale { error.contains("signature changed") } else { error.contains("too many signature file settings") }, "{error}");
         let note = app.signature_note.as_ref().unwrap();
         assert!(note.error);
         assert_eq!(note.text, error);
