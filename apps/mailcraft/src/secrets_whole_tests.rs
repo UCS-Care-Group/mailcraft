@@ -27,6 +27,11 @@ struct Asked {
     deletes: Vec<String>,
     /// When set, every read fails as a locked keychain does.
     locked: bool,
+    /// When set, every removal of an item that is there fails as a locked keychain does.
+    stuck: bool,
+    /// Done once, just after the item of this name is read (another thread's write or delete
+    /// landing in the middle of a read).
+    on_read: Option<(String, Box<dyn FnOnce() + Send>)>,
 }
 
 struct Counting {
@@ -62,10 +67,27 @@ impl CredentialApi for Counted {
         if got.is_ok() {
             self.asked.lock().unwrap().reads.push(self.user.clone());
         }
+        // (Taken out first: what it does goes through the store, and so through these counts.)
+        let hook = {
+            let mut asked = self.asked.lock().unwrap();
+            match asked.on_read.take() {
+                Some((name, hook)) if name == self.user => Some(hook),
+                other => {
+                    asked.on_read = other;
+                    None
+                }
+            }
+        };
+        if let Some(hook) = hook {
+            hook();
+        }
         got
     }
 
     fn delete_credential(&self) -> keyring_core::Result<()> {
+        if self.asked.lock().unwrap().stuck && self.there() {
+            return Err(Error::NoStorageAccess(Box::new(std::io::Error::other("locked"))));
+        }
         let done = self.entry.delete_credential();
         if done.is_ok() {
             self.asked.lock().unwrap().deletes.push(self.user.clone());
@@ -260,4 +282,85 @@ fn nothing_kept_is_nothing_and_no_trouble() {
     assert_eq!(store.get("password:nobody@example.org"), None);
     assert_eq!(store.take_trouble(), None);
     assert!(asked.lock().unwrap().reads.is_empty());
+}
+
+/// Leftover pieces the keychain wouldn't remove (locked at that moment) are removed with a later
+/// write, not noted as gone and left behind.
+#[test]
+fn pieces_that_couldnt_be_removed_are_tried_again_with_the_next_write() {
+    let (store, mock, asked) = backend();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token-piece");
+
+    asked.lock().unwrap().stuck = true;
+    // The new token is kept; only the old piece couldn't go yet.
+    store.set(key, "new-one").unwrap();
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("new-one"));
+    assert_eq!(there(&mock, &format!("{key}#0")).as_deref(), Some("old-token-piece"));
+    assert_eq!(store.take_trouble(), Some(StoreTrouble::Locked));
+
+    asked.lock().unwrap().stuck = false;
+    store.set(key, "new-two").unwrap();
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("new-two"));
+    for part in ["n", "0"] {
+        assert_eq!(there(&mock, &format!("{key}#{part}")), None, "piece #{part} removed");
+    }
+}
+
+/// A store kept whole, shared as the window's thread and the background read share it, with a
+/// counting mock under it.
+fn shared() -> (Arc<OsStore>, Arc<CredentialStore>, Arc<Mutex<Asked>>) {
+    let (store, mock, asked) = backend();
+    (Arc::new(store), mock, asked)
+}
+
+/// The owner removes the account while the background read is moving its sign-in out of the old
+/// pieces: the old token is not written back afterwards.
+#[test]
+fn a_delete_during_the_move_out_of_pieces_is_not_undone() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token");
+    let deleter = Arc::downgrade(&store);
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = deleter.upgrade() {
+                store.delete("refresh:one@example.org|graph");
+            }
+        }),
+    ));
+
+    // (What the read found is handed back to the read that asked; it is the window's business
+    // to drop it for an account that has gone.)
+    assert_eq!(store.get(key).as_deref(), Some("old-token"));
+    for part in [WHOLE, "n", "0"] {
+        assert_eq!(there(&mock, &format!("{key}#{part}")), None, "#{part} stays removed");
+    }
+    assert_eq!(store.get(key), None);
+}
+
+/// A new token written while the background read moves the old one out of its pieces stays: the
+/// old one doesn't go over it.
+#[test]
+fn a_write_during_the_move_out_of_pieces_is_not_overwritten() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token");
+    let writer = Arc::downgrade(&store);
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = writer.upgrade() {
+                store.set("refresh:one@example.org|graph", "newer-token").unwrap();
+            }
+        }),
+    ));
+
+    let _ = store.get(key);
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("newer-token"));
+    assert_eq!(store.get(key).as_deref(), Some("newer-token"));
 }

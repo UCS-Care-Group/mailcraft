@@ -127,6 +127,12 @@ mod os {
         /// so that writing a secret again (a refresh token, after each refresh) doesn't remove
         /// them again.
         cleared: Mutex<HashSet<String>>,
+        /// Kept whole: how many writes and deletes have been made through this store. Held while
+        /// one is made, so that moving a secret out of its old pieces (read on the background
+        /// thread, with no lock held while the keychain may ask) writes only if no write or
+        /// delete came in since it read them: never over a newer secret, nor bringing back one
+        /// the owner removed.
+        writes: Mutex<u64>,
     }
 
     impl Default for OsStore {
@@ -144,7 +150,7 @@ mod os {
 
         /// [`with`](Self::with), laid out as `layout` says (tests try both on any system).
         pub(super) fn with_layout(connect: Connect, layout: Layout) -> Self {
-            Self { trouble: Mutex::new(None), store: Mutex::new(None), connect, layout, cleared: Mutex::new(HashSet::new()) }
+            Self { trouble: Mutex::new(None), store: Mutex::new(None), connect, layout, cleared: Mutex::new(HashSet::new()), writes: Mutex::new(0) }
         }
 
         /// Remember why the store couldn't be used, when that is what `e` says.
@@ -188,13 +194,23 @@ mod os {
         }
 
         /// Remove one item, without reading it (reading is what the macOS keychain asks the
-        /// owner about). Nothing there is what removing wants anyway.
-        fn remove_part(&self, key: &str, part: &str) {
-            if let Some(e) = self.entry(key, part)
-                && let Err(err) = e.delete_credential()
-            {
-                self.note(&err);
+        /// owner about). Gives whether it is gone: removed, or not there, which is what removing
+        /// wants anyway.
+        fn remove_part(&self, key: &str, part: &str) -> bool {
+            let Some(e) = self.entry(key, part) else { return false };
+            match e.delete_credential() {
+                Ok(()) | Err(Error::NoEntry) => true,
+                Err(err) => {
+                    self.note(&err);
+                    false
+                }
             }
+        }
+
+        /// The count of writes and deletes, held: a poisoned lock still counts (nothing kept
+        /// under it can be left half made).
+        fn writing(&self) -> std::sync::MutexGuard<'_, u64> {
+            self.writes.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
         }
 
         // ---- In pieces (Windows, Linux, FreeBSD, and what earlier versions left on macOS). ----
@@ -242,7 +258,7 @@ mod os {
                 None => 0,
             };
             for part in (0..pieces).map(|i| i.to_string()).chain(["n".to_string()]) {
-                self.remove_part(key, &part);
+                let _ = self.remove_part(key, &part);
             }
         }
 
@@ -263,12 +279,16 @@ mod os {
         }
 
         /// Remove every piece an earlier version may have left under `key`, reading none of them
-        /// (a missing one is not asked about; a present one is removed, not read).
+        /// (a missing one is not asked about; a present one is removed, not read). Noted as done
+        /// only when every one is gone: a piece the store wouldn't remove is tried again with the
+        /// next write.
         fn clear_pieces_unread(&self, key: &str) {
+            let mut all_gone = true;
             for part in (0..MAX_PIECES).map(|i| i.to_string()).chain(["n".to_string()]) {
-                self.remove_part(key, &part);
+                all_gone &= self.remove_part(key, &part);
             }
-            if let Ok(mut cleared) = self.cleared.lock()
+            if all_gone
+                && let Ok(mut cleared) = self.cleared.lock()
                 && cleared.len() < CLEARED
             {
                 cleared.insert(key.to_string());
@@ -286,11 +306,20 @@ mod os {
                 // Not kept whole: perhaps in pieces, by an earlier version. Moved into one item,
                 // so that the next start asks about one item, not about each piece.
                 Ok(None) => {
+                    let before = *self.writing();
                     let secret = self.get_pieces(key)?;
+                    let writes = self.writing();
+                    // A write or delete came in while the pieces were read: it may be a newer
+                    // secret, or the owner removing this one. What it left stands; the pieces, if
+                    // any are left, are moved another time.
+                    if *writes != before {
+                        return Some(secret);
+                    }
                     if let Err(e) = self.set_whole(key, &secret) {
                         // (Kept as it was: the pieces stay until a write succeeds.)
                         log::warn!("couldn't move a remembered sign-in into one keychain item: {e}");
                     }
+                    drop(writes);
                     Some(secret)
                 }
             }
@@ -304,11 +333,11 @@ mod os {
             // Removed first, then added: writing over an item that is there reads it first,
             // and reading an item an earlier build made asks the owner for the keychain
             // password. A new item trusts this build, so reading it later asks nothing.
-            self.remove_part(key, WHOLE);
+            let _ = self.remove_part(key, WHOLE);
             if let Err(e) = self.build(key, WHOLE).and_then(|entry| entry.set_password(secret)) {
                 // Platform errors may echo the attempted secret, so never return their words.
                 self.note(&e);
-                self.remove_part(key, WHOLE);
+                let _ = self.remove_part(key, WHOLE);
                 return Err(SecretError::Refused);
             }
             // The secret is safe in one item: what an earlier version left in pieces goes, once.
@@ -319,7 +348,7 @@ mod os {
         }
 
         fn delete_whole(&self, key: &str) {
-            self.remove_part(key, WHOLE);
+            let _ = self.remove_part(key, WHOLE);
             self.clear_pieces_unread(key);
         }
     }
@@ -339,14 +368,22 @@ mod os {
             }
             match self.layout {
                 Layout::Pieces => self.set_pieces(key, secret),
-                Layout::Whole => self.set_whole(key, secret),
+                Layout::Whole => {
+                    let mut writes = self.writing();
+                    *writes = writes.wrapping_add(1);
+                    self.set_whole(key, secret)
+                }
             }
         }
 
         fn delete(&self, key: &str) {
             match self.layout {
                 Layout::Pieces => self.delete_pieces(key),
-                Layout::Whole => self.delete_whole(key),
+                Layout::Whole => {
+                    let mut writes = self.writing();
+                    *writes = writes.wrapping_add(1);
+                    self.delete_whole(key);
+                }
             }
         }
 
