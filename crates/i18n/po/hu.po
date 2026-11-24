@@ -16152,6 +16152,12 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "Oldalsó"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "Elküldendő Sieve-szkript"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -23350,6 +23356,18 @@ msgstr "a következő kapcsolatnál a kiszolgálóhoz kerül"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "van egy része, amelyet a MailCraft nem tud Sieve-ben megírni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "nincsenek feltételei, és a szerveren minden üzenetre hatna"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "kétféle feltétel van, és a szerver mindkettő helyett mindkettőt elvenné."
 
@@ -23454,6 +23472,12 @@ msgstr "a saját fiókja"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "A neve nem olyan, amivel egy tanúsítvány ellen lehet ellenőrizni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "a méretei nagyobbak, mint amit a szerver elfogad"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -24494,6 +24518,12 @@ msgstr "a(z) {at} ManageSieve-kiszolgálója nem kínál STARTTLS-t"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "A OpenPGP kulcs nagyobb, mint egy nyilvános kulcs."
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "a fióknak nincs címe, amelyet keresni lehetne"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -24529,6 +24559,12 @@ msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e
 #, fuzzy
 msgid "the account is gone"
 msgstr "a fiók már nincs meg"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "a fiók Törölt elemek mappája nincs a szerveren"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -25423,6 +25459,72 @@ msgstr "a szerver túl sokáig tartott, hogy válaszoljon"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "a kiszolgáló nem adta át a teljes „{subject}” üzenetet, ezért az nem továbbítható mellékletként"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "a szerver Sieve-szkriptjei nem tudnak végrehajtani egyik műveletét vagy feltételét"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "a szerver Sieve-szkriptjei nem tudnak egy napra megjelölni a leveleket"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "a szerver Sieve-szkriptjei nem tudnak mellékleteket vizsgálni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "a szerver Sieve-szkriptjei nem tudnak kategóriákat vizsgálni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "a szerver Sieve-szkriptjei nem tudnak fontosságot vizsgálni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "a szerver Sieve-szkriptjei nem tudnak bizalmasságot vizsgálni"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "a szerver Sieve-szkriptjei nem tudnak kategóriákat beállítani"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "a szerver Sieve-szkriptjei nem tudnak fontosságot beállítani"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "a szerver Sieve-szkriptjei nem tudnak felismerni az automatikus válaszokat"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "a szerver Sieve-szkriptjei nem tudnak felismerni a csak Önnek küldött leveleket"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "a szerver Sieve-szkriptjei nem tudnak felismerni a értekezlet-meghívásokat"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs

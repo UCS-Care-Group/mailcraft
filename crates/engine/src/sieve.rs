@@ -79,6 +79,12 @@ pub fn quoted(text: &str) -> String {
     out
 }
 
+/// A string list (`["a", "b"]`) of values, each one [`quoted`].
+pub fn list<S: AsRef<str>>(items: &[S]) -> String {
+    let items: Vec<String> = items.iter().map(|i| quoted(i.as_ref())).collect();
+    format!("[{}]", items.join(", "))
+}
+
 /// What [`quoted`] makes of a value, as the reader gives it back: line breaks as `\n` (the
 /// reader's own), the control characters it leaves out gone.
 pub fn as_written(text: &str) -> String {
@@ -243,19 +249,58 @@ fn utc(at: Timestamp) -> String {
     DateTime::from_timestamp(at, 0).iso()
 }
 
-/// The script for `vacation` on `owner`'s account. The extensions it needs are the caller's to
-/// check: `vacation`, and `date` and `relational` for a time range.
+/// A rule of the owner's as one block of the script ([`crate::cmd::sieve_rules`]): its id (said
+/// in a comment above it), its Sieve, and the extensions it needs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuleScript {
+    pub id: mailcraft_model::Id,
+    pub text: String,
+    pub requires: Vec<&'static str>,
+}
+
+/// The extensions a script MailCraft writes may need, in the order its `require` names them.
+pub const EXTENSIONS: [&str; 7] = ["vacation", "date", "relational", "fileinto", "copy", "imap4flags", "body"];
+
+/// The script for `vacation` on `owner`'s account, without rules.
 pub fn vacation_script(vacation: &Vacation, owner: &Owner) -> String {
+    script(vacation, owner, &[])
+}
+
+/// MailCraft's whole script: the Automatic Replies first, so that no rule's `stop` can keep a
+/// reply from going (as in Outlook, where rules don't stop the out-of-office reply), then the
+/// rules in their order. One writer for all of it: a change of the replies keeps the rules, and a
+/// change of a rule keeps the replies. The extensions it needs are the caller's to check.
+pub fn script(vacation: &Vacation, owner: &Owner, rules: &[RuleScript]) -> String {
     let mut out = format!("{HEADER}\r\n");
     let scheduled = vacation.status == AutoReplyStatus::Scheduled && vacation.start.is_some() && vacation.end.is_some();
-    match vacation.status {
-        AutoReplyStatus::Disabled => {
-            out.push_str("# Automatic replies are off.\r\nkeep;\r\n");
-            return out;
-        }
-        _ if scheduled => out.push_str("require [\"vacation\", \"date\", \"relational\"];\r\n"),
-        _ => out.push_str("require [\"vacation\"];\r\n"),
+    let replies = vacation.status != AutoReplyStatus::Disabled;
+    let needed: Vec<&str> = EXTENSIONS
+        .into_iter()
+        .filter(|e| match *e {
+            "vacation" => replies,
+            "date" | "relational" => replies && scheduled,
+            other => rules.iter().any(|r| r.requires.contains(&other)),
+        })
+        .collect();
+    if !needed.is_empty() {
+        let names: Vec<String> = needed.iter().map(|e| quoted(e)).collect();
+        out.push_str(&format!("require [{}];\r\n", names.join(", ")));
     }
+    if replies {
+        out.push_str(&vacation_section(vacation, owner, scheduled));
+    } else {
+        out.push_str("# Automatic replies are off.\r\n");
+    }
+    for rule in rules {
+        out.push_str(&format!("# rule {}\r\n", rule.id));
+        out.push_str(&rule.text);
+    }
+    out
+}
+
+/// The replies, to go first in the script.
+fn vacation_section(vacation: &Vacation, owner: &Owner, scheduled: bool) -> String {
+    let mut out = String::new();
     let addresses: Vec<String> = owner.addresses.iter().map(|a| quoted(a)).collect();
     let reply = |handle: &str, text: &str| {
         format!("vacation :days {DAYS} :addresses [{}] :handle {} {};\r\n", addresses.join(", "), quoted(handle), quoted(text))

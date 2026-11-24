@@ -16206,6 +16206,12 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "Unul lângă altul"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "Script Sieve de trimis"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -23435,6 +23441,18 @@ msgstr "ajunge pe server la următoarea conectare"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "are o parte pe care MailCraft nu o poate scrie în Sieve"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "nu are condiții, iar pe server ar acționa asupra fiecărui mesaj"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "are două condiții de același tip, iar serverul ar accepta oricare dintre ele, nu pe amândouă"
 
@@ -23539,6 +23557,12 @@ msgstr "contul său"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "numele lui nu este unul cu care se poate verifica un certificat"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "dimensiunile ei depășesc ce acceptă serverul"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -24579,6 +24603,12 @@ msgstr "serverul ManageSieve de la {at} nu oferă STARTTLS"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "cheia OpenPGP este mai mare decât se păstrează o cheie publică"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "contul nu are o adresă de căutat"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -24614,6 +24644,12 @@ msgstr "contul nu are nume de utilizator sau adresă de e-mail cu care să se co
 #, fuzzy
 msgid "the account is gone"
 msgstr "contul nu mai există"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "Elementele șterse ale contului nu sunt pe server"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -25508,6 +25544,72 @@ msgstr "serverul a răspuns prea greu"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "serverul nu a vrut să trimită „{subject}” întreg, deci nu poate fi redirecționat ca atașament"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "scripturile Sieve ale serverului nu pot face una dintre acțiunile sau condițiile ei"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "scripturile Sieve ale serverului nu pot semnaliza mesajele pentru o zi"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "scripturile Sieve ale serverului nu pot verifica atașările"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "scripturile Sieve ale serverului nu pot verifica categoriile"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "scripturile Sieve ale serverului nu pot verifica importanța"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "scripturile Sieve ale serverului nu pot verifica confidențialitatea"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "scripturile Sieve ale serverului nu pot seta categorii"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "scripturile Sieve ale serverului nu pot seta importanța"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "scripturile Sieve ale serverului nu pot recunoaște răspunsurile automate"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "scripturile Sieve ale serverului nu pot recunoaște mesajele trimise doar dvs."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "scripturile Sieve ale serverului nu pot recunoaște invitațiile la întâlniri"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs

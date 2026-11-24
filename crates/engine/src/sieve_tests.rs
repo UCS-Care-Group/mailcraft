@@ -73,7 +73,8 @@ fn nobody_outside_gets_no_reply_outside() {
 fn replies_off_keep_mail_and_send_nothing() {
     let vacation = Vacation { status: AutoReplyStatus::Disabled, ..on("in", "out") };
     let script = vacation_script(&vacation, &owner());
-    assert!(!script.contains("vacation ") && script.ends_with("keep;\r\n"), "{script}");
+    // (No explicit `keep`: a rule after it that files mail away would leave a copy in the Inbox.)
+    assert!(!script.contains("vacation ") && !script.contains("keep;") && !script.contains("require"), "{script}");
     assert_eq!(read_vacation(&script).map(|v| v.status), Some(AutoReplyStatus::Disabled));
 }
 

@@ -16184,6 +16184,12 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "Vedle sebe"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "Skript Sieve k odeslání"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -23410,6 +23416,18 @@ msgstr "odejde na server při dalším připojení"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "má část, kterou MailCraft neumí zapsat v Sieve"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "nemá žádné podmínky a na serveru by působila na každou zprávu"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "má dvě podmínky jednoho druhu a server by přijal kteroukoli z nich, ne obě"
 
@@ -23514,6 +23532,12 @@ msgstr "jeho účet"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "jeho název není takový, vůči kterému lze certifikát ověřit"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "její velikosti jsou větší, než server přijme"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -24554,6 +24578,12 @@ msgstr "server ManageSieve na {at} nenabízí STARTTLS"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "klíč OpenPGP je větší, než jaký se uchovává jako veřejný klíč"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "účet nemá adresu, kterou by šlo hledat"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -24589,6 +24619,12 @@ msgstr "účet nemá uživatelské jméno ani e-mailovou adresu k přihlášení
 #, fuzzy
 msgid "the account is gone"
 msgstr "účet už neexistuje"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "složka Odstraněná pošta účtu není na serveru"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -25483,6 +25519,72 @@ msgstr "server odpovídal příliš dlouho"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "server odmítl poslat „{subject}“ celou, takže ji nelze přeposlat jako přílohu"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "skripty Sieve na serveru neumějí provést jednu z jejích akcí nebo podmínek"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "skripty Sieve na serveru neumějí označit poštu na určitý den"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "skripty Sieve na serveru neumějí zjišťovat přílohy"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "skripty Sieve na serveru neumějí zjišťovat kategorie"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "skripty Sieve na serveru neumějí zjišťovat důležitost"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "skripty Sieve na serveru neumějí zjišťovat citlivost"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "skripty Sieve na serveru neumějí nastavovat kategorie"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "skripty Sieve na serveru neumějí nastavovat důležitost"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "skripty Sieve na serveru neumějí rozpoznat automatické odpovědi"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "skripty Sieve na serveru neumějí rozpoznat poštu odeslanou jen vám"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "skripty Sieve na serveru neumějí rozpoznat pozvánky na schůzky"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs

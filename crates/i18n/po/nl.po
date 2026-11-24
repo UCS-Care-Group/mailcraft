@@ -15630,6 +15630,12 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "Naast elkaar"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "Te verzenden Sieve-script"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -22747,6 +22753,18 @@ msgstr "hij gaat bij de volgende verbinding naar de server"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "ze heeft een deel dat MailCraft niet als Sieve kan schrijven"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "ze heeft geen voorwaarden en zou op de server op elk bericht werken"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "hij heeft twee voorwaarden van dezelfde soort, en de server zou een van beide accepteren in plaats van allebei"
 
@@ -22850,6 +22868,12 @@ msgstr "het eigen account"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "de naam is er geen waartegen een certificaat kan worden gecontroleerd"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "de groottes zijn groter dan de server aanneemt"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -23892,6 +23916,12 @@ msgstr "de ManageSieve-server op {at} biedt geen STARTTLS aan"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "de OpenPGP-sleutel is groter dan een openbare sleutel mag zijn om bewaard te worden"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "het account heeft geen adres om naar te zoeken"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -23927,6 +23957,12 @@ msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melde
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "de Verwijderde items van het account staan niet op de server"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24815,6 +24851,72 @@ msgstr "de server deed er te lang over om te antwoorden"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "de server wilde „{subject}” niet heel verzenden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "de Sieve-scripts van de server kunnen een van de acties of voorwaarden niet uitvoeren"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "de Sieve-scripts van de server kunnen e-mail niet voor een dag markeren"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "de Sieve-scripts van de server kunnen bijlagen niet bekijken"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "de Sieve-scripts van de server kunnen categorieën niet bekijken"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "de Sieve-scripts van de server kunnen urgentie niet bekijken"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "de Sieve-scripts van de server kunnen vertrouwelijkheid niet bekijken"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "de Sieve-scripts van de server kunnen geen categorieën instellen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "de Sieve-scripts van de server kunnen geen urgentie instellen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "de Sieve-scripts van de server kunnen automatische antwoorden niet herkennen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "de Sieve-scripts van de server kunnen e-mail die alleen aan u is gestuurd niet herkennen"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "de Sieve-scripts van de server kunnen vergaderverzoeken niet herkennen"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs

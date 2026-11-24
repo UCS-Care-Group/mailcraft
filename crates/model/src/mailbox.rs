@@ -603,9 +603,28 @@ pub struct Account {
     /// Its port; 0: ManageSieve's own, 4190.
     #[serde(skip_serializing_if = "crate::is_zero_u16", deserialize_with = "crate::sync::lenient_or_default")]
     pub sieve_port: u16,
+    /// What the account's ManageSieve server last said its scripts may use (`vacation`,
+    /// `fileinto`, …), lower-cased; empty while it never said, or has no ManageSieve (#9999).
+    /// Kept so that which of the owner's rules its server can keep is known before it is asked
+    /// again ([`Mailbox::keeps_sieve_rules`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub sieve_offers: Vec<String>,
 }
 
 impl Account {
+    /// Whether the account's Automatic Replies and rules may be kept in a Sieve script on its
+    /// server (#9999): an IMAP account of its own (not a shared mailbox) that doesn't sign in with
+    /// Microsoft or Google, whose servers keep none.
+    pub fn keeps_sieve(&self) -> bool {
+        let big = self.oauth.as_ref().is_some_and(|o| matches!(o.provider, OAuthProvider::Microsoft | OAuthProvider::Google));
+        self.kind == AccountKind::Imap && self.incoming.is_some() && !self.is_shared() && !big
+    }
+
+    /// Whether its ManageSieve server last said its scripts may use `extension`.
+    pub fn sieve_offers(&self, extension: &str) -> bool {
+        self.sieve_offers.iter().any(|e| e.eq_ignore_ascii_case(extension))
+    }
+
     /// The digest of the Sieve script MailCraft last wrote on the account's server
     /// ([`Account::sieve_written`]), when it is one.
     pub fn sieve_digest(&self) -> Option<&str> {
@@ -3349,6 +3368,12 @@ impl Mailbox {
     /// through Graph, not a shared mailbox (whose mail the rules leave alone).
     pub fn keeps_rules(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// Whether `account`'s rules may be kept in MailCraft's Sieve script on its server (#9999):
+    /// an IMAP account whose ManageSieve server said its scripts may file mail into folders.
+    pub fn keeps_sieve_rules(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| a.keeps_sieve() && a.sieve_offers("fileinto"))
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one

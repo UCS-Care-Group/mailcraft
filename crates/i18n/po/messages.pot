@@ -13401,6 +13401,11 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+msgid "Sieve Script to Send"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 msgid "Sieve scripts are only read from and written to the account's own mail server"
@@ -19390,6 +19395,16 @@ msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr ""
 
@@ -19476,6 +19491,11 @@ msgstr ""
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 msgid "its name isn't one a certificate can be checked against"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "its sizes are larger than the server takes"
 msgstr ""
 
 #. interface
@@ -20347,6 +20367,11 @@ msgstr ""
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr ""
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the account has no address to look for"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 msgid "the account has no incoming server"
@@ -20375,6 +20400,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 msgid "the account is gone"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the account's Deleted Items isn't on the server"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -21120,6 +21150,61 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't look at categories"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't look at importance"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't set categories"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't set importance"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "the server's Sieve scripts can't tell meeting invitations"
 msgstr ""
 
 #. why a mail server couldn't be used

@@ -88,6 +88,39 @@ pub enum NotOnServer {
     /// Two exceptions of one kind that look for other things (two importances, say): the server
     /// takes one of each kind.
     TwoExceptionsOfAKind,
+    // What an IMAP account's Sieve script can't say as the rule means it (#9999).
+    /// It looks at attachments.
+    Attachments,
+    /// It looks at importance.
+    Importance,
+    /// It looks at sensitivity.
+    Sensitivity,
+    /// It looks at categories.
+    Categories,
+    /// It looks for meeting invitations.
+    MeetingRequest,
+    /// It looks for automatic replies.
+    AutomaticReply,
+    /// It looks for mail sent to the owner alone.
+    OnlyToMe,
+    /// It looks for the owner's address, and the account has none.
+    NoAddress,
+    /// Its sizes are beyond what can be said.
+    Size,
+    /// It has no conditions: on the server it would act on every message.
+    NoConditions,
+    /// It flags mail for a day.
+    FlagDue,
+    /// It sets a category.
+    Categorize,
+    /// It sets importance.
+    SetImportance,
+    /// It deletes, and the account's Deleted Items isn't on the server.
+    NoDeletedItems,
+    /// It needs something the server's Sieve scripts can't use.
+    Extension,
+    /// It has a part this version doesn't know.
+    Unknown,
 }
 
 impl NotOnServer {
@@ -114,12 +147,35 @@ impl NotOnServer {
             NotOnServer::Flagged => "the server can't look at whether you flagged mail",
             NotOnServer::Alert => "the server can't show a desktop alert",
             NotOnServer::TwoExceptionsOfAKind => "it has two exceptions of one kind that look for different things, and the server takes one",
+            NotOnServer::Attachments => "the server's Sieve scripts can't look at attachments",
+            NotOnServer::Importance => "the server's Sieve scripts can't look at importance",
+            NotOnServer::Sensitivity => "the server's Sieve scripts can't look at sensitivity",
+            NotOnServer::Categories => "the server's Sieve scripts can't look at categories",
+            NotOnServer::MeetingRequest => "the server's Sieve scripts can't tell meeting invitations",
+            NotOnServer::AutomaticReply => "the server's Sieve scripts can't tell automatic replies",
+            NotOnServer::OnlyToMe => "the server's Sieve scripts can't tell mail sent to you alone",
+            NotOnServer::NoAddress => "the account has no address to look for",
+            NotOnServer::Size => "its sizes are larger than the server takes",
+            NotOnServer::NoConditions => "it has no conditions, and on the server it would act on every message",
+            NotOnServer::FlagDue => "the server's Sieve scripts can't flag mail for a day",
+            NotOnServer::Categorize => "the server's Sieve scripts can't set categories",
+            NotOnServer::SetImportance => "the server's Sieve scripts can't set importance",
+            NotOnServer::NoDeletedItems => "the account's Deleted Items isn't on the server",
+            NotOnServer::Extension => "the server's Sieve scripts can't do one of its actions or conditions",
+            NotOnServer::Unknown => "it has a part MailCraft can't write as Sieve",
         }
     }
 }
 
 /// Why `rule` can't be kept on the server of `account`, or `None` when it can.
 pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServer> {
+    // An IMAP account's rules are blocks of MailCraft's Sieve script on its server (#9999).
+    if mb.account(account).is_some_and(mailcraft_model::Account::keeps_sieve) {
+        if !mb.keeps_sieve_rules(account) {
+            return Some(NotOnServer::NoServer);
+        }
+        return super::sieve_rules::cannot(mb, rule, account);
+    }
     if !mb.keeps_rules(account) {
         let imap = mb.account(account).is_some_and(|a| a.on_imap_with_microsoft() && !a.is_shared());
         return Some(if imap { NotOnServer::NotInStep } else { NotOnServer::NoServer });
@@ -529,7 +585,8 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     // The server is told at the next look; until then, a download that still has it doesn't bring
     // it back. One the server was making, with no answer, is looked for by what it is.
     if s.mailbox.rule_gone.len() < mailcraft_model::MAX_RULE_GONE {
-        match rule.server.as_ref().filter(|s| !s.id.is_empty()) {
+        // (A rule of MailCraft's Sieve script leaves it when the script is next written, #9999.)
+        match rule.server.as_ref().filter(|s| !s.id.is_empty() && !s.id.starts_with(super::sieve_replies::SIEVE_ID)) {
             Some(server) => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: server.id.clone(), made: None }),
             None if rule.unanswered => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: String::new(), made: Some(Box::new(rule)) }),
             None => {}

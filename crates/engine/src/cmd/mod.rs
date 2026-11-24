@@ -190,6 +190,9 @@ pub mod shared;
 pub mod sieve_replies;
 #[cfg(test)]
 mod sieve_replies_tests;
+pub mod sieve_rules;
+#[cfg(test)]
+mod sieve_rules_tests;
 pub mod signature;
 #[cfg(test)]
 mod signature_tests;

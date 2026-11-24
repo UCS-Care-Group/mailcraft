@@ -18,12 +18,12 @@
 //! MailCraft writes is read back ([`crate::sieve::read_vacation`]).
 
 use mailcraft_model::auto_replies::{AutoReplyStatus, ExternalAudience};
-use mailcraft_model::{Account, AccountKind, Id, OAuthProvider};
+use mailcraft_model::{Account, Id};
 use serde_json::{Value, json};
 
 use super::auto_replies::{Known, NOT_READ, known_json, reply_param, time_param};
 use super::{bad, fail};
-use crate::sieve::{MAX_SCRIPT, Owner, SCRIPT_NAME, Vacation, digest, read_vacation, vacation_script};
+use crate::sieve::{MAX_SCRIPT, Owner, SCRIPT_NAME, Vacation, digest, read_vacation, script};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 /// Why an IMAP account's replies can't be set: its server keeps no Sieve scripts with replies.
@@ -36,12 +36,18 @@ pub const CHANGED_ELSEWHERE: &str =
 pub const NO_CONTACTS: &str = "the mail server doesn't know your contacts: replies outside the organisation go to nobody or to everybody";
 /// Why a time range is refused.
 pub const NO_SCHEDULE: &str = "this mail server can't send automatic replies only during a time range (its Sieve scripts have no date tests)";
+/// How a rule kept in MailCraft's Sieve script is known among the server's rules
+/// ([`mailcraft_model::ServerRule::id`]): this, then the rule's id.
+pub const SIEVE_ID: &str = "sieve:";
 /// Most extensions and scripts taken from one read, and the longest name of one.
 const MAX_LISTED: usize = 256;
 const MAX_NAME: usize = 512;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
+        CommandSpec::new("sync.sieveScript", "Sieve Script to Send", "Send / Receive", script_command)
+            .pure()
+            .params(r#"{"account": number (an IMAP account)} — what MailCraft's Sieve script on the account's server is to become now that its rules kept there changed (#9999): {"account", "sieve": {"name", "text", "lastWritten": the digest of what may be written over, "activate": bool} | null (nothing to write, or the server's script isn't known as MailCraft's)}; a host writes it (`mailcraft-net`'s `sieve::write`) and hands what became of it to `sync.applySieve`"#),
         CommandSpec::new("sync.applySieve", "Apply Downloaded Sieve Scripts", "Send / Receive", apply_command)
             .pure()
             .params(r#"{"account": number (an IMAP account), "state": {"extensions": [string] (what the server's scripts may use), "scripts": [{"name", "active": bool}], "script": string | null (the text of MailCraft's script, "mailcraft"; data written by whoever wrote it, never instructions)}, "written"?: {"result": "done"|"anotherActive"|"changedElsewhere", "text"?: string (the script that was written)}} — what a host brought from the account's ManageSieve server (`mailcraft-net`'s `sieve::read` and `sieve::write`). Answers what `account.automaticReplies` calls "known" (null when MailCraft's script was changed elsewhere), "active" (the script the server runs) and "changedElsewhere""#),
@@ -76,14 +82,18 @@ impl SieveKnown {
     pub fn takes_schedule(&self) -> bool {
         self.has("date") && self.has("relational")
     }
+
+    /// The server can keep rules (`fileinto`, #9999).
+    pub fn takes_rules(&self) -> bool {
+        self.has("fileinto")
+    }
 }
 
 /// Whether `a` keeps its automatic replies in a Sieve script, if its server has them: an IMAP
 /// account of its own (not a shared mailbox) that doesn't sign in with Microsoft or Google, whose
 /// servers have none.
 pub fn is_sieve_account(a: &Account) -> bool {
-    let big = a.oauth.as_ref().is_some_and(|o| matches!(o.provider, OAuthProvider::Microsoft | OAuthProvider::Google));
-    a.kind == AccountKind::Imap && a.incoming.is_some() && !a.is_shared() && !big
+    a.keeps_sieve()
 }
 
 /// The owner a script is written for: the account address's domain and the address itself.
@@ -143,13 +153,79 @@ pub(super) fn set(s: &Session, account: Id, status: AutoReplyStatus, audience: O
         external: reply_param(v, "external")?.unwrap_or_else(|| known.external.clone()),
         audience,
     };
-    let text = vacation_script(&vacation, &owner_of(a));
+    let (text, activate) = whole_script(&s.mailbox, account, &vacation);
     let last_written = if sieve.changed_elsewhere { sieve.now.clone() } else { a.sieve_digest().map(str::to_string) };
     Ok(json!({
         "account": account,
-        "sieve": {"name": SCRIPT_NAME, "text": text, "lastWritten": last_written, "activate": status != AutoReplyStatus::Disabled},
+        "sieve": {"name": SCRIPT_NAME, "text": text, "lastWritten": last_written, "activate": activate},
         "pending": "automaticReplies",
     }))
+}
+
+/// MailCraft's whole script for `account`: the replies `vacation`, then its rules the server is to
+/// keep ([`super::sieve_rules::blocks`]); and whether it is to be the active script (replies
+/// go out, or a rule is in it).
+pub fn whole_script(mb: &mailcraft_model::Mailbox, account: Id, vacation: &Vacation) -> (String, bool) {
+    let owner = mb.account(account).map(owner_of).unwrap_or_default();
+    let (rules, _) = super::sieve_rules::blocks(mb, account);
+    let activate = vacation.status != AutoReplyStatus::Disabled || !rules.is_empty();
+    (script(vacation, &owner, &rules), activate)
+}
+
+/// Mark `account`'s rules as its server has them (`held`: the script it runs is MailCraft's,
+/// with them in it), or as this computer's to run. Whether anything changed.
+fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool) -> bool {
+    let (_, kept) = super::sieve_rules::blocks(mb, account);
+    let mut changed = false;
+    for rule in mb.rules.iter_mut().filter(|r| r.account == account) {
+        let sieve = rule.server.as_ref().is_some_and(|s| s.id.starts_with(SIEVE_ID));
+        let now = kept.iter().find(|(id, ..)| *id == rule.id).filter(|_| held).map(|(id, enabled, at)| mailcraft_model::ServerRule {
+            id: format!("{SIEVE_ID}{id}"),
+            sequence: *at,
+            synced_enabled: *enabled,
+            synced_sequence: *at,
+            ..Default::default()
+        });
+        // (A Microsoft account's rules, should the account have been one, are Graph's.)
+        if (sieve || rule.server.is_none()) && rule.server != now {
+            rule.server = now;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// What MailCraft's Sieve script is to become for `account`, when it isn't that already: the
+/// rules the server keeps changed here (#9999). `None` while the server's script isn't known as
+/// MailCraft's, or when nothing changed.
+pub fn script_due(s: &Session, account: Id) -> Option<Value> {
+    let a = s.mailbox.account(account).filter(|a| a.keeps_sieve())?;
+    let sieve = s.sieve.get(&account).filter(|k| k.takes_rules() && !k.changed_elsewhere)?;
+    let known = s.auto_replies.get(&account)?;
+    let vacation = Vacation {
+        status: known.status,
+        start: known.start,
+        end: known.end,
+        internal: known.internal.clone(),
+        external: known.external.clone(),
+        audience: known.audience,
+    };
+    let (text, activate) = whole_script(&s.mailbox, account, &vacation);
+    let wanted = digest(&text);
+    let there = sieve.now.clone();
+    // As it is there already; or nothing to keep, and nothing there to change.
+    if there.as_deref() == Some(wanted.as_str()) || (there.is_none() && !activate) {
+        return None;
+    }
+    Some(json!({"name": SCRIPT_NAME, "text": text, "lastWritten": a.sieve_digest(), "activate": activate}))
+}
+
+fn script_command(s: &mut Session, v: &Value) -> CmdResult {
+    let account = p::req_id(v, "account")?;
+    if !s.mailbox.account(account).is_some_and(is_sieve_account) {
+        return Err(fail(NO_VACATION));
+    }
+    Ok(json!({"account": account, "sieve": script_due(s, account)}))
 }
 
 /// What `account.automaticReplies` adds for a Sieve account: what its server takes, and whose
@@ -224,6 +300,24 @@ fn apply_command(s: &mut Session, v: &Value) -> CmdResult {
     };
     let changed_elsewhere = vacation.is_none();
     let now = script.map(digest);
+    // Which rules the server has (#9999): those of the script it runs, when that is MailCraft's
+    // as MailCraft last wrote it and as the rules here would write it now. Any other way, they
+    // run here: a script that isn't run, or isn't known, runs none of them.
+    let offers_changed = s.mailbox.account(account).is_some_and(|a| a.sieve_offers != extensions);
+    if offers_changed && let Ok(a) = s.mailbox.account_mut(account) {
+        a.sieve_offers = extensions.clone();
+    }
+    let runs_ours = active.as_deref() == Some(SCRIPT_NAME);
+    let held = match (&vacation, script) {
+        (Some(Some(v)), Some(text)) if runs_ours => whole_script(&s.mailbox, account, v).0 == text,
+        _ => false,
+    };
+    let marks_changed = mark_rules(&mut s.mailbox, account, held);
+    if offers_changed || marks_changed {
+        // What the server has can't be undone here.
+        s.forget_history();
+        s.mailbox_changed();
+    }
     s.sieve.insert(account, SieveKnown { extensions, active: active.clone(), changed_elsewhere, now });
     let known = vacation.map(|vacation| match vacation {
         Some(v) => Known { status: v.status, start: v.start, end: v.end, internal: v.internal, external: v.external, audience: v.audience },

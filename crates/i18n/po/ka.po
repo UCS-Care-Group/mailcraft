@@ -16096,6 +16096,12 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "გვერდიგვერდ"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "გასაგზავნი Sieve-ის სკრიპტი"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -23274,6 +23280,18 @@ msgstr "სერვერზე მომდევნო დაკავში�
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "მას აქვს ნაწილი, რომლის Sieve-ად ჩაწერაც MailCraft-ს არ შეუძლია"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "მას პირობები არ აქვს და სერვერზე ყველა წერილზე იმოქმედებდა"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "ერთი სახის ორი პირობა აქვს და სერვერი ორივეს ნაცვლად რომელიმე ერთს მიიღებდა"
 
@@ -23378,6 +23396,12 @@ msgstr "მისი ანგარიში"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "მისი სახელი ისეთი არ არის, რომლითაც სერტიფიკატის შემოწმება შეიძლება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "მისი ზომები აღემატება იმას, რასაც სერვერი იღებს"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -24418,6 +24442,12 @@ msgstr "ManageSieve სერვერი {at}-ზე STARTTLS-ს არ გვ
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "OpenPGP გასაღები იმაზე დიდია, რაც საჯარო გასაღებისთვის ინახება"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "ანგარიშს მოსაძებნი მისამართი არ აქვს"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -24453,6 +24483,12 @@ msgstr "ანგარიშს შესასვლელად მომხ�
 #, fuzzy
 msgid "the account is gone"
 msgstr "ანგარიში აღარ არსებობს"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "ანგარიშის წაშლილი ელემენტები სერვერზე არ არის"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -25345,6 +25381,72 @@ msgstr "სერვერმა პასუხს ზედმეტად დ
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "სერვერმა „{subject}“ მთლიანად არ გამოგზავნა, ამიტომ მისი დანართად გადაგზავნა შეუძლებელია"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ მისი ერთ-ერთი მოქმედების ან პირობის შესრულება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ ფოსტის დღისთვის მონიშვნა"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ დანართების შემოწმება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ კატეგორიების შემოწმება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ მნიშვნელობის შემოწმება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ კონფიდენციალურობის შემოწმება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ კატეგორიების დაყენება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ მნიშვნელობის დაყენება"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ ავტომატური პასუხების გარჩევა"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ მხოლოდ თქვენთვის გაგზავნილი ფოსტის გარჩევა"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "სერვერის Sieve-ის სკრიპტებს არ შეუძლიათ შეხვედრის მოწვევების გარჩევა"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs

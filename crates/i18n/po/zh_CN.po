@@ -16149,6 +16149,12 @@ msgstr "并排"
 msgid "Side-by-Side"
 msgstr "并排"
 
+#. command label
+#: crates/engine/src/cmd/sieve_replies.rs
+#, fuzzy
+msgid "Sieve Script to Send"
+msgstr "要发送的 Sieve 脚本"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -23329,6 +23335,18 @@ msgstr "下次连接时会发送到服务器"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has a part MailCraft can't write as Sieve"
+msgstr "它有 MailCraft 无法写成 Sieve 的部分"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has no conditions, and on the server it would act on every message"
+msgstr "它没有条件，在服务器上会作用于每封邮件"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "它包含两个同类条件，而服务器只会满足其中任意一个，不会同时要求两者"
 
@@ -23433,6 +23451,12 @@ msgstr "其账户"
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "其名称无法用于证书验证"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its sizes are larger than the server takes"
+msgstr "其大小超出了服务器接受的范围"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs
@@ -24473,6 +24497,12 @@ msgstr "{at} 上的 ManageSieve 服务器不提供 STARTTLS"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "OpenPGP 密钥超过公钥可保存的大小上限"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account has no address to look for"
+msgstr "该账户没有可查找的地址"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs crates/net/src/sync.rs
 #, fuzzy
@@ -24508,6 +24538,12 @@ msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the account's Deleted Items isn't on the server"
+msgstr "该账户的“已删除邮件”不在服务器上"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -25402,6 +25438,72 @@ msgstr "服务器响应时间过长"
 #, fuzzy
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "服务器未完整发送“{subject}”，因此无法将其作为附件转发"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't do one of its actions or conditions"
+msgstr "服务器的 Sieve 脚本无法执行它的某个操作或条件"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't flag mail for a day"
+msgstr "服务器的 Sieve 脚本无法将邮件标记到某一天"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at attachments"
+msgstr "服务器的 Sieve 脚本无法检查附件"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at categories"
+msgstr "服务器的 Sieve 脚本无法检查类别"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at importance"
+msgstr "服务器的 Sieve 脚本无法检查重要性"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't look at sensitivity"
+msgstr "服务器的 Sieve 脚本无法检查敏感度"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set categories"
+msgstr "服务器的 Sieve 脚本无法设置类别"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't set importance"
+msgstr "服务器的 Sieve 脚本无法设置重要性"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell automatic replies"
+msgstr "服务器的 Sieve 脚本无法识别自动回复"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell mail sent to you alone"
+msgstr "服务器的 Sieve 脚本无法识别只发给你的邮件"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server's Sieve scripts can't tell meeting invitations"
+msgstr "服务器的 Sieve 脚本无法识别会议邀请"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
