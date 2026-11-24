@@ -1275,6 +1275,11 @@ msgid "Address Book"
 msgstr "通讯簿"
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "Address list"
@@ -2242,6 +2247,11 @@ msgstr "通过地址最多可打开 {n} 个日历，请先移除一个。"
 msgid "At most {n} calendars can be subscribed to: unsubscribe from one first."
 msgstr "最多可订阅 {n} 个日历：请先取消订阅其中一个。"
 
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "At most {n} public folders can be shown: remove one first."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
@@ -2794,7 +2804,7 @@ msgid "By Subject"
 msgstr "按主题"
 
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Calendar"
 msgstr "日历"
@@ -2846,6 +2856,11 @@ msgstr "日历和联系人"
 #, fuzzy
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "日历和联系人需要您的许可：文件 › 信息 › 连接日历和联系人"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Calendars and address books in your organisation's public folders, read with {owner}'s sign-in. The ones you tick are read at each Send/Receive, read-only, and the list of them is kept on this computer only."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
@@ -3639,7 +3654,7 @@ msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/public_folders.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "关闭"
@@ -4251,6 +4266,11 @@ msgstr "无法读取 Gmail 的“{name}”类别"
 #, fuzzy
 msgid "Couldn't read the list of folders"
 msgstr "无法读取文件夹列表"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Couldn't read the list of public folders from the server."
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -5907,7 +5927,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "这些联系人中剩余的不足两人，无需合并。"
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "文件"
@@ -7882,6 +7902,11 @@ msgid "It is on this device only: nothing is sent to or fetched from a server."
 msgstr "仅保存在此设备上：不会向服务器发送或从服务器获取任何内容。"
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "It is read at the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "It is removed from the mail server too, and that can't be undone."
@@ -8512,6 +8537,11 @@ msgstr "链接"
 msgid "List Accounts"
 msgstr "列出账户"
 
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "List Again"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
@@ -8553,6 +8583,11 @@ msgstr "列出邮件"
 #, fuzzy
 msgid "List Notes"
 msgstr "列出便笺"
+
+#. command label, interface
+#: crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/public_folders.rs
+msgid "List Public Folders"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/tasks.rs
@@ -11753,7 +11788,7 @@ msgstr ""
 "日历"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open & Export"
 msgstr "打开和导出"
@@ -12848,6 +12883,23 @@ msgstr "提议的开始时间"
 msgid "Proposed time"
 msgstr "提议的时间"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Public\n"
+"Folders"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Public Folders"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public Folders Listed"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
@@ -12859,6 +12911,11 @@ msgstr "公钥"
 #, fuzzy
 msgid "Public folder"
 msgstr "公用文件夹"
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Public folders can be shown under an Exchange server account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -13053,6 +13110,11 @@ msgstr "读取自动回复时意外中断"
 #, fuzzy
 msgid "Reading the calendar from Microsoft…"
 msgstr "正在从 Microsoft 读取日历…"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "Reading the list of public folders from the server…"
+msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt
@@ -13369,6 +13431,11 @@ msgstr "从本机移除较早的邮件"
 #, fuzzy
 msgid "Remove Picture"
 msgstr "移除图片"
+
+#. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Remove Public Folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/keys.rs
@@ -15441,6 +15508,11 @@ msgid "Show Progress"
 msgstr "显示进度"
 
 #. command label
+#: crates/engine/src/cmd/public_folders.rs
+msgid "Show Public Folder"
+msgstr ""
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Show Ribbon Tab"
@@ -17017,6 +17089,11 @@ msgstr "内容太长，无法放入报告；请缩短"
 msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
 msgstr "这不是有效的 GitHub 用户名：只能使用字母、数字和不连续的连字符，最多 39 个字符。如果没有用户名，请留空。"
 
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That isn't a calendar or an address book of the last listing of the public folders: list them first."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
@@ -17034,6 +17111,16 @@ msgstr "该密钥已在卡上"
 #, fuzzy
 msgid "That paste was just made, so nothing was pasted again"
 msgstr "刚刚已完成该粘贴，因此未再次粘贴"
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder is shown already."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/public_folders.rs
+msgid "That public folder isn't shown."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
@@ -18117,6 +18204,11 @@ msgstr "此文件中的私钥未加密，因此 MailCraft 不会保存它。请�
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "建议的结束时间必须晚于建议的开始时间。"
+
+#. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "The public folders have no calendar or address book that you can see."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23141,6 +23233,11 @@ msgstr "此签名中没有图片 {id}"
 msgid "no picture {id} was put in this message"
 msgstr "此邮件中未插入图片 {id}"
 
+#. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "no public folder is shown"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -23438,6 +23535,11 @@ msgstr "无法下载网络图片：请先保存图片，再从文件添加"
 #, fuzzy
 msgid "private"
 msgstr "私密"
+
+#. why a command can't run
+#: crates/engine/src/cmd/public_folders.rs
+msgid "public folders open under an Exchange server account"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -23850,7 +23952,7 @@ msgid "the account has no user name or e-mail address to sign in with"
 msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_opened.rs crates/engine/src/cmd/public_folders.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
@@ -27123,6 +27225,11 @@ msgid "{who} was added by a newer version of MailCraft, {then}"
 msgstr "{who} 由较新版本的 MailCraft 添加，{then}"
 
 #. interface
+#: crates/ui-egui/src/public_folders.rs
+msgid "{why} The list is read at the next Send/Receive."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/import_pst.rs
 #, fuzzy
 msgid "{why} What came in before stays; import the file again for the rest."
@@ -27448,109 +27555,3 @@ msgstr "−行"
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "草稿保留在“草稿”中。{why}"
 
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "Address book"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/public_folders.rs
-msgid "At most {n} public folders can be shown: remove one first."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "Calendars and address books in your organisation's public folders, read with {owner}'s sign-in. The ones you tick are read at each Send/Receive, read-only, and the list of them is kept on this computer only."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "Couldn't read the list of public folders from the server."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "It is read at the next Send/Receive."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "List Again"
-msgstr ""
-
-#. command label, interface
-#: crates/engine/src/cmd/public_folders.rs crates/ui-egui/src/public_folders.rs
-msgid "List Public Folders"
-msgstr ""
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid ""
-"Public\n"
-"Folders"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "Public Folders"
-msgstr ""
-
-#. command label
-#: crates/engine/src/cmd/public_folders.rs
-msgid "Public Folders Listed"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/public_folders.rs
-msgid "Public folders can be shown under an Exchange server account"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "Reading the list of public folders from the server…"
-msgstr ""
-
-#. command label
-#: crates/engine/src/cmd/public_folders.rs
-msgid "Remove Public Folder"
-msgstr ""
-
-#. command label
-#: crates/engine/src/cmd/public_folders.rs
-msgid "Show Public Folder"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/public_folders.rs
-msgid "That isn't a calendar or an address book of the last listing of the public folders: list them first."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/public_folders.rs
-msgid "That public folder is shown already."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/public_folders.rs
-msgid "That public folder isn't shown."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "The public folders have no calendar or address book that you can see."
-msgstr ""
-
-#. why a command can't run
-#: crates/engine/src/cmd/public_folders.rs
-msgid "no public folder is shown"
-msgstr ""
-
-#. why a command can't run
-#: crates/engine/src/cmd/public_folders.rs
-msgid "public folders open under an Exchange server account"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/public_folders.rs
-msgid "{why} The list is read at the next Send/Receive."
-msgstr ""
