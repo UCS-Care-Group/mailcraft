@@ -119,8 +119,11 @@ fn due_text(task: &Task, today: Date) -> String {
         return String::new();
     }
     let label = task.due_label(today);
-    // Words (`Today`, `Friday`) are interface text; a date stays as it is.
-    if label.chars().any(|c| c.is_ascii_digit()) { label } else { tl!(&label).to_string() }
+    // Words (`Today`, `Friday`) are interface text; a date is written in the language's own way.
+    match task.due {
+        Some(due) if label.chars().any(|c| c.is_ascii_digit()) => crate::dates::medium(due),
+        _ => tl!(&label).to_string(),
+    }
 }
 
 /// The line under the title in the details pane, and whether it is a warning. `completed_on` is
