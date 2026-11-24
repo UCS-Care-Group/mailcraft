@@ -57,9 +57,11 @@ pub fn wayland_display(window: &impl winit::raw_window_handle::HasDisplayHandle)
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
 #[derive(Default)]
 struct FallbackHtml(RefCell<Option<(String, String)>>);
 
+#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
 impl FallbackHtml {
     fn remember(&self, text: &str, html: &str) {
         *self.0.borrow_mut() = Some((text.to_string(), html.to_string()));
