@@ -16563,6 +16563,810 @@ msgstr "Meldingen er ikke der lenger"
 msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
 msgstr "Meldingen venter i utboksen din, der du kan endre eller avbryte den. MailCraft sender den på det tidspunktet; kjører ikke MailCraft da, går den neste gang det kjører."
 
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
+msgstr "Meldingen ble lastet ned før MailCraft begynte å ta vare på bytene den kom som. Sjekk igjen laster dem ned."
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+#, fuzzy
+msgid "The message wasn't filed"
+msgstr "Meldingen ble ikke arkivert"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The message you are writing has changes that aren't saved."
+msgstr "Meldingen du skriver, har endringer som ikke er lagret."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "The message you were writing was saved to Drafts; a link opened a new one"
+msgstr "Meldingen du skrev, ble lagret i Utkast; en lenke åpnet en ny"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "The messages of the folder in view, as .mbox"
+msgstr "Meldingene i mappen som vises, som .mbox"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
+msgstr "Det meste e-post denne telefonen beholder, alle kontoer til sammen. Utover det går den eldste e-posten tilbake til hodene sine, og så av telefonen. Ingenting slettes fra serveren."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name hides another address."
+msgstr "Navnet skjuler en annen adresse."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name hides characters."
+msgstr "Navnet skjuler tegn."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name is another domain."
+msgstr "Navnet er et annet domene."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The name of someone you know."
+msgstr "Navnet til noen du kjenner."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The name people you write to will see"
+msgstr "Navnet folk du skriver til, vil se"
+
+#. interface
+#: crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "The name recipients see; your own when empty"
+msgstr "Navnet mottakerne ser; ditt eget når det er tomt"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The name the calendar gives itself"
+msgstr "Navnet kalenderen gir seg selv"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#, fuzzy
+msgid "The notes are too long to edit here."
+msgstr "Notatene er for lange til å redigeres her."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The one in File › Options"
+msgstr "Den i Fil › Innstillinger"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "The one this build came with"
+msgstr "Den denne byggingen kom med"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "The organizer can't be written to from this account."
+msgstr "Det kan ikke skrives til arrangøren fra denne kontoen."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "The organizer has changed this meeting."
+msgstr "Arrangøren har endret dette møtet."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "The organizer of this meeting doesn't take proposals of another time."
+msgstr "Arrangøren av dette møtet tar ikke imot forslag om en annen tid."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The outgoing mail server isn't a host name (letters, digits, dots and dashes)"
+msgstr "E-postserveren for utgående e-post er ikke et vertsnavn (bokstaver, tall, punktum og bindestreker)"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "The owner hasn't allowed update checks."
+msgstr "Eieren har ikke tillatt oppdateringssjekk."
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "The page was closed, or five minutes went by before the sign-in was finished."
+msgstr "Siden ble lukket, eller det gikk fem minutter før påloggingen ble fullført."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste asks for more, and this route never asks: nothing was moved"
+msgstr "Innlimingen ber om mer, og denne veien spør aldri: ingenting ble flyttet"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but it answered that it moved nothing"
+msgstr "Innlimingen kjørte, men svarte at den ikke flyttet noe"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer can't be counted"
+msgstr "Innlimingen kjørte, men svaret kan ikke telles"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "The paste ran, but its answer doesn't say how many items it moved"
+msgstr "Innlimingen kjørte, men svaret sier ikke hvor mange elementer den flyttet"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "The people could not be read."
+msgstr "Personene kunne ikke leses."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "The picture was too big, so it was made smaller ({w} px wide)."
+msgstr "Bildet var for stort, så det ble gjort mindre ({w} px bredt)."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The port; leave it empty for the usual one"
+msgstr "Porten; la det stå tomt for den vanlige"
+
+#. what a command says
+#: crates/engine/src/private_keys.rs
+#, fuzzy
+msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
+msgstr "Den private nøkkelen i denne filen er ikke kryptert, så MailCraft beholder den ikke: eksporter den igjen med nøkkelen kryptert (AES), beskyttet av en passfrase."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "The proposed end has to be after the proposed start."
+msgstr "Foreslått slutt må være etter foreslått start."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to end by"
+msgstr "Området trenger en dag å slutte på"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The range needs a day to start on"
+msgstr "Området trenger en dag å starte på"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service couldn't be reached. Check that you're online and try again, or open it on GitHub."
+msgstr "Rapporttjenesten kunne ikke nås. Sjekk at du er på nett og prøv igjen, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service couldn't file the report. Try again, or open it on GitHub."
+msgstr "Rapporttjenesten kunne ikke ta imot rapporten. Prøv igjen, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service didn't answer in time, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr "Rapporttjenesten svarte ikke i tide, så rapporten kan ha kommet fram. Prøv igjen senere, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service didn't take the report as it is. Shorten it and try again, or open it on GitHub."
+msgstr "Rapporttjenesten tok ikke imot rapporten slik den er. Gjør den kortere og prøv igjen, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service has taken as many reports as it can for now. Try again later, or open it on GitHub."
+msgstr "Rapporttjenesten har tatt imot så mange rapporter den kan for nå. Prøv igjen senere, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service isn't taking reports just now. Try again later, or open it on GitHub."
+msgstr "Rapporttjenesten tar ikke imot rapporter akkurat nå. Prøv igjen senere, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service isn't working just now. Try again later, or open it on GitHub."
+msgstr "Rapporttjenesten virker ikke akkurat nå. Prøv igjen senere, eller åpne den på GitHub."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
+msgstr "Svaret fra rapporttjenesten var ikke noe MailCraft forstår, så rapporten kan ha kommet fram. Prøv igjen senere, eller åpne den på GitHub."
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "The rules leave a shared mailbox's mail alone: its rules are its own."
+msgstr "Reglene lar e-posten i en delt postkasse være i fred: reglene dens er dens egne."
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
+msgstr "Reglene på serveren kunne ikke leses: jobben stoppet uventet"
+
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
+#, fuzzy
+msgid "The rules on the server couldn't be taken in: {error}"
+msgstr "Reglene på serveren kunne ikke tas inn: {error}"
+
+#. what a command says
+#: crates/engine/src/sync_driver/rules.rs
+#, fuzzy
+msgid "The rules sent couldn't be noted: {error}"
+msgstr "Reglene som ble sendt, kunne ikke noteres: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
+msgstr "Samme side ber om å lese og sende fra de delte postkassene du har tilgang til og om å lese kalenderne som er delt med deg, så MailCraft ikke må spørre igjen."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
+msgstr "Søket etter Exchange-serveren din ber om å starte på nytt med en adresse i et annet domene, {host}."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The search for your Exchange server was sent on to {host}, which isn't in your address's own domain."
+msgstr "Søket etter Exchange-serveren din ble sendt videre til {host}, som ikke er i domenet til adressen din."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "The selected message, as .eml"
+msgstr "Den valgte meldingen, som .eml"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
+msgstr "Avsenderen bruker navnet ditt, men denne meldingen kom fra {real}, som ikke er en av adressene dine."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's address is at {domain}, an internet address with no domain name: real organisations rarely send from one."
+msgstr "Avsenderens adresse er på {domain}, en internettadresse uten domenenavn: ekte organisasjoner sender sjelden fra en slik."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's address is at {domain}."
+msgstr "Avsenderens adresse er på {domain}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks like {brand}'s, but it isn't one of {brand}'s domains."
+msgstr "Domenet til avsenderen, {domain}, ligner på {brand} sitt, men det er ikke et av domenene til {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
+msgstr "Domenet til avsenderen, {domain}, ligner på {like}, som du korresponderer med, men det er ikke det samme."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's domain, {domain}, looks made by a machine or can't exist: real organisations rarely send from one."
+msgstr "Domenet til avsenderen, {domain}, ser maskinlaget ut eller kan ikke finnes: ekte organisasjoner sender sjelden fra et slikt."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name says {brand}, but this message came from {real}, and {domain} isn't one of {brand}'s domains."
+msgstr "Navnet til avsenderen sier {brand}, men denne meldingen kom fra {real}, og {domain} er ikke et av domenene til {brand}."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "The sender's name shows {shown}, but the message came from {real}."
+msgstr "Navnet til avsenderen viser {shown}, men meldingen kom fra {real}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The series needs a day to end by"
+msgstr "Serien trenger en dag å slutte på"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server answered without the address of Exchange Web Services. Ask your administrator for it and type it in Server settings."
+msgstr "Serveren svarte uten adressen til Exchange Web Services. Be administratoren din om den og skriv den i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
+msgstr "Serveren svarte, men ikke slik en Exchange-server gjør. Sjekk adressen i Serverinnstillinger."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+#, fuzzy
+msgid "The server couldn't be searched. Try again in a few minutes."
+msgstr "Serveren kunne ikke søkes i. Prøv igjen om noen minutter."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
+msgstr "Serveren godtok ikke brukernavnet og passordet. Sjekk dem, eller skriv brukernavnet ditt i Serverinnstillinger (DOMENE\\bruker eller du@example.org)."
+
+#. what a command says
+#: crates/engine/src/sync_driver/free_busy.rs
+#, fuzzy
+msgid "The server didn't say when other people are busy"
+msgstr "Serveren sa ikke når andre er opptatt"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "Serveren sendte ikke meldingene. Prøv igjen om noen minutter."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The server doesn't let this rule be changed"
+msgstr "Serveren lar ikke denne regelen endres"
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+#, fuzzy
+msgid "The server is busy. Try again in a few minutes."
+msgstr "Serveren er opptatt. Prøv igjen om noen minutter."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
+msgstr "Serveren eller organisasjonen ville ikke gi innstillingene sine. Be administratoren din om serveradressen og skriv den i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
+msgstr "Serveren sendte oppsettet et sted som ikke er kryptert, og det følger MailCraft aldri. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/ews_setup.rs
+#, fuzzy
+msgid "The server shows a certificate that needs your say."
+msgstr "Serveren viser et sertifikat som trenger din avgjørelse."
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
+msgstr "Serveren avviste påloggingen for denne kontoen. Bruk Send/motta for å logge inn på nytt."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "The server turned down the sign-in for {name}: sign in again"
+msgstr "Serveren avviste påloggingen for {name}: logg inn på nytt"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's address must begin with https:// and name the server (https://mail.example.org/EWS/Exchange.asmx)"
+msgstr "Serveradressen må begynne med https:// og navngi serveren (https://mail.example.org/EWS/Exchange.asmx)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's address or the user name can't be used. Check them in Server settings."
+msgstr "Serveradressen eller brukernavnet kan ikke brukes. Sjekk dem i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's answer for automatic setup couldn't be read. Type the server's address in Server settings."
+msgstr "Svaret fra serveren for automatisk oppsett kunne ikke leses. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's certificate"
+msgstr "Sertifikatet til serveren"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's certificate has changed"
+msgstr "Sertifikatet til serveren er endret"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's certificate has expired, so MailCraft won't connect to it. Ask your administrator to renew it."
+msgstr "Sertifikatet til serveren er utløpt, så MailCraft kobler ikke til den. Be administratoren din fornye det."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's certificate is for another server's name, so MailCraft won't connect to it. Check the address in Server settings."
+msgstr "Sertifikatet til serveren er for et annet servers navn, så MailCraft kobler ikke til den. Sjekk adressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
+msgstr "Sertifikatet til serveren er ikke gyldig ennå, så MailCraft kobler ikke til den. Sjekk datoen og klokkeslettet på denne datamaskinen, eller spør administratoren din."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server's copies stay as they are, and nothing is sent to the server. Undo brings them back until the next Send/Receive."
+msgstr "Kopiene på serveren blir som de er, og ingenting sendes til serveren. Angre henter dem tilbake til neste send/motta."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The server's name"
+msgstr "Navnet på serveren"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
+msgstr "Serverne nedenfor er det ISP-databasen til Mozilla lister for {domain}. Sjekk dem før du kobler til."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
+msgstr "Serverne nedenfor er det {domain} publiserer for e-postprogrammer (autokonfigurasjonsdokumentet sitt). Sjekk dem før du kobler til."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
+msgstr "Serverne nedenfor ble funnet i DNS-oppføringene til {domain} (SRV-oppføringene). Sjekk dem før du kobler til."
+
+#. interface
+#: crates/ui-egui/src/settings_notice.rs
+#, fuzzy
+msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
+msgstr "Innstillingsfilen (ui.json) kunne ikke leses, så standardinnstillingene ble gjenopprettet. Den kunne ikke gis nytt navn, så den ble latt som den er og blir ikke overskrevet."
+
+#. interface
+#: crates/ui-egui/src/settings_notice.rs
+#, fuzzy
+msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. It was left as it is and won't be overwritten."
+msgstr "Innstillingsfilen (ui.json) kunne ikke leses, så standardinnstillingene ble gjenopprettet. Den ble latt som den er og blir ikke overskrevet."
+
+#. interface
+#: crates/ui-egui/src/settings_notice.rs
+#, fuzzy
+msgid "The settings file (ui.json) couldn't be read, so the default settings were restored. The old file was renamed {file}."
+msgstr "Innstillingsfilen (ui.json) kunne ikke leses, så standardinnstillingene ble gjenopprettet. Den gamle filen fikk nytt navn {file}."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The settings the server gave name {host}, which isn't in your address's own domain, as the mail server."
+msgstr "Innstillingene serveren ga, oppgir {host}, som ikke er i domenet til adressen din, som e-postserver."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The setup was sent from one server to another too many times. Type the server's address in Server settings."
+msgstr "Oppsettet ble sendt fra én server til en annen for mange ganger. Skriv serveradressen i Serverinnstillinger."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The shared mailbox couldn't be added"
+msgstr "Den delte postkassen kunne ikke legges til"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The shared mailbox opened through it is removed from this device too."
+msgstr "Den delte postkassen som åpnes gjennom den, fjernes fra denne enheten også."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The shared mailbox's e-mail address"
+msgstr "E-postadressen til den delte postkassen"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "The sign-in didn't go through."
+msgstr "Påloggingen gikk ikke gjennom."
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+#, fuzzy
+msgid "The sign-in didn't work. Try again."
+msgstr "Påloggingen virket ikke. Prøv igjen."
+
+#. interface, what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
+msgstr "Påloggingen til kontoen denne delte postkassen åpnes gjennom, ble avvist: logg inn på nytt med send/motta"
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+#, fuzzy
+msgid "The sign-in page couldn't be opened."
+msgstr "Påloggingssiden kunne ikke åpnes."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
+msgstr "Påloggingen til {address} som ventet i nettleseren din, ble stoppet så den delte postkassen kunne leses. Send/motta vil be deg logge inn på nytt."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "The sign-in was cancelled."
+msgstr "Påloggingen ble avbrutt."
+
+#. what a command says
+#: crates/mobile/src/sync_api.rs
+#, fuzzy
+msgid "The sign-in was declined."
+msgstr "Påloggingen ble avslått."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr "Signaturen kunne ikke lagres: {why}. Lukk igjen for å la den stå ulagret."
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "The signature is then sent as the simpler text shown here, not as it was designed"
+msgstr "Signaturen sendes da som den enklere teksten som vises her, ikke slik den ble laget"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "The signer's Public key (certificate) isn't in the message or kept on this computer."
+msgstr "Den offentlige nøkkelen (sertifikatet) til avsenderen er ikke i meldingen eller beholdt på denne datamaskinen."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "The signer's key had expired when the message was signed."
+msgstr "Nøkkelen til avsenderen var utløpt da meldingen ble signert."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "The signer's key hasn't been marked verified."
+msgstr "Nøkkelen til avsenderen er ikke merket som bekreftet."
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "The signer's key was revoked by its owner."
+msgstr "Nøkkelen til avsenderen ble trukket tilbake av eieren."
+
+#. interface
+#: crates/ui-egui/src/view_source.rs
+#, fuzzy
+msgid "The source is long: only its first megabyte is shown."
+msgstr "Kilden er lang: bare den første megabyten vises."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "The space the folder and the folders under it take on this computer"
+msgstr "Plassen mappen og mappene under den tar på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The spelling dictionary is unavailable"
+msgstr "Staveordboken er ikke tilgjengelig"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a date and a time"
+msgstr "Start og slutt trenger en dato og et klokkeslett"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The start and the end need a time"
+msgstr "Start og slutt trenger et klokkeslett"
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."
+msgstr "Byttet av {account} til Microsoft Graph venter til MailCraft når serveren."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
+#, fuzzy
+msgid "The sync waits for your answer. A shorter window in Settings needs less room."
+msgstr "Synkroniseringen venter på svaret ditt. Et kortere vindu i Innstillinger trenger mindre plass."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "The system's credential store"
+msgstr "Systemets legitimasjonslager"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The system's credential store is locked, or unlocking it was refused"
+msgstr "Systemets legitimasjonslager er låst, eller opplåsingen ble avvist"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "The system's credential store: {key}"
+msgstr "Systemets legitimasjonslager: {key}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#, fuzzy
+msgid "The tasks could not be read."
+msgstr "Oppgavene kunne ikke leses."
+
+#. interface
+#: crates/ui-egui/src/find_replace.rs
+#, fuzzy
+msgid "The text wasn't found."
+msgstr "Teksten ble ikke funnet."
+
+#. interface
+#: crates/ui-egui/src/reminder_dialog.rs
+#, fuzzy
+msgid "The time is kept on this computer; a flag goes to the account's server as any flag does."
+msgstr "Tiden holdes på denne datamaskinen; et flagg går til serveren til kontoen som ethvert flagg."
+
+#. interface, what a command says
+#: crates/mobile/src/jobs.rs crates/ui-egui/src/task_sync.rs
+#, fuzzy
+msgid "The to-dos couldn't be kept in step: the job stopped unexpectedly"
+msgstr "Oppgavene kunne ikke holdes i takt: jobben stoppet uventet"
+
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
+#, fuzzy
+msgid "The to-dos couldn't be taken in: {error}"
+msgstr "Oppgavene kunne ikke tas inn: {error}"
+
+#. what a command says
+#: crates/engine/src/sync_driver/tasks.rs
+#, fuzzy
+msgid "The to-dos sent couldn't be noted: {error}"
+msgstr "Oppgavene som ble sendt, kunne ikke noteres: {error}"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The user name is too long or has a character in it that a name can't have"
+msgstr "Brukernavnet er for langt eller har et tegn i seg som et navn ikke kan ha"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "The window isn't up yet."
+msgstr "Vinduet er ikke oppe ennå."
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "Their details are the same; the kept contact loses nothing."
+msgstr "Detaljene deres er de samme; kontakten som beholdes, taper ingenting."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Theme"
+msgstr "Tema"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Then run it over the mail already in {folder}"
+msgstr "Kjør den da over e-posten som allerede ligger i {folder}"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "There is no data folder to open here"
+msgstr "Det er ingen datamappe å åpne her"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "There is no earlier version to go back to."
+msgstr "Det er ingen tidligere versjon å gå tilbake til."
+
+#. what a command says
+#: crates/mobile/src/fetch.rs
+#, fuzzy
+msgid "There is no network connection."
+msgstr "Det er ingen nettverksforbindelse."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_settings.rs
+#, fuzzy
+msgid "There is no other calendar to lay it over."
+msgstr "Det er ingen annen kalender å legge den over."
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "There is no picture on the clipboard."
+msgstr "Det er ikke noe bilde på utklippstavlen."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "There is no such account"
+msgstr "Det finnes ingen slik konto"
+
+#. interface
+#: crates/ui-egui/src/reading/signature.rs
+#, fuzzy
+msgid "There's more in this Digital signature than MailCraft checks for one message."
+msgstr "Det er mer i denne digitale signaturen enn MailCraft sjekker for én melding."
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+#, fuzzy
+msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
+msgstr "Det er ingen postkasse på {address}, eller kalenderen dens kan ikke nås gjennom Microsoft."
+
 #. folder name
 #: crates/model/src/mailbox.rs
 #, fuzzy
