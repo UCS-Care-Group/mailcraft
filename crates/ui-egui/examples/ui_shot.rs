@@ -52,7 +52,9 @@
 //! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
 //! `{"host": {"sieve": "on"}}` gives every IMAP account a ManageSieve server whose MailCraft
 //! script sends automatic replies for a week (#9999); `"off"`, `"changed"` (changed elsewhere),
-//! `"other"` (the owner's own script runs), `"noVacation"` or `"none"` (no ManageSieve).
+//! `"other"` (the owner's own script runs), `"noVacation"` or `"none"` (no ManageSieve). The
+//! account's rules its server can keep go into that script with `"on"`, and the Rules window
+//! (`ui.dialog` `rules`) shows them as the server's, or says what keeps them off it.
 //! `{"host": {"categories": "allowed"}}` gives every Microsoft account the list of categories its
 //! server has (four made-up ones, the first time) and lets it be changed there (#661);
 //! `"readOnly"`, the same and none may be changed, the owner having been asked.

@@ -9378,10 +9378,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "Registrace desktopové aplikace Google pro MailCraft zatím není pro toto sestavení nakonfigurována."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "skript Sieve od MailCraftu byl na serveru změněn jinde"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "Skript Sieve od MailCraftu byl na serveru od svého zápisu změněn jinde, proto ho MailCraft nechává, jak je. Chcete-li zde nastavit automatické odpovědi, nahraďte ho skriptem MailCraftu: co se v něm jinde změnilo, bude ztraceno."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "Skript Sieve od MailCraftu byl na serveru změněn jinde, proto ho MailCraft nechává, jak je, a tato pravidla běží v tomto počítači. Chcete-li je mít na serveru, nahraďte ho skriptem MailCraftu: co se v něm jinde změnilo, bude ztraceno."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -14066,7 +14078,7 @@ msgid "Replace with"
 msgstr "Nahradit čím"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "Nahradit skriptem MailCraftu"
@@ -19621,6 +19633,12 @@ msgstr "Kalendáře tohoto účtu se zatím nelze ptát: Odeslat/přijmout ho ne
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "Server tohoto účtu nenabízí skripty Sieve (ManageSieve), takže na něm MailCraft nemůže uchovávat automatické odpovědi."
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "Server tohoto účtu nenabízí skripty Sieve (ManageSieve), takže jeho pravidla běží v tomto počítači."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -20448,6 +20466,12 @@ msgstr "Tento server je neumí posílat jen v určitém časovém rozmezí."
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "Tento server uchovává skripty Sieve, ale neumějí posílat automatické odpovědi (nemá rozšíření vacation)."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "Skripty Sieve tohoto serveru neumějí ukládat poštu do složek, takže jeho pravidla běží v tomto počítači."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -22113,6 +22137,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "Pracujete offline. Chcete-li se připojit, vypněte Pracovat offline (Odeslat / přijmout)."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "Na serveru běží místo skriptu MailCraftu váš skript Sieve „{name}“, takže tato pravidla běží v tomto počítači. MailCraft váš skript nikdy nevypne."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -22381,6 +22411,24 @@ msgstr "Váš vlastní klíč odeberete jen vy, v okně"
 #, fuzzy
 msgid "Your own name."
 msgstr "Vaše vlastní jméno."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "Vaše pravidla jsou uložena na serveru"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "Vaše pravidla byla uložena na server, ale běží tam jiný váš skript Sieve, takže běží v tomto počítači"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "Vaše pravidla na serveru nebyla změněna"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22924,6 +22972,12 @@ msgstr[0] "a {n} další, teď nesloučený"
 msgstr[1] "a {n} další, teď nesloučené"
 msgstr[2] "a {n} dalších, teď nesloučených"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "na serveru běží jiný váš skript Sieve"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -23408,7 +23462,7 @@ msgid "it deletes for good"
 msgstr "odstraňuje natrvalo"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "odejde na server při dalším připojení"
@@ -23454,6 +23508,12 @@ msgstr "je to druh obrázku, který zde nelze zobrazit"
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "je to druh obrázku, který zde nelze zobrazit (AVIF nebo HEIC)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "právě se zapisuje na server"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

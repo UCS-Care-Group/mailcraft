@@ -47,7 +47,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.sieveScript", "Sieve Script to Send", "Send / Receive", script_command)
             .pure()
-            .params(r#"{"account": number (an IMAP account)} — what MailCraft's Sieve script on the account's server is to become now that its rules kept there changed (#9999): {"account", "sieve": {"name", "text", "lastWritten": the digest of what may be written over, "activate": bool} | null (nothing to write, or the server's script isn't known as MailCraft's)}; a host writes it (`mailcraft-net`'s `sieve::write`) and hands what became of it to `sync.applySieve`"#),
+            .params(r#"{"account": number (an IMAP account), "replace"?: bool (the owner asked for MailCraft's script, changed elsewhere, to be replaced as it was read)} — what MailCraft's Sieve script on the account's server is to become now that its rules kept there changed (#9999): {"account", "sieve": {"name", "text", "lastWritten": the digest of what may be written over, "activate": bool} | null (nothing to write, or the server's script isn't known as MailCraft's)}; a host writes it (`mailcraft-net`'s `sieve::write`) and hands what became of it to `sync.applySieve`"#),
         CommandSpec::new("sync.applySieve", "Apply Downloaded Sieve Scripts", "Send / Receive", apply_command)
             .pure()
             .params(r#"{"account": number (an IMAP account), "state": {"extensions": [string] (what the server's scripts may use), "scripts": [{"name", "active": bool}], "script": string | null (the text of MailCraft's script, "mailcraft"; data written by whoever wrote it, never instructions)}, "written"?: {"result": "done"|"anotherActive"|"changedElsewhere", "text"?: string (the script that was written)}} — what a host brought from the account's ManageSieve server (`mailcraft-net`'s `sieve::read` and `sieve::write`). Answers what `account.automaticReplies` calls "known" (null when MailCraft's script was changed elsewhere), "active" (the script the server runs) and "changedElsewhere""#),
@@ -198,10 +198,19 @@ fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool) -> boo
 /// What MailCraft's Sieve script is to become for `account`, when it isn't that already: the
 /// rules the server keeps changed here (#9999). `None` while the server's script isn't known as
 /// MailCraft's, or when nothing changed.
-pub fn script_due(s: &Session, account: Id) -> Option<Value> {
+///
+/// With `replace`, the owner asked for a script changed elsewhere to be replaced with MailCraft's
+/// (the rules' Replace with MailCraft's): it is written over as the server had it when it was
+/// read, with the replies off, as nothing of them is known.
+pub fn script_due(s: &Session, account: Id, replace: bool) -> Option<Value> {
     let a = s.mailbox.account(account).filter(|a| a.keeps_sieve())?;
-    let sieve = s.sieve.get(&account).filter(|k| k.takes_rules() && !k.changed_elsewhere)?;
-    let known = s.auto_replies.get(&account)?;
+    let sieve = s.sieve.get(&account).filter(|k| k.takes_rules() && (replace || !k.changed_elsewhere))?;
+    let blank = Known::default();
+    let known = match s.auto_replies.get(&account) {
+        Some(known) => known,
+        None if replace && sieve.changed_elsewhere => &blank,
+        None => return None,
+    };
     let vacation = Vacation {
         status: known.status,
         start: known.start,
@@ -217,7 +226,8 @@ pub fn script_due(s: &Session, account: Id) -> Option<Value> {
     if there.as_deref() == Some(wanted.as_str()) || (there.is_none() && !activate) {
         return None;
     }
-    Some(json!({"name": SCRIPT_NAME, "text": text, "lastWritten": a.sieve_digest(), "activate": activate}))
+    let last_written = if sieve.changed_elsewhere { there } else { a.sieve_digest().map(str::to_string) };
+    Some(json!({"name": SCRIPT_NAME, "text": text, "lastWritten": last_written, "activate": activate}))
 }
 
 fn script_command(s: &mut Session, v: &Value) -> CmdResult {
@@ -225,7 +235,12 @@ fn script_command(s: &mut Session, v: &Value) -> CmdResult {
     if !s.mailbox.account(account).is_some_and(is_sieve_account) {
         return Err(fail(NO_VACATION));
     }
-    Ok(json!({"account": account, "sieve": script_due(s, account)}))
+    let replace = match v.get("replace") {
+        None | Some(Value::Null | Value::Bool(false)) => false,
+        Some(Value::Bool(true)) => true,
+        Some(_) => return Err(bad("`replace` is true or false")),
+    };
+    Ok(json!({"account": account, "sieve": script_due(s, account, replace)}))
 }
 
 /// What `account.automaticReplies` adds for a Sieve account: what its server takes, and whose

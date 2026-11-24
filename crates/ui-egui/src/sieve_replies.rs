@@ -120,6 +120,9 @@ pub struct SieveSync {
     pub(crate) trouble: HashMap<Id, SieveTrouble>,
     /// What was found, for the accounts whose trouble is [`SieveTrouble::Unavailable`].
     pub(crate) unreached: HashMap<Id, Unreached>,
+    /// The accounts whose waiting write is the rules' (else the Automatic Replies'), for what is
+    /// said of it.
+    rules_writes: HashSet<Id>,
     /// The mailbox opening all of this is about ([`mailcraft_engine::Session::openings`]).
     opening: u64,
 }
@@ -264,6 +267,7 @@ impl MailApp {
             }
         };
         let write = write.clone();
+        let rules = write.is_some() && self.sieve.rules_writes.remove(&account);
         self.sieve.rx = None;
         if write.is_some() {
             self.session.sync_status.clear();
@@ -302,6 +306,26 @@ impl MailApp {
             self.sieve.unreached.remove(&account);
         }
         if write.is_none() {
+            // What the server has is read: a change of the rules kept there goes now (#9999).
+            if result.state.is_some() {
+                self.sieve_rules_write(account, false);
+            }
+            return;
+        }
+        if rules {
+            let said = match (result.written.as_deref(), &trouble) {
+                (Some("done"), _) => tl!("Your rules are kept on the server").to_string(),
+                (Some("anotherActive"), _) => {
+                    tl!("Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer").to_string()
+                }
+                (Some(_), _) => crate::i18n::with_reason(
+                    tl!("Your rules weren't changed on the server"),
+                    tl!("MailCraft's Sieve script on the server was changed elsewhere."),
+                ),
+                (None, Some(SieveTrouble::Failed(why))) => crate::i18n::with_reason(tl!("Your rules weren't changed on the server"), why),
+                (None, _) => tl!("Your rules weren't changed on the server").to_string(),
+            };
+            self.status(said);
             return;
         }
         // A change the owner asked for: said whichever way it went.
@@ -335,10 +359,93 @@ impl MailApp {
         self.status(said);
     }
 
+    /// The script, if the rules `account`'s server keeps changed (`sync.sieveScript`), goes at the
+    /// next chance. `replace`: the owner asked for MailCraft's script, changed elsewhere, to be
+    /// replaced with his rules (Replace with MailCraft's).
+    pub(crate) fn sieve_rules_write(&mut self, account: Id, replace: bool) {
+        if !self.sieve_account(account) {
+            return;
+        }
+        let Ok(answer) = self.session.run("sync.sieveScript", &json!({"account": account, "replace": replace})) else { return };
+        let Some(sieve) = answer.get("sieve").filter(|v| !v.is_null()).cloned() else { return };
+        if self.sieve_write(account, &sieve).is_ok() {
+            self.sieve.rules_writes.insert(account);
+        }
+    }
+
+    /// After the engine ran `id`: a rule changed, so the script of each IMAP account whose server
+    /// keeps rules is written again, once what the server has is known (#9999).
+    pub(crate) fn sieve_after(&mut self, id: &str, r: Result<Value, String>) -> Result<Value, String> {
+        if r.is_err() || !id.starts_with("rules.") || matches!(id, "rules.list" | "rules.run") {
+            return r;
+        }
+        for account in self.sieve_accounts() {
+            if !self.session.mailbox.keeps_sieve_rules(account) {
+                continue;
+            }
+            if self.session.sieve.contains_key(&account) {
+                self.sieve_rules_write(account, false);
+            } else {
+                self.sieve_read_now(account);
+            }
+        }
+        r
+    }
+
+    /// What the rules window says of an IMAP account's server, when it keeps the rules there from
+    /// running (#9999), and whether Replace with MailCraft's is offered.
+    pub(crate) fn sieve_rules_note(&self, account: Id) -> Option<(String, bool)> {
+        if !self.sieve_account(account) {
+            return None;
+        }
+        if self.sieve.trouble.get(&account) == Some(&SieveTrouble::Unavailable) {
+            return Some((
+                tl!("This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer.").to_string(),
+                false,
+            ));
+        }
+        let sieve = self.session.sieve.get(&account)?;
+        if !sieve.takes_rules() {
+            return Some((tl!("This server's Sieve scripts can't file mail into folders, so its rules run on this computer.").to_string(), false));
+        }
+        if sieve.changed_elsewhere {
+            return Some((
+                tl!("MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost.").to_string(),
+                true,
+            ));
+        }
+        match sieve.active.as_deref() {
+            Some(other) if other != mailcraft_engine::sieve::SCRIPT_NAME => Some((
+                crate::i18n::fmt(
+                    tl!(
+                        "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+                    ),
+                    &[("name", &crate::forms::kit::shown(other, 80))],
+                ),
+                false,
+            )),
+            _ => None,
+        }
+    }
+
+    /// Why a rule an IMAP account's server is to keep doesn't run there yet (#9999).
+    pub(crate) fn sieve_wait_reason(&self, account: Id) -> String {
+        match self.sieve_rules_note(account) {
+            Some(_) if self.session.sieve.get(&account).is_some_and(|s| s.changed_elsewhere) => {
+                tl!("MailCraft's Sieve script on the server was changed elsewhere").to_string()
+            }
+            Some(_) => tl!("another Sieve script of yours runs on the server").to_string(),
+            None if self.sieve.busy_for(account).is_some() => tl!("it is being written to the server").to_string(),
+            None => tl!("it goes to the server at the next connection").to_string(),
+        }
+    }
+
     /// For a stand-in host (the screenshot example): `account`'s Sieve server as `how` says —
     /// `"on"` (MailCraft's script sends replies from Monday for a week), `"off"`, `"changed"`
     /// (MailCraft's script was changed elsewhere), `"other"` (the owner's own script is active),
-    /// `"noVacation"` (Sieve without replies), `"none"` (no ManageSieve). A host that never
+    /// `"noVacation"` (Sieve without replies), `"none"` (no ManageSieve). With `"on"`, the
+    /// account's rules its server can keep are in the script, and shown as the server's in the
+    /// Rules window; `"other"` and `"changed"` show there what keeps them off it. A host that never
     /// answers is put in, so that nothing is asked.
     #[doc(hidden)]
     pub fn stand_in_sieve(&mut self, account: Id, how: &str) -> Result<(), String> {
@@ -346,7 +453,7 @@ impl MailApp {
             self.services.sieve = Some(Box::new(|_| std::sync::mpsc::channel().1));
         }
         self.sieve.read.insert(account, now_ms());
-        let all = ["fileinto", "vacation", "date", "relational"];
+        let all = ["fileinto", "vacation", "date", "relational", "copy", "imap4flags", "body"];
         let state = |extensions: &[&str], active: Option<&str>, script: Option<&str>| {
             let scripts: Vec<Value> = active.iter().map(|name| json!({"name": name, "active": true})).collect();
             json!({"extensions": extensions, "scripts": scripts, "script": script})

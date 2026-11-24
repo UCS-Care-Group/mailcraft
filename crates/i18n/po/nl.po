@@ -9044,10 +9044,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "De registratie van MailCraft als Google-bureaubladtoepassing is nog niet geconfigureerd voor deze build."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "het Sieve-script van MailCraft op de server is elders gewijzigd"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "Het Sieve-script van MailCraft op de server is sinds MailCraft het schreef elders gewijzigd, dus laat MailCraft het zoals het is. Om uw automatische antwoorden hier in te stellen, vervangt u het door dat van MailCraft: wat er elders in is gewijzigd, gaat verloren."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "Het Sieve-script van MailCraft op de server is elders gewijzigd, dus laat MailCraft het zoals het is en draaien deze regels op deze computer. Vervang het door dat van MailCraft om ze op de server te houden: wat er elders in is gewijzigd, gaat verloren."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -13597,7 +13609,7 @@ msgid "Replace with"
 msgstr "Vervangen door"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "Vervangen door dat van MailCraft"
@@ -19025,6 +19037,12 @@ msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvan
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "De server van dit account biedt geen Sieve-scripts (ManageSieve), dus MailCraft kan daar geen automatische antwoorden bewaren."
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "De server van dit account biedt geen Sieve-scripts (ManageSieve), dus de regels draaien op deze computer."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -19841,6 +19859,12 @@ msgstr "Deze server kan ze niet alleen tijdens een periode versturen."
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "Deze server bewaart Sieve-scripts, maar die kunnen geen automatische antwoorden versturen (de extensie vacation ontbreekt)."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "De Sieve-scripts van deze server kunnen geen e-mail in mappen opbergen, dus de regels draaien op deze computer."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -21460,6 +21484,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "U werkt offline. Schakel Offline werken uit (Verzenden/ontvangen) om verbinding te maken."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "Op de server draait uw Sieve-script ‘{name}’ in plaats van dat van MailCraft, dus deze regels draaien op deze computer. MailCraft zet uw script nooit uit."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -21725,6 +21755,24 @@ msgstr "Uw eigen sleutel wordt alleen door uzelf verwijderd, in het venster"
 #, fuzzy
 msgid "Your own name."
 msgstr "Uw eigen naam."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "Uw regels worden op de server bewaard"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "Uw regels zijn op de server opgeslagen, maar daar draait een ander Sieve-script van u, dus ze draaien op deze computer"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "Uw regels zijn op de server niet gewijzigd"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22262,6 +22310,12 @@ msgid_plural "and {n} more, not merged now"
 msgstr[0] "en nog {n}, nu niet samengevoegd"
 msgstr[1] "en nog {n}, nu niet samengevoegd"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "op de server draait een ander Sieve-script van u"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -22745,7 +22799,7 @@ msgid "it deletes for good"
 msgstr "het verwijdert definitief"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "hij gaat bij de volgende verbinding naar de server"
@@ -22791,6 +22845,12 @@ msgstr "het is een soort afbeelding die hier niet kan worden weergegeven"
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "het is een soort afbeelding die hier niet kan worden weergegeven (AVIF of HEIC)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "ze wordt naar de server geschreven"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

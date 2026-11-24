@@ -9389,10 +9389,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "Înregistrarea Google Desktop a MailCraft nu este încă configurată pentru această versiune."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "scriptul Sieve al MailCraft de pe server a fost modificat în altă parte"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "Scriptul Sieve al MailCraft de pe server a fost modificat în altă parte de când l-a scris MailCraft, așa că MailCraft îl lasă așa cum este. Pentru a seta aici răspunsurile automate, înlocuiți-l cu cel al MailCraft: ce s-a modificat în el în altă parte se pierde."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "Scriptul Sieve al MailCraft de pe server a fost modificat în altă parte, așa că MailCraft îl lasă așa cum este, iar aceste reguli rulează pe acest computer. Înlocuiți-l cu cel al MailCraft pentru a le păstra pe server: ce s-a modificat în el în altă parte se pierde."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -14084,7 +14096,7 @@ msgid "Replace with"
 msgstr "Înlocuire cu"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "Înlocuiește cu cel al MailCraft"
@@ -19645,6 +19657,12 @@ msgstr "Calendarul acestui cont nu poate fi interogat încă: Trimitere/primire 
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "Serverul acestui cont nu oferă scripturi Sieve (ManageSieve), așa că MailCraft nu poate păstra acolo răspunsuri automate."
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "Serverul acestui cont nu oferă scripturi Sieve (ManageSieve), așa că regulile sale rulează pe acest computer."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -20472,6 +20490,12 @@ msgstr "Acest server nu le poate trimite doar într-un interval de timp."
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "Acest server păstrează scripturi Sieve, dar acestea nu pot trimite răspunsuri automate (nu are extensia vacation)."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "Scripturile Sieve ale acestui server nu pot pune mesajele în dosare, așa că regulile sale rulează pe acest computer."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -22138,6 +22162,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "Lucrați offline. Dezactivați Lucru offline (Trimitere / primire) ca să vă conectați."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "Pe server rulează scriptul dvs. Sieve „{name}” în locul celui al MailCraft, așa că aceste reguli rulează pe acest computer. MailCraft nu vă oprește niciodată scriptul."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -22406,6 +22436,24 @@ msgstr "Cheia dvs. proprie o eliminați doar dvs., din fereastră"
 #, fuzzy
 msgid "Your own name."
 msgstr "Numele dvs."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "Regulile dvs. sunt păstrate pe server"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "Regulile dvs. au fost salvate pe server, dar acolo rulează alt script Sieve al dvs., așa că rulează pe acest computer"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "Regulile dvs. nu au fost modificate pe server"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22950,6 +22998,12 @@ msgstr[0] "și încă {n}, neîmbinat acum"
 msgstr[1] "și încă {n}, neîmbinate acum"
 msgstr[2] "și încă {n}, neîmbinate acum"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "pe server rulează alt script Sieve al dvs."
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -23433,7 +23487,7 @@ msgid "it deletes for good"
 msgstr "șterge definitiv"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "ajunge pe server la următoarea conectare"
@@ -23479,6 +23533,12 @@ msgstr "este un tip de imagine care nu poate fi afișat aici"
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "este un tip de imagine care nu poate fi afișat aici (AVIF sau HEIC)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "se scrie pe server"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

@@ -5214,7 +5214,7 @@ pub(crate) mod rules {
             let reason = server_cannot(mb, r, account).map_or_else(|| app.rules_wait_reason(account), why);
             return crate::i18n::fmt(tl!("Only on this computer for now: {why}"), &[("why", &reason)]);
         }
-        if !mb.keeps_rules(r.account) {
+        if !mb.keeps_rules(r.account) && !mb.keeps_sieve_rules(r.account) {
             return tl!("On this computer").to_string();
         }
         if !r.refused.is_empty() {
@@ -5534,11 +5534,17 @@ pub(crate) mod rules {
                 self.choose(&app.session.mailbox, first);
             }
             let account = self.account;
+            // What an IMAP account's server keeps is read when the rules are shown (#9999).
+            if app.sieve_account(account) {
+                app.sieve_read_now(account);
+            }
+            let sieve_note = app.sieve_rules_note(account);
             let mb = &app.session.mailbox;
-            let on_server = mb.keeps_rules(account);
+            let on_server = mb.keeps_rules(account) || mb.keeps_sieve_rules(account);
             let rules: Vec<Rule> = mb.rules_in_order(account).into_iter().filter_map(|i| mb.rules.get(i).cloned()).collect();
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);
-            let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id)).collect::<Vec<_>>();
+            // (An IMAP account's server keeps them in MailCraft's Sieve script, #9999.)
+            let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id) || mb.keeps_sieve_rules(*id)).collect::<Vec<_>>();
             let categories: Vec<String> = mb.every_category().into_iter().map(|c| c.name).collect();
             // Run Rules Now runs the rules shown, over the folder in view when it is their account's,
             // else over their account's Inbox: Outlook's Run in Folder, set to that account's Inbox.
@@ -5559,6 +5565,7 @@ pub(crate) mod rules {
                 .filter(|a| self.open && a.kind != mailcraft_model::AccountKind::Local)
                 .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
             let mut run: Option<(&'static str, Value)> = None;
+            let mut replace_sieve = false;
             let mut chosen = None;
             let mut add = false;
             body(ui, |ui| {
@@ -5577,6 +5584,15 @@ pub(crate) mod rules {
                     ui.add_space(4.0);
                 }
                 let mark_of = |id: Id| marks.iter().find(|(m, _)| *m == id).map(|(_, m)| m.as_str()).unwrap_or("");
+                // What keeps an IMAP account's server from running them, and the way past a script
+                // changed elsewhere: replacing it, which only the owner's click does (#9999).
+                if let Some((note, replace)) = &sieve_note {
+                    ui.label(egui::RichText::new(note.as_str()).color(t.text_dim).size(11.5));
+                    if *replace && ui.button(tl!("Replace with MailCraft's")).clicked() {
+                        replace_sieve = true;
+                    }
+                    ui.add_space(4.0);
+                }
                 if on_server {
                     heading(ui, t, tl!("On the server"), tl!("Run by the server as mail arrives, whether MailCraft is open or not"));
                     for (i, r) in there.iter().enumerate() {
@@ -5650,6 +5666,9 @@ pub(crate) mod rules {
             }
             if add {
                 run = Some(self.command());
+            }
+            if replace_sieve {
+                app.sieve_rules_write(account, true);
             }
             if let Some((command, params)) = run {
                 match app.execute(command, params) {

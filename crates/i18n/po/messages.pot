@@ -7774,8 +7774,18 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
 msgstr ""
 
 #. interface
@@ -11656,7 +11666,7 @@ msgid "Replace with"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 msgid "Replace with MailCraft's"
 msgstr ""
 
@@ -16258,6 +16268,11 @@ msgstr ""
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
@@ -16941,6 +16956,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
 msgstr ""
 
 #. interface
@@ -18309,6 +18329,11 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
 msgstr ""
@@ -18531,6 +18556,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Your own name."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "Your rules are kept on the server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "Your rules weren't changed on the server"
 msgstr ""
 
 #. interface
@@ -18984,6 +19024,11 @@ msgid_plural "and {n} more, not merged now"
 msgstr[0] ""
 msgstr[1] ""
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "another Sieve script of yours runs on the server"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "at most 200 messages can be forwarded together"
@@ -19389,7 +19434,7 @@ msgid "it deletes for good"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 msgid "it goes to the server at the next connection"
 msgstr ""
 
@@ -19426,6 +19471,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "it is being written to the server"
 msgstr ""
 
 #. interface

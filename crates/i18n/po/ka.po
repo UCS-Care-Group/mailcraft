@@ -9336,10 +9336,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "MailCraft-ის Google Desktop რეგისტრაცია ამ ანაწყობში ჯერ არ არის კონფიგურირებული."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე სხვაგან შეიცვალა"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე მისი ჩაწერის შემდეგ სხვაგან შეიცვალა, ამიტომ MailCraft მას ისე ტოვებს. აქ ავტომატური პასუხების დასაყენებლად ჩაანაცვლეთ ის MailCraft-ის სკრიპტით: რაც მასში სხვაგან შეიცვალა, დაიკარგება."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "MailCraft-ის Sieve-ის სკრიპტი სერვერზე სხვაგან შეიცვალა, ამიტომ MailCraft მას ისე ტოვებს და ეს წესები ამ კომპიუტერზე მუშაობს. სერვერზე შესანახად ჩაანაცვლეთ ის MailCraft-ის სკრიპტით: რაც მასში სხვაგან შეიცვალა, დაიკარგება."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -13997,7 +14009,7 @@ msgid "Replace with"
 msgstr "ჩანაცვლება ამით"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "MailCraft-ის სკრიპტით ჩანაცვლება"
@@ -19513,6 +19525,12 @@ msgstr "ამ ანგარიშის კალენდრის გამ
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "ამ ანგარიშის სერვერი Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve), ამიტომ MailCraft იქ ავტომატურ პასუხებს ვერ შეინახავს."
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "ამ ანგარიშის სერვერი Sieve-ის სკრიპტებს არ გვთავაზობს (ManageSieve), ამიტომ მისი წესები ამ კომპიუტერზე მუშაობს."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -20329,6 +20347,12 @@ msgstr "ამ სერვერს მათი მხოლოდ დრო�
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "ეს სერვერი Sieve-ის სკრიპტებს ინახავს, მაგრამ მათ ავტომატური პასუხების გაგზავნა არ შეუძლიათ (vacation გაფართოება არ აქვს)."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "ამ სერვერის Sieve-ის სკრიპტებს ფოსტის საქაღალდეებში შენახვა არ შეუძლიათ, ამიტომ მისი წესები ამ კომპიუტერზე მუშაობს."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -21985,6 +22009,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "ოფლაინ მუშაობთ. დასაკავშირებლად გამორთეთ „ოფლაინ მუშაობა“ (გაგზავნა / მიღება)."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "სერვერზე MailCraft-ის ნაცვლად თქვენი Sieve-ის სკრიპტი „{name}“ მუშაობს, ამიტომ ეს წესები ამ კომპიუტერზე მუშაობს. MailCraft თქვენს სკრიპტს არასოდეს გამორთავს."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -22251,6 +22281,24 @@ msgstr "თქვენს საკუთარ გასაღებს მხ
 #, fuzzy
 msgid "Your own name."
 msgstr "თქვენი სახელი."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "თქვენი წესები სერვერზე ინახება"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "თქვენი წესები სერვერზე შეინახა, მაგრამ იქ თქვენი სხვა Sieve-ის სკრიპტი მუშაობს, ამიტომ ისინი ამ კომპიუტერზე მუშაობს"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "თქვენი წესები სერვერზე არ შეცვლილა"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22788,6 +22836,12 @@ msgid_plural "and {n} more, not merged now"
 msgstr[0] "და კიდევ {n}, ახლა არ შერწყმულა"
 msgstr[1] "და კიდევ {n}, ახლა არ შერწყმულა"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "სერვერზე თქვენი სხვა Sieve-ის სკრიპტი მუშაობს"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -23272,7 +23326,7 @@ msgid "it deletes for good"
 msgstr "სამუდამოდ შლის"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "სერვერზე მომდევნო დაკავშირებისას გადავა"
@@ -23318,6 +23372,12 @@ msgstr "ეს ისეთი სახის სურათია, რომ�
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "ეს ისეთი სახის სურათია, რომლის ჩვენებაც აქ შეუძლებელია (AVIF ან HEIC)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "ახლა სერვერზე იწერება"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

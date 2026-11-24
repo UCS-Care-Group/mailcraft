@@ -245,7 +245,7 @@ fn a_rule_goes_into_the_script_after_the_replies_and_is_on_the_server_once_it_ru
     let id = made["id"].as_u64().unwrap();
     assert_eq!(kept(&s.mailbox, s.mailbox.rules.iter().find(|r| r.id == id).unwrap()).0, "waiting");
     // What is to be written: the replies (off), then the rule.
-    let due = script_due(&s, account).unwrap();
+    let due = script_due(&s, account, false).unwrap();
     let text = due["text"].as_str().unwrap().to_string();
     assert_eq!(due["activate"], true);
     assert!(text.contains(&format!("# rule {id}\r\nif header :contains \"from\" [\"list\"]")), "{text}");
@@ -259,10 +259,10 @@ fn a_rule_goes_into_the_script_after_the_replies_and_is_on_the_server_once_it_ru
     let r = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
     assert_eq!(r.server.as_ref().map(|s| s.id.clone()), Some(format!("{SIEVE_ID}{id}")));
     assert_eq!(kept(&s.mailbox, r).0, "server");
-    assert!(script_due(&s, account).is_none());
+    assert!(script_due(&s, account, false).is_none());
     // Switched off here: the script is to change, without it.
     run(&mut s, "rules.enable", json!({"id": id, "value": false}));
-    let off = script_due(&s, account).unwrap()["text"].as_str().unwrap().to_string();
+    let off = script_due(&s, account, false).unwrap()["text"].as_str().unwrap().to_string();
     assert!(!off.contains("# rule"), "{off}");
     // Replies changed: the rules stay in the script.
     run(&mut s, "rules.enable", json!({"id": id, "value": true}));
@@ -284,7 +284,7 @@ fn rules_run_here_while_the_server_runs_another_script_or_a_changed_one() {
     )["id"]
         .as_u64()
         .unwrap();
-    let text = script_due(&s, account).unwrap()["text"].as_str().unwrap().to_string();
+    let text = script_due(&s, account, false).unwrap()["text"].as_str().unwrap().to_string();
     // Written beside the owner's own active script: not run there, so run here.
     run(
         &mut s,
@@ -292,20 +292,24 @@ fn rules_run_here_while_the_server_runs_another_script_or_a_changed_one() {
         json!({"account": account, "state": state(Some("roundcube"), Some(&text)), "written": {"result": "anotherActive", "text": text}}),
     );
     assert!(!s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server());
-    assert!(script_due(&s, account).is_none(), "written already; nothing to write again");
+    assert!(script_due(&s, account, false).is_none(), "written already; nothing to write again");
     // Active, then changed elsewhere: back to this computer, and nothing is written over.
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&text))}));
     assert!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server());
     let edited = text.replace("\"list\"", "\"other\"");
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&edited))}));
     assert!(!s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server());
-    assert!(script_due(&s, account).is_none());
+    assert!(script_due(&s, account, false).is_none());
     assert_ne!(s.mailbox.account(account).unwrap().sieve_written, digest(&edited));
+    // Replaced only when the owner asks, over the script as it was read.
+    let replace = script_due(&s, account, true).unwrap();
+    assert_eq!(replace["lastWritten"], digest(&edited));
+    assert!(replace["text"].as_str().unwrap().contains(&format!("# rule {id}")));
     // A rule deleted here leaves the script, and isn't kept for Graph to be told.
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&text))}));
     run(&mut s, "rules.remove", json!({"id": id}));
     assert!(s.mailbox.rule_gone.is_empty());
-    assert!(!script_due(&s, account).unwrap()["text"].as_str().unwrap().contains("# rule"));
+    assert!(!script_due(&s, account, false).unwrap()["text"].as_str().unwrap().contains("# rule"));
 }
 
 #[test]

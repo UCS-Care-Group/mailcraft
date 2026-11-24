@@ -289,6 +289,10 @@ impl MailApp {
     /// Why a rule of `account` that is to go to the server is still only on this computer, as the
     /// Rules window says it.
     pub(crate) fn rules_wait_reason(&self, account: Id) -> String {
+        // An IMAP account's rules go into MailCraft's Sieve script (#9999).
+        if self.sieve_account(account) {
+            return self.sieve_wait_reason(account);
+        }
         match self.session.driver.rules.perm.get(&account) {
             Some(Permission::Needed | Permission::Asking) => tl!("waiting for your permission to change the rules on the server").to_string(),
             Some(Permission::Declined | Permission::Denied) => tl!("not allowed on the server yet: File › Info › Ask again").to_string(),

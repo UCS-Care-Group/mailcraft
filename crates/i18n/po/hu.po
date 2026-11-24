@@ -9355,10 +9355,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "A MailCraft Google Desktop regisztrációja még nincs beállítva ehhez az épülethez."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "a MailCraft Sieve-szkriptjét a szerveren máshol módosították"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "A MailCraft Sieve-szkriptjét a szerveren azóta máshol módosították, hogy a MailCraft megírta, ezért a MailCraft változatlanul hagyja. Ha itt szeretné beállítani az automatikus válaszokat, cserélje le a MailCraft szkriptjére: ami máshol változott benne, elvész."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "A MailCraft Sieve-szkriptjét a szerveren máshol módosították, ezért a MailCraft változatlanul hagyja, és ezek a szabályok ezen a számítógépen futnak. Cserélje le a MailCraft szkriptjére, hogy a szerveren legyenek: ami máshol változott benne, elvész."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -14038,7 +14050,7 @@ msgid "Replace with"
 msgstr "Csere:"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "Csere a MailCraft szkriptjére"
@@ -19582,6 +19594,12 @@ msgstr "A fiók naptára még nem érhető el. Előbb jelentkezzen be a Küldés
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "A fiók szervere nem kínál Sieve-szkripteket (ManageSieve), ezért a MailCraft nem tud ott automatikus válaszokat tárolni."
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "A fiók szervere nem kínál Sieve-szkripteket (ManageSieve), ezért a szabályai ezen a számítógépen futnak."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -20399,6 +20417,12 @@ msgstr "Ez a szerver nem tudja csak egy időszakban küldeni őket."
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "Ez a szerver tárol Sieve-szkripteket, de azok nem tudnak automatikus válaszokat küldeni (nincs vacation bővítménye)."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "A szerver Sieve-szkriptjei nem tudnak leveleket mappákba tenni, ezért a szabályai ezen a számítógépen futnak."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -22055,6 +22079,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "Kapcsold ki a munka offline (Küld / Fogadja) kapcsolódni."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "A szerveren a MailCraft helyett az Ön „{name}” Sieve-szkriptje fut, ezért ezek a szabályok ezen a számítógépen futnak. A MailCraft soha nem kapcsolja ki az Ön szkriptjét."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -22323,6 +22353,24 @@ msgstr "A saját kulcsodat csak te távolítod el, az ablakban."
 #, fuzzy
 msgid "Your own name."
 msgstr "A saját neved."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "A szabályai a szerveren vannak"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "A szabályai a szerverre kerültek, de ott egy másik Sieve-szkriptje fut, ezért ezen a számítógépen futnak"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "A szabályai nem változtak meg a szerveren"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22864,6 +22912,12 @@ msgid_plural "and {n} more, not merged now"
 msgstr[0] "és még {n}, amelyek most nem lesznek egyesítve"
 msgstr[1] "és még {n}, amelyek most nem lesznek egyesítve"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "a szerveren egy másik Sieve-szkriptje fut"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -23348,7 +23402,7 @@ msgid "it deletes for good"
 msgstr "jóra töröl"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "a következő kapcsolatnál a kiszolgálóhoz kerül"
@@ -23394,6 +23448,12 @@ msgstr "Ez egy olyan kép, amit nem lehet itt megmutatni."
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "Ez egy olyan kép, amit nem lehet itt megmutatni (AVIF vagy HEIC)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "éppen a szerverre íródik"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

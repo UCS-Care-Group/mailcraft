@@ -9352,10 +9352,22 @@ msgid "MailCraft's Google Desktop registration is not yet configured for this bu
 msgstr "此构建版本尚未配置 MailCraft 的 Google 桌面应用注册。"
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere"
+msgstr "MailCraft 在服务器上的 Sieve 脚本已在别处被更改"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
 msgstr "MailCraft 写入服务器的 Sieve 脚本此后已在别处被更改，因此 MailCraft 保持原样。若要在此设置自动回复，请用 MailCraft 的脚本替换它：在别处对它所做的更改将会丢失。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft's Sieve script on the server was changed elsewhere, so MailCraft leaves it as it is, and these rules run on this computer. Replace it with MailCraft's to keep them on the server: what was changed in it elsewhere is lost."
+msgstr "MailCraft 在服务器上的 Sieve 脚本已在别处被更改，因此 MailCraft 保持原样，这些规则在本计算机上运行。若要将它们保存在服务器上，请用 MailCraft 的脚本替换：在别处对它所做的更改将会丢失。"
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -14039,7 +14051,7 @@ msgid "Replace with"
 msgstr "替换为"
 
 #. interface
-#: crates/ui-egui/src/auto_replies.rs
+#: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Replace with MailCraft's"
 msgstr "替换为 MailCraft 的脚本"
@@ -19570,6 +19582,12 @@ msgstr "暂时无法读取此账户的日历：“发送/接收”会先登录�
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so MailCraft can't keep automatic replies there."
 msgstr "此账户的服务器不提供 Sieve 脚本（ManageSieve），因此 MailCraft 无法在其上保存自动回复。"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
+msgstr "此账户的服务器不提供 Sieve 脚本（ManageSieve），因此其规则在本计算机上运行。"
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
@@ -20377,6 +20395,12 @@ msgstr "此服务器无法只在某个时间范围内发送自动回复。"
 #, fuzzy
 msgid "This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension)."
 msgstr "此服务器保存 Sieve 脚本，但这些脚本无法发送自动回复（缺少 vacation 扩展）。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This server's Sieve scripts can't file mail into folders, so its rules run on this computer."
+msgstr "此服务器的 Sieve 脚本无法将邮件放入文件夹，因此其规则在本计算机上运行。"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -22037,6 +22061,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工作”以连接。"
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's, so these rules run on this computer. MailCraft never switches your script off."
+msgstr "服务器上运行的是你的 Sieve 脚本“{name}”，而不是 MailCraft 的，因此这些规则在本计算机上运行。MailCraft 从不关闭你的脚本。"
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
@@ -22305,6 +22335,24 @@ msgstr "您自己的密钥只能由您在窗口中移除"
 #, fuzzy
 msgid "Your own name."
 msgstr "您自己的姓名。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules are kept on the server"
+msgstr "你的规则已保存在服务器上"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules were saved on the server, but another Sieve script of yours runs there, so they run on this computer"
+msgstr "你的规则已保存到服务器，但那里运行着你的另一个 Sieve 脚本，因此它们在本计算机上运行"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your rules weren't changed on the server"
+msgstr "你的规则未在服务器上更改"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -22843,6 +22891,12 @@ msgid "and {n} more, not merged now"
 msgid_plural "and {n} more, not merged now"
 msgstr[0] "还有 {n} 项，本次未合并"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "another Sieve script of yours runs on the server"
+msgstr "服务器上运行着你的另一个 Sieve 脚本"
+
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
@@ -23327,7 +23381,7 @@ msgid "it deletes for good"
 msgstr "它会永久删除"
 
 #. interface
-#: crates/ui-egui/src/rule_sync.rs
+#: crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "it goes to the server at the next connection"
 msgstr "下次连接时会发送到服务器"
@@ -23373,6 +23427,12 @@ msgstr "此图片类型无法在这里显示"
 #, fuzzy
 msgid "it is a kind of picture that can't be shown here (AVIF or HEIC)"
 msgstr "此图片类型无法在这里显示（AVIF 或 HEIC）"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is being written to the server"
+msgstr "正在写入服务器"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
