@@ -320,3 +320,25 @@ fn an_agent_is_always_shown_the_whole_host_a_sign_in_goes_to() {
     let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "tokenUrl": short}));
     assert!(said.contains(&short), "{said}");
 }
+
+/// An agent's edit that points a built-in provider's sign-in at another client says so, and so
+/// does one back to MailCraft's own; a change that leaves the client says nothing of it (#1844
+/// review).
+#[test]
+fn an_agent_is_shown_a_built_in_providers_sign_in_moved_to_another_client() {
+    let mut s = Session::empty();
+    for provider in ["microsoft", "google"] {
+        let host = if provider == "google" { "imap.gmail.com" } else { "outlook.office365.com" };
+        let v = json!({"email": format!("noor.{provider}@example.org"), "incoming": {"host": host}, "auth": "oauth2", "provider": provider});
+        let id = add(&mut s, &v);
+        let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientId": "elsewhere-client"}));
+        assert!(said.contains("as the client \u{201c}elsewhere-client\u{201d}"), "{provider}: {said}");
+        s.run("account.edit", &json!({"id": id, "clientId": "elsewhere-client"})).unwrap();
+        let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientId": "another-client"}));
+        assert!(said.contains("as the client \u{201c}another-client\u{201d}"), "{provider}: {said}");
+        let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "clientId": ""}));
+        assert!(said.contains("as MailCraft's own client"), "{provider}: {said}");
+        let said = crate::agent::describe(&s, "account.edit", &json!({"id": id, "displayName": "Noor"}));
+        assert!(!said.contains("client"), "{provider}: {said}");
+    }
+}

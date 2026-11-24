@@ -263,3 +263,49 @@ fn a_renewal_that_cant_start_leaves_another_accounts_retry_alone() {
     a.retry_refused_token(second, true);
     assert_eq!(a.token_retried.iter().copied().collect::<Vec<_>>(), [first]);
 }
+
+/// One run of `account` handed over to the window as it ends: refused (a sign-in error) or not,
+/// called off to go on at once or not.
+fn end_run(a: &mut MailApp, account: Id, refused: bool, called_off: bool) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let email = a.session.mailbox.account(account).unwrap().email.clone();
+    let errors = if refused { vec!["The server refused the sign-in".to_string()] } else { Vec::new() };
+    tx.send(mailcraft_model::sync::SyncResult { account, email, errors, ..Default::default() }).unwrap();
+    a.sync_run = Some((account, None, called_off, true));
+    a.sync_rx = Some(crate::MailRun::Imap { account, opening: a.session.openings(), rx });
+    a.poll_sync();
+    assert!(a.sync_rx.is_none(), "the run didn't end");
+}
+
+/// A run after a renewal that is called off to go on at once is the same Send/Receive: it keeps
+/// the account's one retry, so a refusal in the run that goes on renews no second time. The run
+/// that goes on ends it, and a Send/Receive called off before it went on leaves none behind
+/// (#1844 review).
+#[test]
+fn a_run_called_off_to_go_on_keeps_its_one_retry() {
+    let store = Arc::new(Store::default());
+    let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
+    let id = own_account(&mut a);
+    a.tokens.insert(id, mailcraft_model::sync::Tokens { refresh: "not-a-real-refresh-token".into(), ..Default::default() });
+    a.token_retried.insert(id);
+    end_run(&mut a, id, true, true);
+    assert!(a.token_retried.contains(&id), "the retry was let go of while the run goes on");
+    assert_eq!(a.session.driver.round.queue.front().copied(), Some((id, true)), "the run doesn't go on");
+    assert!(a.signing_in.is_none(), "renewed a second time in the same Send/Receive");
+    // The run that goes on is refused again: no renewal, and the mark ends with it.
+    a.session.driver.round.queue.clear();
+    end_run(&mut a, id, true, false);
+    assert!(!a.token_retried.contains(&id));
+    assert!(a.signing_in.is_none(), "renewed a second time in the same Send/Receive");
+    // Called off to go on, then the Send/Receive is stopped while it waits its turn behind
+    // another account's run: the next one may renew again.
+    a.token_retried.insert(id);
+    end_run(&mut a, id, false, true);
+    assert!(a.token_retried.contains(&id));
+    let other = a.session.mailbox.accounts.iter().map(|x| x.id).find(|x| *x != id).unwrap();
+    let (_tx, rx) = std::sync::mpsc::channel();
+    a.sync_run = Some((other, None, false, true));
+    a.sync_rx = Some(crate::MailRun::Imap { account: other, opening: a.session.openings(), rx });
+    a.execute("ui.cancelSync", json!({})).unwrap();
+    assert!(!a.token_retried.contains(&id), "a run that never went on kept its mark");
+}

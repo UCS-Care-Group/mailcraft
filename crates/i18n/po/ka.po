@@ -22283,6 +22283,18 @@ msgstr "იდენტობის პროვაიდერით შეს�
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "იდენტობის პროვაიდერით შესვლა გამოიყენება მხოლოდ ამ ანგარიშის საკუთარ საფოსტო სერვერებთან"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "საკუთარი იდენტობის პროვაიდერით შესვლა მხოლოდ ფოსტისთვისაა და არა Microsoft Graph-ისთვის"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "{provider}-ით შესვლა ბრუნდება მხოლოდ loopback პორტით"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22306,6 +22318,12 @@ msgstr "ხელმოწერის სურათები არის PNG
 #, fuzzy
 msgid "a task needs a title"
 msgstr "დავალებას სათაური სჭირდება"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "შესვლის გვერდზე წვდომა უარყოფილ იქნა"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22555,6 +22573,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "სერვერთან {host} უსაფრთხო კავშირი ვერ დამყარდა: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "ამ კომპიუტერზე ვერ გაიხსნა პორტი, რომელზეც შესვლა დაბრუნდება"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22595,6 +22619,12 @@ msgstr "შესასვლელად შეიყვანეთ მომ�
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "შეიყვანეთ კლიენტის ID, რომელიც თქვენს იდენტობის პროვაიდერთან MailCraft-ისთვისაა დარეგისტრირებული"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "შეიყვანეთ თქვენი იდენტობის პროვაიდერის მისამართი (მისი გამცემი)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23646,6 +23676,12 @@ msgstr "პირადი"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "ინტერნეტიდან სურათები არ ჩამოიტვირთება: შეინახეთ სურათი და დაამატეთ ფაილიდან"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "ამ კომპიუტერზე პორტი {port} დაკავებულია: აირჩიეთ სხვა გადამისამართების პორტი ან ავტომატური"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23699,6 +23735,12 @@ msgstr "ადრესატის მისამართი შეიცა�
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "პასუხი მაქსიმუმ {n} მისამართზე შეიძლება გაიგზავნოს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "გაუქმების"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -23843,6 +23885,12 @@ msgid "sign in to {who} first"
 msgstr "ჯერ შედით ანგარიშში {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "შესვლის"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -23972,6 +24020,12 @@ msgstr "ეს წერილი აქ არ არის"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ეს წერილი „გასაგზავნებში“ არ ელოდება"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "ამ გადამისამართების პორტის გამოყენება შეუძლებელია: აირჩიეთ სხვა ან ავტომატური"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24178,6 +24232,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "კლიენტის ID შეიძლება შეიცავდეს მხოლოდ ასოებს, ციფრებს და პუნქტუაციის ნიშნებს, არაუმეტეს 200-ისა"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "კლიენტის საიდუმლო შეიძლება შეიცავდეს მხოლოდ ასოებს, ციფრებს და პუნქტუაციას"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24342,6 +24402,84 @@ msgstr ""
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "იდენტობის პროვაიდერის (გამცემის) მისამართი არ შეიძლება შეიცავდეს მოთხოვნას ან ფრაგმენტს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "იდენტობის პროვაიდერი ჩვეულ მისამართებზე თავს არ აღწერს: შეიყვანეთ მისი შესვლის მისამართები"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "იდენტობის პროვაიდერმა თავისი აღწერა ზედმეტად ბევრი გადამისამართებით გადააგზავნა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "იდენტობის პროვაიდერმა თავისი აღწერა გადააგზავნა ამ კომპიუტერზე, პირად ქსელში ან https-ის გარეშე მდებარე მისამართზე"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "იდენტობის პროვაიდერის მისამართი არ შეიძლება შეიცავდეს მოთხოვნას ან ფრაგმენტს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "იდენტობის პროვაიდერის მისამართი {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "იდენტობის პროვაიდერის აღწერის მიღება ვერ მოხერხდა: {other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "იდენტობის პროვაიდერის აღწერა ასახელებს {what} მისამართს, რომელიც {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "იდენტობის პროვაიდერის აღწერა არ ასახელებს {what} მისამართს"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "იდენტობის პროვაიდერის აღწერა ზედმეტად გრძელია"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "იდენტობის პროვაიდერის აღწერა არ არის მოსალოდნელი JSON"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "იდენტობის პროვაიდერის აღწერა ასახელებს სხვა გამცემს, ვიდრე შეყვანილი მისამართია: შეამოწმეთ მისამართი სიმბოლო სიმბოლოდ"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "იდენტობის პროვაიდერის აღწერის მიხედვით, ის თავის გვერდზე არავის არ ასვლევინებს (ავტორიზაციის კოდი)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "იდენტობის პროვაიდერის აღწერის მიხედვით, ის არ იღებს დაცულ შესვლას (PKCE S256-ით), რომელსაც MailCraft იყენებს"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24564,6 +24702,12 @@ msgstr "შედეგის გამო ეს ანგარიში ი�
 #, fuzzy
 msgid "the result {why}"
 msgstr "შედეგი {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "გაუქმების მისამართი {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24985,6 +25129,18 @@ msgstr "სერვერის პასუხი ზედმეტად ღ
 msgid "the server's response is too long"
 msgstr "სერვერის პასუხი ზედმეტად გრძელია"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "შესვლა დაბრუნდა სხვა იდენტობის პროვაიდერისგან, ვიდრე მოთხოვნილი იყო: მისგან არაფერი იქნა გამოყენებული"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "შესვლა დაბრუნდა თქვენი იდენტობის პროვაიდერის სახელის გარეშე, რომელსაც, მისივე თქმით, ყოველთვის აძლევს: მისგან არაფერი იქნა გამოყენებული"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25146,6 +25302,12 @@ msgstr "ანგარიში არ არის"
 msgid "there is no account to remove"
 msgstr "წასაშლელი ანგარიში არ არის"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "განსაახლებელი წინა შესვლა არ არსებობს"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25217,6 +25379,12 @@ msgstr "ეს „გაგზავნა/მიღება“ სხვა �
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "ეს „გაგზავნა/მიღება“ იყო სერვერისთვის, რომელსაც {name} ადრე ასახელებდა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "ეს ანგარიში არ შედის თქვენი საკუთარი იდენტობის პროვაიდერით"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25415,6 +25583,12 @@ msgstr "ადრესატები: {people}"
 #: crates/ui-egui/src/reading/react.rs
 msgid "to {recipient}"
 msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "ტოკენის"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -25616,6 +25790,48 @@ msgstr "you@example.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "თქვენი იდენტობის პროვაიდერი"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "თქვენმა იდენტობის პროვაიდერმა უპასუხა სტატუსით {status}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "თქვენს იდენტობის პროვაიდერს ახლა ვერავის შეყვანა არ შეუძლია: სცადეთ მოგვიანებით"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "თქვენმა იდენტობის პროვაიდერმა არ იცის ეს კლიენტის ID ან მისი საიდუმლო: შეამოწმეთ OAuth-ის პარამეტრები"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "თქვენი იდენტობის პროვაიდერი ამ შესვლას აღარ იღებს: შედით ხელახლა"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "თქვენმა იდენტობის პროვაიდერმა შესვლა უარყო"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "თქვენი იდენტობის პროვაიდერი არ იძლევა მოთხოვნილს: შეამოწმეთ დამატებითი არეები OAuth-ის პარამეტრებში"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "თქვენი იდენტობის პროვაიდერის მისამართები უნდა იწყებოდეს https://-ით"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

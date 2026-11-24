@@ -22365,6 +22365,18 @@ msgstr "un inicio de sesión con su proveedor de identidad solo se envía a un s
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "un inicio de sesión con su proveedor de identidad solo se usa con los servidores de correo de esta cuenta"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "un inicio de sesión con su propio proveedor de identidad es solo para el correo, no para Microsoft Graph"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "un inicio de sesión con {provider} solo vuelve por un puerto de bucle invertido"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22388,6 +22400,12 @@ msgstr "las imágenes de una firma son PNG, JPEG o GIF (muchos programas de corr
 #, fuzzy
 msgid "a task needs a title"
 msgstr "una tarea necesita un título"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "se denegó el acceso en la página de inicio de sesión"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22637,6 +22655,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "no se pudo establecer una conexión segura con {host}: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "no se pudo abrir un puerto en este equipo para que vuelva el inicio de sesión"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22677,6 +22701,12 @@ msgstr "escriba un nombre de usuario para iniciar sesión"
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "escriba el id. de cliente registrado para MailCraft en su proveedor de identidad"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "escriba la dirección de su proveedor de identidad (su emisor)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23727,6 +23757,12 @@ msgstr "personal"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "las imágenes de la web no se descargan: guarde la imagen y agréguela desde el archivo"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "el puerto {port} de este equipo está en uso: elija otro puerto de redirección, o automático"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23780,6 +23816,12 @@ msgstr "la dirección del destinatario contiene {words}"
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "las respuestas pueden ir como máximo a {n} direcciones"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "revocación"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -23924,6 +23966,12 @@ msgid "sign in to {who} first"
 msgstr "inicie sesión primero en {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "inicio de sesión"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -24053,6 +24101,12 @@ msgstr "ese mensaje no está aquí"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ese mensaje no está esperando en la Bandeja de salida"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "ese puerto de redirección no se puede usar: elija otro, o automático"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24259,6 +24313,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "el id. de cliente solo puede contener letras, dígitos y signos de puntuación, 200 como máximo"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "el secreto de cliente solo puede tener letras, dígitos y signos de puntuación"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24425,6 +24485,84 @@ msgstr "la carpeta se numeró de nuevo mientras se leía"
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "la dirección del proveedor de identidad (emisor) no puede tener una consulta ni un fragmento"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "el proveedor de identidad no se describe en las direcciones habituales: escriba sus direcciones de inicio de sesión"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "el proveedor de identidad reenvió su descripción a través de demasiadas redirecciones"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "el proveedor de identidad reenvió su descripción a una dirección de este equipo, de una red privada o sin https"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "la dirección del proveedor de identidad no puede tener una consulta ni un fragmento"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "la dirección del proveedor de identidad {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "no se pudo obtener la descripción del proveedor de identidad: {other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "la descripción del proveedor de identidad da una dirección de {what} que {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "la descripción del proveedor de identidad no da ninguna dirección de {what}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "la descripción del proveedor de identidad es demasiado larga"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "la descripción del proveedor de identidad no es el JSON esperado"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "la descripción del proveedor de identidad nombra otro emisor distinto de la dirección escrita: compruebe la dirección carácter por carácter"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "la descripción del proveedor de identidad dice que no inicia sesión a nadie en su página (código de autorización)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "la descripción del proveedor de identidad dice que no admite el inicio de sesión protegido (PKCE con S256) que usa MailCraft"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24647,6 +24785,12 @@ msgstr "el resultado haría que esta cuenta guardara más estado de sincronizaci
 #, fuzzy
 msgid "the result {why}"
 msgstr "el resultado {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "la dirección de revocación {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -25068,6 +25212,18 @@ msgstr "la respuesta del servidor está anidada a demasiada profundidad"
 msgid "the server's response is too long"
 msgstr "la respuesta del servidor es demasiado larga"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "el inicio de sesión volvió de un proveedor de identidad distinto del solicitado: no se usó nada de él"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "el inicio de sesión volvió sin el nombre de su proveedor de identidad, que dice dar siempre: no se usó nada de él"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25229,6 +25385,12 @@ msgstr "no hay ninguna cuenta"
 msgid "there is no account to remove"
 msgstr "no hay ninguna cuenta que quitar"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "no hay ningún inicio de sesión anterior que renovar"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25300,6 +25462,12 @@ msgstr "este envío y recepción era para otra cuenta, no para {name}"
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "este Enviar y recibir era para el servidor {name} indicado antes"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "esta cuenta no inicia sesión con su propio proveedor de identidad"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25503,6 +25671,12 @@ msgstr "a {people}"
 msgid "to {recipient}"
 msgstr "para {recipient}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "token"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25704,6 +25878,48 @@ msgstr "nombre@example.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "su proveedor de identidad"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "su proveedor de identidad respondió con el estado {status}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "su proveedor de identidad no puede iniciar la sesión de nadie ahora mismo: inténtelo más tarde"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "su proveedor de identidad no conoce este ID de cliente, o su secreto de cliente: revise la configuración de OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "su proveedor de identidad ya no acepta este inicio de sesión: vuelva a iniciar sesión"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "su proveedor de identidad rechazó el inicio de sesión"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "su proveedor de identidad no concede lo que se pidió: revise los ámbitos adicionales en la configuración de OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "las direcciones de su proveedor de identidad deben empezar por https://"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

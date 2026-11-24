@@ -22415,6 +22415,18 @@ msgstr "přihlášení u vašeho zprostředkovatele identity se odesílá na po�
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "přihlášení u vašeho zprostředkovatele identity se používá jen s vlastními poštovními servery tohoto účtu"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "přihlášení u vašeho vlastního zprostředkovatele identity je jen pro poštu, ne pro Microsoft Graph"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "přihlášení u {provider} se vrací jen přes port zpětné smyčky"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22438,6 +22450,12 @@ msgstr "obrázky podpisu jsou PNG, JPEG nebo GIF (mnoho poštovních programů j
 #, fuzzy
 msgid "a task needs a title"
 msgstr "úkol potřebuje název"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "přístup byl na přihlašovací stránce odmítnut"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22689,6 +22707,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "nepodařilo se navázat zabezpečené připojení k {host}: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "na tomto počítači nelze otevřít port, na který by se přihlášení vrátilo"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22729,6 +22753,12 @@ msgstr "k přihlášení zadejte uživatelské jméno"
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "zadejte ID klienta zaregistrované pro MailCraft u vašeho zprostředkovatele identity"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "zadejte adresu svého zprostředkovatele identity (jeho vydavatele)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23780,6 +23810,12 @@ msgstr "osobní"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "obrázky z webu se nestahují: obrázek uložte a přidejte ho ze souboru"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "port {port} na tomto počítači je obsazený: zvolte jiný port přesměrování, nebo automaticky"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23833,6 +23869,12 @@ msgstr "adresa příjemce obsahuje {words}"
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "odpovědi mohou jít nejvýše na {n} adres"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "odvolání"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -23977,6 +24019,12 @@ msgid "sign in to {who} first"
 msgstr "nejprve se přihlaste k {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "přihlášení"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -24106,6 +24154,12 @@ msgstr "ta zpráva tu není"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ta zpráva nečeká ve složce Pošta k odeslání"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "tento port přesměrování nelze použít: zvolte jiný, nebo automaticky"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24312,6 +24366,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "ID klienta smí obsahovat jen písmena, číslice a interpunkci, nejvýše 200 znaků"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "tajný klíč klienta smí obsahovat jen písmena, číslice a interpunkci"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24478,6 +24538,84 @@ msgstr "složka byla během čtení přečíslována"
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "adresa zprostředkovatele identity (vydavatele) nesmí obsahovat dotaz ani fragment"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "zprostředkovatel identity se na obvyklých adresách nepopisuje: zadejte jeho přihlašovací adresy"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "zprostředkovatel identity přeposlal svůj popis přes příliš mnoho přesměrování"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "zprostředkovatel identity přeposlal svůj popis na adresu na tomto počítači, v soukromé síti nebo bez https"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "adresa zprostředkovatele identity nesmí obsahovat dotaz ani fragment"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "adresa zprostředkovatele identity {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "popis zprostředkovatele identity nelze načíst: {other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "popis zprostředkovatele identity uvádí adresu pro {what}, která {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "popis zprostředkovatele identity neuvádí žádnou adresu pro {what}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "popis zprostředkovatele identity je příliš dlouhý"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "popis zprostředkovatele identity není očekávaný JSON"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "popis zprostředkovatele identity uvádí jiného vydavatele než zadaná adresa: zkontrolujte adresu znak po znaku"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "podle popisu zprostředkovatel identity nikoho na své stránce nepřihlašuje (autorizační kód)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "podle popisu zprostředkovatel identity nepodporuje chráněné přihlášení (PKCE s S256), které MailCraft používá"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24700,6 +24838,12 @@ msgstr "výsledek by vedl k tomu, že tento účet uchovává víc stavu synchro
 #, fuzzy
 msgid "the result {why}"
 msgstr "výsledek {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "adresa pro odvolání {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -25121,6 +25265,18 @@ msgstr "odpověď serveru je vnořena příliš hluboko"
 msgid "the server's response is too long"
 msgstr "odpověď serveru je příliš dlouhá"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "přihlášení se vrátilo od jiného zprostředkovatele identity, než který byl požádán: nic z něj nebylo použito"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "přihlášení se vrátilo bez jména vašeho zprostředkovatele identity, které podle svých slov vždy uvádí: nic z něj nebylo použito"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25282,6 +25438,12 @@ msgstr "není žádný účet"
 msgid "there is no account to remove"
 msgstr "není žádný účet k odebrání"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "není žádné dřívější přihlášení k obnovení"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25353,6 +25515,12 @@ msgstr "toto Odeslat/přijmout bylo pro jiný účet, ne pro {name}"
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "toto Odeslat/přijmout bylo pro server, který {name} uváděl dříve"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "tento účet se nepřihlašuje u vašeho vlastního zprostředkovatele identity"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25558,6 +25726,12 @@ msgstr "pro {people}"
 msgid "to {recipient}"
 msgstr "pro {recipient}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "token"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25759,6 +25933,48 @@ msgstr "vy@example.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "váš zprostředkovatel identity"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "váš zprostředkovatel identity odpověděl stavem {status}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "váš zprostředkovatel identity teď nemůže nikoho přihlásit: zkuste to později"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "váš zprostředkovatel identity nezná toto ID klienta nebo jeho tajný klíč: zkontrolujte nastavení OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "váš zprostředkovatel identity už toto přihlášení nepřijímá: přihlaste se znovu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "váš zprostředkovatel identity přihlášení odmítl"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "váš zprostředkovatel identity nedá, co bylo požadováno: zkontrolujte další obory v nastavení OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "adresy vašeho zprostředkovatele identity musí začínat https://"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

@@ -22343,6 +22343,18 @@ msgstr "使用身份提供程序的登录信息仅在测试中发送到此计算
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "使用身份提供程序的登录信息仅用于此账户自己的邮件服务器"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "使用你自己的身份提供程序的登录仅用于邮件，不用于 Microsoft Graph"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "使用 {provider} 的登录只通过环回端口返回"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22366,6 +22378,12 @@ msgstr "签名图片须为 PNG、JPEG 或 GIF（许多邮件程序无法显示�
 #, fuzzy
 msgid "a task needs a title"
 msgstr "任务必须有标题"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "登录页面上拒绝了访问"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22612,6 +22630,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "无法与 {host} 建立安全连接：{reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "无法在此计算机上打开供登录返回的端口"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22652,6 +22676,12 @@ msgstr "输入用户名以登录"
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "输入在身份提供程序处为 MailCraft 注册的客户端 ID"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "请输入你的身份提供程序的地址（其颁发者）"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23703,6 +23733,12 @@ msgstr "个人"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "无法下载网络图片：请先保存图片，再从文件添加"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "此计算机上的端口 {port} 已被占用：请选择其他重定向端口，或选择自动"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23756,6 +23792,12 @@ msgstr "收件人地址包含 {words}"
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "回复最多可发送到 {n} 个地址"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "吊销"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -23900,6 +23942,12 @@ msgid "sign in to {who} first"
 msgstr "请先登录 {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "登录"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -24029,6 +24077,12 @@ msgstr "该邮件不在这里"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "该邮件未在发件箱中等待"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "无法使用该重定向端口：请选择其他端口，或选择自动"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24235,6 +24289,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "客户端 ID 只能包含字母、数字和标点符号，最多 200 个"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "客户端密码只能包含字母、数字和标点符号"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24401,6 +24461,84 @@ msgstr "文件夹在读取过程中被重新编号"
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "身份提供程序（颁发者）地址不能包含查询或片段"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "身份提供程序未在常用地址上描述自身：请输入其登录地址"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "身份提供程序经过太多次重定向转发了其描述"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "身份提供程序将其描述转发到了此计算机上、专用网络中或不使用 https 的地址"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "身份提供程序地址不能包含查询或片段"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "身份提供程序地址{why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "无法获取身份提供程序的描述：{other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "身份提供程序的描述给出的{what}地址{why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "身份提供程序的描述未给出{what}地址"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "身份提供程序的描述太长"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "身份提供程序的描述不是预期的 JSON"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "身份提供程序的描述所列颁发者与输入的地址不同：请逐字符检查地址"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "身份提供程序的描述称它不在其页面上为任何人登录（授权码）"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "身份提供程序的描述称它不支持 MailCraft 使用的受保护登录（使用 S256 的 PKCE）"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24623,6 +24761,12 @@ msgstr "处理此结果会使账户保存的同步状态超过允许的大小"
 #, fuzzy
 msgid "the result {why}"
 msgstr "结果 {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "吊销地址{why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -25044,6 +25188,18 @@ msgstr "服务器的响应嵌套得太深"
 msgid "the server's response is too long"
 msgstr "服务器的响应太长"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "登录从与所请求的不同的身份提供程序返回：未使用其中任何内容"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "登录返回时没有你的身份提供程序的名称，而它声称总会提供：未使用其中任何内容"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25205,6 +25361,12 @@ msgstr "没有账户"
 msgid "there is no account to remove"
 msgstr "没有可删除的账户"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "没有可续订的先前登录"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25276,6 +25438,12 @@ msgstr "此次发送/接收针对的是另一个账户，不是 {name}"
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "此次发送/接收针对的是之前指定的服务器 {name}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "此账户不使用你自己的身份提供程序登录"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25476,6 +25644,12 @@ msgstr "发给 {people}"
 #, fuzzy
 msgid "to {recipient}"
 msgstr "发送给 {recipient}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "令牌"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
@@ -25678,6 +25852,48 @@ msgstr "you@example.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "你的身份提供程序"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "你的身份提供程序以状态 {status} 应答"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "你的身份提供程序目前无法为任何人登录：请稍后再试"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "你的身份提供程序不认识此客户端 ID 或其客户端密码：请检查 OAuth 设置"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "你的身份提供程序不再接受此登录：请重新登录"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "你的身份提供程序拒绝了登录"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "你的身份提供程序不提供所请求的内容：请检查 OAuth 设置中的额外范围"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "你的身份提供程序的地址必须以 https:// 开头"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

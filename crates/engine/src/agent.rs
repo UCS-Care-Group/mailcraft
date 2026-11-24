@@ -3574,13 +3574,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 let signs_in_at = |a: &mailcraft_model::Account| {
                     a.oauth.as_ref().map(|o| {
                         let used = o.effective();
-                        (o.provider, used.authorize, used.token, used.client_id, used.revoke)
+                        (o.provider, used.authorize, used.token, used.client_id, used.revoke, used.built_in_client)
                     })
                 };
                 let was = signs_in_at(account);
                 if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != was) {
                     match now {
-                        Some((mailcraft_model::OAuthProvider::Custom, page, token, client, revoke)) => {
+                        Some((mailcraft_model::OAuthProvider::Custom, page, token, client, revoke, _)) => {
                             let said = address_said;
                             text.push_str(&format!(
                                 "; it signs in with its own identity provider, on the page {}, with tokens from {}",
@@ -3601,7 +3601,24 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                                 text.push_str(&format!("; as the client \u{201c}{}\u{201d}", clip(&client, 80)));
                             }
                         }
-                        Some((provider, ..)) => text.push_str(&format!("; it signs in with {}", provider.label())),
+                        Some((provider, _, _, client, _, built_in)) => {
+                            text.push_str(&format!("; it signs in with {}", provider.label()));
+                            // A built-in provider's sign-in re-pointed at another client (an
+                            // organisation's own registration) is named, and so is the way back
+                            // to MailCraft's own (#1844 review).
+                            let before = was.as_ref().filter(|w| w.0 == provider);
+                            let client_changed = match before {
+                                Some(w) => w.3 != client || w.5 != built_in,
+                                None => !built_in,
+                            };
+                            if client_changed {
+                                if built_in {
+                                    text.push_str(" as MailCraft's own client");
+                                } else {
+                                    text.push_str(&format!(" as the client \u{201c}{}\u{201d}", clip(&client, 80)));
+                                }
+                            }
+                        }
                         None => text.push_str("; it signs in with a password"),
                     }
                 }

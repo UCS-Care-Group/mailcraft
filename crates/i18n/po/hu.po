@@ -22359,6 +22359,18 @@ msgstr "az identitásszolgáltatóval történő bejelentkezés csak teszt sorá
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "az identitásszolgáltatóval történő bejelentkezés csak a fiók saját levelezőkiszolgálóival használható"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "a saját identitásszolgáltatóval történő bejelentkezés csak levelezésre szolgál, a Microsoft Graphhoz nem"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "a(z) {provider} bejelentkezés csak visszacsatolási porton keresztül tér vissza"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22382,6 +22394,12 @@ msgstr "az aláírás képei PNG, JPEG vagy GIF (sok levelezőprogram nem mutath
 #, fuzzy
 msgid "a task needs a title"
 msgstr "a feladatnak címre van szüksége"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "a hozzáférést a bejelentkezési oldalon elutasították"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22631,6 +22649,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "nem sikerült biztonságos kapcsolatot létesíteni ezzel a kiszolgálóval: {host}. Ok: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "nem sikerült portot nyitni ezen a számítógépen, amelyre a bejelentkezés visszatérhet"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22671,6 +22695,12 @@ msgstr "beírandó felhasználónév"
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "adja meg a MailCraft számára az identitásszolgáltatónál regisztrált ügyfél-azonosítót"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "adja meg az identitásszolgáltató címét (a kibocsátóját)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23722,6 +23752,12 @@ msgstr "személyes"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "A képek nem kerülnek letöltésre: mentse el a képet és add hozzá a fájlból"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "a(z) {port} port foglalt ezen a számítógépen: válasszon másik átirányítási portot, vagy az automatikusat"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23775,6 +23811,12 @@ msgstr "a címzett címe tartalmazza: {words}"
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "válasz lehet menni a legtöbb {n} címek"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "visszavonási"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -23919,6 +23961,12 @@ msgid "sign in to {who} first"
 msgstr "előbb jelentkezzen be ebbe a fiókba: {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "bejelentkezési"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -24048,6 +24096,12 @@ msgstr "az az üzenet nincs itt"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "ez az üzenet nem vár a Postázandó üzenetek között"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "ez az átirányítási port nem használható: válasszon másikat, vagy az automatikusat"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24254,6 +24308,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "az ügyfél-azonosító csak betűket, számjegyeket és írásjeleket tartalmazhat, legfeljebb 200-at"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "az ügyfélkulcs csak betűket, számjegyeket és írásjeleket tartalmazhat"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24420,6 +24480,84 @@ msgstr "a mappa számozása megváltozott olvasás közben"
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "az identitásszolgáltató (kibocsátó) címe nem tartalmazhat lekérdezést vagy töredéket"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "az identitásszolgáltató nem írja le magát a szokásos címeken: adja meg a bejelentkezési címeit"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "az identitásszolgáltató túl sok átirányításon keresztül küldte tovább a leírását"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "az identitásszolgáltató a leírását egy ezen a számítógépen, magánhálózaton lévő vagy https nélküli címre küldte tovább"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "az identitásszolgáltató címe nem tartalmazhat lekérdezést vagy töredéket"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "az identitásszolgáltató címe {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "az identitásszolgáltató leírását nem sikerült lekérni: {other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "az identitásszolgáltató leírása olyan {what} címet ad meg, amely {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "az identitásszolgáltató leírása nem ad meg {what} címet"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "az identitásszolgáltató leírása túl hosszú"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "az identitásszolgáltató leírása nem a várt JSON"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "az identitásszolgáltató leírása más kibocsátót nevez meg, mint a megadott cím: ellenőrizze a címet karakterről karakterre"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "a leírása szerint az identitásszolgáltató senkit sem jelentkeztet be az oldalán (engedélyezési kód)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "a leírása szerint az identitásszolgáltató nem támogatja a MailCraft által használt védett bejelentkezést (PKCE S256-tal)"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24642,6 +24780,12 @@ msgstr "az eredmény miatt a fiók a megengedettnél több szinkronizálási ada
 #, fuzzy
 msgid "the result {why}"
 msgstr "az eredmény {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "a visszavonási cím {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -25063,6 +25207,18 @@ msgstr "A szerver válasza túl mélyen van elrejtve."
 msgid "the server's response is too long"
 msgstr "a szerver válasza túl hosszú"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "a bejelentkezés más identitásszolgáltatótól érkezett vissza, mint amelyiket kérték: semmit sem használtunk fel belőle"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "a bejelentkezés az identitásszolgáltató neve nélkül érkezett vissza, pedig saját bevallása szerint mindig megadja: semmit sem használtunk fel belőle"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25224,6 +25380,12 @@ msgstr "nincs fiókja"
 msgid "there is no account to remove"
 msgstr "nincs kihúzható fiók"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "nincs korábbi bejelentkezés, amelyet meg lehetne újítani"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25295,6 +25457,12 @@ msgstr "ez a küldés és fogadás másik fiókon futott. A jelenlegi fiók: {na
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "Ez a Send/Receive a {name} nevű kiszolgálónak volt."
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "ez a fiók nem a saját identitásszolgáltatójával jelentkezik be"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25498,6 +25666,12 @@ msgstr "címzettek: {people}"
 msgid "to {recipient}"
 msgstr "címzett: {recipient}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "token"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25699,6 +25873,48 @@ msgstr "you@pream.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "az identitásszolgáltatója"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "az identitásszolgáltató {status} állapottal válaszolt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "az identitásszolgáltató most senkit sem tud bejelentkeztetni: próbálja újra később"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "az identitásszolgáltató nem ismeri ezt az ügyfélazonosítót vagy az ügyfélkulcsát: ellenőrizze az OAuth-beállításokat"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "az identitásszolgáltató már nem fogadja el ezt a bejelentkezést: jelentkezzen be újra"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "az identitásszolgáltató elutasította a bejelentkezést"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "az identitásszolgáltató nem adja meg, amit kértek: ellenőrizze a további hatóköröket az OAuth-beállításokban"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "az identitásszolgáltató címeinek https://-sel kell kezdődniük"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

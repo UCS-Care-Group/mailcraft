@@ -24,6 +24,7 @@
 //! fixed words; the text it adds for people is never shown (it could say anything, or repeat a
 //! secret).
 
+use mailcraft_i18n::said;
 use mailcraft_model::ClientAuth;
 
 use super::*;
@@ -31,26 +32,26 @@ use super::*;
 /// The fixed words for a provider's refusal, by its code (RFC 6749 §5.2, §4.1.2.1).
 fn refused(code: &str) -> NetError {
     let (text, auth) = match code {
-        "invalid_grant" => ("your identity provider no longer takes this sign-in: sign in again", true),
+        "invalid_grant" => (said!("your identity provider no longer takes this sign-in: sign in again"), true),
         "invalid_client" | "unauthorized_client" => {
-            ("your identity provider doesn't know this client id, or its client secret: check the OAuth settings", true)
+            (said!("your identity provider doesn't know this client id, or its client secret: check the OAuth settings"), true)
         }
-        "invalid_scope" => ("your identity provider won't give what was asked for: check the extra scopes in the OAuth settings", true),
-        "access_denied" => ("access was refused on the sign-in page", true),
-        "server_error" | "temporarily_unavailable" => ("your identity provider can't sign anybody in just now: try again later", false),
-        _ => ("your identity provider refused the sign-in", true),
+        "invalid_scope" => (said!("your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"), true),
+        "access_denied" => (said!("access was refused on the sign-in page"), true),
+        "server_error" | "temporarily_unavailable" => (said!("your identity provider can't sign anybody in just now: try again later"), false),
+        _ => (said!("your identity provider refused the sign-in"), true),
     };
-    NetError::Proto(if auth { ProtoError::Auth(text.into()) } else { ProtoError::Rejected(text.into()) })
+    NetError::Proto(if auth { ProtoError::Auth(text) } else { ProtoError::Rejected(text) })
 }
 
 /// The client id and the addresses a sign-in uses, when the settings are ready for one.
 fn registration(oauth: &OAuth, client_secret: &str) -> Result<mailcraft_model::OAuthDefaults, NetError> {
     if oauth.provider != OAuthProvider::Custom {
-        return Err(NetError::Config("this account doesn't sign in with your own identity provider".into()));
+        return Err(NetError::Config(said!("this account doesn't sign in with your own identity provider")));
     }
     oauth.ready().map_err(|why| NetError::Config(why.to_string().into()))?;
     if client_secret.len() > 1024 || !client_secret.bytes().all(|b| b.is_ascii_graphic()) {
-        return Err(NetError::Config("the client secret can only be letters, digits and punctuation".into()));
+        return Err(NetError::Config(said!("the client secret can only be letters, digits and punctuation")));
     }
     Ok(oauth.effective())
 }
@@ -153,10 +154,10 @@ fn judge_issued(request: &[u8], state: &str, issuer: &str, required: bool) -> (&
     };
     if wrong {
         let why = match named {
-            Some(_) => "the sign-in came back from another identity provider than the one asked: nothing of it was used",
-            None => "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used",
+            Some(_) => said!("the sign-in came back from another identity provider than the one asked: nothing of it was used"),
+            None => said!("the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"),
         };
-        return (&FAILED, Some(Err(Refused::from(NetError::Proto(ProtoError::Protocol(why.into()))))));
+        return (&FAILED, Some(Err(Refused::from(NetError::Proto(ProtoError::Protocol(why))))));
     }
     // A no from the page is said in this module's own words, by its code alone: the provider's
     // words (`error_description`) may name the owner or the organisation, and are neither logged
@@ -205,7 +206,7 @@ pub(super) fn provider_url(text: &str) -> Result<Url, NetError> {
 pub(super) fn provider_url_when(text: &str, plaintext: bool) -> Result<Url, NetError> {
     let url = Url::parse(text)?;
     if !url.secure && !plaintext {
-        return Err(NetError::Config("your identity provider's addresses must start with https://".into()));
+        return Err(NetError::Config(said!("your identity provider's addresses must start with https://")));
     }
     Ok(url)
 }
@@ -231,7 +232,7 @@ pub fn refresh_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) -
     let used = registration(oauth, client_secret)?;
     let token_endpoint = provider_url(&used.token)?;
     if refresh_token.is_empty() || !usable(refresh_token) {
-        return Err(NetError::Proto(ProtoError::Auth("there is no earlier sign-in to renew".into())));
+        return Err(NetError::Proto(ProtoError::Auth(said!("there is no earlier sign-in to renew"))));
     }
     // (No scope: the new tokens are for what the sign-in was given, RFC 6749 §6.)
     let mut fields = vec![("grant_type", "refresh_token"), ("refresh_token", refresh_token)];
@@ -252,7 +253,7 @@ pub fn revoke_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) ->
     if used.revoke.is_empty() || refresh_token.is_empty() || !usable(refresh_token) {
         return Ok(());
     }
-    mailcraft_model::oauth::endpoint(&used.revoke).map_err(|why| NetError::Config(format!("the revocation address {why}").into()))?;
+    mailcraft_model::oauth::endpoint(&used.revoke).map_err(|why| NetError::Config(said!("the revocation address {why}", why)))?;
     let endpoint = provider_url(&used.revoke)?;
     let mut fields = vec![("token", refresh_token), ("token_type_hint", "refresh_token")];
     let authorization = client_authentication(&used, client_secret, &mut fields);
@@ -266,7 +267,7 @@ pub fn revoke_custom(oauth: &OAuth, client_secret: &str, refresh_token: &str) ->
     let json = serde_json::from_slice::<Value>(&answer.body).ok();
     let code = json.as_ref().and_then(|j| j.get("error")).and_then(Value::as_str).unwrap_or("");
     Err(if code.is_empty() {
-        NetError::Proto(ProtoError::Rejected(format!("your identity provider answered with status {}", answer.status).into()))
+        NetError::Proto(ProtoError::Rejected(said!("your identity provider answered with status {status}", status = answer.status)))
     } else {
         refused(code)
     })
@@ -290,7 +291,7 @@ fn trade_custom(
         return Err(refused(&code));
     }
     if answer.status >= 500 {
-        return Err(NetError::Proto(ProtoError::Rejected(format!("your identity provider answered with status {}", answer.status).into())));
+        return Err(NetError::Proto(ProtoError::Rejected(said!("your identity provider answered with status {status}", status = answer.status))));
     }
     tokens_from(&answer, earlier_refresh, mailcraft_time::now(), secrets).map_err(|refused| refused.error)
 }

@@ -22440,6 +22440,18 @@ msgstr "o conectare cu furnizorul de identitate este trimisă la un server de e-
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr "o conectare cu furnizorul de identitate este utilizată doar cu serverele de e-mail proprii ale acestui cont"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr "o conectare cu propriul furnizor de identitate este doar pentru e-mail, nu pentru Microsoft Graph"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr "o conectare cu {provider} revine doar printr-un port de loopback"
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
@@ -22463,6 +22475,12 @@ msgstr "imaginile unei semnături sunt PNG, JPEG sau GIF (multe programe de e-ma
 #, fuzzy
 msgid "a task needs a title"
 msgstr "o sarcină are nevoie de un titlu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "access was refused on the sign-in page"
+msgstr "accesul a fost refuzat pe pagina de conectare"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
@@ -22715,6 +22733,12 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr "nu s-a putut stabili o conexiune securizată cu {host}: {reason}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr "nu s-a putut deschide un port pe acest computer la care să revină conectarea"
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "couldn't reach {host}: {reason}"
@@ -22755,6 +22779,12 @@ msgstr "introduceți un nume de utilizator pentru conectare"
 #, fuzzy
 msgid "enter the client id registered for MailCraft at your identity provider"
 msgstr "introduceți ID-ul client înregistrat pentru MailCraft la furnizorul de identitate"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "enter your identity provider's address (its issuer)"
+msgstr "introduceți adresa furnizorului de identitate (emitentul său)"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -23805,6 +23835,12 @@ msgstr "personal"
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "imaginile de pe web nu se descarcă: salvați imaginea și adăugați-o din fișier"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr "portul {port} de pe acest computer este ocupat: alegeți alt port de redirecționare sau automat"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23858,6 +23894,12 @@ msgstr "adresa destinatarului conține {words}"
 #, fuzzy
 msgid "replies can go to at most {n} addresses"
 msgstr "răspunsurile pot merge la cel mult {n} adrese"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "revocation"
+msgstr "revocare"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -24002,6 +24044,12 @@ msgid "sign in to {who} first"
 msgstr "conectați-vă întâi la {who}"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "sign-in"
+msgstr "conectare"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 #, fuzzy
 msgid "sign-in failed: {reason}"
@@ -24131,6 +24179,12 @@ msgstr "acel mesaj nu este aici"
 #, fuzzy
 msgid "that message isn't waiting in the Outbox"
 msgstr "acel mesaj nu așteaptă în Mesaje de trimis"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+#, fuzzy
+msgid "that redirect port can't be used: choose another, or automatic"
+msgstr "acel port de redirecționare nu poate fi folosit: alegeți altul sau automat"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -24337,6 +24391,12 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr "ID-ul client poate conține doar litere, cifre și semne de punctuație, cel mult 200"
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr "secretul clientului poate conține doar litere, cifre și semne de punctuație"
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
 msgid "the command was refused"
@@ -24503,6 +24563,84 @@ msgstr "dosarul a fost renumerotat în timpul citirii"
 #, fuzzy
 msgid "the identity provider (issuer) address can't have a query or a fragment"
 msgstr "adresa furnizorului de identitate (emitent) nu poate avea o interogare sau un fragment"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr "furnizorul de identitate nu se descrie la adresele obișnuite: introduceți adresele sale de conectare"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on through too many redirects"
+msgstr "furnizorul de identitate și-a trimis descrierea mai departe prin prea multe redirecționări"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr "furnizorul de identitate și-a trimis descrierea mai departe la o adresă de pe acest computer, dintr-o rețea privată sau fără https"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr "adresa furnizorului de identitate nu poate avea o interogare sau un fragment"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's address {why}"
+msgstr "adresa furnizorului de identitate {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr "descrierea furnizorului de identitate nu a putut fi obținută: {other}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr "descrierea furnizorului de identitate dă o adresă de {what} care {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description has no {what} address"
+msgstr "descrierea furnizorului de identitate nu dă nicio adresă de {what}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description is too long"
+msgstr "descrierea furnizorului de identitate este prea lungă"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr "descrierea furnizorului de identitate nu este JSON-ul așteptat"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr "descrierea furnizorului de identitate numește alt emitent decât adresa introdusă: verificați adresa, caracter cu caracter"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr "descrierea furnizorului de identitate spune că nu conectează pe nimeni pe pagina sa (cod de autorizare)"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
+msgstr "descrierea furnizorului de identitate spune că nu acceptă conectarea protejată (PKCE cu S256) pe care o folosește MailCraft"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -24725,6 +24863,12 @@ msgstr "rezultatul ar face ca acest cont să păstreze mai multă stare de sincr
 #, fuzzy
 msgid "the result {why}"
 msgstr "rezultatul {why}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the revocation address {why}"
+msgstr "adresa de revocare {why}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -25146,6 +25290,18 @@ msgstr "răspunsul serverului este imbricat prea adânc"
 msgid "the server's response is too long"
 msgstr "răspunsul serverului este prea lung"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr "conectarea a revenit de la alt furnizor de identitate decât cel solicitat: nu s-a folosit nimic din ea"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr "conectarea a revenit fără numele furnizorului de identitate, pe care spune că îl dă mereu: nu s-a folosit nimic din ea"
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -25307,6 +25463,12 @@ msgstr "nu există niciun cont"
 msgid "there is no account to remove"
 msgstr "nu există niciun cont de eliminat"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "there is no earlier sign-in to renew"
+msgstr "nu există o conectare anterioară de reînnoit"
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
@@ -25378,6 +25540,12 @@ msgstr "această Trimitere/primire era pentru alt cont, nu pentru {name}"
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "această Trimitere/primire era pentru serverul pe care {name} îl numea înainte"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "this account doesn't sign in with your own identity provider"
+msgstr "acest cont nu se conectează cu propriul furnizor de identitate"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25583,6 +25751,12 @@ msgstr "către {people}"
 msgid "to {recipient}"
 msgstr "către {recipient}"
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+#, fuzzy
+msgid "token"
+msgstr "token"
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -25784,6 +25958,48 @@ msgstr "dvs@example.org"
 #, fuzzy
 msgid "your identity provider"
 msgstr "furnizorul dvs. de identitate"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider answered with status {status}"
+msgstr "furnizorul de identitate a răspuns cu starea {status}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr "furnizorul de identitate nu poate conecta pe nimeni acum: încercați mai târziu"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr "furnizorul de identitate nu cunoaște acest ID de client sau secretul său: verificați setările OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr "furnizorul de identitate nu mai acceptă această conectare: conectați-vă din nou"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider refused the sign-in"
+msgstr "furnizorul de identitate a refuzat conectarea"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr "furnizorul de identitate nu oferă ce s-a cerut: verificați domeniile suplimentare din setările OAuth"
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+#, fuzzy
+msgid "your identity provider's addresses must start with https://"
+msgstr "adresele furnizorului de identitate trebuie să înceapă cu https://"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

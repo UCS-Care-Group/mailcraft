@@ -66,6 +66,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_charset::base64::URL_SAFE_NO_PAD;
+use mailcraft_i18n::said;
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{OAuth, OAuthProvider};
 use mailcraft_proto::ProtoError;
@@ -401,7 +402,7 @@ pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel:
         return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
     }
     if oauth.provider == OAuthProvider::Custom && resource != Resource::Mail {
-        return Err(NetError::Config("a sign-in with your own identity provider is for mail only, not Microsoft Graph".into()));
+        return Err(NetError::Config(said!("a sign-in with your own identity provider is for mail only, not Microsoft Graph")));
     }
     let mut endpoints = Endpoints::for_resource(oauth, resource);
     // (An Outlook.com address is a personal account whatever the settings know yet.)
@@ -1240,7 +1241,7 @@ pub fn refresh_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> 
 pub fn refresh_for_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str, resource: Resource) -> Result<Tokens, NetError> {
     if oauth.provider == OAuthProvider::Custom {
         if resource != Resource::Mail {
-            return Err(NetError::Config("a sign-in with your own identity provider is for mail only, not Microsoft Graph".into()));
+            return Err(NetError::Config(said!("a sign-in with your own identity provider is for mail only, not Microsoft Graph")));
         }
         return refresh_custom(&at_endpoints(oauth, endpoints), "", refresh_token);
     }
@@ -1966,17 +1967,17 @@ impl Redirect {
     /// else has is refused rather than another taken: the provider wouldn't send the owner there.
     fn listen_at(port: u16) -> Result<Redirect, NetError> {
         if port == 0 || blocked_port(port) {
-            return Err(NetError::Config("that redirect port can't be used: choose another, or automatic".into()));
+            return Err(NetError::Config(said!("that redirect port can't be used: choose another, or automatic")));
         }
         let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
-            .map_err(|_| NetError::Config(format!("port {port} on this computer is in use: choose another redirect port, or automatic").into()))?;
-        v4.set_nonblocking(true).map_err(|_| NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into()))?;
+            .map_err(|_| NetError::Config(said!("port {port} on this computer is in use: choose another redirect port, or automatic", port)))?;
+        v4.set_nonblocking(true).map_err(|_| NetError::Config(said!("couldn't open a port on this computer for the sign-in to come back to")))?;
         Ok(Redirect { listeners: vec![v4], port })
     }
 
     /// [`listen`](Self::listen) with the test for a port a browser refuses given, so a test can drive it.
     fn listen_avoiding(blocked: impl Fn(u16) -> bool) -> Result<Redirect, NetError> {
-        let failed = || NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into());
+        let failed = || NetError::Config(said!("couldn't open a port on this computer for the sign-in to come back to"));
         for attempt in 1..=MAX_PORT_TRIES {
             let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| failed())?;
             let port = v4.local_addr().map_err(|_| failed())?.port();
@@ -2099,7 +2100,7 @@ pub fn sign_in_via(
         return sign_in_at(endpoints, oauth, login_hint, open, cancel);
     }
     if oauth.provider != OAuthProvider::Microsoft {
-        return Err(NetError::Config(format!("a sign-in with {} comes back through a loopback port only", oauth.provider.label()).into()));
+        return Err(NetError::Config(said!("a sign-in with {provider} comes back through a loopback port only", provider = oauth.provider.label())));
     }
     sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(|refused| refused.error)
 }
@@ -2117,9 +2118,10 @@ pub fn sign_in_explained_via(
         return sign_in_explained(endpoints, oauth, login_hint, open, cancel);
     }
     if oauth.provider != OAuthProvider::Microsoft {
-        return Err(SignInEnd::Other(NetError::Config(
-            format!("a sign-in with {} comes back through a loopback port only", oauth.provider.label()).into(),
-        )));
+        return Err(SignInEnd::Other(NetError::Config(said!(
+            "a sign-in with {provider} comes back through a loopback port only",
+            provider = oauth.provider.label()
+        ))));
     }
     sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(SignInEnd::from)
 }

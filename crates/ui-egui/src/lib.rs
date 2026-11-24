@@ -3188,6 +3188,7 @@ impl MailApp {
                 self.pause_fetch();
                 self.session.driver.round.queue.clear();
                 self.session.driver.round.inbox_queue.clear();
+                self.forget_retries_not_under_way();
                 // (Nor does a run called off for something else go on after.)
                 if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
                     *called_off = false;
@@ -5088,6 +5089,15 @@ impl MailApp {
         imap.or(graph).or_else(|| self.signing_in.as_ref().filter(|s| !s.graph && !s.favorites).map(|s| s.account))
     }
 
+    /// The Send/Receive that waited is called off: a mark for a renewal after a refused token is
+    /// kept only for the account whose run or renewal is still under way (its end lets go of it).
+    /// One whose run was called off to go on, and now never does, may renew again next time.
+    pub(crate) fn forget_retries_not_under_way(&mut self) {
+        let running = self.sync_running_account();
+        let renewing = self.signing_in.as_ref().map(|s| s.account);
+        self.token_retried.retain(|a| Some(*a) == running || Some(*a) == renewing);
+    }
+
     /// Skip: leave an account that waits its turn out of the run under way.
     fn skip_sync(&mut self, p: &Value) -> Result<Value, String> {
         use mailcraft_engine::cmd::sync_progress::RunState;
@@ -5100,6 +5110,8 @@ impl MailApp {
         if !self.session.driver.round.skip(account) {
             return Err(i18n::fmt(tl!("{name} isn't waiting its turn in a Send/Receive"), &[("name", &name)]));
         }
+        // (A run called off after a renewal that was to go on doesn't now: the next one may renew.)
+        self.token_retried.remove(&account);
         self.session.sync_progress.skip(account);
         Ok(json!({"skipped": account}))
     }
@@ -5243,8 +5255,9 @@ impl MailApp {
             }
             let quiet = run.is_none_or(|(_, _, _, quiet)| quiet);
             // (Only this account's run ends the one retry it had: another account's leaves it,
-            // #1844 review.)
-            let retried = self.token_retried.remove(&account);
+            // #1844 review. A run called off to go on at once keeps it: the run that goes on is
+            // the same Send/Receive, and a second refusal there waits for the next one.)
+            let retried = if called_off { self.token_retried.contains(&account) } else { self.token_retried.remove(&account) };
             let totals = std::mem::take(&mut self.sync_totals);
             let refused = std::mem::take(&mut self.sync_refused);
             if refused {

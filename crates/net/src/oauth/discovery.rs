@@ -21,6 +21,7 @@
 
 use std::time::{Duration, Instant};
 
+use mailcraft_i18n::{Arg, said};
 use mailcraft_model::ClientAuth;
 use serde_json::Value;
 
@@ -77,7 +78,7 @@ impl Discovered {
 /// document, else its RFC 8414 one. The error says what was wrong with the last one tried.
 pub fn discover(issuer: &str) -> Result<Discovered, NetError> {
     let issuer = checked_issuer(issuer)?;
-    let mut last = NetError::Config("the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses".into());
+    let mut last = NetError::Config(said!("the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"));
     for address in addresses(&issuer) {
         match fetch(&address) {
             Ok(Some(body)) => match read(&issuer, &body) {
@@ -96,11 +97,11 @@ pub fn discover(issuer: &str) -> Result<Discovered, NetError> {
 fn checked_issuer(issuer: &str) -> Result<String, NetError> {
     let issuer = issuer.trim();
     if issuer.is_empty() {
-        return Err(NetError::Config("enter your identity provider's address (its issuer)".into()));
+        return Err(NetError::Config(said!("enter your identity provider's address (its issuer)")));
     }
-    mailcraft_model::oauth::endpoint(issuer).map_err(|why| NetError::Config(format!("the identity provider's address {why}").into()))?;
+    mailcraft_model::oauth::endpoint(issuer).map_err(|why| NetError::Config(said!("the identity provider's address {why}", why)))?;
     if issuer.contains(['?', '#']) {
-        return Err(NetError::Config("the identity provider's address can't have a query or a fragment".into()));
+        return Err(NetError::Config(said!("the identity provider's address can't have a query or a fragment")));
     }
     Ok(issuer.to_string())
 }
@@ -126,7 +127,9 @@ pub(super) struct Got {
 }
 
 /// Why a redirect isn't followed.
-const ELSEWHERE: &str = "the identity provider sent its description on to an address on this computer, a private network or without https";
+fn elsewhere() -> NetError {
+    NetError::Config(said!("the identity provider sent its description on to an address on this computer, a private network or without https"))
+}
 
 /// The body at `address`, following redirects to addresses that are checked as it was.
 /// `Ok(None)` when there is nothing there (a status other than 200 and a redirect).
@@ -157,7 +160,7 @@ pub(super) fn fetch_with(address: &str, reach: &Reach<'_>) -> Result<Option<Vec<
             _ => return Ok(None),
         }
     }
-    Err(NetError::Config("the identity provider sent its description on through too many redirects".into()))
+    Err(NetError::Config(said!("the identity provider sent its description on through too many redirects")))
 }
 
 /// Where a redirect from `url` to `location` leads, met fetching the description of the issuer at
@@ -166,7 +169,7 @@ pub(super) fn fetch_with(address: &str, reach: &Reach<'_>) -> Result<Option<Vec<
 pub(super) fn next_hop(first: &Url, url: &Url, location: &str, plaintext: bool) -> Result<Url, NetError> {
     let next = super::custom::provider_url_when(&absolute(url, location), plaintext)?;
     if !may_redirect(first, &next) {
-        return Err(NetError::Config(ELSEWHERE.into()));
+        return Err(elsewhere());
     }
     Ok(next)
 }
@@ -195,9 +198,9 @@ pub(super) fn ask_public(url: &Url, reach: &Reach<'_>) -> Result<Got, NetError> 
 /// What went wrong asking at an address a redirect named, as discovery says it.
 fn refused(error: PictureError) -> NetError {
     match error {
-        PictureError::NotPublic | PictureError::Address => NetError::Config(ELSEWHERE.into()),
+        PictureError::NotPublic | PictureError::Address => elsewhere(),
         PictureError::Net(error) => error,
-        other => NetError::Config(format!("the identity provider's description couldn't be fetched: {other}").into()),
+        other => NetError::Config(said!("the identity provider's description couldn't be fetched: {other}", other)),
     }
 }
 
@@ -285,12 +288,13 @@ fn remove_dots(target: &str) -> String {
 
 /// Read an identity provider's description of itself, fetched for `issuer` (as typed).
 pub fn read(issuer: &str, body: &[u8]) -> Result<Discovered, NetError> {
-    let bad = |why: &str| NetError::Config(format!("the identity provider's description {why}").into());
+    let bad = |why: mailcraft_i18n::Text| NetError::Config(why);
     if body.len() > http::MAX_BODY {
-        return Err(bad("is too long"));
+        return Err(bad(said!("the identity provider's description is too long")));
     }
-    let json: Value = serde_json::from_slice(body).map_err(|_| bad("isn't the JSON it should be"))?;
-    let object = json.as_object().ok_or_else(|| bad("isn't the JSON it should be"))?;
+    let not_json = || bad(said!("the identity provider's description isn't the JSON it should be"));
+    let json: Value = serde_json::from_slice(body).map_err(|_| not_json())?;
+    let object = json.as_object().ok_or_else(not_json)?;
     let text = |name: &str| object.get(name).and_then(Value::as_str).map(str::trim).unwrap_or("");
     let list = |name: &str| -> Vec<String> {
         let entries = object.get(name).and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
@@ -304,29 +308,31 @@ pub fn read(issuer: &str, body: &[u8]) -> Result<Discovered, NetError> {
     };
     let issuer = issuer.trim();
     if text("issuer") != issuer {
-        return Err(NetError::Config(
-            "the identity provider's description names another issuer than the address entered: check the address, character for character".into(),
-        ));
+        return Err(NetError::Config(said!(
+            "the identity provider's description names another issuer than the address entered: check the address, character for character"
+        )));
     }
-    let address = |name: &str, what: &str, needed: bool| -> Result<String, NetError> {
+    let address = |name: &str, what: Arg, needed: bool| -> Result<String, NetError> {
         let value = text(name);
         if value.is_empty() {
-            return if needed { Err(bad(&format!("has no {what} address"))) } else { Ok(String::new()) };
+            return if needed { Err(bad(said!("the identity provider's description has no {what} address", what))) } else { Ok(String::new()) };
         }
-        mailcraft_model::oauth::endpoint(value)
-            .map_err(|why| bad(&format!("gives a {what} address that {}", why.trim_start_matches("is ").trim_start_matches("must "))))?;
+        mailcraft_model::oauth::endpoint(value).map_err(|why| {
+            let why = why.trim_start_matches("is ").trim_start_matches("must ").to_string();
+            bad(said!("the identity provider's description gives a {what} address that {why}", what, why))
+        })?;
         Ok(value.to_string())
     };
-    let authorize = address("authorization_endpoint", "sign-in", true)?;
-    let token = address("token_endpoint", "token", true)?;
-    let revoke = address("revocation_endpoint", "revocation", false)?;
+    let authorize = address("authorization_endpoint", Arg::words("sign-in"), true)?;
+    let token = address("token_endpoint", Arg::words("token"), true)?;
+    let revoke = address("revocation_endpoint", Arg::words("revocation"), false)?;
     let methods = list("code_challenge_methods_supported");
     if object.contains_key("code_challenge_methods_supported") && !methods.iter().any(|m| m == "S256") {
-        return Err(bad("says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"));
+        return Err(bad(said!("the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses")));
     }
     let grants = list("grant_types_supported");
     if !grants.is_empty() && !grants.iter().any(|g| g == "authorization_code") {
-        return Err(bad("says it doesn't sign people in on its page (authorization code)"));
+        return Err(bad(said!("the identity provider's description says it doesn't sign people in on its page (authorization code)")));
     }
     let client_auth = client_auth_of(&list("token_endpoint_auth_methods_supported"));
     let issuer_in_response = object.get("authorization_response_iss_parameter_supported").and_then(Value::as_bool).unwrap_or(false);

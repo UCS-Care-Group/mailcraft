@@ -18561,6 +18561,16 @@ msgstr ""
 msgid "a sign-in with your identity provider is only used with this account's own mail servers"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+msgid "a sign-in with your own identity provider is for mail only, not Microsoft Graph"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+msgid "a sign-in with {provider} comes back through a loopback port only"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 msgid "a signature is open: add its pictures with signature.picture.add"
@@ -18579,6 +18589,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 msgid "a task needs a title"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "access was refused on the sign-in page"
 msgstr ""
 
 #. what a command says, why a command can't run
@@ -18789,6 +18804,11 @@ msgid "couldn't make a secure connection to {host}: {reason}"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+msgid "couldn't open a port on this computer for the sign-in to come back to"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/net/src/lib.rs
 msgid "couldn't reach {host}: {reason}"
 msgstr ""
@@ -18821,6 +18841,11 @@ msgstr ""
 #. what a command says
 #: crates/model/src/oauth.rs
 msgid "enter the client id registered for MailCraft at your identity provider"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "enter your identity provider's address (its issuer)"
 msgstr ""
 
 #. interface
@@ -19701,6 +19726,11 @@ msgstr ""
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+msgid "port {port} on this computer is in use: choose another redirect port, or automatic"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "private"
@@ -19744,6 +19774,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "replies can go to at most {n} addresses"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "revocation"
 msgstr ""
 
 #. name
@@ -19866,6 +19901,11 @@ msgid "sign in to {who} first"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "sign-in"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
 msgid "sign-in failed: {reason}"
 msgstr ""
@@ -19973,6 +20013,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
 msgid "that message isn't waiting in the Outbox"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth.rs
+msgid "that redirect port can't be used: choose another, or automatic"
 msgstr ""
 
 #. what a command says
@@ -20146,6 +20191,11 @@ msgid "the client id can only be letters, digits and punctuation, at most 200 of
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "the client secret can only be letters, digits and punctuation"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 msgid "the command was refused"
 msgstr ""
@@ -20283,6 +20333,71 @@ msgstr ""
 #. what a command says
 #: crates/model/src/oauth.rs
 msgid "the identity provider (issuer) address can't have a query or a fragment"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider doesn't describe itself at the usual addresses: enter its sign-in addresses"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider sent its description on through too many redirects"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider sent its description on to an address on this computer, a private network or without https"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's address can't have a query or a fragment"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's address {why}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description couldn't be fetched: {other}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description gives a {what} address that {why}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description has no {what} address"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description is too long"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description isn't the JSON it should be"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description names another issuer than the address entered: check the address, character for character"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description says it doesn't sign people in on its page (authorization code)"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "the identity provider's description says it doesn't take the protected sign-in (PKCE with S256) MailCraft uses"
 msgstr ""
 
 #. what a command says
@@ -20468,6 +20583,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "the result {why}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "the revocation address {why}"
 msgstr ""
 
 #. what a command says
@@ -20820,6 +20940,16 @@ msgstr ""
 msgid "the server's response is too long"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "the sign-in came back from another identity provider than the one asked: nothing of it was used"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "the sign-in came back without your identity provider's name, which it says it always gives: nothing of it was used"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "the signature has changes: save it, or close it with discard"
@@ -20955,6 +21085,11 @@ msgstr ""
 msgid "there is no account to remove"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "there is no earlier sign-in to renew"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "there is no free name for a local folder"
@@ -21013,6 +21148,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 msgid "this Send/Receive was for the server {name} named before"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "this account doesn't sign in with your own identity provider"
 msgstr ""
 
 #. what a command says
@@ -21184,6 +21324,11 @@ msgstr ""
 msgid "to {recipient}"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/discovery.rs
+msgid "token"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs
 msgid "too many deletions are waiting to be sent to Microsoft To Do; wait for them to go first"
@@ -21352,6 +21497,41 @@ msgstr ""
 #. name
 #: crates/model/src/mailbox.rs
 msgid "your identity provider"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider answered with status {status}"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider can't sign anybody in just now: try again later"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider doesn't know this client id, or its client secret: check the OAuth settings"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider no longer takes this sign-in: sign in again"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider refused the sign-in"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider won't give what was asked for: check the extra scopes in the OAuth settings"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/oauth/custom.rs
+msgid "your identity provider's addresses must start with https://"
 msgstr ""
 
 #. interface

@@ -782,7 +782,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
                 SignInEnd::Cancelled => ("it was called off", mailcraft_net::NetError::SignInCancelled.to_string()),
                 // Never hand a potentially sensitive provider response to the window or log.
                 SignInEnd::Other(_) if google => ("it failed", "Google could not complete sign-in. Please retry or use an app password.".into()),
-                SignInEnd::Other(e) => ("it failed", e.to_string()),
+                SignInEnd::Other(e) => ("it failed", in_window_language(&e)),
             };
             // The failure category is enough; no account identifier belongs in this log.
             log::info!("sign-in on the provider's page: {how}");
@@ -824,7 +824,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
             Err(_) if request.oauth.provider == mailcraft_model::OAuthProvider::Google => {
                 return Err("Google sign-in could not reach the authorization server. Retry later.".into());
             }
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(in_window_language(&e)),
         }
     }
     // Nobody asked for this run: no page is put in front of the owner.
@@ -840,6 +840,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         return on_the_page(&mail);
     }
     on_the_page(&Endpoints::of(&request.oauth))
+}
+
+/// What a sign-in or an identity provider's Discover came to, in the window's language: the words
+/// that are MailCraft's own are translated (`said!` in `mailcraft-net`), what a provider or the
+/// system said stays as it was said.
+fn in_window_language(e: &mailcraft_net::NetError) -> String {
+    e.said().in_lang(mailcraft_ui_egui::i18n::current())
 }
 
 /// Have an administrator approve this program for an organisation: Microsoft's admin-consent
@@ -1273,7 +1280,7 @@ fn services(
                         client_auth: found.client_auth,
                         issuer_in_response: found.issuer_in_response,
                     })
-                    .map_err(|e| e.to_string())
+                    .map_err(|e| in_window_language(&e))
             })
         })),
         revoke_sign_in: Some(Box::new(|oauth: mailcraft_model::OAuth, secret: String, refresh: String| {
