@@ -32,10 +32,12 @@ fn fallback_html_is_reused_only_for_matching_text_and_cleared_on_mismatch() {
 }
 
 #[test]
-fn an_observed_native_html_offer_invalidates_the_text_fallback_cache() {
+fn native_html_offer_clears_cached_fallback_before_the_next_plain_text_match() {
     let cached = FallbackHtml::default();
-    cached.remember("A", "<a href=\"https://example.org\"><b>A</b></a>");
-    // A successful native HTML read clears the cache before returning the newly offered HTML.
+    cached.remember("A", "<a href=\"https://old.example\"><b>A</b></a>");
+
+    // Model observing a native HTML offer: it must invalidate the fallback, not merely
+    // return the newly read HTML while leaving the old fallback available afterward.
     cached.clear();
     assert_eq!(cached.matching("A"), None);
 }

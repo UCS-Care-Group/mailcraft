@@ -166,8 +166,14 @@ impl RichClipboard for Board {
                 Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                 Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
             }
-            if let Some(html) = self.fallback_html.matching(&wayland.load_text().ok()?) {
-                return html_of(&html);
+            match wayland.load_text() {
+                Ok(text) => {
+                    if let Some(html) = self.fallback_html.matching(&text) {
+                        return html_of(&html);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(_) => {}
             }
         }
         let html = self.with(|b| b.get().html()).ok()?;
