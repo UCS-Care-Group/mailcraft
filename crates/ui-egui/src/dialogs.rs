@@ -139,6 +139,11 @@ pub enum Dialog {
         params: Value,
         ask: Box<Question>,
     },
+    /// Files from a paste outside Windows wait for the owner's click, without reading them.
+    PasteAttachments {
+        compose: u64,
+        paths: Vec<String>,
+    },
     /// About MailCraft, on one of its tabs: [`AboutTab`].
     About(AboutTab),
     /// The page that offers a Microsoft account kept in step by IMAP the switch to Microsoft
@@ -278,6 +283,7 @@ impl Dialog {
     pub(crate) fn compose(&self) -> Option<u64> {
         match self {
             Dialog::NameChoice(choice) => Some(choice.compose()),
+            Dialog::PasteAttachments { compose, .. } => Some(*compose),
             _ => None,
         }
     }
@@ -301,6 +307,7 @@ impl Dialog {
             Dialog::Password { .. } => "password",
             Dialog::DiscardDraft { .. } => "discardDraft",
             Dialog::Confirm { .. } => "confirm",
+            Dialog::PasteAttachments { .. } => "pasteAttachments",
             Dialog::Report { name, .. } => name,
             Dialog::Refused { .. } => "refused",
             Dialog::About(AboutTab::About) => "about",
@@ -2967,6 +2974,42 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     if let Some(receipt) = cut {
                         receipt.after(app, ctx, ran.as_ref());
                     }
+                }
+            }
+        }
+        Dialog::PasteAttachments { compose, paths } => {
+            if app.session.composing_by_id(*compose).is_none() {
+                close = true;
+            } else {
+                let mut attach = false;
+                let open = window(ctx, tl!("Attach copied files?"), 520.0, |ui| {
+                    ui.label(tl!("Review the file paths before attaching them to this message."));
+                    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                        for path in paths.iter().take(crate::files::MOST_ATTACHED) {
+                            ui.label(format!("{path:?}"));
+                        }
+                        let n = paths.len().saturating_sub(crate::files::MOST_ATTACHED);
+                        if n > 0 {
+                            let most = crate::files::MOST_ATTACHED.to_string();
+                            let rest = tln!(
+                                n,
+                                "{n} more was left out: at most {most} files at a time",
+                                "{n} more were left out: at most {most} files at a time"
+                            );
+                            ui.label(crate::i18n::fmt(&rest, &[("most", &most)]));
+                        }
+                    });
+                    button_row(ui, |ui| {
+                        close |= ui.button(tl!("Cancel")).clicked();
+                        let action = primary_button(ui, tl!("Attach File"), !app.driven);
+                        app.hit.add("pasteAttachmentsAction", 0, action.rect);
+                        attach = !app.driven && action.clicked();
+                    });
+                });
+                close |= !open || enter;
+                if attach && !close {
+                    crate::compose::editor::attach_pasted(app, *compose, paths);
+                    close = true;
                 }
             }
         }

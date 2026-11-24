@@ -569,6 +569,23 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   `apps/mailcraft/src/picture_cache.rs`); a settings, log or picture folder that an earlier version
   left open to others is closed when MailCraft next uses it. On Windows they live in the owner's
   profile.
+- **Files copied to and from the clipboard are the owner's own doing** (#807). An attachment is put
+  on the clipboard as a file only by the owner's Copy, Ctrl+C or the macOS menu bar's Edit › Copy
+  (the control channel's input never copies: `mail.copyAttachment` is `never` for agents, and the
+  menu bar's input is told apart from the control channel's), into a folder of the owner's alone
+  that quitting leaves for a paste to find. The same attachment copied again (a key held down
+  repeats Ctrl+C) is written once, and the copies kept come to no more than 512 MB, the oldest going
+  first (the one just copied always stays) (`apps/mailcraft/src/opened_files.rs`, `crates/ui-egui/src/attachment_open.rs`). Files on
+  the clipboard are attached to a message being written by a paste only when the text that comes
+  with them lists files, and then only those: their paths or `file://` addresses on every system,
+  and a bare file name on macOS alone (Finder leaves nothing else); files with no text beside
+  them (Explorer's) on Windows alone, where the clipboard's file list is a format a web page
+  cannot write. On macOS, Linux and FreeBSD a page may supply both the text and a list of files
+  through the clipboard. MailCraft shows the full paths and waits for the owner to click Attach
+  File before checking or reading them. The question belongs to the message where the paste
+  happened, and control input cannot confirm it. Text that names anything else is pasted as text.
+  The status line names the files attached, and a network path on Windows is left out before it is
+  looked at. The matching and confirmation rules are tested with the system passed as a value.
 - **Secrets are in the operating system's credential store** (Windows Credential Manager, the macOS
   keychain, the Secret Service: GNOME Keyring, KWallet; `apps/mailcraft/src/secrets.rs`), never in
   the mailbox file, `ui.json`, a command line, a URL or a log line. They are `#[serde(skip)]` and redacted

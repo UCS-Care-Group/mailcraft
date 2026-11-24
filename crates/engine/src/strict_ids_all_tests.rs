@@ -74,7 +74,7 @@ fn table(s: &Session) -> Vec<(&'static str, Reads, Value)> {
         t.push((c, Reads::Message, json!({})));
     }
     t.push(("mail.itemFromMessage", Reads::Message, json!({"as": "task"})));
-    for c in ["mail.saveAttachment", "mail.removeAttachment", "mail.openAttachment"] {
+    for c in ["mail.saveAttachment", "mail.removeAttachment", "mail.openAttachment", "mail.copyAttachment"] {
         t.push((c, Reads::Message, json!({"index": 0})));
     }
     for c in [
