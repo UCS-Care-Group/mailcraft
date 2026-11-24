@@ -3790,7 +3790,7 @@ impl MailApp {
         }
         // The Inbox checked by itself gives way to a run (#276).
         self.give_up_inbox_check();
-        if self.sync_rx.is_some() || self.graph_rx.is_some() {
+        if self.run_under_way() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
         let cant_connect = || {
@@ -4857,6 +4857,14 @@ impl MailApp {
     fn sync_summary_said(&self, account: Id, summary: String) -> String {
         let kept = self.sync_problems.iter().find(|(a, ..)| *a == account).map(|(.., lines)| lines.as_slice()).unwrap_or_default();
         kept.iter().find(|said| said.to_string() == summary).map_or(summary, problem_line)
+    }
+
+    /// Whether a run that holds the shared run state is under way: a Send/Receive (or the Inbox
+    /// checked by itself) of a mail server, or a job of Microsoft Graph, with or without a stream
+    /// of pieces. Nothing else that would take that state starts meanwhile ([`Self::start_sync`],
+    /// the online archive's read, #1834 review).
+    pub(crate) fn run_under_way(&self) -> bool {
+        self.sync_rx.is_some() || self.graph_rx.is_some()
     }
 
     /// Whether a job of Microsoft Graph is under way for an account.

@@ -174,6 +174,61 @@ fn leaving_the_archive_with_its_heading_folded_is_noted() {
     assert!(app.archive_failed.contains(&archive), "coming back reads it again");
 }
 
+/// Another module or File in front shows no folder of the archive: leaving it that way is noted,
+/// nothing is read meanwhile, and Mail back in front reads it again; with the folder pane hidden,
+/// Mail still reads it (#1834 review).
+#[test]
+fn another_module_or_file_in_front_leaves_the_archive() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    let year = app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.session.view.folder = year;
+    app.archive_reads.insert(archive, year);
+    for module in [mailcraft_engine::Module::Calendar, mailcraft_engine::Module::People, mailcraft_engine::Module::Tasks] {
+        app.session.view.module = module;
+        app.archive_tick();
+        assert_eq!(app.archive_reads.get(&archive), Some(&0), "{module:?} in front leaves it");
+        assert!(!app.archive_failed.contains(&archive), "nothing read with {module:?} in front");
+        app.archive_reads.insert(archive, year);
+    }
+    app.session.view.module = mailcraft_engine::Module::Mail;
+    app.ui.backstage = true;
+    app.archive_tick();
+    assert_eq!(app.archive_reads.get(&archive), Some(&0), "File in front leaves it");
+    assert!(!app.archive_failed.contains(&archive), "nothing read with File in front");
+    // (Read straight, as the folder pane would: File in front still shows none of it.)
+    app.read_archive(archive);
+    assert!(!app.archive_failed.contains(&archive), "nothing read with File in front");
+    // Back to Mail with the folder pane hidden: the same folder is read again.
+    app.ui.backstage = false;
+    app.session.view.folder_pane = false;
+    app.archive_tick();
+    // (No host here: the read can't start, which says so rather than trying at every frame.)
+    assert_eq!(app.archive_reads.get(&archive), Some(&year));
+    assert!(app.archive_failed.contains(&archive), "coming back reads it again");
+}
+
+/// A Graph job under way without a stream of pieces holds the run state the archive's read would
+/// take: the read waits, as Send/Receive does, and a later frame starts it (#1834 review).
+#[test]
+fn the_archive_waits_for_a_graph_job_without_pieces() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    let year = app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.session.view.folder = year;
+    app.graph_rx = Some((owner, true, false, app.session.openings(), std::sync::mpsc::channel().1));
+    assert!(!app.syncing(), "a Graph job without pieces isn't a Send/Receive");
+    assert!(app.start_sync(&serde_json::json!({"quiet": true})).is_err(), "Send/Receive waits");
+    app.archive_tick();
+    assert!(app.archive_reads.is_empty() && !app.archive_failed.contains(&archive), "the read waits");
+    assert!(app.graph_rx.is_some() && app.sync_rx.is_none(), "the run state is left alone");
+    // The job over: the next frame reads it.
+    app.graph_rx = None;
+    app.archive_tick();
+    assert_eq!(app.archive_reads.get(&archive), Some(&year));
+    assert!(app.archive_failed.contains(&archive), "a read was tried");
+}
+
 /// Wherever the archive is named away from its heading (a folder's account in a list, the
 /// problems of a run, the window's title), it is named in the interface's words, never by the
 /// name it is kept under (#1834 review).

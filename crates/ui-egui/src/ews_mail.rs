@@ -76,10 +76,12 @@ impl MailApp {
     /// password at hand (nothing is asked for by itself). Its folder list and the folder on screen.
     /// Not after a read that failed, until the owner asks ([`Self::archive_failed`]).
     pub(crate) fn read_archive(&mut self, archive: Id) {
-        if self.syncing() || self.offline() || self.archive_failed.contains(&archive) || self.ews_secret(archive).is_none() {
+        // (A run under way, a Graph job without a stream of pieces too, holds the run state this
+        // read would take: it waits, and a later frame tries again, #1834 review.)
+        if self.run_under_way() || self.offline() || self.archive_failed.contains(&archive) || self.ews_secret(archive).is_none() {
             return;
         }
-        let on_screen = self.session.mailbox.folder(self.session.view.folder).filter(|f| f.account == archive).map_or(0, |f| f.id);
+        let on_screen = self.archive_folder_on_screen().filter(|(_, account)| *account == archive).map_or(0, |(folder, _)| folder);
         match self.archive_reads.get(&archive).copied() {
             // (Leaving its folders reads nothing, but is noted: coming back to one reads it.)
             Some(last) if on_screen == 0 => {
@@ -108,7 +110,7 @@ impl MailApp {
         if self.archive_reads.is_empty() && !self.session.mailbox.accounts.iter().any(mailcraft_model::Account::is_archive) {
             return;
         }
-        let on_screen = self.session.mailbox.folder(self.session.view.folder).map(|f| f.account);
+        let on_screen = self.archive_folder_on_screen().map(|(_, account)| account);
         for (archive, last) in self.archive_reads.iter_mut() {
             if *last != 0 && on_screen != Some(*archive) {
                 *last = 0;
@@ -119,6 +121,16 @@ impl MailApp {
             return;
         }
         self.read_archive(account);
+    }
+
+    /// The mail folder on screen and its account: Mail in front with File closed (#1834 review:
+    /// the folder pane may be hidden). Another module, or File, shows no folder, so leaving an
+    /// archive's folder that way is noted and nothing of it is read meanwhile.
+    fn archive_folder_on_screen(&self) -> Option<(Id, Id)> {
+        if self.session.view.module != mailcraft_engine::Module::Mail || self.ui.backstage {
+            return None;
+        }
+        self.session.mailbox.folder(self.session.view.folder).map(|f| (f.id, f.account))
     }
 
     /// Whether the last read of the online archive `archive` failed: it isn't read again by itself
