@@ -462,7 +462,15 @@ impl<E: HttpExchange> Run<'_, E> {
 }
 
 pub(crate) fn base(request: &EwsMailRequest) -> EwsMailResult {
-    EwsMailResult { account: request.account, email: request.email.clone(), url: request.url.clone(), ..EwsMailResult::default() }
+    // (The name it signs in as: the user name, or the address when there is none.)
+    let username = if request.username.trim().is_empty() { &request.email } else { &request.username };
+    EwsMailResult {
+        account: request.account,
+        email: request.email.clone(),
+        url: request.url.clone(),
+        username: username.clone(),
+        ..EwsMailResult::default()
+    }
 }
 
 /// Runs `request` against the server `client` speaks to, handing the run back in pieces through

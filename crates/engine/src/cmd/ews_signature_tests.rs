@@ -266,6 +266,22 @@ fn another_mailbox_starts_again_and_the_old_ones_signature_stays_the_owners() {
 }
 
 #[test]
+fn a_run_signed_in_as_the_name_used_before_brings_in_no_signature() {
+    let (mut s, account) = session();
+    // A run is asked for with the address alone, and the user name is set while it is under way
+    // (its mail isn't here yet, so it may be).
+    s.run("account.edit", &json!({"id": account, "ews": {"url": URL, "username": "CORP\\ada"}})).unwrap();
+    let late = EwsMailResult { username: ME.into(), ..result(account, Some(server_signature())) };
+    let why = apply_ews_mail(&mut s, late).unwrap_err();
+    assert!(why.to_string().contains("another account"), "{why}");
+    assert!(s.mailbox.signature(NAME).is_none(), "the other name's signature isn't taken in");
+    assert_eq!(seen(&s, account), 0);
+    // One signed in as the name it has now is taken in (the case of a name is not another name).
+    apply_ews_mail(&mut s, EwsMailResult { username: "corp\\ADA".into(), ..result(account, Some(server_signature())) }).unwrap();
+    assert!(s.mailbox.signature(NAME).is_some());
+}
+
+#[test]
 fn html_that_shows_nothing_is_not_sent_as_written_and_the_text_goes_instead() {
     let (mut s, account) = session();
     let blank = EwsSignature { html: "<div><p>&nbsp;</p><p></p></div>".into(), text: "Ada Lovelace".into(), on_new: true, on_reply: true };

@@ -348,6 +348,11 @@ pub struct EwsMailResult {
     /// the account names another server. Never logged.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+    /// The name the run signed in as (its request's user name, or its address when it named none):
+    /// an answer is not taken in once the account signs in as another, which may open another
+    /// mailbox. Empty: not said. Never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub username: String,
     /// What became of the changes of folders sent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<FolderChangeDone>,
@@ -467,7 +472,10 @@ impl EwsMailResult {
     pub fn check(&self) -> Result<(), &'static str> {
         const TOO_MANY: &str = "has more in it than is taken in";
         const ODD_ID: &str = "has a server id that can't be one";
-        if self.email.len() > crate::EwsServer::MAX_USERNAME || self.url.len() > crate::EwsServer::MAX_URL {
+        if self.email.len() > crate::EwsServer::MAX_USERNAME
+            || self.username.len() > crate::EwsServer::MAX_USERNAME
+            || self.url.len() > crate::EwsServer::MAX_URL
+        {
             return Err("names an account or a server that is too long");
         }
         if self.pages.len() > MAX_EWS_PAGES || self.errors.len() > MAX_EWS_ERRORS {
