@@ -3423,6 +3423,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "Ověřuji adresu u Microsoftu…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "Ověřuji adresu na serveru…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11987,6 +11993,12 @@ msgstr "Otevřít {name}? {why}"
 #, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
 msgstr "Kalendář uživatele {name} byl otevřen. Je uveden v části Sdílené kalendáře, jen v tomto počítači."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Otevřeno se serverem a heslem účtu {owner}. Vyžaduje úplný přístup k poštovní schránce, který uděluje správce vaší organizace. Co v ní změníte, se do ní propíše."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

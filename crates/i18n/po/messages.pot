@@ -2848,6 +2848,11 @@ msgid "Checking the address with Microsoft…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Checking the address with the server…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "Checking the calendar connection…"
 msgstr ""
@@ -9931,6 +9936,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
 msgstr ""
 
 #. interface

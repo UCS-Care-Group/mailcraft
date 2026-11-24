@@ -6,6 +6,7 @@
 
 use std::sync::{Arc, Mutex, mpsc};
 
+use egui_kittest::kittest::Queryable;
 use mailcraft_engine::Session;
 use mailcraft_model::sync::{EwsFolderDeltas, EwsMailRequest, EwsMailResult, GraphFolder};
 use mailcraft_model::{FolderKind, Id};
@@ -112,6 +113,28 @@ fn a_shared_mailbox_being_added_is_kept_once_its_inbox_is_read() {
 }
 
 #[test]
+fn the_add_shared_mailbox_dialog_tells_an_exchange_owner_of_their_server_not_of_microsoft() {
+    let (mut a, owner, shared, _, _) = window();
+    a.passwords.insert(owner, TYPED.into());
+    a.begin_shared_check(shared).unwrap();
+    a.dialog = Some(Dialog::SharedMailbox { account: owner, address: SHARED.into(), error: String::new(), checking: Some(shared) });
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            a,
+        );
+    h.run_steps(2);
+    let _ = h.get_by_label_contains(&format!("Opened with {OWNER}'s server and password."));
+    let _ = h.get_by_label_contains("Checking the address with the server");
+    assert!(h.query_by_label_contains("Microsoft asks").is_none());
+    assert!(h.query_by_label_contains("Checking the address with Microsoft").is_none());
+}
+
+#[test]
 fn a_shared_mailbox_the_server_will_not_open_is_removed_again_with_the_reason() {
     let (mut a, owner, shared, _, feed) = window();
     a.passwords.insert(owner, TYPED.into());
@@ -178,6 +201,35 @@ fn a_shared_mailbox_being_added_whose_owners_password_is_refused_forgets_the_own
     // (Though the shared mailbox is gone, the password was its owner's: forgotten, and asked for again.)
     assert!(!a.passwords.contains_key(&owner), "the owner's password is forgotten");
     assert!(a.jmap_refused.contains(&owner));
+}
+
+/// The shared mailbox's run is turned down for the owner's password; then the owner signs in again
+/// and their own run goes through.
+fn refused_then_signed_in_again(a: &mut MailApp, owner: Id, shared: Id, feed: &Sender) {
+    a.passwords.insert(owner, TYPED.into());
+    a.execute("ui.sync", json!({"account": shared})).unwrap();
+    send(a, feed, EwsMailResult { partial: false, auth_refused: true, ..piece(shared) });
+    assert!(a.jmap_refused.contains(&shared) && a.jmap_refused.contains(&owner));
+    assert!(!a.can_sync_quietly(shared));
+    a.execute("ui.sync", json!({"account": owner, "password": TYPED})).unwrap();
+    send(a, feed, EwsMailResult { account: owner, email: OWNER.into(), url: EWS.into(), whole: true, ..Default::default() });
+}
+
+#[test]
+fn a_shared_mailbox_held_by_its_owners_turned_down_password_is_read_again_once_the_owner_signs_in() {
+    let (mut a, owner, shared, _, feed) = window();
+    refused_then_signed_in_again(&mut a, owner, shared, &feed);
+    assert!(a.can_sync_quietly(owner));
+    assert!(a.can_sync_quietly(shared), "automatic reads take it up again");
+}
+
+#[test]
+fn a_shared_mailbox_waiting_on_the_certificate_still_waits_when_the_owner_signs_in() {
+    let (mut a, owner, shared, _, feed) = window();
+    a.ews_certificate.insert(shared, "the server's certificate".into());
+    refused_then_signed_in_again(&mut a, owner, shared, &feed);
+    assert!(a.can_sync_quietly(owner));
+    assert!(!a.can_sync_quietly(shared), "its certificate question is still open");
 }
 
 #[test]

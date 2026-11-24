@@ -3417,6 +3417,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "მისამართის შემოწმება Microsoft-თან…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "მისამართის შემოწმება სერვერთან…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11938,6 +11944,12 @@ msgstr "გაიხსნას {name}? {why}"
 #, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
 msgstr "გაიხსნა კალენდარი ({name}). ის ჩამოთვლილია „გაზიარებულ კალენდრებში“, მხოლოდ ამ კომპიუტერზე."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "გაიხსნა ანგარიშის {owner} სერვერითა და პაროლით. მას საფოსტო ყუთზე სრული წვდომა (Full Access) სჭირდება, რომელსაც თქვენი ორგანიზაციის ადმინისტრატორი იძლევა. რასაც მასში შეცვლით, იქვე აისახება."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

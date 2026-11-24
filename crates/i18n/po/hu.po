@@ -3427,6 +3427,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "A cím ellenőrzése a Microsoft-al…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "A cím ellenőrzése a kiszolgálón…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11965,6 +11971,12 @@ msgstr "Megnyitja ezt: „{name}”? {why}"
 #, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
 msgstr "Megnyitotta a {name} naptárát, és csak ezen a számítógépen van a Shared Calendars alatt."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "Megnyitva {owner} kiszolgálójával és jelszavával. Teljes hozzáférést igényel a postafiókhoz, amelyet a szervezet rendszergazdája ad meg. Amit benne módosít, az oda kerül."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

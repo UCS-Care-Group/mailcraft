@@ -3426,6 +3426,12 @@ msgid "Checking the address with Microsoft…"
 msgstr "正在向 Microsoft 查询地址…"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Checking the address with the server…"
+msgstr "正在向服务器查询地址…"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "Checking the calendar connection…"
@@ -11964,6 +11970,12 @@ msgstr "打开 {name}？{why}"
 #, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
 msgstr "已打开 {name} 的日历。它列在“共享日历”下，仅保存在此计算机上。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Opened with {owner}'s server and password. It needs Full Access to the mailbox, which your organisation's administrator gives. What you change in it goes to it."
+msgstr "使用 {owner} 的服务器和密码打开。此操作需要组织管理员授予您对该邮箱的完全访问权限。您在其中所做的更改会同步到该邮箱。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
