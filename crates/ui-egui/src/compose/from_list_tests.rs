@@ -74,7 +74,7 @@ fn many_sender_addresses_scroll_inside_the_window() {
     a.session.mailbox.account_mut(acc).unwrap().kind = AccountKind::Imap;
     a.session.mailbox.account_mut(acc).unwrap().sender_addresses =
         (0..mailcraft_model::MAX_SENDER_ADDRESSES).map(|n| sender(&format!("alias{n}@company.example"), "")).collect();
-    a.execute("mail.new", json!({})).unwrap();
+    a.execute("mail.new", json!({"from": "alias49@company.example"})).unwrap();
     let mut h = super::tests::window(a);
     h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
     h.run_steps(3);
@@ -93,6 +93,13 @@ fn many_sender_addresses_scroll_inside_the_window() {
     let items: Vec<_> = h.query_all_by_label_contains("@company.example").collect();
     assert!(!items.is_empty(), "From popup menu should list sender addresses");
     assert!(menu.height() <= 320.5 && menu.max.y <= screen.max.y, "From popup scroll area {menu:?} overflows window bottom {}", screen.max.y);
+    let last = h.query_all_by_label_contains("alias49@company.example").next().expect("last sender address is present");
+    assert!(
+        last.rect().min.y >= menu.min.y - 1.0 && last.rect().max.y <= menu.max.y + 1.0,
+        "selected sender address {:?} is scrolled into the menu viewport {:?}",
+        last.rect(),
+        menu
+    );
     // Clicking the scrollbar area inside the popup keeps the menu open (`CloseOnClickOutside`).
     let scrollbar_pos = egui::pos2(menu.max.x - 2.0, menu.center().y);
     h.event(egui::Event::PointerMoved(scrollbar_pos));
