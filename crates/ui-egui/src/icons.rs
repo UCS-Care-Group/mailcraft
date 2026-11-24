@@ -1271,6 +1271,22 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.line(&[(3.5, 16.5), (16.5, 3.5)]);
             }
         }
+        "whatsapp" => {
+            let bubble = pen
+                .path()
+                .m(&pen, 4.0, 16.5)
+                .a(&pen, 10.0, 9.5, 6.5, 145.0, 465.0);
+            bubble.draw_closed(&pen, c);
+            let phone = pen
+                .path()
+                .m(&pen, 7.8, 12.0)
+                .c(&pen, (7.2, 10.5), (9.5, 8.2), 11.0, 7.8)
+                .l(&pen, 12.2, 9.0)
+                .l(&pen, 11.2, 9.7)
+                .c(&pen, (10.5, 9.4), (9.4, 10.5), 9.7, 11.2)
+                .l(&pen, 9.0, 12.2);
+            phone.draw_closed(&pen, c);
+        }
         // Anything else: a lettered tile, so a missing drawing is visible rather than empty.
         _ => {
             pen.rect(3.5, 3.5, 16.5, 16.5, c);
@@ -1486,4 +1502,5 @@ pub const NAMES: &[&str] = &[
     "decreaseIndent",
     "showPassword",
     "hidePassword",
+    "whatsapp",
 ];

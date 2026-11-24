@@ -87,6 +87,27 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
             }
         }
 
+        // WhatsApp Web quick launch button right below the journal icon
+        ui.add_space(4.0);
+        let sep_w = 20.0;
+        let sep_x = (RAIL_W - sep_w) / 2.0;
+        let sep_y = ui.cursor().min.y;
+        ui.painter().hline(sep_x..=(sep_x + sep_w), sep_y, Stroke::new(1.0, t.border.linear_multiply(0.6)));
+        ui.add_space(4.0);
+
+        let (r, resp) = ui.allocate_exact_size(vec2(RAIL_W, RAIL_PITCH), Sense::click());
+        let wa_green = Color32::from_rgb(37, 211, 102);
+        if resp.hovered() {
+            ui.painter().rect_filled(r.shrink(6.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+        }
+        if resp.has_focus() {
+            ui.painter().rect_stroke(r.shrink(6.0), 4.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        }
+        let ink = if resp.hovered() { wa_green } else { t.icon };
+        icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(24.0, 24.0)), "whatsapp", ink, ink);
+        if resp.on_hover_text("WhatsApp Web").clicked() {
+            ui.ctx().open_url(egui::OpenUrl::new_tab("https://web.whatsapp.com"));
+        }
     });
 }
 
