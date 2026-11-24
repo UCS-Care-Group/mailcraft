@@ -337,7 +337,7 @@ msgstr "12 か月"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "12-hour (3:05 PM)"
-msgstr "12 時間制 (午後 3:05)"
+msgstr "12 時間制 (午後3:05)"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7779,7 +7779,7 @@ msgstr "出席者を招待"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Is a meeting invitation or update"
-msgstr "会議の招待または更新である"
+msgstr "会議出席依頼または更新である"
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -20961,13 +20961,13 @@ msgstr "切り替え時:"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "When {when}, except if {except}: {then}"
-msgstr "{when} の場合 ({except} の場合を除く): {then}"
+msgstr "条件: {when} (例外: {except}) → {then}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "When {when}: {then}"
-msgstr "{when} の場合: {then}"
+msgstr "条件: {when} → {then}"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -22143,7 +22143,7 @@ msgstr "{others}、{last}"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "body contains {words}"
-msgstr "本文に {words} を含む"
+msgstr "本文に{words}を含む"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -22173,13 +22173,13 @@ msgstr "キャンセル済み"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "categorize it as {category}"
-msgstr "{category} に分類する"
+msgstr "{category}に分類する"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "category is {words}"
-msgstr "分類項目が {words}"
+msgstr "分類項目が{words}"
 
 #. what a command says
 #: crates/engine/src/cmd/send_later.rs
@@ -22251,13 +22251,13 @@ msgstr "削除されたフォルダーにコピーする"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "copy it to {folder}"
-msgstr "{folder} にコピーする"
+msgstr "{folder}にコピーする"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "copy it to {folder} - {who}"
-msgstr "{folder} - {who} にコピーする"
+msgstr "{folder} - {who}にコピーする"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -22323,25 +22323,25 @@ msgstr "フラグを設定する"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "flag it for next week"
-msgstr "来週のフラグを設定する"
+msgstr "フラグを設定する (来週)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "flag it for this week"
-msgstr "今週のフラグを設定する"
+msgstr "フラグを設定する (今週)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "flag it for today"
-msgstr "今日のフラグを設定する"
+msgstr "フラグを設定する (今日)"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "flag it for tomorrow"
-msgstr "明日のフラグを設定する"
+msgstr "フラグを設定する (明日)"
 
 #. folder name
 #: crates/model/src/mailbox.rs
@@ -22421,7 +22421,7 @@ msgstr "フォルダーの入れ子が深すぎます"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "from contains {words}"
-msgstr "差出人に {words} を含む"
+msgstr "差出人に{words}を含む"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22433,7 +22433,7 @@ msgstr "{from}から{to}まで"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "from {words}"
-msgstr "差出人が {words}"
+msgstr "差出人が{words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -22475,7 +22475,7 @@ msgstr "icloud.com、me.com、mac.com"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "importance is {level}"
-msgstr "重要度が {level}"
+msgstr "重要度が{level}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -22511,7 +22511,7 @@ msgstr "はリンクです。たどらず、中のものは何も削除されま
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "is a meeting invitation or update"
-msgstr "会議の出席依頼または更新である"
+msgstr "会議出席依頼または更新である"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -22793,37 +22793,37 @@ msgstr "削除されたフォルダーに移動する"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "move it to {folder}"
-msgstr "{folder} に移動する"
+msgstr "{folder}に移動する"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "move it to {folder} - {who}"
-msgstr "{folder} - {who} に移動する"
+msgstr "{folder} - {who}に移動する"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "my address is in Cc"
-msgstr "自分のアドレスが CC にある"
+msgstr "自分のアドレスが CC に含まれている"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "my address is in To"
-msgstr "自分のアドレスが宛先にある"
+msgstr "自分のアドレスが宛先に含まれている"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "my address is in To or Cc"
-msgstr "自分のアドレスが宛先または CC にある"
+msgstr "自分のアドレスが宛先または CC に含まれている"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "my address isn't in To"
-msgstr "自分のアドレスが宛先にない"
+msgstr "自分のアドレスが宛先に含まれていない"
 
 #. why a command can't run
 #: crates/engine/src/gmail.rs
@@ -23363,7 +23363,7 @@ msgstr "readOnly"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "received from {from} to {to}"
-msgstr "{from} から {to} までに受信"
+msgstr "{from}から {to}までに受信"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23375,25 +23375,25 @@ msgstr "受信日を問わない"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "received on or after {day}"
-msgstr "{day} 以降に受信"
+msgstr "{day}以降に受信"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "received on or before {day}"
-msgstr "{day} 以前に受信"
+msgstr "{day}以前に受信"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "recipient contains {words}"
-msgstr "受信者に {words} を含む"
+msgstr "受信者に{words}を含む"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "recipient's address contains {words}"
-msgstr "受信者のアドレスに {words} を含む"
+msgstr "受信者のアドレスに{words}を含む"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -23453,7 +23453,7 @@ msgstr "先に予定を選択してください"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "sender's address contains {words}"
-msgstr "差出人のアドレスに {words} を含む"
+msgstr "差出人のアドレスに{words}を含む"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23487,7 +23487,7 @@ msgstr "非公開"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "sensitivity is {level}"
-msgstr "秘密度が {level}"
+msgstr "秘密度が{level}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -23499,13 +23499,13 @@ msgstr "自分だけに送信されている"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "sent to {words}"
-msgstr "{words} に送信されている"
+msgstr "{words}に送信されている"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "set importance to {level}"
-msgstr "重要度を {level} に設定する"
+msgstr "重要度を{level}に設定する"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposeModel.kt
@@ -23571,13 +23571,13 @@ msgstr "someone@example.org または @example.org"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "subject contains {words}"
-msgstr "件名に {words} を含む"
+msgstr "件名に{words}を含む"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "subject or body contains {words}"
-msgstr "件名または本文に {words} を含む"
+msgstr "件名または本文に{words}を含む"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
