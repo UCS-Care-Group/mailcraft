@@ -15,7 +15,9 @@
 //! HTML, pictures and text are read through winit's own `wl_data_device`, the one the window
 //! already uses for its text and file drops: the types asked for and the caps are in
 //! `clipboard_mime`. Text is written through that same device when `arboard` cannot open a
-//! clipboard; an in-process HTML copy is retained for a matching text paste (#1217).
+//! clipboard; an in-process HTML copy is retained for a matching text paste (#1217). A successful
+//! native HTML read invalidates that copy, since another application has replaced the clipboard's
+//! HTML offer.
 //!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
 //! copied is served from this program for as long as it holds the clipboard.
@@ -56,6 +58,31 @@ pub fn wayland_display(window: &impl winit::raw_window_handle::HasDisplayHandle)
 }
 
 #[derive(Default)]
+struct FallbackHtml(RefCell<Option<(String, String)>>);
+
+impl FallbackHtml {
+    fn remember(&self, text: &str, html: &str) {
+        *self.0.borrow_mut() = Some((text.to_string(), html.to_string()));
+    }
+
+    fn matching(&self, text: &str) -> Option<String> {
+        let cached = self.0.borrow().clone();
+        match cached {
+            Some((cached_text, html)) if cached_text == text => Some(html),
+            Some(_) => {
+                self.clear();
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn clear(&self) {
+        *self.0.borrow_mut() = None;
+    }
+}
+
+#[derive(Default)]
 struct Board {
     open: RefCell<Option<arboard::Clipboard>>,
     /// Winit's clipboard on the compositor's `wl_data_device`, under Wayland.
@@ -63,7 +90,7 @@ struct Board {
     wayland: Option<WaylandBoard>,
     /// HTML accompanying text written through winit, whose Wayland API only writes text.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    fallback_html: RefCell<Option<(String, String)>>,
+    fallback_html: FallbackHtml,
 }
 
 impl Board {
@@ -95,7 +122,11 @@ impl RichClipboard for Board {
         let r = primary;
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if r.is_ok() && self.wayland.is_some() {
-            *self.fallback_html.borrow_mut() = if fallback_used { Some((text.to_string(), html.to_string())) } else { None };
+            if fallback_used {
+                self.fallback_html.remember(text, html);
+            } else {
+                self.fallback_html.clear();
+            }
         }
         if let Err(e) = &r {
             log::warn!("the clipboard took no HTML or text: {e}");
@@ -111,7 +142,7 @@ impl RichClipboard for Board {
         let r = primary;
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if r.is_ok() {
-            *self.fallback_html.borrow_mut() = None;
+            self.fallback_html.clear();
         }
         if let Err(e) = &r {
             log::warn!("the clipboard took no text: {e}");
@@ -123,19 +154,18 @@ impl RichClipboard for Board {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if let Some(wayland) = &self.wayland {
             match wayland.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
-                Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
+                Ok((_, bytes)) => {
+                    self.fallback_html.clear();
+                    return html_of(&decode_html(&bytes));
+                }
                 // Nothing of that kind offered: `arboard` may still have some.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 // The owner didn't answer in time: asking it again through `arboard` would wait as long.
                 Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                 Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
             }
-            let cached = self.fallback_html.borrow().clone();
-            if let Some((text, html)) = cached {
-                if wayland.load_text().ok().as_deref() == Some(text.as_str()) {
-                    return html_of(&html);
-                }
-                *self.fallback_html.borrow_mut() = None;
+            if let Some(html) = self.fallback_html.matching(&wayland.load_text().ok()?) {
+                return html_of(&html);
             }
         }
         let html = self.with(|b| b.get().html()).ok()?;

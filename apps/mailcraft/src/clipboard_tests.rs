@@ -22,6 +22,33 @@ fn the_html_is_taken_out_of_what_windows_hands_over() {
     assert_eq!(fragment("Version:"), "");
 }
 
+#[test]
+fn fallback_html_is_reused_only_for_matching_text_and_cleared_on_mismatch() {
+    let cached = FallbackHtml::default();
+    cached.remember("A", "<b>A</b>");
+    assert_eq!(cached.matching("A").as_deref(), Some("<b>A</b>"));
+    assert_eq!(cached.matching("B"), None);
+    assert_eq!(cached.matching("A"), None);
+}
+
+#[test]
+fn an_observed_native_html_offer_invalidates_the_text_fallback_cache() {
+    let cached = FallbackHtml::default();
+    cached.remember("A", "<a href=\"https://example.org\"><b>A</b></a>");
+    // A successful native HTML read clears the cache before returning the newly offered HTML.
+    cached.clear();
+    assert_eq!(cached.matching("A"), None);
+}
+
+#[test]
+fn replacing_cached_fallback_html_replaces_the_old_offer() {
+    let cached = FallbackHtml::default();
+    cached.remember("A", "<b>A</b>");
+    cached.remember("B", "<i>B</i>");
+    assert_eq!(cached.matching("B").as_deref(), Some("<i>B</i>"));
+    assert_eq!(cached.matching("A"), None);
+}
+
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 #[test]
 fn wayland_text_fallback_recovers_when_the_rich_clipboard_is_unavailable() {
