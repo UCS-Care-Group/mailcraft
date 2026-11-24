@@ -300,20 +300,25 @@ mod os {
         }
 
         fn get_whole(&self, key: &str) -> Option<String> {
+            // Counted before the item is looked for: a write after this, even one that lands
+            // between the look and the pieces' read and couldn't sweep the pieces, stops the move.
+            let before = *self.writing();
             match self.read_whole(key) {
                 Ok(Some(secret)) => Some(secret),
                 Err(()) => None,
                 // Not kept whole: perhaps in pieces, by an earlier version. Moved into one item,
                 // so that the next start asks about one item, not about each piece.
                 Ok(None) => {
-                    let before = *self.writing();
                     let secret = self.get_pieces(key)?;
                     let writes = self.writing();
                     // A write or delete came in while the pieces were read: it may be a newer
-                    // secret, or the owner removing this one. What it left stands; the pieces, if
-                    // any are left, are moved another time.
+                    // secret, or the owner removing this one. What it left stands, and is what is
+                    // given back (nothing, when it was a delete): the pieces' value is older than
+                    // it, and a caller would keep it as current. (Read again with no lock held;
+                    // an item this build just wrote, or none, asks the owner nothing.)
                     if *writes != before {
-                        return Some(secret);
+                        drop(writes);
+                        return self.read_whole(key).ok().flatten();
                     }
                     if let Err(e) = self.set_whole(key, &secret) {
                         // (Kept as it was: the pieces stay until a write succeeds.)

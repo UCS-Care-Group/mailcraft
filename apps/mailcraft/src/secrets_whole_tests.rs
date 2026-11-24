@@ -333,9 +333,8 @@ fn a_delete_during_the_move_out_of_pieces_is_not_undone() {
         }),
     ));
 
-    // (What the read found is handed back to the read that asked; it is the window's business
-    // to drop it for an account that has gone.)
-    assert_eq!(store.get(key).as_deref(), Some("old-token"));
+    // Nor is the removed token handed back, to be kept in memory as the current one.
+    assert_eq!(store.get(key), None);
     for part in [WHOLE, "n", "0"] {
         assert_eq!(there(&mock, &format!("{key}#{part}")), None, "#{part} stays removed");
     }
@@ -360,7 +359,57 @@ fn a_write_during_the_move_out_of_pieces_is_not_overwritten() {
         }),
     ));
 
-    let _ = store.get(key);
+    // The read gives the newer token, not the older one it found in the pieces.
+    assert_eq!(store.get(key).as_deref(), Some("newer-token"));
     assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("newer-token"));
     assert_eq!(store.get(key).as_deref(), Some("newer-token"));
+}
+
+/// A new token written just after the read found no single item, whose sweep of the old pieces
+/// failed (the keychain locked at that moment), is not overwritten by the move of those pieces.
+#[test]
+fn a_write_between_the_look_and_the_pieces_read_is_not_overwritten() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token");
+    let (writer, flags) = (Arc::downgrade(&store), asked.clone());
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#{WHOLE}"),
+        Box::new(move || {
+            if let Some(store) = writer.upgrade() {
+                flags.lock().unwrap().stuck = true;
+                store.set("refresh:one@example.org|graph", "newer-token").unwrap();
+                flags.lock().unwrap().stuck = false;
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key).as_deref(), Some("newer-token"));
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("newer-token"));
+}
+
+/// The owner removes the sign-in just after the read found no single item, and the sweep of the
+/// old pieces fails (the keychain locked at that moment): the move doesn't bring the token back,
+/// nor does the read hand it out.
+#[test]
+fn a_delete_between_the_look_and_the_pieces_read_is_not_undone() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token");
+    let (deleter, flags) = (Arc::downgrade(&store), asked.clone());
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#{WHOLE}"),
+        Box::new(move || {
+            if let Some(store) = deleter.upgrade() {
+                flags.lock().unwrap().stuck = true;
+                store.delete("refresh:one@example.org|graph");
+                flags.lock().unwrap().stuck = false;
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key), None);
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")), None, "not written back");
 }
