@@ -33,7 +33,7 @@ private val Gutter = 16.dp
 private val IconBox = 24.dp
 
 /** Where the sheet is: its list of actions, or one of the two pickers. */
-private enum class SheetPage { Actions, Move, Categories }
+internal enum class SheetPage { Actions, Move, Categories }
 
 /** All the actions on one message: the sheet that a long press opens. */
 @Composable
@@ -41,9 +41,11 @@ internal fun RowActionsSheet(
     context: MailListContext,
     row: InboxRow,
     onTriage: (Triage, InboxRow) -> Unit,
+    /** The page the sheet opens at: the reading view asks for a picker straight away. */
+    start: SheetPage = SheetPage.Actions,
     onClose: () -> Unit,
 ) {
-    var page by remember { mutableStateOf(SheetPage.Actions) }
+    var page by remember { mutableStateOf(start) }
     val texts = context.texts
     val choose = { triage: Triage ->
         onTriage(triage, row)

@@ -76,6 +76,8 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
+    /** What the owner chose about reading: the light page in the dark theme, the header open or shut. */
+    val readingPrefs: ReadingPrefs = ReadingPrefs(),
     /** The message being read, and how its pictures are coming. */
     val reading: ReadingUi = ReadingUi(),
     /** What the owner said about pictures, and what is kept of them. */
@@ -110,6 +112,7 @@ internal class CalendarPane(
 )
 
 /** What the shell asks of the app. */
+@Suppress("LongParameterList")
 internal class ShellActions(
     val onFolder: (AccountItem, FolderItem) -> Unit,
     val onLanguage: (String) -> Unit,
@@ -117,6 +120,7 @@ internal class ShellActions(
     val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
+    val onReadingPrefs: (ReadingPrefs) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
@@ -316,7 +320,9 @@ private fun TabBody(
             NoAccount(texts, onAdd = { onNav(nav.openAddAccount()) }, modifier = modifier)
         } else {
             val opening = actions.mail.withOpen { row -> onNav(nav.openMessage(row.id)) }
-            MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId)
+            MailTab(texts, data, actions.copy(mail = opening), modifier, expanded, nav.messageId) {
+                nav.back()?.let(onNav)
+            }
         }
         Tab.Calendar -> calendar?.let { CalendarScreen(texts, it.state, it.actions, modifier) }
             ?: Centered(texts.t("Pending development"), modifier)
@@ -453,8 +459,10 @@ private fun MailTab(
     modifier: Modifier,
     expanded: Boolean,
     messageId: ULong?,
+    onLeave: () -> Unit,
 ) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
+    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, data.readingPrefs, actions.onReadingPrefs)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
@@ -462,14 +470,14 @@ private fun MailTab(
             if (messageId != null) {
                 ReadingPane(
                     texts, messageId, data.reading, actions.reading, Modifier.weight(1f),
-                    data.attachments, isDraft(data),
+                    data.attachments, isDraft(data), tools,
                 )
             } else {
                 Centered(texts.t("Select a message to read it."), Modifier.weight(1f))
             }
         }
     } else if (messageId != null) {
-        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments, isDraft(data))
+        ReadingPane(texts, messageId, data.reading, actions.reading, modifier, data.attachments, isDraft(data), tools)
     } else {
         MailListScreen(context, data.mail, actions.mail, modifier)
     }
@@ -484,8 +492,8 @@ private fun isDraft(data: ShellData): Boolean {
 /** These actions with the list's own changed. */
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
-        onFolder, onLanguage, accounts, settings, mail, onSwipe, reading, onPictures, onClearPictures,
-        writing, organiser,
+        onFolder, onLanguage, accounts, settings, mail, onSwipe, onReadingPrefs, reading, onPictures,
+        onClearPictures, writing, organiser,
     )
 
 @Composable
