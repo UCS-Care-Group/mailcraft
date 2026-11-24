@@ -79,7 +79,8 @@ fn two_pictures_written_into_a_message_are_shown() {
 
 #[test]
 fn what_is_written_in_but_is_no_picture_of_ours_is_a_stand_in() {
-    let svg = format!("data:image/svg+xml;base64,{}", b64(b"<svg xmlns='http://www.w3.org/2000/svg'/>"));
+    // A drawing is one of ours (#565), but not a web page said to be one.
+    let svg = format!("data:image/svg+xml;base64,{}", b64(b"<html><svg xmlns='http://www.w3.org/2000/svg'/></html>"));
     let html_page = format!("data:text/html;base64,{}", b64(b"<script>alert(1)</script>"));
     let not_png = format!("data:image/png;base64,{}", b64(b"no picture at all"));
     let broken = "data:image/png;base64,iVBOR*w0K".to_string();

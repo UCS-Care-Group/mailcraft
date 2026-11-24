@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZE_PX};
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
-pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
+pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture, looks_like_svg};
 pub use entities::{escape, unescape};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
@@ -646,6 +646,8 @@ pub(crate) fn is_blank(c: char) -> bool {
 
 #[cfg(test)]
 mod bg_tests;
+#[cfg(test)]
+mod data_svg_tests;
 #[cfg(test)]
 mod data_tests;
 #[cfg(test)]

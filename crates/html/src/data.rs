@@ -4,11 +4,14 @@
 //! `data:image/png;base64,…` (RFC 2397, base64 as in RFC 4648). They are part of the message, as
 //! an attached (`cid:`) picture is: nothing is fetched for them and nobody is told anything.
 //!
-//! Only a PNG, JPEG, GIF or WebP is taken, by its declared type and then by its own bytes; any
-//! other type (SVG, HTML, text) is not. The base64 is decoded within caps checked before
-//! anything is decoded: [`MAX_DATA_PICTURE_BYTES`] for one picture, [`MAX_DATA_PICTURES`] and
-//! [`MAX_DATA_PICTURES_BYTES`] for a message. What is refused is a placeholder for the picture.
-//! A `data:` address is never a link, nor anything else of a message's.
+//! Only a PNG, JPEG, GIF or WebP is taken, by its declared type and then by its own bytes, and
+//! an SVG drawing (#565), declared one and beginning as one ([`looks_like_svg`]); any other type
+//! (HTML, text) is not. The base64 (or, for a drawing, which is text, the `%xx` escapes) is
+//! decoded within caps checked before anything is decoded: [`MAX_DATA_PICTURE_BYTES`] for one
+//! picture, [`MAX_DATA_PICTURES`] and [`MAX_DATA_PICTURES_BYTES`] for a message. What is refused
+//! is a placeholder for the picture. A drawing is only bytes here: what it is drawn with, and
+//! the rule that nothing it refers to is ever loaded, are the reading pane's. A `data:` address
+//! is never a link, nor anything else of a message's.
 
 use std::sync::Arc;
 
@@ -63,8 +66,8 @@ pub(crate) fn is_data(src: &str) -> bool {
 }
 
 /// The address kept of a picture written into the message (`data:` and its type when it is one
-/// of the four, never its content), and its bytes when it is shown: decoded within `budget`
-/// when `decode`, and a PNG, JPEG, GIF or WebP by its own bytes.
+/// of the five, never its content), and its bytes when it is shown: decoded within `budget`
+/// when `decode`, and a PNG, JPEG, GIF or WebP by its own bytes, or an SVG drawing said to be one.
 pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, Option<Picture>) {
     let (kept, _, picture) = picture_taken(src, decode, budget);
     (kept, picture)
@@ -75,8 +78,9 @@ pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, 
 /// and one that does agree on.
 pub(crate) fn picture_taken(src: &str, decode: bool, budget: &mut Budget) -> (String, bool, Option<Picture>) {
     let (kept, taken) = admit(src, decode, budget);
-    let Some((text, size)) = taken.filter(|_| decode) else { return (kept, taken.is_some(), None) };
-    let data = base64(text, size).filter(|bytes| is_picture(bytes)).map(|bytes| Picture(Arc::new(bytes)));
+    let Some(admitted) = taken else { return (kept, false, None) };
+    let bytes = if admitted.base64ed { base64(admitted.text, admitted.size) } else { Some(percent_decode(admitted.text)) };
+    let data = bytes.filter(|bytes| if admitted.svg { looks_like_svg(bytes) } else { is_picture(bytes) }).map(|bytes| Picture(Arc::new(bytes)));
     (kept, true, data)
 }
 
@@ -86,9 +90,16 @@ pub(crate) fn counted(src: &str, budget: &mut Budget) -> (String, bool) {
     (kept, taken.is_some())
 }
 
-/// The address kept of a picture written into the message, and its base64 text and size when
+struct Admitted<'a> {
+    text: &'a str,
+    size: usize,
+    svg: bool,
+    base64ed: bool,
+}
+
+/// The address kept of a picture written into the message, and its encoded text and size when
 /// `budget` takes it (and is spent by it); never when not `decode`.
-fn admit<'s>(src: &'s str, decode: bool, budget: &mut Budget) -> (String, Option<(&'s str, usize)>) {
+fn admit<'s>(src: &'s str, decode: bool, budget: &mut Budget) -> (String, Option<Admitted<'s>>) {
     let Some((head, text)) = src.trim_start().split_once(',') else { return ("data:".into(), None) };
     let head: String = head.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let head = head.trim();
@@ -98,21 +109,90 @@ fn admit<'s>(src: &'s str, decode: bool, budget: &mut Budget) -> (String, Option
         Some("image/jpeg" | "image/jpg" | "image/pjpeg") => "image/jpeg",
         Some("image/gif") => "image/gif",
         Some("image/webp") => "image/webp",
+        Some("image/svg+xml") => SVG,
         _ => return ("data:".into(), None),
     };
     let kept = format!("data:{kind}");
-    if !decode || !parts.any(|p| p.eq_ignore_ascii_case("base64")) || budget.pictures >= MAX_DATA_PICTURES || text.len() > MAX_PICTURE_TEXT {
+    let base64ed = parts.any(|p| p.eq_ignore_ascii_case("base64"));
+    // A drawing is text, and may be written as it is, its odd characters as `%xx`; a picture
+    // of the others is only ever base64.
+    if !decode || !(base64ed || kind == SVG) || budget.pictures >= MAX_DATA_PICTURES || text.len() > MAX_PICTURE_TEXT {
         return (kept, None);
     }
     // What it would come to, from its length, before anything is decoded.
-    let digits = text.bytes().filter(|b| !b.is_ascii_whitespace() && *b != b'=').count();
-    let size = digits / 4 * 3 + (digits % 4).saturating_sub(1);
+    let size = if base64ed {
+        let digits = text.bytes().filter(|b| !b.is_ascii_whitespace() && *b != b'=').count();
+        digits / 4 * 3 + (digits % 4).saturating_sub(1)
+    } else {
+        text.len()
+    };
     if size > MAX_DATA_PICTURE_BYTES || budget.bytes.saturating_add(size) > MAX_DATA_PICTURES_BYTES {
         return (kept, None);
     }
     budget.pictures += 1;
     budget.bytes = budget.bytes.saturating_add(size);
-    (kept, Some((text, size)))
+    (kept, Some(Admitted { text, size, svg: kind == SVG, base64ed }))
+}
+
+/// The type an SVG drawing is written with.
+pub(crate) const SVG: &str = "image/svg+xml";
+
+/// `%xx` escapes decoded; anything else, a `%` that begins no escape among it, is kept as it is.
+fn percent_decode(text: &str) -> Vec<u8> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        let escape = (b == b'%').then(|| bytes.get(i + 1..i + 3)).flatten().and_then(|hex| std::str::from_utf8(hex).ok()).and_then(|hex| {
+            // `from_str_radix` would take a sign: only two hex digits are an escape.
+            hex.bytes().all(|h| h.is_ascii_hexdigit()).then(|| u8::from_str_radix(hex, 16).ok()).flatten()
+        });
+        match escape {
+            Some(byte) => {
+                out.push(byte);
+                i += 3;
+            }
+            None => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
+/// Whether bytes are an SVG drawing by how they begin: after a byte order mark, white space, an
+/// XML declaration or other processing instructions, comments and a document type of `svg`, the
+/// first element is `<svg>`. Lowercase, as XML is: `<SVG>` is no SVG element. Never looks past
+/// what there is, and each byte at most a few times.
+pub fn looks_like_svg(bytes: &[u8]) -> bool {
+    let mut rest = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes);
+    loop {
+        rest = rest.trim_ascii_start();
+        let after = |rest: &[u8], start: usize, end: &[u8]| -> Option<usize> {
+            let from = rest.get(start..)?;
+            from.windows(end.len()).position(|w| w == end).map(|at| start + at + end.len())
+        };
+        let skip = if rest.starts_with(b"<?") {
+            after(rest, 2, b"?>")
+        } else if rest.starts_with(b"<!--") {
+            after(rest, 4, b"-->")
+        } else if rest.starts_with(b"<!DOCTYPE svg") {
+            // Its internal subset, if any, in brackets, then the end of it.
+            let close = rest.iter().position(|&b| b == b'>' || b == b'[');
+            match close.and_then(|at| rest.get(at).map(|b| (at, *b))) {
+                Some((at, b'[')) => after(rest, at, b"]").and_then(|end| after(rest, end, b">")),
+                Some((at, _)) => Some(at + 1),
+                None => None,
+            }
+        } else {
+            return rest.starts_with(b"<svg") && matches!(rest.get(4), None | Some(b' ' | b'\t' | b'\r' | b'\n' | b'>' | b'/'));
+        };
+        match skip.and_then(|at| rest.get(at..)) {
+            Some(next) => rest = next,
+            None => return false,
+        }
+    }
 }
 
 /// Base64 to bytes, the line breaks and spaces in it skipped and its padding optional; `None`

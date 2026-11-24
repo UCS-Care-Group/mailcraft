@@ -9,8 +9,8 @@
 //! to fit; a double-click opens it and its `▾` menu is the chip's. Everything else stays a chip.
 //!
 //! The bytes are hostile, as every attachment's: whether a file is a picture is told by its
-//! bytes alone ([`images::probe`], within the reading pane's caps, never by its name or its
-//! declared type), and it is decoded by [`images::decode`] with the same caps, off the window's
+//! bytes alone ([`images::probe_raster`], within the reading pane's caps, never by its name or its
+//! declared type), and it is decoded by [`images::decode_raster`] with the same caps, off the window's
 //! thread (one at a time), into a small texture. Mail in Junk E-mail is shown by names only. Only
 //! the first [`MAX_PREVIEWS`] files of a message whose type or name says they may be pictures
 //! are looked at, so that a message with a thousand attachments costs no more a frame than one
@@ -331,7 +331,7 @@ impl Thumbs {
                         // Everything kept is on screen now: this one is a chip.
                         drop(self.entries.swap_remove(oldest?));
                     }
-                    let size = images::probe(data);
+                    let size = images::probe_raster(data);
                     self.entries.push(Thumb { data: Arc::downgrade(data), size, state: State::Waiting, used: frame });
                     self.entries.len() - 1
                 }
@@ -405,7 +405,7 @@ impl Thumbs {
         }
         // Here: in the browser, in a test, or when no thread could be started.
         self.decoded_in = Some(frame);
-        let image = images::decode(data, max_side, max_width);
+        let image = images::decode_raster(data, max_side, max_width);
         let entry = self.entry(data, frame)?;
         entry.state = match image {
             Some(image) => State::Ready(ctx.load_texture("mailcraft-attachment-picture", image, egui::TextureOptions::LINEAR)),
@@ -439,7 +439,7 @@ impl Thumbs {
         let bytes = data.clone();
         let repaint = ctx.clone();
         let job = std::thread::Builder::new().name("attachment-picture".into()).spawn(move || {
-            let _ = send.send(images::decode(&bytes, max_side, max_width));
+            let _ = send.send(images::decode_raster(&bytes, max_side, max_width));
             repaint.request_repaint();
         });
         match job {

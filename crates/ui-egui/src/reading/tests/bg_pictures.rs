@@ -279,3 +279,24 @@ fn text_with_only_a_colour_behind_it_is_adjusted_as_before() {
         assert!(crate::reading::colors::luminance(ink_of(&laid, "Autumn sale")) > 0.5);
     });
 }
+
+/// #565: a drawing is the picture of an `<img>`, not of a box: an attached one behind a cell is no
+/// picture there (and the cell keeps its colour), as before drawings were shown at all.
+#[test]
+fn an_attached_drawing_is_not_put_behind_a_cell() {
+    let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><rect width="300" height="100" fill="#336699"/></svg>"##;
+    let mut m = hero("<td background=\"cid:hero@example.org\" bgcolor=\"#f4efe6\">");
+    m.attachments =
+        vec![Attachment { content_id: "hero@example.org".into(), inline: true, ..Attachment::new("hero.svg", "image/svg+xml", svg.to_vec()) }];
+    in_frame(false, |ctx| {
+        // A drawing is read apart and has a size only once it is read: laid out again for a while,
+        // long enough for that, it is behind no cell.
+        for _ in 0..50 {
+            let laid = laid(ctx, &m, false);
+            assert!(behind(&laid).is_empty(), "{:?}", laid.stats);
+            assert_eq!(laid.stats.behind, 0);
+            Pictures::of(ctx).lock().unwrap().release_unseen(ctx);
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    });
+}

@@ -285,7 +285,7 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
             // Whatever came is a stranger's bytes: a picture within the limits, or nothing.
             let outcome = match answer {
                 Ok(bytes) if bytes.len() > MAX_BYTES => Err(Arc::from(tl!("it is too large to show"))),
-                Ok(bytes) if images::probe(&bytes).is_some() => Ok(bytes),
+                Ok(bytes) if images::seems_a_picture(&bytes) => Ok(bytes),
                 Ok(bytes) => Err(Arc::from(images::not_a_picture(&bytes))),
                 Err(why) => Err(why),
             };

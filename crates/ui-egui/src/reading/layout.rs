@@ -483,6 +483,8 @@ impl Cx<'_> {
         let src = picture.src.trim();
         let bytes =
             picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+        // A drawing (#565) is shown as the picture of an `<img>` only, not behind a box.
+        let bytes = bytes.filter(|data| !mailcraft_html::looks_like_svg(data));
         let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
         self.stats.behind += 1;
         Some(Behind { slot: self.slot(), data, size })
@@ -1035,6 +1037,8 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     }
     // (The pictures behind boxes count against the same cap: one message's pictures in all.)
     let bytes = bytes.filter(|_| cx.stats.pictures.saturating_add(cx.stats.behind) < images::MAX_PICTURES_PER_MESSAGE);
+    // An SVG drawing is read on a thread of its own: until it is, it is on its way, not broken.
+    let reading = bytes.as_ref().is_some_and(|data| cx.pictures.is_reading(data, cx.frame));
     let natural = bytes.and_then(|data| cx.pictures.size(&data, cx.frame).map(|size| (data, size)));
     let asked = |v: &Option<u16>| v.map(f32::from).filter(|v| *v >= 1.0);
     if let Some((data, [w, h])) = natural {
@@ -1069,7 +1073,7 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     } else {
         cx.ctx.fonts_mut(|f| f.layout_no_wrap(label.clone(), regular(CHIP_FONT), Color32::WHITE).size().x) + 10.0
     };
-    if shown {
+    if shown && !reading {
         cx.stats.placeholders += 1;
         if !mailcraft_html::is_embedded(src) {
             cx.stats.remote += 1;
@@ -1077,7 +1081,7 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     }
     // One that was asked for and is on its way keeps the room it says it needs, so that the
     // message does not jump when it comes.
-    if let (true, Some(w), Some(h)) = (asked_for, asked(width), asked(height)) {
+    if let (true, Some(w), Some(h)) = (asked_for || reading, asked(width), asked(height)) {
         let scale = (room / w).min(MAX_PICTURE_HEIGHT / h).min(1.0);
         let size = vec2((w * scale).max(1.0), (h * scale).max(1.0));
         return Tile { size, block, padding: None, data: None, label, described, wanted: w.min(super::MAX_BODY_WIDTH) };

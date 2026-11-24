@@ -221,7 +221,7 @@ pub fn quotable_in(html: &str, envs: &[Env]) -> String {
 }
 
 /// [`quotable`], with the pictures written into the message (`data:`) carried as parts of their
-/// own: each that the reading pane would show (a PNG, JPEG, GIF or WebP by its own bytes, within
+/// own: each that the reading pane would show (a PNG, JPEG, GIF or WebP by its own bytes, never an SVG drawing, within
 /// [`MAX_DATA_PICTURES`](crate::MAX_DATA_PICTURES), [`MAX_DATA_PICTURE_BYTES`](crate::MAX_DATA_PICTURE_BYTES)
 /// and [`MAX_DATA_PICTURES_BYTES`](crate::MAX_DATA_PICTURES_BYTES), and not hidden) is given to
 /// `written`, and its `<img>` refers to it by the Content-ID `written` answers (`cid:…`); the
@@ -458,6 +458,12 @@ impl Quoter<'_, '_> {
         let bytes = drawn.picture.filter(|_| drawn.taken)?;
         let (kept, _) = data::picture(&src, false, &mut Budget::default());
         let mime = kept.strip_prefix("data:").unwrap_or_default();
+        // The reading pane draws an SVG drawing (#565), a reply does not hand one over: it is an
+        // active format, and the recipient's program is not ours. It counted against the caps as
+        // in the reading pane, and is left out like any picture that is not carried.
+        if mime == data::SVG {
+            return None;
+        }
         let cid = written(mime, &bytes)?;
         Some(format!("cid:{cid}"))
     }

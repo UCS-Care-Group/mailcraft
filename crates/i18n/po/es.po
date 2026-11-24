@@ -22724,8 +22724,8 @@ msgstr "tiene dos excepciones del mismo tipo que buscan cosas distintas, y el se
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "es un dibujo de un tipo que no se muestra (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "es un dibujo (SVG) dañado o que no se puede mostrar"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -27769,4 +27769,8 @@ msgstr "−Líneas"
 #~ msgid_plural "{n} messages will be deleted for good."
 #~ msgstr[0] "{n} mensaje se eliminará de forma definitiva."
 #~ msgstr[1] "{n} mensajes se eliminarán de forma definitiva."
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "es un dibujo de un tipo que no se muestra (SVG)"
 

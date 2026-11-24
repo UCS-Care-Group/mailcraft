@@ -22802,8 +22802,8 @@ msgstr "are două excepții de același tip care caută lucruri diferite, iar se
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "este un desen de un tip care nu se afișează (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "este un desen (SVG) deteriorat sau care nu poate fi afișat"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -27828,4 +27828,8 @@ msgstr "−Linii"
 #, fuzzy
 #~ msgid "The draft stays in Drafts. {why}"
 #~ msgstr "Ciorna rămâne în Ciorne. {why}"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "este un desen de un tip care nu se afișează (SVG)"
 

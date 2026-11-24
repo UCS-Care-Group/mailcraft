@@ -22719,8 +22719,8 @@ msgstr "két azonos fajtájú, de mást kereső kivétele van, a kiszolgáló pe
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "Ez egy olyan rajz, amely nem jelenik meg (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "ez egy sérült vagy nem megjeleníthető rajz (SVG)"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -27465,6 +27465,9 @@ msgstr "−Sorok"
 #~ msgstr "A szervezet adminisztrátorának jóvá kell hagynia a megosztott postafiókok naptárainak olvasását egyszer: Fájl › Információ"
 
 #, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "Ez egy olyan rajz, amely nem jelenik meg (SVG)"
+
 #~ msgid "Allow MailCraft to change your automatic replies on the page that opened in your browser…"
 #~ msgstr "Engedje meg, hogy a MailCraft módosítsa az automatikus válaszokat az oldalon, amely megnyílt a böngésző…"
 

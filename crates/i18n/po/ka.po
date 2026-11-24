@@ -22643,8 +22643,8 @@ msgstr "მას აქვს ერთი სახის ორი გამ�
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "ეს ისეთი სახის ნახატია, რომელიც არ ჩანს (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "ეს ნახატი (SVG) დაზიანებულია ან მისი ჩვენება შეუძლებელია"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -27535,4 +27535,8 @@ msgstr ""
 #, fuzzy
 #~ msgid "{not_sending_yet}: send this message from another account, or save it as a draft"
 #~ msgstr "{not_sending_yet}: ეს წერილი სხვა ანგარიშიდან გაგზავნეთ ან მონახაზად შეინახეთ"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "ეს ისეთი სახის ნახატია, რომელიც არ ჩანს (SVG)"
 

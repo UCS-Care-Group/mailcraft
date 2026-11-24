@@ -21397,8 +21397,8 @@ msgstr "sie hat zwei Ausnahmen derselben Art, die nach Verschiedenem suchen, und
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
-msgid "it is a drawing of a kind that isn't shown (SVG)"
-msgstr "es ist eine Zeichnung eines Typs, der nicht angezeigt wird (SVG)"
+msgid "it is a drawing (SVG) that is damaged or can't be shown"
+msgstr "es ist eine Zeichnung (SVG), die beschädigt ist oder nicht angezeigt werden kann"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -25788,6 +25788,10 @@ msgstr "−Zeilen"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} Nachricht gefunden"
 #~ msgstr[1] "{n} Nachrichten gefunden"
+
+#, fuzzy
+#~ msgid "it is a drawing of a kind that isn't shown (SVG)"
+#~ msgstr "es ist eine Zeichnung eines Typs, der nicht angezeigt wird (SVG)"
 
 #, fuzzy
 #~ msgid "Capitalize the first word of sentences"
