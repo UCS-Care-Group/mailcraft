@@ -1272,7 +1272,7 @@ fn render_note_card(ui: &mut Ui, note: &Note, selected: bool, t: &Tokens, is_dar
     let preview_pos = rect.min + vec2(12.0, 30.0);
     let snippet = note.preview.as_deref().unwrap_or("").trim();
     let display_snippet = if snippet.is_empty() && note.content_html.as_deref().unwrap_or("").contains("<img") {
-        "\u{1f4f7} [Foto/Imagem]".to_string()
+        "📷 [Foto/Imagem]".to_string()
     } else {
         snippet.to_string()
     };
@@ -1473,7 +1473,7 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                     let label = if fname.len() > 30 { &fname[..30] } else { fname };
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("\u{1f5bc} [Foto: {}]", label)).size(12.5).color(t.text_dim));
+                        ui.label(RichText::new(format!("🖼 [Foto: {}]", label)).size(12.5).color(t.text_dim));
                     });
                     ui.add_space(4.0);
                 }
@@ -1512,7 +1512,7 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                             app.notes.toggle_checklist_item(&note.id, idx);
                         }
                     });
-                } else if line.starts_with("###") || line.starts_with("\U0001f4cb") || line.starts_with("\U0001f6e0\ufe0f") || line.starts_with("\u2728") || line.starts_with("\U0001f4a1") || line.starts_with("\u270d\ufe0f") || line.contains("Comentário Gemini IA") {
+                } else if line.starts_with("###") || line.starts_with("📋") || line.starts_with("🛠️") || line.starts_with("✨") || line.starts_with("💡") || line.starts_with("✍️") || line.contains("Comentário Gemini IA") {
                     ui.add_space(8.0);
                     ui.add(
                         egui::Label::new(RichText::new(&line).size(14.5).strong().color(Color32::from_rgb(66, 133, 244)))
@@ -1520,10 +1520,10 @@ fn render_interactive_checklist(app: &mut MailApp, ui: &mut Ui, note: &Note, t: 
                             .selectable(true),
                     );
                     ui.add_space(4.0);
-                } else if line.starts_with("\u2022") || line.starts_with("-") {
+                } else if line.starts_with("•") || line.starts_with("-") {
                     ui.horizontal_top(|ui| {
-                        ui.label(RichText::new("\u2022").size(13.5).color(t.text));
-                        let bullet_text = line.trim_start_matches(|c| c == '\u2022' || c == '-' || c == ' ');
+                        ui.label(RichText::new("•").size(13.5).color(t.text));
+                        let bullet_text = line.trim_start_matches(|c| c == '•' || c == '-' || c == ' ');
                         ui.add(
                             egui::Label::new(RichText::new(bullet_text).size(13.5).color(t.text))
                                 .wrap()
