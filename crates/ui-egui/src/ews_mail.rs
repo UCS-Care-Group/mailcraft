@@ -98,6 +98,29 @@ impl MailApp {
         }
     }
 
+    /// Each frame, whatever the folder pane shows (#1834 review): a folder of an online archive
+    /// on screen starts the archive's read even when its heading is folded, or the folder was
+    /// opened from Favorites or with the folder pane hidden ([`MailApp::read_archive`], with its
+    /// guards: offline, a failed read, no password). Leaving an archive's folders is noted for
+    /// each archive, so that coming back to one reads it again. Nothing is read when no folder of
+    /// an archive is on screen.
+    pub(crate) fn archive_tick(&mut self) {
+        if self.archive_reads.is_empty() && !self.session.mailbox.accounts.iter().any(mailcraft_model::Account::is_archive) {
+            return;
+        }
+        let on_screen = self.session.mailbox.folder(self.session.view.folder).map(|f| f.account);
+        for (archive, last) in self.archive_reads.iter_mut() {
+            if *last != 0 && on_screen != Some(*archive) {
+                *last = 0;
+            }
+        }
+        let Some(account) = on_screen else { return };
+        if self.offline() || !self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive) {
+            return;
+        }
+        self.read_archive(account);
+    }
+
     /// Whether the last read of the online archive `archive` failed: it isn't read again by itself
     /// until the owner asks (#1818).
     pub fn archive_read_failed(&self, archive: Id) -> bool {

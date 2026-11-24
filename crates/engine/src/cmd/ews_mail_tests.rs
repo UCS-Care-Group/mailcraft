@@ -1122,6 +1122,50 @@ fn a_todo_keeps_its_message_moved_into_the_archive() {
     assert!(s.mailbox.tasks_awaiting_message.is_empty());
 }
 
+/// A message of the same Internet Message-ID that another account receives before the archive's
+/// copy comes isn't taken for it: the to-do waits for the copy in the account its message went
+/// into (#1834 review).
+#[test]
+fn a_todo_waiting_for_its_archived_message_isnt_taken_by_another_accounts_copy() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let task = s.mailbox.add_task(mailcraft_model::Task { title: "Kickoff".into(), message: Some(m), ..Default::default() });
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(archive) }).unwrap();
+    assert!(s.mailbox.message(m).is_none());
+    // The other account (the mailbox itself) receives a message of the same Message-ID first.
+    let mut other = mail("M7", "Kickoff (again)", 1_700_000_100);
+    other.message_id = "M1@example.org".into();
+    read(&mut s, account, page(&inbox_id, vec![other], false, true), "S2");
+    let theirs = here(&s, account, "M7").unwrap().id;
+    assert_ne!(s.mailbox.tasks.get(&task).unwrap().message, Some(theirs), "not the other account's message");
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, None);
+    assert_eq!(s.mailbox.tasks_awaiting_message.len(), 1, "still waiting");
+    // The archive's own copy comes: the to-do is its.
+    let mut moved = mail("AM1", "Kickoff", 1_700_000_000);
+    moved.message_id = "M1@example.org".into();
+    read(&mut s, archive, page("A1", vec![moved], true, true), "AS1");
+    let copy = here(&s, archive, "AM1").unwrap().id;
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, Some(copy));
+    assert!(s.mailbox.tasks_awaiting_message.is_empty());
+}
+
 /// The server says twice there is no archive: it goes all the same (its changes have nowhere to
 /// go), and a change made in it that hadn't gone up is said to be lost, once (#1834 review).
 #[test]

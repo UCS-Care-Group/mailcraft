@@ -1378,11 +1378,12 @@ pub struct Mailbox {
     #[serde(skip)]
     pub category_stamp: u64,
     /// The to-dos whose message was moved into another mailbox of the owner's whose server gave
-    /// it no new id (between a mailbox and its online archive, #1834 review), by the message's
-    /// Internet Message-ID: the copy a later read brings is linked to them again
-    /// ([`Mailbox::forget_message_moved_away`]). Not in the file.
+    /// it no new id (between a mailbox and its online archive, #1834 review), by the account it
+    /// went into and the message's Internet Message-ID: the copy a later read of that account
+    /// brings is linked to them again ([`Mailbox::forget_message_moved_away`]); a message of the
+    /// same Message-ID that another account receives is never taken for it. Not in the file.
     #[serde(skip)]
-    pub tasks_awaiting_message: BTreeMap<String, Vec<Id>>,
+    pub tasks_awaiting_message: BTreeMap<(Id, String), Vec<Id>>,
     /// The renames of each Microsoft account's list of categories that its server hasn't the new
     /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
     /// When the server won't make the new name, its old one is kept there; any other deletion
@@ -2422,7 +2423,11 @@ impl Mailbox {
         self.take_pending_follow_up(&mut m);
         let id = m.id;
         // (A to-do whose message went into another mailbox comes back to its copy, #1834 review.)
-        let waiting = if m.message_id.is_empty() { None } else { self.tasks_awaiting_message.remove(&m.message_id) };
+        let waiting = if m.message_id.is_empty() || self.tasks_awaiting_message.is_empty() {
+            None
+        } else {
+            self.tasks_awaiting_message.remove(&(m.account, m.message_id.clone()))
+        };
         self.messages.insert(id, Arc::new(m));
         for task in waiting.into_iter().flatten() {
             if let Some(t) = self.tasks.get_mut(&task).filter(|t| t.message.is_none()) {
@@ -3214,8 +3219,10 @@ impl Mailbox {
     pub fn forget_message_moved_away(&mut self, id: Id) -> Result<Message, ModelError> {
         let tasks: Vec<Id> = self.tasks.values().filter(|t| t.message == Some(id)).map(|t| t.id).collect();
         let m = self.forget_message(id)?;
+        // The account it went into: its folder's, where it was moved to.
+        let into = self.folder(m.folder).map_or(m.account, |f| f.account);
         if !tasks.is_empty() && !m.message_id.is_empty() && self.tasks_awaiting_message.len() < MAX_TASKS_AWAITING {
-            self.tasks_awaiting_message.entry(m.message_id.clone()).or_default().extend(tasks);
+            self.tasks_awaiting_message.entry((into, m.message_id.clone())).or_default().extend(tasks);
         }
         Ok(m)
     }

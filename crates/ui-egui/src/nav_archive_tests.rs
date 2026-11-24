@@ -121,6 +121,59 @@ fn a_folder_of_the_archive_is_read_each_time_it_comes_on_screen() {
     assert!(app.archive_failed.contains(&archive), "a read was tried");
 }
 
+/// A folder of the archive on screen is read even when the archive's heading is folded (opened
+/// from Favorites, or with the folder pane hidden); with none on screen, offline, or after a read
+/// that failed, nothing is read (#1834 review).
+#[test]
+fn a_folder_of_the_archive_on_screen_is_read_with_its_heading_folded() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    let year = app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.ui.collapsed_folders.push(archive);
+    // No folder of it on screen: nothing is read.
+    let inbox = app.session.mailbox.folder_of_kind(owner, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.session.view.folder = inbox;
+    let _ = texts(&mut app);
+    app.archive_tick();
+    assert!(app.archive_reads.is_empty() && !app.archive_failed.contains(&archive), "nothing read");
+    // Offline: nothing either.
+    app.session.view.folder = year;
+    app.session.prefs.offline = true;
+    app.archive_tick();
+    assert!(app.archive_reads.is_empty() && !app.archive_failed.contains(&archive), "nothing read offline");
+    app.session.prefs.offline = false;
+    // Its folder on screen with the heading folded: the pane reads nothing, the frame's tick does.
+    let _ = texts(&mut app);
+    assert!(app.archive_reads.is_empty(), "the folded heading reads nothing");
+    app.archive_tick();
+    // (No host here: the read can't start, which says so rather than trying at every frame.)
+    assert_eq!(app.archive_reads.get(&archive), Some(&year));
+    assert!(app.archive_failed.contains(&archive), "a read was tried");
+    // A read that failed isn't tried again by itself.
+    app.archive_reads.clear();
+    app.archive_tick();
+    assert!(app.archive_reads.is_empty(), "not tried again after it failed");
+}
+
+/// Leaving the archive's folders is noted with its heading folded too: coming back reads it again
+/// (#1834 review).
+#[test]
+fn leaving_the_archive_with_its_heading_folded_is_noted() {
+    let (mut app, owner, archive) = app();
+    app.passwords.insert(owner, "an invented password".into());
+    let year = app.session.mailbox.add_folder(archive, None, "2019").unwrap();
+    app.ui.collapsed_folders.push(archive);
+    app.archive_reads.insert(archive, year);
+    let inbox = app.session.mailbox.folder_of_kind(owner, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.session.view.folder = inbox;
+    app.archive_tick();
+    assert_eq!(app.archive_reads.get(&archive), Some(&0), "leaving its folders reads nothing");
+    assert!(!app.archive_failed.contains(&archive));
+    app.session.view.folder = year;
+    app.archive_tick();
+    assert!(app.archive_failed.contains(&archive), "coming back reads it again");
+}
+
 /// Wherever the archive is named away from its heading (a folder's account in a list, the
 /// problems of a run, the window's title), it is named in the interface's words, never by the
 /// name it is kept under (#1834 review).

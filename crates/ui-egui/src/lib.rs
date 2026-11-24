@@ -5319,6 +5319,8 @@ impl MailApp {
             // Whether a new version is out, when the owner wants that known ([`updates`]).
             self.updates_tick(ctx);
             self.auto_sync();
+            // The online archive whose folder is on screen, however it got there (#1818).
+            self.archive_tick();
             // The Inbox by itself every minute, between rounds (#276).
             self.inbox_check_tick();
             // New mail the moment it arrives, where the server says so (#276).
