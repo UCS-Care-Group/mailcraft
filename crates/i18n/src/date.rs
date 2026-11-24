@@ -107,6 +107,8 @@ impl Lang {
             }
             Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            // Brazil: day/month/year, 24-hour clock, weeks from Sunday (CLDR pt-BR).
+            Lang::Portuguese => Conventions { twelve_hour: false, week_start: 6, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }
