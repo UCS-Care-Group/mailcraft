@@ -160,6 +160,24 @@ fn a_new_contact_whose_answer_was_lost_makes_the_next_run_read_its_book_whole() 
         ..Default::default()
     });
     assert_eq!(own(&rig.s, rig.account), "", "read whole, so the card is found or known not made");
+    rig.s.mailbox.contact_changes.retain(|c| c.contact != 999);
+
+    // A book whose whole read never completes: the new contact waits a day, then goes up again.
+    let made = rig.s.run("people.new", &json!({"first": "Lu", "last": "Lost"})).unwrap()["id"].as_u64().unwrap();
+    let mark = |s: &mut Session, at: i64| {
+        let change = s.mailbox.contact_changes.iter_mut().find(|c| c.contact == made).unwrap();
+        (change.sent, change.unconfirmed) = (true, at);
+    };
+    let unconfirmed = |s: &Session| s.mailbox.contact_changes.iter().find(|c| c.contact == made).map(|c| c.unconfirmed);
+    rig.server.with(|d| d.contacts.query_moves = true);
+    let now = rig.s.now();
+    mark(&mut rig.s, now - 10);
+    rig.run();
+    assert_eq!(unconfirmed(&rig.s), Some(now - 10), "still waiting");
+    assert!(!rig.server.with(|d| d.contacts.cards.values().any(|(_, c)| c.to_string().contains("Lost"))), "not made twice");
+    mark(&mut rig.s, now - 2 * 86_400);
+    rig.run();
+    assert_eq!(unconfirmed(&rig.s), Some(0), "a day on, it goes up again");
 }
 
 #[test]

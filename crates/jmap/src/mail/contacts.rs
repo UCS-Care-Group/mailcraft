@@ -144,6 +144,11 @@ fn result_of(error: &Value) -> ContactResult {
     }
 }
 
+/// The card says which address books it is in (`addressBookIds`, an object), as RFC 9610 has it.
+fn knows_books(card: &Value) -> bool {
+    card.get("addressBookIds").is_some_and(Value::is_object)
+}
+
 /// What became of `op` when the server's answer to it never came (`why`): failed, to be tried again.
 /// A new card may have been made all the same, and a new uid would make it twice: it is answered as
 /// made under a name not heard, which the engine sends again only once a read of its folder shows
@@ -343,9 +348,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 // would undo it here): the engine keeps it on this computer as it drops the folder.
                 // A book merely cut off the list, or one that can't be read now, is not gone: the op
                 // waits.
-                (Some(at), None, ContactChangeKind::Delete)
-                    if places.get(at).is_some_and(|p| p.whole && !p.unreadable.contains(&op.folder)) =>
-                {
+                (Some(at), None, ContactChangeKind::Delete) if places.get(at).is_some_and(|p| p.whole && !p.unreadable.contains(&op.folder)) => {
                     sent.outcomes.push(outcome(op, ContactResult::Gone, ""))
                 }
                 _ => {}
@@ -427,7 +430,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 ContactChangeKind::Delete => match cards.get(&op.remote) {
                     None => sent.outcomes.push(ContactOutcome { op: (*op).clone(), result: ContactResult::Gone, ..Default::default() }),
                     // Which books it is in, unsaid: never destroyed on a guess.
-                    Some(c) if !c.get("addressBookIds").is_some_and(Value::is_object) => {
+                    Some(c) if !knows_books(c) => {
                         sent.outcomes.push(unheard(op, "the server didn't say which address books the contact is in"));
                     }
                     Some(_) => {
@@ -640,6 +643,10 @@ impl<H: HttpExchange> Run<'_, H> {
         if unanswered {
             return Err(Stop::Failed(crate::connection::unusable("cards asked for and not answered").into()));
         }
+        // A card that doesn't say which books it is in would read as gone from all of them.
+        if raw.values().any(|c| !knows_books(c)) {
+            return Err(Stop::Failed(crate::connection::unusable("a card that doesn't say its address books").into()));
+        }
         let mut missing: Vec<String> = not_found.into_iter().collect();
         let mut cards = Vec::new();
         for c in raw.values() {
@@ -662,6 +669,7 @@ impl<H: HttpExchange> Run<'_, H> {
         let first = self.contacts_call("ContactCard/get", args, CHANGES_BYTES).await?;
         let state = first.get("state").and_then(Value::as_str).map(mailcraft_model::contact_sync::delta).unwrap_or_default();
         let (mut position, mut query_state, mut complete) = (0usize, None::<String>, false);
+        let mut seen: BTreeSet<String> = BTreeSet::new();
         while position < MAX_CONTACTS {
             let args = Map::from_iter([
                 ("accountId".to_string(), json!(place.account)),
@@ -690,13 +698,15 @@ impl<H: HttpExchange> Run<'_, H> {
                 complete = total.is_some_and(|t| t <= position) && position < MAX_CONTACTS;
                 break;
             }
-            // Each id once, and each answered with its card: anything else (one listed twice, one
-            // not there, one not answered) leaves the read incomplete.
-            let distinct: BTreeSet<&str> = ids.iter().copied().collect();
+            // Each id once in the whole read, and each answered with its card, saying its books:
+            // anything else (one listed twice, one not there, one not answered, one whose books are
+            // unsaid, which is left out) leaves the read incomplete.
+            let fresh = ids.iter().all(|id| seen.insert((*id).to_string()));
             let (got, not_found, unanswered) = self.raw_cards(&place.account, &ids).await?;
-            cards.extend(got.values().filter_map(|c| Some((card::read(c)?, card::books_of(c)))));
+            let unsaid = got.values().any(|c| !knows_books(c));
+            cards.extend(got.values().filter(|c| knows_books(c)).filter_map(|c| Some((card::read(c)?, card::books_of(c)))));
             position = position.saturating_add(ids.len());
-            if distinct.len() < ids.len() || unanswered || !not_found.is_empty() {
+            if !fresh || unanswered || unsaid || !not_found.is_empty() {
                 // A card listed and then not there: changed meanwhile.
                 break;
             }

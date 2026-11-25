@@ -166,8 +166,8 @@ fn job_title(card: &Value) -> Option<(&String, &Map<String, Value>)> {
     entries(card, "titles").into_iter().find(|(_, t)| text(t, "kind") != "role")
 }
 
-/// The notes of a card, as one text: each note, by key, a blank line between them.
-fn notes_of(card: &Value) -> String {
+/// The notes of a card that are read: those with text, [`MAX_ENTRIES`] at the most, by key.
+fn shown_notes(card: &Value) -> Vec<(&String, &str)> {
     let mut notes: Vec<(&String, &str)> = card
         .get("notes")
         .and_then(Value::as_object)
@@ -178,7 +178,12 @@ fn notes_of(card: &Value) -> String {
         .take(MAX_ENTRIES)
         .collect();
     notes.sort_by(|a, b| a.0.cmp(b.0));
-    notes.into_iter().map(|(_, n)| n).collect::<Vec<_>>().join("\n\n")
+    notes
+}
+
+/// The notes of a card, as one text: each note, by key, a blank line between them.
+fn notes_of(card: &Value) -> String {
+    shown_notes(card).into_iter().map(|(_, n)| n).collect::<Vec<_>>().join("\n\n")
 }
 
 /// The address books a card is in (the ids the server gave). Not capped: a book left out would read
@@ -459,9 +464,15 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
     match (full, parts.is_empty(), name) {
         // The full name alone, on a card that has a name: that member only, so that nothing else
         // of the name (its parts, as another device may just have changed them) is written.
-        (true, true, Some(_)) => {
+        (true, true, Some(n)) => {
             let shown = values.display_name.trim();
-            out.insert("name/full".into(), if shown.is_empty() { Value::Null } else { json!(shown) });
+            let parted = n.get("components").and_then(Value::as_array).is_some_and(|c| !c.is_empty());
+            match (shown, parted) {
+                // (A name is a full name or parts, RFC 9553 §2.2.1.2: with neither, it goes.)
+                ("", false) => out.insert("name".into(), Value::Null),
+                ("", true) => out.insert("name/full".into(), Value::Null),
+                (shown, _) => out.insert("name/full".into(), json!(shown)),
+            };
         }
         (false, true, _) => {}
         _ => {
@@ -596,32 +607,34 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
                 let key = fresh_key(&map, "b");
                 map.insert(key, birthday_entry(day));
             }
-            // No birthday: every birth entry goes (one left would show).
-            (None, _) => map.retain(|_, a| a.get("kind").and_then(Value::as_str) != Some("birth")),
+            // No birthday: every birth entry that reads as one goes (one left would show); one that
+            // doesn't (a day with no year, a place alone) was never shown, and stays.
+            (None, _) => map
+                .retain(|_, a| a.get("kind").and_then(Value::as_str) != Some("birth") || birthday_of(&json!({"anniversaries": {"x": a}})).is_none()),
         }
         out.insert("anniversaries".into(), if map.is_empty() { Value::Null } else { Value::Object(map) });
     }
     if wants(F::Notes) && now.notes.trim() != values.notes.trim() {
         let note = values.notes.trim();
-        let had: Vec<(&String, &Value)> = server
-            .get("notes")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-            .filter(|(_, n)| n.get("note").and_then(Value::as_str).is_some())
-            .collect();
-        let patched = match (note, had.as_slice()) {
-            ("", _) => Value::Null,
+        // The notes read (as [`notes_of`] picks them); the rest were never shown, and stay.
+        let shown: Vec<String> = shown_notes(server).into_iter().map(|(k, _)| k.clone()).collect();
+        let all = server.get("notes").and_then(Value::as_object).cloned().unwrap_or_default();
+        let mut map: Map<String, Value> = all.iter().filter(|(k, _)| !shown.contains(k)).map(|(k, n)| (k.clone(), n.clone())).collect();
+        match (note, shown.as_slice()) {
+            ("", _) => {}
             // One note: its text changes, its author and time stay. (Several are read as one text,
             // which can't be split back: the edited text replaces them.)
-            (note, [(key, entry)]) => {
-                let mut entry = entry.as_object().cloned().unwrap_or_default();
+            (note, [key]) => {
+                let mut entry = all.get(key).and_then(Value::as_object).cloned().unwrap_or_default();
                 entry.insert("note".into(), json!(note));
-                json!({(*key).clone(): entry})
+                map.insert(key.clone(), Value::Object(entry));
             }
-            (note, _) => json!({"n1": {"note": note}}),
-        };
-        out.insert("notes".into(), patched);
+            (note, _) => {
+                let key = fresh_key(&all, "n");
+                map.insert(key, json!({"note": note}));
+            }
+        }
+        out.insert("notes".into(), if map.is_empty() { Value::Null } else { Value::Object(map) });
     }
     if wants(F::Categories)
         && let Some(categories) = &values.categories

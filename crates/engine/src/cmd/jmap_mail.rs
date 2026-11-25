@@ -151,6 +151,9 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
     })
 }
 
+/// How long a new contact whose answer was lost waits for a read to say whether it was made (seconds).
+const UNCONFIRMED_FOR: i64 = 86_400;
+
 /// The contacts part of a JMAP run of `account` (#1068, #1076): the changes due to go up, and for
 /// each owner of the account's contacts folders where they were read up to. JMAP keeps one state
 /// for all of an account's cards, so an owner's folders are read from it only when every one of
@@ -344,6 +347,16 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
         match super::contacts_remote::merge_contacts(&mut s.mailbox, download) {
             Ok(merged) => contacts_changed |= merged.changed(),
             Err(e) => refused.push(e.to_string()),
+        }
+    }
+    // A new contact whose answer was lost waits for a whole read of its book to say whether it was
+    // made; a book too big to be read whole (MAX_CONTACTS) never says. After a day it goes up again.
+    // lean: it may then be made twice; a stable uid per contact, looked up first, is the upgrade.
+    let now = s.now();
+    for c in s.mailbox.contact_changes.iter_mut() {
+        if c.account == account && c.kind == ContactChangeKind::Create && c.unconfirmed != 0 && now.saturating_sub(c.unconfirmed) > UNCONFIRMED_FOR {
+            c.unconfirmed = 0;
+            contacts_changed = true;
         }
     }
     // The address books gone from the server: their folders go, what waited to go up stays here.

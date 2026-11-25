@@ -239,6 +239,45 @@ fn an_edited_address_keeps_the_parts_mailcraft_does_not_show() {
 }
 
 #[test]
+fn a_cleared_full_name_on_a_name_with_no_parts_takes_the_name_away() {
+    let server = json!({"id": "CC1", "addressBookIds": {"AB1": true}, "name": {"full": "Ada"}});
+    let mut values = read(&server).unwrap();
+    values.display_name.clear();
+    assert_eq!(patch(&server, &values, &[ContactField::DisplayName].into()), serde_json::Map::from_iter([("name".to_string(), Value::Null)]));
+    // With parts, the full name alone goes.
+    let mut values = read(&ada()).unwrap();
+    values.display_name.clear();
+    assert_eq!(patch(&ada(), &values, &[ContactField::DisplayName].into()), serde_json::Map::from_iter([("name/full".to_string(), Value::Null)]));
+}
+
+#[test]
+fn a_cleared_birthday_keeps_a_birth_entry_it_never_showed() {
+    let mut server = ada();
+    server["anniversaries"]["b2"] = json!({"kind": "birth", "date": {"@type": "PartialDate", "month": 12, "day": 10}, "place": {"full": "London"}});
+    let mut values = read(&server).unwrap();
+    values.birthday = None;
+    let p = patch(&server, &values, &[ContactField::Birthday].into());
+    let left = p["anniversaries"].as_object().unwrap();
+    assert!(!left.contains_key("b1") && left.contains_key("b2") && left.contains_key("w1"), "{left:?}");
+}
+
+#[test]
+fn notes_past_those_read_stay_through_an_edit_and_a_clear() {
+    let mut server = ada();
+    let notes: serde_json::Map<String, Value> = (0..65).map(|n| (format!("n{n:02}"), json!({"note": format!("note {n}")}))).collect();
+    server["notes"] = Value::Object(notes);
+    let mut values = read(&server).unwrap();
+    values.notes = "one".into();
+    let p = patch(&server, &values, &[ContactField::Notes].into());
+    let sent = p["notes"].as_object().unwrap();
+    assert_eq!(sent["n64"], json!({"note": "note 64"}));
+    assert_eq!(sent.len(), 2, "the unread one and the edited text: {sent:?}");
+    values.notes.clear();
+    let p = patch(&server, &values, &[ContactField::Notes].into());
+    assert_eq!(p["notes"], json!({"n64": {"note": "note 64"}}));
+}
+
+#[test]
 fn a_corrected_birthday_keeps_its_place() {
     let mut server = ada();
     server["anniversaries"]["b1"]["place"] = json!({"full": "London"});

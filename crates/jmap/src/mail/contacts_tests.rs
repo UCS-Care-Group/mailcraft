@@ -466,7 +466,48 @@ fn a_deletion_is_never_a_destroy_on_a_guess_and_reads_follow_the_get_limit() {
     ];
     let pieces = run_stand_in(&stand_in, &ask(JmapContactsRequest { ops, ..Default::default() }));
     let sent = pieces.iter().find_map(|p| p.contacts_sent.clone()).unwrap();
-    assert!(sent.outcomes.iter().all(|o| o.result == ContactResult::Done), "{sent:?}");
+    for contact in [1, 2] {
+        let mine: Vec<ContactResult> = sent.outcomes.iter().filter(|o| o.op.contact == contact).map(|o| o.result).collect();
+        assert_eq!(mine, vec![ContactResult::Done], "{sent:?}");
+    }
+    // Both patched, in one set after a get of each.
+    let patched: BTreeSet<String> = stand_in.with(|d| d.contacts.patches.iter().map(|(id, _)| id.clone()).collect());
+    assert_eq!(patched, [a, b].into());
+    let asked = calls(&stand_in);
+    let set_at = asked.iter().position(|m| m == "ContactCard/set").unwrap();
+    assert!(asked.get(..set_at).unwrap().iter().filter(|m| *m == "ContactCard/get").count() >= 2, "{asked:?}");
+}
+
+#[test]
+fn a_card_listed_twice_across_pages_or_without_its_books_is_no_complete_read() {
+    let twice = hostile(|name| match name {
+        "AddressBook/get" => Some(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+        // Every page lists the same card, and the total says there are two.
+        "ContactCard/query" => Some(json!({"queryState": "q", "ids": ["CA"], "total": 2})),
+        "ContactCard/get" => {
+            Some(json!({"state": "s1", "list": [{"id": "CA", "addressBookIds": {"AB1": true}, "name": {"full": "A"}}], "notFound": []}))
+        }
+        _ => None,
+    });
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest::default()), ..asks(super::changes_tests::FAKE_SESSION) };
+    let got = downloads(&run_fake(&twice, &request));
+    assert!(got.len() == 1 && !got[0].complete && got[0].delta.is_empty(), "{got:?}");
+
+    // Read from changes: a card that doesn't say its books stops the read where it was.
+    let unsaid = hostile(|name| match name {
+        "AddressBook/get" => Some(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+        "ContactCard/changes" => {
+            Some(json!({"oldState": "s1", "newState": "s2", "hasMoreChanges": false, "created": ["CB"], "updated": [], "destroyed": []}))
+        }
+        "ContactCard/get" => Some(json!({"state": "s2", "list": [{"id": "CB", "name": {"full": "B"}}], "notFound": []})),
+        _ => None,
+    });
+    let places = vec![JmapContactPlace { owner: FolderOwner::Own, state: "s1".into(), books: vec![String::new()] }];
+    let request =
+        JmapMailRequest { contacts: Some(JmapContactsRequest { places, ..Default::default() }), ..asks(super::changes_tests::FAKE_SESSION) };
+    let pieces = run_fake(&unsaid, &request);
+    assert!(downloads(&pieces).is_empty(), "nothing taken, the state not moved on");
+    assert!(!last(&pieces).errors.is_empty());
 }
 
 #[test]

@@ -215,7 +215,7 @@ pub(super) fn shaped(pieces: &[JmapMailResult]) {
         .iter()
         .map(|piece| match (piece.changes.len(), piece.sent.len(), &piece.listing, piece.pages.len()) {
             // The contacts, after the mail (CS10).
-            (0, 0, None, 0) if piece.contacts_sent.is_some() || !piece.contacts.is_empty() => 4,
+            (0, 0, None, 0) if piece.contacts_sent.is_some() || !piece.contacts.is_empty() || !piece.contact_listed.is_empty() => 4,
             (1.., 0, None, 0) => 0,
             (0, 1, None, 0) => 1,
             (0, 0, Some(_), 0) => 2,
