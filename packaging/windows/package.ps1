@@ -117,7 +117,7 @@ function ConvertTo-RtfText([string] $Text) {
 }
 $paragraphs = [System.Collections.Generic.List[string]]::new()
 $paragraphs.Add('\b MailCraft\b0')
-$paragraphs.Add((ConvertTo-RtfText 'MailCraft is dual-licensed under the MIT License or the Apache License, Version 2.0, at your option. Both license texts follow. Bundled fonts and other third-party material keep their own open licenses, listed in NOTICE and ATTRIBUTION.md at https://github.com/UCSLabs/mailcraft.'))
+$paragraphs.Add((ConvertTo-RtfText 'MailCraft is dual-licensed under the MIT License or the Apache License, Version 2.0, at your option. Both license texts follow. Bundled fonts and other third-party material keep their own open licenses, listed in NOTICE and ATTRIBUTION.md at https://github.com/UCSLabs/mailcraft. The US English spelling dictionary keeps its own copyright notice, installed beside the program as LICENSE-en_US-dictionary.txt.'))
 foreach ($file in 'LICENSE-MIT', 'LICENSE-APACHE') {
   $title = $true  # each file opens with its license's name: show it bold
   foreach ($para in ((Get-Content -Raw (Join-Path $Root $file)) -split '\r?\n\s*\r?\n')) {
@@ -131,6 +131,9 @@ $LicenseRtf = Join-Path $Stage 'license.rtf'
 $rtf = '{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0\fswiss\fcharset0 Tahoma;}}\viewkind4\uc1\pard\sa120\f0\fs16 ' +
   ($paragraphs -join "\par`r`n") + "\par`r`n}`r`n"
 [System.IO.File]::WriteAllText($LicenseRtf, $rtf, [System.Text.Encoding]::ASCII)
+# Beside the binaries: the third-party notice and the dictionary copyright (SCOWL / Ispell).
+Copy-Item (Join-Path $Root 'NOTICE') $Stage
+Copy-Item (Join-Path $Root 'assets\dictionaries\en_US\README_en_US.txt') (Join-Path $Stage 'LICENSE-en_US-dictionary.txt')
 
 $Msi = Join-Path $Dist "mailcraft-$Version-windows-$Arch.msi"
 Invoke-Native 'wix build' {
@@ -149,10 +152,11 @@ $Portable = Join-Path $TargetDir "windows-package\mailcraft-$Version-windows-$Ar
 Remove-Item -Recurse -Force $Portable -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Portable | Out-Null
 Copy-Item (Join-Path $Stage '*.exe') $Portable
-foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE') {
+foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE') {
   $p = Join-Path $Root $f
   if (Test-Path $p) { Copy-Item $p $Portable }
 }
+Copy-Item (Join-Path $Root 'assets\dictionaries\en_US\README_en_US.txt') (Join-Path $Portable 'LICENSE-en_US-dictionary.txt')
 # Builds made with craft-fonts (CRAFT_FONTS_DIR) embed its fonts: ship their licences.
 if ($env:CRAFT_FONTS_DIR) {
   foreach ($ofl in Get-ChildItem -Path (Join-Path $env:CRAFT_FONTS_DIR 'fonts\*\OFL.txt') -ErrorAction SilentlyContinue) {

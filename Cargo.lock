@@ -3123,6 +3123,7 @@ dependencies = [
  "mailcraft-names",
  "mailcraft-net",
  "mailcraft-proto",
+ "mailcraft-spell",
  "mailcraft-time",
  "mailcraft-ui-egui",
  "muda",
@@ -3230,6 +3231,7 @@ dependencies = [
  "mailcraft-openpgp",
  "mailcraft-pst",
  "mailcraft-smime",
+ "mailcraft-spell",
  "mailcraft-time",
  "mailcraft-vcard",
  "proptest",
@@ -3238,6 +3240,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "thiserror 2.0.21",
+ "unicode-general-category",
  "unicode-segmentation",
 ]
 
@@ -3504,6 +3507,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-spell"
+version = "0.15.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "mailcraft-time"
 version = "0.15.0"
 dependencies = [
@@ -3542,6 +3552,7 @@ dependencies = [
  "mailcraft-names",
  "mailcraft-net",
  "mailcraft-pst",
+ "mailcraft-spell",
  "mailcraft-time",
  "serde",
  "serde_json",
@@ -3575,6 +3586,7 @@ dependencies = [
  "mailcraft-jmap",
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-spell",
  "mailcraft-time",
  "mailcraft-ui-egui",
  "rfd",

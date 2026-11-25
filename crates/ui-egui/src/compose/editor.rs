@@ -207,16 +207,21 @@ struct Para {
 }
 
 impl Para {
-    fn needs_spelling(&self, locale: &str, now: f64) -> bool {
-        self.spelling.as_ref().is_none_or(|checked| checked.locale != locale || (!checked.available && now >= self.spelling_retry_at))
+    fn needs_spelling(&self, locale: &str, now: f64, rev: u64) -> bool {
+        self.spelling
+            .as_ref()
+            .is_none_or(|checked| checked.locale != locale || checked.rev != rev || (!checked.available && now >= self.spelling_retry_at))
     }
 
-    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str, now: f64) -> &[spelling::Issue] {
-        if self.needs_spelling(locale, now) {
-            self.spelling = Some(spelling::check(host, locale, &self.source));
-            self.spelling_retry_at = now + 5.0;
+    /// Check this paragraph when the cache is missing or from an older revision.
+    fn ensure(&mut self, app: &MailApp, locale: &str, now: f64) {
+        let rev = app.spelling_rev;
+        if !self.needs_spelling(locale, now, rev) {
+            return;
         }
-        self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
+        let checked = spelling::check_in(app, locale, &self.source);
+        self.spelling_retry_at = now + 5.0;
+        self.spelling = Some(checked);
     }
 
     fn indent(&self) -> f32 {
@@ -269,6 +274,12 @@ pub(crate) struct Layout {
     laid: usize,
     /// How many times egui laid out a paragraph's text so far, for tests.
     layouts: usize,
+    /// Paragraphs checked in the last paint, and squiggles drawn, for tests.
+    spelling_checks: usize,
+    spelling_marks: usize,
+    /// The scroll area's visible clip from the last paint, in screen coordinates.
+    /// `None` until the body has been painted.
+    visible: Option<Rect>,
 }
 
 impl Layout {
@@ -452,6 +463,15 @@ impl Layout {
     fn para_at(&self, pos: usize) -> Option<&Para> {
         let i = self.paras.partition_point(|p| p.end() < pos);
         self.paras.get(i.min(self.paras.len().saturating_sub(1)))
+    }
+
+    fn para_at_mut(&mut self, pos: usize) -> Option<&mut Para> {
+        if self.paras.is_empty() {
+            return None;
+        }
+        let last = self.paras.len().saturating_sub(1);
+        let i = self.paras.partition_point(|p| p.end() < pos);
+        self.paras.get_mut(i.min(last))
     }
 
     /// The position nearest to a point of the body.
@@ -655,12 +675,27 @@ fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
 pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str) -> Option<(spelling::Issue, usize)> {
     let (selection, _) = now(app, Which::Message)?;
     let store = store(ctx, id(app));
-    let layout = store.lock().ok()?;
-    let paragraph = layout.para_at(selection.start())?;
-    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale)?;
+    let mut layout = store.lock().ok()?;
+    let now = ctx.input(|input| input.time);
+    let paragraph = layout.para_at_mut(selection.start())?;
+    // On demand, including when as-you-type checking is off.
+    paragraph.ensure(app, locale, now);
     let start = paragraph.start;
+    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale && checked.rev == app.spelling_rev)?;
     let issue = checked.issues.iter().find(|issue| start + issue.span.start == selection.start() && start + issue.span.end == selection.end())?;
     Some((issue.clone(), start))
+}
+
+/// Squiggles drawn in the last paint of this message, for tests.
+#[cfg(test)]
+pub(crate) fn spelling_marks(ctx: &egui::Context, app: &MailApp) -> usize {
+    store(ctx, id(app)).lock().map_or(0, |layout| layout.spelling_marks)
+}
+
+/// Paragraphs the last paint sent to the spelling host, for tests.
+#[cfg(test)]
+pub(crate) fn spelling_checks(ctx: &egui::Context, app: &MailApp) -> usize {
+    store(ctx, id(app)).lock().map_or(0, |layout| layout.spelling_checks)
 }
 
 #[cfg(test)]
@@ -670,6 +705,23 @@ pub(crate) fn preedit(app: &MailApp, ctx: &egui::Context) -> String {
 
 pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
+}
+
+/// Where `[from, to)` sits on screen, from the layout painted this frame. `None` when that text
+/// is not on screen (a Subject word, the body has not been drawn yet, or the span is scrolled
+/// out of the body's visible clip).
+pub(crate) fn spelling_selection_rect(app: &MailApp, ctx: &egui::Context, from: usize, to: usize) -> Option<Rect> {
+    if to <= from {
+        return None;
+    }
+    let which = if app.session.signature_edit.is_some() { Which::Signature } else { Which::Message };
+    let hit = if which == Which::Message { "composeBody" } else { "signatureBody" };
+    let body = app.hit.rect(hit, 0)?;
+    let kept = store(ctx, which.id(app));
+    let layout = kept.lock().unwrap_or_else(|e| e.into_inner());
+    let rect = layout.caret(from).union(layout.caret(to)).translate(body.min.to_vec2());
+    let shown = rect.intersect(layout.visible?);
+    (shown.height() >= 1.0).then_some(shown)
 }
 
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
@@ -935,14 +987,19 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         if secondary {
             st.spelling_menu = (|| {
                 let locale = spelling_locale.as_deref()?;
-                let host = app.services.spelling.as_deref()?;
                 let pointer = ui.input(|input| input.pointer.interact_pos())?;
                 let at = layout.char_under(pointer - origin)?;
                 let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
-                let p = layout.paras.get_mut(index)?;
-                let start = p.start;
-                let issue = p.spelling(host, locale, spelling_time).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
-                Some(spelling::Suggestions::new(host, locale, issue, start))
+                let (issue, start) = {
+                    let p = layout.paras.get_mut(index)?;
+                    let start = p.start;
+                    // On demand, including when as-you-type checking is off.
+                    p.ensure(app, locale, spelling_time);
+                    let issue = p.spelling.as_ref()?.issues.iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                    (issue, start)
+                };
+                let host = app.services.spelling.as_deref()?;
+                Some(spelling::Suggestions::new(host, locale, issue, start, app.ui.custom_dictionary.as_slice()))
             })();
         }
         if resp.hovered()
@@ -960,10 +1017,18 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
             st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
         });
-        if let Some(word) = chosen
+        if let Some(choice) = chosen
             && let Some(suggestions) = st.spelling_menu.take()
         {
-            suggestions.apply(app, word);
+            match choice {
+                spelling::Choice::Replace(word) => suggestions.apply(app, word),
+                spelling::Choice::IgnoreAll => {
+                    let _ = app.run("ui.dictionary.ignore", json!({"word": suggestions.word()}));
+                }
+                spelling::Choice::Add => {
+                    let _ = app.run("ui.dictionary.add", json!({"word": suggestions.word()}));
+                }
+            }
             resp.request_focus();
             resync(&mut layout, app);
         }
@@ -1088,7 +1153,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
-                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + spelling::TYPING_PAUSE } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
@@ -1108,10 +1173,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
     let clip = ui.clip_rect();
+    layout.visible = Some(clip);
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);
     let mut checks = 0;
+    let mut marks = 0;
+    let as_you_type = app.ui.check_spelling_as_you_type;
+    let spelling_rev = app.spelling_rev;
     for p in layout.paras.iter_mut().skip(first) {
         if origin.y + p.top > clip.max.y {
             break;
@@ -1121,16 +1190,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
-        if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
-            if p.needs_spelling(locale, spelling_time) {
+        // As-you-type off: no squiggles and no background checks. Find next and the menu check on demand.
+        if as_you_type && let Some(locale) = spelling_locale.as_deref() {
+            if p.needs_spelling(locale, spelling_time, spelling_rev) {
                 if checks < 8 {
-                    p.spelling(host, locale, spelling_time);
+                    p.ensure(app, locale, spelling_time);
                     checks += 1;
                 } else {
                     ctx.request_repaint();
                 }
             }
-            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale && checked.rev == spelling_rev) {
                 if !checked.available {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f64((p.spelling_retry_at - spelling_time).max(0.0)));
                 }
@@ -1139,6 +1209,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     let is_typing = typing && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
                     if !is_typing {
                         paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
+                        marks += 1;
                     }
                 }
             }
@@ -1199,6 +1270,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             }
         }
     }
+    layout.spelling_checks = checks;
+    layout.spelling_marks = marks;
     if layout.len() == 0 && !focused {
         let hint = if which == Which::Message { tl!("Write your message") } else { tl!("Write your signature") };
         painter.text(origin, Align2::LEFT_TOP, hint, regular(BASE_SIZE), t.text_disabled);
@@ -1330,14 +1403,7 @@ fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::
             let left = x + row.x_offset(CharIndex(lo - start));
             let right = x + row.x_offset(CharIndex(hi - start));
             let y = at.y + row.max_y() - 1.0;
-            if left < right {
-                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
-                    .chain(std::iter::once(right))
-                    .enumerate()
-                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
-                    .collect();
-                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
-            }
+            spelling::paint_squiggle(painter, left, right, y, ink);
         }
         start = end;
         if start >= span.end {

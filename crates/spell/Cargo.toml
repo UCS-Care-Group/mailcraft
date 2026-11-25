@@ -1,0 +1,12 @@
+[package]
+name = "mailcraft-spell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft's spelling: a clean-room reader of Hunspell .aff and .dic files, and the bundled US English dictionary"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }

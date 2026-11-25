@@ -172,7 +172,11 @@ pub fn object(id: &str) -> Option<Object> {
         | "view.timeZone"
         // The Public keys kept (File › Options › Security, #30): the question names the key.
         | "keys.import"
-        | "keys.remove" => Options,
+        | "keys.remove"
+        // The custom dictionary (File › Options › Spelling).
+        | "ui.dictionary.add"
+        | "ui.dictionary.remove"
+        | "ui.dictionary.list" => Options,
         _ => return None,
     })
 }

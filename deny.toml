@@ -104,10 +104,17 @@ wildcards = "allow"
 # A file or page is opened only through `apps/mailcraft/src/file_launcher.rs` and `browser.rs`, which
 # check what is opened and how the desktop types it: no crate that opens things its own way
 # (egui_kittest's tests open their snapshot diffs).
+# The spelling checker is MailCraft's own reader (crates/spell). Only the SCOWL word list is
+# data; a Hunspell engine, binding or port is never a dependency. (No crates.io crate is named
+# nuspell, so it is not listed.)
 deny = [
     { crate = "open", wrappers = ["egui_kittest"], reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
     { crate = "opener", reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
     { crate = "webbrowser", reason = "files and pages are opened only through file_launcher.rs and browser.rs" },
+    { crate = "hunspell-rs", reason = "the spelling engine is our own clean-room reader (crates/spell); only the SCOWL word list is used" },
+    { crate = "hunspell-sys", reason = "as above" },
+    { crate = "spellbook", reason = "as above" },
+    { crate = "zspell", reason = "as above" },
 ]
 
 [sources]

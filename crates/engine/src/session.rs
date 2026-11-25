@@ -709,6 +709,25 @@ pub struct Quote {
     pub pictures: Vec<Attachment>,
 }
 
+/// One step of undo in the message being written: a body edit (the text keeps the snapshot) or a
+/// spelling replacement of the Subject (the whole line, before and after).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SubjectStep {
+    Body,
+    Subject { before: String, after: String },
+}
+
+/// Undo and redo of Subject spelling replacements, in order with body edits. Not saved.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SubjectEdits {
+    pub undo: Vec<SubjectStep>,
+    pub redo: Vec<SubjectStep>,
+    /// [`RichBody::undo_pushes`] last time body steps were lined up with [`Self::undo`].
+    pub body_pushes: u64,
+    /// [`RichBody::undo_len`] at that same time, after a body undo or redo has been applied.
+    pub body_len: usize,
+}
+
 /// The message being written. Recipient lines are text, as typed (`Ada <ada@example.org>; bob@…`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -739,6 +758,10 @@ pub struct Compose {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub reply_to: String,
     pub subject: String,
+    /// Spelling replacements of the Subject, interleaved with body edits, newest last.
+    /// Not saved. Characters typed in the Subject are undone by the field itself, not here.
+    #[serde(skip)]
+    pub(crate) subject_edits: SubjectEdits,
     /// What the owner writes, in rich text, with its selection and its own undo. Stored as plain
     /// text before rich text; that still reads.
     pub body: RichBody,
@@ -1794,7 +1817,13 @@ impl Session {
         self.restored
     }
 
-    /// The message the reading pane shows.
+    /// Where the spelling check stops in the text being edited. The signature block is inside
+    /// that text. In a reply or forward, or a draft continuing one, a plain-text quoted original
+    /// is not, and neither is text written below it. A new message is checked in full.
+    pub fn edit_reach(&self) -> usize {
+        crate::cmd::format::spelling_stop(self)
+    }
+
     /// The text being edited and whether it is plain: a signature open in the options, else the
     /// message being written.
     pub fn doc(&self) -> Option<(&RichBody, bool)> {
@@ -1813,6 +1842,7 @@ impl Session {
         }
     }
 
+    /// The message the reading pane shows.
     pub fn focused_message(&self) -> Option<&Message> {
         self.sel.focus().and_then(|id| self.mailbox.message(id))
     }

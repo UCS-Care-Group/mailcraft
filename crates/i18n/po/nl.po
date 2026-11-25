@@ -546,6 +546,12 @@ msgstr "Een datum"
 msgid "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
 msgstr "Een bureaubladmelding voor de e-mail waarop deze regel bij aankomst werkt, wanneer MailCraft niet het voorste venster is, ook als die voor nieuwe e-mail uit staat in Bestand › Opties"
 
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "A dictionary word is letters, digits, apostrophes and hyphens, up to 64 characters."
+msgstr "Een woord voor het woordenboek bestaat uit letters, cijfers, apostrofs en koppeltekens, tot hoogstens 64 tekens."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 #, fuzzy
@@ -971,7 +977,7 @@ msgid "Actual Size"
 msgstr "Werkelijke grootte"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs
 #, fuzzy
 msgid "Add"
 msgstr "Toevoegen"
@@ -1192,6 +1198,12 @@ msgstr ""
 #: crates/engine/src/cmd/people.rs crates/ui-egui/src/address_book.rs crates/ui-egui/src/ribbon.rs
 msgid "Add to Contacts"
 msgstr "Toevoegen aan contactpersonen"
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Add to Dictionary"
+msgstr "Toevoegen aan woordenboek"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
@@ -3079,6 +3091,12 @@ msgstr "Vieren"
 msgid "Certificates"
 msgstr "Certificaten"
 
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Change"
+msgstr "Vervangen"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -3087,6 +3105,12 @@ msgid ""
 msgstr ""
 "Weergave\n"
 "wijzigen"
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Change All"
+msgstr "Alles vervangen"
 
 #. command label
 #: crates/engine/src/cmd/auto_replies.rs
@@ -3157,6 +3181,12 @@ msgstr "De naam, de servers en de aanmelding van dit account wijzigen"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "De naam, de aanmelding en de offline te bewaren e-mail van dit account wijzigen"
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Change to"
+msgstr "Vervangen door"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -3271,6 +3301,12 @@ msgid "Check Recipients"
 msgstr "Ontvangers controleren"
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Check Spelling…"
+msgstr "Spelling controleren…"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Check both servers before you connect."
 msgstr "Controleer beide servers voordat u verbindt."
@@ -3303,6 +3339,12 @@ msgstr "Check for new fonts"
 msgid "Check for new versions"
 msgstr "Controleren op nieuwe versies"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Check spelling as you type"
+msgstr "Spelling controleren tijdens het typen"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3332,6 +3374,12 @@ msgstr "Gecontroleerd bij de certificeringsinstantie"
 #, fuzzy
 msgid "Checking for a new version…"
 msgstr "Bezig met controleren op een nieuwe versie…"
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Checking spelling…"
+msgstr "Bezig met spellingcontrole…"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3553,7 +3601,7 @@ msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/spelling_dialog.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 msgid "Close"
 msgstr "Sluiten"
 
@@ -4247,10 +4295,22 @@ msgstr "Huidig postvak"
 msgid "Current View"
 msgstr "Huidige weergave"
 
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Custom Dictionary…"
+msgstr "Eigen woordenboek…"
+
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
 msgid "Custom color"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Custom dictionary"
+msgstr "Eigen woordenboek"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4423,6 +4483,12 @@ msgstr "Inspringing verkleinen"
 #, fuzzy
 msgid "Default"
 msgstr "Standaard"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Default spelling language"
+msgstr "Standaardtaal voor spellingcontrole"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/send_later.rs
@@ -5384,6 +5450,12 @@ msgstr "Eindigt op"
 #, fuzzy
 msgid "Ends on a day"
 msgstr "Eindigt op een dag"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "English (United States, built-in)"
+msgstr "Engels (Verenigde Staten, ingebouwd)"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -7069,6 +7141,36 @@ msgstr "Als u zelf een beheerdersaccount hebt, kunt u zich met de eerste keuze d
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit een app-registratie in Microsoft Entra: een openbare client met de omleidings-URI http://localhost, voor accounts in een willekeurige directory en persoonlijke accounts."
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Ignore All"
+msgstr "Alles negeren"
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "Ignore All is full."
+msgstr "De lijst „Alles negeren” is vol."
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Ignore Once"
+msgstr "Eenmaal negeren"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ignore words in UPPERCASE"
+msgstr "Woorden in HOOFDLETTERS negeren"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ignore words that contain numbers"
+msgstr "Woorden met cijfers negeren"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Illustrations"
@@ -8299,6 +8401,12 @@ msgstr "Agenda's opsommen"
 #: crates/engine/src/cmd/people.rs
 msgid "List Contacts"
 msgstr "Contactpersonen opsommen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "List Dictionary"
+msgstr "Woordenboek opsommen"
 
 #. command label
 #: crates/engine/src/cmd/calendar.rs
@@ -10677,6 +10785,12 @@ msgstr "Geen spellingsuggesties"
 msgid "No such account"
 msgstr "Geen dergelijk account"
 
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "No suggestions"
+msgstr "Geen suggesties"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
 #, fuzzy
@@ -10908,6 +11022,12 @@ msgstr "Niet alles kon worden verwijderd. Een deel staat er nog. Probeer het opn
 #, fuzzy
 msgid "Not in Outlook's list: no colour there"
 msgstr "Niet in de lijst van Outlook: daar geen kleur"
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Not in dictionary"
+msgstr "Niet in het woordenboek"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13197,6 +13317,12 @@ msgstr ""
 msgid "Remove from Calendar"
 msgstr "Verwijderen uit agenda"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Remove from Dictionary"
+msgstr "Verwijderen uit woordenboek"
+
 #. interface
 #: crates/ui-egui/src/nav.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -13356,6 +13482,12 @@ msgstr "Vervangen"
 #, fuzzy
 msgid "Replace All"
 msgstr "Alles vervangen"
+
+#. command label
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Replace Subject Text"
+msgstr "Tekst in het onderwerp vervangen"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -15859,14 +15991,31 @@ msgstr "Ruimte die oudere e-mail inneemt"
 msgid "Space for mail, at most"
 msgstr "Ruimte voor e-mail, maximaal"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. interface, ribbon
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Spelling"
 msgstr "Spelling"
 
+#. command label
+#: crates/engine/src/cmd/writing_tools.rs
+msgid "Spelling & Grammar"
+msgstr "Spelling & grammatica"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Spelling Options"
+msgstr "Spellingopties"
+
 #. interface
-#: crates/ui-egui/src/spelling.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Spelling is off for this message"
+msgstr "Spellingcontrole staat uit voor dit bericht"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
 #, fuzzy
 msgid "Spelling is unavailable on this platform"
 msgstr "Spellingcontrole is niet beschikbaar op dit platform"
@@ -16147,6 +16296,12 @@ msgstr "Accountinstellingen voorstellen"
 #: crates/engine/src/cmd/compose.rs
 msgid "Suggest Recipients"
 msgstr "Geadresseerden voorstellen"
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "Suggestions"
+msgstr "Suggesties"
 
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
@@ -16692,10 +16847,22 @@ msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing 
 msgstr "Die aanmelding is voor de postbus van iemand anders, niet voor dit account. Er is niets bewaard."
 
 #. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "That word isn't in the custom dictionary."
+msgstr "Dat woord staat niet in het eigen woordenboek."
+
+#. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
 msgstr "Dat is het maximum dat een koppeling naar GitHub kan bevatten: voeg de rest toe op GitHub zodra de pagina open is."
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "That's the same word."
+msgstr "Dat is hetzelfde woord."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17216,6 +17383,12 @@ msgstr "De contactpersonen die u hebt gekozen"
 #, fuzzy
 msgid "The conversations' messages in other folders stay where they are."
 msgstr "De berichten van de gesprekken in andere mappen blijven waar ze zijn."
+
+#. interface
+#: crates/ui-egui/src/spelling.rs
+#, fuzzy
+msgid "The custom dictionary is full."
+msgstr "Het eigen woordenboek is vol."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18361,7 +18534,19 @@ msgid "The space the folder's own messages take on this computer"
 msgstr "De ruimte die de eigen berichten van de map op deze computer innemen"
 
 #. interface
-#: crates/ui-egui/src/spelling.rs
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "The spelling check is complete."
+msgstr "De spellingcontrole is voltooid."
+
+#. interface
+#: crates/ui-egui/src/spelling_dialog.rs
+#, fuzzy
+msgid "The spelling check is complete. Some of the message was not checked."
+msgstr "De spellingcontrole is voltooid. Een deel van het bericht is niet gecontroleerd."
+
+#. interface
+#: crates/ui-egui/src/spelling.rs crates/ui-egui/src/spelling_dialog.rs
 #, fuzzy
 msgid "The spelling dictionary is unavailable"
 msgstr "Het woordenboek voor spellingcontrole is niet beschikbaar"
@@ -20840,6 +21025,12 @@ msgid "Words, from:, to:, category:, on:…"
 msgstr "Woorden, from:, to:, category:, on:…"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Words, separated by commas or spaces"
+msgstr "Woorden, gescheiden door komma's of spaties"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Work"
@@ -22968,8 +23159,8 @@ msgstr "niets van deze zoekopdracht kan aan de server worden gevraagd"
 msgid "nothing to redo"
 msgstr "niets om opnieuw te doen"
 
-#. what a command says
-#: crates/engine/src/cmd/format.rs
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to redo in the message"
 msgstr "niets om opnieuw te doen in het bericht"
@@ -22980,8 +23171,8 @@ msgstr "niets om opnieuw te doen in het bericht"
 msgid "nothing to undo"
 msgstr "niets om ongedaan te maken"
 
-#. what a command says
-#: crates/engine/src/cmd/format.rs
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs
 #, fuzzy
 msgid "nothing to undo in the message"
 msgstr "niets om ongedaan te maken in het bericht"
@@ -23568,6 +23759,12 @@ msgstr "de browser kan geen kopie van het postvak ernaast bewaren: schakel over 
 #, fuzzy
 msgid "the browser can't read folders by path"
 msgstr "de browser kan mappen niet via een pad lezen"
+
+#. what a command says
+#: crates/engine/src/cmd/writing_tools.rs
+#, fuzzy
+msgid "the built-in dictionary is unavailable"
+msgstr "het ingebouwde woordenboek is niet beschikbaar"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24429,7 +24626,7 @@ msgid "the text has a character that can't be sent"
 msgstr "de tekst bevat een teken dat niet kan worden verzonden"
 
 #. what a command says
-#: crates/model/src/rich/body.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/model/src/rich/body.rs
 #, fuzzy
 msgid "the text has changed at the place to replace"
 msgstr "de te vervangen tekst is gewijzigd"
@@ -26779,6 +26976,14 @@ msgstr[0] "{n} week ervoor"
 msgstr[1] "{n} weken ervoor"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} word"
+msgid_plural "{n} words"
+msgstr[0] "{n} woord"
+msgstr[1] "{n} woorden"
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "{n}. {step}: {result} ({answered}). {said}"
@@ -27127,9 +27332,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
 #~ msgstr "De hoofdletter verschijnt zodra je het woord afmaakt. Met Ongedaan maken herstel je de getypte tekst."
-
-#~ msgid "Spelling & Grammar"
-#~ msgstr "Spelling & grammatica"
 
 #, fuzzy
 #~ msgid "As the people you write to see it"

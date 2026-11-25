@@ -13,6 +13,8 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
+# One spelling filter for the composer and the engine (#1797): ranges from a host dictionary.
+mailcraft-spell = { workspace = true }
 mailcraft-names = { workspace = true }
 mailcraft-html = { workspace = true }
 # Format characters made visible in View Source (`cmd::source`).
@@ -33,6 +35,8 @@ mailcraft-charset = { workspace = true }
 mailcraft-pst = { workspace = true }
 # Word boundaries for Review › Word Count (UAX #29); already in the tree under egui.
 unicode-segmentation = { workspace = true }
+# Combining marks (Mn, Mc, Me) for whole-word Find and Replace; already in the tree under epaint.
+unicode-general-category = { workspace = true }
 # Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
 image = { workspace = true }
 

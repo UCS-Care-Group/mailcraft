@@ -703,6 +703,7 @@ fn main() {
     // Remove MailCraft's data (#177): offered, and removes nothing here.
     services.data_wipe = Some(Box::new(StandInWipe));
     // Open MailCraft's data folder (#460): offered, and opens nothing here.
+    services.spelling = Some(Box::new(mailcraft_ui_egui::spelling::BundledChecker));
     services.data_folder = Some(mailcraft_ui_egui::data_removal::DataFolder {
         path: std::path::PathBuf::from("/home/you/.config/mailcraft"),
         open: Box::new(|_| Ok(())),

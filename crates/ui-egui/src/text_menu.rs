@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The menu of a text the owner types in (#557): Cut, Copy, Paste and Select All on a right
 //! click, in the body of a message or a signature ([`body`]) and in egui's text fields ([`field`],
-//! [`secret`], [`read_only`]).
+//! [`field_with`], [`secret`], [`read_only`]).
 //!
 //! - An item does what its key does: it becomes the input that key gives (`Event::Cut`,
 //!   `Event::Copy`, what Ctrl+V gives, Ctrl+A), handed to the text at the start of its window's
@@ -326,7 +326,13 @@ fn keyboard_in(id: Id) -> Id {
 
 /// A text field egui draws, `resp` (what `ui.add(TextEdit…)` answered), with the menu.
 pub(crate) fn field(resp: Response) -> Response {
-    attach(resp, Kind::Text)
+    field_with(resp, |_| false)
+}
+
+/// [`field`], with `extra` items above Cut, Copy, Paste and Select All. `extra` reports whether
+/// one of its items has the keyboard, as [`body`] does, so the field is not left for its own menu.
+pub(crate) fn field_with(resp: Response, extra: impl FnMut(&mut Ui) -> bool) -> Response {
+    open_field_menu(resp, Kind::Text, extra)
 }
 
 /// A password field, with the menu: Paste alone.
@@ -345,9 +351,10 @@ fn on(range: CCursorRange, at: CCursor) -> bool {
     !range.is_empty() && r.start <= at.index && at.index <= r.end
 }
 
-fn attach(resp: Response, kind: Kind) -> Response {
-    let ctx = resp.ctx.clone();
-    let mut state = TextEdit::load_state(&ctx, resp.id);
+/// Whether anything is selected in the field `resp`, keeping that selection for its menu.
+fn field_selected(resp: &Response) -> bool {
+    let ctx = &resp.ctx;
+    let mut state = TextEdit::load_state(ctx, resp.id);
     let was = ctx.data(|d| d.get_temp::<CCursorRange>(kept(resp.id)));
     // egui puts the caret where any button goes down: a right click on what is selected gives it
     // back.
@@ -357,7 +364,7 @@ fn attach(resp: Response, kind: Kind) -> Response {
         && state.cursor.char_range().is_some_and(|now| on(was, now.primary))
     {
         state.cursor.set_char_range(Some(was));
-        state.clone().store(&ctx, resp.id);
+        state.clone().store(ctx, resp.id);
     }
     // egui lets go of a field's selection as soon as the field hasn't the keyboard, which a click
     // on its menu takes: what was selected while it had it is kept for the menu, and given back
@@ -369,7 +376,18 @@ fn attach(resp: Response, kind: Kind) -> Response {
     {
         ctx.data_mut(|d| d.insert_temp(kept(resp.id), now));
     }
-    menu(&resp, kind, range.is_some_and(|r| !r.is_empty()), Takes::Text);
+    range.is_some_and(|r| !r.is_empty())
+}
+
+fn attach(resp: Response, kind: Kind) -> Response {
+    let selected = field_selected(&resp);
+    menu(&resp, kind, selected, Takes::Text);
+    resp
+}
+
+fn open_field_menu(resp: Response, kind: Kind, extra: impl FnMut(&mut Ui) -> bool) -> Response {
+    let selected = field_selected(&resp);
+    menu_with(&resp, kind, selected, Takes::Text, extra);
     resp
 }
 

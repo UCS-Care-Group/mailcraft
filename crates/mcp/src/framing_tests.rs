@@ -916,6 +916,10 @@ const WRITTEN_PARAMS: &[&str] = &[
     "new",
     "with",
     "char",
+    // Spelling: a language tag and word lists the caller writes, not names copied from an answer.
+    "customWords",
+    "ignore",
+    "language",
     "password",
     "secret",
     "token",

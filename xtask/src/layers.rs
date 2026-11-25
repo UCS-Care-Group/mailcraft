@@ -42,6 +42,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ber", Class::Standalone),
     ("link", Class::Layer(0)),
     ("names", Class::Standalone),
+    // US English spelling, no workspace crate: the bundled list and a clean-room affix reader.
+    ("spell", Class::Standalone),
     ("i18n", Class::Standalone),
     ("model", Class::Layer(1)),
     ("html", Class::Layer(1)),

@@ -103,6 +103,11 @@ if has appimage; then
   APPDIR="$WORK/MailCraft.AppDir"
   cp -R "$STAGE" "$APPDIR"
   mv "$APPDIR/usr/share/doc" "$WORK/doc-unused"
+  # The rest of the docs stay out of the AppImage. The dictionary copyright has to travel with
+  # the binary (SCOWL, and the Ispell affix notice).
+  mkdir -p "$APPDIR/usr/share/doc/mailcraft"
+  cp "$ROOT/NOTICE" "$APPDIR/usr/share/doc/mailcraft/NOTICE"
+  cp "$ROOT/assets/dictionaries/en_US/README_en_US.txt" "$APPDIR/usr/share/doc/mailcraft/LICENSE-en_US-dictionary.txt"
   ln -s usr/bin/mailcraft "$APPDIR/AppRun"
   cp "$HERE/$APP_ID.desktop" "$APPDIR/$APP_ID.desktop"
   cp "$ROOT/assets/app-icon/hicolor/256x256/apps/$APP_ID.png" "$APPDIR/$APP_ID.png"

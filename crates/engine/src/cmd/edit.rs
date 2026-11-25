@@ -4,14 +4,17 @@
 //! change, which the next run sends; what can't be undone there is said ([`crate::undo`]).
 //!
 //! Find and Replace in the message being written (or the signature open in File › Signatures):
-//! plain text on one line, letter case counting only when asked. Replace All is one step of the
-//! message's own undo (`compose.undo`). Neither reaches past the owner's text
-//! ([`super::format::reach`]).
+//! plain text on one line, letter case counting only when asked, and only a whole word when asked.
+//! Replace All is one step of the message's own undo (`compose.undo`). Both search the whole body.
+//! A replacement by `spans` still stops where the spelling check stops
+//! ([`super::format::spelling_stop`]): a span inside a plain-text quoted original of a reply or
+//! forward is refused.
 
 use mailcraft_model::rich::{MAX_FIND, Place};
 use serde_json::{Value, json};
+use unicode_general_category::{GeneralCategory, get_general_category};
 
-use super::format::{edit, needs_doc, needs_html, reach};
+use super::format::{edit, needs_doc, needs_html, spelling_stop};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
@@ -44,11 +47,11 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_html),
         CommandSpec::new("edit.find", "Find", "Format Text › Editing", find)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; answers {"found", "from", "to", "count"} (count: the places in all)"#)
+            .params(r#"{"text": string (1–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "backward"?: bool} — selects the next place the text is after the selection (before it, backward), going round from the other end; wholeWord: only where the text is a whole word; answers {"found", "from", "to", "count"} (count: the places in all)"#)
             .when_writing(needs_doc),
         CommandSpec::new("edit.replace", "Replace", "Format Text › Editing", replace)
             .pure()
-            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "all"?: bool} — puts `with` in place of the selection when it is the text, then selects the next place; all: in place of every one, as one step of the message's undo. Answers {"replaced", "found", "from", "to"}"#)
+            .params(r#"{"text": string (1–255 characters, one line), "with": string (0–255 characters, one line), "matchCase"?: bool, "wholeWord"?: bool, "all"?: bool, "spans"?: [{"from": number, "to": number}]} — puts `with` in place of the selection when it is the text, then selects the next place; wholeWord: only where the text is a whole word; all: in place of every one, as one step of the message's undo. Both search the whole body. spans: those places only, when each one is exactly `text`, as one undo step (at most 100000, in any order). A span past where the spelling check stops (inside a plain-text quoted original of a reply or forward) is refused. spans takes precedence over wholeWord, matchCase and all, so a caller can replace the exact places it found. Answers {"replaced", "found", "from", "to"}"#)
             .when_writing(needs_doc),
     ]
 }
@@ -137,9 +140,193 @@ fn find_text(v: &Value, key: &str, empty: bool) -> Result<String, CmdError> {
     Ok(text.clone())
 }
 
-/// The places `text` is in the owner's text.
-fn places(s: &Session, text: &str, match_case: bool) -> Vec<Place> {
-    s.doc().map(|(b, _)| b.text().find(text, match_case, 0, reach(s))).unwrap_or_default()
+/// A letter, a digit, `_`, or an apostrophe (`'` or `’`): part of a word for whole-word Find and Replace.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_' | '\'' | '’')
+}
+
+/// U+200C (ZWNJ) or U+200D (ZWJ). Between two word characters it is inside the word.
+fn is_word_joiner(c: char) -> bool {
+    matches!(c, '\u{200C}' | '\u{200D}')
+}
+
+/// A combining mark (general category Mn, Mc or Me): part of the word it follows.
+fn is_combining_mark(c: char) -> bool {
+    matches!(get_general_category(c), GeneralCategory::NonspacingMark | GeneralCategory::SpacingMark | GeneralCategory::EnclosingMark)
+}
+
+/// The places `text` is in the body, the whole of it. Without `whole_word` that is one pass of
+/// [`mailcraft_model::RichText::find`], which reports places that do not overlap. With it, the
+/// plain text is walked: a place that is a whole word is kept and the walk continues at its end,
+/// and any other place is passed by one character, so a later whole word that overlapped it is
+/// still found. Places that are kept still do not overlap.
+fn places(s: &Session, text: &str, match_case: bool, whole_word: bool) -> Vec<Place> {
+    let Some((body, _)) = s.doc() else { return Vec::new() };
+    let end = body.text().len();
+    if whole_word { whole_word_places(&body.plain(), text, match_case, end) } else { body.text().find(text, match_case, 0, end) }
+}
+
+/// `c` as [`mailcraft_model::RichText::find`] compares it when letter case does not count.
+fn fold_char(c: char) -> char {
+    let mut lower = c.to_lowercase();
+    match (lower.next(), lower.next()) {
+        (Some(folded), None) => folded,
+        _ => c,
+    }
+}
+
+/// The text being searched, indexed by character, and the same characters folded for one search.
+struct Scanned<'a> {
+    text: &'a str,
+    /// Byte offset of character `i` in `text`, and one past the last character indexed.
+    byte: Vec<usize>,
+    /// Those characters as Find compares them, so the next occurrence is one search, not a scan of every place.
+    folded: String,
+    /// Byte offset of character `i` in `folded`, and one past the last.
+    folded_byte: Vec<usize>,
+    needle: String,
+    needle_len: usize,
+}
+
+impl<'a> Scanned<'a> {
+    /// The first `end` characters of `text` (or the whole of it, when it is shorter).
+    fn new(text: &'a str, end: usize, needle: &str, match_case: bool) -> Self {
+        let mut byte = Vec::new();
+        let mut folded = String::new();
+        let mut folded_byte = Vec::new();
+        let mut n = 0usize;
+        let mut last = 0usize;
+        for (at, c) in text.char_indices() {
+            if n >= end {
+                break;
+            }
+            byte.push(at);
+            folded_byte.push(folded.len());
+            folded.push(if match_case { c } else { fold_char(c) });
+            n = n.saturating_add(1);
+            last = at.saturating_add(c.len_utf8());
+        }
+        byte.push(last);
+        folded_byte.push(folded.len());
+        let needle = if match_case { needle.to_string() } else { needle.chars().map(fold_char).collect() };
+        let needle_len = needle.chars().count();
+        Scanned { text, byte, folded, folded_byte, needle, needle_len }
+    }
+
+    fn char_at(&self, i: usize) -> Option<char> {
+        let from = *self.byte.get(i)?;
+        let to = *self.byte.get(i.saturating_add(1))?;
+        self.text.get(from..to)?.chars().next()
+    }
+
+    /// The next occurrence of `needle` at character `from` or after it, within the indexed text.
+    fn find_from(&self, from: usize) -> Option<usize> {
+        if self.needle.is_empty() {
+            return None;
+        }
+        let origin = *self.folded_byte.get(from)?;
+        let rel = self.folded.get(origin..)?.find(&self.needle)?;
+        let abs = origin.saturating_add(rel);
+        let at = self.folded_byte.partition_point(|&b| b < abs);
+        if self.folded_byte.get(at).copied() != Some(abs) || at < from {
+            return None;
+        }
+        let stop = at.saturating_add(self.needle_len);
+        let n = self.byte.len().saturating_sub(1);
+        (stop <= n && stop > at).then_some(at)
+    }
+
+    /// The character before `start` and the character after `end` are not part of the same word.
+    /// A combining mark after the place keeps it inside the word, as does a word character with
+    /// only marks between it and the place, and a place that itself starts on a mark.
+    /// A ZWNJ or ZWJ joins the word only when a word character sits on its other side.
+    fn is_whole_word(&self, start: usize, end: usize) -> bool {
+        if start >= end {
+            return false;
+        }
+        let Some(first) = self.char_at(start) else { return false };
+        if is_combining_mark(first) {
+            return false;
+        }
+        // A match that ends inside a folded expansion (one letter becoming several) is not a
+        // whole word: the end has to be an original character boundary, and that slice the needle.
+        if !self.ends_on_character(start, end) {
+            return false;
+        }
+        !self.joins_word_before(start) && !self.joins_word_after(end)
+    }
+
+    /// `stop` is a character of the folded text, and `[start, stop)` is exactly the needle.
+    /// A place whose end falls in the middle of a character is not.
+    fn ends_on_character(&self, start: usize, stop: usize) -> bool {
+        let Some(&from) = self.folded_byte.get(start) else { return false };
+        let Some(&end_abs) = self.folded_byte.get(stop) else { return false };
+        self.folded.get(from..end_abs).is_some_and(|slice| slice == self.needle)
+    }
+
+    fn joins_word_before(&self, start: usize) -> bool {
+        let mut i = start;
+        while i > 0 {
+            let Some(c) = self.char_at(i.saturating_sub(1)) else { break };
+            if is_combining_mark(c) || is_word_joiner(c) {
+                i = i.saturating_sub(1);
+                continue;
+            }
+            return is_word_char(c);
+        }
+        false
+    }
+
+    fn joins_word_after(&self, end: usize) -> bool {
+        let mut i = end;
+        let mut crossed_joiner = false;
+        loop {
+            let Some(c) = self.char_at(i) else { return false };
+            if is_word_joiner(c) {
+                crossed_joiner = true;
+                i = i.saturating_add(1);
+                continue;
+            }
+            if is_combining_mark(c) {
+                if !crossed_joiner {
+                    return true;
+                }
+                i = i.saturating_add(1);
+                continue;
+            }
+            return is_word_char(c);
+        }
+    }
+}
+
+/// [`places`] with `whole_word`. The walk moves forward on every step and stops at `end`.
+fn whole_word_places(text: &str, needle: &str, match_case: bool, end: usize) -> Vec<Place> {
+    let needle_len = needle.chars().count();
+    if needle_len == 0 || needle_len > MAX_FIND {
+        return Vec::new();
+    }
+    let scanned = Scanned::new(text, end, needle, match_case);
+    let mut kept = Vec::new();
+    let mut p = 0usize;
+    while p < end {
+        let Some(start) = scanned.find_from(p) else { break };
+        let stop = start.saturating_add(scanned.needle_len);
+        if stop > end || stop <= start {
+            break;
+        }
+        let next = if scanned.is_whole_word(start, stop) {
+            kept.push((start, stop));
+            stop
+        } else {
+            start.saturating_add(1)
+        };
+        // A step that does not move on cannot be trusted to finish.
+        if next <= p {
+            break;
+        }
+        p = next;
+    }
+    kept
 }
 
 /// Select the place after the selection (before it, `backward`), going round; the answer.
@@ -184,15 +371,23 @@ fn format_painter(s: &mut Session, v: &Value) -> CmdResult {
 fn find(s: &mut Session, v: &Value) -> CmdResult {
     let text = find_text(v, "text", false)?;
     let match_case = p::bool(v, "matchCase").unwrap_or(false);
-    let places = places(s, &text, match_case);
+    let whole_word = p::bool(v, "wholeWord").unwrap_or(false);
+    let places = places(s, &text, match_case, whole_word);
     select_next(s, &places, p::bool(v, "backward").unwrap_or(false))
 }
+
+/// Most places one `spans` list may name. A longer list is refused and changes nothing.
+const MAX_SPANS: usize = 100_000;
 
 fn replace(s: &mut Session, v: &Value) -> CmdResult {
     let text = find_text(v, "text", false)?;
     let with = find_text(v, "with", true)?;
+    if let Some(spans) = v.get("spans") {
+        return replace_spans(s, &text, &with, spans);
+    }
     let match_case = p::bool(v, "matchCase").unwrap_or(false);
-    let found = places(s, &text, match_case);
+    let whole_word = p::bool(v, "wholeWord").unwrap_or(false);
+    let found = places(s, &text, match_case, whole_word);
     if p::bool(v, "all").unwrap_or(false) {
         if !found.is_empty() {
             edit(s, &json!({}), |b| b.replace_places(&found, &with))?;
@@ -205,12 +400,85 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(place) = here {
         edit(s, &json!({}), |b| b.replace_places(&[place], &with))?;
     }
-    let after = places(s, &text, match_case);
+    let after = places(s, &text, match_case, whole_word);
     let mut out = select_next(s, &after, false)?;
     if let Some(o) = out.as_object_mut() {
         o.insert("replaced".into(), json!(usize::from(here.is_some())));
     }
     Ok(out)
+}
+
+/// Put `with` at each span, when that span is exactly `text`, as one undo step. A span that is
+/// not that text, or not a place in the text, or past where the spelling check stops (inside a
+/// plain-text quoted original of a reply or forward), changes nothing.
+fn replace_spans(s: &mut Session, text: &str, with: &str, spans: &Value) -> CmdResult {
+    let Some(list) = spans.as_array() else {
+        return Err(bad("`spans` is a list of {from, to}"));
+    };
+    if list.len() > MAX_SPANS {
+        return Err(bad(format!("`spans` has at most {MAX_SPANS} places")));
+    }
+    let Some((body, _)) = s.doc() else {
+        return Err(fail("no message is being written"));
+    };
+    let plain = body.plain();
+    let end = spelling_stop(s);
+    let mut places = Vec::with_capacity(list.len());
+    for item in list {
+        let from = item.get("from").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let to = item.get("to").and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok());
+        let (Some(from), Some(to)) = (from, to) else {
+            return Err(bad("`spans` is a list of {from, to}"));
+        };
+        if from >= to {
+            return Err(bad("`spans` is a list of {from, to}"));
+        }
+        places.push((from, to));
+    }
+    if places.iter().any(|&(_, to)| to > end) {
+        return Err(fail("the text has changed at the place to replace"));
+    }
+    places.sort_by_key(|place| place.0);
+    if !spans_match(&plain, text, &places) {
+        return Err(fail("the text has changed at the place to replace"));
+    }
+    if !places.is_empty() {
+        edit(s, &json!({}), |b| b.replace_places(&places, with))?;
+    }
+    Ok(json!({"replaced": places.len(), "found": false}))
+}
+
+/// Sorted `places` do not overlap, and each one is exactly `text`. One walk of `plain`,
+/// comparing borrowed slices, so a long list does not re-read the draft for every place.
+/// `false` leaves the text unchanged: the caller has not edited yet.
+fn spans_match(plain: &str, text: &str, places: &[(usize, usize)]) -> bool {
+    let mut chars = plain.char_indices().peekable();
+    let mut index = 0usize;
+    let mut last = 0usize;
+    for &(from, to) in places {
+        if from < last || to <= from {
+            return false;
+        }
+        while index < from {
+            if chars.next().is_none() {
+                return false;
+            }
+            index = index.saturating_add(1);
+        }
+        let start_byte = chars.peek().map(|(byte, _)| *byte).unwrap_or(plain.len());
+        while index < to {
+            if chars.next().is_none() {
+                return false;
+            }
+            index = index.saturating_add(1);
+        }
+        let end_byte = chars.peek().map(|(byte, _)| *byte).unwrap_or(plain.len());
+        if plain.get(start_byte..end_byte) != Some(text) {
+            return false;
+        }
+        last = to;
+    }
+    true
 }
 
 #[cfg(test)]

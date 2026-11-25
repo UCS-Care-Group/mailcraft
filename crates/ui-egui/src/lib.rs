@@ -294,6 +294,12 @@ mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
 pub mod spelling;
+mod spelling_dialog;
+#[cfg(test)]
+mod spelling_prefs_tests;
+mod spelling_subject;
+#[cfg(test)]
+mod spelling_subject_tests;
 mod subscribed;
 #[cfg(test)]
 mod subscribed_tests;
@@ -935,6 +941,22 @@ pub struct UiState {
     /// A message's body on a light page in the light theme's colours, as its sender made it, also
     /// when the window is dark: the reading pane and a message's own window, not its header.
     pub light_messages: bool,
+    /// Check spelling while a message is written. On unless the owner turns it off.
+    #[serde(deserialize_with = "spelling::read_on")]
+    pub check_spelling_as_you_type: bool,
+    /// Default spelling language: empty is Automatic. A tag the host no longer offers is ignored.
+    /// Off is a choice for one message, not a saved default.
+    #[serde(deserialize_with = "spelling::read_language")]
+    pub spelling_language: String,
+    /// Words the owner added, kept between runs. Cleaned and capped when read.
+    #[serde(deserialize_with = "spelling::read_dictionary")]
+    pub custom_dictionary: Vec<String>,
+    /// Skip a word whose letters are all capitals.
+    #[serde(deserialize_with = "spelling::read_on")]
+    pub spelling_ignore_uppercase: bool,
+    /// Skip a word that contains a digit.
+    #[serde(deserialize_with = "spelling::read_on")]
+    pub spelling_ignore_numbers: bool,
     /// File › Options › Mail, "Open new messages, replies and forwards in a new window" (#286):
     /// New Email, a reply or a forward the owner starts opens in a window of its own rather than
     /// in the reading pane. Off unless the owner turns it on; kept as `repliesInWindow`.
@@ -1075,6 +1097,11 @@ impl Default for UiState {
             custom_accent: None,
             dark_style: theme::DarkStyle::default(),
             light_messages: false,
+            check_spelling_as_you_type: true,
+            spelling_language: String::new(),
+            custom_dictionary: Vec::new(),
+            spelling_ignore_uppercase: true,
+            spelling_ignore_numbers: true,
             replies_in_window: false,
             attachment_pictures: true,
             swipe_left: swipe::Action::None,
@@ -1162,6 +1189,31 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
+    (
+        "ui.spelling",
+        "Spelling Options",
+        "File › Options",
+        r#"{"asYouType"?: bool, "language"?: string ("" = Automatic, else a tag the host offers; "off" is not a saved choice), "ignoreUppercase"?: bool, "ignoreNumbers"?: bool} — with no params, answers {"asYouType", "language", "ignoreUppercase", "ignoreNumbers", "customWords": number}"#,
+    ),
+    (
+        "ui.dictionary.add",
+        "Add to Dictionary",
+        "File › Options",
+        r#"{"word": string} — letters, digits, apostrophes and hyphens, 1 to 64 characters. A duplicate (a lowercase entry matches any casing) is a success that adds nothing. A full dictionary (10000 words) is an error. Answers {"word", "added": bool}"#,
+    ),
+    (
+        "ui.dictionary.remove",
+        "Remove from Dictionary",
+        "File › Options",
+        r#"{"word": string} — removes every entry that names the word, exactly or without regard to case. Absent is an error. Answers {"word", "removed": number}"#,
+    ),
+    (
+        "ui.dictionary.ignore",
+        "Ignore All",
+        "Message",
+        r#"{"word": string} — ignore the word until MailCraft quits (not saved). A duplicate is a success. A full list (10000 words) is an error. Answers {"word", "ignored": true}"#,
+    ),
+    ("ui.dictionary.list", "List Dictionary", "File › Options", r#"{} — the custom dictionary, the owner's words. Answers {"words": [string]}"#),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"classicLight"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
     (
@@ -1643,6 +1695,11 @@ pub struct MailApp {
     /// The owner's own keys and the work on them under way (#30, File › Options › Security).
     pub(crate) security: security::State,
     pub ui: UiState,
+    /// Words ignored for this run (Ignore All). Not saved. Capped at the custom dictionary's limit.
+    pub(crate) spelling_ignored: std::collections::BTreeSet<String>,
+    /// Bumped when as-you-type, the default language, the custom dictionary, Ignore All or the
+    /// ignore switches change, so a cached check is done again.
+    pub(crate) spelling_rev: u64,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
     /// The contacts picked together in the People list with Ctrl (⌘ on a Mac) and a click, the
@@ -2041,6 +2098,8 @@ impl MailApp {
             row_checks_wanted: false,
             security: security::State::default(),
             ui: UiState::default(),
+            spelling_ignored: Default::default(),
+            spelling_rev: 0,
             attachment_selection: None,
             attachment_preview: None,
             pending_attachment_preview: None,
@@ -2263,6 +2322,8 @@ impl MailApp {
         self.ui.list_height =
             if self.ui.list_height.is_finite() && self.ui.list_height > 0.0 { self.ui.list_height.clamp(120.0, 4000.0) } else { 0.0 };
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
+        spelling::sanitize_saved(&mut self.ui);
+        spelling::bump(self);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);
@@ -2796,6 +2857,9 @@ impl MailApp {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         if let Some(r) = security::command(self, id, p) {
+            return Some(r);
+        }
+        if let Some(r) = spelling::command(self, id, p) {
             return Some(r);
         }
         Some(match id {

@@ -1,38 +1,102 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Use the operating system's local dictionaries on the UI thread.
+//! Spelling dictionaries for the desktop window (#1797).
+//!
+//! Windows and macOS ask the operating system, and every platform also has the US English list
+//! built into MailCraft. The system's checker is asked on the UI thread.
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::cell::RefCell;
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 use std::ops::Range;
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 use std::time::{Duration, Instant};
 
-use mailcraft_ui_egui::spelling::{HostChecker, MAX_ISSUES};
+use mailcraft_ui_egui::spelling::BundledChecker;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+use mailcraft_ui_egui::spelling::MAX_ISSUES;
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+use mailcraft_ui_egui::spelling::{EN_US_TAG, HostChecker};
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use spellkit::Checker;
 
+/// The spelling host for this platform: the system's dictionaries beside the built-in list, or
+/// the built-in list on its own.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub(crate) fn host() -> mailcraft_ui_egui::spelling::Host {
+    Box::new(CombinedChecker::<NativeChecker>::default())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+pub(crate) fn host() -> mailcraft_ui_egui::spelling::Host {
+    Box::new(BundledChecker)
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 const RETRY_OPEN: Duration = Duration::from_secs(5);
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 const REFRESH_LOCALES: Duration = Duration::from_secs(30);
 
+/// The operating system's dictionaries, plus the built-in US English list.
+///
+/// `check` and `suggest` send the built-in US English tag to the built-in list and every other tag to `native`.
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+pub(crate) struct CombinedChecker<N> {
+    native: N,
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+impl<N: Default> Default for CombinedChecker<N> {
+    fn default() -> Self {
+        Self { native: N::default() }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+impl<N: HostChecker> HostChecker for CombinedChecker<N> {
+    fn locales(&self) -> Vec<String> {
+        let mut languages = self.native.locales();
+        languages.push(EN_US_TAG.to_owned());
+        languages.sort_unstable();
+        languages.dedup();
+        languages
+    }
+
+    fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
+        if locale == EN_US_TAG { BundledChecker.check(locale, text) } else { self.native.check(locale, text) }
+    }
+
+    fn suggest(&self, locale: &str, word: &str) -> Vec<String> {
+        if locale == EN_US_TAG { BundledChecker.suggest(locale, word) } else { self.native.suggest(locale, word) }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[derive(Default)]
 pub(crate) struct NativeChecker {
     locales: RefCell<Option<LocaleList>>,
     active: RefCell<Option<ActiveChecker<Checker>>>,
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 struct LocaleList {
     languages: Vec<String>,
     refresh_at: Instant,
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 struct ActiveChecker<T> {
     locale: String,
     state: OpenState<T>,
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 enum OpenState<T> {
     Ready(T),
     RetryAt(Instant),
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 impl<T> ActiveChecker<T> {
     fn open_if_needed<'a>(active: &'a mut Option<Self>, locale: &str, now: Instant, open: impl FnOnce() -> Option<T>) -> Option<&'a T> {
         if active.as_ref().is_none_or(|current| current.locale != locale || matches!(current.state, OpenState::RetryAt(retry) if now >= retry)) {
@@ -46,6 +110,7 @@ impl<T> ActiveChecker<T> {
     }
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl NativeChecker {
     fn with_checker<T>(&self, locale: &str, use_checker: impl FnOnce(&Checker) -> T) -> Option<T> {
         let mut active = self.active.try_borrow_mut().ok()?;
@@ -82,6 +147,7 @@ fn prefer_bare_locale<T>(
     open(&format!("{requested}-x-mailcrft")).filter(|checker| locale_of(checker).eq_ignore_ascii_case(requested)).unwrap_or(current)
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl HostChecker for NativeChecker {
     fn locales(&self) -> Vec<String> {
         let mut cached = self.locales.borrow_mut();

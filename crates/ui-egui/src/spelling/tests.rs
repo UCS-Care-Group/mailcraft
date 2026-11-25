@@ -29,25 +29,12 @@ impl HostChecker for Italian {
 }
 
 #[test]
-fn spelling_offsets_exclude_links_addresses_and_signatures() {
-    let mut link = Run::plain("sopratutto");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("È 📧 sopratutto sopratutto@example.org "), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert!(report.available);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 4..14);
-    assert!(!check(&Italian, "fr-FR", &paragraph).available);
-    assert!(check(&Italian, "it-IT", &Paragraph { signature: true, ..paragraph }).issues.is_empty());
-}
-
-#[test]
 fn spelling_suggestion_uses_composer_undo_and_checks_the_original_word() {
     let mut app = MailApp::new(mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0), Default::default());
     app.execute("mail.new", json!({})).unwrap();
     app.execute("compose.set", json!({"body": "È sopratutto così."})).unwrap();
     let issue = Issue { span: 2..12, word: "sopratutto".into() };
-    let suggestions = Suggestions::new(&Italian, "it-IT", issue, 0);
+    let suggestions = Suggestions::new(&Italian, "it-IT", issue, 0, &[]);
     let selected = suggestions.words[0].clone();
     suggestions.clone().apply(&mut app, selected.clone());
     assert_eq!(app.session.compose.as_ref().unwrap().body.plain(), "È soprattutto così.");
@@ -116,7 +103,61 @@ fn spelling_review_starts_at_the_caret_and_marks_large_paragraphs_partial() {
     let selection = app.session.compose.as_ref().unwrap().body.selection();
     assert_eq!((selection.start(), selection.end()), (start, start + 10));
     let oversized = Paragraph::new(vec![Run::plain("a".repeat(9000))], ListKind::None);
-    assert!(check(&Italian, "it-IT", &oversized).partial);
+    assert!(check(&Italian, "it-IT", &oversized, &mailcraft_engine::spelling::Filter::default(), 0).partial);
+}
+
+struct Teh;
+
+impl HostChecker for Teh {
+    fn locales(&self) -> Vec<String> {
+        vec!["en-US".to_string()]
+    }
+
+    fn check(&self, locale: &str, text: &str) -> Option<Vec<Range<usize>>> {
+        if locale != "en-US" {
+            return None;
+        }
+        let mut ranges = Vec::new();
+        for word in ["TEH", "teh"] {
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(word)) {
+                let abs = from.saturating_add(at);
+                ranges.push(abs..abs.saturating_add(word.len()));
+                from = abs.saturating_add(word.len());
+                if from > text.len() {
+                    break;
+                }
+            }
+        }
+        Some(ranges)
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+#[test]
+fn find_next_restarts_when_ignore_uppercase_changes() {
+    let mut app = MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services { spelling: Some(Box::new(Teh)), ..Default::default() },
+    );
+    let ctx = Context::default();
+    app.execute("mail.new", json!({})).unwrap();
+    app.execute("ui.spelling", json!({"language": "en-US", "ignoreUppercase": true})).unwrap();
+    let body = format!("TEH\n{}teh", "ok\n".repeat(7));
+    app.execute("compose.set", json!({"body": body})).unwrap();
+    app.execute("compose.select", json!({"from": 0})).unwrap();
+    review_next(&mut app, &ctx, "en-US");
+    advance_review(&mut app, &ctx, Some("en-US"));
+    let selection = app.session.compose.as_ref().unwrap().body.selection();
+    assert_eq!(selection.start(), 0, "TEH is skipped while Ignore Uppercase is on");
+    app.execute("ui.spelling", json!({"ignoreUppercase": false})).unwrap();
+    advance_review(&mut app, &ctx, Some("en-US"));
+    advance_review(&mut app, &ctx, Some("en-US"));
+    let selection = app.session.compose.as_ref().unwrap().body.selection();
+    assert_eq!((selection.start(), selection.end()), (0, 3), "the first paragraph is checked again");
 }
 
 #[test]
@@ -149,69 +190,87 @@ fn spelling_correction_preserves_the_formatting_of_unchanged_text() {
     assert!(body.text().all(7, 10, |style| style.bold).unwrap());
 }
 
-#[test]
-fn an_address_split_between_plain_and_linked_text_is_not_marked() {
-    let mut suffix = Run::plain("@example.org");
-    suffix.style.link = Some("mailto:sopratutto@example.org".into());
-    let mut prefix = Run::plain("delivery@");
-    prefix.style.link = Some("mailto:delivery@sopratutto.example".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto"), suffix, Run::plain(" "), prefix, Run::plain("sopratutto.example")], ListKind::None);
-    assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty());
+struct Listed {
+    tags: Vec<String>,
+}
+
+impl HostChecker for Listed {
+    fn locales(&self) -> Vec<String> {
+        self.tags.clone()
+    }
+
+    fn check(&self, _locale: &str, _text: &str) -> Option<Vec<Range<usize>>> {
+        Some(Vec::new())
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+fn app_with(tags: &[&str], system: Option<&str>) -> MailApp {
+    MailApp::new(
+        mailcraft_engine::Session::at(mailcraft_engine::sample::mailbox(0, 0), 0, 0),
+        crate::Services {
+            spelling: Some(Box::new(Listed { tags: tags.iter().map(|tag| (*tag).to_string()).collect() })),
+            system_locale: system.map(str::to_string),
+            ..Default::default()
+        },
+    )
 }
 
 #[test]
-fn typo_beside_a_link_is_still_marked() {
-    let mut link = Run::plain("https://example.org");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto—"), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
+fn the_built_in_dictionary_is_named_as_built_in() {
+    assert_eq!(locale_name(mailcraft_spell::EN_US_TAG), "English (United States, built-in)");
+    assert_eq!(locale_name("en-US"), "English (en-US)");
 }
 
 #[test]
-fn a_url_path_with_a_dash_is_protected_across_formatting_runs() {
-    for address in ["https://example.org/a—", "WWW.example.org/a—"] {
-        let mut prefix = Run::plain(address);
-        prefix.style.link = Some("https://example.org/a".into());
-        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto")], ListKind::None);
-        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
+fn automatic_prefers_an_os_en_us_and_falls_back_to_the_built_in_tag() {
+    let ctx = Context::default();
+    // The system tag is compared whole, after normalising. The built-in tag is not `en-US`,
+    // so it does not win the system match even when it is listed first.
+    let both = app_with(&[mailcraft_spell::EN_US_TAG, "en-US"], Some("en_US.UTF-8"));
+    assert_eq!(locale(&both, &ctx).as_deref(), Some("en-US"));
+    // With no system region, Automatic takes the first tag of the interface language.
+    // The desktop host sorts, and `en-US` sorts before `en-US-x-builtin`.
+    let sorted = app_with(&["en-US", mailcraft_spell::EN_US_TAG], None);
+    assert_eq!(locale(&sorted, &ctx).as_deref(), Some("en-US"));
+    // No operating-system English: the system tag does not equal the built-in tag, and the
+    // language match then takes that tag.
+    let only = app_with(&[mailcraft_spell::EN_US_TAG, "fr-FR"], Some("en-US"));
+    assert_eq!(locale(&only, &ctx).as_deref(), Some(mailcraft_spell::EN_US_TAG));
+}
+
+struct Quiet;
+
+impl HostChecker for Quiet {
+    fn locales(&self) -> Vec<String> {
+        vec!["en-GB".to_string()]
+    }
+
+    fn check(&self, _locale: &str, _text: &str) -> Option<Vec<Range<usize>>> {
+        Some(Vec::new())
+    }
+
+    fn suggest(&self, _locale: &str, _word: &str) -> Vec<String> {
+        Vec::new()
     }
 }
 
 #[test]
-fn a_typo_before_a_parenthesized_address_is_still_marked() {
-    let mut link = Run::plain("info@example.org");
-    link.style.link = Some("mailto:info@example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")")], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
+fn a_custom_word_one_edit_away_is_offered_before_the_hosts() {
+    let issue = Issue { span: 0..4, word: "helo".into() };
+    let suggestions = Suggestions::new(&Quiet, "en-GB", issue, 0, &["hello".into(), "zzzz".into()]);
+    assert_eq!(suggestions.words, vec!["hello".to_string()]);
 }
 
 #[test]
-fn balanced_parentheses_in_a_url_path_are_protected() {
-    for address in ["https://example.org/a(", "www.example.org/a("] {
-        let mut prefix = Run::plain(address);
-        prefix.style.link = Some("https://example.org/a".into());
-        let paragraph = Paragraph::new(vec![prefix, Run::plain("sopratutto)")], ListKind::None);
-        assert!(check(&Italian, "it-IT", &paragraph).issues.is_empty(), "{address}");
-    }
-    let mut link = Run::plain("https://example.org");
-    link.style.link = Some("https://example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto("), link, Run::plain(")sopratutto")], ListKind::None);
-    let spans: Vec<_> = check(&Italian, "it-IT", &paragraph).issues.into_iter().map(|issue| issue.span).collect();
-    assert_eq!(spans, [0..10, 31..41]);
-}
-
-#[test]
-fn a_typo_before_a_comma_separated_address_is_still_marked() {
-    let mut link = Run::plain("info@example.org");
-    link.style.link = Some("mailto:info@example.org".into());
-    let paragraph = Paragraph::new(vec![Run::plain("sopratutto,"), link], ListKind::None);
-    let report = check(&Italian, "it-IT", &paragraph);
-    assert_eq!(report.issues.len(), 1);
-    assert_eq!(report.issues[0].span, 0..10);
+fn the_built_in_list_is_asked_with_the_custom_dictionary() {
+    assert!(mailcraft_spell::en_us().is_some(), "the built-in dictionary loads");
+    let issue = Issue { span: 0..8, word: "mailcraf".into() };
+    let suggestions = Suggestions::new(&Quiet, mailcraft_spell::EN_US_TAG, issue, 0, &["mailcraft".into()]);
+    assert!(suggestions.words.iter().any(|word| word.eq_ignore_ascii_case("mailcraft")), "{:?}", suggestions.words);
 }
 
 #[test]

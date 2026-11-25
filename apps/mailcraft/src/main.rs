@@ -105,7 +105,6 @@ mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
-#[cfg(any(target_os = "windows", target_os = "macos"))]
 mod spelling;
 mod system_locale;
 mod system_motion;
@@ -1143,8 +1142,7 @@ fn services(
     Services {
         platform_calls,
         file_dialog: Some(file_dialog),
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        spelling: Some(Box::new(spelling::NativeChecker::default())),
+        spelling: Some(spelling::host()),
         #[cfg(windows)]
         recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
@@ -1684,6 +1682,14 @@ fn main() -> eframe::Result {
     let apple_events = &apple_events;
     // For the window, to take the lock of another mailbox file before it opens it (#517).
     let claimer = guard.as_ref().map(single_instance::Guard::claimer);
+    // The bundled spelling list is large. Parse it off the frame thread so the first check
+    // does not wait on it. A thread the system will not start is ignored: the list still loads
+    // on first use, and this never panics.
+    if let Err(e) = std::thread::Builder::new().name("spelling".into()).spawn(|| {
+        let _ = mailcraft_spell::en_us();
+    }) {
+        log::debug!("the spelling list was not parsed ahead of the window: {e}");
+    }
     run_window(
         options,
         Box::new(move |cc| {

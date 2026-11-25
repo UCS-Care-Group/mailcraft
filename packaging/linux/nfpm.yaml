@@ -77,6 +77,8 @@ contents:
   - src: ${STAGE}/usr/bin/mailcraft-cli
     dst: /usr/bin/mailcraft-cli
     file_info: { mode: 0755 }
+  # The tree includes usr/share/doc/mailcraft: NOTICE and LICENSE-en_US-dictionary.txt
+  # (the SCOWL copyright notice), staged by package.sh next to the other licence files.
   - src: ${STAGE}/usr/share/
     dst: /usr/share/
     type: tree

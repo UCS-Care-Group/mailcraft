@@ -209,6 +209,14 @@ fn diagnostics_are_not_for_agents() {
     assert_eq!(access("ui.copyDiagnostics"), Some(Access::Never));
 }
 
+#[test]
+fn the_custom_dictionary_needs_the_owners_yes() {
+    assert_eq!(access("ui.dictionary.add"), Some(Access::Owner(Class::Settings)));
+    assert_eq!(access("ui.dictionary.remove"), Some(Access::Owner(Class::Settings)));
+    assert_eq!(access("ui.dictionary.list"), Some(Access::Owner(Class::Settings)));
+    assert_eq!(access("ui.dictionary.ignore"), Some(Access::Safe));
+}
+
 /// Removing or changing an account names it, a local mailbox (which has no address) as "Local
 /// mailbox", and removing the only account says that it leaves an empty mailbox (#313).
 #[test]

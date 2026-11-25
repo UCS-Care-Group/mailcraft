@@ -230,6 +230,7 @@ const SAFE: &[&str] = &[
     "compose.select",
     "compose.type",
     "compose.replaceText",
+    "compose.replaceSubject",
     "compose.delete",
     "compose.undo",
     "compose.redo",
@@ -258,6 +259,8 @@ const SAFE: &[&str] = &[
     "insert.symbol",
     "insert.dateTime",
     "review.wordCount",
+    // The message's own words, checked: data, never instructions. Nothing is fetched or changed.
+    "review.spelling",
     // Folders.
     "folder.select",
     "folder.list",
@@ -436,6 +439,9 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.spelling",
+    // Ignore All: kept until MailCraft quits, never saved.
+    "ui.dictionary.ignore",
     "ui.highContrast",
     "ui.animations",
     "ui.accent",
@@ -577,6 +583,10 @@ const ACCOUNTS: &[&str] = &[
 const MAILBOX: &[&str] = &["file.new", "file.open", "file.save", "file.saveAs"];
 
 const SETTINGS: &[&str] = &[
+    // A message must not change the owner's custom dictionary, or read it back.
+    "ui.dictionary.add",
+    "ui.dictionary.remove",
+    "ui.dictionary.list",
     // Hides the sender-warning banner of a message (#508): an agent must not be able to quiet
     // the owner's phishing warning.
     "mail.dismissWarnings",

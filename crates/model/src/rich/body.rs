@@ -84,6 +84,9 @@ pub struct RichBody {
     /// Where typing goes on in the same undo step.
     #[serde(skip)]
     typing: Option<usize>,
+    /// How many times a new undo step was stored. A step put back by redo is not one of these.
+    #[serde(skip)]
+    undo_pushes: u64,
     /// The look Format Painter copied, to be put on the next selection.
     #[serde(skip)]
     painter: Option<Style>,
@@ -188,6 +191,27 @@ impl RichBody {
         !self.redo.is_empty()
     }
 
+    /// How many steps [`RichBody::undo`] can still take.
+    pub fn undo_len(&self) -> usize {
+        self.undo.len()
+    }
+
+    /// How many new undo steps have been stored. Redo does not count.
+    pub fn undo_pushes(&self) -> u64 {
+        self.undo_pushes
+    }
+
+    /// The next typed characters start a step of their own.
+    pub fn end_typing(&mut self) {
+        self.typing = None;
+    }
+
+    /// Drop what Redo would put back. A new edit of another part of the message (the Subject)
+    /// does this, as a new edit of the text itself does.
+    pub fn clear_redo(&mut self) {
+        self.redo.clear();
+    }
+
     /// Run an edit on a copy and keep it when it works, as one undo step (or as part of the last
     /// one, `typing`).
     fn edit(&mut self, typing: bool, f: impl FnOnce(&mut RichText, &mut Selection) -> Result<(), ModelError>) -> Result<(), ModelError> {
@@ -218,6 +242,7 @@ impl RichBody {
     }
 
     fn push_step(&mut self, mark: Option<Mark>) {
+        self.undo_pushes = self.undo_pushes.saturating_add(1);
         self.undo.push(Step { text: self.text.clone(), selection: self.selection, mark });
         self.redo.clear();
         let mut kept: usize = self.undo.iter().map(|s| s.text.len()).sum();

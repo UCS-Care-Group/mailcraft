@@ -37,6 +37,8 @@ pub mod compose;
 #[cfg(test)]
 mod compose_send_counts_tests;
 #[cfg(test)]
+mod compose_subject_tests;
+#[cfg(test)]
 mod compose_trust_tests;
 pub mod contacts_move;
 pub mod contacts_remote;

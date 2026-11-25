@@ -15,6 +15,10 @@
 *.ttf binary
 *.po text eol=lf
 *.pot text eol=lf
+# The spelling dictionaries are embedded with include_str! and shipped unmodified, byte for byte.
+*.dic text eol=lf
+*.aff text eol=lf
+assets/dictionaries/** text eol=lf
 # Messages that are test vectors are kept byte for byte: a Digital signature covers their CRLF line ends.
 crates/smime/testdata/** binary
 fuzz/seeds/smime/** binary

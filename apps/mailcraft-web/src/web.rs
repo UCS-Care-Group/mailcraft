@@ -81,6 +81,12 @@ pub fn start() {
                         let _ = tx.send(first_mailbox(named));
                         wake.request_repaint();
                     });
+                    // The bundled spelling list is parsed after the page has had a frame, the same
+                    // deferral as the mailbox, so the first frame does not wait on it.
+                    wasm_bindgen_futures::spawn_local(async {
+                        after_a_frame().await;
+                        let _ = mailcraft_spell::en_us();
+                    });
                     let opening = mailcraft_ui_egui::opening::Opening::new(rx, Default::default(), build);
                     let locale = web_sys::window().and_then(|w| w.navigator().language());
                     let app = MailApp::opening(opening, first_prefs, locale);
@@ -298,6 +304,7 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         system_locale: web_sys::window().and_then(|w| w.navigator().language()),
         // The same language's region (`en-GB`) is the one English dates are written for (#978).
         system_time_locale: web_sys::window().and_then(|w| w.navigator().language()),
+        spelling: Some(Box::new(mailcraft_ui_egui::spelling::BundledChecker)),
         on_language: Some(Box::new(move |code: &str| {
             let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
             if let Some(root) = root {
