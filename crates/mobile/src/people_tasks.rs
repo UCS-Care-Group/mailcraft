@@ -61,8 +61,16 @@ fn contact_folders(s: &Session) -> ContactFolders {
     let mut writable: Vec<&ContactFolder> = s.mailbox.contact_folders.iter().filter(|f| f.writable && accounts.contains(&f.account)).collect();
     // By account, its own main folder first, then by name.
     writable.sort_by_key(|f| (accounts.iter().position(|a| *a == f.account), !(f.owner.is_own() && f.is_main()), f.name.to_lowercase()));
+    let default = default_contact_folder(s);
+    // The default is always offered: one past the cap takes the last place in the list.
+    if let Ok(id) = default
+        && let Some(at) = writable.iter().position(|f| f.id == id).filter(|at| *at >= MAX_LISTED)
+    {
+        let f = writable.remove(at);
+        writable.insert(MAX_LISTED - 1, f);
+    }
     let mut folders = text::first(writable, MAX_LISTED, |f| folder_record(&s.mailbox, f));
-    let default_index = match default_contact_folder(s) {
+    let default_index = match default {
         Ok(0) => None,
         Ok(id) => folders.iter().position(|f| f.id == Some(id)),
         Err(account) => {
