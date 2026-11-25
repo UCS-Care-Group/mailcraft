@@ -192,10 +192,9 @@ fn a_shared_mailboxs_calendar_is_judged_by_the_sign_in_it_is_opened_through() {
     assert!(answered(&mut s, &mut jobs, &plan, theirs).foreign.is_some());
 }
 
-/// #1917: a contact change goes with the calendar's job, read after; one no job took isn't
-/// marked as sent.
+/// #1917: a contact change goes with the calendar's job, and the folders are read after it.
 #[test]
-fn a_contact_change_rides_the_job_and_one_no_job_took_is_not_marked_sent() {
+fn a_contact_change_rides_the_job_and_the_folders_are_read_after_it() {
     let (mut s, a) = session();
     assert!(s.mailbox.account(a).unwrap().keeps_contacts());
     let main = mailcraft_model::remote::ContactsDownload { account: a, email: "ada@example.org".into(), complete: true, ..Default::default() };
@@ -203,16 +202,7 @@ fn a_contact_change_rides_the_job_and_one_no_job_took_is_not_marked_sent() {
     s.run("people.new", &json!({"first": "Dee", "email": "dee@example.org"})).unwrap();
     assert_eq!(s.mailbox.contact_changes.len(), 1);
     let plan = plan(&mut s, a);
-    let mut jobs = CalendarJobs::default();
-    assert!(!jobs.start(&mut s, &plan, auth(), 1_000.0, |_| None::<Receiver<GraphResult>>));
-    assert!(!s.mailbox.contact_changes[0].sent, "no job took it");
-    let mut asked = None;
-    assert!(jobs.start(&mut s, &plan, auth(), 1_000.0, |req| {
-        asked = req.contacts.clone();
-        Some(channel().1)
-    }));
-    let asked = asked.unwrap();
+    let asked = calendar_request(&s, &plan, auth()).unwrap().contacts.unwrap();
     assert_eq!(asked.upload.ops.len(), 1);
     assert!(asked.read, "the folders are read after what went up");
-    assert!(s.mailbox.contact_changes[0].sent);
 }

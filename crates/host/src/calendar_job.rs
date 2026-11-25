@@ -66,15 +66,14 @@ pub fn calendar_request(session: &Session, plan: &CalendarPlan, auth: CalendarAu
         mail_pieces: None,
         cancel: Default::default(),
         signer: Some(signer),
-        contacts: None,
+        contacts: contacts_ask(session, plan),
     })
 }
 
 /// What the calendar job `plan` does with its account's contacts (#1917): what waits to go up,
 /// and with the wide stretch the folders to bring down. `None` for an account whose contacts
 /// Microsoft doesn't keep, and when there is neither.
-/// (What goes up is marked as sent here: it may reach the server whatever comes back.)
-fn contacts_ask(session: &mut Session, plan: &CalendarPlan) -> Option<ContactsAsk> {
+fn contacts_ask(session: &Session, plan: &CalendarPlan) -> Option<ContactsAsk> {
     let account = session.mailbox.account(plan.account).filter(|a| a.keeps_contacts() && !a.is_shared())?.id;
     let upload = mailcraft_engine::cmd::contacts_remote::contact_upload(session, account).ok()?;
     if upload.ops.is_empty() && !plan.directory {
@@ -173,19 +172,10 @@ impl CalendarJobs {
         if self.running.is_some() {
             return false;
         }
-        let Some(mut request) = calendar_request(session, plan, auth) else { return false };
-        // (What is handed out is marked as sent: put back as it was when no job takes it.)
-        let queue = session.mailbox.contact_changes.clone();
-        request.contacts = contacts_ask(session, plan);
+        let Some(request) = calendar_request(session, plan, auth) else { return false };
         // (Checked again here when the answer comes: the run checks it before anything goes up.)
-        let Some(signer) = request.signer.clone() else {
-            session.mailbox.contact_changes = queue;
-            return false;
-        };
-        let Some(rx) = launch(request) else {
-            session.mailbox.contact_changes = queue;
-            return false;
-        };
+        let Some(signer) = request.signer.clone() else { return false };
+        let Some(rx) = launch(request) else { return false };
         session.calendar_started(plan, now);
         self.running =
             Some(Running { account: plan.account, signer, carried: plan.changes.is_some(), started: now, opening: session.openings(), rx });

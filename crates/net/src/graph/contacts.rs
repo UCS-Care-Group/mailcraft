@@ -216,9 +216,9 @@ fn read_folder(graph: &Graph<'_>, prefix: &str, remote: &str, delta: &str) -> Re
     let id = if remote.is_empty() {
         match main_folder_id(graph, prefix)? {
             Some(id) => id,
-            // No contacts in it, so no way to name it. Not taken as all of it (nothing here is
-            // removed for it): an answer that lists nothing isn't proof enough.
-            None => return Ok(ContactsDownload::default()),
+            // A list that says, as a list, that it has no contacts (anything else is an error):
+            // it is empty, and that is all of it. With no position: the next read is whole.
+            None => return Ok(ContactsDownload { complete: true, ..Default::default() }),
         }
     } else {
         remote.to_string()

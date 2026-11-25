@@ -112,6 +112,47 @@ fn repair_drops_folders_out_of_range_and_keeps_a_rehomed_contacts_change() {
     assert!(a != b && text.contact_folders.iter().filter(|f| f.id == a || f.id == b).count() == 2);
 }
 
+/// Review of #1937: only folders that can be kept count towards the cap; new keys never land on
+/// an item still to be given one; a deletion waiting under a key out of range gets one in range.
+#[test]
+fn repair_counts_only_kept_folders_and_rehomes_without_losing_anything() {
+    const MAX: crate::Id = 1 << 53;
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    mb.contact_folders.push(ContactFolder { id: 0, account, remote: "bad".into(), ..Default::default() });
+    mb.contact_folders.push(ContactFolder { id: MAX + 9, account, remote: "big".into(), ..Default::default() });
+    for n in 0..MAX_CONTACT_FOLDERS {
+        let id = mb.alloc_id();
+        mb.contact_folders.push(ContactFolder { id, account, remote: format!("f-{n}"), ..Default::default() });
+    }
+    let main = mb.contact_folders.last().map(|f| f.id).unwrap();
+    // A contact at the top of the range, two above it, and two events above it whose keys the
+    // contacts' new ones would reach.
+    mb.contacts.insert(MAX, std::sync::Arc::new(Contact { id: MAX, ..ada() }));
+    for k in [MAX + 1, MAX + 2] {
+        mb.contacts.insert(k, std::sync::Arc::new(Contact { id: k, first: format!("c{k}"), ..Default::default() }));
+    }
+    for k in [MAX + 1, MAX + 3] {
+        mb.events.insert(k, std::sync::Arc::new(crate::Event { id: k, title: format!("e{k}"), ..Default::default() }));
+    }
+    let base = Some(Box::new(ada()));
+    mb.contact_changes.push(ContactChange {
+        account,
+        kind: ContactChangeKind::Delete,
+        contact: MAX + 50,
+        folder: main,
+        remote: "c-9".into(),
+        base,
+        ..Default::default()
+    });
+    mb.repair();
+    assert_eq!(mb.contact_folders.len(), MAX_CONTACT_FOLDERS);
+    assert_eq!((mb.contacts.len(), mb.events.len()), (3, 2));
+    assert_eq!(mb.contact_changes.len(), 1);
+    assert!(mb.contact_changes[0].contact <= MAX + 10, "{}", mb.contact_changes[0].contact);
+    assert!(mb.contact_changes[0].contact != MAX + 50);
+}
+
 /// Review of #1935/#1936: a contact of an account that is gone is this computer's, and a change
 /// that couldn't be sent or put back doesn't wait for ever.
 #[test]

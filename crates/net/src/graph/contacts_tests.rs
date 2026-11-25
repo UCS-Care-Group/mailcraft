@@ -637,13 +637,25 @@ fn a_list_of_folders_that_fails_still_reads_the_main_folder() {
 }
 
 #[test]
-fn an_empty_main_folder_is_never_taken_for_all_of_it() {
+fn an_empty_main_folder_is_all_of_it_with_no_position() {
     let state = mailbox();
     state.lock().unwrap().contacts.retain(|c| c.folder != format!("me:{MAIN}"));
     let server = stand_in(state);
     let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
     let main = read.downloads.iter().find(|d| d.folder.is_none()).unwrap();
-    assert!(main.contacts.is_empty() && !main.complete && main.delta.is_empty());
+    assert!(main.contacts.is_empty() && main.complete && main.delta.is_empty());
+    // A page that isn't a list is no proof of anything.
+    for body in [r#"{"value": 7}"#, "[]", "not json"] {
+        let server = FakeHttp::start(move |_, request| {
+            if request.lines().next().unwrap_or("").contains("/me/contacts?") {
+                json_answer("200 OK", body)
+            } else {
+                json_answer("200 OK", r#"{"value": []}"#)
+            }
+        });
+        let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+        assert!(read.downloads.iter().all(|d| d.folder.is_some()), "{body}");
+    }
 }
 
 #[test]

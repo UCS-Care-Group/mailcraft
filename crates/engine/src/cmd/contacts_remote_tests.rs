@@ -214,8 +214,10 @@ fn a_download_while_a_change_waits_merges_field_by_field() {
     );
     assert_eq!(notes(&s), [(bo, ContactChangeKind::Create, vec![])]);
     assert!(s.mailbox.contact(bo).is_some_and(|c| c.origin.id.is_empty() && c.notes == "Keep me"));
-    // A contact made here whose answer was lost comes down: it is taken for the same, not twice.
+    // A contact made here whose answer was lost (the connection dropped once it was sent) comes
+    // down: it is taken for the same, not twice.
     let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Failed, "");
     let back = RemoteContact { notes: "Keep me".into(), last: "Marsh".into(), ..person("c-bo-2", "Bo") };
     let count = s.mailbox.contacts.len();
     run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![back, person("c-cy", "Cy")])}));
@@ -454,25 +456,77 @@ fn a_change_waiting_when_its_folder_becomes_read_only_is_held_not_lost() {
     assert_eq!(upload(&mut s, account).ops.len(), 1);
 }
 
-/// Review of #1934: an undo whose change has no room in the queue keeps what it brought back on
-/// this computer, out of reach of the next download.
+/// Review of #1934 and #1937: an undo whose change has no room in the queue isn't undone for
+/// that contact (an edit, or a new contact whose deletion couldn't be noted), and says so.
 #[test]
-fn an_undo_with_no_room_to_tell_the_server_keeps_the_contact_on_this_computer() {
+fn an_undo_with_no_room_to_tell_the_server_leaves_the_contact_as_it_is() {
     let (mut s, account) = session();
     let bo = called(&s, "Bo");
     run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
     let op = upload(&mut s, account).ops.remove(0);
     answer(&mut s, account, &op, ContactResult::Done, "");
+    let dee = run(&mut s, "people.new", json!({"first": "Dee"}))["id"].as_u64().unwrap();
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "c-dee");
     let filler = mailcraft_model::contact_sync::ContactChange { account, contact: 9_999_999, ..Default::default() };
     s.mailbox.contact_changes = vec![filler; MAX_CONTACT_CHANGES];
+    let queue = s.mailbox.contact_changes.clone();
+    // Undoing the new contact would need a deletion sent: it stays, on the server and here.
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.contact(dee).is_some_and(|c| c.origin.id == "c-dee"));
+    assert!(s.undo_said().iter().any(|l| l.contains("isn't undone")), "{:?}", s.undo_said());
+    // Undoing the edit would need a change sent: it stays.
     run(&mut s, "edit.undo", json!({}));
     let c = s.mailbox.contact(bo).unwrap();
-    assert!(c.origin.is_local() && c.folder == 0 && c.last.is_empty(), "{c:?}");
-    // The server's copy comes down beside it; nothing is lost.
-    let marsh = RemoteContact { last: "Marsh".into(), ..person("c-bo", "Bo") };
-    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![marsh, person("c-cy", "Cy")])}));
-    assert!(s.mailbox.contact(bo).is_some_and(|c| c.last.is_empty()));
-    assert!(s.mailbox.contacts.values().any(|c| c.last == "Marsh" && c.origin.id == "c-bo"));
+    assert!(c.origin.id == "c-bo" && c.last == "Marsh", "{c:?}");
+    assert_eq!(s.mailbox.contact_changes, queue);
+}
+
+/// Review of #1937: a new contact the server took nothing of (too many requests) wasn't sent:
+/// it is never taken for one the server lists. One whose answer was lost on the way was.
+#[test]
+fn only_a_new_contact_that_was_tried_is_taken_for_one_the_server_lists() {
+    for (status, taken) in [(429, false), (0, true), (503, true)] {
+        let (mut s, account) = session();
+        let dee = run(&mut s, "people.new", json!({"first": "Dee", "categories": ["Red category"]}))["id"].as_u64().unwrap();
+        let op = upload(&mut s, account).ops.remove(0);
+        assert!(!s.mailbox.contact_changes[0].sent, "handing it out doesn't mark it");
+        let outcome = ContactOutcome { op: op.clone(), result: ContactResult::Failed, status, ..Default::default() };
+        let uploaded = ContactsUploaded { account, email: EMAIL.into(), outcomes: vec![outcome], ..Default::default() };
+        run(&mut s, "sync.applyContactChanges", json!({"result": uploaded}));
+        assert_eq!(s.mailbox.contact_changes[0].sent, taken, "{status}");
+        // The server lists it, without saying its categories.
+        let theirs = RemoteContact { id: "c-dee".into(), change_key: "ck-dee".into(), categories: None, ..op.values.clone() };
+        run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+        let dees = s.mailbox.contacts.values().filter(|c| c.first == "Dee").count();
+        assert_eq!(dees, if taken { 1 } else { 2 }, "{status}");
+        if taken {
+            // Its categories are those sent: nothing more to send.
+            let c = s.mailbox.contact(dee).unwrap();
+            assert_eq!((c.origin.id.as_str(), c.categories.clone()), ("c-dee", vec!["Red category".to_string()]));
+            assert!(s.mailbox.contact_changes.is_empty(), "{status}: {:?}", notes(&s));
+        }
+    }
+}
+
+/// Review of #1934 (third round): a sent new contact whose contact is gone doesn't stop the
+/// search for the next one that matches.
+#[test]
+fn a_twin_whose_contact_is_gone_is_passed_over() {
+    let (mut s, account) = session();
+    let first = run(&mut s, "people.new", json!({"first": "Dee"}))["id"].as_u64().unwrap();
+    let second = run(&mut s, "people.new", json!({"first": "Dee"}))["id"].as_u64().unwrap();
+    let ops = upload(&mut s, account).ops;
+    for op in &ops {
+        let outcome = ContactOutcome { op: op.clone(), result: ContactResult::Failed, ..Default::default() };
+        let uploaded = ContactsUploaded { account, email: EMAIL.into(), outcomes: vec![outcome], ..Default::default() };
+        run(&mut s, "sync.applyContactChanges", json!({"result": uploaded}));
+    }
+    s.mailbox.contacts.remove(&first);
+    let theirs = RemoteContact { id: "c-dee".into(), change_key: "ck-dee".into(), ..ops[1].values.clone() };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+    assert_eq!(s.mailbox.contact(second).unwrap().origin.id, "c-dee");
+    assert_eq!(s.mailbox.contacts.values().filter(|c| c.first == "Dee").count(), 1);
 }
 
 /// Review of #1934: a download that only renames its folder (or makes it) is a change.
@@ -787,4 +841,54 @@ fn a_newer_edit_outlives_a_shared_folders_refusal() {
     s.mailbox.contact_folders.iter_mut().filter(|f| f.remote == "f-leads").for_each(|f| f.writable = false);
     leads(&mut s);
     assert_eq!(s.mailbox.contact(di).unwrap().notes, "Met in May");
+}
+
+/// Review of #1937: two refusals in one answer from the same shared folder each keep what the
+/// owner changed since.
+#[test]
+fn two_refusals_in_one_answer_keep_both_newer_edits() {
+    let (mut s, account) = session();
+    let shared = RemoteContactFolder {
+        id: "f-leads".into(),
+        name: "Leads".into(),
+        owner: FolderOwner::Mailbox("sales@example.org".into()),
+        writable: true,
+        ..Default::default()
+    };
+    let both = vec![person("c-di", "Di"), person("c-ed", "Ed")];
+    run(&mut s, "sync.applyContacts", json!({"download": ContactsDownload { folder: Some(shared), ..download(account, both) }}));
+    let (di, ed) = (called(&s, "Di"), called(&s, "Ed"));
+    for who in [di, ed] {
+        run(&mut s, "people.edit", json!({"id": who, "last": "Ray"}));
+    }
+    let ops = upload(&mut s, account).ops;
+    assert_eq!(ops.len(), 2);
+    for who in [di, ed] {
+        run(&mut s, "people.edit", json!({"id": who, "notes": "Met in May"}));
+    }
+    let outcomes = ops.iter().map(|op| ContactOutcome { op: op.clone(), result: ContactResult::Denied, ..Default::default() }).collect();
+    run(&mut s, "sync.applyContactChanges", json!({"result": ContactsUploaded { account, email: EMAIL.into(), outcomes, ..Default::default() }}));
+    for who in [di, ed] {
+        let c = s.mailbox.contact(who).unwrap();
+        assert_eq!((c.last.as_str(), c.notes.as_str()), ("", "Met in May"));
+    }
+    assert_eq!(notes(&s), [(di, ContactChangeKind::Change, vec![ContactField::Notes]), (ed, ContactChangeKind::Change, vec![ContactField::Notes])]);
+    assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-leads" && !f.writable));
+}
+
+/// Review of #1937: a whole read of a folder the server has nothing in drops the position the
+/// server forgot, and what it no longer has goes.
+#[test]
+fn a_whole_empty_read_drops_a_forgotten_position() {
+    let (mut s, account) = session();
+    let main = s.mailbox.main_contact_folder(account).unwrap();
+    let stale = "https://graph.microsoft.com/v1.0/me/contactFolders/f/contacts/delta?$deltatoken=1";
+    s.mailbox.contact_folders.iter_mut().filter(|f| f.id == main).for_each(|f| f.delta = stale.into());
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![])}));
+    assert_eq!(s.mailbox.contact_folder(main).unwrap().delta, "");
+    assert!(s.mailbox.contacts.values().all(|c| c.folder != main));
+    // An incomplete one keeps it.
+    s.mailbox.contact_folders.iter_mut().filter(|f| f.id == main).for_each(|f| f.delta = stale.into());
+    run(&mut s, "sync.applyContacts", json!({"download": ContactsDownload { complete: false, ..download(account, vec![]) }}));
+    assert_eq!(s.mailbox.contact_folder(main).unwrap().delta, stale);
 }

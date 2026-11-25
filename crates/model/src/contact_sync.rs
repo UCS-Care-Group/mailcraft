@@ -304,9 +304,9 @@ pub struct ContactChange {
     /// Why it didn't go the last time, for the owner to read.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
-    /// Handed to a host to send at least once: it may have reached the server even when no answer
-    /// came back. Only a new contact that was sent is taken for one the server lists under a name
-    /// not heard yet.
+    /// Tried at least once (an answer said so, other than that the server took nothing): it may
+    /// have reached the server whatever that answer was. Only a new contact that was sent (`base`
+    /// then holds what was sent) is taken for one the server lists under a name not heard yet.
     #[serde(skip_serializing_if = "is_false")]
     pub sent: bool,
     /// For a new contact: when the server said it made it but not what it calls it (Unix
