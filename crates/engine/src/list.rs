@@ -203,15 +203,22 @@ fn view_folders(s: &Session) -> (bool, HashSet<Id>) {
             .flat_map(|f| mb.subtree(f.id))
             .collect()
     };
-    // The folders looked in, or (for every mailbox) the folders left out.
+    // The folders looked in, or (for every mailbox) the folders left out. Here: the folder in
+    // view, or while the list shows every account's of a kind, theirs (#625).
+    let here: Vec<Id> = crate::unified::in_view(s).unwrap_or_else(|| vec![folder]);
     let (everywhere, folders): (bool, HashSet<Id>) = match scope {
-        Scope::Folder => (false, HashSet::from([folder])),
-        Scope::Subfolders => (false, mb.subtree(folder).into_iter().collect()),
+        Scope::Folder => (false, here.into_iter().collect()),
+        Scope::Subfolders => (false, here.into_iter().flat_map(|f| mb.subtree(f)).collect()),
         Scope::Mailbox => {
-            let account = mb.folder(folder).map(|f| f.account);
-            let hidden = hidden(account);
-            let of_account = mb.folders.iter().filter(|f| account == Some(f.account) && !hidden.contains(&f.id));
-            (false, of_account.map(|f| f.id).collect())
+            // The mailbox in view: the folder's account's, or with every account's folder of a
+            // kind in view (#625), each of theirs.
+            let accounts: HashSet<Id> = match crate::unified::in_view(s) {
+                Some(listed) => listed.iter().filter_map(|f| mb.folder(*f)).map(|f| f.account).collect(),
+                None => mb.folder(folder).map(|f| f.account).into_iter().collect(),
+            };
+            let hidden: HashSet<Id> = accounts.iter().flat_map(|a| hidden(Some(*a))).collect();
+            let of_accounts = mb.folders.iter().filter(|f| accounts.contains(&f.account) && !hidden.contains(&f.id));
+            (false, of_accounts.map(|f| f.id).collect())
         }
         Scope::Everywhere => (true, hidden(None)),
     };
@@ -454,33 +461,36 @@ fn elsewhere(
     kept_only: &mut Vec<Id>,
 ) {
     let mb = &s.mailbox;
-    let folder = s.view.folder;
-    let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
-    let skips = mb.conversation_skips(account, folder);
-    // The account's other folders, from their own lists when the session has them counted
-    // ([`Session::fresh_counts`]), else from a walk over every message.
-    let others: Vec<&Message> = match s.fresh_counts() {
-        Some(counts) => mb
-            .folders
-            .iter()
-            .filter(|f| f.account == account && f.id != folder && !skips.contains(&f.id))
-            .flat_map(|f| counts.ids(f.id))
-            .filter_map(|id| mb.message(*id))
-            .collect(),
-        None => mb.messages.values().map(|m| m.as_ref()).collect(),
-    };
-    for m in others {
-        if m.account != account || m.folder == folder || skips.contains(&m.folder) {
-            continue;
-        }
-        let hit = filtered(s, m, me);
-        if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
-            continue;
-        }
-        if let Some(row) = index.get(&(m.account, threads.key(m.id))).and_then(|i| rows.get_mut(*i)) {
-            row.others.push(m.id);
-            if !hit {
-                kept_only.push(m.id);
+    // Each account's folder in view: one, or every account's of a kind (#625).
+    let here: Vec<Id> = crate::unified::in_view(s).unwrap_or_else(|| vec![s.view.folder]);
+    for folder in here {
+        let Some(account) = mb.folder(folder).map(|f| f.account) else { continue };
+        let skips = mb.conversation_skips(account, folder);
+        // The account's other folders, from their own lists when the session has them counted
+        // ([`Session::fresh_counts`]), else from a walk over every message.
+        let others: Vec<&Message> = match s.fresh_counts() {
+            Some(counts) => mb
+                .folders
+                .iter()
+                .filter(|f| f.account == account && f.id != folder && !skips.contains(&f.id))
+                .flat_map(|f| counts.ids(f.id))
+                .filter_map(|id| mb.message(*id))
+                .collect(),
+            None => mb.messages.values().map(|m| m.as_ref()).collect(),
+        };
+        for m in others {
+            if m.account != account || m.folder == folder || skips.contains(&m.folder) {
+                continue;
+            }
+            let hit = filtered(s, m, me);
+            if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
+                continue;
+            }
+            if let Some(row) = index.get(&(m.account, threads.key(m.id))).and_then(|i| rows.get_mut(*i)) {
+                row.others.push(m.id);
+                if !hit {
+                    kept_only.push(m.id);
+                }
             }
         }
     }

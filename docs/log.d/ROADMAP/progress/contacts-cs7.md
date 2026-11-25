@@ -1,0 +1,1 @@
+| 2026-11-25 | CS7 (#1917): Android People: the card says where a person is kept (contacts folder, or this phone), "(read only)" and "Not sent yet"; New person picks the contacts folder (people.new's default first, this phone on offer) |

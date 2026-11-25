@@ -410,14 +410,14 @@ fn fields_of(d: mailcraft_model::signature::Details) -> [String; 8] {
 }
 
 const FIELDS: [(&str, &str); 8] = [
-    ("name", "Name"),
-    ("title", "Job title"),
-    ("organisation", "Organisation"),
-    ("phone", "Phone"),
-    ("mobile", "Mobile"),
-    ("email", "Email"),
-    ("website", "Website"),
-    ("address", "Address"),
+    ("name", tl_later!("Name")),
+    ("title", tl_later!("Job title")),
+    ("organisation", tl_later!("Organisation")),
+    ("phone", tl_later!("Phone")),
+    ("mobile", tl_later!("Mobile")),
+    ("email", tl_later!("Email")),
+    ("website", tl_later!("Website")),
+    ("address", tl_later!("Address")),
 ];
 
 /// Create from details (S14): the form; changing a field lays the signature out again while it

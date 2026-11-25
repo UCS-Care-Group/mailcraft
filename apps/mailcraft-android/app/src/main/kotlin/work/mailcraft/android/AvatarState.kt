@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 /** The sender's picture for a row, when it was found; null while there is none (the initials stay). */
 internal class AvatarState(val picture: ByteArray?)
 
-private val AvatarSize = 40.dp
+private val AvatarSize = 36.dp
 
 /** The letters a sender's initials are made of: the first of up to two words, in capitals. */
 internal fun initialsOf(label: String): String {

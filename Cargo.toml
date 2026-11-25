@@ -188,4 +188,4 @@ debug = 0
 # so that files dropped on a window are attached (#523), and reading HTML and pictures from it (#1217);
 # and a window that exists brought forward with a token it was given, as a click on a desktop alert
 # gives one (#959).
-winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "987206183b7e7dc044aa2d38fbf264ff6fb8ea27" }
+winit = { git = "https://github.com/UCSLabs/winit", rev = "987206183b7e7dc044aa2d38fbf264ff6fb8ea27" }

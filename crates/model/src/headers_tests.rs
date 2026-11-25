@@ -319,6 +319,8 @@ const READS_ITS_OWN: &[(&str, &str)] = &[
 /// and what the line says).
 const NOT_A_MESSAGE: &[(&str, &str)] = &[
     ("ews/src/autodiscover.rs", "response.header("),
+    // A calendar server's answer (#209): HTTP's `Location` and `ETag`.
+    ("net/src/dav.rs", "response.header("),
     ("apps/mailcraft/src/graph_folders_flow.rs", "asked.header("),
     ("apps/mailcraft/src/alerts.rs", "signal.header("),
 ];

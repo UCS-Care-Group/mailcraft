@@ -256,6 +256,13 @@ impl Endpoint {
         self.xml(Method::Propfind, home, Some("1"), body)
     }
 
+    /// `PROPFIND` Depth 1 of a collection for each member's ETag and kind: everything it holds, the
+    /// one listing a client may take as proof that what isn't in it is gone (RFC 4918 §9.1).
+    pub fn propfind_members(&self, collection: &str) -> Result<HttpRequest, RequestError> {
+        let body = document("d:propfind", "<d:prop><d:resourcetype/><d:getetag/></d:prop>");
+        self.xml(Method::Propfind, collection, Some("1"), body)
+    }
+
     /// `PROPFIND` Depth 0 of a collection for its change tag and sync token: the cheap "has
     /// anything changed" question.
     pub fn propfind_state(&self, collection: &str) -> Result<HttpRequest, RequestError> {

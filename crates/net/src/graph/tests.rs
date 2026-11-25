@@ -938,6 +938,7 @@ fn contacts_come_page_by_page() {
             birthday: Date::new(1815, 12, 10),
             notes: "Met at the\nRoyal Society.".into(),
             modified: at(2026, 9, 30, 10, 0),
+            categories: None,
         }
     );
     // Somebody of whom only the name is known.
