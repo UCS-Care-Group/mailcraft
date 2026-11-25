@@ -928,6 +928,8 @@ const WRITTEN_PARAMS: &[&str] = &[
     "window",
     "size",
     "mime",
+    // A language tag supplied by the caller for case rules, not a name from mail.
+    "capitalLanguage",
     "expected",
     "changeKey",
     "delta",
