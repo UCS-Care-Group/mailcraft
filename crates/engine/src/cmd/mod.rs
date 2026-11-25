@@ -195,6 +195,8 @@ pub mod senders;
 #[cfg(test)]
 mod senders_tests;
 pub mod shared;
+#[cfg(test)]
+mod sieve_effects_tests;
 pub mod sieve_elsewhere;
 #[cfg(test)]
 mod sieve_elsewhere_tests;

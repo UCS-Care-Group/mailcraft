@@ -13,8 +13,9 @@
 //! refusal of MailCraft's script does.
 //!
 //! **What it may do** is whatever the server's Sieve does, `redirect`, `vacation`, `reject` and
-//! `notify` too (the owner's choice): an agent's Sieve rule that can send mail or answer a sender
-//! ([`sends`]) is asked about as a send.
+//! `notify` too (the owner's choice): an agent's Sieve rule that can send mail or answer a sender,
+//! hand mail to a program, or uses a command MailCraft doesn't know ([`sends`]) is asked about as
+//! a send; one that changes messages ([`crate::sieve_check::Effect::Rewrites`]) is asked as a settings change that says so.
 //!
 //! **The text is data.** It is the owner's (or an agent's) Sieve, shown as it is and never read
 //! as an instruction by MailCraft.
@@ -24,7 +25,7 @@ use mailcraft_model::{Account, Id, Keep, MAX_RULES, MAX_SIEVE_RULE, Rule, clean_
 use serde_json::{Value, json};
 
 use super::{bad, fail};
-use crate::sieve_check::{Checked, Fault, Problem, check_block};
+use crate::sieve_check::{Checked, Fault, Problem, Use, check_block, effects};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -85,16 +86,19 @@ pub fn checked(a: &Account, text: &str) -> Result<Checked, CmdError> {
     Ok(checked)
 }
 
-/// Whether Sieve `text` can send mail or answer a sender (#9999): it uses `redirect` (with
-/// `:copy` too), `vacation`, `reject`, `ereject` or `notify`, or `include`s another script, which
-/// may. Read by the tokenizer, so that a word in a string or a comment doesn't count; text that
-/// can't be read counts as one that can.
+/// What Sieve `text` (a rule's block) can do: its commands and tests as the table of
+/// [`crate::sieve_check`] classes them ([`effects`]), read from its parsed commands, so that a word
+/// in a string or a comment doesn't count; `None` when it can't be read.
+pub fn rule_effects(text: &str) -> Option<Vec<Use>> {
+    effects(&crate::sieve::crlf_lines(text))
+}
+
+/// Whether Sieve `text` can send mail or answer a sender, or hand mail to a program on the server
+/// (#9999): it uses a command whose [`crate::sieve_check::Effect`] reaches out (`redirect`, `vacation`, `reject`,
+/// `ereject`, `notify`, `report`, `include`, `pipe`, `filter`, `execute`) or one the table doesn't
+/// know. Text that can't be read counts as one that can.
 pub fn sends(text: &str) -> bool {
-    const SENDING: [&str; 6] = ["redirect", "vacation", "reject", "ereject", "notify", "include"];
-    match crate::sieve::lex(&crate::sieve::crlf_lines(text)) {
-        Some(lexed) => lexed.toks.iter().any(|(t, _)| matches!(t, crate::sieve::Tok::Ident(w) if SENDING.contains(&w.as_str()))),
-        None => true,
-    }
+    rule_effects(text).is_none_or(|uses| uses.iter().any(|u| u.effect.reaches_out()))
 }
 
 /// The account a Sieve rule is for: one whose server keeps MailCraft's Sieve script.

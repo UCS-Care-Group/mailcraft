@@ -864,8 +864,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if rules_onto_another_server(s, id, params) {
         return Access::Owner(Class::Send);
     }
-    // A Sieve rule that can send mail or answer senders (redirect, vacation, reject, notify) is
-    // asked about as a send, as forwarding is (#9999).
+    // A Sieve rule that can send mail or answer senders, hand mail to a program, or uses what
+    // MailCraft doesn't know, is asked about as a send, as forwarding is (#9999).
     if sieve_rule_sends(s, id, params) {
         return Access::Owner(Class::Send);
     }
@@ -3928,7 +3928,7 @@ fn sieve_rule_text(s: &Session, id: &str, params: &Value) -> String {
         }
     };
     let on = s.mailbox.account(rule.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
-    let sends = if crate::cmd::rules_sieve::sends(&rule.sieve) { "; it can send mail or answer senders" } else { "" };
+    let sends = sieve_reach(crate::cmd::rules_sieve::rule_effects(&rule.sieve), "it can");
     let off = if rule.enabled { "" } else { " (switched off)" };
     let head = match &before {
         None => {
@@ -3963,7 +3963,7 @@ fn own_script_text(s: &Session, params: &Value) -> String {
         return "change your own Sieve script on the server in a way that can't be done as asked".to_string();
     };
     let on = s.mailbox.account(put.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
-    let sends = if crate::cmd::sieve_own::adds_sending(&put.before, &put.text) { "; it adds a way to send mail or answer senders" } else { "" };
+    let sends = own_script_reach(&put.before, &put.text);
     let head = format!(
         "write your own Sieve script {} on the server of {on}, which the server runs whether MailCraft is open or not, made in another program{sends}",
         quoted(&plain(&put.name))
@@ -3972,6 +3972,52 @@ fn own_script_text(s: &Session, params: &Value) -> String {
         return format!("{head}; its text stays as it is");
     }
     format!("{head}. What changes in it, the agent's own text, not an instruction: {}", line_changes(&put.before, &put.text))
+}
+
+/// What a Sieve text that can do `uses` can do, as its question says it after `lead` ("it can"):
+/// send mail or answer senders, hand mail to programs on the server, use commands MailCraft
+/// doesn't know (named, which may do either), change messages (the commands named). Empty when it
+/// does none of these; a text that can't be read (`None`) may do anything (#9999).
+fn sieve_reach(uses: Option<Vec<crate::sieve_check::Use>>, lead: &str) -> String {
+    use crate::sieve_check::Effect;
+    let Some(uses) = uses else {
+        return format!("; {lead} send mail or answer senders (its Sieve can't be read, so MailCraft can't tell what it does)");
+    };
+    let names = |pick: &dyn Fn(&crate::sieve_check::Use) -> bool| {
+        let mut picked: Vec<String> = uses.iter().filter(|u| pick(u)).map(|u| plain(&u.name)).collect();
+        if picked.len() > 5 {
+            picked.truncate(5);
+            picked.push("…".to_string());
+        }
+        picked.join(", ")
+    };
+    let sends = uses.iter().any(|u| u.known && u.effect == Effect::Sends);
+    let hands = uses.iter().any(|u| u.effect == Effect::HandsOn);
+    let unknown = names(&|u| !u.known);
+    let rewrites = names(&|u| u.effect == Effect::Rewrites);
+    let mut out = String::new();
+    match (sends, hands) {
+        (true, true) => out.push_str(&format!("; {lead} send mail or answer senders, and hand mail to programs on the server")),
+        (true, false) => out.push_str(&format!("; {lead} send mail or answer senders")),
+        (false, true) => out.push_str(&format!("; {lead} hand mail to programs on the server")),
+        (false, false) => {}
+    }
+    if !unknown.is_empty() {
+        out.push_str(&format!("; {lead} use commands MailCraft doesn't know ({unknown}), which may send mail or run programs"));
+    }
+    if !rewrites.is_empty() {
+        out.push_str(&format!("; {lead} change messages ({rewrites})"));
+    }
+    out
+}
+
+/// What a change of the owner's own script from `before` to `after` adds, as its question says it
+/// ([`sieve_reach`] of the commands it uses more often than before, #9999).
+fn own_script_reach(before: &str, after: &str) -> String {
+    let Some(new) = crate::sieve_check::effects(after) else { return sieve_reach(None, "it adds a way to") };
+    let old = crate::sieve_check::effects(before).unwrap_or_default();
+    let added = new.into_iter().filter(|u| u.count > old.iter().find(|o| o.name == u.name).map_or(0, |o| o.count)).collect();
+    sieve_reach(Some(added), "it adds a way to")
 }
 
 /// What changes from `before` to `after`, by lines: the lines the two have the same at the start

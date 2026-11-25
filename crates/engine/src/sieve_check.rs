@@ -16,7 +16,9 @@
 //! subaddress 5233, copy 3894, reject and ereject 5429, include 6609, variables 5229, date and
 //! index 5260, mailbox and metadata 5490, enotify 5435, editheader 5293, ihave 5463, environment
 //! 5183, spamtest and virustest 5235, extlists 6134, duplicate 7352, special-use 8579, fcc 8580,
-//! mime and its actions 5703, and regex). A script that requires one not known here has what it
+//! mime and its actions 5703, and regex; and Dovecot's vendor extensions `vnd.dovecot.report`
+//! and the extprograms `vnd.dovecot.pipe`, `vnd.dovecot.filter` and `vnd.dovecot.execute`, as
+//! their public documentation names them). A script that requires one not known here has what it
 //! adds unchecked: what isn't known is then a warning, not an error.
 //!
 //! **The script is hostile.** It is read by the bounded tokenizer ([`crate::sieve::lex_or_why`],
@@ -24,6 +26,11 @@
 //! ([`crate::cmd::sieve_elsewhere`]): how deep it nests, how many commands it has, how many
 //! arguments one has and how many tests one list holds. Nothing of it runs, and nothing of it is
 //! said as an instruction: a problem names a command, a tag or an extension of it, and where it is.
+//!
+//! **What a script can do** is in the same table: each command and test has its [`Effect`], and
+//! [`effects`] reads a script's from its parsed commands (a word in a string or a comment is no
+//! command). What isn't in the table counts as sending, and so does a text that can't be read:
+//! an agent's approval asks the most it could need ([`crate::agent`]).
 
 use std::ops::Range;
 
@@ -273,6 +280,10 @@ pub const EXTENSIONS: &[&str] = &[
     "enclose",
     "extracttext",
     "regex",
+    "vnd.dovecot.report",
+    "vnd.dovecot.pipe",
+    "vnd.dovecot.filter",
+    "vnd.dovecot.execute",
 ];
 
 /// The comparators known (RFC 4790, 5051): the first two need no `require`.
@@ -294,6 +305,78 @@ enum Kind {
     Control,
     Action,
     Test,
+    /// An action that may also be a test (Dovecot's `filter` and `execute`).
+    Either,
+}
+
+impl Kind {
+    fn can_test(self) -> bool {
+        matches!(self, Kind::Test | Kind::Either)
+    }
+}
+
+/// What a command or test can do beyond this message's place and flags, from the least to the
+/// most (#9999).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Effect {
+    /// Files, flags, keeps, discards, tests, sets variables: nothing leaves the server.
+    Local,
+    /// Changes the message itself (`addheader`, `deleteheader`, `replace`, `enclose`).
+    Rewrites,
+    /// Hands the message or data to a program on the server (`pipe`, `filter`, `execute`).
+    HandsOn,
+    /// Sends mail or answers a sender (`redirect`, `vacation`, `reject`, `ereject`, `notify`,
+    /// `report`), or brings in another script that may (`include`); and whatever isn't known.
+    Sends,
+}
+
+impl Effect {
+    /// Whether an agent's approval of it asks as a send: it sends, or hands mail to a program.
+    pub fn reaches_out(self) -> bool {
+        self >= Effect::HandsOn
+    }
+}
+
+/// One command or test a script uses: its name (lower case, at most 64 bytes), what it can do,
+/// whether the table knows it, and how many times it is used.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Use {
+    pub name: String,
+    pub effect: Effect,
+    pub known: bool,
+    pub count: usize,
+}
+
+/// The commands and tests `script` uses, each once with its count, in the order first used; `None`
+/// when it can't be read as Sieve (which an approval counts as sending). A name not in the table
+/// is [`Effect::Sends`]. Only the syntax is read: a script with other mistakes still answers.
+pub fn effects(script: &str) -> Option<Vec<Use>> {
+    fn walk(nodes: &[Node], out: &mut Vec<Use>) {
+        for node in nodes {
+            note(node, out);
+            if let Some(block) = &node.block {
+                walk(block, out);
+            }
+        }
+    }
+    fn note(node: &Node, out: &mut Vec<Use>) {
+        let name = short(&node.name.to_ascii_lowercase());
+        match out.iter_mut().find(|u| u.name == name) {
+            Some(u) => u.count = u.count.saturating_add(1),
+            None => {
+                let spec = lookup(&name);
+                let effect = spec.map_or(Effect::Sends, |s| s.effect);
+                out.push(Use { name, effect, known: spec.is_some(), count: 1 });
+            }
+        }
+        for t in &node.tests {
+            note(t, out);
+        }
+    }
+    let nodes = parse(script).ok()?;
+    let mut out = Vec::new();
+    walk(&nodes, &mut out);
+    Some(out)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -327,6 +410,7 @@ struct Spec {
     block: bool,
     /// A group of tags one of which must be given (0 for none).
     needs_group: u8,
+    effect: Effect,
 }
 
 const fn tag(name: &'static str, value: Option<Wants>, ext: &'static [&'static str], group: u8) -> TagSpec {
@@ -350,6 +434,7 @@ const G_QUOTE: u8 = 9;
 const G_WHERE: u8 = 10;
 const G_ID: u8 = 11;
 const G_MIME: u8 = 12;
+const G_INPUT: u8 = 13;
 
 const COMPARATOR: &[TagSpec] = &[tag("comparator", S, NONE, 0)];
 const MATCH: &[TagSpec] = &[
@@ -420,13 +505,20 @@ const NAME: &[TagSpec] = &[tag("name", S, NONE, 0)];
 const REPLACE: &[TagSpec] = &[tag("mime", None, NONE, 0), tag("subject", S, NONE, 0), tag("from", S, NONE, 0)];
 const ENCLOSE: &[TagSpec] = &[tag("subject", S, NONE, 0), tag("headers", L, NONE, 0)];
 const FIRST: &[TagSpec] = &[tag("first", N, NONE, 0)];
+const HEADERS_ONLY: &[TagSpec] = &[tag("headers_only", None, NONE, 0)];
+const TRY: &[TagSpec] = &[tag("try", None, NONE, 0)];
+const EXECUTE: &[TagSpec] = &[tag("input", S, NONE, G_INPUT), tag("pipe", None, NONE, G_INPUT), tag("output", S, NONE, 0)];
 
 const STR: Wants = Wants::Str;
 const LIST: Wants = Wants::List;
 const NUM: Wants = Wants::Num;
 
 const fn spec(name: &'static str, kind: Kind, ext: &'static [&'static str], tags: &'static [&'static [TagSpec]], pos: &'static [Wants]) -> Spec {
-    Spec { name, kind, ext, tags, pos, lead: 0, trail: 0, tests: Takes::No, block: false, needs_group: 0 }
+    Spec { name, kind, ext, tags, pos, lead: 0, trail: 0, tests: Takes::No, block: false, needs_group: 0, effect: Effect::Local }
+}
+
+const fn does(effect: Effect, s: Spec) -> Spec {
+    Spec { effect, ..s }
 }
 
 const fn with_test(s: Spec, tests: Takes) -> Spec {
@@ -441,7 +533,8 @@ const fn optional(s: Spec, lead: usize, trail: usize) -> Spec {
     Spec { lead, trail, ..s }
 }
 
-use Kind::{Action, Control, Test};
+use Effect::{HandsOn, Rewrites, Sends};
+use Kind::{Action, Control, Either, Test};
 
 /// Every command and test known, with what it takes and needs.
 const SPECS: &[Spec] = &[
@@ -453,7 +546,7 @@ const SPECS: &[Spec] = &[
     spec("stop", Control, NONE, &[], &[]),
     spec("keep", Action, NONE, &[FLAGS], &[]),
     spec("discard", Action, NONE, &[], &[]),
-    spec("redirect", Action, NONE, &[COPY], &[STR]),
+    does(Sends, spec("redirect", Action, NONE, &[COPY], &[STR])),
     spec("fileinto", Action, &["fileinto"], &[COPY, FLAGS, FILEINTO], &[STR]),
     spec("address", Test, NONE, &[COMPARATOR, MATCH, ADDRESS_PART, INDEX, MIME_ANY], &[LIST, LIST]),
     spec("envelope", Test, &["envelope"], &[COMPARATOR, MATCH, ADDRESS_PART], &[LIST, LIST]),
@@ -471,14 +564,14 @@ const SPECS: &[Spec] = &[
     optional(spec("removeflag", Action, &["imap4flags"], &[], &[STR, LIST]), 1, 0),
     optional(spec("hasflag", Test, &["imap4flags"], &[COMPARATOR, MATCH], &[LIST, LIST]), 1, 0),
     // RFC 5230, 6131, 8580.
-    spec("vacation", Action, &["vacation"], &[VACATION, FCC], &[STR]),
+    does(Sends, spec("vacation", Action, &["vacation"], &[VACATION, FCC], &[STR])),
     // RFC 5173.
     spec("body", Test, &["body"], &[COMPARATOR, MATCH, BODY], &[LIST]),
     // RFC 5429.
-    spec("reject", Action, &["reject"], &[], &[STR]),
-    spec("ereject", Action, &["ereject"], &[], &[STR]),
+    does(Sends, spec("reject", Action, &["reject"], &[], &[STR])),
+    does(Sends, spec("ereject", Action, &["ereject"], &[], &[STR])),
     // RFC 6609.
-    spec("include", Control, &["include"], &[INCLUDE], &[STR]),
+    does(Sends, spec("include", Control, &["include"], &[INCLUDE], &[STR])),
     spec("return", Control, &["include"], &[], &[]),
     spec("global", Control, &["include", "variables"], &[], &[LIST]),
     // RFC 5229.
@@ -494,12 +587,12 @@ const SPECS: &[Spec] = &[
     spec("servermetadata", Test, &["servermetadata"], &[COMPARATOR, MATCH], &[STR, LIST]),
     spec("servermetadataexists", Test, &["servermetadata"], &[], &[LIST]),
     // RFC 5435.
-    spec("notify", Action, &["enotify"], &[NOTIFY, FCC], &[STR]),
+    does(Sends, spec("notify", Action, &["enotify"], &[NOTIFY, FCC], &[STR])),
     spec("valid_notify_method", Test, &["enotify"], &[], &[LIST]),
     spec("notify_method_capability", Test, &["enotify"], &[COMPARATOR, MATCH], &[STR, STR, LIST]),
     // RFC 5293.
-    spec("addheader", Action, &["editheader"], &[LAST], &[STR, STR]),
-    optional(spec("deleteheader", Action, &["editheader"], &[DELETEHEADER, COMPARATOR, MATCH], &[STR, LIST]), 0, 1),
+    does(Rewrites, spec("addheader", Action, &["editheader"], &[LAST], &[STR, STR])),
+    does(Rewrites, optional(spec("deleteheader", Action, &["editheader"], &[DELETEHEADER, COMPARATOR, MATCH], &[STR, LIST]), 0, 1)),
     // RFC 5463.
     spec("ihave", Test, &["ihave"], &[], &[LIST]),
     spec("error", Control, &["ihave"], &[], &[STR]),
@@ -517,9 +610,15 @@ const SPECS: &[Spec] = &[
     // RFC 5703.
     with_block(spec("foreverypart", Control, &["foreverypart"], &[NAME], &[])),
     spec("break", Control, &["foreverypart"], &[NAME], &[]),
-    spec("replace", Action, &["replace"], &[REPLACE], &[STR]),
-    spec("enclose", Action, &["enclose"], &[ENCLOSE], &[STR]),
+    does(Rewrites, spec("replace", Action, &["replace"], &[REPLACE], &[STR])),
+    does(Rewrites, spec("enclose", Action, &["enclose"], &[ENCLOSE], &[STR])),
     spec("extracttext", Action, &["extracttext"], &[MODIFIERS, FIRST], &[STR]),
+    // Dovecot's vendor extensions, as their public documentation gives them: an abuse report
+    // (MARF, RFC 5965) sent to an address, and programs on the server handed the message or data.
+    does(Sends, spec("report", Action, &["vnd.dovecot.report"], &[HEADERS_ONLY], &[STR, STR, STR])),
+    does(HandsOn, optional(spec("pipe", Action, &["vnd.dovecot.pipe"], &[TRY, COPY], &[STR, LIST]), 0, 1)),
+    does(HandsOn, optional(spec("filter", Either, &["vnd.dovecot.filter"], &[], &[STR, LIST]), 0, 1)),
+    does(HandsOn, optional(spec("execute", Either, &["vnd.dovecot.execute"], &[EXECUTE], &[STR, LIST]), 0, 1)),
 ];
 
 fn lookup(name: &str) -> Option<&'static Spec> {
@@ -850,7 +949,7 @@ impl Ctx<'_> {
         self.args(spec, node);
         // A command that takes no test, followed by what is a command: its `;` was left out.
         let missing_semicolon =
-            spec.tests == Takes::No && !node.test_list && node.tests.first().is_some_and(|t| lookup(&t.name).is_some_and(|s| s.kind != Kind::Test));
+            spec.tests == Takes::No && !node.test_list && node.tests.first().is_some_and(|t| lookup(&t.name).is_some_and(|s| !s.kind.can_test()));
         if missing_semicolon {
             self.error(Fault::MissingSemicolon, node.args_end..node.args_end);
             if let Some(block) = &node.block {
@@ -896,7 +995,7 @@ impl Ctx<'_> {
             }
             return;
         };
-        if spec.kind != Kind::Test {
+        if !spec.kind.can_test() {
             self.error(Fault::CommandAsTest(short(spec.name)), node.name_at.clone());
             return;
         }
