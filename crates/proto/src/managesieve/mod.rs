@@ -72,6 +72,71 @@ impl Capabilities {
     }
 }
 
+/// Most of a server's answer to CHECKSCRIPT kept for the script's editor, in bytes: more than an
+/// error message ([`crate::tidy`] keeps 300 characters), as a server may list a problem a line.
+pub const MAX_CHECK_TEXT: usize = 4 * 1024;
+
+/// What the server said of a script it checked ([`ManageSieve::check_script`]): its own words,
+/// secrets hidden, line breaks kept (as `\n`), no other control or direction character, at most
+/// [`MAX_CHECK_TEXT`] bytes.
+#[derive(Clone, PartialEq, Eq)]
+pub enum ScriptCheck {
+    /// Nothing wrong.
+    Fine,
+    /// Nothing wrong, but the server has something to say (`OK (WARNINGS)`).
+    Warnings(String),
+    /// The server refused it: why, in its words (empty when it gave none).
+    Errors(String),
+}
+
+/// What the server said may quote the script: only its size reaches debug output.
+impl std::fmt::Debug for ScriptCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScriptCheck::Fine => f.write_str("Fine"),
+            ScriptCheck::Warnings(text) => write!(f, "Warnings({} bytes)", text.len()),
+            ScriptCheck::Errors(text) => write!(f, "Errors({} bytes)", text.len()),
+        }
+    }
+}
+
+/// A server's words about a script as an editor shows them: lines kept, each without control
+/// characters (a tab is a space), line separators or the characters that turn the direction of
+/// text, trailing blanks and blank lines at either end gone, blank lines between kept as one, at most [`MAX_CHECK_TEXT`] bytes, on a character
+/// boundary, with `…` when cut.
+pub fn kept_text(text: &str) -> String {
+    let mut out = String::new();
+    let mut cut = false;
+    for line in text.replace("\r\n", "\n").split(['\n', '\r']) {
+        let line: String = line
+            .chars()
+            .map(|c| if c == '\t' { ' ' } else { c })
+            .filter(|c| {
+                !c.is_control() && !matches!(c, '\u{200e}' | '\u{200f}' | '\u{2028}' | '\u{2029}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+            })
+            .collect();
+        let line = line.trim_end();
+        if line.is_empty() && (out.is_empty() || out.ends_with("\n\n")) {
+            continue;
+        }
+        for c in line.chars().chain(std::iter::once('\n')) {
+            if out.len().saturating_add(c.len_utf8()) > MAX_CHECK_TEXT.saturating_sub('…'.len_utf8()) {
+                cut = true;
+                break;
+            }
+            out.push(c);
+        }
+        if cut {
+            break;
+        }
+    }
+    let mut out = out.trim_end().to_string();
+    if cut {
+        out.push('…');
+    }
+    out
+}
+
 /// One script of a listing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScriptEntry {
@@ -331,15 +396,24 @@ impl<S: Read + Write> ManageSieve<S> {
         }
     }
 
-    /// Have the server check a script without keeping it (CHECKSCRIPT; a server from before RFC
-    /// 5804 has none, and checks a script when it is written). Its warnings, when it has any; a
-    /// script with errors is refused with the server's words.
-    pub fn check_script(&mut self, script: &str) -> Result<Option<String>, ProtoError> {
+    /// Have the server check a script without keeping it (CHECKSCRIPT, RFC 5804 §2.12; a server
+    /// from before RFC 5804 has none, and checks a script when it is written). What it said of the
+    /// script, line breaks kept for an editor to show ([`ScriptCheck`]); an error only when the
+    /// session went wrong.
+    pub fn check_script(&mut self, script: &str) -> Result<ScriptCheck, ProtoError> {
         let mut line = b"CHECKSCRIPT ".to_vec();
         line.extend_from_slice(&script_literal(script)?);
         line.extend_from_slice(b"\r\n");
         let (_, done) = self.command(&line, &format!("CHECKSCRIPT ({} bytes)", script.len()))?;
-        self.written(&done)
+        let text = || kept_text(&self.secrets.hide(&done.text));
+        Ok(match done.status {
+            Status::Ok if done.code.as_deref() == Some("WARNINGS") => ScriptCheck::Warnings(text()),
+            Status::Ok => ScriptCheck::Fine,
+            _ => {
+                let said = text();
+                ScriptCheck::Errors(if said.is_empty() { done.code.as_deref().map(tidy).unwrap_or_default() } else { said })
+            }
+        })
     }
 
     /// Write the script `name` (made anew, or in the place of the one of that name), as it is
@@ -392,7 +466,7 @@ impl<S: Read + Write> ManageSieve<S> {
         if done.status == Status::Ok { Ok(()) } else { Err(self.refused(&done)) }
     }
 
-    /// The answer to PUTSCRIPT or CHECKSCRIPT: its warnings, or why it was refused.
+    /// The answer to PUTSCRIPT: its warnings, or why it was refused.
     fn written(&self, done: &Done) -> Result<Option<String>, ProtoError> {
         match done.status {
             Status::Ok if done.code.as_deref() == Some("WARNINGS") => Ok(Some(tidy(&self.secrets.hide(&done.text)))),

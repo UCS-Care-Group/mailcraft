@@ -175,6 +175,26 @@ pub fn whole_script(mb: &mailcraft_model::Mailbox, account: Id, vacation: &Vacat
     (script(vacation, &owner, &rules), activate)
 }
 
+/// The replies as `known` has them, for the script.
+fn vacation_of(known: &Known) -> Vacation {
+    Vacation {
+        status: known.status,
+        start: known.start,
+        end: known.end,
+        internal: known.internal.clone(),
+        external: known.external.clone(),
+        audience: known.audience,
+    }
+}
+
+/// MailCraft's whole script for `account` with the rules `rules`, and the replies as last known
+/// (none while they aren't): what a Sieve rule's text is checked inside on the server
+/// ([`super::rules_sieve::for_server_check`]).
+pub(super) fn script_with(s: &Session, a: &Account, rules: &[crate::sieve::RuleScript]) -> String {
+    let vacation = s.auto_replies.get(&a.id).map_or_else(|| vacation_of(&Known::default()), vacation_of);
+    script(&vacation, &owner_of(a), rules)
+}
+
 /// Mark `account`'s rules as its server has them (`held`: the script it runs is MailCraft's,
 /// with them in it), or as this computer's to run. Whether anything changed.
 fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool) -> bool {
@@ -214,14 +234,7 @@ pub fn script_due(s: &Session, account: Id, replace: bool) -> Option<Value> {
         None if replace && sieve.changed_elsewhere => &blank,
         None => return None,
     };
-    let vacation = Vacation {
-        status: known.status,
-        start: known.start,
-        end: known.end,
-        internal: known.internal.clone(),
-        external: known.external.clone(),
-        audience: known.audience,
-    };
+    let vacation = vacation_of(known);
     let (text, activate) = whole_script(&s.mailbox, account, &vacation);
     let wanted = digest(&text);
     let there = sieve.now.clone();

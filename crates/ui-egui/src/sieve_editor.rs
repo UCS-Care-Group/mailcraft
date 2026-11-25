@@ -1,0 +1,461 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The Sieve rule editor (#9999), under Advanced… in Rules and Alerts, for an account whose server
+//! keeps MailCraft's Sieve script: a Sieve rule's name and its text (one block of Sieve, RFC 5228,
+//! in MailCraft's script), with line numbers, the lines with a mistake marked, and the problems
+//! listed below (a click on one puts the cursor there). Outlook has no such editor: this one is
+//! MailCraft's own, and it never shows for other accounts.
+//!
+//! **Two checks.** While the owner types, the text is checked here once typing pauses
+//! ([`mailcraft_engine::cmd::rules_sieve::editor_problems`], with the extensions the server last
+//! said it has). Check asks the server itself (ManageSieve's CHECKSCRIPT, through the host, never
+//! offline): the text goes inside the script MailCraft would write
+//! ([`mailcraft_engine::cmd::rules_sieve::for_server_check`]), so the server sees it where it
+//! would run, and the lines it names are said as the rule's own. Save runs `rules.addSieve` or
+//! `rules.editSieve`, which check the text again; it waits while the text has a mistake. Warnings
+//! are shown and don't keep it from being saved.
+//!
+//! **Hostile text.** What the server says is capped and without control characters
+//! (`mailcraft_proto::managesieve::kept_text`); the text typed is at most
+//! [`MAX_SIEVE_RULE`] bytes, and is the owner's, shown as it is and never run here.
+
+use egui::text::{CCursor, CCursorRange, LayoutJob};
+use egui::{Align, Align2, FontId, Rect, Sense, Shape, Ui, pos2, vec2};
+use mailcraft_engine::cmd::rules_sieve::{ForCheck, ServerLine, editor_problems, for_server_check, server_lines};
+use mailcraft_engine::sieve_check::Problem;
+use mailcraft_model::{Id, MAX_SIEVE_RULE, Mailbox};
+use serde_json::{Value, json};
+
+use crate::forms::kit::shown;
+use crate::sieve_replies::{ServerCheck, SieveTrouble};
+use crate::theme::{Tokens, regular};
+use crate::{MailApp, now_ms};
+
+/// How long typing pauses before the text is checked here (milliseconds).
+const QUIET_MS: f64 = 300.0;
+/// From this size on, the editor says how much of [`MAX_SIEVE_RULE`] is used.
+const NEAR_CAP: usize = MAX_SIEVE_RULE / 4 * 3;
+/// Most problems listed under the editor.
+const MAX_LISTED: usize = 50;
+/// What a new Sieve rule starts with.
+const STARTER: &str =
+    "# Runs on the server, in its place among your rules.\nif address :is \"from\" \"news@example.org\" {\n  fileinto \"INBOX\";\n}\n";
+
+/// What the server said of the text, and the text it said it of.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ServerSaid {
+    /// The text checked: what is said goes grey once the text has changed since.
+    text: String,
+    kind: Said,
+    /// The server's words, a line each, with the rule's line each names.
+    lines: Vec<ServerLine>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Said {
+    Fine,
+    Warnings,
+    Errors,
+    NotOffered,
+    /// The server couldn't be asked: why.
+    Failed(String),
+}
+
+/// What the editor asks of the dialog it is in, which does it once the frame is drawn.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum EditorAsks {
+    Check,
+    /// Run this command (`rules.addSieve` or `rules.editSieve`) with these params.
+    Save(&'static str, Value),
+    Cancel,
+}
+
+/// A Sieve rule being written or changed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SieveEditor {
+    /// The account whose server keeps it.
+    pub(crate) account: Id,
+    /// The rule changed; `None` for a new one.
+    pub(crate) id: Option<Id>,
+    pub(crate) name: String,
+    pub(crate) text: String,
+    /// The text the problems are of (`None` before the first check here), and those problems.
+    checked: Option<String>,
+    pub(crate) problems: Vec<Problem>,
+    /// When the text last changed (milliseconds): the check here waits for typing to pause.
+    edited: Option<u64>,
+    /// The server's check under way: its ticket, and what it checks.
+    asking: Option<(u64, ForCheck, String)>,
+    server: Option<ServerSaid>,
+    /// Put the cursor at this line and column (from 1) in the next frame.
+    pub(crate) goto: Option<(usize, usize)>,
+    /// What a command refused, or why Check couldn't run.
+    pub(crate) error: String,
+    focus: bool,
+}
+
+/// Whether Rules and Alerts offers Advanced… for `account`: its server keeps MailCraft's Sieve
+/// script, and isn't known to offer none.
+pub(crate) fn offered(app: &MailApp, account: Id) -> bool {
+    app.session.mailbox.account(account).is_some_and(mailcraft_model::Account::keeps_sieve)
+        && app.sieve.trouble.get(&account) != Some(&SieveTrouble::Unavailable)
+}
+
+impl SieveEditor {
+    /// A new Sieve rule of `account`'s, with a short starter.
+    pub(crate) fn new_rule(account: Id) -> SieveEditor {
+        SieveEditor { account, text: STARTER.to_string(), focus: true, ..Default::default() }
+    }
+
+    /// The Sieve rule `id`, to change; `None` when it isn't one.
+    pub(crate) fn open(mb: &Mailbox, id: Id) -> Option<SieveEditor> {
+        let r = mb.rules.iter().find(|r| r.id == id && r.is_sieve())?;
+        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() })
+    }
+
+    /// The problems that are mistakes (not warnings).
+    fn errors(&self) -> usize {
+        self.problems.iter().filter(|p| !p.warning).count()
+    }
+
+    /// Whether the text is checked here as it is now.
+    fn checked_now(&self) -> bool {
+        self.checked.as_deref() == Some(self.text.as_str())
+    }
+
+    /// Before the frame is drawn: the server's answer, if it came, and the check here once typing
+    /// has paused.
+    pub(crate) fn tick(&mut self, app: &mut MailApp, ctx: &egui::Context) {
+        if let Some((ticket, for_check, text)) = self.asking.clone() {
+            match app.sieve_check_answer(ticket) {
+                Some(result) => {
+                    self.asking = None;
+                    let failed = |why: String| ServerSaid { text: text.clone(), kind: Said::Failed(why), lines: Vec::new() };
+                    self.server = Some(match result.checked {
+                        Some(ServerCheck::Fine) => ServerSaid { text, kind: Said::Fine, lines: Vec::new() },
+                        Some(ServerCheck::Warnings(said)) => ServerSaid { kind: Said::Warnings, lines: server_lines(&said, &for_check), text },
+                        Some(ServerCheck::Errors(said)) => ServerSaid { kind: Said::Errors, lines: server_lines(&said, &for_check), text },
+                        Some(ServerCheck::NotOffered) => ServerSaid { text, kind: Said::NotOffered, lines: Vec::new() },
+                        None if result.unavailable && !result.why.is_empty() => failed(result.why),
+                        None if result.unavailable => failed(tl!("This account's server doesn't offer Sieve scripts (ManageSieve).").to_string()),
+                        None if result.sign_in_refused => failed(tl!("The server didn't take your sign-in.").to_string()),
+                        None if !result.error.is_empty() => failed(result.error),
+                        None => failed(tl!("The check stopped unexpectedly").to_string()),
+                    });
+                }
+                None if app.sieve_check_busy(ticket) => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
+                None => self.asking = None,
+            }
+        }
+        if self.checked_now() {
+            return;
+        }
+        let now = now_ms();
+        let quiet = self.edited.map_or(QUIET_MS, |at| now - at as f64);
+        if quiet < QUIET_MS {
+            ctx.request_repaint_after(std::time::Duration::from_millis((QUIET_MS - quiet).clamp(1.0, QUIET_MS) as u64));
+            return;
+        }
+        self.check_here(&app.session.mailbox);
+    }
+
+    /// Check the text here now ([`editor_problems`]).
+    pub(crate) fn check_here(&mut self, mb: &Mailbox) {
+        self.problems = match mb.account(self.account) {
+            Some(a) if self.text.len() <= MAX_SIEVE_RULE => editor_problems(a, &self.text),
+            _ => Vec::new(),
+        };
+        self.checked = Some(self.text.clone());
+    }
+
+    /// Check asked for: the text in MailCraft's script, to the server.
+    pub(crate) fn check_on_server(&mut self, app: &mut MailApp) {
+        self.error.clear();
+        let made = for_server_check(&app.session, self.account, self.id, &self.name, &self.text).map_err(|e| app.refusal_said(&e.to_string()));
+        let asked = made.and_then(|for_check| app.sieve_check_start(self.account, for_check.script.clone()).map(|ticket| (ticket, for_check)));
+        match asked {
+            Ok((ticket, for_check)) => {
+                self.asking = Some((ticket, for_check, self.text.clone()));
+                self.server = None;
+            }
+            Err(why) => self.server = Some(ServerSaid { text: self.text.clone(), kind: Said::Failed(why), lines: Vec::new() }),
+        }
+    }
+
+    /// The command Save runs, with its params.
+    pub(crate) fn command(&self) -> (&'static str, Value) {
+        match self.id {
+            Some(id) => ("rules.editSieve", json!({"id": id, "name": self.name, "sieve": self.text})),
+            None => ("rules.addSieve", json!({"account": self.account, "name": self.name, "sieve": self.text})),
+        }
+    }
+
+    /// Why Save can't run yet, in words; `None` when it can.
+    fn lacks(&self) -> Option<&'static str> {
+        if self.name.trim().is_empty() {
+            return Some(tl!("A Sieve rule needs a name."));
+        }
+        if self.text.trim().is_empty() {
+            return Some(tl!("A Sieve rule needs some Sieve."));
+        }
+        if self.text.len() > MAX_SIEVE_RULE {
+            return Some(tl!("A Sieve rule is at most 64 KB."));
+        }
+        if !self.checked_now() {
+            return Some(tl!("Checking…"));
+        }
+        (self.errors() > 0).then_some(tl!("Correct the mistakes first."))
+    }
+
+    /// The editor, in the dialog's body. What it asks of the dialog, if anything.
+    pub(crate) fn ui(&mut self, ui: &mut Ui, app: &MailApp) -> Option<EditorAsks> {
+        let t = Tokens::get(ui.ctx());
+        let mut asks = None;
+        let title = if self.id.is_some() { tl!("Change Sieve rule") } else { tl!("New Sieve rule") };
+        ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
+        ui.label(
+            egui::RichText::new(tl!(
+                "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
+            ))
+            .font(regular(11.5))
+            .color(t.text_dim),
+        );
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(tl!("Name"));
+            let name = egui::TextEdit::singleline(&mut self.name).desired_width(320.0).char_limit(mailcraft_model::MAX_NAME);
+            let _ = crate::text_menu::field(ui.add(name));
+        });
+        ui.add_space(4.0);
+        if self.code(ui, &t) {
+            self.edited = Some(now_ms() as u64);
+            self.error.clear();
+        }
+        let used = self.text.len();
+        if used >= NEAR_CAP {
+            let said = crate::i18n::fmt(
+                tl!("{used} of {most} KB"),
+                &[("used", &(used.div_ceil(1024)).to_string()), ("most", &(MAX_SIEVE_RULE >> 10).to_string())],
+            );
+            ui.label(egui::RichText::new(said).font(regular(11.0)).color(if used > MAX_SIEVE_RULE { t.red } else { t.orange }));
+        }
+        self.problems_list(ui, &t);
+        self.server_said(ui, &t);
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            let lacks = self.lacks();
+            let save = ui.add_enabled(lacks.is_none(), egui::Button::new(tl!("Save")));
+            let save = match lacks {
+                Some(why) => save.on_disabled_hover_text(why),
+                None => save.on_hover_text(tl!("Keep this rule; it goes to the server with your other rules")),
+            };
+            if save.clicked() && lacks.is_none() {
+                let (command, params) = self.command();
+                asks = Some(EditorAsks::Save(command, params));
+            }
+            let unavailable = app.sieve_check_unavailable(self.account);
+            let busy = self.asking.is_some();
+            let check = ui.add_enabled(unavailable.is_none() && !busy && !self.text.trim().is_empty(), egui::Button::new(tl!("Check")));
+            let check = match &unavailable {
+                Some(why) => check.on_disabled_hover_text(why.as_str()),
+                None => check.on_hover_text(tl!("Ask the server whether it takes this rule; nothing is changed there")),
+            };
+            if check.clicked() && unavailable.is_none() && !busy {
+                asks = Some(EditorAsks::Check);
+            }
+            if busy {
+                ui.spinner();
+                ui.label(egui::RichText::new(tl!("Asking the server…")).color(t.text_dim));
+            } else if let Some(why) = &unavailable {
+                ui.label(egui::RichText::new(shown(why, 160)).font(regular(11.0)).color(t.text_dim));
+            }
+            if ui.button(tl!("Cancel")).clicked() {
+                asks = Some(EditorAsks::Cancel);
+            }
+        });
+        crate::forms::kit::error(ui, &self.error);
+        asks
+    }
+
+    /// The text with its line numbers, the lines with a mistake (or a warning) marked. Whether
+    /// it changed.
+    fn code(&mut self, ui: &mut Ui, t: &Tokens) -> bool {
+        let font: FontId = egui::TextStyle::Monospace.resolve(ui.style());
+        let id = ui.make_persistent_id("sieve_editor_text");
+        let mut moved = None;
+        if let Some((line, column)) = self.goto.take() {
+            let at = char_at(&self.text, line, column);
+            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+            state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(at))));
+            egui::TextEdit::store_state(ui.ctx(), id, state);
+            ui.memory_mut(|m| m.request_focus(id));
+            moved = Some(line);
+        }
+        if std::mem::take(&mut self.focus) {
+            ui.memory_mut(|m| m.request_focus(id));
+        }
+        let lines = self.text.split('\n').count().max(1);
+        let digits = lines.to_string().len().max(2) as f32;
+        let gutter_width = digits * font.size * 0.62 + 14.0;
+        // The lines a mistake or a warning is on (from 1).
+        let marked = |warning: bool| -> Vec<usize> { self.problems.iter().filter(|p| p.warning == warning).map(|p| p.line).collect() };
+        let (errors, warnings) = (marked(false), marked(true));
+        let server_errors: Vec<usize> = match &self.server {
+            Some(said) if said.kind == Said::Errors && said.text == self.text => said.lines.iter().filter_map(|l| l.line).collect(),
+            _ => Vec::new(),
+        };
+        let (colour, layout_font) = (t.text, font.clone());
+        let mut layouter = move |ui: &Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
+            // (No wrapping: a row is a line, and the numbers stand beside them.)
+            let mut job = LayoutJob::simple(buf.as_str().to_owned(), layout_font.clone(), colour, f32::INFINITY);
+            job.keep_trailing_whitespace = true;
+            ui.fonts_mut(|f| f.layout_job(job))
+        };
+        let mut changed = false;
+        egui::ScrollArea::both().id_salt("sieve_editor_scroll").max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let behind = ui.painter().add(Shape::Noop);
+                let (gutter, _) = ui.allocate_exact_size(vec2(gutter_width, 1.0), Sense::hover());
+                let edit = egui::TextEdit::multiline(&mut self.text)
+                    .id(id)
+                    .code_editor()
+                    .frame(egui::Frame::NONE)
+                    .margin(egui::Margin::symmetric(6, 4))
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(14)
+                    .char_limit(MAX_SIEVE_RULE)
+                    .layouter(&mut layouter);
+                let out = edit.show(ui);
+                let response = crate::text_menu::field(out.response.response.clone());
+                changed = response.changed();
+                let field = response.rect;
+                let whole = Rect::from_min_max(pos2(gutter.min.x, field.min.y), pos2(field.max.x.max(ui.max_rect().max.x), field.max.y));
+                let mut shapes = vec![
+                    Shape::rect_filled(whole, 3.0, t.input),
+                    Shape::rect_filled(Rect::from_min_max(whole.min, pos2(gutter.max.x, whole.max.y)), 0.0, t.panel),
+                ];
+                let border = if response.has_focus() { t.accent } else { t.input_border };
+                for (i, row) in out.galley.rows.iter().enumerate() {
+                    let line = i.saturating_add(1);
+                    let r = row.rect().translate(out.galley_pos.to_vec2());
+                    let band = Rect::from_min_max(pos2(gutter.max.x, r.min.y), pos2(whole.max.x, r.max.y));
+                    let error = errors.contains(&line) || server_errors.contains(&line);
+                    if error {
+                        shapes.push(Shape::rect_filled(band, 0.0, t.red.gamma_multiply(0.18)));
+                    } else if warnings.contains(&line) {
+                        shapes.push(Shape::rect_filled(band, 0.0, t.orange.gamma_multiply(0.15)));
+                    }
+                    let number = if error { t.red } else { t.text_dim };
+                    ui.painter().text(pos2(gutter.max.x - 6.0, r.center().y), Align2::RIGHT_CENTER, line.to_string(), font.clone(), number);
+                    if moved == Some(line) {
+                        ui.scroll_to_rect(band, Some(Align::Center));
+                    }
+                }
+                shapes.push(Shape::rect_stroke(whole, 3.0, egui::Stroke::new(1.0, border), egui::StrokeKind::Inside));
+                ui.painter().set(behind, Shape::Vec(shapes));
+            });
+        });
+        changed
+    }
+
+    /// The problems found here, a row each; a click puts the cursor where one is.
+    fn problems_list(&mut self, ui: &mut Ui, t: &Tokens) {
+        if !self.checked_now() {
+            return;
+        }
+        if self.problems.is_empty() {
+            ui.label(egui::RichText::new(tl!("MailCraft finds no mistakes in it.")).font(regular(11.5)).color(t.text_dim));
+            return;
+        }
+        let lang = crate::i18n::current();
+        let mut goto = None;
+        for p in self.problems.iter().take(MAX_LISTED) {
+            let said = crate::i18n::fmt(
+                tl!("Line {line}, column {column}: {what}"),
+                &[("line", &p.line.to_string()), ("column", &p.column.to_string()), ("what", &p.what().in_lang(lang))],
+            );
+            let said = if p.warning { crate::i18n::fmt(tl!("Warning: {what}"), &[("what", &said)]) } else { said };
+            let colour = if p.warning { t.orange } else { t.red };
+            let row = ui.add(egui::Button::new(egui::RichText::new(shown(&said, 300)).font(regular(11.5)).color(colour)).frame(false));
+            if row.on_hover_text(tl!("Go to this place in the text")).clicked() {
+                goto = Some((p.line, p.column));
+            }
+        }
+        if self.problems.len() > MAX_LISTED {
+            let more = self.problems.len() - MAX_LISTED;
+            ui.label(egui::RichText::new(tln!(more, "and {n} more", "and {n} more")).font(regular(11.5)).color(t.text_dim));
+        }
+        if goto.is_some() {
+            self.goto = goto;
+        }
+    }
+
+    /// What the server said, when it was asked; its lines that name one of the rule's take the
+    /// cursor there.
+    fn server_said(&mut self, ui: &mut Ui, t: &Tokens) {
+        let Some(said) = &self.server else { return };
+        let stale = said.text != self.text;
+        let dim = |c: egui::Color32| if stale { t.text_dim } else { c };
+        let head = match &said.kind {
+            Said::Fine => tl!("The server takes this rule.").to_string(),
+            Said::Warnings => tl!("The server takes this rule, with warnings:").to_string(),
+            Said::Errors => tl!("The server doesn't take this rule:").to_string(),
+            Said::NotOffered => tl!("This server can't check a rule without keeping it: it checks it when the rule is saved.").to_string(),
+            Said::Failed(why) => crate::i18n::with_reason(tl!("The server couldn't check this rule"), why),
+        };
+        let colour = match said.kind {
+            Said::Fine => t.green,
+            Said::Warnings => t.orange,
+            Said::Errors | Said::Failed(_) => t.red,
+            Said::NotOffered => t.text_dim,
+        };
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(shown(&head, 400)).font(regular(11.5)).color(dim(colour)));
+        if stale {
+            ui.label(egui::RichText::new(tl!("(Of the text as it was: it has changed since.)")).font(regular(11.0)).color(t.text_dim));
+        }
+        let mut goto = None;
+        for l in &said.lines {
+            let text = shown(&l.text, 300);
+            match l.line {
+                Some(line) => {
+                    let label = crate::i18n::fmt(tl!("Line {line} of the rule: {said}"), &[("line", &line.to_string()), ("said", &text)]);
+                    let row = ui.add(egui::Button::new(egui::RichText::new(label).font(regular(11.5)).color(dim(t.text))).frame(false));
+                    if row.on_hover_text(tl!("Go to this place in the text")).clicked() && !stale {
+                        goto = Some((line, 1));
+                    }
+                }
+                None => {
+                    ui.label(egui::RichText::new(text).font(regular(11.5)).color(dim(t.text)));
+                }
+            }
+        }
+        if matches!(said.kind, Said::Warnings | Said::Errors) && said.lines.iter().any(|l| l.line.is_none()) {
+            ui.label(
+                egui::RichText::new(tl!(
+                    "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
+                ))
+                .font(regular(11.0))
+                .color(t.text_dim),
+            );
+        }
+        if goto.is_some() {
+            self.goto = goto;
+        }
+    }
+}
+
+/// The index in characters of `line`, `column` (both from 1) in `text`: the end of the line
+/// when the column is past it, the end of the text when the line is.
+pub(crate) fn char_at(text: &str, line: usize, column: usize) -> usize {
+    let mut at = 0usize;
+    for (n, l) in text.split('\n').enumerate() {
+        let length = l.chars().count();
+        if n.saturating_add(1) == line {
+            return at.saturating_add(column.saturating_sub(1).min(length));
+        }
+        at = at.saturating_add(length).saturating_add(1);
+    }
+    text.chars().count()
+}

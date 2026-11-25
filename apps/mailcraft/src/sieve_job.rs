@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The host's side of an IMAP account's Automatic Replies kept in a Sieve script (#9999): what
+//! The host's side of an IMAP account's Automatic Replies and rules kept in a Sieve script, and of
+//! the Sieve rule editor's Check (#9999): what
 //! the window asks ([`SieveJob`]) done with `mailcraft-net`'s ManageSieve client on a background
 //! thread, and what the server has handed back as `sync.applySieve` takes it. Nothing of a
 //! script, a name or a secret is logged.
 
 use mailcraft_engine::sieve::SCRIPT_NAME;
-use mailcraft_net::sieve::{self, ScriptChange, SieveError, SieveState, Written};
-use mailcraft_ui_egui::sieve_replies::{SieveJob, SieveResult};
+use mailcraft_net::sieve::{self, Checked, ScriptChange, SieveError, SieveState, Written};
+use mailcraft_ui_egui::sieve_replies::{ServerCheck, SieveJob, SieveResult};
 use serde_json::{Value, json};
 
 /// Write what the job says (if anything), then read what the server has.
@@ -20,6 +21,21 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
             return out;
         }
     };
+    // A check alone: nothing is written, nor read.
+    if let Some(script) = &job.check {
+        match sieve::check(&job.account, &server, &job.secret, script) {
+            Ok(checked) => {
+                out.checked = Some(match checked {
+                    Checked::Fine => ServerCheck::Fine,
+                    Checked::Warnings(text) => ServerCheck::Warnings(text),
+                    Checked::Errors(text) => ServerCheck::Errors(text),
+                    Checked::NotOffered => ServerCheck::NotOffered,
+                });
+            }
+            Err(e) => said(&mut out, &e),
+        }
+        return out;
+    }
     if let Some(write) = &job.write {
         let change = ScriptChange { name: &write.name, text: &write.text, last_written: write.last_written.as_deref(), activate: write.activate };
         match sieve::write(&job.account, &server, &job.secret, &change) {

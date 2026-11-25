@@ -139,7 +139,7 @@ fn the_dialog_opens_on_a_rule_to_change_when_asked() {
 }
 
 #[test]
-fn a_sieve_rule_is_shown_by_its_name_goes_to_the_host_and_its_pencil_waits_for_advanced() {
+fn a_sieve_rule_is_shown_by_its_name_goes_to_the_host_and_its_pencil_opens_the_sieve_editor() {
     let (mut app, account, _, rule, writes) = window();
     let made = app.execute("rules.addSieve", json!({"account": account, "name": "Big mail", "sieve": "if size :over 9M {\n  discard;\n}"})).unwrap();
     let sieve = made["id"].as_u64().unwrap();
@@ -155,8 +155,10 @@ fn a_sieve_rule_is_shown_by_its_name_goes_to_the_host_and_its_pencil_waits_for_a
     let r = mb.rules.iter().find(|r| r.id == sieve).unwrap();
     assert!(r.on_server());
     assert_eq!(describe(mb, r), "Sieve rule, run on the server");
-    assert_eq!(not_changeable(mb, r), Some("A Sieve rule: its Sieve is changed under Advanced…"));
-    // Both rows are drawn; only the form's rule can be changed in the builder.
+    // Changed in the Sieve rule editor, not the builder.
+    assert_eq!(not_changeable(mb, r), None);
+    assert!(!RulesForm::default().edit(mb, sieve));
+    // Both rows are drawn, each with its pencil.
     app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
     let mut h = harness(app);
     assert_eq!(h.query_all_by_label("Change this rule").count(), 2);

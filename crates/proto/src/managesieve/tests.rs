@@ -222,7 +222,7 @@ fn checkscript_setactive_deletescript_and_havespace() {
     let server =
         "OK\r\nOK\r\nOK\r\nOK\r\nNO (ACTIVE) \"You may not delete an active script\"\r\nOK\r\nNO (QUOTA/MAXSIZE) \"Too big\"\r\nNO \"Huh\"\r\n";
     let s = session(server, |sieve| {
-        assert_eq!(sieve.check_script("keep;").unwrap(), None);
+        assert_eq!(sieve.check_script("keep;").unwrap(), ScriptCheck::Fine);
         sieve.set_active("mailcraft").unwrap();
         sieve.deactivate().unwrap();
         sieve.delete_script("old").unwrap();
@@ -235,6 +235,36 @@ fn checkscript_setactive_deletescript_and_havespace() {
         s.sent(),
         "CHECKSCRIPT {5+}\r\nkeep;\r\nSETACTIVE \"mailcraft\"\r\nSETACTIVE \"\"\r\nDELETESCRIPT \"old\"\r\nDELETESCRIPT \"mailcraft\"\r\nHAVESPACE \"mailcraft\" 100\r\nHAVESPACE \"mailcraft\" 10000000\r\nHAVESPACE \"mailcraft\" 1\r\n"
     );
+}
+
+#[test]
+fn checkscript_brings_the_servers_words_whole_with_their_lines() {
+    // Errors as a literal of several lines (as Dovecot sends them), warnings, a refusal with a code
+    // and no words.
+    let errors = "line 3: error: unknown command 'fileinto'.\r\n\r\n\r\nline 5: error: missing ';'.\r\n";
+    let server = format!("NO {{{}}}\r\n{errors}\r\nOK (WARNINGS) \"line 2: warning: \x07odd\tthing\"\r\nNO (QUOTA/MAXSIZE)\r\n", errors.len());
+    session(&server, |sieve| {
+        assert_eq!(
+            sieve.check_script("x;").unwrap(),
+            ScriptCheck::Errors("line 3: error: unknown command 'fileinto'.\n\nline 5: error: missing ';'.".into())
+        );
+        assert_eq!(sieve.check_script("x;").unwrap(), ScriptCheck::Warnings("line 2: warning: odd thing".into()));
+        assert_eq!(sieve.check_script("x;").unwrap(), ScriptCheck::Errors("QUOTA/MAXSIZE".into()));
+    });
+}
+
+#[test]
+fn the_kept_text_of_a_check_is_capped_on_a_character_boundary() {
+    let long = "ä".repeat(MAX_CHECK_TEXT);
+    let kept = kept_text(&long);
+    assert!(kept.len() <= MAX_CHECK_TEXT && kept.ends_with('…'), "{}", kept.len());
+    let lines = "error\r\n".repeat(MAX_CHECK_TEXT);
+    let kept = kept_text(&lines);
+    assert!(kept.len() <= MAX_CHECK_TEXT && kept.ends_with('…'));
+    assert!(!kept.contains('\r'));
+    // No control or direction character, a lone CR is a line break, blank ends go.
+    assert_eq!(kept_text("\n\n a\u{202e}b\u{0}\rc\u{2028}\n\n"), " ab\nc");
+    assert_eq!(kept_text(""), "");
 }
 
 #[test]

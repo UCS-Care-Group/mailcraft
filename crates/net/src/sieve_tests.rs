@@ -9,7 +9,7 @@ use mailcraft_model::{Account, AccountKind, OAuth, OAuthProvider, Security, Serv
 use crate::NetError;
 use crate::fake::Fake;
 use crate::fake_sieve::{FakeSieve, Opening, SieveWorld};
-use crate::sieve::{LooksLike, Reach, read_with};
+use crate::sieve::{Checked, LooksLike, Reach, check, check_with, read_with};
 use crate::sieve::{PORT, ScriptChange, SieveError, Written, deactivate, digest, read, server_for, write};
 use crate::transport::Patience;
 
@@ -412,4 +412,66 @@ fn what_answered_is_known_by_its_first_words_alone() {
     for nothing in [&b""[..], b"*", b"22", b"\"IMPLEMENTATION\"", b"OK", b"\x16\x02", b"999x"] {
         assert_eq!(LooksLike::of(nothing), None, "{nothing:?}");
     }
+}
+
+#[test]
+fn checking_a_script_signs_in_sends_it_and_keeps_nothing() {
+    let fake = Fake::sieve(world());
+    let (account, server) = account(&fake);
+    let started = Instant::now();
+    assert_eq!(check_with(&account, &server, PASSWORD, OURS, &hurried(), None).unwrap(), Checked::Fine);
+    assert!(started.elapsed() < Duration::from_secs(10));
+    let world = fake.world();
+    assert!(world.heard("AUTHENTICATE") && world.heard("CHECKSCRIPT"));
+    assert!(world.scripts.is_empty() && world.active.is_none() && !world.heard("PUTSCRIPT"));
+}
+
+#[test]
+fn a_check_brings_the_servers_errors_and_warnings_with_their_lines() {
+    let refusal = "line 3: error: unknown command 'bogus'.\r\nline 7: error: missing ';'.\r\nyour password correct horse is wrong";
+    let fake = Fake::sieve(SieveWorld {
+        refuse_scripts_with: Some("bogus".into()),
+        refusal: refusal.into(),
+        warn_scripts_with: Some(("odd".into(), "line 2: warning: \u{7}odd".into())),
+        ..world()
+    });
+    let (account, server) = account(&fake);
+    let Checked::Errors(said) = check(&account, &server, PASSWORD, "bogus;").unwrap() else { panic!("expected errors") };
+    assert_eq!(said, "line 3: error: unknown command 'bogus'.\nline 7: error: missing ';'.\nyour password *** is wrong");
+    assert_eq!(check(&account, &server, PASSWORD, "# odd\r\nkeep;").unwrap(), Checked::Warnings("line 2: warning: odd".into()));
+    // Debug output never shows the server's words.
+    assert!(!format!("{:?}", Checked::Errors(said)).contains("bogus"));
+    let world = fake.world();
+    assert!(world.scripts.is_empty());
+}
+
+#[test]
+fn a_server_from_before_rfc_5804_isnt_asked_to_check() {
+    let fake = Fake::sieve(SieveWorld { version: false, ..world() });
+    let (account, server) = account(&fake);
+    assert_eq!(check(&account, &server, PASSWORD, OURS).unwrap(), Checked::NotOffered);
+    assert!(!fake.world().heard("CHECKSCRIPT"));
+}
+
+#[test]
+fn a_check_goes_only_to_the_mail_server_and_never_in_the_clear() {
+    let fake = Fake::sieve(world());
+    let (mut account, mut server) = account(&fake);
+    // STARTTLS asked for and not offered: nothing of the owner's is sent.
+    server.security = Security::StartTls;
+    let err = check_with(&account, &server, PASSWORD, OURS, &hurried(), None).unwrap_err();
+    assert!(matches!(err, SieveError::Reach(Reach::NoStartTls { .. })), "{err:?}");
+    let heard = fake.world().heard("AUTHENTICATE");
+    assert!(!heard);
+    // Another host than the account's: no connection at all.
+    server.security = Security::None;
+    account.incoming = Some(Server { host: "localhost".into(), port: 1, security: Security::None });
+    let before = fake.world().connections;
+    assert!(matches!(check(&account, &server, PASSWORD, OURS), Err(SieveError::Net(NetError::Config(_)))));
+    let after = fake.world().connections;
+    assert_eq!(after, before);
+    // A wrong password is a refused sign-in, not repeated.
+    account.incoming = Some(Server { host: "127.0.0.1".into(), port: 1, security: Security::None });
+    let err = check(&account, &server, "wrong horse", OURS).unwrap_err();
+    assert!(err.is_refused_sign_in() && !err.to_string().contains("wrong horse"), "{err}");
 }

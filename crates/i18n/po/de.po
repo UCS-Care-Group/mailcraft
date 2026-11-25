@@ -179,6 +179,12 @@ msgid "(No title)"
 msgstr "(Kein Titel)"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "(Of the text as it was: it has changed since.)"
+msgstr "(Bezieht sich auf den früheren Text: Er wurde seitdem geändert.)"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 msgid "(as the signer says)"
 msgstr "(laut Angabe des Unterzeichners)"
@@ -483,6 +489,12 @@ msgstr "E-Mails eines JMAP-Kontos können noch nicht zurückgestellt werden."
 msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
 msgstr "Ein ManageSieve-Server grüßt, sobald eine Verbindung besteht. Dieser Port erwartet vielleicht eine von Anfang an verschlüsselte Verbindung (bei Dovecot ssl = yes am sieve-Listener), die ManageSieve nicht verwendet: Es beginnt unverschlüsselt und wechselt mit STARTTLS zur Verschlüsselung. Oder ein Proxy vor dem Server wartet auf etwas, das MailCraft nicht sendet. Prüfen Sie den Sieve-Server (automatische Antworten) in den Kontoeinstellungen, oder fragen Sie die Administration des Servers."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule is at most 64 KB."
+msgstr "Eine Sieve-Regel ist höchstens 64 KB groß."
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -495,17 +507,23 @@ msgstr "Eine Sieve-Regel ist höchstens {kb} KB groß."
 msgid "A Sieve rule is kept in the Sieve script on an IMAP account's server; this account has none."
 msgstr "Eine Sieve-Regel wird im Sieve-Skript auf dem Server eines IMAP-Kontos gespeichert; dieses Konto hat keines."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule needs a name."
+msgstr "Eine Sieve-Regel braucht einen Namen."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule needs some Sieve."
+msgstr "Eine Sieve-Regel braucht etwas Sieve."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
 msgstr "Eine Sieve-Regel läuft nur auf dem Server, für E-Mails, sobald sie dort eintreffen."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "A Sieve rule: its Sieve is changed under Advanced…"
-msgstr "Eine Sieve-Regel: Ihr Sieve wird unter „Erweitert…“ geändert"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -574,6 +592,12 @@ msgstr "Eine Bedingung oder die Ausnahmen einer Art zusammen können nach höchs
 #: crates/ui-egui/src/forms.rs
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "Eine Kontaktkarte speichert höchstens 32 Zertifikate und Schlüssel"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A control character can't be in a Sieve rule."
+msgstr "Ein Steuerzeichen darf nicht in einer Sieve-Regel stehen."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -823,6 +847,12 @@ msgstr "Eine Regel muss etwas tun: eine Aktion oder eine Desktopbenachrichtigung
 #, fuzzy
 msgid "A rule this editor doesn't show; it is kept as it is."
 msgstr "Eine Regel, die dieser Editor nicht anzeigt; sie bleibt unverändert erhalten."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule written in Sieve, run by the server"
+msgstr "Eine in Sieve geschriebene Regel, vom Server ausgeführt"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -1390,6 +1420,12 @@ msgstr "Erweiterte Suche"
 #, fuzzy
 msgid "Advanced options"
 msgstr "Erweiterte Optionen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Advanced…"
+msgstr "Erweitert…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2238,6 +2274,12 @@ msgstr "Die Liste bitten, Ihnen keine E-Mails mehr zu senden. MailCraft fragt vo
 msgid "Ask the server for your automatic replies again."
 msgstr "Den Server erneut nach Ihren automatischen Antworten fragen."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Ask the server whether it takes this rule; nothing is changed there"
+msgstr "Den Server fragen, ob er diese Regel annimmt; dort wird nichts geändert"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Ask to be told when the message is read"
@@ -2262,7 +2304,7 @@ msgid "Asking the server when everybody is free…"
 msgstr "Server wird gefragt, wann alle Zeit haben…"
 
 #. interface
-#: crates/ui-egui/src/scheduling.rs
+#: crates/ui-egui/src/scheduling.rs crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Asking the server…"
 msgstr "Server wird gefragt…"
@@ -2989,7 +3031,7 @@ msgid "Can't sign"
 msgstr "Kann nicht signieren"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Abbrechen"
@@ -3246,6 +3288,12 @@ msgid "Change Sieve Rule"
 msgstr "Sieve-Regel ändern"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Change Sieve rule"
+msgstr "Sieve-Regel ändern"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Change This Meeting?"
@@ -3371,6 +3419,12 @@ msgstr "Zeichen (mit Leerzeichen)"
 #: crates/ui-egui/src/ribbon.rs
 msgid "Chart"
 msgstr "Diagramm"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Check"
+msgstr "Prüfen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3528,7 +3582,7 @@ msgid "Checking: the report comes in a moment…"
 msgstr "Wird geprüft: Der Bericht folgt gleich…"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Checking…"
 msgstr "Wird geprüft…"
@@ -4141,6 +4195,12 @@ msgstr "In Ordner kopieren"
 #, fuzzy
 msgid "Copy to folder"
 msgstr "In Ordner kopieren"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Correct the mistakes first."
+msgstr "Korrigieren Sie zuerst die Fehler."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -6672,6 +6732,12 @@ msgid "Go to the folder"
 msgstr "Zum Ordner wechseln"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Go to this place in the text"
+msgstr "Zu dieser Stelle im Text gehen"
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "Goes to {host}"
@@ -8046,6 +8112,12 @@ msgid "Keep this rule on the server of {address}: it then runs there whether Mai
 msgstr "Diese Regel auf dem Server von {address} speichern: Sie läuft dann dort, ob MailCraft geöffnet ist oder nicht, für die E-Mails dieses Kontos"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Keep this rule; it goes to the server with your other rules"
+msgstr "Diese Regel speichern; sie geht mit Ihren anderen Regeln an den Server"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Keep this version"
@@ -8328,6 +8400,12 @@ msgstr "Zeilenabstand"
 msgid "Line delta"
 msgstr "Zeilendifferenz"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line} of the rule: {said}"
+msgstr "Zeile {line} der Regel: {said}"
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -8339,6 +8417,12 @@ msgstr "Zeile {line}, Spalte {column} der Sieve-Regel: Ein Steuerzeichen darf ni
 #, fuzzy
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "Zeile {line}, Spalte {column} der Sieve-Regel: {what}"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line}, column {column}: {what}"
+msgstr "Zeile {line}, Spalte {column}: {what}"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -8806,6 +8890,11 @@ msgstr "MailCraft unterstützt POP noch nicht. Verwenden Sie stattdessen den IMA
 msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
 msgstr "MailCraft hält vom Kalenderserver von {account} so viel, wie es kann: Einige Kalender oder Termine wurden ausgelassen."
 
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "MailCraft finds no mistakes in it."
+msgstr "MailCraft findet darin keine Fehler."
+
 #. interface
 #: crates/ui-egui/src/software.rs
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
@@ -8929,6 +9018,12 @@ msgstr "MailCraft hat das Einlesen der .pst-Datei vorzeitig beendet: Bereits imp
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft tries the usual places for your address."
 msgstr "MailCraft versucht die üblichen Stellen für Ihre Adresse."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft waits for you to confirm this mailbox's servers (File › Info)."
+msgstr "MailCraft wartet, bis Sie die Server dieses Postfachs bestätigen (Datei › Informationen)."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10021,7 +10116,7 @@ msgid "NBSP"
 msgstr "NBSP"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Name"
 msgstr "Name"
@@ -10288,6 +10383,18 @@ msgstr "Neue Besprechung"
 #, fuzzy
 msgid "New Sieve Rule"
 msgstr "Neue Sieve-Regel"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "New Sieve rule"
+msgstr "Neue Sieve-Regel"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Sieve rule…"
+msgstr "Neue Sieve-Regel…"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
@@ -11517,6 +11624,12 @@ msgstr "Sobald ein Administrator genehmigt hat, versuchen Sie es erneut: Dann kl
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Sobald es funktioniert hat, bewahrt der Anmeldeinformationsspeicher Ihres Systems es für das nächste Mal auf. Es wird nie in das Postfach geschrieben."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
+msgstr "Ein Block Sieve (RFC 5228), vom Server an seiner Stelle unter Ihren Regeln ausgeführt. MailCraft schreibt das require dafür an den Anfang seines Skripts."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -13926,7 +14039,7 @@ msgid "Saturday"
 msgstr "Samstag"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Speichern"
@@ -15670,6 +15783,12 @@ msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "Melden Sie sich zuerst über „Senden/Empfangen“ an und ändern Sie anschließend Ihre automatischen Antworten."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Sign in with Send/Receive first."
+msgstr "Melden Sie sich zuerst mit Senden/Empfangen an."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Sign in with Send/Receive to see when other people are busy."
@@ -16868,6 +16987,12 @@ msgid "The account is gone"
 msgstr "Das Konto ist nicht mehr vorhanden"
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "The account isn't there any more."
+msgstr "Das Konto gibt es nicht mehr."
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The account that signed in on Microsoft's page is not an administrator of your organisation, so it could not approve MailCraft. Copy the message for an administrator instead."
@@ -17210,6 +17335,12 @@ msgstr "Das vom Server unter {host} vorgelegte Zertifikat ist nicht das, dem Sie
 #: crates/ui-egui/src/reading/signature.rs
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "Das Zertifikat wurde nicht von einer Zertifizierungsstelle ausgestellt, der dieser Computer vertraut."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "The check stopped unexpectedly"
+msgstr "Die Prüfung wurde unerwartet beendet"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -18025,11 +18156,23 @@ msgstr "Der Server hat geantwortet, ohne die Adresse der Exchange Web Services a
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "Der Server hat geantwortet, aber nicht wie ein Exchange-Server. Überprüfen Sie seine Adresse in den Servereinstellungen."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
+msgstr "Der Server hat die Regel im ganzen Skript von MailCraft geprüft: Seine Zeilennummern zählen vom Anfang dieses Skripts."
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "The server couldn't be searched. Try again in a few minutes."
 msgstr "Der Server konnte nicht durchsucht werden. Versuchen Sie es in einigen Minuten erneut."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server couldn't check this rule"
+msgstr "Der Server konnte diese Regel nicht prüfen"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18073,6 +18216,12 @@ msgid "The server didn't take the change to {name}{why}: it is as the server has
 msgstr "Der Server hat die Änderung an {name}{why} nicht übernommen: Der Kontakt ist wieder so, wie der Server ihn hat."
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server didn't take your sign-in."
+msgstr "Der Server hat Ihre Anmeldung nicht angenommen."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
@@ -18089,6 +18238,12 @@ msgstr "Der Server hat die Erweiterung {ext} nicht."
 #, fuzzy
 msgid "The server doesn't let this rule be changed"
 msgstr "Der Server lässt keine Änderung dieser Regel zu"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server doesn't take this rule:"
+msgstr "Der Server nimmt diese Regel nicht an:"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -18149,6 +18304,18 @@ msgstr "Der Server hat die Einrichtungsanfrage an eine unverschlüsselte Adresse
 #: crates/ui-egui/src/ews_setup.rs
 msgid "The server shows a certificate that needs your say."
 msgstr "Der Server legt ein Zertifikat vor, dem Sie zustimmen müssen."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this rule, with warnings:"
+msgstr "Der Server nimmt diese Regel an, mit Warnungen:"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this rule."
+msgstr "Der Server nimmt diese Regel an."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -18747,11 +18914,29 @@ msgstr "Der Server dieses Kontos bietet keine Sieve-Skripte (ManageSieve), daher
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
 msgstr "Der Server dieses Kontos bietet keine Sieve-Skripte (ManageSieve), daher laufen seine Regeln auf diesem Computer."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "Der Server dieses Kontos bietet keine Sieve-Skripte an (ManageSieve)."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
 msgstr "Der Server dieses Kontos nimmt keine automatischen Antworten von MailCraft an: Er bietet keine Sieve-Skripte mit Abwesenheitsantworten (ManageSieve)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server keeps no Sieve scripts."
+msgstr "Der Server dieses Kontos speichert keine Sieve-Skripte."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Der Server dieses Kontos verwaltet diesen Kontakt. Hier vorgenommene Änderungen werden noch nicht zurückgesendet, daher kann er hier weder bearbeitet noch gelöscht werden. Favorit und Kategorien werden auf diesem Computer gespeichert."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -18855,6 +19040,12 @@ msgstr "Dieser Build kann den Server des Kontos nicht erreichen."
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "Diese Version kann keine Verbindung zum Server herstellen, um die automatischen Antworten zu ändern. Verwenden Sie die Desktop-App."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This build can't reach the server. Use the desktop app."
+msgstr "Diese Version kann den Server nicht erreichen. Verwenden Sie die Desktop-App."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19558,6 +19749,12 @@ msgstr "Diese Regel ist keine Sieve-Regel: Ändern Sie sie im Regel-Assistenten.
 #, fuzzy
 msgid "This series is still on its way to the account's server. Change one of its days once it is there (in a moment)."
 msgstr "Diese Serie ist noch unterwegs zum Server des Kontos. Ändern Sie einen ihrer Tage, sobald sie dort ist (gleich)."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This server can't check a rule without keeping it: it checks it when the rule is saved."
+msgstr "Dieser Server kann eine Regel nicht prüfen, ohne sie zu speichern: Er prüft sie beim Speichern der Regel."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -20596,6 +20793,12 @@ msgid "Want to be one? Sign up in #11"
 msgstr "Möchten Sie mitmachen? Melden Sie sich in #11"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Warning: {what}"
+msgstr "Warnung: {what}"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Website"
@@ -21191,6 +21394,12 @@ msgstr "Sie haben sich als {signedIn} angemeldet, nicht als {typed}."
 #, fuzzy
 msgid "You tentatively accepted this meeting."
 msgstr "Sie haben diese Besprechung mit Vorbehalt zugesagt."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "You're working offline."
+msgstr "Sie arbeiten offline."
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
@@ -21974,7 +22183,7 @@ msgid "and"
 msgstr "und"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/reading.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/reading.rs crates/ui-egui/src/sieve_editor.rs
 msgid "and {n} more"
 msgid_plural "and {n} more"
 msgstr[0] "und {n} weitere"
@@ -27204,6 +27413,12 @@ msgid_plural "{used} of {cap} used by {n} messages"
 msgstr[0] "{used} von {cap} durch {n} Nachricht belegt"
 msgstr[1] "{used} von {cap} durch {n} Nachrichten belegt"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "{used} of {most} KB"
+msgstr "{used} von {most} KB"
+
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "{weekday} {date} {time}"
@@ -27323,6 +27538,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "A Sieve rule: its Sieve is changed under Advanced…"
+#~ msgstr "Eine Sieve-Regel: Ihr Sieve wird unter „Erweitert…“ geändert"
 
 #~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
 #~ msgstr "Automatische Antworten werden auf dem Mailserver gespeichert. MailCraft kann sie derzeit nur für Konten einrichten, bei denen die Anmeldung über Microsoft erfolgt: Für IMAP gibt es keine standardisierte Möglichkeit, sie einzurichten (Sieve-Abwesenheitsantworten könnten später hinzukommen)"

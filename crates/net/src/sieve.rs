@@ -32,7 +32,7 @@ use std::time::Duration;
 use mailcraft_i18n::{Arg, Text, said};
 use mailcraft_model::{Account, Security, Server};
 use mailcraft_proto::ProtoError;
-use mailcraft_proto::managesieve::{ManageSieve, ScriptEntry};
+use mailcraft_proto::managesieve::{ManageSieve, ScriptCheck, ScriptEntry};
 
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, not_signed_in};
@@ -381,6 +381,73 @@ pub(crate) fn write_with(
         Ok(written)
     };
     run().map_err(|e: SieveError| e.without(secret))
+}
+
+/// What the server said of a script it was asked to check ([`check`]).
+#[derive(Clone, PartialEq, Eq)]
+pub enum Checked {
+    /// Nothing wrong.
+    Fine,
+    /// Nothing wrong, but the server has something to say: its words.
+    Warnings(String),
+    /// The server refused it: its words, line breaks kept, capped
+    /// ([`mailcraft_proto::managesieve::MAX_CHECK_TEXT`]), without control characters or secrets.
+    Errors(String),
+    /// The server is from before RFC 5804 and has no CHECKSCRIPT: it checks a script only when it
+    /// is written.
+    NotOffered,
+}
+
+/// What the server said may quote the script: only its size reaches debug output.
+impl std::fmt::Debug for Checked {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Checked::Fine => f.write_str("Fine"),
+            Checked::Warnings(text) => write!(f, "Warnings({} bytes)", text.len()),
+            Checked::Errors(text) => write!(f, "Errors({} bytes)", text.len()),
+            Checked::NotOffered => f.write_str("NotOffered"),
+        }
+    }
+}
+
+/// Have the server check `script` without keeping it (CHECKSCRIPT, RFC 5804 §2.12): the same
+/// server, encryption and sign-in as [`read`] and [`write`], and nothing on the server changes.
+pub fn check(account: &Account, server: &Server, secret: &str, script: &str) -> Result<Checked, SieveError> {
+    check_with(account, server, secret, script, &Patience::default(), None)
+}
+
+/// [`check`], waiting as `patience` says, and giving up once `cancel` is set.
+pub(crate) fn check_with(
+    account: &Account,
+    server: &Server,
+    secret: &str,
+    script: &str,
+    patience: &Patience,
+    cancel: Option<&AtomicBool>,
+) -> Result<Checked, SieveError> {
+    let run = || {
+        let mut sieve = open(account, server, secret, patience, cancel)?;
+        // (A server of RFC 5804 says its VERSION; one from before it has no CHECKSCRIPT.)
+        if sieve.capabilities().version.is_none() {
+            let _ = sieve.logout();
+            return Ok(Checked::NotOffered);
+        }
+        let checked = match sieve.check_script(script)? {
+            ScriptCheck::Fine => Checked::Fine,
+            ScriptCheck::Warnings(text) => Checked::Warnings(text),
+            ScriptCheck::Errors(text) => Checked::Errors(text),
+        };
+        let _ = sieve.logout();
+        Ok(checked)
+    };
+    // (The server's words could repeat the secret: it is blanked out of them too.)
+    let hide = |text: String| if secret.is_empty() { text } else { text.replace(secret, "***") };
+    match run() {
+        Ok(Checked::Warnings(text)) => Ok(Checked::Warnings(hide(text))),
+        Ok(Checked::Errors(text)) => Ok(Checked::Errors(hide(text))),
+        Ok(other) => Ok(other),
+        Err(e) => Err(SieveError::without(e, secret)),
+    }
 }
 
 /// Leave the server with no active script, if `name` is the active one: MailCraft's own script

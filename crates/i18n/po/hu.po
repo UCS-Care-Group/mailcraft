@@ -187,6 +187,12 @@ msgid "(No title)"
 msgstr "(nincs cím)"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "(Of the text as it was: it has changed since.)"
+msgstr "(A korábbi szövegre vonatkozik: azóta megváltozott.)"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "(as the signer says)"
@@ -522,6 +528,12 @@ msgstr "Egy JMAP-fiók levele még nem szivároghat ki."
 msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
 msgstr "A ManageSieve-kiszolgáló a csatlakozás után azonnal köszön. Lehet, hogy ez a port kezdettől titkosított kapcsolatot vár (Dovecotban ssl = yes a sieve figyelőn), amit a ManageSieve nem használ: titkosítatlanul indul, és STARTTLS-sel vált titkosításra. Vagy a kiszolgáló előtti proxy vár valamire, amit a MailCraft nem küld. Ellenőrizze a Sieve-kiszolgálót (automatikus válaszok) a fiókbeállításokban, vagy kérdezze meg a kiszolgáló rendszergazdáját."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule is at most 64 KB."
+msgstr "Egy Sieve-szabály legfeljebb 64 KB lehet."
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -534,17 +546,23 @@ msgstr "Egy Sieve-szabály legfeljebb {kb} KB."
 msgid "A Sieve rule is kept in the Sieve script on an IMAP account's server; this account has none."
 msgstr "A Sieve-szabályt egy IMAP-fiók kiszolgálóján lévő Sieve-szkript tárolja; ennek a fióknak nincs ilyenje."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule needs a name."
+msgstr "Egy Sieve-szabálynak név kell."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve rule needs some Sieve."
+msgstr "Egy Sieve-szabályhoz Sieve-kód kell."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
 msgstr "A Sieve-szabály csak a kiszolgálón fut, a levelekre, amint odaérkeznek."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "A Sieve rule: its Sieve is changed under Advanced…"
-msgstr "Sieve-szabály: a Sieve-kódja a Speciális… alatt módosítható"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -617,6 +635,12 @@ msgstr "Egy feltétel, illetve az azonos fajtájú kivételek együtt legfeljebb
 #, fuzzy
 msgid "A contact's card keeps at most 32 certificates and keys"
 msgstr "A kapcsolati kártya legfeljebb 32 tanúsítványt és kulcsot tartalmaz"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A control character can't be in a Sieve rule."
+msgstr "Vezérlőkarakter nem lehet Sieve-szabályban."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -875,6 +899,12 @@ msgstr "A szabálynak tennie kell valamit: egy műveletet vagy egy asztali érte
 #, fuzzy
 msgid "A rule this editor doesn't show; it is kept as it is."
 msgstr "Ez a szerkesztő nem jeleníti meg ezt a szabályt; változatlanul megmarad."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A rule written in Sieve, run by the server"
+msgstr "Sieve nyelven írt szabály, a kiszolgáló futtatja"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -1462,6 +1492,12 @@ msgstr "Speciális keresés"
 #, fuzzy
 msgid "Advanced options"
 msgstr "Fejlett opciók"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Advanced…"
+msgstr "Speciális…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -2338,6 +2374,12 @@ msgstr "Kérje meg a listát, hogy ne küldjön több levelet. A MailCraft előb
 msgid "Ask the server for your automatic replies again."
 msgstr "Az automatikus válaszok újbóli lekérése a kiszolgálótól."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Ask the server whether it takes this rule; nothing is changed there"
+msgstr "Megkérdezi a kiszolgálót, elfogadja-e ezt a szabályt; ott semmi sem változik"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2363,7 +2405,7 @@ msgid "Asking the server when everybody is free…"
 msgstr "Ha megkérdezzük a szervert, mikor mindenki szabad…"
 
 #. interface
-#: crates/ui-egui/src/scheduling.rs
+#: crates/ui-egui/src/scheduling.rs crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Asking the server…"
 msgstr "A szerver megkérdezése…"
@@ -3143,7 +3185,7 @@ msgid "Can't sign"
 msgstr "Nem tudom aláírni."
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Mégse"
@@ -3407,6 +3449,12 @@ msgid "Change Sieve Rule"
 msgstr "Sieve-szabály módosítása"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Change Sieve rule"
+msgstr "Sieve-szabály módosítása"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Change This Meeting?"
@@ -3543,6 +3591,12 @@ msgstr "Karakterek (terek)"
 #, fuzzy
 msgid "Chart"
 msgstr "Diagram"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Check"
+msgstr "Ellenőrzés"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -3705,7 +3759,7 @@ msgid "Checking: the report comes in a moment…"
 msgstr "Ellenőrzöm: a jelentés egy pillanat múlva érkezik…"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Checking…"
 msgstr "Ellenőrzöm…"
@@ -4344,6 +4398,12 @@ msgstr "Másolás mappába"
 #, fuzzy
 msgid "Copy to folder"
 msgstr "Másolás mappába"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Correct the mistakes first."
+msgstr "Előbb javítsa a hibákat."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -7045,6 +7105,12 @@ msgid "Go to the folder"
 msgstr "Menj a mappába"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Go to this place in the text"
+msgstr "Ugrás erre a helyre a szövegben"
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "Goes to {host}"
@@ -8537,6 +8603,12 @@ msgid "Keep this rule on the server of {address}: it then runs there whether Mai
 msgstr "Tartsd ezt a szabályt a {address} szerverén: akkor ott fut, hogy MailCraft nyitva van-e vagy sem, a fiók postafiókjában"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Keep this rule; it goes to the server with your other rules"
+msgstr "A szabály mentése; a többi szabályával együtt a kiszolgálóra kerül"
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Keep this version"
@@ -8830,6 +8902,12 @@ msgstr "Sorköz"
 msgid "Line delta"
 msgstr "Sorok különbsége"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line} of the rule: {said}"
+msgstr "A szabály {line}. sora: {said}"
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -8841,6 +8919,12 @@ msgstr "A Sieve-szabály {line}. sora, {column}. oszlopa: vezérlőkarakter nem 
 #, fuzzy
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "A Sieve-szabály {line}. sora, {column}. oszlopa: {what}"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line}, column {column}: {what}"
+msgstr "{line}. sor, {column}. oszlop: {what}"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9340,6 +9424,11 @@ msgstr "MailCraft még nem támogatja a POP-t. Használja a szolgáltató IMAP s
 msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
 msgstr "A MailCraft annyit tárol {account} naptárkiszolgálójáról, amennyit tud: néhány naptár vagy esemény kimaradt."
 
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "MailCraft finds no mistakes in it."
+msgstr "A MailCraft nem talál benne hibát."
+
 #. interface
 #: crates/ui-egui/src/software.rs
 #, fuzzy
@@ -9477,6 +9566,12 @@ msgstr "MailCraft már nem olvassa a .pst fájlt, mielőtt megtörtént volna: a
 #, fuzzy
 msgid "MailCraft tries the usual places for your address."
 msgstr "MailCraft a szokásos helyeket keresi a címéhez."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "MailCraft waits for you to confirm this mailbox's servers (File › Info)."
+msgstr "A MailCraft arra vár, hogy megerősítse a postafiók kiszolgálóit (Fájl › Információ)."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -10607,7 +10702,7 @@ msgid "NBSP"
 msgstr "NBSP"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/credits.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Name"
 msgstr "Név"
@@ -10893,6 +10988,18 @@ msgstr "Új értekezlet"
 #, fuzzy
 msgid "New Sieve Rule"
 msgstr "Új Sieve-szabály"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "New Sieve rule"
+msgstr "Új Sieve-szabály"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Sieve rule…"
+msgstr "Új Sieve-szabály…"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
@@ -12210,6 +12317,12 @@ msgstr "Ha egy adminisztrátor jóváhagyta, próbálja újra: a bejelentkezést
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Ha már működött, a rendszer hiteles boltja legközelebb megtartja."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
+msgstr "Egy Sieve-blokk (RFC 5228), amelyet a kiszolgáló a szabályai között a helyén futtat. A MailCraft a require-t a szkriptje elejére írja."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -14770,7 +14883,7 @@ msgid "Saturday"
 msgstr "szombat"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Mentés"
@@ -16597,6 +16710,12 @@ msgid "Sign in with Send/Receive first, then change your automatic replies."
 msgstr "Jelentkezz be a Küldés/Értesítés első, majd változtass automatikus válasz."
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Sign in with Send/Receive first."
+msgstr "Előbb jelentkezzen be a Küldés/Fogadás paranccsal."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Sign in with Send/Receive to see when other people are busy."
@@ -17874,6 +17993,12 @@ msgid "The account is gone"
 msgstr "A fiók már nincs meg"
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "The account isn't there any more."
+msgstr "A fiók már nem létezik."
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 #, fuzzy
 msgid "The account that signed in on Microsoft's page is not an administrator of your organisation, so it could not approve MailCraft. Copy the message for an administrator instead."
@@ -18236,6 +18361,12 @@ msgstr "A tanúsítvány, amit a {host} szerverén mutat, nem az, amiben megbíz
 #, fuzzy
 msgid "The certificate wasn't issued by a certification authority this computer trusts."
 msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a számítógépes vagyonkezelő."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "The check stopped unexpectedly"
+msgstr "Az ellenőrzés váratlanul leállt"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19103,11 +19234,23 @@ msgstr "A kiszolgáló a Web Szolgáltatások cseréje nélkül válaszolt. Kér
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "A kiszolgáló válaszolt, de nem úgy, mint egy Exchange szerver. Ellenőrizze a címét a kiszolgáló beállításaiban."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
+msgstr "A kiszolgáló a szabályt a MailCraft teljes szkriptjében ellenőrizte: a sorszámai a szkript elejétől számítanak."
+
 #. what a command says
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "The server couldn't be searched. Try again in a few minutes."
 msgstr "A szervert nem sikerült átkeresni. Próbálja újra néhány perc múlva."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server couldn't check this rule"
+msgstr "A kiszolgáló nem tudta ellenőrizni ezt a szabályt"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19152,6 +19295,12 @@ msgid "The server didn't take the change to {name}{why}: it is as the server has
 msgstr "A kiszolgáló nem fogadta el a módosítást: {name}{why}; ismét úgy szerepel, ahogy a kiszolgálón."
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server didn't take your sign-in."
+msgstr "A kiszolgáló nem fogadta el a bejelentkezést."
+
+#. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
@@ -19168,6 +19317,12 @@ msgstr "A kiszolgálón nincs meg a(z) {ext} bővítmény."
 #, fuzzy
 msgid "The server doesn't let this rule be changed"
 msgstr "A szerver nem engedi, hogy ez a szabály megváltozzon."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server doesn't take this rule:"
+msgstr "A kiszolgáló nem fogadja el ezt a szabályt:"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -19234,6 +19389,18 @@ msgstr "A szerver olyan helyre küldte a beállítást, ahol nincs titkosítva, 
 #, fuzzy
 msgid "The server shows a certificate that needs your say."
 msgstr "A szerveren van egy igazolás, amire szükség van."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this rule, with warnings:"
+msgstr "A kiszolgáló elfogadja ezt a szabályt, figyelmeztetésekkel:"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this rule."
+msgstr "A kiszolgáló elfogadja ezt a szabályt."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -19888,11 +20055,29 @@ msgstr "A fiók szervere nem kínál Sieve-szkripteket (ManageSieve), ezért a M
 msgid "This account's server doesn't offer Sieve scripts (ManageSieve), so its rules run on this computer."
 msgstr "A fiók szervere nem kínál Sieve-szkripteket (ManageSieve), ezért a szabályai ezen a számítógépen futnak."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server doesn't offer Sieve scripts (ManageSieve)."
+msgstr "A fiók kiszolgálója nem kínál Sieve-szkripteket (ManageSieve)."
+
 #. what a command says
 #: crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
 msgstr "A fiók szervere nem fogad automatikus válaszokat a MailCrafttól: nem kínál távolléti válaszokat tartalmazó Sieve-szkripteket (ManageSieve)"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This account's server keeps no Sieve scripts."
+msgstr "A fiók kiszolgálója nem tárol Sieve-szkripteket."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -20001,6 +20186,12 @@ msgstr "A MailCraft ezen verziója nem tudja elérni a fiók kiszolgálóját."
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
 msgstr "Ez a konstrukció nem éri el a szervert az automatikus válaszok megváltoztatásához."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "This build can't reach the server. Use the desktop app."
+msgstr "Ez a változat nem éri el a kiszolgálót. Használja az asztali alkalmazást."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -20729,6 +20920,12 @@ msgstr "Ez a szabály nem Sieve-szabály: a szabályszerkesztőben módosítsa."
 #, fuzzy
 msgid "This series is still on its way to the account's server. Change one of its days once it is there (in a moment)."
 msgstr "A sorozat még nem érkezett meg a fiók kiszolgálójára. Egy kis idő múlva módosíthatja valamelyik előfordulását."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This server can't check a rule without keeping it: it checks it when the rule is saved."
+msgstr "Ez a kiszolgáló nem tud szabályt ellenőrizni mentés nélkül: a szabály mentésekor ellenőrzi."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -21817,6 +22014,12 @@ msgid "Want to be one? Sign up in #11"
 msgstr "Akarsz egy lenni? Regisztrálj a 11-esben"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Warning: {what}"
+msgstr "Figyelmeztetés: {what}"
+
+#. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Website"
@@ -22437,6 +22640,12 @@ msgstr "Ezzel a fiókkal jelentkezett be: {signedIn}. A megadott fiók: {typed}.
 #, fuzzy
 msgid "You tentatively accepted this meeting."
 msgstr "Feltételesen elfogadta ezt az értekezletet."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "You're working offline."
+msgstr "Offline módban dolgozik."
 
 #. interface, what a command says
 #: crates/engine/src/sync_driver/free_busy.rs crates/ui-egui/src/send_receive.rs
@@ -23267,7 +23476,7 @@ msgid "and"
 msgstr "valamint"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/reading.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/reading.rs crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "and {n} more"
 msgid_plural "and {n} more"
@@ -28749,6 +28958,12 @@ msgid_plural "{used} of {cap} used by {n} messages"
 msgstr[0] "{used} / {cap} foglalt {n} üzenet által"
 msgstr[1] "{used} / {cap} foglalt {n} üzenet által"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "{used} of {most} KB"
+msgstr "{used} / {most} KB"
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -28897,6 +29112,10 @@ msgstr "−Sorok"
 #~ msgid "contact"
 #~ msgstr "érintés"
 
+#~ msgid "A Sieve rule: its Sieve is changed under Advanced…"
+#~ msgstr "Sieve-szabály: a Sieve-kódja a Speciális… alatt módosítható"
+
+#, fuzzy
 #~ msgid "Automatic replies are kept on the mail server, and MailCraft can set them only for accounts that sign in with Microsoft so far: IMAP has no standard way to set them (Sieve vacation replies may come later)"
 #~ msgstr "Automatikus válaszok a postaszerveren maradnak, és a MailCraft csak olyan fiókokra tudja beállítani őket, amelyek eddig a Microsoftnál jelentkeztek: IMAP nem tudja a szokásos módon beállítani azokat (a Sieve nyaralási válaszok később is bekövetkezhetnek)"
 

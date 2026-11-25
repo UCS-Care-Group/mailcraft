@@ -314,3 +314,71 @@ fn an_agent_asks_with_the_text_and_one_that_sends_asks_as_a_send() {
     run(&mut s, "rules.enable", json!({"id": id, "value": true}));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": id, "value": false})), Access::Owner(Class::Settings));
 }
+
+#[test]
+fn the_script_a_server_checks_holds_the_text_in_its_place_with_its_require() {
+    use super::rules_sieve::{ServerLine, for_server_check, server_lines};
+    let (mut s, account, _) = sieve_session();
+    let first =
+        run(&mut s, "rules.addSieve", json!({"account": account, "name": "First", "sieve": "if size :over 1M { discard; }"}))["id"].as_u64().unwrap();
+    let second = run(&mut s, "rules.addSieve", json!({"account": account, "name": "Second", "sieve": "keep;"}))["id"].as_u64().unwrap();
+    let text = "if header :is \"x-spam\" \"yes\" {\n  fileinto \"Junk\";\n}";
+    // A new rule goes last; the first rule's text changed goes in its place, before the second.
+    for (id, after) in [(None, Some(second)), (Some(first), None)] {
+        let checked = for_server_check(&s, account, id, "Spam", text).unwrap();
+        let lines: Vec<&str> = checked.script.split("\r\n").collect();
+        let at = checked.first_line - 1;
+        assert_eq!(lines.get(at..at + 3).unwrap(), ["if header :is \"x-spam\" \"yes\" {", "  fileinto \"Junk\";", "}"], "{}", checked.script);
+        assert_eq!(checked.lines, 3);
+        assert_eq!(lines.get(at - 1), Some(&"# Sieve rule: Spam"));
+        assert!(checked.script.contains("\"fileinto\""), "{}", checked.script);
+        // The whole script is Sieve, and the other rules are in it once.
+        check(&checked.script, None).unwrap();
+        assert_eq!(checked.script.matches("keep;").count(), 1);
+        let second_at = checked.script.find(&format!("# rule {second}\r\n")).unwrap();
+        let ours_at = checked.script.find("# Sieve rule: Spam").unwrap();
+        assert_eq!(ours_at > second_at, after.is_some(), "{}", checked.script);
+        // The server's line numbers as the rule's own.
+        let said = format!(
+            "line {}: error: unknown thing.\nLINE: {} error\nline 1: elsewhere\nsomething else",
+            checked.first_line + 1,
+            checked.first_line + 3
+        );
+        assert_eq!(
+            server_lines(&said, &checked),
+            [
+                ServerLine { line: Some(2), text: format!("line {}: error: unknown thing.", checked.first_line + 1) },
+                ServerLine { line: None, text: format!("LINE: {} error", checked.first_line + 3) },
+                ServerLine { line: None, text: "line 1: elsewhere".into() },
+                ServerLine { line: None, text: "something else".into() },
+            ]
+        );
+    }
+    // Only an account whose server keeps the script; never a rule over 64 KB.
+    assert!(for_server_check(&s, 999, None, "x", "keep;").is_err());
+    assert!(for_server_check(&s, account, None, "x", &"#".repeat(mailcraft_model::MAX_SIEVE_RULE + 1)).is_err());
+    // "inline 3" names no line; the first real one counts.
+    let check = super::rules_sieve::ForCheck { script: String::new(), first_line: 10, lines: 2 };
+    assert_eq!(server_lines("inline 11, line 11", &check)[0].line, Some(2));
+    assert_eq!(server_lines("line 99999999999999999999", &check)[0].line, None);
+    assert!(server_lines(&"x\n".repeat(500), &check).len() <= 100);
+}
+
+#[test]
+fn the_editor_sees_every_problem_and_a_missing_extension_as_a_mistake() {
+    use super::rules_sieve::editor_problems;
+    use crate::sieve_check::Fault;
+    let (mut s, account, _) = sieve_session();
+    let a = s.mailbox.account(account).unwrap().clone();
+    assert!(editor_problems(&a, "keep;").is_empty());
+    let found = editor_problems(&a, "keep;\nbogus;\nfileinto \"x\";");
+    assert!(found.iter().any(|p| !p.warning && p.line == 2), "{found:?}");
+    let control = editor_problems(&a, "keep;\n  \"\u{7}\";");
+    assert_eq!(control.len(), 1);
+    assert_eq!((control[0].fault.clone(), control[0].line, control[0].column), (Fault::Control, 2, 4));
+    // An extension the server lacks: shown as a mistake, as rules.addSieve refuses it.
+    s.mailbox.account_mut(account).unwrap().sieve_offers = vec!["fileinto".into()];
+    let a = s.mailbox.account(account).unwrap().clone();
+    let found = editor_problems(&a, "if body :contains \"x\" { keep; }");
+    assert!(found.iter().any(|p| matches!(p.fault, Fault::ServerLacks(_)) && !p.warning), "{found:?}");
+}

@@ -44,6 +44,12 @@ pub(crate) struct SieveWorld {
     pub(crate) active: Option<String>,
     /// A script with this in it is refused as having an error.
     pub(crate) refuse_scripts_with: Option<String>,
+    /// What a refusal of a script says (several lines go as a literal).
+    pub(crate) refusal: String,
+    /// A script with the first in it is taken with the second as its warnings.
+    pub(crate) warn_scripts_with: Option<(String, String)>,
+    /// Say the VERSION of RFC 5804; a server from before it says none, and has no CHECKSCRIPT.
+    pub(crate) version: bool,
     /// Send the client to another server instead of signing it in.
     pub(crate) referral: bool,
     /// Every line received; a literal is written `{n bytes}`.
@@ -64,6 +70,9 @@ impl Default for SieveWorld {
             scripts: Vec::new(),
             active: None,
             refuse_scripts_with: None,
+            refusal: "line 1: error: unknown command".into(),
+            warn_scripts_with: None,
+            version: true,
             referral: false,
             log: Vec::new(),
             connections: 0,
@@ -95,6 +104,11 @@ impl Fake<SieveWorld> {
 /// A string as the server writes it: in quotes.
 fn quoted(text: &str) -> String {
     format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// The server's words: in quotes, or as a literal when they run over several lines.
+fn said(text: &str) -> String {
+    if text.contains(['\r', '\n']) { format!("{{{}}}\r\n{text}", text.len()) } else { quoted(text) }
 }
 
 /// The arguments of a command line: quoted strings, bare words, and a literal at the end of the
@@ -192,8 +206,9 @@ fn serve_sieve(stream: TcpStream, shared: Arc<Mutex<SieveWorld>>) {
         let world = shared.lock().unwrap();
         let sasl = if world.token.is_empty() { "PLAIN" } else { "PLAIN OAUTHBEARER" };
         let starttls = if world.offer_starttls { "\"STARTTLS\"\r\n" } else { "" };
+        let version = if world.version { "\"VERSION\" \"1.0\"\r\n" } else { "" };
         format!(
-            "\"IMPLEMENTATION\" \"Fake Sieve\"\r\n\"SASL\" \"{sasl}\"\r\n\"SIEVE\" {}\r\n{starttls}\"VERSION\" \"1.0\"\r\nOK \"Ready.\"\r\n",
+            "\"IMPLEMENTATION\" \"Fake Sieve\"\r\n\"SASL\" \"{sasl}\"\r\n\"SIEVE\" {}\r\n{starttls}{version}OK \"Ready.\"\r\n",
             quoted(&world.extensions)
         )
     };
@@ -274,10 +289,14 @@ fn serve_sieve(stream: TcpStream, shared: Arc<Mutex<SieveWorld>>) {
                 Some(text) => format!("{{{}}}\r\n{text}\r\nOK \"Getscript completed.\"", text.len()),
                 None => "NO (NONEXISTENT) \"There is no script by that name\"".to_string(),
             },
+            "CHECKSCRIPT" if !world.version => "NO \"Unknown command\"".to_string(),
             "PUTSCRIPT" | "CHECKSCRIPT" => {
                 let (name, text) = if command == "PUTSCRIPT" { (arg(0), arg(1)) } else { (String::new(), arg(0)) };
+                let warned = world.warn_scripts_with.as_ref().filter(|(with, _)| text.contains(with.as_str())).map(|(_, said)| said.clone());
                 if world.refuse_scripts_with.as_ref().is_some_and(|bad| text.contains(bad.as_str())) {
-                    "NO \"line 1: error: unknown command\"".to_string()
+                    format!("NO {}", said(&world.refusal))
+                } else if let Some(warnings) = warned.filter(|_| command == "CHECKSCRIPT") {
+                    format!("OK (WARNINGS) {}", said(&warnings))
                 } else {
                     if command == "PUTSCRIPT" {
                         match world.scripts.iter_mut().find(|(n, _)| *n == name) {

@@ -5311,12 +5311,12 @@ pub(crate) mod rules {
     /// command refuses, and a rule with a part the builder can't show whole ([`Cond::of`]).
     pub(crate) fn not_changeable(mb: &Mailbox, r: &Rule) -> Option<&'static str> {
         if let Some(why) = cannot_edit(mb, r) {
-            return Some(match why {
-                NotEditable::Elsewhere => tl!("Made in another program: MailCraft never changes this rule"),
-                // (Its own editor comes under Advanced, #9999.)
-                NotEditable::Sieve => tl!("A Sieve rule: its Sieve is changed under Advanced…"),
-                other => tl!(other.said()),
-            });
+            return match why {
+                NotEditable::Elsewhere => Some(tl!("Made in another program: MailCraft never changes this rule")),
+                // (Its text is changed in the Sieve rule editor, #9999.)
+                NotEditable::Sieve => None,
+                other => Some(tl!(other.said())),
+            };
         }
         let shown = r.conditions.iter().all(|c| Cond::of(c, false).is_some()) && r.exceptions.iter().all(|c| Cond::of(c, true).is_some());
         (!shown).then_some(tl!("This rule has a part the rule builder can't show: delete it and create it again to change it"))
@@ -5465,6 +5465,9 @@ pub(crate) mod rules {
         /// The builder changes this rule (Change Rule) rather than making one: its id and its
         /// account (0 for a rule for every account's mail, which stays one).
         editing: Option<(Id, Id)>,
+        /// The Sieve rule editor, in the builder's place, when it is open (Advanced… › New Sieve
+        /// rule, or Change on a Sieve rule, #9999).
+        pub(crate) sieve: Option<crate::sieve_editor::SieveEditor>,
     }
 
     impl RulesForm {
@@ -5484,7 +5487,9 @@ pub(crate) mod rules {
                 if let Some(account) = s.mailbox.rules.iter().find(|r| r.id == rule).map(|r| r.account).filter(|a| *a != 0) {
                     f.choose(&s.mailbox, account);
                 }
-                f.edit(&s.mailbox, rule);
+                if !f.edit(&s.mailbox, rule) {
+                    f.sieve = crate::sieve_editor::SieveEditor::open(&s.mailbox, rule);
+                }
             }
             f
         }
@@ -5555,7 +5560,8 @@ pub(crate) mod rules {
         /// Open the builder on rule `id` to change it, filled in as it is (Change Rule). `false`,
         /// and nothing changes, when it can't be changed ([`not_changeable`]) or isn't there.
         pub(crate) fn edit(&mut self, mb: &Mailbox, id: Id) -> bool {
-            let Some(r) = mb.rules.iter().find(|r| r.id == id).filter(|r| not_changeable(mb, r).is_none()) else { return false };
+            // (A Sieve rule is changed in its own editor.)
+            let Some(r) = mb.rules.iter().find(|r| r.id == id).filter(|r| not_changeable(mb, r).is_none() && !r.is_sieve()) else { return false };
             let (Some(conds), Some(unless)) = (
                 r.conditions.iter().map(|c| Cond::of(c, false)).collect::<Option<Vec<_>>>(),
                 r.exceptions.iter().map(|c| Cond::of(c, true)).collect::<Option<Vec<_>>>(),
@@ -5719,6 +5725,13 @@ pub(crate) mod rules {
                 .account(self.editing.map_or(account, |(_, a)| a))
                 .filter(|a| self.open && a.kind != mailcraft_model::AccountKind::Local)
                 .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
+            // The Sieve rule editor: the server's answer, and the check here once typing pauses.
+            if let Some(editor) = self.sieve.as_mut() {
+                editor.tick(app, ui.ctx());
+            }
+            let advanced = crate::sieve_editor::offered(app, account);
+            let mut sieve_asks = None;
+            let mut new_sieve = false;
             let mut run: Option<(&'static str, Value)> = None;
             let mut replace_sieve = false;
             let mut chosen = None;
@@ -5820,8 +5833,23 @@ pub(crate) mod rules {
                         let found = tln!(n, "{n} message changed", "{n} messages changed");
                         ui.label(egui::RichText::new(found).color(t.text_dim));
                     }
+                    // Sieve written by hand, for an account whose server keeps MailCraft's script
+                    // (#9999): not Outlook's, so out of the way.
+                    if advanced {
+                        ui.menu_button(tl!("Advanced…"), |ui| {
+                            let tip = tl!("A rule written in Sieve, run by the server");
+                            if ui.button(tl!("New Sieve rule…")).on_hover_text(tip).clicked() {
+                                new_sieve = true;
+                                ui.close();
+                            }
+                        });
+                    }
                 });
                 ui.separator();
+                if let Some(editor) = self.sieve.as_mut() {
+                    sieve_asks = editor.ui(ui, app);
+                    return;
+                }
                 // The builder folds away under its heading.
                 let (head, head_resp) = ui.allocate_exact_size(vec2(ui.available_width().max(40.0), 24.0), Sense::click());
                 if head_resp.hovered() {
@@ -5852,14 +5880,43 @@ pub(crate) mod rules {
                 self.choose(&app.session.mailbox, id);
                 self.ran = None;
                 self.error.clear();
+                // (A Sieve rule is its account's.)
+                self.sieve = self.sieve.take().filter(|e| e.account == id);
             }
             if cancel {
                 self.reset();
             }
-            if let Some(id) = change
-                && !self.edit(&app.session.mailbox, id)
-            {
-                self.error = tl!("This rule can't be changed here.").to_string();
+            if new_sieve {
+                self.reset();
+                self.sieve = Some(crate::sieve_editor::SieveEditor::new_rule(account));
+            }
+            if let Some(id) = change {
+                if let Some(editor) = crate::sieve_editor::SieveEditor::open(&app.session.mailbox, id) {
+                    self.reset();
+                    self.sieve = Some(editor);
+                } else if self.edit(&app.session.mailbox, id) {
+                    self.sieve = None;
+                } else {
+                    self.error = tl!("This rule can't be changed here.").to_string();
+                }
+            }
+            match sieve_asks {
+                Some(crate::sieve_editor::EditorAsks::Check) => {
+                    if let Some(editor) = self.sieve.as_mut() {
+                        editor.check_on_server(app);
+                    }
+                }
+                Some(crate::sieve_editor::EditorAsks::Save(command, params)) => match app.execute(command, params) {
+                    Ok(_) => self.sieve = None,
+                    Err(e) => {
+                        let said = app.refusal_said(&e);
+                        if let Some(editor) = self.sieve.as_mut() {
+                            editor.error = said;
+                        }
+                    }
+                },
+                Some(crate::sieve_editor::EditorAsks::Cancel) => self.sieve = None,
+                None => {}
             }
             if add {
                 run = Some(self.command());

@@ -135,6 +135,9 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+mod sieve_editor;
+#[cfg(test)]
+mod sieve_editor_tests;
 pub mod sieve_replies;
 #[cfg(test)]
 mod sieve_replies_tests;

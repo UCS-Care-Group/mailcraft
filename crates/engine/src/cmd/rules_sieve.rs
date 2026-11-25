@@ -188,3 +188,126 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     *r = rule;
     Ok(json!({"id": id, "needs": checked.needs, "warnings": checked.warnings.iter().map(warning).collect::<Vec<_>>()}))
 }
+
+/// What the editor of a Sieve rule shows of `text` as it is typed: every problem
+/// [`check_block`] finds with the extensions the server of `a` last said it has, in the order of
+/// the text, an extension the server lacks counting as a mistake (as [`checked`] refuses it); or
+/// the first control character, alone. Empty when nothing is wrong. Line and column are the
+/// text's own (its line breaks CRLF or not).
+pub fn editor_problems(a: &Account, text: &str) -> Vec<Problem> {
+    let mut at: usize = 0;
+    let mut line: usize = 1;
+    let mut column: usize = 0;
+    for c in text.chars() {
+        column = column.saturating_add(1);
+        if c == '\n' {
+            line = line.saturating_add(1);
+            column = 0;
+        } else if c.is_control() && c != '\t' && c != '\r' {
+            let end = at.saturating_add(c.len_utf8());
+            return vec![Problem { fault: Fault::Control, at: at..end, line, column, warning: false }];
+        }
+        at = at.saturating_add(c.len_utf8());
+    }
+    let problems = match check_block(&crate::sieve::crlf_lines(text), offers(a)) {
+        Ok(checked) => checked.warnings,
+        Err(problems) => problems,
+    };
+    problems.into_iter().map(|p| if matches!(p.fault, Fault::ServerLacks(_)) { Problem { warning: false, ..p } } else { p }).collect()
+}
+
+/// MailCraft's whole script for an account, as it would be written with a Sieve rule's text in
+/// it, for the server to check (CHECKSCRIPT): the server then sees the text where it would run,
+/// with the `require` it would have. And the lines the text takes in it, to say the server's
+/// line numbers as the rule's own ([`ForCheck::rule_line`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForCheck {
+    pub script: String,
+    /// The line of the script (from 1) the rule's first line is.
+    pub first_line: usize,
+    /// How many lines the rule's text takes.
+    pub lines: usize,
+}
+
+impl ForCheck {
+    /// The line of the rule (from 1) that line `n` of the script is, when it is one of the rule's.
+    pub fn rule_line(&self, n: usize) -> Option<usize> {
+        let last = self.first_line.saturating_add(self.lines);
+        (n >= self.first_line && n < last).then(|| n.saturating_sub(self.first_line).saturating_add(1))
+    }
+}
+
+/// [`ForCheck`] for `text` as the Sieve rule `id` of `account` (in that rule's place among the
+/// rules the server keeps), or as a new one (`id` `None`, after them), named `name`.
+pub fn for_server_check(s: &Session, account: Id, id: Option<Id>, name: &str, text: &str) -> Result<ForCheck, CmdError> {
+    let a = sieve_account(s, account)?;
+    if text.len() > MAX_SIEVE_RULE {
+        return Err(failed!("A Sieve rule is at most {kb} KB.", kb = MAX_SIEVE_RULE >> 10));
+    }
+    let block = crate::sieve::crlf_lines(text);
+    // (Text with a mistake needs what it needs all the same; the server says what is wrong.)
+    let requires = check_block(&block, offers(a)).map(|c| c.needs).unwrap_or_default();
+    let lines = block.matches('\n').count().max(1);
+    let ours = crate::sieve::RuleScript { id: id.unwrap_or(0), text: block, requires, name: name.to_string() };
+    let (mut rules, _) = super::sieve_rules::blocks(&s.mailbox, account);
+    // Where the rule stands among those written: after those before it in the list of rules.
+    let order = |rule: Id| s.mailbox.rules.iter().position(|r| r.id == rule);
+    let place = id.and_then(order);
+    rules.retain(|r| Some(r.id) != id);
+    let i = match place {
+        Some(place) => rules.iter().take_while(|r| order(r.id).is_some_and(|o| o < place)).count(),
+        None => rules.len(),
+    };
+    let i = i.min(rules.len());
+    rules.insert(i, ours);
+    let script = super::sieve_replies::script_with(s, a, &rules);
+    // The rule's part and those after it end the script: its text begins where they begin, after
+    // its comments.
+    let tail: usize = rules.get(i..).unwrap_or_default().iter().map(|r| crate::sieve::rule_section(r).len()).sum();
+    let comments = rules.get(i).map_or(0, |r| crate::sieve::rule_section(r).len().saturating_sub(r.text.len()));
+    let start = script.len().saturating_sub(tail).saturating_add(comments);
+    let first_line = script.get(..start).map_or(1, |before| before.matches('\n').count().saturating_add(1));
+    Ok(ForCheck { script, first_line, lines })
+}
+
+/// Most lines of the server's answer kept as problems.
+const MAX_SERVER_LINES: usize = 100;
+
+/// One line of what the server said of a script it checked, and the line of the rule it names,
+/// when it names one of the rule's ([`server_lines`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServerLine {
+    pub line: Option<usize>,
+    pub text: String,
+}
+
+/// What the server said of `check`'s script, a line each (at most 100, blank ones left out), each
+/// with the line of the rule it is about. RFC 5804 doesn't say how a server names a line: the
+/// first `line N` in a line of its answer is taken as one (Dovecot and Cyrus write so), and only
+/// a line of the rule's own counts.
+pub fn server_lines(said: &str, check: &ForCheck) -> Vec<ServerLine> {
+    said.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .take(MAX_SERVER_LINES)
+        .map(|l| ServerLine { line: named_line(l).and_then(|n| check.rule_line(n)), text: l.to_string() })
+        .collect()
+}
+
+/// The number after the first `line` (any case, then blanks or a colon) in `text`.
+fn named_line(text: &str) -> Option<usize> {
+    let lower = text.to_ascii_lowercase();
+    let mut rest = lower.as_str();
+    while let Some(at) = rest.find("line") {
+        let after = rest.get(at.saturating_add(4)..).unwrap_or_default();
+        let digits_at = after.trim_start_matches([' ', ':', '\t']);
+        let digits: String = digits_at.chars().take_while(char::is_ascii_digit).take(9).collect();
+        // ("line" inside a word, "inline 3", isn't one.)
+        let word_start = at == 0 || !rest.get(..at).and_then(|b| b.chars().next_back()).is_some_and(char::is_alphanumeric);
+        if !digits.is_empty() && word_start {
+            return digits.parse().ok();
+        }
+        rest = after;
+    }
+    None
+}

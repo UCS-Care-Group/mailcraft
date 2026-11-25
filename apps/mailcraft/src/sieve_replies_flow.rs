@@ -323,3 +323,23 @@ fn a_sieve_rule_goes_into_mailcrafts_script_with_its_require_and_a_refusal_leave
     assert_eq!(fake.world().script(SCRIPT_NAME), Some(text.as_str()));
     assert!(app.sieve_line(account).contains("unknown command"), "{}", app.sieve_line(account));
 }
+
+#[test]
+fn the_editors_check_reaches_the_server_and_brings_its_words_back_unwritten() {
+    use mailcraft_ui_egui::sieve_replies::ServerCheck;
+    let fake = Fake::sieve(SieveWorld {
+        refuse_scripts_with: Some("bogus".into()),
+        refusal: "line 4: error: unknown command 'bogus'.\r\nerror: validation failed.".into(),
+        ..world()
+    });
+    let (mut app, account) = window(&fake);
+    let ticket = app.sieve_check_start(account, "require \"fileinto\";\r\nkeep;\r\n\r\nbogus;\r\n".into()).unwrap();
+    let answer = app.sieve_check_answer(ticket).expect("the host answered at once");
+    assert_eq!(answer.checked, Some(ServerCheck::Errors("line 4: error: unknown command 'bogus'.\nerror: validation failed.".into())));
+    let ticket = app.sieve_check_start(account, "keep;\r\n".into()).unwrap();
+    assert_eq!(app.sieve_check_answer(ticket).unwrap().checked, Some(ServerCheck::Fine));
+    // Asked once each, and nothing kept on the server.
+    let world = fake.world();
+    assert_eq!(world.log.iter().filter(|l| l.starts_with("CHECKSCRIPT")).count(), 2);
+    assert!(world.scripts.is_empty() && !world.heard("PUTSCRIPT"));
+}

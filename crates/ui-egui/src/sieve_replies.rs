@@ -43,7 +43,23 @@ pub struct SieveJob {
     pub secret: String,
     /// What to write first (`account.setAutomaticReplies`' `sieve`); `None` only reads.
     pub write: Option<SieveWrite>,
+    /// A script for the server to check (CHECKSCRIPT) instead: nothing is written or read then,
+    /// and the answer is [`SieveResult::checked`].
+    pub check: Option<String>,
     pub cancel: Arc<AtomicBool>,
+}
+
+/// What the server said of a script it was asked to check ([`SieveJob::check`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ServerCheck {
+    /// Nothing wrong.
+    Fine,
+    /// Nothing wrong, but the server has something to say: its words, a line each.
+    Warnings(String),
+    /// The server refused it: its words, a line each (capped, without control characters).
+    Errors(String),
+    /// The server is from before RFC 5804, with no way to check a script without writing it.
+    NotOffered,
 }
 
 /// A script to write.
@@ -76,6 +92,8 @@ pub struct SieveResult {
     pub sign_in_refused: bool,
     /// What went wrong otherwise, in a few words; empty when nothing did.
     pub error: String,
+    /// What the server said of the script a job asked it to check ([`SieveJob::check`]).
+    pub checked: Option<ServerCheck>,
 }
 
 /// Why an account's Sieve script can't be had just now.
@@ -125,6 +143,11 @@ pub struct SieveSync {
     rules_writes: HashSet<Id>,
     /// The mailbox opening all of this is about ([`mailcraft_engine::Session::openings`]).
     opening: u64,
+    /// A check of a script under way (the Sieve rule editor's Check): its ticket and the answer
+    /// to come. One at a time; a new one takes the place of the one before.
+    check: Option<(u64, Receiver<SieveResult>)>,
+    /// The last ticket given.
+    checks: u64,
 }
 
 impl SieveSync {
@@ -236,7 +259,7 @@ impl MailApp {
             }
             return false;
         };
-        let job = SieveJob { account: owner, secret, write: write.clone(), cancel: Default::default() };
+        let job = SieveJob { account: owner, secret, write: write.clone(), check: None, cancel: Default::default() };
         let Some(host) = self.services.sieve.as_ref() else { return false };
         self.sieve.rx = Some((account, write.clone(), host(job)));
         self.sieve.read.insert(account, now);
@@ -528,6 +551,76 @@ impl MailApp {
             }
             self.sieve = SieveSync { opening, ..Default::default() };
         }
+    }
+
+    /// Why the server can't check a script of `account`'s just now (the Sieve rule editor's Check
+    /// is greyed with it), or `None` when it can.
+    pub(crate) fn sieve_check_unavailable(&self, account: Id) -> Option<String> {
+        let Some(owner) = self.session.mailbox.account(account).filter(|a| is_sieve_account(a)) else {
+            return Some(tl!("This account's server keeps no Sieve scripts.").to_string());
+        };
+        if self.services.sieve.is_none() {
+            return Some(tl!("This build can't reach the server. Use the desktop app.").to_string());
+        }
+        if self.offline() {
+            return Some(tl!("You're working offline.").to_string());
+        }
+        if self.unconfirmed {
+            return Some(tl!("MailCraft waits for you to confirm this mailbox's servers (File › Info).").to_string());
+        }
+        if let Some(unreached) = self.sieve_unreached(account) {
+            return Some(unreached.why.clone());
+        }
+        if self.sieve.trouble.get(&account) == Some(&SieveTrouble::Unavailable) {
+            return Some(tl!("This account's server doesn't offer Sieve scripts (ManageSieve).").to_string());
+        }
+        if self.sieve_secret(owner).is_none() {
+            return Some(tl!("Sign in with Send/Receive first.").to_string());
+        }
+        None
+    }
+
+    /// Ask the server of `account` to check `script` (CHECKSCRIPT), in place of any check under
+    /// way: the ticket to ask [`MailApp::sieve_check_answer`] for, or why it can't be asked.
+    /// (Public for a host's tests.)
+    pub fn sieve_check_start(&mut self, account: Id, script: String) -> Result<u64, String> {
+        self.sieve_forget_if_replaced();
+        if let Some(why) = self.sieve_check_unavailable(account) {
+            return Err(why);
+        }
+        let Some(owner) = self.session.mailbox.account(account).cloned() else { return Err(tl!("The account isn't there any more.").to_string()) };
+        let Some(secret) = self.sieve_secret(&owner) else { return Err(tl!("Sign in with Send/Receive first.").to_string()) };
+        let Some(host) = self.services.sieve.as_ref() else { return Err(tl!("This build can't reach the server. Use the desktop app.").to_string()) };
+        let job = SieveJob { account: owner, secret, write: None, check: Some(script), cancel: Default::default() };
+        let rx = host(job);
+        self.sieve.checks = self.sieve.checks.wrapping_add(1);
+        let ticket = self.sieve.checks;
+        self.sieve.check = Some((ticket, rx));
+        Ok(ticket)
+    }
+
+    /// The answer to the check `ticket`, once it has come (once only); `None` while it hasn't, or
+    /// when another check took its place. (Public for a host's tests.)
+    pub fn sieve_check_answer(&mut self, ticket: u64) -> Option<SieveResult> {
+        self.sieve_forget_if_replaced();
+        let (asked, rx) = self.sieve.check.as_ref()?;
+        if *asked != ticket {
+            return None;
+        }
+        let result = match rx.try_recv() {
+            Ok(result) => result,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                SieveResult { error: tl!("The check stopped unexpectedly").to_string(), ..Default::default() }
+            }
+        };
+        self.sieve.check = None;
+        Some(result)
+    }
+
+    /// Whether the check `ticket` is still under way.
+    pub(crate) fn sieve_check_busy(&self, ticket: u64) -> bool {
+        self.sieve.check.as_ref().is_some_and(|(asked, _)| *asked == ticket)
     }
 
     /// What File › Info says of an IMAP account's Automatic Replies. (Public for a host's tests.)

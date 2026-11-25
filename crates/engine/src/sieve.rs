@@ -429,13 +429,20 @@ pub fn script(vacation: &Vacation, owner: &Owner, rules: &[RuleScript]) -> Strin
         out.push_str("# Automatic replies are off.\r\n");
     }
     for rule in rules {
-        out.push_str(&format!("# rule {}\r\n", rule.id));
-        let name = comment_name(&rule.name);
-        if !name.is_empty() {
-            out.push_str(&format!("# {RULE_NAME}{name}\r\n"));
-        }
-        out.push_str(&crlf_lines(&rule.text));
+        out.push_str(&rule_section(rule));
     }
+    out
+}
+
+/// A rule's part of the script: the comment with its id, the one with a Sieve rule's name, then
+/// its Sieve, ending with a line break.
+pub fn rule_section(rule: &RuleScript) -> String {
+    let mut out = format!("# rule {}\r\n", rule.id);
+    let name = comment_name(&rule.name);
+    if !name.is_empty() {
+        out.push_str(&format!("# {RULE_NAME}{name}\r\n"));
+    }
+    out.push_str(&crlf_lines(&rule.text));
     out
 }
 

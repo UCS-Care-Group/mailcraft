@@ -122,6 +122,8 @@ pub enum Fault {
     /// A relational match (RFC 5231) other than gt, ge, lt, le, eq and ne.
     BadRelation(String),
     UnknownComparator(String),
+    /// A control character (other than a tab or a line break) in a Sieve rule.
+    Control,
 }
 
 /// The kind of value an argument should be.
@@ -201,6 +203,7 @@ impl Problem {
             Fault::NeedsTag { name, tags } => said!("{name} needs one of {tags}.", name, tags),
             Fault::BadRelation(value) => said!("\"{value}\" isn't a relation (gt, ge, lt, le, eq or ne).", value),
             Fault::UnknownComparator(name) => said!("Unknown comparator \"{name}\".", name),
+            Fault::Control => said!("A control character can't be in a Sieve rule."),
         }
     }
 }
