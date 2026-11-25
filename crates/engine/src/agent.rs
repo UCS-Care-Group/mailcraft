@@ -22,6 +22,8 @@ use serde_json::{Value, json};
 
 pub mod bind;
 #[cfg(test)]
+mod contact_move_tests;
+#[cfg(test)]
 mod delete_form_tests;
 
 use crate::cmd::compose::{LEAVING, draft_gone};
@@ -3883,19 +3885,6 @@ mod tests {
         assert_eq!(check(&s, "folder.select", &json!({"path": "Inbox"}), &[]), Verdict::Run);
         assert!(matches!(check(&s, "compose.send", &json!({}), &[]), Verdict::Ask(Class::Send, _)));
         assert_eq!(check(&s, "compose.send", &json!({}), &[Class::Send]), Verdict::Run);
-    }
-
-    #[test]
-    fn a_contact_move_is_asked_about_by_name() {
-        let mut s = Session::empty();
-        s.run("people.new", &json!({"first": "Bo", "last": "Example", "email": "bo@example.org"})).unwrap();
-        let id = s.sel.contact.unwrap();
-        let params = json!({"ids": [id], "folder": 0});
-        assert_eq!(classify(&s, "people.moveToFolder", &params), Access::Owner(Class::Delete));
-        let d = describe(&s, "people.moveToFolder", &params);
-        assert!(d.contains("Bo Example") && d.contains("On this computer") && d.contains("deleting"), "{d}");
-        let junk = describe(&s, "people.moveToFolder", &json!({"ids": "x", "folder": "y"}));
-        assert!(junk.contains("no folder"), "{junk}");
     }
 
     #[test]
