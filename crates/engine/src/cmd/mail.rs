@@ -259,6 +259,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 /// Only when the reading pane shows it, or `open` says it is opened some other way (in a window
 /// of its own, #1734): with the pane off, selecting reads nothing.
 pub(crate) fn mark_opened(s: &mut Session, open: bool) {
+    // Shown, read or not: its header lines are looked at once the command is done (#1751).
+    let shown = s.sel.messages.len() == 1 && (open || s.view.reading_pane != crate::session::Pane::Off);
+    s.shown = s.sel.focus().filter(|_| shown);
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || (!open && s.view.reading_pane == crate::session::Pane::Off) {
         s.opened = None;
         return;

@@ -24,9 +24,9 @@ use crate::{ContentRef, Message};
 
 /// The header names the program reads by name, which stay on the message ([`is_working`]).
 ///
-/// A name added here later finds its lines on a message read after that, and on one whose block
-/// is in memory once it is split again ([`Message::split_headers`]); in a block kept outside
-/// memory they stay where they are until the message is next read from its source.
+/// A name added here later finds its lines on a message read after that; on one read before,
+/// once the message is shown, when its block (brought in from outside memory if it is kept
+/// there) gives them back ([`Message::lift_working`], `Session::lift_working_headers`, #1751).
 pub const WORKING: &[&str] = &[
     // The server's verdict on the sender (`auth_results`, `sender_warnings`), and what is left
     // behind when mail goes to another account (`auth_results::forget_stamps`).
@@ -357,6 +357,19 @@ impl Message {
         }
         let all = self.all_headers();
         (self.headers, self.header_block) = split(all);
+    }
+
+    /// The lines of the block in memory whose names have become working since it was split (a
+    /// later version reads more by name, #1751) put back on the message, in their places: the
+    /// message then reads as one this version split. Whether any were. A block kept outside
+    /// memory is left as it is (it is brought in first: `Session::lift_working_headers`).
+    pub fn lift_working(&mut self) -> bool {
+        if self.header_block.data.is_empty() || !self.header_block.lines().iter().any(|line| is_working(&line.name, &line.value)) {
+            return false;
+        }
+        let all = self.all_headers();
+        (self.headers, self.header_block) = split(all);
+        true
     }
 
     /// [`Message::all_headers`] put back on the message, with no block: as a file written for a

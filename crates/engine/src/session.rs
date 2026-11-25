@@ -1306,6 +1306,13 @@ pub struct Session {
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
+    /// The messages opened whose header block was looked at for lines this version reads by
+    /// name ([`Session::lift_working_headers`], #1751): each once a session. Never saved.
+    lifted: std::collections::HashSet<Id>,
+    /// The message a selection showed (in the reading pane, or opened), read or not, whose header
+    /// lines are looked at once the command that selected it has done ([`Session::opened`] is
+    /// the same for one to mark read).
+    pub(crate) shown: Option<Id>,
     /// The Digital signatures checked, and the certificates they are checked against
     /// ([`Session::digital_signature`], #30). Never saved.
     pub(crate) signatures: crate::digital_signature::SignatureChecks,
@@ -1521,6 +1528,8 @@ impl Session {
             list_builds: 0,
             opened: None,
             sender_checks: Default::default(),
+            lifted: Default::default(),
+            shown: None,
             signatures: Default::default(),
             content_source: None,
             loads: 0,
@@ -2124,6 +2133,30 @@ impl Session {
         if carried {
             self.keep_through_read_marks(&[id], rev_before, counts_before);
         }
+    }
+
+    /// Message `id`, just opened: the header lines this version reads by name that an earlier
+    /// version left in its block are put back on it (#1751), so that mail read before an update
+    /// is read as mail that came after it (Unsubscribe, the sender checks). Its block is brought
+    /// in for that, once a session; the message changes only when a line comes back. On the
+    /// light path (`light`) the message as it was is held, as [`Session::mark_opened_read`]
+    /// holds it.
+    fn lift_working_headers(&mut self, id: Id, light: bool) {
+        if !self.lifted.insert(id) {
+            return;
+        }
+        let Some(old) = self.mailbox.messages.get(&id).cloned().filter(|m| !m.header_block.is_empty()) else { return };
+        let mut lifted = Message::clone(&self.with_header_block(old.clone()));
+        if !lifted.lift_working() {
+            return;
+        }
+        let Ok(m) = self.mailbox.message_mut(id) else { return };
+        (m.headers, m.header_block) = (lifted.headers, lifted.header_block);
+        self.dirty = true;
+        if light {
+            self.hold([&old]);
+        }
+        self.rev += 1;
     }
 
     /// The list, the counts and the conversation stand through the read marks of `changed`
@@ -4400,6 +4433,9 @@ impl Session {
         // failed marks nothing.
         if let Some(opened) = self.opened.take().filter(|_| result.is_ok()) {
             self.mark_opened_read(opened, light, if light { counts_before.clone() } else { None });
+        }
+        if let Some(shown) = self.shown.take().filter(|_| result.is_ok()) {
+            self.lift_working_headers(shown, light);
         }
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
         // gone for good, an appointment the owner is changing taken away) is undone, whatever

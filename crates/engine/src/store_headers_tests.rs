@@ -434,3 +434,49 @@ fn run_rules_now_reads_an_automatic_reply_mark_kept_beside_the_mailbox_file() {
     assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0), "can't be told");
     assert_eq!(folder(&s, ids[0]), inbox);
 }
+
+#[test]
+fn a_message_split_by_an_earlier_version_gets_the_lines_now_read_by_name_when_shown() {
+    // Split as a version that didn't read `List-Unsubscribe` by name split it: the line is in the
+    // block, kept beside the mailbox file (#1751).
+    let mut mb = with_exchange_headers(2);
+    let id = *mb.messages.keys().next().unwrap();
+    let mut all = exchange_headers(0);
+    all.insert(6, ("List-Unsubscribe".into(), "<mailto:leave@example.org>".into()));
+    let old_working = |name: &str| !name.eq_ignore_ascii_case("List-Unsubscribe") && mailcraft_model::headers::is_working_name(name);
+    let mut m = Message::clone(mb.message(id).unwrap());
+    m.headers = all.iter().filter(|(name, _)| old_working(name)).cloned().collect();
+    let lines: Vec<mailcraft_model::HeaderLine> = all
+        .iter()
+        .enumerate()
+        .filter(|(_, (name, _))| !old_working(name))
+        .map(|(at, (name, value))| mailcraft_model::HeaderLine { at, name: name.clone(), value: value.clone() })
+        .collect();
+    m.header_block = mailcraft_model::HeaderBlock::of(&lines);
+    m.read = true;
+    mb.messages.insert(id, Arc::new(m));
+    let tmp = Temp::new("headers-lifted");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 2);
+    assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded(), "kept beside the file");
+    assert!(s.mailbox.message(id).unwrap().header("List-Unsubscribe").is_none(), "not found before it is shown");
+    // Shown in the reading pane, though read already: the line is read by name from then on,
+    // every line still in its place, and nothing else of the message changes.
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.header("List-Unsubscribe"), Some("<mailto:leave@example.org>"));
+    assert!(m.read);
+    assert_eq!(s.loaded_message(id).unwrap().all_headers(), all);
+    // Saved so, and found again after the mailbox is opened again.
+    save(&path, &s.mailbox).unwrap();
+    clear_cache();
+    let back = whole(&path);
+    assert_eq!(back.message(id).unwrap().header("List-Unsubscribe"), Some("<mailto:leave@example.org>"));
+    assert_eq!(back.message(id).unwrap().all_headers(), all);
+    // Looked at once a session: shown again, nothing is read or changed.
+    let rev = s.rev();
+    s.run("mail.select", &json!({"id": id})).unwrap();
+    assert_eq!(s.rev(), rev);
+}
