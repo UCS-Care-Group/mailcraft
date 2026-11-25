@@ -315,3 +315,19 @@ fn the_default_folder_is_offered_even_past_the_most_listed() {
     let at = offered.default_index.unwrap() as usize;
     assert_eq!(offered.folders[at].name, "Contacts (c@example.org)");
 }
+
+/// Move to contacts folder (#1144): somebody there with the same address is found for the picker
+/// to ask about; the move itself doesn't ask.
+#[test]
+fn the_picker_hears_of_somebody_there_already_and_the_move_goes_ahead_anyway() {
+    let (core, _) = core_with_account();
+    let made = exec(&core, "people.new", json!({"first": "Ada", "email": "ada@example.org"})).unwrap();
+    let (ada, folder) = (made["id"].as_u64().unwrap(), made["folder"].as_u64().unwrap());
+    let here = exec(&core, "people.new", json!({"first": "Ada Home", "email": " ADA@example.org", "folder": 0})).unwrap()["id"].as_u64().unwrap();
+    let there = block_on(core.already_in(vec![here], folder)).unwrap().unwrap();
+    assert_eq!((there.id, there.name.as_str()), (ada, "Ada"));
+    assert_eq!(block_on(core.already_in(vec![here], 0)).unwrap(), None);
+    assert_eq!(block_on(core.already_in(vec![u64::MAX], folder)).unwrap(), None);
+    exec(&core, "people.moveToFolder", json!({"ids": [here], "folder": folder})).unwrap();
+    assert_eq!(block_on(core.person(here)).unwrap().folder, folder);
+}

@@ -808,7 +808,7 @@ msgid "Accounts"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/ui-egui/src/ribbon.rs
 msgid "Actions"
 msgstr ""
 
@@ -2383,11 +2383,6 @@ msgstr ""
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
@@ -2459,7 +2454,7 @@ msgid "Can't sign"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/close_to_tray.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/security.rs
 msgid "Cancel"
 msgstr ""
 
@@ -2720,6 +2715,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Changed: saved when you choose another signature or leave this page."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
 msgstr ""
 
 #. interface
@@ -5978,7 +5978,7 @@ msgid "Hold Unsent Mail"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 msgid "Home"
 msgstr ""
 
@@ -7477,6 +7477,11 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/software.rs
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
 msgstr ""
@@ -8139,7 +8144,7 @@ msgid "Month"
 msgstr ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
 msgid "More"
 msgstr ""
 
@@ -8204,7 +8209,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr ""
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 msgid "Move"
 msgstr ""
 
@@ -8213,6 +8218,11 @@ msgstr ""
 msgid ""
 "Move\n"
 "Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+msgid "Move \"{name}\" to:"
 msgstr ""
 
 #. command label
@@ -8285,6 +8295,11 @@ msgstr ""
 msgid "Move and Send Updates"
 msgstr ""
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
+msgid "Move anyway"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Move the Appointments Only"
@@ -8325,6 +8340,16 @@ msgstr ""
 msgid "Move to Category"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/contacts_move.rs crates/ui-egui/src/dialogs.rs
+msgid "Move to Contacts Folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Move to Contacts Folder…"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 msgid "Move to Folder"
@@ -8345,6 +8370,16 @@ msgstr ""
 msgid "Move to Your Account's Calendar"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt
+msgid "Move to contacts folder"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt
+msgid "Move to contacts folder…"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "Move to folder"
@@ -8363,6 +8398,18 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
 msgid "Move to…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+msgid "Move {n} contact to:"
+msgid_plural "Move {n} contacts to:"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Move…"
 msgstr ""
 
 #. interface
@@ -9644,7 +9691,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 msgid "On this computer"
 msgstr ""
 
@@ -10003,6 +10050,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
+msgstr ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
+msgid "Open that one"
 msgstr ""
 
 #. interface
@@ -14161,6 +14213,11 @@ msgstr ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
+msgid "That could not be moved."
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Hosted.kt
 msgid "That could not be saved."
 msgstr ""
 
@@ -14426,6 +14483,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
@@ -14533,6 +14595,21 @@ msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
 msgstr ""
 
 #. interface
@@ -14647,6 +14724,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/contacts_remote.rs
 msgid "The contacts folder \"{name}\" can only be read: a new contact can't be put there."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "The contacts folder \"{name}\" can only be read: its contacts can't be moved out of it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "The contacts folder \"{name}\" can only be read: nothing can be moved into it."
 msgstr ""
 
 #. what a command says
@@ -15751,6 +15838,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "There is no other calendar to lay it over."
+msgstr ""
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
+msgid "There is no other contacts folder to move to."
 msgstr ""
 
 #. interface
@@ -19204,6 +19296,11 @@ msgid "no account has a calendar and contacts server"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "no account has a calendar server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 msgid "no account has a folder of that kind"
 msgstr ""
@@ -19269,12 +19366,12 @@ msgid "no calendar with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
 msgid "no contact with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 msgid "no contacts folder with id {id}"
 msgstr ""
 
@@ -19664,7 +19761,7 @@ msgid "save the mailbox to a file first: the switch keeps a copy of it beside th
 msgstr ""
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/people.rs
+#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/people.rs
 msgid "select a contact first"
 msgstr ""
 
@@ -20893,6 +20990,11 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this account has no calendar server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this account has no signature; add one in File › Options"
 msgstr ""
@@ -21020,6 +21122,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this read was made under the calendar server's earlier settings"
 msgstr ""
 
 #. what a command says
@@ -21548,6 +21655,11 @@ msgstr ""
 msgid "{name} couldn't be added to {folder}{why}: it is kept on this computer."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "{name} couldn't be moved to {folder}{why}: it stays in {from}."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "{name} couldn't be read"
@@ -21618,14 +21730,29 @@ msgstr ""
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr ""
 
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
+msgid "{name} is already in {folder}."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{name} is being sent and received now. Use Stop."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 msgid "{name} is larger than {mb} MB"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{name} is still being sent to its server: try again shortly."
 msgstr ""
 
 #. interface

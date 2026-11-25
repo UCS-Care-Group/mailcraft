@@ -38,6 +38,7 @@ pub mod compose;
 mod compose_send_counts_tests;
 #[cfg(test)]
 mod compose_trust_tests;
+pub mod contacts_move;
 pub mod contacts_remote;
 #[cfg(test)]
 mod conversation_thread_tests;
@@ -45,6 +46,8 @@ pub mod dav_account;
 #[cfg(test)]
 mod dav_account_tests;
 pub mod dav_sync;
+#[cfg(test)]
+mod dav_sync_tests;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;
@@ -282,6 +285,7 @@ pub fn registry() -> Registry {
     v.extend(remote::specs());
     v.extend(tasks_remote::specs());
     v.extend(contacts_remote::specs());
+    v.extend(contacts_move::specs());
     v.extend(sync_progress::specs());
     v.extend(search_server::specs());
     Registry::new(v)

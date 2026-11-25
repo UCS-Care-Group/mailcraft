@@ -76,9 +76,15 @@ fn needs_changeable_contact(s: &Session) -> Option<&'static str> {
     if read_only { Some("this contacts folder can only be read") } else { needs_contact(s) }
 }
 
-/// Whether the account's contacts are read from its server.
+/// Whether the account's contacts are read from its server: a Microsoft account's, and a JMAP
+/// account's once its server has listed an address book (one that keeps none has nowhere to put
+/// a contact).
 pub fn keeps_contacts(mailbox: &Mailbox, account: Id) -> bool {
-    mailbox.account(account).is_some_and(|a| a.keeps_contacts())
+    mailbox.account(account).is_some_and(|a| kept(mailbox, a))
+}
+
+fn kept(mailbox: &Mailbox, a: &mailcraft_model::Account) -> bool {
+    a.keeps_contacts() || (a.kind == mailcraft_model::AccountKind::Jmap && mailbox.contact_folders.iter().any(|f| f.account == a.id))
 }
 
 /// The Exchange server accounts whose organisation's address list can be searched (#1262).
@@ -112,7 +118,7 @@ fn address_book(s: &mut Session, v: &Value) -> CmdResult {
 
 /// The accounts whose contacts are read from their servers.
 pub fn contact_accounts(mailbox: &Mailbox) -> Vec<Id> {
-    mailbox.accounts.iter().filter(|a| a.keeps_contacts()).map(|a| a.id).collect()
+    mailbox.accounts.iter().filter(|a| kept(mailbox, a)).map(|a| a.id).collect()
 }
 
 /// Whose contacts the list shows: what the owner chose, while it means something. With no account

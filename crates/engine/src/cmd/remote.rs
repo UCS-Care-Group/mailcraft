@@ -878,6 +878,16 @@ pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> 
                 ))
             }
         }
+        // A calendar on a calendar server (#209): read down, whatever rights the server gave,
+        // because this version sends nothing up. The owner's rights are not the reason.
+        Some(c)
+            if !c.can_edit()
+                && keeper(mailbox, &c.origin)
+                    .and_then(|a| a.dav.as_ref())
+                    .is_some_and(|d| d.collections.iter().any(|s| !s.contacts && s.href == c.origin.id)) =>
+        {
+            Err(failed!("The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet.", name = c.name))
+        }
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some() => {
             if c.rights == Rights::FreeBusy {
                 Err(failed!("The calendar \"{name}\" only shows when its owner is busy: this account can't change it.", name = c.name))

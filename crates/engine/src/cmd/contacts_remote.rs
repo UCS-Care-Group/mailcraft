@@ -34,6 +34,7 @@ use mailcraft_model::contact_sync::{
     MAX_CONTACT_CHANGES, MAX_CONTACT_OPS, RemoteContactFolder, delta, wait_after,
 };
 use mailcraft_model::remote::{ContactsDownload, MAX_CONTACTS, RemoteContact, clean_key};
+use mailcraft_model::sync::JmapContactPlace;
 use mailcraft_model::{AccountChoice, Contact, Id, Mailbox, Origin};
 use serde_json::{Value, json};
 
@@ -231,7 +232,12 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             for field in ContactField::ALL.into_iter().filter(|f| !fields.contains(f)) {
                 field.copy(cur, c);
             }
-            (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+            // One the step moved goes back where it was (no server had it:
+            // [`super::contacts_move`]). Any other stays where it is now, also when a refusal or
+            // a move back put it elsewhere since, outside any step.
+            if !touched.moved_contact(*id) {
+                (c.origin, c.folder, c.moved_from) = (cur.origin.clone(), cur.folder, cur.moved_from);
+            }
         }
         // In a folder that may only be read now, with nothing waiting for it (which would be
         // held, as any change there is): its server can't be told, so it stays as it is now.
@@ -248,6 +254,16 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             // it already), rather than undone here and not there.
             keep(mailbox, *id);
             no_room += 1;
+        }
+    }
+    // A contact a move took away, back and to be made on its server again: the one the move made,
+    // taken away now, is deleted from its server only once that is done, as the move held its own
+    // deletion (#1144).
+    for id in touched.changed_contacts() {
+        let Some(from) = now.contact(*id).filter(|_| mailbox.contact(*id).is_none()).map(|c| c.moved_from).filter(|f| *f != 0) else { continue };
+        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create);
+        if creating && let Ok(c) = mailbox.contact_mut(from) {
+            c.moved_from = *id;
         }
     }
     (no_room, read_only_kept)
@@ -312,6 +328,7 @@ fn keep_local(fresh: &mut Contact, old: &Contact, categories: bool) {
     fresh.uid.clone_from(&old.uid);
     fresh.imported.clone_from(&old.imported);
     fresh.imported_from.clone_from(&old.imported_from);
+    fresh.moved_from = old.moved_from;
     if categories {
         fresh.categories.clone_from(&old.categories);
     }
@@ -582,9 +599,14 @@ pub fn contact_upload(s: &Session, account: Id) -> Result<ContactsUpload, CmdErr
     let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     let (mailbox, now) = (&s.mailbox, s.now());
     let mut ops = Vec::new();
+    // A deletion a move left waits until the contact moved is made ([`super::contacts_move`]).
+    let held = super::contacts_move::held_deletions(mailbox);
     for change in mailbox.contact_changes.iter().filter(|c| c.account == account && c.next_try <= now && c.unconfirmed == 0) {
         if ops.len() >= MAX_CONTACT_OPS {
             break;
+        }
+        if change.kind == ContactChangeKind::Delete && held.contains(&change.contact) {
+            continue;
         }
         let Some(folder) = mailbox.contact_folder(change.folder).filter(|f| f.account == account && f.writable) else { continue };
         let contact = mailbox.contact(change.contact);
@@ -853,8 +875,13 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
     match change.kind {
         ContactChangeKind::Create => {
             let name = called(mailbox.contact(change.contact));
+            // Moved from a server's folder: back there rather than in neither.
+            if let Some(from) = super::contacts_move::moved_back(mailbox, change.contact) {
+                applied.say(said!("{name} couldn't be moved to {folder}{why}: it stays in {from}.", name, folder, why, from).to_string());
+                return;
+            }
             if let Ok(c) = mailbox.contact_mut(change.contact) {
-                (c.folder, c.origin) = (0, Origin::default());
+                (c.folder, c.origin, c.moved_from) = (0, Origin::default(), 0);
             }
             applied.say(said!("{name} couldn't be added to {folder}{why}: it is kept on this computer.", name, folder, why).to_string());
         }
@@ -886,6 +913,50 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
             applied.say(said!("The server didn't delete {name}{why}: it is back.", name, why).to_string());
         }
     }
+}
+
+/// Most lines said for contacts kept on this computer as their folder goes.
+const MAX_KEPT_LINES: usize = 10;
+
+/// Drop the contacts folders of `account` whose address books a server listed in full no longer
+/// has (`listed`: each owner and the books it has, the default one as empty). A main folder stays.
+/// Their contacts go with them, except one with a change made here not yet sent, which is kept on
+/// this computer with a line saying so (never lost). Whether anything changed, and the lines.
+pub(crate) fn drop_gone_folders(mailbox: &mut Mailbox, account: Id, listed: &[JmapContactPlace]) -> (bool, Vec<String>) {
+    let gone: HashMap<Id, String> = mailbox
+        .contact_folders
+        .iter()
+        .filter(|f| f.account == account && !f.is_main() && listed.iter().any(|p| p.owner == f.owner && !p.books.contains(&f.remote)))
+        .map(|f| (f.id, f.name.clone()))
+        .collect();
+    if gone.is_empty() {
+        return (false, Vec::new());
+    }
+    let kept: HashSet<Id> =
+        mailbox.contact_changes.iter().filter(|c| gone.contains_key(&c.folder) && c.kind != ContactChangeKind::Delete).map(|c| c.contact).collect();
+    mailbox.contact_changes.retain(|c| !gone.contains_key(&c.folder));
+    mailbox.contact_folders.retain(|f| !gone.contains_key(&f.id));
+    let contacts: Vec<(Id, Id)> = mailbox.contacts.values().filter(|c| gone.contains_key(&c.folder)).map(|c| (c.id, c.folder)).collect();
+    let mut lines = Vec::new();
+    for (id, folder) in contacts {
+        if !kept.contains(&id) {
+            let _ = mailbox.remove_contact(id);
+            continue;
+        }
+        let name = called(mailbox.contact(id));
+        if let Ok(c) = mailbox.contact_mut(id) {
+            (c.folder, c.origin) = (0, Origin::default());
+        }
+        // lean: a line each, the first few; the rest are kept as quietly.
+        if lines.len() < MAX_KEPT_LINES {
+            let folder = gone.get(&folder).cloned().unwrap_or_default();
+            lines.push(
+                said!("{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up.", name, folder)
+                    .to_string(),
+            );
+        }
+    }
+    (true, lines)
 }
 
 fn contact_changes_command(s: &mut Session, v: &Value) -> CmdResult {
