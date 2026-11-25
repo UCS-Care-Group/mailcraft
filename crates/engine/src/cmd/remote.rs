@@ -909,8 +909,8 @@ pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> 
 
 /// Whether new events may go into `calendar`, a calendar of an account's CalDAV server (#209
 /// D6): the server said the owner may write to it and that it holds events. What it has already
-/// stays read-only here (it is never changed from here yet).
-pub(crate) fn dav_addable(mailbox: &Mailbox, calendar: Id) -> bool {
+/// may change from here as far as [`dav_changeable`] lets it.
+pub fn dav_addable(mailbox: &Mailbox, calendar: Id) -> bool {
     let Some(c) = mailbox.calendar(calendar) else { return false };
     let Some(server) = mailbox.account(c.origin.account).and_then(|a| a.dav.as_ref()) else { return false };
     !c.origin.id.is_empty()

@@ -415,3 +415,25 @@ fn r6_an_account_that_is_full_is_said_once_while_it_stays_so_and_neither_it_nor_
     assert!(run(&mut a, P::ServerErrors).contains("errors"));
     assert!(run(&mut a, P::ServerErrors).is_empty(), "said once");
 }
+
+#[test]
+fn a_calendar_servers_calendar_that_takes_new_events_shows_no_lock() {
+    let (mut a, id) = app(false);
+    let calendar =
+        |name: &str, read_only: bool| DavCalendar { href: format!("{HOME}/cal/ada/{name}/"), name: name.into(), read_only, ..Default::default() };
+    let download = DavDownload {
+        account: id,
+        email: "ada@example.org".into(),
+        server: a.execute("sync.davRequest", json!({"account": id})).unwrap()["ask"]["server"].as_str().unwrap().to_string(),
+        listing: Some(DavListing { calendars: vec![calendar("work", false), calendar("shared", true)], complete: true, capped: false }),
+        signed_in: vec![HOME.into()],
+        ..Default::default()
+    };
+    a.execute("sync.applyDav", json!({"result": download})).unwrap();
+    let lock = |name: &str| {
+        let c = a.session.mailbox.calendars.iter().find(|c| c.name == name).unwrap();
+        crate::calendar_view::read_only(&a, c.id)
+    };
+    assert!(!lock("work"), "new events go into it");
+    assert!(lock("shared"), "it can only be read");
+}
