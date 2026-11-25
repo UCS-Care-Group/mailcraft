@@ -9641,13 +9641,13 @@ msgstr "このアドレスに対応する Microsoft のメールボックスは�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
 msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
-msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅、勤務先、その他の 1 件ずつまでです。印の付いたものはこのスマートフォンにのみ残ります。"
+msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅 1 件、勤務先 1 件、その他 1 件までです。印の付いたものはこのスマートフォンにのみ残ります。"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
-msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅、勤務先、その他の 1 件ずつまでです。この住所はこのコンピューターにのみ残ります。"
+msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅 1 件、勤務先 1 件、その他 1 件までです。この住所はこのコンピューターにのみ残ります。"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
