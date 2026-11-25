@@ -80,7 +80,7 @@ Local test: `python3 -m http.server 8765` inside the folder, then open http://lo
 ## JMAP accounts
 
 The browser build reads JMAP accounts
-([docs/jmap.md](https://github.com/UCS-Care-Group/mailcraft/blob/main/docs/jmap.md)). Their mail
+([docs/jmap.md](https://github.com/UCSLabs/mailcraft/blob/main/docs/jmap.md)). Their mail
 server has to answer the site's origin (CORS: `Authorization`, `Content-Type` and `Accept` allowed
 in the preflight of `GET` and `POST`, and `Retry-After` exposed), and an account names the address
 of its session resource itself: a page follows no redirect, so a `/.well-known/jmap` that sends the

@@ -26349,11 +26349,11 @@ msgstr[2] "{n} de contacte se șterg după ce se salvează cel păstrat. Anulare
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} contact este pus înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
-msgstr[1] "{n} contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
-msgstr[2] "{n} de contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} contact nu este anulat: prea multe modificări așteaptă să fie trimise la serverul său."
+msgstr[1] "{n} contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
+msgstr[2] "{n} de contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27616,6 +27616,13 @@ msgstr "−Linii"
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."
 #~ msgstr "Păstrată doar pe acest telefon: nu se trimite în contul dvs."
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} contact este pus înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+#~ msgstr[1] "{n} contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+#~ msgstr[2] "{n} de contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

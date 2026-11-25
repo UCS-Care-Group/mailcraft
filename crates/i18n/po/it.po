@@ -26224,10 +26224,10 @@ msgstr[1] "{n} contatti vengono eliminati quando il contatto conservato è salva
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} contatto torna solo su questo computer: troppe modifiche sono in attesa di invio."
-msgstr[1] "{n} contatti tornano solo su questo computer: troppe modifiche sono in attesa di invio."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} contatto non viene annullato: troppe modifiche sono in attesa di essere inviate al suo server."
+msgstr[1] "{n} contatti non vengono annullati: troppe modifiche sono in attesa di essere inviate ai loro server."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27379,6 +27379,12 @@ msgstr "−Righe"
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."
 #~ msgstr "Conservata solo su questo telefono: non viene inviata al tuo account."
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} contatto torna solo su questo computer: troppe modifiche sono in attesa di invio."
+#~ msgstr[1] "{n} contatti tornano solo su questo computer: troppe modifiche sono in attesa di invio."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

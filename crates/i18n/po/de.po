@@ -24755,10 +24755,10 @@ msgstr[1] "{n} Kontakte werden gelöscht, sobald der beibehaltene Kontakt gespei
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} Kontakt wird nur auf diesem Computer wiederhergestellt: Zu viele Änderungen warten auf das Senden."
-msgstr[1] "{n} Kontakte werden nur auf diesem Computer wiederhergestellt: Zu viele Änderungen warten auf das Senden."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} Kontakt wird nicht rückgängig gemacht: Zu viele Änderungen warten darauf, an seinen Server gesendet zu werden."
+msgstr[1] "{n} Kontakte werden nicht rückgängig gemacht: Zu viele Änderungen warten darauf, an ihre Server gesendet zu werden."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -25851,6 +25851,12 @@ msgstr "−Zeilen"
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."
 #~ msgstr "Nur auf diesem Telefon gespeichert: wird nicht an Ihr Konto gesendet."
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} Kontakt wird nur auf diesem Computer wiederhergestellt: Zu viele Änderungen warten auf das Senden."
+#~ msgstr[1] "{n} Kontakte werden nur auf diesem Computer wiederhergestellt: Zu viele Änderungen warten auf das Senden."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

@@ -3746,10 +3746,17 @@ impl Mailbox {
         let mut per: HashMap<Id, usize> = HashMap::new();
         let mut seen: HashSet<Id> = HashSet::new();
         let before = self.contact_folders.len();
+        // (Only the folders that can be kept count towards an account's cap.)
         self.contact_folders.retain(|f| {
+            if f.id == 0 || f.id > MAX_ID || !accounts.contains(&f.account) || seen.contains(&f.id) {
+                return false;
+            }
             let n = per.entry(f.account).or_default();
+            if *n >= MAX_CONTACT_FOLDERS {
+                return false;
+            }
             *n += 1;
-            f.id != 0 && accounts.contains(&f.account) && *n <= MAX_CONTACT_FOLDERS && seen.insert(f.id)
+            seen.insert(f.id)
         });
         if self.contact_folders.len() != before {
             fixed.push("contacts folders tidied".to_string());
@@ -3781,9 +3788,41 @@ impl Mailbox {
         if !lost.is_empty() {
             fixed.push(format!("{} contact(s) of a contacts folder that is gone kept on this computer", lost.len()));
         }
+        // On this computer: no account's server keeps it, whatever the file said.
+        let mut freed = 0usize;
+        for c in self.contacts.values_mut() {
+            if c.folder == 0 && c.origin.is_remote() && !accounts.contains(&c.origin.account) {
+                Arc::make_mut(c).origin = crate::Origin::default();
+                freed += 1;
+            }
+        }
+        if freed > 0 {
+            fixed.push(format!("{freed} contact(s) of an account that is gone kept on this computer"));
+        }
         if self.contact_changes.len() > MAX_CONTACT_CHANGES {
             self.contact_changes.truncate(MAX_CONTACT_CHANGES);
             fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        // A change that couldn't be sent or put back: of no account or folder here, or a change or
+        // deletion without the server's name for it or its copy.
+        use crate::contact_sync::ContactChangeKind;
+        let before = self.contact_changes.len();
+        // (A new contact gone here may wait only once sent: it is the record that it isn't wanted.)
+        let owner: HashMap<Id, Id> = self.contact_folders.iter().map(|f| (f.id, f.account)).collect();
+        let contacts = &self.contacts;
+        // (A new or changed contact that is here is in the note's folder; a deleted one isn't.)
+        self.contact_changes.retain(|c| {
+            let contact = contacts.get(&c.contact);
+            let here = contact.is_some_and(|x| x.folder == c.folder);
+            let whole = match c.kind {
+                ContactChangeKind::Create => c.remote.is_empty() && contact.map_or(c.sent && c.contact != 0, |_| here),
+                ContactChangeKind::Change => here && !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
+                ContactChangeKind::Delete => !here && !c.remote.is_empty() && c.base.is_some(),
+            };
+            whole && accounts.contains(&c.account) && owner.get(&c.folder) == Some(&c.account)
+        });
+        if self.contact_changes.len() != before {
+            fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
         }
         fixed
     }
@@ -4964,15 +5003,16 @@ impl Mailbox {
             .unwrap_or(0);
         self.next_id = if sane(&self.next_id) { self.next_id.max(top + 1) } else { top + 1 };
         /// Give items whose key is out of range a new one.
+        /// (All taken out before any is put back, so a new key never lands on one still to move.)
         fn rehome<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, next: &mut Id) -> usize {
             let big: Vec<Id> = map.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-            for k in &big {
-                if let Some(v) = map.remove(k) {
-                    map.insert(*next, v);
-                    *next += 1;
-                }
+            let taken: Vec<Arc<T>> = big.iter().filter_map(|k| map.remove(k)).collect();
+            let n = taken.len();
+            for v in taken {
+                map.insert(*next, v);
+                *next += 1;
             }
-            big.len()
+            n
         }
         /// Map keys are the ids.
         fn rekey<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, id: impl Fn(&mut T) -> &mut Id) -> usize {
@@ -4988,13 +5028,35 @@ impl Mailbox {
         let next = &mut self.next_id;
         // (The messages as the others, in their own map: only what is changed is written.)
         let big: Vec<Id> = self.messages.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-        for k in &big {
-            if let Some(v) = self.messages.remove(k) {
-                self.messages.insert(*next, v);
-                *next += 1;
+        let taken: Vec<_> = big.iter().filter_map(|k| self.messages.remove(k)).collect();
+        for v in taken {
+            self.messages.insert(*next, v);
+            *next += 1;
+        }
+        // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
+        // in order from `next`).
+        let first = *next;
+        let moved: HashMap<Id, Id> =
+            self.contacts.range(MAX_ID + 1..).map(|(k, _)| *k).enumerate().map(|(n, k)| (k, first.saturating_add(n as Id))).collect();
+        for change in self.contact_changes.iter_mut() {
+            if let Some(new) = moved.get(&change.contact) {
+                change.contact = *new;
             }
         }
         let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
+        // A change for a contact that is gone (a deletion) under a key out of range: a key of its
+        // own, as the contact would have had.
+        // (Only one whose contact is gone and may wait so: a deletion, or a new contact that was
+        // sent; the others were moved with their contact above, or are dropped below.)
+        let contacts = &self.contacts;
+        let gone = |c: &crate::contact_sync::ContactChange| {
+            use crate::contact_sync::ContactChangeKind::{Create, Delete};
+            c.contact > MAX_ID && !contacts.contains_key(&c.contact) && (c.kind == Delete || (c.kind == Create && c.sent))
+        };
+        for change in self.contact_changes.iter_mut().filter(|c| gone(c)) {
+            change.contact = *next;
+            *next += 1;
+        }
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {
             if let Some(m) = self.messages.get_mut(k) {
