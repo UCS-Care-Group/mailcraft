@@ -24946,3 +24946,243 @@ msgstr "{subject} – Melding"
 #, fuzzy
 msgid "{what} ({already})"
 msgstr "{what} ({already})"
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages deleted from \"{name}\" are still in \"{trash}\""
+msgstr "Meldinger slettet fra \"{name}\" ligger fortsatt i \"{trash}\""
+
+#. why a mail server couldn't be used
+#: crates/net/src/push.rs
+#, fuzzy
+msgid "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well"
+msgstr "Meldinger flyttet fra \"{name}\" til \"{to}\" ligger fortsatt i \"{name}\" også"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
+msgstr "Fjerne {format}-nøkkelen din for {who} fra denne datamaskinen? Den slettes fra systemets legitimasjonslager, og MailCraft kan ikke signere med den lenger. Ta vare på en kopi av filen hvis du kan få bruk for den igjen."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" can only be read: its owner hasn't let this account change it."
+msgstr "Kalenderen \"{name}\" kan bare leses: eieren har ikke latt denne kontoen endre den."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" is a copy of one on the web: it can only be read here."
+msgstr "Kalenderen \"{name}\" er en kopi av en på nettet: den kan bare leses her."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
+msgstr "Kalenderen \"{name}\" vises bare når eieren er opptatt: denne kontoen kan ikke endre den."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The folder \"{folder}\" and everything in it will be deleted."
+msgstr "Mappen \"{folder}\" og alt i den blir slettet."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The shared mailbox's calendar \"{name}\" only shows when its owner is busy: this account can't change it."
+msgstr "Kalenderen \"{name}\" til den delte postkassen vises bare når eieren er opptatt: denne kontoen kan ikke endre den."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
+msgstr "Denne kontoen kan bare lese kalenderen \"{name}\" til den delte postkassen: eieren av postkassen har ikke gitt den redigeringsrett (eller den er ikke lest ennå)."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "a calendar named \"{name}\" already exists"
+msgstr "en kalender som heter \"{name}\" finnes allerede"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{others}, {last}"
+msgstr "{others}, {last}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder \"{path}\""
+msgstr "ingen mappe \"{path}\""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "no signature named \"{from}\""
+msgstr "ingen signatur som heter \"{from}\""
+
+#. interface, what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/signature.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "no signature named \"{name}\""
+msgstr "ingen signatur som heter \"{name}\""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
+msgstr "ikke sendt: {why}. Send med \"confirmed\": true for å sende det likevel, eller med \"moveToBcc\": true for å flytte folk utenfor organisasjonen til blindkopi først"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
+msgstr "bare hodene til «{subject}» er her, så den kan ikke videresendes som vedlegg"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
+msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
+msgstr "bare hodene til «{subject}» er her, så den kan ikke lagres som en melding"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" of {account}"
+msgstr "kalenderen \"{calendar}\" til {account}"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the calendar \"{calendar}\" on this computer"
+msgstr "kalenderen \"{calendar}\" på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "the entire series \"{name}\""
+msgstr "hele serien \"{name}\""
+
+#. what a command says
+#: crates/engine/src/cmd/signature.rs
+#, fuzzy
+msgid "there is already a signature named \"{to}\""
+msgstr "det finnes allerede en signatur som heter \"{to}\""
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "{name} organizes \"{title}\"."
+msgstr "{name} arrangerer \"{title}\"."
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
+msgstr "{n} endringer i kalenderen \"{name}\" holdes her, ikke sendt: denne kontoen kan ikke endre den lenger. De sendes hvis den kan igjen."
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "{n}. {step}: {result} ({answered}). {said}"
+msgstr "{n}. {step}: {result} ({answered}). {said}"
+
+#. what a command says
+#: crates/model/src/message.rs
+#, fuzzy
+msgid "{n}.{tenth} GB"
+msgstr "{n},{tenth} GB"
+
+#. what a command says
+#: crates/model/src/message.rs
+#, fuzzy
+msgid "{n}.{tenth} MB"
+msgstr "{n},{tenth} MB"
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
+msgid "{provider}'s sign-in page is open in your browser"
+msgstr "påloggingssiden til {provider} er åpen i nettleseren din"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{said}; {already}"
+msgstr "{said}; {already}"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{said}; {left}{more}"
+msgstr "{said}; {left}{more}"
+
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+#, fuzzy
+msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
+msgstr "{server} (Denne serveren vil ha en pålogging: fjern haken for \"Min utgående server trenger ingen pålogging\" i innstillingene til kontoen.)"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "{who} was added by a newer version of MailCraft, {then}"
+msgstr "{who} ble lagt til av en nyere versjon av MailCraft, {then}"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{why} What came in before stays; import the file again for the rest."
+msgstr "{why} Det som kom inn før, blir liggende; importer filen igjen for resten."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{why}, so sign-ins aren't remembered: MailCraft asks again each time it starts."
+msgstr "{why}, så pålogginger huskes ikke: MailCraft spør igjen hver gang det starter."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "{why}. {n} changes made in it here wait on this computer."
+msgstr "{why}. {n} endringer gjort i den her venter på denne datamaskinen."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr "«{subject}» kom fra serveren, men kunne ikke beholdes på denne datamaskinen, så den kan ikke videresendes som vedlegg"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "«{subject}» er ikke lastet ned ennå: åpne den når du er på nett, og videresend den så som vedlegg"
+
+#. what a command says
+#: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
+msgstr "«{subject}» er ikke lastet ned ennå: åpne den når du er på nett, og lagre den så"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "«{subject}» var for stor til å lastes ned: bare hodet er her, så den kan ikke videresendes som vedlegg"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
+msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
+msgstr "«{subject}» var for stor til å lastes ned: bare hodet er her, så den kan ikke lagres som en melding"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "«{subject}» ble ikke funnet på serveren, så den kan ikke videresendes som vedlegg"
