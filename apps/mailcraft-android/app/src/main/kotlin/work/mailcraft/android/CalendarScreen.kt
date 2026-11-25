@@ -45,12 +45,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -59,34 +66,40 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.util.Locale
 
 private val Gutter = 16.dp
 private val Small = 8.dp
-private val Hairline = 1.dp
-private val Bar = 4.dp
-private val HourHeight = 64.dp
+internal val Hairline = 1.dp
+internal val Bar = 4.dp
+/** One hour of the day and week views: short enough that 8:00 to 18:00 fits a phone screen. */
+internal val HourHeight = 44.dp
+/** No block is shorter than this, so a quarter-hour event can still be touched. */
+private val MinBlock = 24.dp
 private val HourGutter = 76.dp
 private val MonthCell = 64.dp
 private val Dot = 6.dp
-private val DayBadge = 32.dp
+internal val DayBadge = 32.dp
 private const val LARGE_TEXT = 1.3f
 /** The hours' column takes at most this share of the day view's width (a third). */
 private const val MAX_GUTTER_SHARE = 3
 private const val MAX_DOTS = 3
-private const val BLOCK_ALPHA = 0.22f
+internal const val BLOCK_ALPHA = 0.22f
 private const val DIM_ALPHA = 0.45f
-private const val DEFAULT_SCROLL_MINUTE = 7 * MINUTES_IN_HOUR
+internal const val DEFAULT_SCROLL_MINUTE = 7 * MINUTES_IN_HOUR
 
-/** How much of the day view the whole-day events may take at most: a third. */
-private const val ALL_DAY_SHARE = 3
+/** How much of the day and week views the whole-day events may take at most: a third. */
+internal const val ALL_DAY_SHARE = 3
 
 /** The Calendar tab: the page that is open, or the three views with their bar. */
 @Composable
@@ -124,18 +137,28 @@ private fun Browse(
     val locale = LocalMessageLocale.current
     val zone = LocalMessageZone.current
     val weekStart = weekStartOf(locale)
+    val events = rememberShownEvents(state.events)
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Controls(texts, state, locale, actions)
+            val ready = (state.events as? Loaded.Ready)?.events
+            Controls(texts, state, pageDescription(texts, state, ready, weekStart, locale), actions)
             HorizontalDivider()
             Box(modifier = Modifier.weight(1f)) {
-                when (val loaded = state.events) {
-                    Loaded.Loading -> Centered(texts.t("Loading…"))
-                    is Loaded.Failed -> Centered(loaded.message)
-                    is Loaded.Ready -> when (state.mode) {
-                        CalendarMode.Agenda -> Agenda(texts, loaded.events, state, locale, actions)
-                        CalendarMode.Day -> DayView(texts, loaded.events, state, zone, locale, actions)
-                        CalendarMode.Month -> MonthView(texts, loaded.events, state, weekStart, locale, actions)
+                val loaded = state.events
+                when {
+                    loaded is Loaded.Failed -> Centered(loaded.message)
+                    state.mode == CalendarMode.Agenda -> if (loaded is Loaded.Ready) {
+                        Agenda(texts, loaded.events, state, locale, actions)
+                    } else {
+                        Centered(texts.t("Loading…"))
+                    }
+                    events == null -> Centered(texts.t("Loading…"))
+                    else -> CalendarPager(state.mode, state.anchor, weekStart, actions.onGoTo, Modifier.fillMaxSize()) {
+                        when (state.mode) {
+                            CalendarMode.Week -> WeekView(texts, events, it, state.today, weekStart, locale, actions)
+                            CalendarMode.Month -> MonthView(texts, events, it, state.today, weekStart, locale, actions)
+                            else -> DayView(texts, events, it, zone, locale, actions)
+                        }
                     }
                 }
             }
@@ -149,6 +172,18 @@ private fun Browse(
     }
 }
 
+/**
+ * The events the swiped views draw: the latest read, and while the next is on its way the one before
+ * (which holds the pages beside, [CalendarPaging.loadRange]), so that a page swiped to doesn't blank
+ * out; null until the first read is back.
+ */
+@Composable
+private fun rememberShownEvents(loaded: Loaded): List<CalendarEvent>? {
+    var kept by remember { mutableStateOf<List<CalendarEvent>?>(null) }
+    LaunchedEffect(loaded) { if (loaded is Loaded.Ready) kept = loaded.events }
+    return (loaded as? Loaded.Ready)?.events ?: kept
+}
+
 @Composable
 private fun Notice(texts: Texts, text: String, onDismiss: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
@@ -160,40 +195,62 @@ private fun Notice(texts: Texts, text: String, onDismiss: () -> Unit) {
 }
 
 /** The title of what is shown, for the bar and for screen readers. */
-internal fun rangeTitle(mode: CalendarMode, anchor: LocalDate, locale: Locale): String = when (mode) {
-    CalendarMode.Month -> anchor.format(DateTimeFormatter.ofPattern("LLLL y", locale))
-    CalendarMode.Day -> anchor.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
-    CalendarMode.Agenda -> anchor.format(DateTimeFormatter.ofPattern("LLLL y", locale))
+internal fun rangeTitle(
+    mode: CalendarMode,
+    anchor: LocalDate,
+    locale: Locale,
+    weekStart: DayOfWeek = weekStartOf(locale),
+): String {
+    val medium = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    return when (mode) {
+        CalendarMode.Month, CalendarMode.Agenda -> anchor.format(DateTimeFormatter.ofPattern("LLLL y", locale))
+        CalendarMode.Day -> anchor.format(medium)
+        CalendarMode.Week -> CalendarPaging.range(mode, anchor, weekStart).let {
+            val first = if (it.from.year == it.to.year) dayAndMonth(locale) else medium
+            it.from.format(first) + " – " + it.to.format(medium)
+        }
+    }
 }
 
+/**
+ * The locale's medium date without its year ("Nov 1", "1 Nov", "01.11."), for the first day of a week
+ * whose last day carries the year.
+ */
+private fun dayAndMonth(locale: Locale): DateTimeFormatter {
+    val pattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern(
+        FormatStyle.MEDIUM,
+        null,
+        IsoChronology.INSTANCE,
+        locale,
+    )
+    // The year and what joins it to the rest: ", y", " y", "y年", "y." where the year comes first.
+    val bare = pattern.replace(Regex("""^y+[^dMLE']*|[\s,]*y+[^\sdMLE'.]*"""), "")
+        .replace(Regex("""\s*'[^']*'\s*$"""), "").trim(' ', ',')
+    return if (bare.contains('d') && bare.contains('M')) DateTimeFormatter.ofPattern(bare, locale) else
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+}
+
+/** The views to choose from, the page's title (which says [spoken] when it changes), and the page buttons. */
 @Composable
-private fun Controls(texts: Texts, state: CalendarUiState, locale: Locale, actions: CalendarActions) {
+private fun Controls(texts: Texts, state: CalendarUiState, spoken: String, actions: CalendarActions) {
     Column(
         modifier = Modifier.padding(horizontal = Gutter, vertical = Small),
         verticalArrangement = Arrangement.spacedBy(Small),
     ) {
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            val modes = CalendarMode.entries
-            modes.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = state.mode == mode,
-                    onClick = { actions.onMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                ) {
-                    Text(modeLabel(mode, texts), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
+        ModeChoice(texts, state.mode, actions)
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { actions.onStep(-1) }) {
                 Icon(CalendarIcons.Previous, contentDescription = texts.t("Previous"))
             }
             Text(
-                text = rangeTitle(state.mode, state.anchor, locale),
+                text = rangeTitle(state.mode, state.anchor, LocalMessageLocale.current),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).semantics {
+                    contentDescription = spoken
+                    liveRegion = LiveRegionMode.Polite
+                },
             )
             TextButton(onClick = actions.onToday) { Text(texts.t("Today"), maxLines = 1) }
             IconButton(onClick = { actions.onStep(1) }) {
@@ -203,20 +260,31 @@ private fun Controls(texts: Texts, state: CalendarUiState, locale: Locale, actio
     }
 }
 
+/** The four views side by side; in two rows of two when the text is large, so that each name can be read. */
+@Composable
+private fun ModeChoice(texts: Texts, chosen: CalendarMode, actions: CalendarActions) {
+    val large = LocalDensity.current.fontScale > LARGE_TEXT
+    val rows = if (large) CalendarMode.entries.chunked(2) else listOf(CalendarMode.entries)
+    rows.forEach { modes ->
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            modes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = chosen == mode,
+                    onClick = { actions.onMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                ) {
+                    Text(modeLabel(mode, texts), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
 private fun modeLabel(mode: CalendarMode, texts: Texts): String = when (mode) {
     CalendarMode.Agenda -> texts.t("Agenda")
     CalendarMode.Day -> texts.t("Day")
+    CalendarMode.Week -> texts.t("Week")
     CalendarMode.Month -> texts.t("Month")
-}
-
-/** When an event is, as a line: its times, or "All day", and a note when it goes on past the day. */
-@Composable
-internal fun timeLine(texts: Texts, e: CalendarEvent, day: LocalDate, locale: Locale): String {
-    if (e.allDay) return texts.t("All day")
-    val fmt = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
-    val from = if (e.firstDay.isBefore(day)) texts.t("Continues") else e.start.toLocalTime().format(fmt)
-    val to = if (e.lastDay.isAfter(day)) texts.t("Continues") else e.end.toLocalTime().format(fmt)
-    return "$from – $to"
 }
 
 private fun answerLabel(answer: Answer, texts: Texts): String = when (answer) {
@@ -240,7 +308,7 @@ private fun Agenda(
         Centered(texts.t("Nothing on in these days."))
         return
     }
-    LazyColumn(contentPadding = PaddingValues(bottom = FabClearance)) {
+    LazyColumn(contentPadding = PaddingValues(bottom = CalendarFabRoom)) {
         days.forEach { day ->
             item(key = "day-${day.date}") {
                 val today = if (day.date == state.today) " – " + texts.t("Today") else ""
@@ -268,8 +336,23 @@ private fun Agenda(
     }
 }
 
-private val FabClearance = 88.dp
-private val ShortBlock = 40.dp
+internal val CalendarFabRoom = 88.dp
+internal val ShortBlock = 56.dp
+
+/** A block's smallest drawn height: a touch target, or a line of the owner's font size plus [inset] each side. */
+@Composable
+internal fun minBlockHeight(inset: Dp): Dp =
+    maxOf(MinBlock, lineHeight(MaterialTheme.typography.labelMedium) + inset * 2)
+
+/** The minutes the smallest block is worth at [HourHeight], never fewer than [MIN_BLOCK_MINUTES]. */
+@Composable
+internal fun minBlockMinutes(): Int =
+    maxOf(MIN_BLOCK_MINUTES, ceil(minBlockHeight(Bar).value / HourHeight.value * MINUTES_IN_HOUR).toInt())
+
+/** One line of [style] at the owner's font size. */
+@Composable
+internal fun lineHeight(style: androidx.compose.ui.text.TextStyle): Dp =
+    with(LocalDensity.current) { style.lineHeight.toDp() }
 
 @Composable
 private fun AgendaRow(texts: Texts, e: CalendarEvent, day: LocalDate, locale: Locale, actions: CalendarActions) {
@@ -350,12 +433,13 @@ internal fun AnswerButtons(texts: Texts, onAnswer: (Answer) -> Unit) {
 private fun DayView(
     texts: Texts,
     events: List<CalendarEvent>,
-    state: CalendarUiState,
+    date: LocalDate,
     zone: ZoneId,
     locale: Locale,
     actions: CalendarActions,
 ) {
-    val layout = dayLayout(events, state.anchor, zone)
+    val minMinutes = minBlockMinutes()
+    val layout = remember(events, date, zone, minMinutes) { dayLayout(events, date, zone, minMinutes) }
     val density = LocalDensity.current
     val startMinute = layout.placed.minOfOrNull { it.startMinute }?.minus(MINUTES_IN_HOUR) ?: DEFAULT_SCROLL_MINUTE
     val hours = startMinute.coerceAtLeast(0).toFloat() / MINUTES_IN_HOUR
@@ -372,7 +456,7 @@ private fun DayView(
                 }
             }
             Box(modifier = Modifier.weight(1f).verticalScroll(scroll)) {
-                DayGrid(texts, layout, state.anchor, locale, actions)
+                DayGrid(texts, layout, date, locale, actions)
             }
         }
     }
@@ -400,7 +484,7 @@ private fun AllDayRow(texts: Texts, e: CalendarEvent, actions: CalendarActions) 
 
 /** The word that says a meeting was cancelled; the row or block it is in speaks it with the rest. */
 @Composable
-private fun CancelledTag(texts: Texts) {
+internal fun CancelledTag(texts: Texts) {
     Text(texts.t("Cancelled"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
 }
 
@@ -411,40 +495,70 @@ private fun DayGrid(texts: Texts, layout: DayLayout, date: LocalDate, locale: Lo
     val labels = layout.hours.map { LocalTime.of(it.hour, 0).format(fmt) }
     val labelStyle = MaterialTheme.typography.labelSmall
     val labelWidth = widestLabel(labels, labelStyle)
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(total + FabClearance)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(total + CalendarFabRoom)) {
         // The hours' column is as wide as its widest label at the owner's font size ("12:00 PM" at 200%
         // is wider than the usual column), and never more than a third of the width; a label wider than
         // that wraps rather than being cut.
         val widest = (maxWidth / MAX_GUTTER_SHARE).coerceAtLeast(HourGutter)
         val hourGutter = (labelWidth + Bar * 2).coerceIn(HourGutter, widest)
-        layout.hours.forEachIndexed { i, mark ->
-            val top = HourHeight * (mark.minute.toFloat() / MINUTES_IN_HOUR)
-            Text(
-                text = labels.getOrElse(i) { "" },
-                style = labelStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                modifier = Modifier.offset(y = top).width(hourGutter).padding(horizontal = Bar),
-            )
-            HorizontalDivider(modifier = Modifier.offset(x = hourGutter, y = top + Small), thickness = Hairline)
-        }
+        HourLines(layout.hours, labels, hourGutter)
         val width = maxWidth - hourGutter - Gutter
         layout.placed.forEach { p ->
-            val columnWidth = width / p.columns
-            val top = HourHeight * (p.startMinute.toFloat() / MINUTES_IN_HOUR)
-            val height = HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR)
-            Column(
-                modifier = Modifier
-                    .offset(x = hourGutter + columnWidth * p.column, y = top + Small)
-                    .size(columnWidth - Bar, height)
-                    .clip(RoundedCornerShape(Bar))
-                    .background(Color(p.event.color).copy(alpha = BLOCK_ALPHA))
-                    .clickable { actions.onOpen(p.event) }
-                    .padding(Bar),
-            ) {
+            EventBlock(p, hourGutter, width, Bar, null, { actions.onOpen(p.event) }) { height ->
                 DayBlockText(texts, p.event, date, locale, height)
             }
         }
+    }
+}
+
+/** The hours down the side of the day and the week views, [labels] beside their [hours], and their lines across. */
+@Composable
+internal fun HourLines(hours: List<HourMark>, labels: List<String>, gutter: Dp) {
+    hours.forEachIndexed { i, mark ->
+        val top = HourHeight * (mark.minute.toFloat() / MINUTES_IN_HOUR)
+        Text(
+            text = labels.getOrElse(i) { "" },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            modifier = Modifier.offset(y = top).width(gutter).padding(horizontal = Bar),
+        )
+        HorizontalDivider(modifier = Modifier.offset(x = gutter, y = top + Small), thickness = Hairline)
+    }
+}
+
+/**
+ * A timed event's block in the day or the week view, in its share of the [width] that starts at
+ * [left], at its time, tinted with its calendar's colour; [spoken] is what a screen reader says for
+ * it when the words on it may be cut short. A touch opens it.
+ */
+@Composable
+internal fun EventBlock(
+    p: Placed,
+    left: Dp,
+    width: Dp,
+    inset: Dp,
+    spoken: String?,
+    onOpen: () -> Unit,
+    content: @Composable (Dp) -> Unit,
+) {
+    val columnWidth = width / p.columns
+    val top = HourHeight * (p.startMinute.toFloat() / MINUTES_IN_HOUR)
+    // At least a touch target and one line of the owner's font size, so a short block's title still reads.
+    val height = (HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR))
+        .coerceAtLeast(minBlockHeight(inset))
+    val speech = if (spoken == null) Modifier else Modifier.clearAndSetSemantics { contentDescription = spoken }
+    Column(
+        modifier = Modifier
+            .offset(x = left + columnWidth * p.column, y = top + Small)
+            .size((columnWidth - inset).coerceAtLeast(Hairline), height)
+            .clip(RoundedCornerShape(Bar))
+            .background(Color(p.event.color).copy(alpha = BLOCK_ALPHA))
+            .clickable(onClick = onOpen)
+            .then(speech)
+            .padding(inset),
+    ) {
+        content(height)
     }
 }
 
@@ -455,8 +569,11 @@ private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale
     val line = timeLine(texts, e, date, locale)
     val time = if (e.cancelled) "$line, ${texts.t("Cancelled")}" else line
     val struck = if (e.cancelled) TextDecoration.LineThrough else null
-    if (height < ShortBlock) {
-        // A block too short for two lines keeps both in one.
+    val titleLine = lineHeight(MaterialTheme.typography.labelMedium)
+    val timeLineHeight = lineHeight(MaterialTheme.typography.labelSmall)
+    val room = height - Bar * 2
+    if (room < titleLine + timeLineHeight) {
+        // A block too short for both lines at this font size keeps them in one.
         Text(
             "$title, $time",
             textDecoration = struck,
@@ -471,7 +588,8 @@ private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale
             textDecoration = struck,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 2,
+            // A second line of title only where the time line still fits below it.
+            maxLines = if (room >= titleLine * 2 + timeLineHeight) 2 else 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(time, style = MaterialTheme.typography.labelSmall, maxLines = 1)
@@ -480,7 +598,7 @@ private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale
 
 /** How wide the widest of [labels] is on one line, in [style] at the owner's font size. */
 @Composable
-private fun widestLabel(labels: List<String>, style: androidx.compose.ui.text.TextStyle): Dp {
+internal fun widestLabel(labels: List<String>, style: androidx.compose.ui.text.TextStyle): Dp {
     val measurer = rememberTextMeasurer()
     val widest = labels.maxOfOrNull { measurer.measure(it, style, maxLines = 1).size.width } ?: 0
     return with(LocalDensity.current) { widest.toDp() }
@@ -490,13 +608,14 @@ private fun widestLabel(labels: List<String>, style: androidx.compose.ui.text.Te
 private fun MonthView(
     texts: Texts,
     events: List<CalendarEvent>,
-    state: CalendarUiState,
+    anchor: LocalDate,
+    today: LocalDate,
     weekStart: DayOfWeek,
     locale: Locale,
     actions: CalendarActions,
 ) {
-    val grid = CalendarPaging.monthGrid(state.anchor, weekStart)
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = FabClearance)) {
+    val grid = CalendarPaging.monthGrid(anchor, weekStart)
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = CalendarFabRoom)) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Small)) {
             CalendarPaging.weekDays(weekStart).forEach { d ->
                 Text(
@@ -513,7 +632,9 @@ private fun MonthView(
         grid.forEach { week ->
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = Small)) {
                 week.forEach { day ->
-                    MonthCell(texts, day, events.filter { it.isOn(day) }, state, locale, Modifier.weight(1f), actions)
+                    val here = events.filter { it.isOn(day) }
+                    val inMonth = day.month == anchor.month
+                    MonthCell(texts, day, here, inMonth, day == today, locale, Modifier.weight(1f), actions)
                 }
             }
         }
@@ -525,19 +646,18 @@ private fun MonthCell(
     texts: Texts,
     day: LocalDate,
     here: List<CalendarEvent>,
-    state: CalendarUiState,
+    inMonth: Boolean,
+    today: Boolean,
     locale: Locale,
     modifier: Modifier,
     actions: CalendarActions,
 ) {
-    val inMonth = day.month == state.anchor.month
-    val today = day == state.today
     val badge = if (today) MaterialTheme.colorScheme.primary else Color.Transparent
     Column(
         modifier = modifier.height(MonthCell)
             .clickable { actions.onOpenDay(day) }
             .semantics(mergeDescendants = true) {
-                contentDescription = monthCellDescription(texts, day, today, here.size, locale)
+                contentDescription = dayDescription(texts, day, today, here.size, locale)
             }
             .padding(vertical = Bar),
         horizontalAlignment = Alignment.CenterHorizontally,

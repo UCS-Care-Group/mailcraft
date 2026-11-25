@@ -88,6 +88,7 @@ mod messages;
 mod people;
 mod search;
 mod send;
+mod signin;
 mod todo;
 
 pub use changes::Fault;
@@ -95,6 +96,7 @@ pub use drafts::Attached;
 pub use messages::{Mail, Message};
 pub use people::{Access, Person};
 pub use send::Sent;
+pub use signin::REFRESH;
 pub use todo::{Category, TodoList, TodoTask};
 
 use std::cell::RefCell;
@@ -149,10 +151,39 @@ impl Drop for LoopbackTokens {
     }
 }
 
-/// Where this thread's calls to Graph go instead, when a test has said so ([`route`]).
+/// Where this process's calls to Graph and to the sign-in's token endpoint go, once the phone's
+/// end-to-end build has said so ([`route_this_process`]).
+static EVERYWHERE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Where this thread's calls to Graph go instead, when a test has said so ([`route`]), or else
+/// where the whole process's go ([`route_this_process`]).
 pub(crate) fn routed() -> Option<String> {
-    ROUTE.with(|route| route.borrow().clone())
+    ROUTE.with(|route| route.borrow().clone()).or_else(routed_everywhere)
 }
+
+/// Where the whole process's calls go instead, when [`route_this_process`] said.
+pub(crate) fn routed_everywhere() -> Option<String> {
+    EVERYWHERE.get().cloned()
+}
+
+/// Have every call of this process to Graph, and every sign-in's token endpoint, go to `base` (a
+/// stand-in on this device's loopback address, `http://127.0.0.1:{port}`), for as long as the
+/// process lives; the sign-in page is named at an address that can't be reached
+/// ([`STAND_IN_PAGE`]), for the test to play. For the phone's end-to-end run alone, whose build
+/// is the only one that both has the stand-in and calls this; a test of this workspace never
+/// does, as it would hold for every test after it. The first base given stays; an address that
+/// isn't plain HTTP to loopback is refused (`false`).
+pub fn route_this_process(base: &str) -> bool {
+    let loopback = base
+        .strip_prefix("http://")
+        .and_then(|rest| rest.rsplit_once(':'))
+        .is_some_and(|(host, port)| crate::transport::is_loopback(host) && port.parse::<u16>().is_ok_and(|port| port != 0));
+    loopback && (EVERYWHERE.set(base.to_string()).is_ok() || EVERYWHERE.get().is_some_and(|kept| kept == base))
+}
+
+/// The sign-in page a process routed to a stand-in is sent to: under a name that is never found
+/// (RFC 6761 `.invalid`), so a page that escaped the test that plays it reaches nobody.
+pub const STAND_IN_PAGE: &str = "https://stand-in.invalid";
 
 /// A stand-in is being spoken to in Graph's place on this thread, for as long as this lives.
 pub struct Routed(Option<String>);
@@ -459,6 +490,10 @@ pub struct State {
     pub broken_lists: Vec<String>,
     /// A server that won't take a `$batch` at all (400): a client asks one request at a time.
     pub refuse_batches: bool,
+    /// What is changed on the server right after it next answers a list of what carries a
+    /// category (#851): each message or event named gets these categories, as when the owner
+    /// changes them elsewhere while a client works through the list.
+    pub meanwhile: Vec<(String, Vec<String>)>,
     /// Every request of a batch for a message's `conversationId` alone is answered with this
     /// status (403 for a mailbox that may not be read so, 429 for a busy one; #795).
     pub conversations_answer: Option<u16>,
@@ -2059,6 +2094,10 @@ impl State {
         {
             return self.upload_piece(asked, token);
         }
+        // The sign-in's token endpoint, for a client pointed here as a whole (`route_this_process`).
+        if signin::is_token_endpoint(&asked.path) {
+            return Ok(self.token(asked));
+        }
         if asked.header("authorization") != format!("Bearer {}", self.token) {
             return Err(refuse(401, "InvalidAuthenticationToken", "Access token validation failure."));
         }
@@ -2158,6 +2197,8 @@ impl State {
             }
             ["messages"] if method == "POST" => self.create_message(asked),
             ["messages"] if method == "GET" && asked.param("$search").is_some() => self.search_messages(asked, None),
+            // What carries a category, in the whole mailbox (#851): the owner's own alone.
+            ["messages"] if method == "GET" && asked.param("$filter").is_some() => self.messages_with_category(asked),
             ["sendMail"] if method == "POST" => self.send_mail(asked),
             ["messages", id, "send"] if method == "POST" => self.send_draft(asked, id),
             ["messages", id, "$value"] if method == "GET" => self.message_value(id),
@@ -2274,6 +2315,27 @@ impl State {
                 let made = self.json_of(&event, &look);
                 self.events.push(event);
                 Ok((201, Some(made)))
+            }
+            // The calendar's single events and series themselves ("List events"), those that
+            // carry a category when one is asked for (#851).
+            ("GET", []) => {
+                let home = calendar.map(str::to_string).unwrap_or_else(|| self.main_calendar());
+                let name = match asked.param("$filter") {
+                    None => None,
+                    Some(text) => Some(
+                        changes::category_filter(text)
+                            .ok_or_else(|| bad("The only filter this stand-in answers here is categories/any(c:c eq '…')."))?,
+                    ),
+                };
+                let listed = |event: &&Stored| {
+                    event.calendar == home && event.series.is_empty() && name.as_ref().is_none_or(|name| event.categories.contains(name))
+                };
+                let list = self.events.iter().filter(listed).map(|event| self.json_of(event, &look)).collect();
+                let page = self.page(asked, list);
+                if name.is_some() {
+                    self.changed_meanwhile();
+                }
+                page
             }
             ("GET", [id]) => match self.find(calendar, id) {
                 Ok(at) => Ok((200, self.events.get(at).map(|event| self.json_of(event, &look)))),
@@ -2477,6 +2539,17 @@ impl State {
                 Err(refuse(405, "MethodNotAllowed", "The method is not allowed on this resource."))
             }
             (_, [_, other, ..]) => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{other}'."))),
+        }
+    }
+
+    /// [`State::meanwhile`], done.
+    fn changed_meanwhile(&mut self) {
+        for (id, categories) in std::mem::take(&mut self.meanwhile) {
+            if let Some(message) = self.mailbox.messages.get_mut(&id) {
+                message.categories = categories;
+            } else if let Some(event) = self.events.iter_mut().find(|event| event.id == id) {
+                event.categories = categories;
+            }
         }
     }
 

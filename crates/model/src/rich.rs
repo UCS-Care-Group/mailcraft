@@ -3,8 +3,8 @@
 //! The text of a message being written, in rich text: paragraphs of runs.
 //!
 //! The set is deliberately small (the roadmap's minimal rich-text reply): bold, italic,
-//! underline, one font size, a text colour, a highlight behind the text, a font from a short list
-//! ([`Font`]), links to `http`,
+//! underline, one font size, a text colour, a highlight behind the text, a font ([`Font`]: any
+//! family installed on this computer), links to `http`,
 //! `https`, `mailto` and `tel` addresses, and paragraphs that are plain, bulleted or numbered.
 //! Nothing else can be expressed, so nothing else can be sent: pasted formatting is reduced to
 //! this set before it gets here (`mailcraft_mime_model::rich`), and the HTML that goes out is written
@@ -30,7 +30,7 @@ use crate::ModelError;
 mod body;
 mod find;
 
-pub use body::{MAX_UNDO, RichBody, Selection};
+pub use body::{MAX_UNDO, Mark, RichBody, Selection};
 pub use find::{MAX_FIND, Place};
 
 /// Most characters one body holds (counting one for each paragraph break).
@@ -54,11 +54,24 @@ pub const MAX_LEVEL: u8 = 7;
 /// The character a picture stands as in the text (U+FFFC OBJECT REPLACEMENT CHARACTER).
 pub const OBJECT: char = '\u{fffc}';
 
-/// A font the composer offers: widely installed families, written as their names with fallbacks.
-/// No font is shipped with MailCraft.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Font {
+/// The most families one font asks for, and the longest of their names: the same shape a
+/// message's `font-family` is kept in (`mailcraft_html::style::family`), so a list that goes out
+/// comes back as it went.
+pub const MAX_FONT_NAMES: usize = 8;
+pub const MAX_FONT_NAME: usize = 32;
+
+/// The longest font a file or a command may name, in bytes: longer is junk, and a list that fits
+/// these limits never comes near [`MAX_FONT_NAMES`] of [`MAX_FONT_NAME`] characters.
+const MAX_FONT_TEXT: usize = 1024;
+
+/// One of the families MailCraft writes a list of fallbacks of its own for: the metric-compatible
+/// open face a recipient is likely to have where the named one is missing (Calibri where there is
+/// Carlito, Arial where there is Liberation Sans), and the six whose faces are read when the
+/// window starts, so the menu's first entries are drawn at once (#582). No font is shipped with
+/// MailCraft, and nothing is ever fetched: a list is a wish, and the reader draws it in the first
+/// of its names that is installed on *their* computer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Built {
     Arial,
     Calibri,
     /// Fixed width, for text art and columns lined up with spaces (#969).
@@ -69,57 +82,286 @@ pub enum Font {
     System,
 }
 
-impl Font {
-    pub const ALL: [Font; 6] = [Font::Arial, Font::Calibri, Font::CourierNew, Font::Georgia, Font::Verdana, Font::System];
+impl Built {
+    pub const ALL: [Built; 6] = [Built::Arial, Built::Calibri, Built::CourierNew, Built::Georgia, Built::Verdana, Built::System];
 
     /// The name a menu shows.
     pub fn label(self) -> &'static str {
         match self {
-            Font::Arial => "Arial",
-            Font::Calibri => "Calibri",
-            Font::CourierNew => "Courier New",
-            Font::Georgia => "Georgia",
-            Font::Verdana => "Verdana",
-            Font::System => "System",
+            Built::Arial => "Arial",
+            Built::Calibri => "Calibri",
+            Built::CourierNew => "Courier New",
+            Built::Georgia => "Georgia",
+            Built::Verdana => "Verdana",
+            Built::System => "System",
         }
     }
 
     /// The CSS `font-family` it is written as.
     pub fn css(self) -> &'static str {
         match self {
-            Font::Arial => "Arial, Helvetica, sans-serif",
-            Font::Calibri => "Calibri, Carlito, sans-serif",
-            Font::CourierNew => "'Courier New', Courier, monospace",
-            Font::Georgia => "Georgia, serif",
-            Font::Verdana => "Verdana, Geneva, sans-serif",
-            Font::System => "'Segoe UI', system-ui, sans-serif",
+            Built::Arial => "Arial, Helvetica, sans-serif",
+            Built::Calibri => "Calibri, Carlito, sans-serif",
+            Built::CourierNew => "'Courier New', Courier, monospace",
+            Built::Georgia => "Georgia, serif",
+            Built::Verdana => "Verdana, Geneva, sans-serif",
+            Built::System => "'Segoe UI', system-ui, sans-serif",
         }
+    }
+
+    /// The same list as a [`Font`] keeps it: lower case, joined by commas, unquoted.
+    pub fn list(self) -> &'static str {
+        match self {
+            Built::Arial => "arial,helvetica,sans-serif",
+            Built::Calibri => "calibri,carlito,sans-serif",
+            Built::CourierNew => "courier new,courier,monospace",
+            Built::Georgia => "georgia,serif",
+            Built::Verdana => "verdana,geneva,sans-serif",
+            Built::System => "segoe ui,system-ui,sans-serif",
+        }
+    }
+
+    /// This family's own name, lower case: what a menu deduplicates by and what its face is
+    /// looked up under.
+    pub fn key(self) -> &'static str {
+        match self {
+            Built::Arial => "arial",
+            Built::Calibri => "calibri",
+            Built::CourierNew => "courier new",
+            Built::Georgia => "georgia",
+            Built::Verdana => "verdana",
+            Built::System => "segoe ui",
+        }
+    }
+
+    /// This, as the font the composer writes.
+    pub fn font(self) -> Font {
+        Font(self.list().to_string())
     }
 
     /// Whether every character is as wide as the next, so text lined up with spaces stays lined up.
     pub fn is_fixed_width(self) -> bool {
-        self == Font::CourierNew
+        self == Built::CourierNew
     }
 
-    /// The font a CSS `font-family` list asks for first, when it is one of these.
-    pub fn from_css(families: &str) -> Option<Font> {
-        let first = families.split(',').next()?.trim().trim_matches(['\'', '"']).to_ascii_lowercase();
-        Some(match first.as_str() {
-            "arial" | "helvetica" => Font::Arial,
-            "calibri" | "carlito" => Font::Calibri,
-            // A fixed-width family keeps its columns as the one fixed-width font there is.
-            "courier new" | "courier" | "liberation mono" | "cousine" | "monospace" | "ui-monospace" => Font::CourierNew,
-            "georgia" => Font::Georgia,
-            "verdana" | "geneva" => Font::Verdana,
-            "segoe ui" | "system-ui" | "-apple-system" => Font::System,
-            _ => return None,
+    /// The built-in a family of that exact name (lower case) is, if one is.
+    pub fn from_key(name: &str) -> Option<Built> {
+        let name = name.trim();
+        Built::ALL.into_iter().find(|b| b.key() == name)
+    }
+
+    /// The built-in a name means however it is written: `"Courier New"`, `"CourierNew"`,
+    /// `"courier-new"` and the name a mailbox file of 0.13 wrote, `"courierNew"`, are all Courier
+    /// New, and so is `"System"`, the name that file gave the interface font. Letters only, so the
+    /// case and the spacing of the original don't matter.
+    pub fn from_loose(name: &str) -> Option<Built> {
+        let flat: String = name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect();
+        if flat.is_empty() {
+            return None;
+        }
+        Built::ALL.into_iter().find(|b| {
+            let letters = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
+            letters(b.key()) == flat || letters(b.label()) == flat
         })
     }
 
-    /// From a menu's name or a command's (`"arial"`, `"Calibri"`).
-    pub fn parse(name: &str) -> Option<Font> {
-        Font::ALL.into_iter().find(|f| f.label().eq_ignore_ascii_case(name.trim()))
+    /// The built-in a CSS `font-family` list asks for, by its first name: one of these six, by the
+    /// name it is written under, or the generic a kind of font is asked for by (`monospace` for
+    /// the one fixed-width font of the set, #969). A family that is merely *like* one of the six —
+    /// Carlito for Calibri, Helvetica for Arial, Liberation Mono for Courier New — is kept as the
+    /// family it names: a message that asks for Carlito asks for Carlito, and the window draws it
+    /// in whatever is installed.
+    fn from_css_name(first: &str) -> Option<Built> {
+        if let Some(built) = Built::from_loose(first) {
+            return Some(built);
+        }
+        match first {
+            "monospace" | "ui-monospace" => Some(Built::CourierNew),
+            "system-ui" | "-apple-system" => Some(Built::System),
+            _ => None,
+        }
     }
+}
+
+/// The words that stand for a kind of font rather than a family, and for "as my parent has it":
+/// a list that begins with one of them asks for no family of its own.
+const FONT_KEYWORDS: [&str; 15] = [
+    "serif",
+    "sans-serif",
+    "cursive",
+    "fantasy",
+    "system-ui",
+    "ui-serif",
+    "ui-sans-serif",
+    "ui-rounded",
+    "math",
+    "emoji",
+    "fangsong",
+    "inherit",
+    "initial",
+    "unset",
+    "revert",
+];
+
+/// The font a run is written in: a `font-family` list, lower case and joined by commas, of at
+/// most [`MAX_FONT_NAMES`] names of at most [`MAX_FONT_NAME`] plain characters each — the shape a
+/// message's own list is kept in, so what the composer sends comes back through a paste unchanged.
+///
+/// It is a wish, not a promise: the composer draws it in the first name installed on this
+/// computer (the window's font index) and the recipient's program does the same on theirs. The
+/// names come from the fonts installed here, from a message being quoted or pasted, or from a
+/// command; none is ever fetched, and no font is shipped with MailCraft.
+///
+/// Two fonts are the same when their whole list is: a run asking for `"fira code,monospace"` and
+/// one asking for `"fira code"` alone ask for different things, and joining them would drop what
+/// one of them asks for. Where a menu or a ribbon wants to know which family a list begins with,
+/// it asks [`Font::key`].
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, Hash)]
+#[serde(transparent)]
+pub struct Font(String);
+
+/// A font as a command names it: one family, or a list, as a string. What isn't a usable list is
+/// an error to say so about — a command that fails leaves the message as it was.
+impl<'de> Deserialize<'de> for Font {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Font, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Font::stored(&name).ok_or_else(|| serde::de::Error::custom("not a font family"))
+    }
+}
+
+impl Font {
+    /// The six families MailCraft has fallbacks for, as fonts: what a menu offers before it lists
+    /// what is installed on this computer.
+    pub fn built_fonts() -> Vec<Font> {
+        Built::ALL.iter().copied().map(Built::font).collect()
+    }
+
+    /// From a menu's name, a command's (`"arial"`, `"Fira Code"`) or a whole list
+    /// (`"Fira Code, monospace"`): the names kept whole, lower case, at most [`MAX_FONT_NAMES`]
+    /// of them. A name that is one of the six of [`Built`] gives that one and its fallbacks.
+    /// `None` when nothing usable is left.
+    pub fn parse(list: &str) -> Option<Font> {
+        if list.len() > MAX_FONT_TEXT {
+            return None;
+        }
+        let first = list.split(',').next().unwrap_or("").trim().trim_matches(['\'', '"']).trim();
+        if let Some(built) = Built::from_loose(first) {
+            return Some(built.font());
+        }
+        font_names(list).map(Font)
+    }
+
+    /// What a mailbox file holds. The same as [`Font::parse`]: a name of the old six, however it
+    /// was written, still means that one and its fallbacks, and anything that isn't a usable
+    /// list is no font at all rather than a broken file.
+    pub fn stored(name: &str) -> Option<Font> {
+        Font::parse(name)
+    }
+
+    /// The font a CSS `font-family` list asks for: one of the six when its first name is one of
+    /// theirs or stands for one, nothing when it asks only for a kind of font, and otherwise the
+    /// list as it is — a paste keeps the first family's name (#37).
+    pub fn from_css(families: &str) -> Option<Font> {
+        if families.len() > MAX_FONT_TEXT {
+            return None;
+        }
+        let first = families.split(',').next()?.trim().trim_matches(['\'', '"']).trim().to_lowercase();
+        if let Some(built) = Built::from_css_name(&first) {
+            return Some(built.font());
+        }
+        if FONT_KEYWORDS.contains(&first.as_str()) {
+            return None;
+        }
+        Font::parse(families)
+    }
+
+    /// The same font, cleaned: what a file holds that is too long or empty is no font.
+    pub fn clean(self) -> Option<Font> {
+        Font::stored(&self.0)
+    }
+
+    /// The whole list, as it is kept: lower case, joined by commas.
+    pub fn list(&self) -> &str {
+        &self.0
+    }
+
+    /// The first family's name, lower case: what one font is the same as.
+    pub fn key(&self) -> &str {
+        self.0.split(',').next().unwrap_or("")
+    }
+
+    /// The name a menu shows: the first family's, in its own spelling where that is one of the
+    /// six, as it was written otherwise.
+    pub fn label(&self) -> &str {
+        match self.built() {
+            Some(built) => built.label(),
+            None => self.key(),
+        }
+    }
+
+    /// The CSS `font-family` it is written as: the six keep their own lists; any other family is
+    /// written as it is named, quoted where its name has a space, with whatever else the list
+    /// asks for after it.
+    pub fn css(&self) -> String {
+        match self.built() {
+            Some(built) => built.css().to_string(),
+            None => self.0.split(',').map(quote_family).collect::<Vec<_>>().join(", "),
+        }
+    }
+
+    /// Which of the six this is, if it is one: whose face was read at start, and which a menu has
+    /// already listed.
+    pub fn built(&self) -> Option<Built> {
+        Built::from_key(self.key())
+    }
+
+    /// Whether every character is as wide as the next, so text lined up with spaces stays lined
+    /// up. Only the six are known here: the window knows it of any other family from the face
+    /// installed here (`FontIndex::fixed`).
+    pub fn is_fixed_width(&self) -> bool {
+        self.built().is_some_and(Built::is_fixed_width)
+    }
+}
+
+/// A family name as CSS wants it: quoted when it has a space in it, or when it isn't an identifier
+/// to begin with — a name beginning with a digit or a dash is only a name when it is quoted
+/// (<https://www.w3.org/TR/css-fonts-3/>).
+fn quote_family(name: &str) -> String {
+    if name.contains(' ') || !name.chars().next().is_some_and(|c| c.is_alphabetic()) { format!("'{name}'") } else { name.to_string() }
+}
+
+/// The families of a `font-family` list, lower case and joined by commas: each a plain name
+/// (letters of any script, digits, spaces and hyphens, at most [`MAX_FONT_NAME`] characters), at
+/// most [`MAX_FONT_NAMES`] of them, each once. A name that is not plain is left out and the rest
+/// kept; `None` when none is left. The same rules `mailcraft_html::style::family` gives a
+/// message's own list, on purpose: what goes out comes back as it went.
+fn font_names(list: &str) -> Option<String> {
+    let mut names: Vec<String> = Vec::new();
+    for name in list.split(',') {
+        if names.len() >= MAX_FONT_NAMES {
+            break;
+        }
+        let name = name.trim().trim_matches(['\'', '"']).trim().to_lowercase();
+        let count = name.chars().count();
+        if count == 0 || count > MAX_FONT_NAME || !name.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-') || names.contains(&name) {
+            continue;
+        }
+        names.push(name);
+    }
+    (!names.is_empty()).then(|| names.join(","))
+}
+
+/// A font read from a file: whatever isn't a usable list is no font at all, so one bad value in
+/// a mailbox of five thousand messages costs one run its font and not its text.
+fn font_lenient<'de, D>(deserializer: D) -> Result<Option<Font>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::String(name) => Font::stored(&name),
+        _ => None,
+    })
 }
 
 /// A text colour as `#rrggbb` (lower case), from `#rgb`, `#rrggbb` or `rrggbb`; `None` otherwise.
@@ -147,6 +389,16 @@ pub enum ListKind {
     Numbered,
 }
 
+/// How a paragraph's lines sit between its margins. A list item is always left.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Align {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
 /// How a run of text looks.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -166,8 +418,10 @@ pub struct Style {
     /// Text colour, `#rrggbb` ([`safe_color`]); `None` for the message's own.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// Font; `None` for the message's own.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Font; `None` for the message's own. A list this version can't read (a font a later
+    /// version added, junk of any kind) is read as the message's own, so the rest of the look
+    /// stays (#969).
+    #[serde(skip_serializing_if = "Option::is_none", default, deserialize_with = "font_lenient")]
     pub font: Option<Font>,
     /// A highlight behind the text, `#rrggbb` ([`safe_color`]); `None` for none.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -181,6 +435,7 @@ impl Style {
         self.link = self.link.as_deref().and_then(safe_link);
         self.color = self.color.as_deref().and_then(safe_color);
         self.highlight = self.highlight.as_deref().and_then(safe_color);
+        self.font = self.font.take().and_then(Font::clean);
         self
     }
 
@@ -247,16 +502,182 @@ pub struct Run {
     /// A picture's id, kept by the text's holder: the run's text is then one [`OBJECT`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub picture: Option<u32>,
+    /// A table occupies one character in the editor, like an inline picture.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "read_pasted_table")]
+    pub table: Option<std::sync::Arc<PastedTable>>,
+}
+
+pub const MAX_PASTED_ROWS: usize = 256;
+pub const MAX_PASTED_COLUMNS: usize = 32;
+pub const MAX_PASTED_CELLS: usize = 2_048;
+pub const MAX_PASTED_SPANS: usize = 8_192;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct PastedTable {
+    columns: u16,
+    rows: Vec<Vec<TableCell>>,
+    #[serde(skip)]
+    size: usize,
+}
+
+#[derive(Deserialize)]
+struct RawPastedTable {
+    columns: u16,
+    rows: Vec<Vec<TableCell>>,
+}
+
+// An invalid table in an old or externally written draft is ignored without losing its other runs.
+fn read_pasted_table<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<std::sync::Arc<PastedTable>>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| serde_json::from_value::<RawPastedTable>(value).ok())
+        .and_then(|raw| PastedTable::new(raw.columns, raw.rows))
+        .map(std::sync::Arc::new))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TableCell {
+    pub lines: Vec<Vec<CellText>>,
+    pub header: bool,
+    pub colspan: u16,
+    pub rowspan: u16,
+    pub background: Option<String>,
+    pub alignment: CellAlignment,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CellAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CellText {
+    pub text: String,
+    pub style: Style,
+}
+
+impl PastedTable {
+    pub fn new(columns: u16, mut rows: Vec<Vec<TableCell>>) -> Option<Self> {
+        let width = usize::from(columns);
+        let height = rows.len();
+        if !(1..=MAX_PASTED_COLUMNS).contains(&width) || !(1..=MAX_PASTED_ROWS).contains(&height) {
+            return None;
+        }
+        let mut size = height;
+        let mut cells = 0;
+        let mut spans = 0;
+        let mut occupied = [0; MAX_PASTED_COLUMNS];
+        for (r, row) in rows.iter_mut().enumerate() {
+            cells += row.len();
+            if cells > MAX_PASTED_CELLS || row.len() > width {
+                return None;
+            }
+            let mut column = 0;
+            for cell in row {
+                while column < width && occupied.get(column).is_some_and(|end| *end > r) {
+                    column += 1;
+                }
+                let end_column = column + usize::from(cell.colspan);
+                let end_row = r + usize::from(cell.rowspan);
+                if end_column == column || end_column > width || end_row == r || end_row > height {
+                    return None;
+                }
+                let area = occupied.get_mut(column..end_column)?;
+                if area.iter().any(|end| *end > r) {
+                    return None;
+                }
+                area.fill(end_row);
+                column = end_column;
+
+                cell.background = cell.background.as_deref().and_then(safe_color);
+                size = size.saturating_add(1);
+                for line in &mut cell.lines {
+                    size = size.saturating_add(1);
+                    for run in line {
+                        spans += 1;
+                        if spans > MAX_PASTED_SPANS {
+                            return None;
+                        }
+                        size = size.saturating_add(1 + run.text.len());
+                        size = size.saturating_add(run.style.link.as_deref().map_or(0, str::len));
+                        if size > MAX_CHARS {
+                            return None;
+                        }
+                        run.text = clean_line(&run.text);
+                        run.style = std::mem::take(&mut run.style).clean();
+                    }
+                }
+                if size > MAX_CHARS {
+                    return None;
+                }
+            }
+        }
+        Some(Self { columns, rows, size })
+    }
+
+    pub fn columns(&self) -> u16 {
+        self.columns
+    }
+
+    pub fn rows(&self) -> &[Vec<TableCell>] {
+        &self.rows
+    }
+
+    pub fn plain(&self) -> String {
+        self.rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        cell.lines
+                            .iter()
+                            .map(|line| {
+                                let mut text = String::new();
+                                for run in line {
+                                    append_plain_run(&mut text, &run.text, &run.style);
+                                }
+                                text
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\t")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+fn append_plain_run(out: &mut String, text: &str, style: &Style) {
+    out.push_str(text);
+    if let Some(url) = &style.link {
+        let shown = text.trim();
+        let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
+        // A telephone number says its link however it is spaced (`+44 (0)20…`).
+        let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
+        let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
+        if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
+            out.push_str(&format!(" <{url}>"));
+        }
+    }
 }
 
 impl Run {
     pub fn new(text: impl Into<String>, style: Style) -> Run {
-        Run { text: text.into(), style, picture: None }
+        Run { text: text.into(), style, picture: None, table: None }
     }
 
     /// The picture `id`, as it stands in the text.
     pub fn picture(id: u32, style: Style) -> Run {
-        Run { text: OBJECT.to_string(), style, picture: Some(id) }
+        Run { text: OBJECT.to_string(), style, picture: Some(id), table: None }
+    }
+
+    pub fn table(table: std::sync::Arc<PastedTable>) -> Run {
+        Run { table: Some(table), ..Run::plain(OBJECT.to_string()) }
     }
 
     pub fn plain(text: impl Into<String>) -> Run {
@@ -275,10 +696,15 @@ pub struct Paragraph {
     pub runs: Vec<Run>,
     #[serde(skip_serializing_if = "is_none_list")]
     pub list: ListKind,
-    /// How deep a list item is indented, 0 to [`MAX_LEVEL`]; always 0 for an ordinary paragraph.
-    /// (Stored before levels existed, it is missing, and 0.)
+    /// How deep the paragraph is indented, 0 to [`MAX_LEVEL`]: a list item's level in its list, or
+    /// the steps of Increase Indent on an ordinary paragraph (#1658). (Stored before levels
+    /// existed, it is missing, and 0.)
     #[serde(skip_serializing_if = "is_zero")]
     pub level: u8,
+    /// How its lines sit; a list item is always left. (Stored before alignment existed, it is
+    /// missing, and left; a value this version doesn't know reads as left.)
+    #[serde(deserialize_with = "crate::sync::lenient_or_default", skip_serializing_if = "is_left")]
+    pub align: Align,
     /// Part of the signature put in a message (R4.5): what choosing another replaces, and what is
     /// swapped when the From account changes.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -293,18 +719,34 @@ fn is_none_list(l: &ListKind) -> bool {
     *l == ListKind::None
 }
 
+fn is_left(a: &Align) -> bool {
+    *a == Align::Left
+}
+
 impl Paragraph {
     pub fn new(runs: Vec<Run>, list: ListKind) -> Paragraph {
-        let mut p = Paragraph { runs, list, level: 0, signature: false };
+        let mut p = Paragraph { runs, list, level: 0, align: Align::Left, signature: false };
         p.normalize();
         p
     }
 
-    /// The same paragraph at a level of its list (kept within 0 to [`MAX_LEVEL`]; an ordinary
-    /// paragraph has none).
+    /// The same paragraph at an indent level (kept within 0 to [`MAX_LEVEL`]).
     pub fn at_level(mut self, level: u8) -> Paragraph {
-        self.level = if self.list == ListKind::None { 0 } else { level.min(MAX_LEVEL) };
+        self.level = level.min(MAX_LEVEL);
         self
+    }
+
+    /// The same paragraph aligned `align` (a list item stays left).
+    pub fn aligned(mut self, align: Align) -> Paragraph {
+        self.align = if self.list == ListKind::None { align } else { Align::Left };
+        self
+    }
+
+    /// The same paragraph (its kind, level, alignment and all) holding `runs` instead.
+    pub fn with_runs(&self, runs: Vec<Run>) -> Paragraph {
+        let mut p = Paragraph { runs, ..self.clone() };
+        p.normalize();
+        p
     }
 
     /// The paragraph's text without formatting.
@@ -328,7 +770,11 @@ impl Paragraph {
                 continue;
             }
             match out.last_mut() {
-                Some(last) if last.style == run.style && last.picture.is_none() && run.picture.is_none() => last.text.push_str(&run.text),
+                Some(last)
+                    if last.style == run.style && last.picture.is_none() && run.picture.is_none() && last.table.is_none() && run.table.is_none() =>
+                {
+                    last.text.push_str(&run.text)
+                }
                 _ => out.push(run),
             }
         }
@@ -361,7 +807,7 @@ impl Paragraph {
     fn split_off(&mut self, offset: usize) -> Paragraph {
         let i = self.split_at(offset);
         let tail = if i < self.runs.len() { self.runs.split_off(i) } else { Vec::new() };
-        Paragraph { runs: tail, list: self.list, level: self.level, signature: self.signature }
+        Paragraph { runs: tail, list: self.list, level: self.level, align: self.align, signature: self.signature }
     }
 
     /// The style of the character before `offset`, or of the first character at the start.
@@ -444,7 +890,7 @@ impl Format {
             Format::Size(size) => style.size = size.map(clamp_size),
             Format::Link(url) => style.link = url.as_deref().and_then(safe_link),
             Format::Color(color) => style.color = color.as_deref().and_then(safe_color),
-            Format::Font(font) => style.font = *font,
+            Format::Font(font) => style.font = font.clone(),
             Format::Highlight(color) => style.highlight = color.as_deref().and_then(safe_color),
             Format::Look(look) => {
                 let link = style.link.take();
@@ -500,10 +946,18 @@ impl RichText {
         let mut out: Vec<Paragraph> = Vec::new();
         let mut budget = MAX_CHARS;
         'all: for p in paragraphs {
-            let level = if p.list == ListKind::None { 0 } else { p.level.min(MAX_LEVEL) };
-            let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature };
+            let level = p.level.min(MAX_LEVEL);
+            let align = if p.list == ListKind::None { p.align } else { Align::Left };
+            let mut cur = Paragraph { runs: Vec::new(), list: p.list, level, align, signature: p.signature };
             for run in p.runs {
                 let style = run.style.clean();
+                if let Some(table) = run.table {
+                    if table.size < budget {
+                        budget -= table.size + 1;
+                        cur.runs.push(Run::table(table));
+                    }
+                    continue;
+                }
                 if let Some(id) = run.picture {
                     if budget == 0 {
                         break 'all;
@@ -515,7 +969,7 @@ impl RichText {
                 for (i, line) in lines(&run.text).into_iter().enumerate() {
                     if i > 0 {
                         cur.normalize();
-                        out.push(std::mem::replace(&mut cur, Paragraph { runs: Vec::new(), list: p.list, level, signature: p.signature }));
+                        out.push(std::mem::replace(&mut cur, Paragraph { runs: Vec::new(), list: p.list, level, align, signature: p.signature }));
                         budget = budget.saturating_sub(1);
                         if out.len() >= MAX_PARAGRAPHS || budget == 0 {
                             break 'all;
@@ -561,7 +1015,12 @@ impl RichText {
 
     /// Whether anything in it is more than plain text.
     pub fn has_formatting(&self) -> bool {
-        self.paragraphs.iter().any(|p| p.list != ListKind::None || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some()))
+        self.paragraphs.iter().any(|p| {
+            p.list != ListKind::None
+                || p.level != 0
+                || p.align != Align::Left
+                || p.runs.iter().any(|r| !r.style.is_plain() || r.picture.is_some() || r.table.is_some())
+        })
     }
 
     /// The pictures' ids, in the order they stand.
@@ -584,10 +1043,8 @@ impl RichText {
             if i > 0 {
                 out.push('\n');
             }
-            if p.list != ListKind::None {
-                for _ in 0..p.level {
-                    out.push_str("   ");
-                }
+            for _ in 0..p.level {
+                out.push_str("   ");
             }
             match p.list {
                 ListKind::None => {}
@@ -595,23 +1052,17 @@ impl RichText {
                 ListKind::Numbered => out.push_str(&format!("{}. ", numbers.get(i).copied().unwrap_or(1))),
             }
             for run in &p.runs {
+                if let Some(table) = &run.table {
+                    out.push_str(&table.plain());
+                    continue;
+                }
                 if let Some(id) = run.picture {
                     if let Some(text) = describe(id).map(|t| clean_line(&t)).filter(|t| !t.trim().is_empty()) {
                         out.push_str(&format!("[{}]", text.trim()));
                     }
                     continue;
                 }
-                out.push_str(&run.text);
-                if let Some(url) = &run.style.link {
-                    let shown = run.text.trim();
-                    let bare = url.split_once(':').map_or(url.as_str(), |(_, r)| r.trim_start_matches('/'));
-                    // A telephone number says its link however it is spaced (`+44 (0)20…`).
-                    let digits = |t: &str| t.replace("(0)", "").chars().filter(char::is_ascii_digit).collect::<String>();
-                    let number = url.to_ascii_lowercase().starts_with("tel:") && digits(shown) == digits(bare);
-                    if !number && !shown.eq_ignore_ascii_case(url) && !shown.eq_ignore_ascii_case(bare) {
-                        out.push_str(&format!(" <{url}>"));
-                    }
-                }
+                append_plain_run(&mut out, &run.text, &run.style);
             }
         }
         out
@@ -648,19 +1099,30 @@ impl RichText {
     /// at `at` (the paragraph there is cut; an empty rest of the last paragraph is left out).
     pub fn put_signature(&mut self, sig: &RichText, at: usize) -> Result<(), ModelError> {
         let marked: Vec<Paragraph> = sig.paragraphs.iter().map(|p| Paragraph { signature: true, ..p.clone() }).collect();
-        if self.len().saturating_add(sig.len()) > MAX_CHARS || self.paragraphs.len().saturating_add(marked.len()) > MAX_PARAGRAPHS {
-            return Err(ModelError::Invalid("the message can't hold that much text".into()));
-        }
+        let too_much = || ModelError::Invalid("the message can't hold that much text".into());
+        let combined = self.storage_len().saturating_add(sig.storage_len());
+        let lines = self.paragraphs.len().saturating_add(marked.len());
         if let Some((a, b)) = self.signature_paragraphs() {
+            let Some(replaced) = self.paragraphs.get(a..=b) else { return Err(ModelError::Invalid("no such signature".into())) };
+            let replaced_size =
+                replaced.iter().flat_map(|p| &p.runs).map(|r| r.text.chars().count() + r.table.as_ref().map_or(0, |table| table.size)).sum::<usize>()
+                    + replaced.len().saturating_sub(1);
+            if combined.saturating_sub(replaced_size) > MAX_CHARS || lines.saturating_sub(replaced.len()) > MAX_PARAGRAPHS {
+                return Err(too_much());
+            }
             self.paragraphs.splice(a..=b, marked);
             return Ok(());
         }
         let (pi, off) = self.locate(at)?;
         let last = pi + 1 == self.paragraphs.len();
         let Some(target) = self.paragraphs.get_mut(pi) else { return Err(ModelError::Invalid("no such paragraph".into())) };
+        let keep_tail = !last || off < target.chars();
+        if combined.saturating_add(1 + usize::from(keep_tail)) > MAX_CHARS || lines.saturating_add(usize::from(keep_tail)) > MAX_PARAGRAPHS {
+            return Err(too_much());
+        }
         let tail = target.split_off(off);
         let mut new = marked;
-        if !(tail.is_empty() && last) {
+        if keep_tail {
             new.push(Paragraph { signature: false, ..tail });
         }
         self.paragraphs.splice(pi + 1..pi + 1, new);
@@ -708,6 +1170,11 @@ impl RichText {
             Ok((p, o)) => self.paragraphs.get(p).map(|p| p.style_at(o)).unwrap_or_default(),
             Err(_) => Style::default(),
         }
+    }
+
+    /// How the paragraph `pos` is in is aligned (left past the end).
+    pub fn align_at(&self, pos: usize) -> Align {
+        self.locate(pos).ok().and_then(|(p, _)| self.paragraphs.get(p)).map_or(Align::Left, |p| p.align)
     }
 
     /// The kind of the paragraph `pos` is in.
@@ -786,9 +1253,30 @@ impl RichText {
         Ok(pieces.iter().all(|(i, a, b)| self.paragraphs.get(*i).is_none_or(|p| p.all(*a, *b, &f))))
     }
 
-    /// Whether every paragraph `[from, to)` touches is of `kind`.
+    /// Whether every paragraph `[from, to)` takes in (see [`RichText::set_list`]) is of `kind`.
     pub fn all_lists(&self, from: usize, to: usize, kind: ListKind) -> Result<bool, ModelError> {
-        Ok(self.pieces(from, to)?.iter().all(|(i, _, _)| self.paragraphs.get(*i).is_some_and(|p| p.list == kind)))
+        Ok(self.whole_paragraphs(from, to)?.iter().all(|i| self.paragraphs.get(*i).is_some_and(|p| p.list == kind)))
+    }
+
+    /// Whether every ordinary paragraph `[from, to)` takes in (see [`RichText::set_align`]) is
+    /// aligned `align`.
+    pub fn all_aligned(&self, from: usize, to: usize, align: Align) -> Result<bool, ModelError> {
+        let paragraphs = self.whole_paragraphs(from, to)?;
+        Ok(paragraphs.iter().filter_map(|i| self.paragraphs.get(*i)).filter(|p| p.list == ListKind::None).all(|p| p.align == align))
+    }
+
+    /// The paragraphs `[from, to)` takes in, for what is set on a whole paragraph (its kind, its
+    /// alignment): each one it touches, but not one that starts where a selection ends, which
+    /// only the break before it reaches (a line selected with its break ends there). An empty
+    /// last line is the exception: Select All ends there.
+    fn whole_paragraphs(&self, from: usize, to: usize) -> Result<Vec<usize>, ModelError> {
+        let (from, to) = self.span(from, to)?;
+        let pieces = self.pieces(from, to)?;
+        let mut out: Vec<usize> = pieces.iter().map(|(i, _, _)| *i).collect();
+        if from < to && to < self.len() && matches!(pieces.last(), Some((_, 0, 0))) {
+            out.pop();
+        }
+        Ok(out)
     }
 
     /// A copy of `[from, to)`, formatting and all.
@@ -807,39 +1295,52 @@ impl RichText {
 
     // ---- edits ----
 
-    /// Put `text` at `at` in `style`; line breaks in it start paragraphs of the kind of the one
-    /// it goes into. The position after it.
+    /// Put `text` at `at` in `style`; line breaks in it start paragraphs of the kind (and the
+    /// alignment) of the one it goes into. The position after it.
     pub fn insert(&mut self, at: usize, text: &str, style: &Style) -> Result<usize, ModelError> {
         let (p, _) = self.locate(at)?;
-        let (list, level) = self.paragraphs.get(p).map_or((ListKind::None, 0), |p| (p.list, p.level));
+        let (list, level, align) = self.paragraphs.get(p).map_or((ListKind::None, 0, Align::Left), |p| (p.list, p.level, p.align));
         let style = style.clone().clean();
         let fragment = RichText::from_paragraphs(
-            lines(text).into_iter().map(|l| Paragraph::new(vec![Run::new(l, style.clone())], list).at_level(level)).collect(),
+            lines(text).into_iter().map(|l| Paragraph::new(vec![Run::new(l, style.clone())], list).at_level(level).aligned(align)).collect(),
         );
         self.insert_rich(at, &fragment)
     }
 
     /// Put another document's paragraphs at `at` (pasting). Its first paragraph joins the one at
-    /// `at` (and gives it its kind when it goes in at that paragraph's start and is a list item);
-    /// its last is followed by the rest of that one. The position after it.
+    /// `at` (and, when it goes in at that paragraph's start, gives it its kind if it is a list
+    /// item; if it isn't and that paragraph is no list item, its alignment if it isn't left, and
+    /// its indent if it is indented and that paragraph is empty); the others that are left take
+    /// that paragraph's alignment, as typed lines do; its last is followed by the rest of that
+    /// one, which so takes the last one's kind and alignment. The position after it.
     pub fn insert_rich(&mut self, at: usize, fragment: &RichText) -> Result<usize, ModelError> {
         let (pi, off) = self.locate(at)?;
         let added = fragment.len();
-        if self.len().saturating_add(added) > MAX_CHARS
+        if self.storage_len().saturating_add(fragment.storage_len()) > MAX_CHARS
             || self.paragraphs.len().saturating_add(fragment.paragraphs.len().saturating_sub(1)) > MAX_PARAGRAPHS
         {
             return Err(ModelError::Invalid("the message can't hold that much text".into()));
         }
         let Some(target) = self.paragraphs.get_mut(pi) else { return Err(ModelError::Invalid("no such paragraph".into())) };
         let mut tail = target.split_off(off);
+        let own = target.align;
         let mut parts = fragment.paragraphs.iter().cloned();
         let Some(first) = parts.next() else { return Ok(at) };
         if off == 0 && first.list != ListKind::None {
             target.list = first.list;
             target.level = first.level;
+            target.align = Align::Left;
+        } else if off == 0 && target.list == ListKind::None {
+            if first.align != Align::Left {
+                target.align = first.align;
+            }
+            if tail.is_empty() && first.level != 0 {
+                // An indented paragraph pasted on an empty line keeps its indent (#1658).
+                target.level = first.level;
+            }
         }
         target.runs.extend(first.runs);
-        let rest: Vec<Paragraph> = parts.collect();
+        let rest: Vec<Paragraph> = parts.map(|p| if p.align == Align::Left { p.aligned(own) } else { p }).collect();
         match rest.split_last() {
             None => {
                 target.runs.append(&mut tail.runs);
@@ -857,6 +1358,15 @@ impl RichText {
             }
         }
         Ok(at + added)
+    }
+
+    /// Text plus the data held by table objects, for storage and history limits.
+    pub(super) fn storage_len(&self) -> usize {
+        self.pasted_tables().fold(self.len(), |size, table| size.saturating_add(table.size))
+    }
+
+    fn pasted_tables(&self) -> impl Iterator<Item = &std::sync::Arc<PastedTable>> {
+        self.paragraphs.iter().flat_map(|p| &p.runs).filter_map(|run| run.table.as_ref())
     }
 
     /// Remove `[from, to)`; a paragraph break inside it joins the paragraphs on either side
@@ -914,25 +1424,40 @@ impl RichText {
         Ok(())
     }
 
-    /// Make every paragraph `[from, to)` touches a paragraph of `kind`.
+    /// Make every paragraph `[from, to)` touches a paragraph of `kind` (a list item is left), but
+    /// for one only the break before it reaches.
     pub fn set_list(&mut self, from: usize, to: usize, kind: ListKind) -> Result<(), ModelError> {
-        for (i, _, _) in self.pieces(from, to)? {
+        for i in self.whole_paragraphs(from, to)? {
             if let Some(p) = self.paragraphs.get_mut(i) {
                 p.list = kind;
                 if kind == ListKind::None {
                     p.level = 0;
+                } else {
+                    p.align = Align::Left;
                 }
             }
         }
         Ok(())
     }
 
-    /// Move the list items `[from, to)` touches `by` levels deeper (or shallower when negative),
-    /// within 0 to [`MAX_LEVEL`]. Ordinary paragraphs stay as they are. Whether anything moved.
+    /// Align every ordinary paragraph `[from, to)` touches, but for one only the break before
+    /// it reaches; list items stay left.
+    pub fn set_align(&mut self, from: usize, to: usize, align: Align) -> Result<(), ModelError> {
+        for i in self.whole_paragraphs(from, to)? {
+            if let Some(p) = self.paragraphs.get_mut(i).filter(|p| p.list == ListKind::None) {
+                p.align = align;
+            }
+        }
+        Ok(())
+    }
+
+    /// Move the paragraphs `[from, to)` takes in (see [`RichText::set_list`]) `by` levels deeper
+    /// (or shallower when negative), within 0 to [`MAX_LEVEL`]: a list item in its list, an
+    /// ordinary paragraph in from the left (#1658). Whether anything moved.
     pub fn indent(&mut self, from: usize, to: usize, by: i8) -> Result<bool, ModelError> {
         let mut moved = false;
-        for (i, _, _) in self.pieces(from, to)? {
-            if let Some(p) = self.paragraphs.get_mut(i).filter(|p| p.list != ListKind::None) {
+        for i in self.whole_paragraphs(from, to)? {
+            if let Some(p) = self.paragraphs.get_mut(i) {
                 let level = p.level.saturating_add_signed(by).min(MAX_LEVEL);
                 moved |= level != p.level;
                 p.level = level;
@@ -992,6 +1517,8 @@ pub fn numbers(paragraphs: &[Paragraph]) -> Vec<u32> {
         .collect()
 }
 
+#[cfg(test)]
+mod align_tests;
 #[cfg(test)]
 mod tests;
 

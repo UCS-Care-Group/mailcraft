@@ -3,6 +3,8 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
+use std::collections::HashSet;
+
 use mailcraft_model::search::Suggestion;
 use mailcraft_model::{AccountChoice, Address};
 use serde_json::{Value, json};
@@ -29,6 +31,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .when(crate::gmail::offered)
             .params(r#"{"value": "folders"|"tabs"} — Gmail's inbox categories as five folders under a Gmail account's Inbox in the folder pane, or as a row of tabs above its message list (#911)"#),
+        CommandSpec::new("view.allAccounts", "All Accounts", "Folder Pane", all_accounts)
+            .reads()
+            .when(two_mailboxes)
+            .params(r#"{"kind"?: "inbox"|"drafts"|"sent"|"deleted"|"archive" (default inbox)} — lists every account's folder of that kind together, newest first, each message in its own account (#625): what is done to one (read, flag, move, delete, reply) is done in that account, as from its own folder. Shared mailboxes are listed with the accounts. The window opens on it again at the next start when it was open at quit. Opening one account's folder (folder.select) leaves it. Answers {"kind", "folders": [id] (the accounts' folders it lists), "messages": n, "unread": n}"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).reads().params(TOGGLE),
         CommandSpec::new("view.navigationBar", "Navigation Bar", "View › Layout", navigation_bar)
             .reads()
@@ -100,8 +106,48 @@ fn tasks(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
+    let was = s.view.reading_pane;
     s.view.reading_pane = parse_enum::<Pane>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is right, bottom or off"))?;
+    // Turned on, it shows the message selected: read, as a click on it would be (#1734).
+    if was == Pane::Off {
+        super::mail::mark_opened(s, false);
+    }
     Ok(json!({"value": s.view.reading_pane}))
+}
+
+/// Why All Accounts isn't offered: one mailbox has nothing to put together (#625; a shared mailbox
+/// counts as one).
+fn two_mailboxes(s: &Session) -> Option<&'static str> {
+    if crate::unified::offered(&s.mailbox) {
+        return None;
+    }
+    Some("needs two mailboxes at least (a shared mailbox counts)")
+}
+
+/// `view.allAccounts`: every account's folder of a kind in one list (#625).
+fn all_accounts(s: &mut Session, v: &Value) -> CmdResult {
+    let kind = match p::str(v, "kind") {
+        None => mailcraft_model::FolderKind::Inbox,
+        Some(code) => mailcraft_model::FolderKind::parse(code)
+            .filter(|k| crate::unified::KINDS.contains(k))
+            .ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted or archive"))?,
+    };
+    let anchor = crate::unified::anchor(&s.mailbox, kind).ok_or_else(|| super::fail("no account has a folder of that kind"))?;
+    if crate::unified::of(s) != Some(kind) || s.view.module != Module::Mail {
+        s.view.folder = anchor;
+        s.view.unified = Some(kind);
+        s.view.module = Module::Mail;
+        s.view.gmail = None;
+        s.view.open.clear();
+        s.sel.messages.clear();
+    }
+    // A search belongs to the list it was typed in.
+    s.view.search.clear();
+    let folders = crate::unified::folders(&s.mailbox, kind);
+    let counts = s.folder_counts();
+    let (messages, unread) =
+        folders.iter().fold((0usize, 0usize), |(t, u), f| (t.saturating_add(counts.total(*f)), u.saturating_add(counts.unread(*f))));
+    Ok(json!({"kind": kind.code(), "folders": folders, "messages": messages, "unread": unread}))
 }
 
 fn gmail_categories(s: &mut Session, v: &Value) -> CmdResult {
@@ -168,12 +214,12 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 
 /// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
 /// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`, `to:`
-/// and `cc:` the people a new message's recipients are suggested from
-/// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
-/// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
-/// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
-/// window's list and `view.searchSuggestions` both ask this. With nothing typed, the searches run
-/// lately (`view.recentSearches`).
+/// and `cc:` the people a new message's recipients are suggested from, apart from the owner's own
+/// addresses ([`compose::suggest_excluding_own`](super::compose::suggest_excluding_own)): the
+/// contacts and the mail on this computer, nothing asked of a server. The owner's own addresses,
+/// and each account's sender addresses, come after everyone else, once each (`from:` one finds
+/// what was sent from it, `to:` what came to it). The window's list and `view.searchSuggestions`
+/// both ask this. With nothing typed, the searches run lately (`view.recentSearches`).
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
     // An empty box offers the searches run lately, to run again.
     if query.trim().is_empty() {
@@ -181,13 +227,31 @@ pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Sugges
         return recent.map(|q| Suggestion { label: q.to_string(), range: 0..query.len(), text: q.to_string(), color: None, address: None }).collect();
     }
     mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.every_category(), |typed| {
-        let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
+        let mut people: Vec<Address> =
+            super::compose::suggest_excluding_own(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();
         if let Some(typed) = super::compose::Typed::new(typed) {
-            let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
-            people.extend(own.map(|a| Address::new(a.display_name.as_str(), a.email.as_str())));
+            let mut seen: HashSet<String> = people.iter().map(|p| p.email.to_lowercase()).collect();
+            for account in &s.mailbox.accounts {
+                push_own(&mut people, &mut seen, &typed, &account.display_name, &account.email);
+                for sender in account.sender_addresses() {
+                    push_own(&mut people, &mut seen, &typed, &sender.display_name, &sender.email);
+                }
+            }
         }
         people
     })
+}
+
+/// The owner's own address at the end of a search suggestion list, once, when the typed word fits.
+fn push_own(people: &mut Vec<Address>, seen: &mut HashSet<String>, typed: &super::compose::Typed, name: &str, email: &str) {
+    let email = email.trim();
+    if email.is_empty() || !typed.fits(name.trim(), email) {
+        return;
+    }
+    if !seen.insert(email.to_lowercase()) {
+        return;
+    }
+    people.push(Address::new(name.trim(), email));
 }
 
 fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {
@@ -346,6 +410,8 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("that account's contacts aren't read from its server"));
     }
     s.view.people_account = value;
+    // The contacts, and no longer the organisation's address list.
+    s.view.people_book = None;
     // The selected contact stays selected only where it is listed.
     let shown = people::shown_account(s);
     s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
@@ -425,6 +491,76 @@ pub fn due_reminders(s: &Session, now: mailcraft_time::DateTime) -> Vec<Reminder
     due.sort_by_key(|r| (r.start, r.event));
     due.truncate(100);
     due
+}
+
+/// What an upcoming reminder is for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpcomingFor {
+    /// An occurrence of an event of the owner's own calendars, by the wall-clock time it starts.
+    Event { event: mailcraft_model::Id, start: mailcraft_time::DateTime, all_day: bool, location: String },
+    /// A task that is not complete.
+    Task { task: mailcraft_model::Id },
+}
+
+/// A reminder still to come, for a phone to have the system raise while the app is closed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Upcoming {
+    pub what: UpcomingFor,
+    /// When the reminder is due (seconds since 1970, UTC).
+    pub at: mailcraft_time::Timestamp,
+    /// When the event starts, or the task's reminder time (seconds since 1970, UTC).
+    pub starts: mailcraft_time::Timestamp,
+    pub title: String,
+}
+
+/// The reminders of events and tasks still to come at `now`, soonest first and `limit` at most:
+/// an occurrence of the owner's own calendars that hasn't started yet (its reminder may be due
+/// already: the phone was off when it was), up to four weeks ahead as [`due_reminders`] looks;
+/// and a task that isn't complete whose reminder is at most a day old (as a reminder stays a day
+/// after its event) or still to come. What has been shown already is the phone's to remember.
+pub fn upcoming_reminders(s: &Session, now: mailcraft_time::Timestamp, limit: usize) -> Vec<Upcoming> {
+    const DAY: i64 = 86_400;
+    let here = super::remote::offset_of(s);
+    let instant = |wall: mailcraft_time::DateTime| mailcraft_model::zoned::instant_at(wall, &here);
+    let today = s.local(now).date;
+    let (from, to) = (today.add_days(-1), today.add_days(29));
+    let not_theirs: std::collections::HashSet<mailcraft_model::Id> =
+        s.mailbox.calendars.iter().filter(|c| !super::remote::is_own_calendar(&s.mailbox, c)).map(|c| c.id).collect();
+    let mut found: Vec<Upcoming> = Vec::new();
+    for e in s.mailbox.events.values() {
+        let Some(ahead) = e.reminder_minutes else { continue };
+        if e.cancelled || not_theirs.contains(&e.calendar) {
+            continue;
+        }
+        for o in e.occurrences_in(from, to, &here) {
+            let starts = instant(o.start);
+            if starts <= now {
+                continue;
+            }
+            found.push(Upcoming {
+                what: UpcomingFor::Event { event: e.id, start: o.start, all_day: e.all_day, location: e.location.clone() },
+                at: starts.saturating_sub(i64::from(ahead).saturating_mul(60)),
+                starts,
+                title: e.title.clone(),
+            });
+        }
+    }
+    for t in s.mailbox.tasks.values() {
+        let Some(at) = t.reminder else { continue };
+        if t.is_complete() || at < now.saturating_sub(DAY) {
+            continue;
+        }
+        found.push(Upcoming { what: UpcomingFor::Task { task: t.id }, at, starts: at, title: t.title.clone() });
+    }
+    found.sort_by_key(|u| {
+        let (kind, id, start) = match &u.what {
+            UpcomingFor::Event { event, start, .. } => (0u8, *event, Some(*start)),
+            UpcomingFor::Task { task } => (1, *task, None),
+        };
+        (u.at, kind, id, start)
+    });
+    found.truncate(limit);
+    found
 }
 
 fn reminders(s: &mut Session, _: &Value) -> CmdResult {

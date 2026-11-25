@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::gmail::MAX_GMAIL_REFUSALS;
 use mailcraft_model::provider::Via;
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_GMAIL_MOVES, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags,
-    RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
+    Deleted, FlagsPushed, FolderDelta, FolderState, GmailMove, ImapPlace, MAX_FAILING, MAX_GMAIL_MOVES, MAX_PLACES, MAX_TRIES, Moved, PLACE_BYTES,
+    Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
@@ -42,10 +42,13 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"account"?: number} — answers what a host should send and fetch"#)
             .when(has_server),
         CommandSpec::new("sync.apply", "Apply Send/Receive", "Send / Receive", apply).pure().params(r#"{"result": SyncResult}"#),
+        CommandSpec::new("sync.retryFailed", "Retry Skipped Messages", "Send / Receive", retry_failed)
+            .params(r#"{"account"?: number} — messages of an IMAP account that failed to download in a few Send/Receive runs in a row are left out of the following ones (#1581); this takes them up again, so that the next Send/Receive asks the server for them once more (without an account: all accounts). Answers {"cleared": n (messages)}"#)
+            .when(has_server),
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -281,9 +284,25 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.incoming = i;
     }
     if let Some(o) = server(v, "outgoing")? {
+        // A relay tick is for the server it was set for: another host starts without it, unless
+        // the same call says otherwise (#836).
+        let moved = a.outgoing.as_ref().map(|s| s.host.trim().to_ascii_lowercase()) != o.as_ref().map(|s| s.host.trim().to_ascii_lowercase());
+        if moved && v.get("outgoingWithoutSignIn").is_none() {
+            a.outgoing_without_sign_in = false;
+        }
         a.outgoing = o;
     }
     sign_in(a, v)?;
+    // A relay that takes mail without a sign-in (#836). An account that signs in on the
+    // provider's page always shows its token, so it has no such choice.
+    match v.get("outgoingWithoutSignIn") {
+        None => {}
+        Some(Value::Bool(true)) if a.oauth.is_some() => {
+            return Err(bad("`outgoingWithoutSignIn` is for an account that signs in with a password"));
+        }
+        Some(Value::Bool(without)) => a.outgoing_without_sign_in = *without,
+        Some(_) => return Err(bad("`outgoingWithoutSignIn` is true or false")),
+    }
     // Which messages are fetched whole in the background (R3 spec S12).
     if let Some(limit) = p::str(v, "downloadInFull") {
         a.download_in_full = serde_json::from_value(json!(limit.trim()))
@@ -361,6 +380,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
                 a.dav = None;
             }
         }
+    }
+    // Only an account with an outgoing server that signs in with a password has the choice.
+    if a.oauth.is_some() || a.outgoing.is_none() {
+        a.outgoing_without_sign_in = false;
     }
     if a.name.is_empty() {
         a.name = a.email.clone();
@@ -601,6 +624,10 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // Another server or another user name is another mailbox: where the folder list and the
     // folders went on from is the old one's, and is forgotten with it (below).
     let other_mailbox = a.kind == AccountKind::Exchange && (url(&before) != url(&a) || login(&before) != login(&a));
+    // (And a Microsoft account's address is its mailbox: what its server had of its categories is
+    // the old one's, #661.)
+    let was_address = before.email.trim().to_string();
+    let was_microsoft = before.kind == AccountKind::Microsoft;
     if listed_ews(s, id) && a.kind == AccountKind::Exchange {
         let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
@@ -644,6 +671,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
+    // (Whatever its kind now: it may be a Microsoft account again later.)
+    let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
     // A shorter window: what is outside it now is thinned at the next tick, for any host.
     let shortened = a.keep_offline < before.keep_offline;
     // A longer one on a device that lists only its window's mail (a phone, MB3.16): its folders
@@ -658,6 +687,23 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     if other_mailbox {
         forget_ews_states(&mut s.mailbox, id);
+    }
+    // So is one that isn't a Microsoft account any more: nothing keeps its list in step with
+    // Outlook, and it is the owner's to change here; should it be one again, its server's list is
+    // read as a new address's is.
+    let left_microsoft = was_microsoft && s.mailbox.account(id).is_some_and(|x| x.kind != AccountKind::Microsoft);
+    if readdressed || left_microsoft {
+        s.mailbox.restart_category_sync(id);
+    }
+    // Only a Microsoft, Exchange or JMAP account fetches again a message its server lists as
+    // another version: on any other, one waiting for that would wait for ever, and no rule would
+    // read it; it is read as it is here (#566).
+    let fetches_again = matches!(s.mailbox.account(id).map(|x| x.kind), Some(AccountKind::Microsoft | AccountKind::Exchange | AccountKind::Jmap));
+    if !fetches_again {
+        let waiting: Vec<Id> = s.mailbox.messages.values().filter(|m| m.account == id && m.stale).map(|m| m.id).collect();
+        for m in waiting {
+            s.mailbox.message_mut(m)?.stale = false;
+        }
     }
     Ok(json!({"id": id}))
 }
@@ -839,7 +885,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -913,6 +959,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
             again: again.remove(&f.id).unwrap_or_default(),
+            failing: f.failing.iter().take(MAX_FAILING).map(|(uid, tries)| (*uid, *tries)).collect(),
             // Good to pass the folder over by until the next reading in full is due (#276).
             status: f.imap_status.filter(|st| (0..super::graph_mail::FULL_SWEEP_EVERY).contains(&now.saturating_sub(st.at))),
         })
@@ -1409,6 +1456,7 @@ fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResul
     run.stopped |= stopped;
     run.finished = !partial;
     if !partial {
+        s.run_had.remove(&account);
         // What nothing will answer any more is let go of (#30).
         super::mail::check_again::settle(&mut s.mailbox);
         let held = super::graph_place::held_for_this_computer(s, account);
@@ -1455,9 +1503,11 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     let told =
         !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
-    let now = s.now();
+    let clock = s.rule_clock();
+    // What the account had before the run's new mail, as an earlier piece of it found it.
+    let had = s.run_had.remove(&account);
     let mb = &mut s.mailbox;
-    let sent = file_sent(mb, account, result, now);
+    let sent = file_sent(mb, account, result, clock.now);
     // Handed to the outgoing server, and the answer lost: it may have gone (AU3-26). (The run
     // said already that it couldn't send it.)
     let mut said = Vec::new();
@@ -1473,6 +1523,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         }
     }
     let mut on_server = OnServer::of(mb, account);
+    on_server.had = had;
     flags_pushed(mb, account, &on_server, &result.flagged);
     for moved in &result.moved {
         move_finished(mb, account, &mut on_server, moved);
@@ -1487,10 +1538,14 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     // Only what is really new counts as new: not the server's copy of a message that was here.
     let mut counts = Counts::default();
     for delta in std::mem::take(&mut result.folders) {
-        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, now);
+        take_in(mb, account, &mut on_server, delta, (gmail_moves, &moved_now), &mut counts, &clock);
     }
     moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
+    // (For the run's later pieces: its last lets it go, [`apply_sync_part`].)
+    if let Some(had) = on_server.had.take() {
+        s.run_had.insert(account, had);
+    }
     if told {
         s.forget_history();
     }
@@ -1525,6 +1580,10 @@ struct OnServer {
     leaving: HashSet<(Id, u32)>,
     /// Messages put back as the server's after a refused copy ([`Message::returned`]).
     returned: Vec<Id>,
+    /// The Message-IDs of the account's mail in its folders, as the run first needs them
+    /// ([`OnServer::had`]), and as its later pieces have them from the first
+    /// ([`crate::Session::run_had`]); none of what the owner sent or is writing.
+    had: Option<HashSet<String>>,
 }
 
 impl OnServer {
@@ -1532,7 +1591,16 @@ impl OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
         let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned }
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned, had: None }
+    }
+
+    /// Whether the account had a message by the Message-ID `id` in one of its folders: mail new
+    /// to a folder that it had is mail moved there on another device (a filed message moved back
+    /// into the Inbox, say), which the server gives a new UID. The run reads the Inbox before the
+    /// folder it left (`mailcraft_net::sync`), so it is still where it was. Not the owner's own
+    /// sent mail, or a draft, which a message to themselves comes back as (#566).
+    fn had(&mut self, mb: &Mailbox, account: Id, id: &str) -> bool {
+        !id.is_empty() && self.had.get_or_insert_with(|| message_ids(mb, account)).contains(id)
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1567,6 +1635,14 @@ pub(super) fn file_sent(mb: &mut Mailbox, account: Id, result: &SyncResult, now:
         }
         if mb.message(*id).is_some_and(|m| m.account == account && m.folder == outbox) && mb.move_message(*id, sent_items).is_ok() {
             moved += 1;
+            // Sent, it is no draft any more, however it got into the Outbox: a draft moved in
+            // and let go with Send Again was one still (#1748), and the server's copy isn't one.
+            if mb.message(*id).is_some_and(|m| m.draft)
+                && let Ok(m) = mb.message_mut(*id)
+            {
+                m.draft = false;
+                m.server_draft = None;
+            }
             // A reminder "after so many days" counts them from now that it has gone (#948).
             mb.follow_up_sent(*id, now);
             // Moved or copied into the Outbox from elsewhere and sent with Send Again (#704): the
@@ -1831,6 +1907,17 @@ fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
     for id in ids {
         original_goes(mb, id, false);
     }
+}
+
+/// The `Message-ID`s of `account`'s mail outside Sent Items, Drafts and the Outbox: what it had,
+/// should one of them turn up in the Inbox as new, moved there on another device (#566).
+pub(crate) fn message_ids(mb: &Mailbox, account: Id) -> HashSet<String> {
+    let theirs = |f: Id| mb.folder(f).is_some_and(|f| !matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    mb.messages
+        .values()
+        .filter(|m| m.account == account && !m.draft && !m.message_id.is_empty() && theirs(m.folder))
+        .map(|m| m.message_id.clone())
+        .collect()
 }
 
 /// The move out of another account that waits for `id`, by which its original goes once the
@@ -2196,7 +2283,7 @@ fn take_in(
     mut delta: FolderDelta,
     (gmail_moves, moved_now): (bool, &HashSet<u64>),
     counts: &mut Counts,
-    now: mailcraft_time::Timestamp,
+    clock: &mailcraft_model::RuleClock,
 ) {
     if delta.remote.is_empty() {
         return;
@@ -2283,7 +2370,7 @@ fn take_in(
     } else {
         // (Or one moved out of the account, asked for from the copy it came from, #30.)
         let moved_out = super::imap_again::moved_out(mb, account);
-        super::imap_again::take_in(mb, &mut delta, now, |uid| {
+        super::imap_again::take_in(mb, &mut delta, clock.now, |uid| {
             on_server.by_uid.get(&(folder, uid)).or_else(|| moved_out.get(&(folder, uid))).copied()
         });
     }
@@ -2302,6 +2389,8 @@ fn take_in(
     // Copies a move or deletion made here waits for, the mailbox numbered anew (AU3-17): taken in
     // as they come, and settled once the mailbox has been read whole ([`waited_for`]).
     let awaited = awaited(mb, account, &delta.remote);
+    // What came is no longer failing (#1581).
+    let came: Vec<u32> = delta.new.iter().map(|m| m.uid).collect();
     for mut m in delta.new {
         let uid = m.uid;
         // Here already, or on its way out of that mailbox by a change still to be pushed.
@@ -2325,6 +2414,9 @@ fn take_in(
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
         // A copy of mail moved or deleted here: neither new nor sorted, while it waits.
         let waited = awaited.iter().any(|(id, seen)| *id == m.message_id && seen.fits(&m));
+        // Mail the account had, moved into the Inbox on another device: the rules file it as
+        // found (#566).
+        let moved_in = (inbox || junk) && sorting && uid > old_seen && on_server.had(mb, account, &m.message_id);
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
@@ -2336,9 +2428,21 @@ fn take_in(
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
             // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
             // them as any mail arriving in the Inbox does.
-            let sorted = sorting && uid > old_seen && mb.sort_junk(id);
+            // (They sort mail moved in on another device as any new mail, as they always did.)
+            let new = sorting && uid > old_seen;
+            let fresh = new && !moved_in;
+            let sorted = new && mb.sort_junk(id);
+            // The rules file what was there before too (a first download, a mailbox numbered anew,
+            // older mail, mail moved in on another device), but don't copy it or show an alert for
+            // it (#566).
             if inbox != sorted {
-                mb.apply_rules(id);
+                if fresh {
+                    mb.apply_rules(id, clock);
+                } else if reset {
+                    mb.apply_rules_renumbered(id, clock);
+                } else {
+                    mb.apply_rules_found(id, clock);
+                }
             }
             // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {
@@ -2397,10 +2501,27 @@ fn take_in(
         if delta.complete {
             f.whole = Some(true);
             // What the server said of it before it was read to the end (#276), or nothing.
-            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: now, ..status });
+            f.imap_status = delta.status.map(|status| mailcraft_model::ImapStatus { at: clock.now, ..status });
         }
         if reset {
             f.imap_status = None;
+        }
+        // Messages that failed to download are counted in the runs they failed in, up to the
+        // number after which they are left out (#1581); numbered anew, the count means nothing.
+        if reset {
+            f.failing.clear();
+        } else {
+            for uid in came.iter().chain(&delta.removed).chain(&delta.failing_gone) {
+                f.failing.remove(uid);
+            }
+        }
+        // (What failed in the run that found the folder numbered anew is of the new numbering.)
+        for uid in delta.failed.iter().copied().filter(|uid| *uid != 0) {
+            if f.failing.len() >= MAX_FAILING && !f.failing.contains_key(&uid) {
+                continue;
+            }
+            let tries = f.failing.entry(uid).or_insert(0);
+            *tries = tries.saturating_add(1).min(MAX_TRIES);
         }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {
@@ -2412,6 +2533,21 @@ fn take_in(
 /// Most messages of one folder's piece whose Gmail labels are taken in (#1153): more than a
 /// folder a run reads holds.
 const MAX_LABELLED: usize = 1_000_000;
+
+/// Take up again the messages left out for failing to download (#1581): their count goes back to
+/// nought, and a message that is named with no tries is asked for by the next run wherever the
+/// folder has been read up to.
+fn retry_failed(s: &mut Session, v: &Value) -> CmdResult {
+    let only = p::id(v, "account");
+    let mut cleared = 0usize;
+    for f in s.mailbox.folders.iter_mut().filter(|f| only.is_none_or(|a| f.account == a)) {
+        for tries in f.failing.values_mut().filter(|tries| **tries != 0) {
+            *tries = 0;
+            cleared += 1;
+        }
+    }
+    Ok(json!({"cleared": cleared}))
+}
 
 fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let result: SyncResult =

@@ -491,6 +491,44 @@ pub struct Selections {
     places: Vec<PlaceState>,
     /// The place the pointer last went down in.
     focus: Option<Place>,
+    /// A key that scrolls the message in that place, waiting for its body to be shown (#1739).
+    scroll: Option<(Place, Scroll)>,
+}
+
+/// How far a key scrolls a message's body (#1739).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Scroll {
+    /// A line up (`-1`) or down (`1`), or across with Left (`-1`) and Right (`1`).
+    Line {
+        down: i8,
+        across: i8,
+    },
+    /// What can be seen of it, less a line: up (`-1`) or down (`1`).
+    Page(i8),
+    /// The top (Home) or the end (End).
+    Top,
+    End,
+}
+
+/// The scroll a key gives a message's body: the arrows, Page Up and Down, Space and Shift+Space,
+/// Home and End, with no Ctrl or Alt.
+pub(crate) fn scroll_of(key: egui::Key, modifiers: egui::Modifiers) -> Option<Scroll> {
+    use egui::Key;
+    if modifiers.command || modifiers.ctrl || modifiers.alt {
+        return None;
+    }
+    Some(match key {
+        Key::ArrowUp => Scroll::Line { down: -1, across: 0 },
+        Key::ArrowDown => Scroll::Line { down: 1, across: 0 },
+        Key::ArrowLeft => Scroll::Line { down: 0, across: -1 },
+        Key::ArrowRight => Scroll::Line { down: 0, across: 1 },
+        Key::PageUp => Scroll::Page(-1),
+        Key::PageDown => Scroll::Page(1),
+        Key::Space => Scroll::Page(if modifiers.shift { -1 } else { 1 }),
+        Key::Home => Scroll::Top,
+        Key::End => Scroll::End,
+        _ => return None,
+    })
 }
 
 /// A place a message is read in: what is selected there, and what the pointer is doing.
@@ -502,6 +540,8 @@ pub struct PlaceState {
     viewport: egui::ViewportId,
     /// The pointer was over it then.
     hovered: bool,
+    /// The header may stay visible while an attachment replaces the body.
+    body_visible: bool,
     selection: Option<Selection>,
     /// What the pointer took where it went down, for a drag to go on from.
     pressed: Option<(Zone, Anchor<Point>)>,
@@ -538,6 +578,7 @@ impl PlaceState {
             frame: 0,
             viewport: egui::ViewportId::ROOT,
             hovered: false,
+            body_visible: true,
             selection: None,
             pressed: None,
             dragging: None,
@@ -757,6 +798,24 @@ impl Selections {
     pub(crate) fn focus(&self) -> Option<Place> {
         self.focus
     }
+
+    /// The place the keys scroll in a window: the one the pointer last went down in, while it is
+    /// still on screen with the message it went down on (#1739). Hovering alone leaves the keys to
+    /// the message list.
+    pub(crate) fn scroll_target(&self, viewport: egui::ViewportId, frame: u64) -> Option<Place> {
+        let focus = self.focus?;
+        self.live(viewport, frame).any(|s| s.place == focus).then_some(focus)
+    }
+
+    /// Scroll the message in `place` as `scroll` says, when its body is next shown.
+    pub(crate) fn scroll(&mut self, place: Place, scroll: Scroll) {
+        self.scroll = Some((place, scroll));
+    }
+
+    /// The scroll waiting for the body in `place`, taken.
+    pub(crate) fn take_scroll(&mut self, place: Place) -> Option<Scroll> {
+        self.scroll.take_if(|(at, _)| *at == place).map(|(_, scroll)| scroll)
+    }
 }
 
 /// What the pointer did in this frame to a text that can be selected.
@@ -833,7 +892,7 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
 /// A message is about to be shown at `place`. What was selected there in another message is
 /// forgotten; where the pointer goes down says whom the keys are for; and the keys that are
 /// about a selection are acted on: Ctrl+C copies it, Escape lets go of it.
-pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
+pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_visible: bool) {
     let ctx = ui.ctx();
     let frame = super::images::frame(ctx);
     let viewport = ctx.viewport_id();
@@ -853,6 +912,10 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     let fresh = state.message != m.id || state.frame.saturating_add(1) < frame;
     if fresh {
         state.reset(m.id);
+    }
+    state.body_visible = body_visible;
+    if !body_visible && state.selection.as_ref().is_some_and(|selection| selection.zone == Zone::Body) {
+        (state.selection, state.pressed, state.dragging, state.copy_when_laid) = (None, None, None, false);
     }
     (state.frame, state.viewport, state.hovered) = (frame, viewport, inside);
     if fresh && had_keys {
@@ -894,7 +957,7 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     }
     // In the main window the shortcuts see Ctrl+A first and send it here when it is for a
     // message ([`select_all_params`]); a window of the system has its keys to itself.
-    if all && viewport != egui::ViewportId::ROOT && selections.key_target(viewport, frame) == Some(place) {
+    if all && body_visible && viewport != egui::ViewportId::ROOT && selections.key_target(viewport, frame) == Some(place) {
         actions.push(Action::SelectAll);
     }
     for action in actions {
@@ -1087,6 +1150,7 @@ fn selected_text(ctx: &egui::Context, state: &PlaceState) -> Option<String> {
             let header = state.header.as_slice();
             Some(range(header, selection).map(|(lo, hi)| copied(header, lo, hi)).unwrap_or_default())
         }
+        Zone::Body if !state.body_visible => Some(String::new()),
         Zone::Body => super::view::with_laid(ctx, state.place, state.message, |laid| {
             if !laid.done && selection.anchor.max(selection.head).seg >= laid.count() {
                 return None;
@@ -1160,7 +1224,11 @@ fn select_all(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let nothing = || tl!("No message is being read there").to_string();
     // The owner's Ctrl+A or Select All, or the control channel's (an agent's or a script's).
     let mine = !app.driven;
-    let state = app.text_selection.state(place).filter(|s| frame.is_some_and(|frame| s.frame.saturating_add(1) >= frame)).ok_or_else(nothing)?;
+    let state = app
+        .text_selection
+        .state(place)
+        .filter(|s| s.body_visible && frame.is_some_and(|frame| s.frame.saturating_add(1) >= frame))
+        .ok_or_else(nothing)?;
     state.selection = Some(Selection::new(Zone::Body, Point::START, Point::END));
     (state.pressed, state.dragging, state.extending) = (None, None, false);
     (state.seen, state.mine) = (state.extent(), mine);
@@ -1227,7 +1295,7 @@ mod tests {
         // The reading pane, a message window inside the main window with the pointer over it,
         // and one that is a window of the system, at frame 10.
         let places = vec![shown(pane, main, 10, false, false), shown(inside, main, 10, true, true), shown(outside, own, 10, false, true)];
-        let mut all = Selections { places, focus: None };
+        let mut all = Selections { places, focus: None, scroll: None };
         // Nowhere did the pointer go down: the keys are for what it is over, in each window.
         assert_eq!((all.key_target(main, 10), all.copy_target(main, 10, false)), (Some(inside), Some(inside)));
         // A window of the system shows one message, and its keys are that message's.

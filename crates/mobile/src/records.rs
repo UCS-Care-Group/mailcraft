@@ -175,6 +175,9 @@ pub struct TodayRecord {
     /// The owner's today, `YYYY-MM-DD`.
     pub date: String,
     pub events: Vec<EventRecord>,
+    /// What has not ended yet, from now through the next seven days (at most ten, none
+    /// cancelled), in order: the card of next events.
+    pub next_events: Vec<EventRecord>,
     /// Tasks not completed that are due today or were due before.
     pub tasks: Vec<TaskRecord>,
     /// Unread messages in the Inboxes of all accounts.
@@ -431,4 +434,92 @@ pub struct SignInsForgotten {
     /// Set when the list of the sign-ins kept was damaged (it was set aside), so older ones may
     /// still be in the phone's credential store: the words to show the owner.
     pub may_remain: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct LabeledRecord {
+    /// What the contact's card calls it (`Work`, `Mobile`), as written there.
+    pub label: String,
+    pub value: String,
+}
+
+/// One person (a contact) as the detail page shows it. Read-only: the app offers no editing.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct PersonDetail {
+    pub rev: u64,
+    pub id: u64,
+    pub name: String,
+    pub company: String,
+    pub title: String,
+    pub department: String,
+    pub emails: Vec<LabeledRecord>,
+    pub phones: Vec<LabeledRecord>,
+    /// Postal addresses, each on one line.
+    pub addresses: Vec<LabeledRecord>,
+    pub favorite: bool,
+    /// The contacts folder it is kept in; 0 for this phone.
+    pub folder: u64,
+    /// That folder as the card names it ("Contacts (ada@example.org)"); empty for this phone.
+    pub folder_name: String,
+    /// Whose the folder is: `own`, `mailbox` (a shared mailbox's), `person` (shared by a
+    /// person), or empty for this phone.
+    pub folder_kind: String,
+    /// The account may only read that folder: the person can't be changed or deleted here.
+    pub read_only: bool,
+    /// A change to the person waits to go to the account's server.
+    pub not_sent: bool,
+}
+
+/// A contacts folder a new person can go in.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ContactFolderRecord {
+    /// What `people.new`'s `folder` takes; `None` for the account's main folder not made yet
+    /// (`people.new` without `folder` makes it, when it is [`ContactFolders::default_index`]).
+    pub id: Option<u64>,
+    pub account: u64,
+    /// As the card names it ("Contacts (ada@example.org)").
+    pub name: String,
+    /// `own`, `mailbox` or `person`, as [`PersonDetail::folder_kind`].
+    pub kind: String,
+}
+
+/// Where a new person can go: this phone, or a contacts folder the account may write.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ContactFolders {
+    pub rev: u64,
+    pub folders: Vec<ContactFolderRecord>,
+    /// Where `people.new` puts a person when it isn't told: an index into `folders`, or
+    /// `None` for this phone.
+    pub default_index: Option<u32>,
+}
+
+/// One task as the editor shows it.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskDetail {
+    pub rev: u64,
+    pub task: TaskRecord,
+    pub notes: String,
+    /// The notes are longer than what is handed over: an app must not write them back as they
+    /// stand, or the rest would be lost.
+    pub notes_cut: bool,
+    /// When its reminder goes off, `YYYY-MM-DDTHH:MM:SS` in the owner's zone.
+    pub reminder: Option<String>,
+    /// The account keeps it only on this phone (made here and not sent, or kept here by choice).
+    pub only_here: bool,
+}
+
+/// Where tasks can live, and what to ask about the ones that exist only on this phone.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct TaskSetup {
+    pub rev: u64,
+    /// The accounts whose To Do is kept in step, in the owner's order.
+    pub accounts: Vec<AccountRecord>,
+    /// Tasks that exist only on this phone and could be sent to an account's To Do. Nothing is
+    /// sent until the owner has said yes (`tasks.sendLocal`).
+    pub local_waiting: u32,
+    /// The owner has been asked and said "Not now" or yes (the question is then not asked
+    /// again, only offered).
+    pub answered: bool,
+    /// The account the owner sent their local tasks to, when they did.
+    pub sent_to: Option<u64>,
 }

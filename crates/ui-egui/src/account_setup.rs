@@ -21,6 +21,7 @@
 
 mod exchange;
 mod help;
+mod senders;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -468,6 +469,9 @@ pub struct AccountSetup {
     username: String,
     incoming: ServerFields,
     outgoing: ServerFields,
+    /// The outgoing server takes mail without a sign-in (a relay, #836): it is never shown the
+    /// password. Only for an account that signs in with one.
+    outgoing_without_sign_in: bool,
     /// The servers are shown on the password page.
     settings_open: bool,
     /// The servers are a guess made from the domain: the page says so.
@@ -530,6 +534,8 @@ pub struct AccountSetup {
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
+    /// For the settings of an IMAP account: the other addresses it sends from (#797).
+    senders: Option<senders::Senders>,
     /// For the settings of an account: its colour as it was and as the swatch has it now (#893).
     color: Option<(Option<Rgb>, Option<Rgb>)>,
     /// For the settings of a Gmail account: whether Gmail's categories are shown under its Inbox,
@@ -623,6 +629,7 @@ impl AccountSetup {
             username: String::new(),
             incoming: ServerFields::default(),
             outgoing: ServerFields::default(),
+            outgoing_without_sign_in: false,
             settings_open: false,
             guessed: false,
             found: None,
@@ -652,6 +659,7 @@ impl AccountSetup {
             edit: None,
             keep_offline: None,
             ask_conversation: None,
+            senders: None,
             color: None,
             gmail: None,
             graph: false,
@@ -720,6 +728,7 @@ impl AccountSetup {
         w.username = line(&a.username, LINE);
         w.incoming = ServerFields::of(a.incoming.as_ref());
         w.outgoing = ServerFields::of(a.outgoing.as_ref());
+        w.outgoing_without_sign_in = a.outgoing_without_sign_in;
         if let Some(oauth) = &a.oauth {
             w.client_id = line(&oauth.client_id, 200);
             w.tenant = line(&oauth.tenant, 64);
@@ -733,6 +742,7 @@ impl AccountSetup {
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
+        w.senders = senders::Senders::of(a);
         if a.is_gmail() {
             let (show, primary) = (!a.hide_gmail_categories, a.alert_primary_only);
             w.gmail = Some(GmailSwitches { show: (show, show), primary_only: (primary, primary) });
@@ -817,6 +827,9 @@ impl AccountSetup {
             }
             None => {
                 m.insert("auth".into(), json!("password"));
+                if self.outgoing_without_sign_in && self.outgoing.value().is_some() {
+                    m.insert("outgoingWithoutSignIn".into(), json!(true));
+                }
             }
         }
         Some(("account.add", Value::Object(m)))
@@ -845,6 +858,16 @@ impl AccountSetup {
         if m.is_empty() {
             return None;
         }
+        // The engine starts another outgoing host without a relay tick unless the call says: the
+        // page says what its tick shows (#836).
+        let host_of = |v: Option<&Value>| v.and_then(|o| o["host"].as_str()).map(|h| h.trim().to_ascii_lowercase());
+        if host_of(m.get("outgoing")) != host_of(edit.baseline.get("outgoing"))
+            && m.contains_key("outgoing")
+            && self.oauth.is_none()
+            && self.outgoing.value().is_some()
+        {
+            m.insert("outgoingWithoutSignIn".into(), json!(self.outgoing_without_sign_in));
+        }
         m.insert("id".into(), json!(edit.id));
         Some(("account.edit", Value::Object(m)))
     }
@@ -863,6 +886,7 @@ impl AccountSetup {
             incoming: self.incoming.server(),
             outgoing: self.outgoing.server(),
             username: self.login(email),
+            outgoing_without_sign_in: self.oauth.is_none() && self.outgoing_without_sign_in && self.outgoing.value().is_some(),
             oauth: self.oauth.clone(),
             ..Default::default()
         })
@@ -888,6 +912,8 @@ impl AccountSetup {
         if self.oauth.is_some() {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
+        } else if self.outgoing.value().is_some() {
+            m.insert("outgoingWithoutSignIn".into(), json!(self.outgoing_without_sign_in));
         }
         m
     }
@@ -960,6 +986,8 @@ impl AccountSetup {
         self.username = preset.username;
         self.incoming = preset.incoming;
         self.outgoing = preset.outgoing;
+        // The tick is for the outgoing server it was set for, and is hidden on a provider's page (#836).
+        self.outgoing_without_sign_in = false;
         self.settings_open = false;
         self.guessed = false;
         self.found = None;
@@ -1608,13 +1636,14 @@ impl AccountSetup {
         self.go(Page::Done);
     }
 
-    /// Whether Account Settings has nothing unsaved: its fields, a new password and the colour
-    /// as they were. A Google switch or reconnect closes the dialog without saving, so it waits
-    /// until this holds.
+    /// Whether Account Settings has nothing unsaved: its fields, a new password, the colour and
+    /// the sender addresses as they were. A Google switch or reconnect closes the dialog without
+    /// saving, so it waits until this holds.
     fn unchanged(&self) -> bool {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && !self.senders.as_ref().is_some_and(senders::Senders::changed)
     }
 
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
@@ -1624,6 +1653,13 @@ impl AccountSetup {
             return false;
         }
         let Some(id) = self.edit.as_ref().map(|e| e.id) else { return true };
+        // The sender addresses are checked before anything is saved: a refusal of theirs after
+        // `account.edit` would leave the server settings changed with the dialog still open.
+        let signatures: Vec<String> = app.session.mailbox.signatures.iter().map(|x| x.name.clone()).collect();
+        if let Some(problem) = self.senders.as_ref().and_then(|x| x.problem(self.email.trim(), &signatures)) {
+            self.error = problem;
+            return false;
+        }
         if let Some((command, params)) = self.edit_command()
             && let Err(e) = app.execute(command, params)
         {
@@ -1636,6 +1672,15 @@ impl AccountSetup {
                 return false;
             }
             self.ask_conversation = Some((ask, ask));
+        }
+        if let Some((command, params)) = self.senders.as_ref().and_then(|x| x.command(id)) {
+            if let Err(e) = app.execute(command, params) {
+                self.error = e;
+                return false;
+            }
+            if let Some(x) = self.senders.as_mut() {
+                x.saved();
+            }
         }
         if let Some((_, color)) = self.color.filter(|(was, color)| was != color) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "color": color.map(Rgb::hex)})) {
@@ -1997,7 +2042,7 @@ impl AccountSetup {
             if self.advanced {
                 indented(ui, |ui| {
                     ui.checkbox(&mut self.manual, tl!("Let me set up my account manually"));
-                    field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
+                    field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("The name people you write to will see"), LINE);
                 });
             }
         });
@@ -2370,6 +2415,7 @@ impl AccountSetup {
         // the scrollable body instead (where keyboard focus can still reach it).
         let footer_google_action = ui.available_width() >= 390.0;
         let (mut convert, mut reconnect) = (false, false);
+        let signatures: Vec<String> = app.session.mailbox.signatures.iter().map(|x| x.name.clone()).collect();
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -2415,7 +2461,7 @@ impl AccountSetup {
             let address = shown(self.email.trim(), 120);
             field(ui, pass, "accountName", tl!("Account name"), &mut self.account_name, &address, LINE);
             note(ui, tl!("Shown in the folder pane, such as Work or Home. Leave it empty to show the address."), t.text_dim);
-            field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
+            field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("The name people you write to will see"), LINE);
             if asks {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
             }
@@ -2450,6 +2496,9 @@ impl AccountSetup {
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
                     .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
             }
+            if let Some(senders) = self.senders.as_mut() {
+                senders.show(ui, &t, &signatures);
+            }
             if let Some((_, color)) = self.color.as_mut() {
                 caption(ui, tl!("Colour"), &t);
                 if let Some(picked) = crate::widgets::color_swatch(ui, 24.0, *color, Some(tl!("No colour"))) {
@@ -2461,8 +2510,9 @@ impl AccountSetup {
                 caption(ui, tl!("Gmail categories"), &t);
                 ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
                     .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
-                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
-                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary")).on_hover_text(tl!(
+                    "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+                ));
             }
         });
         problem(ui, &self.error);
@@ -2564,6 +2614,23 @@ impl AccountSetup {
         field(ui, pass, "username", tl!("User name"), &mut self.username, tl!("Usually the whole address"), LINE);
         server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
         server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
+        // A relay that takes mail without a sign-in (#836). A token always goes, so an account
+        // that signs in on the provider's page has no such choice.
+        if self.oauth.is_none() && !self.outgoing.host.trim().is_empty() {
+            let tick = ui
+                .checkbox(&mut self.outgoing_without_sign_in, tl!("My outgoing server needs no sign-in"))
+                .on_hover_text(tl!("For a relay that takes mail without a password: it is never sent yours."));
+            // Registered like the fields around it, for the keyboard (focus, Enter).
+            pass.field(&tick);
+            if self.outgoing_without_sign_in {
+                // The test only asks the server to answer: a server that does want a sign-in is found out by the first message.
+                note(
+                    ui,
+                    tl!("The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."),
+                    pass.t.text_dim,
+                );
+            }
+        }
     }
 }
 
@@ -2810,6 +2877,8 @@ mod delete_question_tests;
 mod exchange_tests;
 #[cfg(test)]
 mod pop_tests;
+#[cfg(test)]
+mod senders_tests;
 
 #[cfg(test)]
 mod tests {
@@ -2847,6 +2916,8 @@ mod tests {
     mod help;
     /// Explicit confirmation of personal Outlook.com custom-domain aliases.
     mod legacy_alias;
+    /// An outgoing server that needs no sign-in (#836).
+    mod relay_without_sign_in;
     /// The password's eye (#438).
     mod reveal;
     /// An address at a domain nobody here knows (#761).
@@ -2927,6 +2998,7 @@ mod tests {
             name: name.into(),
             email: "noor@example.org".into(),
             tenant: String::new(),
+            ..Default::default()
         }
     }
 

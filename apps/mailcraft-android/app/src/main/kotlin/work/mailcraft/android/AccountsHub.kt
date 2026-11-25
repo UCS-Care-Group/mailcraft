@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -59,6 +60,11 @@ internal class EventDispatcher {
  * [syncNow] is Send/Receive on the owner's word (the mail list's pull to refresh): [sync] starts a
  * round and says whether it did; [syncing] is true from the ask until the core says the round is
  * over, and [syncNotice] is why one didn't start, in the owner's language.
+ *
+ * A sign-in that worked starts a Send/Receive the same way ([firstSync]), so that a new account's
+ * mail comes at once; a new account's first one waits for [roomFor] (the room gate, told the space
+ * the owner chose for its mail in Add Account) and doesn't start on a no: the account is then held
+ * back from the background's runs too ([holds]) until the owner says yes or pulls to refresh.
  */
 @Suppress("LongParameterList")
 internal class AccountsHub(
@@ -70,9 +76,15 @@ internal class AccountsHub(
     private val retryAfter: List<Long> = DEFAULT_RETRY,
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val firstRound: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val roomFor: suspend (account: ULong, storageMb: Long) -> Boolean = { _, _ -> true },
+    private val holds: FirstSyncHolds? = null,
 ) {
     private val syncingNow = MutableStateFlow(false)
     private val notice = MutableStateFlow<String?>(null)
+
+    /** A first sync waits for the round under way to end (it began without the new account). */
+    private val followUp = AtomicBoolean(false)
 
     /** True while a Send/Receive the owner asked for is under way (the pull-to-refresh spinner). */
     val syncing: StateFlow<Boolean> = syncingNow.asStateFlow()
@@ -104,6 +116,7 @@ internal class AccountsHub(
         },
         copy = copy,
         retrySave = { saveNow() },
+        signedIn = { account, keep, added -> firstSync(account, keep, added) },
     )
 
     /** The accounts as the window has them now. */
@@ -115,20 +128,56 @@ internal class AccountsHub(
      * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
      * changes nothing; the round's end comes as the core's `SyncFinished`.
      */
-    fun syncNow() {
+    fun syncNow() = start(owner = true)
+
+    /**
+     * A round the owner asked for ([owner]) lets go of every account held back (the core does as it
+     * begins), and the holds kept here go in the same step ([FirstSyncHolds.ownerRound]). A new
+     * account's first round ([firstRound]) is the app's, not the owner's: the accounts held back
+     * stay held, in the core and here (that account's own hold the owner's yes let go already).
+     */
+    private fun start(owner: Boolean) {
         if (!syncingNow.compareAndSet(expect = false, update = true)) return
         notice.value = null
         scope.launch {
             val answer = try {
-                sync()
+                // (The app's round waits for every hold kept to be said again, as the background's
+                // does: one the core didn't hear when it was answered must not be fetched.)
+                if (owner) holds?.ownerRound(sync) ?: sync() else afterHolds(holds, firstRound)
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
             if (!answer.started) {
                 notice.value = answer.message.ifEmpty { null }
                 syncingNow.value = false
+                startFollowUp()
             }
         }
+    }
+
+    /**
+     * The first Send/Receive after a sign-in to [account] worked: true when it was asked for. A new
+     * ([added]) account's waits for the room gate first, for what its window brings within the space
+     * the owner chose ([KeepChoice.storageMb]); on a no nothing starts (the gate's question was the
+     * owner's word). A round the owner asked for that is under way began without this account, so
+     * this one stays asked for and starts when that round ends, however long it takes.
+     */
+    suspend fun firstSync(account: ULong, keep: KeepChoice, added: Boolean): Boolean {
+        if (added) {
+            val yes = roomFor(account, keep.storageMb)
+            // A "Not now" holds the account back from every sync that starts by itself, kept over a
+            // restart; a yes lets it go ([holds]).
+            holds?.answered(account, yes)
+            if (!yes) return false
+        }
+        followUp.set(true)
+        startFollowUp()
+        return true
+    }
+
+    /** Starts the first sync that waits, once no round the owner asked for is under way. */
+    private fun startFollowUp() {
+        if (!syncingNow.value && followUp.getAndSet(false)) start(owner = false)
     }
 
     /** The owner has read why Send/Receive didn't start. */
@@ -182,7 +231,10 @@ internal class AccountsHub(
             is Event.SignInNeeded -> controller.signInNeeded(event.account)
             // (Synchronisation and every other change: what the window shows is read again.)
             is Event.RevChanged -> reloads.update { it + 1 }
-            is Event.SyncFinished -> syncingNow.value = false
+            is Event.SyncFinished -> {
+                syncingNow.value = false
+                startFollowUp()
+            }
             is Event.SaveFailed -> if (!savingOff) {
                 controller.setSaveFailed(true)
                 retryLater()

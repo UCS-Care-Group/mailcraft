@@ -62,6 +62,18 @@ internal object CalendarShots {
         e(11, "2026-11-20T00:00", "2026-11-21T00:00", "Ed Example's birthday", GREEN, allDay = true),
     )
 
+    /** More of the same week (1 to 7 November, the week of [today] from Sunday), for the week view alone. */
+    private val weekExtra = listOf(
+        e(21, "2026-11-02T09:00", "2026-11-02T10:30", "Quarterly planning", PURPLE, "Room 3"),
+        e(22, "2026-11-02T09:30", "2026-11-02T10:00", "Call with Fay Example", ORANGE),
+        e(23, "2026-11-03T13:00", "2026-11-03T14:00", "Workshop", GREEN),
+        e(24, "2026-11-07T11:00", "2026-11-07T12:30", "Football with Gus Example", ORANGE),
+        e(25, "2026-11-03T00:00", "2026-11-04T00:00", "Holiday", GREEN, allDay = true),
+    )
+
+    /** The week view of [today]'s week. */
+    fun week(): CalendarUiState = state(CalendarMode.Week).copy(events = Loaded.Ready(events + weekExtra))
+
     private val calendars = listOf(
         CalendarInfo(1uL, 1uL, "Calendar", GREEN, true),
         CalendarInfo(2uL, 1uL, "Birthdays", PURPLE, false),

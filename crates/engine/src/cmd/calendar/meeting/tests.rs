@@ -1345,3 +1345,32 @@ fn an_option_the_server_will_not_change_does_not_undo_the_rest_of_a_save() {
     assert!(applied.messages.is_empty() && !s.mailbox.event(planning).unwrap().response_options.allow_proposals);
     assert!(s.mailbox.event_changes.is_empty());
 }
+
+#[test]
+fn an_item_with_files_attached_is_not_copied_without_them() {
+    // #1664: the files of an item stay on its server, so a copy made from here would be
+    // written there without them. No copy is made, into any calendar, and nothing is noted for
+    // the server.
+    let (mut s, account, _, side) = session();
+    let local = s.mailbox.calendars.iter().find(|c| c.origin.is_local()).map(|c| c.id).unwrap();
+    serve(
+        &mut s,
+        account,
+        "",
+        vec![RemoteEvent { attachments: true, ..remote("e-3", "Contract", at(16, 9, 0)) }, remote("e-1", "Eye test", at(13, 9, 0))],
+    );
+    let (contract, dentist) = (event_called(&s, "e-3").id, event_called(&s, "e-1").id);
+    let snapshot = s.mailbox.clone();
+    let why = "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here.";
+    for params in [
+        json!({"id": contract, "start": "2026-10-20T09:00"}),
+        json!({"id": contract, "start": "2026-10-20T09:00", "calendar": side}),
+        json!({"id": contract, "start": "2026-10-20", "allDay": true, "calendar": local}),
+    ] {
+        assert_eq!(refused(&mut s, "calendar.copy", params), why);
+        assert!(s.mailbox == snapshot);
+    }
+    // An item without files is copied as before.
+    let copy = run(&mut s, "calendar.copy", json!({"id": dentist, "start": "2026-10-20T09:00", "calendar": side}));
+    assert!(s.mailbox.event(copy["id"].as_u64().unwrap()).is_some_and(|e| e.calendar == side && e.title == "Eye test"));
+}

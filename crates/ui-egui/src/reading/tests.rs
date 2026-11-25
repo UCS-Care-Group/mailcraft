@@ -215,6 +215,9 @@ fn build_corpus() -> Vec<(&'static str, Message)> {
             html_message(34, ("Hollowpine Rambling Club", "bulletin@hollowpine.example"), "The Hollowpine bulletin", corpus::STYLE_BOXES),
         ),
         ("style inline", html_message(35, ("Marrowby Trust", "garden@marrowby.example"), "Autumn open day at the garden", corpus::STYLE_INLINE)),
+        ("parcel notice", html_message(36, ("Lumen Bay Goods", "parcels@lumenbay.example"), "Dispatched: Brass desk lamp", corpus::PARCEL_NOTICE)),
+        ("bill ready", html_message(37, ("Kestrel Mobile", "bills@kestrel.example"), "Your Kestrel bill is ready to view", corpus::BILL_READY)),
+        ("listing card", html_message(38, ("Homefield", "picks@homefield.example"), "New listing in Ashcombe at £315K", corpus::LISTING_CARD)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -595,6 +598,115 @@ fn a_data_table_keeps_its_columns_and_a_layout_table_gives_way() {
         // The button is as wide as its words, and in the middle.
         let button = find(&wide, "See the members' weekend");
         assert!(button.rect.width() < 260.0 && (button.rect.center().x - 410.0).abs() < 1.0, "{:?}", button.rect);
+    });
+}
+
+/// Whether the words `words` are drawn underlined where the laid-out piece that holds them is:
+/// by egui's own line (the message asked for one), or, for a link, by the line drawn close to its
+/// words (`view::paint_link_underlines`).
+fn underlined(laid: &Laid, words: &str) -> bool {
+    let item = laid.items.iter().find(|i| text_of(i).contains(words)).unwrap_or_else(|| panic!("no text holds {words:?}"));
+    let ItemKind::Text(text) = &item.kind else { panic!() };
+    let at = text.job.text.find(words).unwrap_or_default();
+    let char_at = text.job.text.get(..at).unwrap_or_default().chars().count();
+    if text.links.iter().any(|link| link.underlined && link.range.contains(&char_at)) {
+        return true;
+    }
+    let section = text
+        .job
+        .sections
+        .iter()
+        .find(|s| s.byte_range.start.0 <= at && at < s.byte_range.end.0)
+        .unwrap_or_else(|| panic!("no section for {words:?}"));
+    section.format.underline != egui::Stroke::NONE
+}
+
+/// A link is drawn with its line unless it says otherwise itself (the parcel notice's style sheet
+/// turns it off for every link, a bill's support links in their own style), and a link written as
+/// a block with a look of its own is a button as wide as its column (the listing card).
+#[test]
+fn links_are_underlined_as_the_message_says_and_block_links_are_buttons() {
+    in_frame(false, |ctx| {
+        let parcel = lay_out(ctx, &corpus_message("parcel notice"), 820.0);
+        for words in ["Your Orders", "Your Payments", "Track parcel", "Brass desk lamp", "here"] {
+            assert!(!underlined(&parcel, words), "{words} is underlined");
+        }
+        let reply = lay_out(ctx, &corpus_message("gmail reply"), 820.0);
+        assert!(underlined(&reply, "written plan"), "an ordinary link keeps its line");
+        let news = lay_out(ctx, &corpus_message("newsletter"), 820.0);
+        assert!(!underlined(&news, "See the members' weekend"), "a button without its line");
+        let listing = lay_out(ctx, &corpus_message("listing card"), 820.0);
+        assert!(!underlined(&listing, "Explore this plot"));
+        // The button's blue fills its 480-pixel column (the card's 504 less its 12 a side), and
+        // its words are in the middle of it.
+        let blue = Color32::from_rgb(0x00, 0x41, 0xd9);
+        let button =
+            listing.items.iter().find(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == blue)).unwrap_or_else(|| panic!("no button"));
+        assert!((button.rect.width() - 480.0).abs() < 1.5, "{:?}", button.rect);
+        // The heading is at the left of the 504-pixel column the outer cell centres (as Outlook
+        // has it), and the labels are boxes as wide as their words.
+        let (heading, card) = (find(&listing, "New listing picked"), find(&listing, "£315,000"));
+        assert!((heading.rect.min.x - (card.rect.min.x - 12.0)).abs() < 4.0, "{:?} {:?}", heading.rect, card.rect);
+        let red = Color32::from_rgb(0xd0, 0x3c, 0x0b);
+        let label =
+            listing.items.iter().find(|i| matches!(i.kind, ItemKind::Fill { color, .. } if color == red)).unwrap_or_else(|| panic!("no label"));
+        assert!(label.rect.width() < 60.0, "{:?}", label.rect);
+        let words = find(&listing, "Explore this plot");
+        assert!(
+            button.rect.contains(words.rect.center()) && (words.rect.center().x - button.rect.center().x).abs() < 2.0,
+            "{:?} in {:?}",
+            words.rect,
+            button.rect
+        );
+    });
+}
+
+/// Tables that float, the way older templates write columns (the bill notice): the two buttons
+/// stand side by side at the left of their column, and the header's title, floating right,
+/// stands at the right end of the header beside the wordmark. Where the column is too narrow for
+/// both buttons, the second goes under the first.
+#[test]
+fn tables_that_float_are_laid_out_side_by_side() {
+    in_frame(false, |ctx| {
+        let m = corpus_message("bill ready");
+        let wide = lay_out(ctx, &m, 820.0);
+        let (one, two) = (find(&wide, "View my bill"), find(&wide, "Schedule a payment"));
+        assert!((one.rect.center().y - two.rect.center().y).abs() < 1.0 && one.rect.max.x < two.rect.min.x, "{:?} {:?}", one.rect, two.rect);
+        let text = find(&wide, "Hi MARROW");
+        assert!(one.rect.min.x - text.rect.min.x < 140.0, "the buttons are at the left of the column: {:?} {:?}", one.rect, text.rect);
+        // The title is at the right of the 590-pixel card, beside the wordmark rather than under it.
+        let title = find(&wide, "Your online Kestrel bill");
+        let logo = shown_pictures(&wide).into_iter().next().map(|p| p.rect).unwrap_or_else(|| panic!("no wordmark"));
+        assert!(title.rect.min.y < logo.max.y + 40.0 && title.rect.min.x > logo.max.x + 100.0, "{:?} {:?}", title.rect, logo);
+        // Narrow: the buttons one under the other.
+        let narrow = lay_out(ctx, &m, 400.0);
+        let (one, two) = (find(&narrow, "View my bill"), find(&narrow, "Schedule a payment"));
+        assert!(one.rect.max.y <= two.rect.min.y, "{:?} {:?}", one.rect, two.rect);
+    });
+}
+
+/// Each float goes to its own side whatever order the source writes them in: a zig-zag row that
+/// writes its picture first (for phones) and floats it right has it at the right, with the text
+/// floating left at the left; two that float right have the first rightmost.
+#[test]
+fn a_float_to_the_right_written_first_is_at_the_right() {
+    let float = |side: &str, word: &str| format!("<table align='{side}' width='280'><tr><td bgcolor='#0568ae'>{word}</td></tr></table>");
+    in_frame(false, |ctx| {
+        let zigzag =
+            html_message(1, ("Shop", "shop@example.org"), "Zig-zag", &format!("<div>{}{}</div>", float("right", "Picture"), float("left", "Words")));
+        let laid = lay_out(ctx, &zigzag, 800.0);
+        let (picture, words) = (find(&laid, "Picture"), find(&laid, "Words"));
+        assert!(words.rect.max.x < picture.rect.min.x && picture.rect.min.x > 400.0, "{:?} {:?}", words.rect, picture.rect);
+        assert!(words.rect.min.x < 100.0, "the left float is at the left: {:?}", words.rect);
+        let two = html_message(
+            2,
+            ("Shop", "shop@example.org"),
+            "Two right",
+            &format!("<div>{}{}</div>", float("right", "First"), float("right", "Second")),
+        );
+        let laid = lay_out(ctx, &two, 800.0);
+        let (first, second) = (find(&laid, "First"), find(&laid, "Second"));
+        assert!(second.rect.max.x < first.rect.min.x && first.rect.min.x > 400.0, "{:?} {:?}", first.rect, second.rect);
     });
 }
 
@@ -1217,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 22,
-        "reading.rs, colors (and its tests), fonts (and its tests), header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 28,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), the font faces test, header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 
@@ -2228,6 +2340,8 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
     assert!(says(&harness, "12 downloaded pictures are kept on this computer (3.2 MB)."));
+    harness.get_by_label("Clear").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Clear").click();
     harness.run_steps(4);
     assert_eq!(*kept.cleared.lock().unwrap(), 1);
@@ -4035,12 +4149,14 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 // ---- meetings that arrive as mail ----
 
+mod bg_pictures;
 mod inline_blocks;
 mod invitation;
 mod primary;
 mod remote_bar_why;
 mod remote_server;
 mod responsive;
+mod rtl;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
@@ -4153,8 +4269,10 @@ fn a_centred_digest_keeps_its_column_its_tiles_and_its_lines() {
             for line in small.chunks(3) {
                 assert!(line.iter().all(|i| (i.rect.min.y - line[0].rect.min.y).abs() < 0.5), "{line:?}");
                 assert!(line.windows(2).all(|w| w[1].rect.min.x > w[0].rect.max.x), "{line:?}");
+                // (The table of them is centred; in its cells they are at the left, as Outlook has
+                // them, so the little slack its columns are laid out with is on their right.)
                 let centre = (line[0].rect.min.x + line[2].rect.max.x) / 2.0;
-                assert!((centre - 500.0).abs() < 2.0, "{line:?}");
+                assert!((centre - 500.0).abs() < 3.0, "{line:?}");
             }
             // The table of roles: the long cells wrap in the share they ask for, and every cell
             // of the ruled rows has the same room round it.
@@ -4309,9 +4427,21 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
         message(3, ("Mila Horvat", "mila@example.org"), "Hello", None, "We\u{fffd}ve met \u{fffd} twice.".into()),
         message(4, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We\u{fffd}ve met</p>".into()), String::new()),
     ];
-    assert!(!super::has_unreadable(&clean));
+    // As the pane decides: whether what is shown is the text part, by the document laid out.
+    let unreadable = |m: &Message| super::has_unreadable(m, Doc::of(m).from_text);
+    assert!(!unreadable(&clean));
+    // A mark in the plain copy of a message read as HTML is not shown, and says nothing; in the
+    // plain copy of one whose HTML comes to nothing, or that is all pictures the pane shows, it is
+    // shown only when the text is.
+    let html_read = message(5, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p>We met</p>".into()), "\u{fffd}2026 Mila".into());
+    assert!(!unreadable(&html_read));
+    let html_empty = message(6, ("Mila Horvat", "mila@example.org"), "Hello", Some("<p> </p>".into()), "\u{fffd}2026 Mila".into());
+    assert!(unreadable(&html_empty));
+    // What the pane shows decides, not a parse of its own: a body the pane's own document shows as
+    // HTML says nothing of its text part, one it shows as text does.
+    assert!(!super::has_unreadable(&html_empty, false) && super::has_unreadable(&html_empty, true));
     for m in &marked {
-        assert!(super::has_unreadable(m), "{:?}", m.subject);
+        assert!(unreadable(m), "{:?}", m.subject);
     }
     let (app, ids) = app_with(std::iter::once(clean).chain(marked).collect());
     let mut harness = window(app, (1100.0, 700.0));
@@ -4679,6 +4809,8 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     // File › Options shows the switch, ticked; off there asks nothing, and the bar offers it again.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
+    harness.get_by_label("Download pictures in mail automatically").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Download pictures in mail automatically").click();
     harness.run_steps(3);
     assert!(harness.state().dialog.is_none());
@@ -4698,4 +4830,87 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     // A script or an agent is never asked: the command does what it is told.
     assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
     assert!(harness.state().dialog.is_none());
+}
+
+/// A reply to a message read in the dark theme quotes it as the pane read it: what its style sheet
+/// hides in a dark window is not in the quote.
+#[test]
+fn a_reply_quotes_the_message_as_the_pane_read_it() {
+    let html = "<style>@media (prefers-color-scheme:dark){.d{display:none}}</style><p>Shown words</p><p class=d>Light only words</p>";
+    let (app, ids) = app_with(vec![message(0, ("Rui Sousa", "rui@example.org"), "Minutes", Some(html.into()), String::new())]);
+    let mut harness = window(app, (1280.0, 800.0));
+    for (theme, light_only) in [("dark", false), ("light", true)] {
+        harness.state_mut().execute("ui.theme", json!({"value": theme})).unwrap();
+        harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+        harness.run_steps(4);
+        harness.state_mut().execute("mail.reply", json!({"id": ids[0]})).unwrap();
+        let q = harness.state().session.compose.as_ref().and_then(|c| c.quote.clone()).unwrap();
+        assert!(q.html.contains("Shown words"), "{theme}: {}", q.html);
+        assert_eq!(q.html.contains("Light only words"), light_only, "{theme}: {}", q.html);
+        assert_eq!(q.text.contains("Light only words"), light_only, "{theme}: {}", q.text);
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+        harness.run_steps(2);
+    }
+}
+
+/// A message drawn before its body came (no HTML yet: its text is all there is) is not taken
+/// for one shown as its text part: the HTML that comes later is quoted, not the text beside it,
+/// even with no frame drawn in between.
+#[test]
+fn a_reply_after_the_body_came_quotes_its_html_not_the_text_drawn_before() {
+    let m = message(0, ("Rui Sousa", "rui@example.org"), "Later", None, "Preview words".into());
+    let (app, ids) = app_with(vec![m]);
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(false));
+    // The body comes, HTML and a text part that says something else; no frame.
+    harness.state_mut().session.mailbox.message_mut(ids[0]).unwrap().body =
+        Body { text: "SENDER ALTERNATIVE".into(), html: Some("<p>Shown words</p>".into()) };
+    for command in ["mail.reply", "mail.forward"] {
+        harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
+        let c = harness.state().session.compose.clone().unwrap();
+        let q = c.quote.clone().unwrap_or_else(|| panic!("{command}: quoted as text"));
+        assert!(q.html.contains("Shown words") && !q.text.contains("SENDER ALTERNATIVE"), "{command}: {}", q.html);
+        assert!(!c.body.plain().contains("SENDER ALTERNATIVE"), "{command}");
+        harness.state_mut().execute("compose.close", json!({})).unwrap();
+    }
+}
+
+/// A reply or forward quotes the message as the pane showed it, its HTML or its text part,
+/// whatever the HTML holds: a picture the pane finds however its address is written, one it
+/// hasn't got, one on the web, one written into the message, or nothing at all.
+#[test]
+fn a_reply_quotes_the_html_or_the_text_part_as_the_pane_showed_it() {
+    let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+    let data = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+    for html in [
+        "<img src=\"cid:logo%40news.example\">".to_string(),
+        "<img src=\"cid:<logo@news.example>\">".to_string(),
+        "<img src=\"cid:missing@news.example\">".to_string(),
+        "<img src=\"https://pics.example/a.png\" alt=\"ALTWORDS\">".to_string(),
+        format!("<img src=\"{data}\">"),
+        "<script>x()</script>".to_string(),
+    ] {
+        let mut m = message(0, ("Rui Sousa", "rui@example.org"), "Logo", Some(html.clone()), "SENDER ALTERNATIVE".into());
+        m.attachments =
+            vec![Attachment { content_id: "logo@news.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", png.to_vec()) }];
+        let (app, ids) = app_with(vec![m]);
+        let mut harness = window(app, (1280.0, 800.0));
+        harness.state_mut().execute("mail.select", json!({"id": ids[0]})).unwrap();
+        harness.run_steps(4);
+        let m = harness.state().session.mailbox.message(ids[0]).unwrap().clone();
+        let can_download = super::remote::available(harness.state());
+        let from_text = Doc::of_in(&m, can_download, mailcraft_html::Env::default()).from_text;
+        assert_eq!(harness.state().session.read_as(ids[0], mailcraft_engine::ReadIn::Pane).map(|r| r.1), Some(from_text), "{html}");
+        for command in ["mail.reply", "mail.forward"] {
+            harness.state_mut().execute(command, json!({"id": ids[0]})).unwrap();
+            let c = harness.state().session.compose.clone().unwrap();
+            assert_eq!(c.quote.is_none(), from_text, "{html} {command}");
+            assert_eq!(c.body.plain().contains("SENDER ALTERNATIVE"), from_text, "{html} {command}");
+            assert!(c.quote.is_none_or(|q| !q.text.contains("SENDER ALTERNATIVE")), "{html} {command}");
+            harness.state_mut().execute("compose.close", json!({})).unwrap();
+            harness.run_steps(2);
+        }
+    }
 }

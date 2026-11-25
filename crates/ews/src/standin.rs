@@ -15,7 +15,8 @@
 //!   SOAP fault (`ErrorSchemaValidation`, HTTP 500), as the service answers a request that does
 //!   not fit its schema.
 //! - **The operations.** `GetFolder` (a `FolderShape` of a `BaseShape`, and `FolderIds` of
-//!   `DistinguishedFolderId` and `FolderId`). Any operation that would change something is
+//!   `DistinguishedFolderId` and `FolderId`), and `ResolveNames` over an address list of its
+//!   own ([`State::directory`], `crate::standin_directory`). Any operation that would change something is
 //!   noted ([`State::writes`]) and refused: nothing a client of this crate does before it has
 //!   the owner's say may ever be one.
 //! - **Refusals.** An organisation that doesn't allow the service answers 403 with an
@@ -220,8 +221,18 @@ pub struct State {
     /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
     /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
     pub lists_no_recipients: bool,
+    /// Every `GetItem` is refused as a whole: a fault of `ErrorInternalServerError`, HTTP 500.
+    pub refuses_get_item: bool,
+    /// `GetItem` answers these items with `ErrorItemNotFound`, as when they went between the
+    /// listing and the question.
+    pub gone_from_get_item: Vec<String>,
+    /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
+    /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
+    pub omits_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
+    /// The organisation's address list, for `ResolveNames` (#1262).
+    pub directory: Vec<crate::standin_directory::Person>,
 }
 
 impl Default for State {
@@ -294,7 +305,11 @@ impl Default for State {
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
+            refuses_get_item: false,
+            gone_from_get_item: Vec::new(),
+            omits_recipients: false,
             versions: Vec::new(),
+            directory: Vec::new(),
         }
     }
 }
@@ -465,6 +480,13 @@ impl State {
             ));
             return Ok((500, "ErrorServerBusy".into(), body));
         }
+        if self.refuses_get_item && operation.name == "GetItem" {
+            let body = envelope(&format!(
+                "<s:Fault><faultcode xmlns:a=\"{TYPES}\">a:ErrorInternalServerError</faultcode><faultstring>An internal server error occurred.</faultstring>\
+                 <detail><e:ResponseCode xmlns:e=\"{ERRORS}\">ErrorInternalServerError</e:ResponseCode></detail></s:Fault>"
+            ));
+            return Ok((500, "ErrorInternalServerError".into(), body));
+        }
         if self.busy_get_item && operation.name == "GetItem" {
             self.busy.0 = self.busy.0.max(1);
         }
@@ -489,6 +511,7 @@ impl State {
             "SyncFolderHierarchy" => self.sync_hierarchy(operation),
             "SyncFolderItems" => self.sync_items(operation),
             "GetItem" => self.get_item(operation),
+            "ResolveNames" => self.resolve_names(operation),
             name if crate::standin_write::HANDLED.contains(&name) => {
                 self.writes.push(name.to_owned());
                 self.write(name, operation)
