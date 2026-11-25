@@ -3781,9 +3781,35 @@ impl Mailbox {
         if !lost.is_empty() {
             fixed.push(format!("{} contact(s) of a contacts folder that is gone kept on this computer", lost.len()));
         }
+        // On this computer: no account's server keeps it, whatever the file said.
+        let mut freed = 0usize;
+        for c in self.contacts.values_mut() {
+            if c.folder == 0 && c.origin.is_remote() && !accounts.contains(&c.origin.account) {
+                Arc::make_mut(c).origin = crate::Origin::default();
+                freed += 1;
+            }
+        }
+        if freed > 0 {
+            fixed.push(format!("{freed} contact(s) of an account that is gone kept on this computer"));
+        }
         if self.contact_changes.len() > MAX_CONTACT_CHANGES {
             self.contact_changes.truncate(MAX_CONTACT_CHANGES);
             fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        // A change that couldn't be sent or put back: of no account or folder here, or a change or
+        // deletion without the server's name for it or its copy.
+        use crate::contact_sync::ContactChangeKind;
+        let before = self.contact_changes.len();
+        self.contact_changes.retain(|c| {
+            let whole = match c.kind {
+                ContactChangeKind::Create => true,
+                ContactChangeKind::Change => !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
+                ContactChangeKind::Delete => !c.remote.is_empty() && c.base.is_some(),
+            };
+            whole && accounts.contains(&c.account) && folders.contains(&c.folder)
+        });
+        if self.contact_changes.len() != before {
+            fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
         }
         fixed
     }

@@ -115,9 +115,14 @@ impl ContactFolder {
     }
 
     /// Cut to size, as everything from outside is: `None` for one that can't be a folder (its
-    /// owner's address is none).
+    /// owner's address is none, or it has an id that can't be read, which must not be taken for
+    /// the main folder's none).
     pub fn tidied(mut self) -> Option<ContactFolder> {
+        let had = !self.remote.is_empty();
         self.remote = key(&self.remote);
+        if had && self.remote.is_empty() {
+            return None;
+        }
         self.name = line(&self.name, MAX_NAME);
         if self.name.is_empty() {
             self.name = MAIN_FOLDER_NAME.into();
@@ -304,10 +309,12 @@ pub struct ContactChange {
     /// not heard yet.
     #[serde(skip_serializing_if = "is_false")]
     pub sent: bool,
-    /// For a new contact: the server said it made it but not what it calls it. Not sent again (that
-    /// could make it twice) until a download shows it, or a whole list of its folder doesn't.
-    #[serde(skip_serializing_if = "is_false")]
-    pub unconfirmed: bool,
+    /// For a new contact: when the server said it made it but not what it calls it (Unix
+    /// seconds); 0 for not. Not sent again (that could make it twice) until a download shows it,
+    /// or a whole list of its folder read after that doesn't
+    /// ([`crate::remote::ContactsDownload::read_at`]).
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub unconfirmed: Timestamp,
 }
 
 /// How long a change waits after failing `attempts` times in a row (seconds): 30 s, doubling,

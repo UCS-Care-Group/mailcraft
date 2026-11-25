@@ -82,7 +82,8 @@ fn folders_and_changes_are_capped() {
     let mut file = mb.clone();
     let copy = file.contact_folders[0].clone();
     file.contact_folders.push(ContactFolder { id: 1_000_000, ..copy });
-    file.contact_changes = vec![ContactChange { account, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
+    let folder = file.contact_folders[0].id;
+    file.contact_changes = vec![ContactChange { account, folder, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
     let said = file.repair();
     assert!(said.iter().any(|l| l.contains("folders")) && said.iter().any(|l| l.contains("cut")), "{said:?}");
     assert_eq!((file.contact_folders.len(), file.contact_changes.len()), (MAX_CONTACT_FOLDERS, MAX_CONTACT_CHANGES));
@@ -97,7 +98,8 @@ fn repair_drops_folders_out_of_range_and_keeps_a_rehomed_contacts_change() {
     let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
     mb.contact_folders.push(ContactFolder { id: TOO_BIG, account, remote: "f-big".into(), ..Default::default() });
     mb.contacts.insert(TOO_BIG + 1, std::sync::Arc::new(Contact { id: TOO_BIG + 1, ..ada() }));
-    mb.contact_changes.push(ContactChange { account, kind: ContactChangeKind::Create, contact: TOO_BIG + 1, ..Default::default() });
+    let main = mb.ensure_main_contact_folder(account).unwrap();
+    mb.contact_changes.push(ContactChange { account, kind: ContactChangeKind::Create, contact: TOO_BIG + 1, folder: main, ..Default::default() });
     let mut text: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
     text.repair();
     assert!(text.contact_folders.iter().all(|f| f.id <= 1 << 53));
@@ -108,6 +110,46 @@ fn repair_drops_folders_out_of_range_and_keeps_a_rehomed_contacts_change() {
     let a = text.add_contact_folder(ContactFolder { account, remote: "a".into(), ..Default::default() }).unwrap();
     let b = text.add_contact_folder(ContactFolder { account, remote: "b".into(), ..Default::default() }).unwrap();
     assert!(a != b && text.contact_folders.iter().filter(|f| f.id == a || f.id == b).count() == 2);
+}
+
+/// Review of #1935/#1936: a contact of an account that is gone is this computer's, and a change
+/// that couldn't be sent or put back doesn't wait for ever.
+#[test]
+fn repair_frees_contacts_of_gone_accounts_and_drops_changes_that_cant_be_sent() {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    let main = mb.ensure_main_contact_folder(account).unwrap();
+    let stray = mb.add_contact(Contact { origin: Origin { account: 999, id: "x".into(), ..Default::default() }, ..ada() });
+    let id = mb.add_contact(Contact { folder: main, origin: Origin { account, id: "c-1".into(), ..Default::default() }, ..ada() });
+    let change = |kind, remote: &str, base: bool, fields: &[ContactField]| ContactChange {
+        account,
+        kind,
+        contact: id,
+        folder: main,
+        remote: remote.into(),
+        base: base.then(|| Box::new(ada())),
+        fields: fields.iter().copied().collect(),
+        ..Default::default()
+    };
+    mb.contact_changes = vec![
+        change(ContactChangeKind::Delete, "c-1", false, &[]),
+        change(ContactChangeKind::Delete, "", true, &[]),
+        change(ContactChangeKind::Change, "c-1", true, &[]),
+        change(ContactChangeKind::Change, "c-1", false, &[ContactField::Last]),
+        ContactChange { folder: 4242, ..change(ContactChangeKind::Create, "", false, &[]) },
+        ContactChange { account: 999, ..change(ContactChangeKind::Create, "", false, &[]) },
+        change(ContactChangeKind::Change, "c-1", true, &[ContactField::Last]),
+        change(ContactChangeKind::Delete, "c-1", true, &[]),
+        change(ContactChangeKind::Create, "", false, &[]),
+    ];
+    let said = mb.repair();
+    assert!(said.iter().any(|l| l.contains("couldn't be sent")), "{said:?}");
+    assert_eq!(
+        mb.contact_changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        [ContactChangeKind::Change, ContactChangeKind::Delete, ContactChangeKind::Create]
+    );
+    assert!(mb.contact(stray).unwrap().origin.is_local());
+    assert!(mb.repair().is_empty());
 }
 
 #[test]
