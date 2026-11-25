@@ -208,6 +208,12 @@ msgid "(none)"
 msgstr "(არცერთი)"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "(read only)"
+msgstr "(მხოლოდ წასაკითხი)"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -921,7 +927,7 @@ msgid "Accessibility"
 msgstr "მისაწვდომობა"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "ანგარიში"
@@ -2913,6 +2919,12 @@ msgstr "Calibri"
 msgid "Call"
 msgstr "დარეკვა"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Can only be read"
+msgstr "მხოლოდ წაკითხვა შეიძლება"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -3892,7 +3904,7 @@ msgid "Contact Changes to Send"
 msgstr "გასაგზავნი კონტაქტის ცვლილებები"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "კონტაქტები"
@@ -8263,8 +8275,8 @@ msgstr "გაგზავნილის ასლის შენახვა"
 msgid "Kept Public key"
 msgstr "შენახული საჯარო გასაღები"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Kept in"
 msgstr "სად ინახება"
@@ -8286,6 +8298,12 @@ msgstr "ინახება ამ ბრაუზერის საცავ
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "ინახება აქ: {path}, მუშაობისას ავტომატურად."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Kept in: {folder}"
+msgstr "ინახება: {folder}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11168,6 +11186,12 @@ msgid "Not saved"
 msgstr "არ არის შენახული"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Not sent yet"
+msgstr "ჯერ არ გაგზავნილა"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11498,7 +11522,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "სერვერზე: აქ მისი ჩართვა, გამორთვა, გადატანა ან წაშლაა შესაძლებელი"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "ამ კომპიუტერზე"
@@ -12985,12 +13009,6 @@ msgstr "რჩეულების Outlook-იდან ახლავე ხ�
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "იკითხება ანგარიშით {owner}, სანამ შეინახავთ: ამ ადამიანს თავისი კალენდარი თქვენთვის უნდა ჰქონდეს გაზიარებული. ის მხოლოდ ამ კომპიუტერზე ინახება: არ გამოჩნდება Outlook-ში ან თქვენს სხვა მოწყობილობებზე. Microsoft ერთხელ გკითხავთ, მისცეთ თუ არა MailCraft-ს სხვა ადამიანების კალენდრების წაკითხვის უფლება."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "Read-only"
-msgstr "მხოლოდ წასაკითხი"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15356,6 +15374,12 @@ msgstr "ჩვენება როგორც"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "კალენდრის ჩვენება"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Folder"
+msgstr "კონტაქტების საქაღალდის ჩვენება"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -19162,6 +19186,12 @@ msgstr "ეს კატეგორია სერვერზე შენა
 #, fuzzy
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "ამ სერტიფიკატის გასაღები ისეთი ტიპისაა, რომელსაც MailCraft არ იყენებს: აქ შემოიტანება მხოლოდ ECDSA P-256 ან P-384-ზე."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "ეს ცვლილება ამ კომპიუტერზეა და სერვერზე მომდევნო გაგზავნა/მიღებისას წავა."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -23007,7 +23037,7 @@ msgid "no contact with id {id}"
 msgstr "კონტაქტი id-ით {id} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
+#: crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no contacts folder with id {id}"
 msgstr "კონტაქტების საქაღალდე ID-ით {id} არ არსებობს"
@@ -24996,6 +25026,12 @@ msgstr "ამ ვერსიას ერთი დაწკაპუნებ
 msgid "this contact has no e-mail address"
 msgstr "ამ კონტაქტს ელფოსტის მისამართი არ აქვს"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "this contacts folder can only be read"
+msgstr "კონტაქტების ეს საქაღალდე მხოლოდ წასაკითხია"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -25516,6 +25552,12 @@ msgstr "{done} / {total}"
 #, fuzzy
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
 msgstr "{folders} შეიქმნება ამ კომპიუტერზე ახალ საქაღალდეში სახელით {name}, შიგთავსით: {messages}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{folder} ({owner})"
+msgstr "{folder} ({owner})"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
@@ -26110,6 +26152,14 @@ msgid "{n} change made here hasn't reached the server and will be lost."
 msgid_plural "{n} changes made here haven't reached the server and will be lost."
 msgstr[0] "აქ შეტანილი ცვლილებები ({n}) სერვერამდე არ მისულა და დაიკარგება."
 msgstr[1] "აქ შეტანილი ცვლილებები ({n}) სერვერამდე არ მისულა და დაიკარგება."
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{n} change to contacts isn't on the server yet: it is tried again later"
+msgid_plural "{n} changes to contacts aren't on the server yet: they are tried again later"
+msgstr[0] "კონტაქტების {n} ცვლილება ჯერ სერვერზე არ არის: მოგვიანებით კვლავ ვცდით"
+msgstr[1] "კონტაქტების {n} ცვლილება ჯერ სერვერზე არ არის: მოგვიანებით კვლავ ვცდით"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -27060,6 +27110,12 @@ msgstr[0] "{people} და კიდევ {n}"
 msgstr[1] "{people} და კიდევ {n}"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{person}'s shared contacts"
+msgstr "{person}-ის გაზიარებული კონტაქტები"
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{phase} {time}"
@@ -27293,6 +27349,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Read-only"
+#~ msgstr "მხოლოდ წასაკითხი"
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

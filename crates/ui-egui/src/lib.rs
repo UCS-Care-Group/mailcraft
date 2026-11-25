@@ -6092,6 +6092,8 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         {
             Some(tl!("In the Outbox: it waits for its time").to_string())
         }
+        // What a server refused for good of changes to contacts, said once (#1917).
+        "sync.applyContactChanges" => v.get("messages").and_then(Value::as_array).and_then(|m| m.first()).and_then(Value::as_str).map(str::to_string),
         "calendar.selectAll" => {
             let selected = tln!(n("selected")?, "{n} calendar item selected", "{n} calendar items selected");
             Some(if v.get("capped").and_then(Value::as_bool) == Some(true) {

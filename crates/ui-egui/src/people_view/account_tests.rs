@@ -74,7 +74,7 @@ fn with_every_account_each_contact_says_where_it_is() {
     // The card says where it is, whatever the list shows.
     let kept = |w: &Harness<'_, MailApp>, id: Id| kept_in(w.state(), w.state().session.mailbox.contact(id).unwrap());
     assert_eq!(kept(&w, ours).as_deref(), Some("On this computer"));
-    assert_eq!(kept(&w, theirs).as_deref(), Some("work@example.org"));
+    assert_eq!(kept(&w, theirs).as_deref(), Some("Contacts (work@example.org)"));
 }
 
 #[test]

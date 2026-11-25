@@ -200,7 +200,8 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &BTreeSe
     no_room
 }
 
-/// The folder a new contact goes into when the command doesn't say (C8): with one account that
+/// The folder a new contact goes into when the command doesn't say (C8): the folder the list shows
+/// alone, where it can go; with one account that
 /// keeps contacts, its main folder; with more, the account the list shows (On this computer when
 /// it shows that), else the folder last used, else the first account's. `"folder"` says it
 /// (0: On this computer); one that may only be read is refused.
@@ -216,22 +217,48 @@ pub(crate) fn new_contact_folder(s: &mut Session, v: &Value) -> Result<Id, CmdEr
         }
         return Ok(id);
     }
-    let accounts = super::people::contact_accounts(&s.mailbox);
-    let usable = |m: &Mailbox, f: Id| f == 0 || home(m, f).is_some_and(|f| f.writable);
-    let account = match accounts.as_slice() {
-        [] => return Ok(0),
-        [one] => *one,
-        [first, ..] => match super::people::shown_account(s) {
-            AccountChoice::Account(a) => a,
-            AccountChoice::Here => return Ok(0),
-            AccountChoice::All => match s.mailbox.contact_place.filter(|f| usable(&s.mailbox, *f)) {
-                Some(place) => return Ok(place),
-                None => *first,
-            },
-        },
+    let account = match new_contact_default(s) {
+        NewHome::Folder(folder) => return Ok(folder),
+        NewHome::Main(account) => account,
     };
     let main = s.mailbox.ensure_main_contact_folder(account).ok_or_else(|| fail("this account has too many contacts folders"))?;
     Ok(if usable(&s.mailbox, main) { main } else { 0 })
+}
+
+/// Where [`new_contact_folder`] puts a new contact when the command doesn't say.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NewHome {
+    /// That contacts folder (0: On this computer).
+    Folder(Id),
+    /// The account's main contacts folder (made when it isn't there yet), or On this computer
+    /// when the account may only read it.
+    Main(Id),
+}
+
+/// Whether a new contact may go in folder `f` (0: On this computer).
+fn usable(mailbox: &Mailbox, f: Id) -> bool {
+    f == 0 || home(mailbox, f).is_some_and(|f| f.writable)
+}
+
+/// [`new_contact_folder`]'s choice, without making anything (the New Contact form shows it):
+/// the folder the list shows alone, when a contact can go there; else as C8 says.
+pub fn new_contact_default(s: &Session) -> NewHome {
+    if let Some(folder) = super::people::shown_folder(s).filter(|f| usable(&s.mailbox, *f)) {
+        return NewHome::Folder(folder);
+    }
+    let accounts = super::people::contact_accounts(&s.mailbox);
+    match accounts.as_slice() {
+        [] => NewHome::Folder(0),
+        [one] => NewHome::Main(*one),
+        [first, ..] => match super::people::shown_account(s) {
+            AccountChoice::Account(a) => NewHome::Main(a),
+            AccountChoice::Here => NewHome::Folder(0),
+            AccountChoice::All => match s.mailbox.contact_place.filter(|f| usable(&s.mailbox, *f)) {
+                Some(place) => NewHome::Folder(place),
+                None => NewHome::Main(*first),
+            },
+        },
+    }
 }
 
 /// What only this computer keeps of a contact stays as `old` has it when the server's copy comes

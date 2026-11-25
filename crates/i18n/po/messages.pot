@@ -174,6 +174,11 @@ msgid "(none)"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "(read only)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "(the server didn't confirm the sender)"
 msgstr ""
@@ -771,7 +776,7 @@ msgid "Accessibility"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 msgid "Account"
 msgstr ""
 
@@ -2431,6 +2436,11 @@ msgstr ""
 msgid "Call"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Can only be read"
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 msgid "Can't be opened here. Save it to keep it."
@@ -3245,7 +3255,7 @@ msgid "Contact Changes to Send"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
 msgid "Contacts"
 msgstr ""
 
@@ -6869,8 +6879,8 @@ msgstr ""
 msgid "Kept Public key"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
 msgid "Kept in"
 msgstr ""
 
@@ -6887,6 +6897,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Kept in {path}, saved as you go."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Kept in: {folder}"
 msgstr ""
 
 #. interface
@@ -9292,6 +9307,11 @@ msgid "Not saved"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "Not sent yet"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "Not unsubscribed."
 msgstr ""
@@ -9567,7 +9587,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 msgid "On this computer"
 msgstr ""
 
@@ -10810,11 +10830,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-msgid "Read-only"
 msgstr ""
 
 #. android
@@ -12781,6 +12796,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Show Calendar"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Show Contacts Folder"
 msgstr ""
 
 #. command label
@@ -15964,6 +15984,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/private_keys.rs
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
 msgstr ""
 
 #. interface
@@ -19167,7 +19192,7 @@ msgid "no contact with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
+#: crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 msgid "no contacts folder with id {id}"
 msgstr ""
 
@@ -20830,6 +20855,11 @@ msgstr ""
 msgid "this contact has no e-mail address"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+msgid "this contacts folder can only be read"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 msgid "this download was for another account, not for {name}"
@@ -21269,6 +21299,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/import_tree.rs
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+msgid "{folder} ({owner})"
 msgstr ""
 
 #. interface
@@ -21768,6 +21803,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/dialogs.rs
 msgid "{n} change made here hasn't reached the server and will be lost."
 msgid_plural "{n} changes made here haven't reached the server and will be lost."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{n} change to contacts isn't on the server yet: it is tried again later"
+msgid_plural "{n} changes to contacts aren't on the server yet: they are tried again later"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -22598,6 +22640,11 @@ msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "{person}'s shared contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

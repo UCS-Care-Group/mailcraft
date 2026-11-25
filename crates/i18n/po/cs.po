@@ -207,6 +207,12 @@ msgid "(none)"
 msgstr "(žádné)"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "(read only)"
+msgstr "(jen ke čtení)"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -924,7 +930,7 @@ msgid "Accessibility"
 msgstr "Přístupnost"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Účet"
@@ -2918,6 +2924,12 @@ msgstr "Calibri"
 msgid "Call"
 msgstr "Zavolat"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Can only be read"
+msgstr "Lze jen číst"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -3900,7 +3912,7 @@ msgid "Contact Changes to Send"
 msgstr "Změny kontaktů k odeslání"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
 msgid "Contacts"
 msgstr ""
 
@@ -8293,8 +8305,8 @@ msgstr "Uchovávám kopii odeslaného"
 msgid "Kept Public key"
 msgstr "Uložený veřejný klíč"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Kept in"
 msgstr "Uloženo v"
@@ -8316,6 +8328,12 @@ msgstr "Uchováváno v úložišti tohoto prohlížeče, ukládá se průběžn�
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Uchováváno v {path}, ukládá se průběžně."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Kept in: {folder}"
+msgstr "Uloženo v: {folder}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11218,6 +11236,12 @@ msgid "Not saved"
 msgstr "Neuloženo"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Not sent yet"
+msgstr "Zatím neodesláno"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11548,7 +11572,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "Na serveru: zde ho lze zapnout nebo vypnout, přesunout nebo odstranit"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "V tomto počítači"
@@ -13042,12 +13066,6 @@ msgstr "Znovu teď načíst oblíbené z Outlooku"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Čte se s přihlášením účtu {owner}, dokud ho ponecháte: dotyčný s vámi musí svůj kalendář sdílet. Uchovává se jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních. Microsoft se vás jednou zeptá, zda MailCraft smí číst kalendáře jiných lidí."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "Read-only"
-msgstr "Jen pro čtení"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15439,6 +15457,12 @@ msgstr "Zobrazit jako"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Zobrazit kalendář"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Folder"
+msgstr "Zobrazit složku kontaktů"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -19269,6 +19293,12 @@ msgstr "Tato kategorie je u více událostí kalendářů na serveru, než kolik
 #, fuzzy
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "Klíč tohoto certifikátu je druhu, který MailCraft nepoužívá: importuje se sem jen ECDSA na P-256 nebo P-384."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Tato změna je v tomto počítači a na server odejde při příštím Odeslat/Přijmout."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -23141,7 +23171,7 @@ msgid "no contact with id {id}"
 msgstr "žádný kontakt s id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
+#: crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no contacts folder with id {id}"
 msgstr "žádná složka kontaktů s ID {id}"
@@ -25132,6 +25162,12 @@ msgstr "tato verze neumí odhlásit odběr jedním kliknutím"
 msgid "this contact has no e-mail address"
 msgstr "tento kontakt nemá e-mailovou adresu"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "this contacts folder can only be read"
+msgstr "tuto složku kontaktů lze jen číst"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -25660,6 +25696,12 @@ msgstr "{done} z {total}"
 #, fuzzy
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
 msgstr "{folders} se vytvoří pod novou složkou s názvem {name} v tomto počítači, s {messages}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{folder} ({owner})"
+msgstr "{folder} ({owner})"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
@@ -26268,6 +26310,15 @@ msgid_plural "{n} changes made here haven't reached the server and will be lost.
 msgstr[0] "{n} změna provedená zde se nedostala na server a bude ztracena."
 msgstr[1] "{n} změny provedené zde se nedostaly na server a budou ztraceny."
 msgstr[2] "{n} změn provedených zde se nedostalo na server a bude ztraceno."
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{n} change to contacts isn't on the server yet: it is tried again later"
+msgid_plural "{n} changes to contacts aren't on the server yet: they are tried again later"
+msgstr[0] "{n} změna kontaktů ještě není na serveru: zkusí se znovu později"
+msgstr[1] "{n} změny kontaktů ještě nejsou na serveru: zkusí se znovu později"
+msgstr[2] "{n} změn kontaktů ještě není na serveru: zkusí se znovu později"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -27327,6 +27378,12 @@ msgstr[1] "{people} a {n} další"
 msgstr[2] "{people} a {n} dalších"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{person}'s shared contacts"
+msgstr "Sdílené kontakty: {person}"
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{phase} {time}"
@@ -27566,6 +27623,10 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Read-only"
+#~ msgstr "Jen pro čtení"
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
