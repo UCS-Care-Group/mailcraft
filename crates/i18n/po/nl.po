@@ -8463,6 +8463,12 @@ msgid "Low on top"
 msgstr "Laag bovenaan"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "Gemaakt door UCS Labs"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -16732,6 +16738,12 @@ msgstr "De digitale handtekening is verlopen."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "De hele reeks"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "De naam en het logo van UCS Labs zijn handelsmerken van UCS Care Group Limited; zie TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs

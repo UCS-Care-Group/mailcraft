@@ -8771,6 +8771,12 @@ msgid "Low on top"
 msgstr "A legkevésbé fontos elöl"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "Készítette: UCS Labs"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -17293,6 +17299,12 @@ msgstr "A digitális aláírás lejárt."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "Az egész sorozat"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Az UCS Labs név és logó a UCS Care Group Limited védjegye; lásd: TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs

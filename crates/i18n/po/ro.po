@@ -8804,6 +8804,12 @@ msgid "Low on top"
 msgstr "Scăzută deasupra"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "Creat de UCS Labs"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -17347,6 +17353,12 @@ msgstr "Semnătura digitală a expirat."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "Toată seria"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Numele și sigla UCS Labs sunt mărci comerciale ale UCS Care Group Limited; vezi TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
