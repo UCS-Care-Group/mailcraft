@@ -1649,6 +1649,7 @@ impl AccountSetup {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && self.desktop_mail_alerts.is_none_or(|(was, on)| was == on)
             && !self.senders.as_ref().is_some_and(senders::Senders::changed)
     }
 
