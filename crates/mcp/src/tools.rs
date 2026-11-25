@@ -253,6 +253,8 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "path",
     "file",
     "remote",
+    "parent",
+    "gone",
     "id",
     "ids",
     "value",

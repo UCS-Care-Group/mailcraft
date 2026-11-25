@@ -153,4 +153,33 @@ internal object ListIcons {
             circle(8f, 9f, 1.2f)
         }
     }
+
+    /** An arrow turning back: reply. */
+    val Reply: ImageVector by lazy {
+        icon("Reply") {
+            moveTo(10f, 6f)
+            lineTo(4f, 12f)
+            lineTo(10f, 18f)
+            moveTo(4f, 12f)
+            lineTo(14f, 12f)
+            arcTo(6f, 6f, 0f, false, true, 20f, 18f)
+        }
+    }
+
+    /** A page with lines and a folded corner: drafts. */
+    val Drafts: ImageVector by lazy {
+        icon("Drafts") {
+            moveTo(6f, 3f)
+            lineTo(14f, 3f)
+            lineTo(19f, 8f)
+            lineTo(19f, 21f)
+            lineTo(6f, 21f)
+            close()
+            moveTo(14f, 3f)
+            lineTo(14f, 8f)
+            lineTo(19f, 8f)
+            line(9f, 13f, 16f, 13f)
+            line(9f, 17f, 14f, 17f)
+        }
+    }
 }
