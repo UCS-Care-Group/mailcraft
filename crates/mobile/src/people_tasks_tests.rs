@@ -233,6 +233,41 @@ fn with_no_account_that_keeps_contacts_a_new_person_stays_on_this_phone() {
     assert!(offered.folders.is_empty() && offered.default_index.is_none());
 }
 
+/// Two accounts whose writable folders fill the picker, and a third with no folder yet, whose
+/// people the list shows: its main folder (not made yet) is the default.
+#[test]
+fn a_main_folder_not_made_yet_is_offered_without_going_past_the_most_listed() {
+    use mailcraft_model::AccountChoice;
+    use mailcraft_model::contact_sync::ContactFolder;
+    let core = Core::start(FakePlatform::new(), || {
+        let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+        for who in ["a", "b", "c"] {
+            let email = format!("{who}@example.org");
+            let _ = s.run("account.add", &json!({"email": email, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}));
+        }
+        let id = |s: &Session, email: &str| s.mailbox.accounts.iter().find(|a| a.email == email).map(|a| a.id).unwrap();
+        for email in ["a@example.org", "b@example.org"] {
+            let account = id(&s, email);
+            loop {
+                let remote = format!("f{}", s.mailbox.contact_folders.len());
+                let folder = ContactFolder { account, remote, name: "F".into(), writable: true, ..Default::default() };
+                if s.mailbox.add_contact_folder(folder).is_none() {
+                    break;
+                }
+            }
+        }
+        let c = id(&s, "c@example.org");
+        assert!(s.mailbox.main_contact_folder(c).is_none());
+        s.view.people_account = AccountChoice::Account(c);
+        s
+    })
+    .unwrap();
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert!(offered.folders.len() <= crate::text::MAX_LISTED, "{} listed", offered.folders.len());
+    let default = &offered.folders[offered.default_index.unwrap() as usize];
+    assert_eq!((default.id, default.name.as_str()), (None, "Contacts (c@example.org)"));
+}
+
 #[test]
 fn the_default_folder_is_offered_even_past_the_most_listed() {
     use mailcraft_model::contact_sync::ContactFolder;

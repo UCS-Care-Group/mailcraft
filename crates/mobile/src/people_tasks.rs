@@ -80,6 +80,10 @@ fn contact_folders(s: &Session) -> ContactFolders {
                 name: folder_name(&s.mailbox, account, MAIN_FOLDER_NAME, &FolderOwner::Own),
                 kind: folder_kind(&FolderOwner::Own).into(),
             };
+            // A full list makes room for it, as for a default past the cap.
+            if folders.len() >= MAX_LISTED {
+                folders.pop();
+            }
             let at = folders.iter().position(|f| f.account == account).unwrap_or(folders.len());
             folders.insert(at, main);
             Some(at)
