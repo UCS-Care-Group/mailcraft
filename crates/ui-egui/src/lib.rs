@@ -6099,7 +6099,9 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         "sync.applyContactChanges" => {
             let said: Vec<&str> = v.get("messages").and_then(Value::as_array)?.iter().filter_map(Value::as_str).collect();
             let mut line = said.iter().take(3).copied().collect::<Vec<_>>().join(" ");
-            let more = said.len().saturating_sub(3);
+            // (The engine keeps a few lines; `refused` counts every refusal.)
+            let refused = v.get("refused").and_then(Value::as_u64).map_or(0, |n| usize::try_from(n).unwrap_or(usize::MAX));
+            let more = said.len().max(refused).saturating_sub(said.len().min(3));
             if more > 0 {
                 line = format!("{line} {}", tln!(more as u64, "And {n} more change was put back.", "And {n} more changes were put back."));
             }

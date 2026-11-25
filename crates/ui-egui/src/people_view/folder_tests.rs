@@ -140,6 +140,29 @@ fn a_new_contact_goes_in_the_folder_picked() {
     assert_eq!((nia.folder, nia.origin.is_local()), (0, true));
 }
 
+/// An account whose main folder isn't made yet is offered as such, so it can be picked again
+/// after another folder was: the contact then goes in that folder, made for it.
+#[test]
+fn the_folder_a_new_contact_goes_in_by_itself_can_be_picked_again() {
+    let mut w = testing::window("view.people");
+    let ada = add(&mut w, "ada@example.org");
+    put(&mut w, ada, remote("fr", "Friends", FolderOwner::Own, true), "Fay Friend");
+    assert_eq!(w.state().session.mailbox.main_contact_folder(ada), None);
+    w.state_mut().execute("ui.dialog", json!({"name": "contact", "first": "Nia"})).unwrap();
+    w.run();
+    open_combo(&mut w, "Contacts (ada@example.org)");
+    w.get_by_label("On this computer").click();
+    w.run();
+    open_combo(&mut w, "On this computer");
+    w.get_by_label("Contacts (ada@example.org)").click();
+    w.run();
+    w.get_by_label("Save").click();
+    w.run();
+    let mailbox = &w.state().session.mailbox;
+    let nia = mailbox.contacts.values().find(|c| c.first == "Nia").unwrap();
+    assert_eq!(Some(nia.folder), mailbox.main_contact_folder(ada));
+}
+
 #[test]
 fn changes_the_server_puts_off_are_in_the_progress_list() {
     let mut w = testing::window("view.people");
@@ -183,4 +206,8 @@ fn every_refusal_from_the_server_is_said() {
     assert_eq!(said(vec!["A.".into(), "B.".into()]).as_deref(), Some("A. B."));
     let five: Vec<String> = ["A.", "B.", "C.", "D.", "E."].iter().map(|s| s.to_string()).collect();
     assert_eq!(said(five).as_deref(), Some("A. B. C. And 2 more changes were put back."));
+    // The engine keeps 20 lines at most; how many more comes from every refusal.
+    let kept: Vec<String> = (0..20).map(|i| format!("{i}.")).collect();
+    let line = crate::feedback("sync.applyContactChanges", &json!({"messages": kept, "refused": 21})).unwrap();
+    assert_eq!(line, "0. 1. 2. And 18 more changes were put back.");
 }

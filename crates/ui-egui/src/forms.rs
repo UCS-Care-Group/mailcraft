@@ -3491,25 +3491,40 @@ mod contact {
         let name = |f: Id| crate::people_view::folder_name(mailbox, f);
         let writable = |f: &Id| mailbox.contact_folder(*f).is_some_and(|f| f.writable);
         let (current, account) = destination(&app.session, *folder);
-        let shown = match current {
+        // The main folder of the account a new contact goes to by itself, before it is made:
+        // offered as such (`None`), so it can be chosen again after another one was.
+        let unmade = match destination(&app.session, None) {
+            (None, account) => Some(account),
+            _ => None,
+        };
+        let label = |f: Option<Id>, account: Id| match f {
             Some(f) => name(f),
             None => {
                 crate::i18n::fmt(tl!("{folder} ({owner})"), &[("folder", tl!("Contacts")), ("owner", &crate::widgets::place_name(mailbox, account))])
             }
         };
-        let choices: Vec<Id> = mailcraft_engine::cmd::people::contact_accounts(mailbox)
+        let choices: Vec<Option<Id>> = unmade
+            .map(|_| None)
             .into_iter()
-            .flat_map(|account| crate::address_book::contact_folders(mailbox, account))
-            .filter(writable)
-            .chain([0])
+            .chain(
+                mailcraft_engine::cmd::people::contact_accounts(mailbox)
+                    .into_iter()
+                    .flat_map(|account| crate::address_book::contact_folders(mailbox, account))
+                    .filter(writable)
+                    .chain([0])
+                    .map(Some),
+            )
             .collect();
-        egui::ComboBox::from_id_salt("contact_folder").width(ui.available_width()).selected_text(shown).truncate().show_ui(ui, |ui| {
-            for f in choices {
-                if ui.selectable_label(current == Some(f), name(f)).clicked() {
-                    *folder = Some(f);
+        egui::ComboBox::from_id_salt("contact_folder").width(ui.available_width()).selected_text(label(current, account)).truncate().show_ui(
+            ui,
+            |ui| {
+                for f in choices {
+                    if ui.selectable_label(current == f, label(f, unmade.unwrap_or(0))).clicked() {
+                        *folder = f;
+                    }
                 }
-            }
-        });
+            },
+        );
     }
 
     /// The rows of e-mail addresses or phone numbers, with a button that adds one more.
