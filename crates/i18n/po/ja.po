@@ -5765,7 +5765,7 @@ msgstr "「{folder}」内のすべてが完全に削除されます。"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Everything kept on this phone was removed."
-msgstr "この携帯電話に保持されていたものはすべて削除されました。"
+msgstr "このスマートフォンに保持されていたものはすべて削除されました。"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9641,7 +9641,7 @@ msgstr "このアドレスに対応する Microsoft のメールボックスは�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
 msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
-msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅、勤務先、その他の 1 件ずつまでです。印の付いたものはこの携帯電話にのみ残ります。"
+msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅、勤務先、その他の 1 件ずつまでです。印の付いたものはこのスマートフォンにのみ残ります。"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -9653,7 +9653,7 @@ msgstr "Microsoft で保持できる住所は、連絡先ごとに自宅、勤�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
 msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
-msgstr "Microsoft で保持できる電話番号は、連絡先ごとに携帯 1 件、自宅 2 件、勤務先 2 件までです。印の付いたものはこの携帯電話にのみ残ります。"
+msgstr "Microsoft で保持できる電話番号は、連絡先ごとに携帯 1 件、自宅 2 件、勤務先 2 件までです。印の付いたものはこのスマートフォンにのみ残ります。"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -9671,7 +9671,7 @@ msgstr "Microsoft で保持できる Web ページは、連絡先ごとに 1 件
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
 #, fuzzy
 msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
-msgstr "Microsoft で保持できるメール アドレスは、連絡先ごとに 3 件までです。印の付いたものはこの携帯電話にのみ残ります。"
+msgstr "Microsoft で保持できるメール アドレスは、連絡先ごとに 3 件までです。印の付いたものはこのスマートフォンにのみ残ります。"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -11716,7 +11716,7 @@ msgstr "このデバイスのみ: メール サーバーなし"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
 #, fuzzy
 msgid "On this phone only"
-msgstr "この携帯電話のみ"
+msgstr "このスマートフォンのみ"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -13732,7 +13732,7 @@ msgstr "{name}を削除"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Removes the mail, calendars, contacts and tasks kept on this phone, your accounts, and every sign-in. Nothing is deleted from your mail provider's servers, and you can add your accounts again later."
-msgstr "この電話に保存されているメール、予定表、連絡先、タスク、アカウント、すべてのサインインを削除します。メール プロバイダーのサーバーからは何も削除されず、後でアカウントを再び追加できます。"
+msgstr "このスマートフォンに保存されているメール、予定表、連絡先、タスク、アカウント、すべてのサインインを削除します。メール プロバイダーのサーバーからは何も削除されず、後でアカウントを再び追加できます。"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -16396,7 +16396,7 @@ msgstr "並べ替え"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Sound, vibration and lock screen, in the phone's settings"
-msgstr "サウンド、バイブレーション、ロック画面は、電話の設定で変更します"
+msgstr "サウンド、バイブレーション、ロック画面は、スマートフォンの設定で変更します"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -16612,7 +16612,7 @@ msgstr "停止しています… 受信済みのものはそのまま残りま�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "Storage on this phone"
-msgstr "この電話の保存領域"
+msgstr "このスマートフォンの保存領域"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -18055,7 +18055,7 @@ msgstr "差出人の一覧がいっぱいです。ファイル › オプショ�
 #: crates/mobile/src/core.rs
 #, fuzzy
 msgid "The list of sign-ins kept on this phone was damaged, so some older sign-ins may still be kept on it. The phone's own settings for MailCraft let you clear what it keeps."
-msgstr "この携帯電話に保存されているサインインの一覧が破損したため、古いサインインが残っている可能性があります。MailCraft のスマートフォン本体の設定で、保存内容を消去できます。"
+msgstr "このスマートフォンに保存されているサインインの一覧が破損したため、古いサインインが残っている可能性があります。スマートフォン本体の設定にある MailCraft の項目で、保存内容を消去できます。"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -18175,7 +18175,7 @@ msgstr "メッセージをクリップボードにコピーしました。メー
 #: crates/mobile/src/fetch.rs
 #, fuzzy
 msgid "The message is too large to download on the phone."
-msgstr "メッセージが大きすぎるため、この携帯電話にはダウンロードできません。"
+msgstr "メッセージが大きすぎるため、このスマートフォンにはダウンロードできません。"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -18223,7 +18223,7 @@ msgstr "表示中のフォルダーのメッセージ (.mbox 形式)"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "The most mail this phone keeps, all accounts together. Past it the oldest mail goes back to its headers, then off the phone. Nothing is deleted from the server."
-msgstr "この携帯電話に保存するメールの上限です (全アカウントの合計)。上限を超えると、最も古いメールはヘッダーだけに戻り、その後、携帯電話から削除されます。サーバーからは何も削除されません。"
+msgstr "このスマートフォンに保存するメールの上限です (全アカウントの合計)。上限を超えると、最も古いメールはヘッダーだけに戻り、その後、スマートフォンから削除されます。サーバーからは何も削除されません。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -20039,7 +20039,7 @@ msgstr "この連絡先を読み取れませんでした。"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
-msgstr "この携帯電話"
+msgstr "このスマートフォン"
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -20123,7 +20123,7 @@ msgstr "この署名には画像または独自のレイアウトがあります
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
-msgstr "この同期には約{needed}が必要です。この携帯電話の空き容量は{free}で、MailCraft は携帯電話が動作し続けるための余裕を残します。それでも同期しますか?"
+msgstr "この同期には約{needed}が必要です。このスマートフォンの空き容量は{free}で、MailCraft はスマートフォンが動作し続けるための余裕を残します。それでも同期しますか?"
 
 #. interface
 #: crates/ui-egui/src/security.rs
