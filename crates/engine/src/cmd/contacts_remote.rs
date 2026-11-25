@@ -399,7 +399,7 @@ fn retry_state(change: &ContactChange) -> (u32, i64, bool, String) {
 pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Result<Merged, CmdError> {
     let owner = owner(mailbox, download.account, &download.email)?;
     // (Microsoft Graph keeps only so many of a contact's addresses and numbers.)
-    let (account, graph) = (owner.id, owner.keeps_contacts());
+    let (account, graph) = (owner.id, owner.contacts_in_graph());
     let (folder, folder_changed) = take_folder(mailbox, account, download.folder.as_ref())?;
     let mut merged = Merged { checked: folder_changed, ..Merged::default() };
     let queue = mailbox.contact_changes.clone();

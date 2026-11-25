@@ -807,6 +807,27 @@ fn what_graph_has_no_place_for_survives_a_round_trip() {
     assert_eq!(values(&s.mailbox.contact(bo).unwrap().emails), values(&here.emails));
 }
 
+/// #1917: people.get names what the server has no place for, and nothing is refused for it: a
+/// fifth address is taken as readily as a first. On this computer nothing is named.
+#[test]
+fn people_get_names_what_stays_on_this_computer() {
+    let (mut s, _) = session();
+    let bo = called(&s, "Bo");
+    let emails: Vec<_> = (1..=5).map(|n| json!({"label": "work", "value": format!("bo{n}@example.org")})).collect();
+    let phones = [json!({"label": "mobile", "value": "+44 7700 900001"}), json!({"label": "mobile", "value": "+44 7700 900002"})];
+    run(&mut s, "people.edit", json!({"id": bo, "emails": emails, "phones": phones}));
+    let got = run(&mut s, "people.get", json!({"id": bo}));
+    assert_eq!(got["emails"].as_array().map(Vec::len), Some(5));
+    assert_eq!(got["localOnly"], json!({"emails": [3, 4], "phones": [1], "addresses": [], "websites": []}));
+    // What fits names nothing.
+    let cy = called(&s, "Cy");
+    assert!(run(&mut s, "people.get", json!({"id": cy})).get("localOnly").is_none());
+    // On this computer, any number, nothing named.
+    let here = run(&mut s, "people.new", json!({"first": "Di", "emails": emails, "folder": 0}))["id"].as_u64().unwrap();
+    let got = run(&mut s, "people.get", json!({"id": here}));
+    assert_eq!((got["emails"].as_array().map(Vec::len), got.get("localOnly")), (Some(5), None));
+}
+
 /// Review of #1937: when the server lets one of its three addresses go, the one kept only here
 /// takes its place and goes up, so the next read doesn't take it for one the server deleted.
 #[test]

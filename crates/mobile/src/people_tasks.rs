@@ -10,7 +10,7 @@ use mailcraft_engine::Session;
 use mailcraft_engine::cmd::contacts_remote::{default_contact_folder, home, not_sent, read_only};
 use mailcraft_engine::cmd::people::contact_accounts;
 use mailcraft_engine::cmd::tasks_remote::{local_task_count, task_accounts};
-use mailcraft_model::contact_sync::{ContactFolder, FolderOwner, MAIN_FOLDER_NAME};
+use mailcraft_model::contact_sync::{ContactFolder, FolderOwner, MAIN_FOLDER_NAME, local_only};
 use mailcraft_model::{Id, Labeled, LocalTasks, Mailbox};
 
 use crate::queries::{account_kind, bad, task_record};
@@ -21,8 +21,13 @@ use crate::{Core, CoreError};
 /// The longest note of a task that is handed over.
 const MAX_NOTES: usize = 8_000;
 
-fn labeled(items: &[Labeled], max: usize) -> Vec<LabeledRecord> {
-    text::first(items, MAX_PEOPLE_IN_ITEM, |l| LabeledRecord { label: text::clip(&l.label, MAX_NAME), value: text::clip(&l.value, max) })
+/// The entries, each marked when it is at one of the positions `local` names.
+fn labeled(items: &[Labeled], max: usize, local: &[usize]) -> Vec<LabeledRecord> {
+    text::first(items.iter().enumerate(), MAX_PEOPLE_IN_ITEM, |(at, l)| LabeledRecord {
+        label: text::clip(&l.label, MAX_NAME),
+        value: text::clip(&l.value, max),
+        local_only: local.binary_search(&at).is_ok(),
+    })
 }
 
 fn folder_kind(owner: &FolderOwner) -> &'static str {
@@ -116,6 +121,7 @@ impl Core {
     pub async fn person(&self, id: u64) -> Result<PersonDetail, CoreError> {
         self.call(move |s| {
             let c = s.mailbox.contacts.get(&id).ok_or_else(|| bad("there is no such person"))?;
+            let local = local_only(&s.mailbox, c);
             Ok(PersonDetail {
                 rev: s.rev(),
                 id: c.id,
@@ -123,11 +129,12 @@ impl Core {
                 company: text::clip(&c.company, MAX_NAME),
                 title: text::clip(&c.title, MAX_NAME),
                 department: text::clip(&c.department, MAX_NAME),
-                emails: labeled(&c.emails, MAX_ADDRESS),
-                phones: labeled(&c.phones, MAX_NAME),
-                addresses: text::first(&c.addresses, MAX_PEOPLE_IN_ITEM, |a| LabeledRecord {
+                emails: labeled(&c.emails, MAX_ADDRESS, &local.emails),
+                phones: labeled(&c.phones, MAX_NAME, &local.phones),
+                addresses: text::first(c.addresses.iter().enumerate(), MAX_PEOPLE_IN_ITEM, |(at, a)| LabeledRecord {
                     label: text::clip(&a.label, MAX_NAME),
                     value: text::clip(&a.one_line(), MAX_ADDRESS),
+                    local_only: local.addresses.binary_search(&at).is_ok(),
                 }),
                 favorite: c.favorite,
                 folder: c.folder,

@@ -35,8 +35,11 @@ internal sealed interface PeopleState {
     class Failed(val message: String) : PeopleState
 }
 
-/** A label and a value on a person's page: a number, an address. */
-internal data class ContactLine(val label: String, val value: String)
+/**
+ * A label and a value on a person's page: a number, an address. [localOnly]: the account's server has
+ * no place for it, so it is kept on this phone only.
+ */
+internal data class ContactLine(val label: String, val value: String, val localOnly: Boolean = false)
 
 /** A person's page. Read-only: a new person is added in the form, but one already there is not edited. */
 internal data class PersonCard(
@@ -81,7 +84,20 @@ internal fun personRow(record: PersonRecord): PersonRow = PersonRow(
     detail = record.company.ifBlank { record.emails.firstOrNull().orEmpty() },
 )
 
-private fun line(record: LabeledRecord) = ContactLine(record.label, record.value)
+private fun line(record: LabeledRecord) = ContactLine(record.label, record.value, record.localOnly)
+
+/** What a line the account's server has no place for says ([mark]), and why, once under its section. */
+internal class LocalOnlyText(val mark: String, val why: String)
+
+internal enum class LocalOnlyKind { Email, Phone, Address }
+
+/** Why lines of [kind] are kept on this phone only: the places Microsoft keeps for a contact (#1917). */
+@Suppress("MaxLineLength") // Each text whole, as the catalogue gathers it.
+internal fun localOnlyWhy(texts: Texts, kind: LocalOnlyKind): String = when (kind) {
+    LocalOnlyKind.Email -> texts.t("Microsoft keeps three email addresses for a contact; the ones marked stay on this phone.")
+    LocalOnlyKind.Phone -> texts.t("Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone.")
+    LocalOnlyKind.Address -> texts.t("Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone.")
+}
 
 internal fun personCard(detail: PersonDetail): PersonCard = PersonCard(
     id = detail.id,

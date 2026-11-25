@@ -9604,6 +9604,48 @@ msgstr "A Microsoft ezt nem kínálja ilyen típusú fiókhoz."
 msgid "Microsoft has no mailbox at this address"
 msgstr "A Microsoftnak nincs postafiókja ezen a címen."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
+msgstr "A Microsoft névjegyenként egy otthoni, egy munkahelyi és egy egyéb címet tárol; a megjelöltek ezen a telefonon maradnak."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
+msgstr "A Microsoft névjegyenként egy otthoni, egy munkahelyi és egy egyéb címet tárol; ez ezen a számítógépen marad."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
+msgstr "A Microsoft névjegyenként egy mobil-, két otthoni és két munkahelyi számot tárol; a megjelöltek ezen a telefonon maradnak."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."
+msgstr "A Microsoft névjegyenként egy mobil-, két otthoni és két munkahelyi számot tárol; ez ezen a számítógépen marad."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one web page for a contact; this one stays on this computer."
+msgstr "A Microsoft névjegyenként egy weboldalt tárol; ez ezen a számítógépen marad."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
+msgstr "A Microsoft névjegyenként három e-mail-címet tárol; a megjelöltek ezen a telefonon maradnak."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; this one stays on this computer."
+msgstr "A Microsoft névjegyenként három e-mail-címet tárol; ez ezen a számítógépen marad."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -11611,6 +11653,12 @@ msgid "On this computer for now"
 msgstr "Ezen a számítógépen egyelőre"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "On this computer only"
+msgstr "Csak ezen a számítógépen"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer, for the mail of every account"
@@ -11627,6 +11675,12 @@ msgstr "Ezen a számítógépen még nincs saját nézetük."
 #, fuzzy
 msgid "On this device only: no mail server"
 msgstr "Csak ezen az eszközön, levelezési kiszolgáló nélkül"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "On this phone only"
+msgstr "Csak ezen a telefonon"
 
 #. interface
 #: crates/ui-egui/src/updates.rs

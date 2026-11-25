@@ -253,9 +253,13 @@ private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
             )
         }
         KeptIn(texts, card, Gutter)
-        LinesSection(texts.t("Email"), card.emails, texts.t("Write"), actions.onMail) { mailtoLink(it) != null }
-        LinesSection(texts.t("Phone"), card.phones, texts.t("Call"), actions.onCall) { dialLink(it) != null }
-        LinesSection(texts.t("Address"), card.addresses, null, {}) { false }
+        val mark = texts.t("On this phone only")
+        val emails = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Email))
+        val phones = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Phone))
+        val addresses = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Address))
+        LinesSection(texts.t("Email"), card.emails, emails, texts.t("Write"), actions.onMail) { mailtoLink(it) != null }
+        LinesSection(texts.t("Phone"), card.phones, phones, texts.t("Call"), actions.onCall) { dialLink(it) != null }
+        LinesSection(texts.t("Address"), card.addresses, addresses, null, {}) { false }
     }
 }
 
@@ -263,6 +267,7 @@ private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
 private fun LinesSection(
     title: String,
     lines: List<ContactLine>,
+    local: LocalOnlyText,
     action: String?,
     onAct: (String) -> Unit,
     canAct: (String) -> Boolean,
@@ -298,6 +303,13 @@ private fun LinesSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (line.localOnly) {
+                    Text(
+                        local.mark,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
             if (acts) {
                 val style = MaterialTheme.typography.labelLarge
@@ -305,6 +317,14 @@ private fun LinesSection(
             }
         }
         HorizontalDivider()
+    }
+    if (lines.any { it.localOnly }) {
+        Text(
+            local.why,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 4.dp),
+        )
     }
 }
 

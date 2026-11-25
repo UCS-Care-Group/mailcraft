@@ -38,6 +38,7 @@ class PhonePeopleTasksScreenshotTest {
     private val badPersonPage = page(Tab.People, people = PeopleTasksShots.badPerson)
     private val movePage = page(Tab.People, people = PeopleTasksShots.movePerson)
     private val askingPage = page(Tab.People, people = PeopleTasksShots.moveAsking)
+    private val localOnlyPersonPage = page(Tab.People, people = PeopleTasksShots.localOnlyPerson)
     private val tasksPage = page(Tab.Tasks)
     private val editorPage = page(Tab.Tasks, tasks = PeopleTasksShots.editor)
 
@@ -72,6 +73,14 @@ class PhonePeopleTasksScreenshotTest {
     @Test fun readOnlyPersonDark100() = shoot("phone_read_only_person_dark_100", true, 1f, readOnlyPersonPage)
 
     @Test fun readOnlyPersonDark200() = shoot("phone_read_only_person_dark_200", true, 2f, readOnlyPersonPage)
+
+    @Test fun localOnlyPersonLight100() = shoot("phone_local_only_person_light_100", false, 1f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonLight200() = shoot("phone_local_only_person_light_200", false, 2f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonDark100() = shoot("phone_local_only_person_dark_100", true, 1f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonDark200() = shoot("phone_local_only_person_dark_200", true, 2f, localOnlyPersonPage)
 
     @Test fun newPersonLight100() = shoot("phone_new_person_light_100", false, 1f, newPersonPage)
 

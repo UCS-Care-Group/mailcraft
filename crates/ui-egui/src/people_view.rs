@@ -10,6 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
+use mailcraft_model::contact_sync::LocalOnly;
 use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
 use mailcraft_time::Date;
 use serde_json::json;
@@ -776,7 +777,7 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
             card_actions(app, ui, &c);
             card_contact(app, ui, &c);
             card_account(app, ui, &c);
-            card_places(ui, &c);
+            card_places(app, ui, &c);
             card_birthday(app, ui, &c);
             crate::security::card_section(app, ui, &c);
             if !c.notes.trim().is_empty() {
@@ -925,52 +926,103 @@ fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {
     }
 }
 
+/// What the contact's server has no place for (#1917): nothing On this computer, nor for a
+/// server that keeps every entry.
+fn local_only(app: &MailApp, c: &Contact) -> LocalOnly {
+    mailcraft_model::contact_sync::local_only(&app.session.mailbox, c)
+}
+
+/// An entry's label and tooltip, marked when the server has no place for it: the label says it
+/// stays here, the tooltip (`why`) says why.
+fn marked(label: &str, tip: &str, why: Option<&str>) -> (String, String) {
+    match why {
+        None => (label.to_string(), tip.to_string()),
+        Some(why) => {
+            let mark = tl!("On this computer only");
+            let label = if label.is_empty() { mark.to_string() } else { format!("{label} · {mark}") };
+            (label, if tip.is_empty() { why.to_string() } else { format!("{tip}\n{why}") })
+        }
+    }
+}
+
 /// E-mail addresses (a click writes to that address) and phone numbers.
 fn card_contact(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
-    let emails: Vec<_> = c.emails.iter().filter(|e| !e.value.trim().is_empty()).take(100).collect();
-    let phones: Vec<_> = c.phones.iter().filter(|p| !p.value.trim().is_empty()).take(100).collect();
+    let emails: Vec<_> = c.emails.iter().enumerate().filter(|(_, e)| !e.value.trim().is_empty()).take(100).collect();
+    let phones: Vec<_> = c.phones.iter().enumerate().filter(|(_, p)| !p.value.trim().is_empty()).take(100).collect();
     if emails.is_empty() && phones.is_empty() {
         return;
     }
+    let local = local_only(app, c);
     section(ui, tl!("Contact"));
-    for e in emails {
+    for (at, e) in emails {
         let shown = one_line(&e.value, 300);
-        let tip = crate::i18n::fmt(tl!("Write to {address}"), &[("address", &shown)]);
-        if field(ui, "mail", &shown, &label_text(&e.label), true).on_hover_text(tip).clicked() {
+        let why = local
+            .emails
+            .binary_search(&at)
+            .is_ok()
+            .then(|| tl!("Microsoft keeps three email addresses for a contact; this one stays on this computer."));
+        let (label, tip) = marked(&label_text(&e.label), &crate::i18n::fmt(tl!("Write to {address}"), &[("address", &shown)]), why);
+        if field(ui, "mail", &shown, &label, true).on_hover_text(tip).clicked() {
             // The address as it is stored, not as it is shown.
             let _ = app.run("mail.new", json!({"to": recipient(c, &e.value)}));
         }
     }
-    for p in phones {
-        field(ui, "phone", &one_line(&p.value, 200), &label_text(&p.label), false);
+    for (at, p) in phones {
+        let why = local
+            .phones
+            .binary_search(&at)
+            .is_ok()
+            .then(|| tl!("Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."));
+        let (label, tip) = marked(&label_text(&p.label), "", why);
+        let line = field(ui, "phone", &one_line(&p.value, 200), &label, false);
+        if !tip.is_empty() {
+            line.on_hover_text(tip);
+        }
     }
 }
 
 /// Postal addresses and websites.
-fn card_places(ui: &mut Ui, c: &Contact) {
-    let addresses: Vec<_> = c.addresses.iter().filter(|a| !a.is_empty()).take(100).collect();
+fn card_places(app: &MailApp, ui: &mut Ui, c: &Contact) {
+    let local = local_only(app, c);
+    let addresses: Vec<_> = c.addresses.iter().enumerate().filter(|(_, a)| !a.is_empty()).take(100).collect();
     if !addresses.is_empty() {
         section(ui, tl!("Address"));
-        for a in addresses {
+        for (at, a) in addresses {
             let line = one_line(&a.one_line(), 500);
-            field(ui, "address", &line, &label_text(&a.label), false).on_hover_text(line.as_str());
+            let why = local
+                .addresses
+                .binary_search(&at)
+                .is_ok()
+                .then(|| tl!("Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."));
+            let (label, tip) = marked(&label_text(&a.label), &line, why);
+            field(ui, "address", &line, &label, false).on_hover_text(tip);
         }
     }
-    let sites: Vec<&str> = c.websites.iter().map(|w| w.trim()).filter(|w| !w.is_empty()).take(100).collect();
+    let sites: Vec<(usize, &str)> = c.websites.iter().map(|w| w.trim()).enumerate().filter(|(_, w)| !w.is_empty()).take(100).collect();
     if !sites.is_empty() {
         section(ui, tl!("Websites"));
-        for site in sites {
+        for (at, site) in sites {
             let shown = one_line(site, 300);
+            let why = local
+                .websites
+                .binary_search(&at)
+                .is_ok()
+                .then(|| tl!("Microsoft keeps one web page for a contact; this one stays on this computer."));
             // Only plain web addresses open; anything else is text. What opens is the address as
             // it is stored, not as it is shown.
             match web_target(site) {
                 Some(url) => {
-                    if field(ui, "web", &shown, "", true).on_hover_text(one_line(&url, 300)).clicked() {
+                    let (label, tip) = marked("", &one_line(&url, 300), why);
+                    if field(ui, "web", &shown, &label, true).on_hover_text(tip).clicked() {
                         ui.ctx().open_url(egui::OpenUrl::new_tab(url));
                     }
                 }
                 None => {
-                    field(ui, "web", &shown, "", false);
+                    let (label, tip) = marked("", "", why);
+                    let line = field(ui, "web", &shown, &label, false);
+                    if !tip.is_empty() {
+                        line.on_hover_text(tip);
+                    }
                 }
             }
         }

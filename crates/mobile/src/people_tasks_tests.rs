@@ -215,6 +215,22 @@ fn a_new_person_goes_to_the_accounts_contacts_folder_made_when_first_used_and_wa
     assert_eq!((here.folder, here.folder_name.as_str(), here.folder_kind.as_str(), here.not_sent), (0, "", "", false));
 }
 
+/// #1917: the card marks what the account's server has no place for; nothing is refused for it,
+/// and on this phone nothing is marked.
+#[test]
+fn what_the_server_has_no_place_for_is_marked_and_kept() {
+    let (core, _) = core_with_account();
+    let emails: Vec<_> = (1..=4).map(|n| json!({"label": "work", "value": format!("ada{n}@example.org")})).collect();
+    let marks = |id: &serde_json::Value| {
+        let person = block_on(core.person(id["id"].as_u64().unwrap())).unwrap();
+        person.emails.iter().map(|e| e.local_only).collect::<Vec<_>>()
+    };
+    let theirs = exec(&core, "people.new", json!({"first": "Ada", "emails": emails})).unwrap();
+    assert_eq!(marks(&theirs), [false, false, false, true]);
+    let here = exec(&core, "people.new", json!({"first": "Bea", "emails": emails, "folder": 0})).unwrap();
+    assert_eq!(marks(&here), [false; 4]);
+}
+
 #[test]
 fn a_read_only_folder_is_named_on_the_card_and_not_offered_for_a_new_person() {
     let (core, grace) = core_with_read_only_folder();

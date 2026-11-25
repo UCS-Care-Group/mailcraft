@@ -864,6 +864,15 @@ impl Account {
         self.keeps_tasks()
     }
 
+    /// Whether its contacts are kept through Microsoft Graph, which has only so many places for
+    /// a contact's addresses and numbers (#1917): it keeps contacts and signs in with Microsoft.
+    /// Never a JMAP or Exchange server account, whatever else comes to keep contacts.
+    pub fn contacts_in_graph(&self) -> bool {
+        self.keeps_contacts()
+            && !matches!(self.kind, AccountKind::Jmap | AccountKind::Exchange)
+            && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
