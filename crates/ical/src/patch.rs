@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An event changed here, written into the document a calendar server sent (#209 D6, ADR 0026):
+//! An event changed here, written into the document a calendar server sent (#209 D6):
 //! only the properties MailCraft changes are replaced; every other line of the document (alarms,
 //! attachments, another program's own properties, the zones it names) is kept as it came, folded
 //! as it came (RFC 5545 section 3.1).
