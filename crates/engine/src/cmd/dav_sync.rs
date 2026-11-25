@@ -41,7 +41,7 @@ use mailcraft_model::remote::MAX_KEY;
 use mailcraft_model::remote::{EventChangeKind, MAX_EVENT_OPS};
 use mailcraft_model::{
     Calendar, DavAsk, DavAskCollection, DavChange, DavCollectionState, DavCreate, DavCreated, DavDelete, DavDeleted, DavDownload, DavGone, DavKnown,
-    DavListing, DavProblem, DavPut, DavRead, DavReadState, DavServer, Event, Id, Origin, Rights, origin_of,
+    DavListing, DavProblem, DavPut, DavPutOver, DavRead, DavReadState, DavServer, DavUpdate, DavUpdated, Event, Id, Origin, Rights, origin_of,
 };
 use serde_json::{Value, json};
 
@@ -173,6 +173,65 @@ fn deletes(s: &Session, account: Id, collections: &[DavAskCollection]) -> Vec<Da
         out.push(DavDelete { collection: collection.href.clone(), href: change.remote.clone(), etag: base.origin.change_key.clone() });
     }
     out
+}
+
+/// The events of the account's calendar servers changed here (#209 D6), each as the server's own
+/// document with what changed written into it ([`mailcraft_ical::patch_event`]), to be put over
+/// the resource only while it has the ETag the change was made on; [`MAX_EVENT_OPS`] at most.
+// shortcut: a change whose document isn't kept here (no mailbox file, or let go of for room) waits;
+// read the document from the server first when that is seen to happen.
+fn updates(s: &Session, account: Id, collections: &[DavAskCollection]) -> Vec<DavUpdate> {
+    let Some(file) = s.path.as_deref() else { return Vec::new() };
+    let now = s.now();
+    let mut out = Vec::new();
+    for change in s.mailbox.event_changes.iter().filter(|c| c.account == account && c.kind == EventChangeKind::Update && c.retry_at <= now) {
+        if out.len() >= MAX_EVENT_OPS {
+            break;
+        }
+        let Some(event) = s.mailbox.event(change.event).filter(|e| e.origin.id == change.remote) else { continue };
+        let Some(collection) = collections.iter().find(|c| within(&c.href, &change.remote)) else { continue };
+        let etag = change.base.as_deref().map(|b| b.origin.change_key.clone()).unwrap_or_else(|| event.origin.change_key.clone());
+        if etag.is_empty() || !super::remote::dav_addable(&s.mailbox, event.calendar) {
+            continue;
+        }
+        let Some(raw) = crate::dav_raw::read(file, account, &change.remote) else { continue };
+        let opts = mailcraft_ical::WriteOptions { method: String::new(), now };
+        let fresh = mailcraft_ical::write_in(&[event], &[], &opts, Some(s.zone()));
+        let Some(body) = mailcraft_ical::patch_event(&raw, &fresh) else { continue };
+        out.push(DavUpdate { collection: collection.href.clone(), href: change.remote.clone(), etag, body });
+    }
+    out
+}
+
+/// What the server made of the changes the request gave it. Taken: nothing more waits; the
+/// event keeps the ETag it was read with, so the next read, seeing the server's new one, brings
+/// the document as the server keeps it now. Changed there since: given up, the owner is told,
+/// and the next read brings the server's version the same way. Refused: the server keeps what
+/// it had, which is the event as it was before the change: put back here, and the owner is told.
+fn take_updated(s: &mut Session, account: Id, updated: &[DavUpdated], took: &mut Took) -> bool {
+    let mut changed = false;
+    for answer in updated.iter().take(MAX_EVENT_OPS) {
+        let at = s.mailbox.event_changes.iter().position(|c| c.account == account && c.kind == EventChangeKind::Update && c.remote == answer.href);
+        let Some(at) = at else { continue };
+        if answer.outcome == DavPutOver::NotNow {
+            continue;
+        }
+        let change = s.mailbox.event_changes.remove(at);
+        if answer.outcome != DavPutOver::Done {
+            took.kept.push(change.base.as_ref().map(|b| b.title.clone()).unwrap_or_default());
+        }
+        if answer.outcome == DavPutOver::Refused
+            && let Some(base) = change.base
+            && let Ok(e) = s.mailbox.event_mut(change.event)
+            && e.origin.id == answer.href
+        {
+            let id = e.id;
+            *e = *base;
+            e.id = id;
+        }
+        changed = true;
+    }
+    changed
 }
 
 /// What the server made of the deletions the request gave it. Deleted (or gone already): nothing
@@ -388,6 +447,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     }
     let creates = creates(s, account.id, &collections);
     let deletes = deletes(s, account.id, &collections);
+    let updates = updates(s, account.id, &collections);
     let ask = DavAsk {
         account: account.id,
         email: account.email.trim().to_string(),
@@ -401,6 +461,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         generation: s.dav_generation.get(&account.id).copied().unwrap_or(0),
         creates,
         deletes,
+        updates,
     };
     // (After every other, even within one second.)
     let turn = now.max(s.dav_asked.values().copied().max().map_or(i64::MIN, |last| last.saturating_add(1)));
@@ -518,6 +579,7 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
     }
     changed |= take_created(s, account, &download.created, &mut took);
     changed |= take_deleted(s, account, &download.deleted, &mut took);
+    changed |= take_updated(s, account, &download.updated, &mut took);
     // (Counted once: each read adds to it. What waits to be sent is looked at once, too.)
     let mut room = s
         .mailbox

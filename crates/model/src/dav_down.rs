@@ -95,6 +95,55 @@ pub struct DavAsk {
     /// Events deleted here that the server is to delete too, after the creates and before the
     /// read: each only while it is as it was last read (`If-Match`).
     pub deletes: Vec<DavDelete>,
+    /// Events changed here: each document put over the resource only while it still has the
+    /// ETag it was read with (`If-Match`), after the creates and before the read.
+    pub updates: Vec<DavUpdate>,
+}
+
+/// A resource to put `body` over, only while it still has the ETag `etag`. Its `Debug` shows
+/// neither address nor document.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavUpdate {
+    pub collection: String,
+    pub href: String,
+    pub etag: String,
+    pub body: String,
+}
+
+impl std::fmt::Debug for DavUpdate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DavUpdate")
+    }
+}
+
+/// What a server made of a [`DavUpdate`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavPutOver {
+    /// It took the document.
+    Done,
+    /// It changed there since it was read (412), or is gone: the server's stays, and is read again.
+    Conflict,
+    /// It won't take it (403 and the like): the server's stays, and is read again.
+    Refused,
+    /// Not now: asked again at the next run.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavUpdate`], by its address. Its `Debug` shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavUpdated {
+    pub href: String,
+    pub outcome: DavPutOver,
+}
+
+impl std::fmt::Debug for DavUpdated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavUpdated").field("outcome", &self.outcome).finish()
+    }
 }
 
 /// A resource to delete from `collection`, only while it still has the ETag `etag`. Its `Debug`
@@ -341,6 +390,8 @@ pub struct DavDownload {
     pub created: Vec<DavCreated>,
     /// What became of the resources the request gave to be deleted ([`DavAsk::deletes`]).
     pub deleted: Vec<DavDeleted>,
+    /// What became of the documents the request gave to be put over ([`DavAsk::updates`]).
+    pub updated: Vec<DavUpdated>,
 }
 
 impl std::fmt::Debug for DavDownload {

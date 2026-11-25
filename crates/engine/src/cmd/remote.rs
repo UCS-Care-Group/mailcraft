@@ -878,15 +878,23 @@ pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> 
                 ))
             }
         }
-        // A calendar on a calendar server (#209): read down, whatever rights the server gave,
-        // because this version sends nothing up. The owner's rights are not the reason.
+        // A calendar on a calendar server (#209): one the server lets new events into takes
+        // what [`writable_for_new`] and [`dav_changeable`] allow (D6), and nothing else yet; one
+        // it doesn't is read only.
         Some(c)
             if !c.can_edit()
                 && keeper(mailbox, &c.origin)
                     .and_then(|a| a.dav.as_ref())
                     .is_some_and(|d| d.collections.iter().any(|s| !s.contacts && s.href == c.origin.id)) =>
         {
-            Err(failed!("The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet.", name = c.name))
+            if dav_addable(mailbox, calendar) {
+                Err(failed!("The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet.", name = c.name))
+            } else {
+                Err(failed!(
+                    "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it.",
+                    name = c.name
+                ))
+            }
         }
         Some(c) if !c.can_edit() && keeper(mailbox, &c.origin).is_some() => {
             if c.rights == Rights::FreeBusy {
@@ -912,6 +920,27 @@ pub(crate) fn dav_addable(mailbox: &Mailbox, calendar: Id) -> bool {
                 && !k.read_only
                 && (k.components.is_empty() || k.components.iter().any(|x| x.eq_ignore_ascii_case("VEVENT")))
         })
+}
+
+/// Whether a calendar server's event may become `after` from here (#209 D6): only its title,
+/// time, place and description, written into the document the server sent, which keeps
+/// everything else as it was; not a series, nor a meeting (the server could send updates by
+/// itself), nor a move to another calendar.
+pub(crate) fn dav_changeable(before: &Event, after: &Event) -> Result<(), CmdError> {
+    if before.recurrence.is_some() || !before.origin.series.is_empty() || !before.attendees.is_empty() || before.origin.guest {
+        return Err(fail("A series or a meeting on a calendar server can't be changed from here yet: change it on the server."));
+    }
+    let mut same = after.clone();
+    (same.title, same.location, same.description) = (before.title.clone(), before.location.clone(), before.description.clone());
+    (same.start, same.end, same.all_day) = (before.start, before.end, before.all_day);
+    (same.start_zone, same.end_zone) = (before.start_zone.clone(), before.end_zone.clone());
+    (same.start_repeated, same.end_repeated) = (before.start_repeated, before.end_repeated);
+    if same != *before {
+        return Err(fail(
+            "On a calendar server only an appointment's title, time, location and description can be changed from here yet: change the rest on the server.",
+        ));
+    }
+    Ok(())
 }
 
 /// [`writable`] for an event about to be made in `calendar`: also a CalDAV calendar new events
@@ -953,6 +982,9 @@ pub(crate) fn note_changed(mailbox: &mut Mailbox, before: &Event, offset_at: &dy
     // One the server doesn't have yet is sent as it is when it goes.
     if now.origin.id.is_empty() {
         return Ok(());
+    }
+    if dav_addable(mailbox, before.calendar) {
+        dav_changeable(before, &now)?;
     }
     let waiting = |change: &EventChange| change.kind == EventChangeKind::Update && change.account == account && change.remote == now.origin.id;
     match mailbox.event_changes.iter().position(waiting) {

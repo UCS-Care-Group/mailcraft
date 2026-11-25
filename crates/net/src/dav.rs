@@ -58,8 +58,8 @@ use mailcraft_dav::request::{Endpoint, Kind, MAX_MULTIGET, MAX_PAGE, RequestErro
 use mailcraft_dav::status::{self, Verdict};
 use mailcraft_model::dav_down::{MAX_CHANGES, MAX_READ, MAX_RESOURCES};
 use mailcraft_model::{
-    DavAsk, DavAskCollection, DavCalendar, DavChange, DavCreated, DavDeleted, DavDownload, DavGone, DavListing, DavProblem, DavPut, DavRead,
-    DavReadState, DavServer, Rgb,
+    DavAsk, DavAskCollection, DavCalendar, DavChange, DavCreated, DavDeleted, DavDownload, DavGone, DavListing, DavProblem, DavPut, DavPutOver,
+    DavRead, DavReadState, DavServer, DavUpdated, Rgb,
 };
 
 use crate::NetError;
@@ -422,9 +422,49 @@ impl Run<'_> {
         Ok(())
     }
 
+    /// The documents of events changed here, put over their resources after the deletes and before
+    /// the read (#209 D6): each only while it has the ETag it was read with (`If-Match`), never
+    /// through a redirect.
+    fn updates(&mut self, ask: &DavAsk, out: &mut DavDownload) -> Result<(), Fail> {
+        for update in ask.updates.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
+            let mut answer = DavUpdated { href: update.href.clone(), ..Default::default() };
+            let (collection, href, etag, body) = (update.collection.as_str(), update.href.as_str(), update.etag.as_str(), update.body.as_str());
+            let Some(site) = self.site_of(href) else {
+                self.skip(1);
+                out.updated.push(answer);
+                continue;
+            };
+            let build = |e: &Endpoint, target: &str| {
+                if target != href {
+                    return Err(RequestError::Invalid);
+                }
+                e.put_change(Kind::Calendar, collection, href, etag, body)
+            };
+            match self.call(site, href, &build) {
+                Ok(response) => {
+                    answer.outcome = match status::classify(&response, self.now) {
+                        Verdict::Done => DavPutOver::Done,
+                        Verdict::PreconditionFailed | Verdict::Gone => DavPutOver::Conflict,
+                        Verdict::Forbidden | Verdict::InsufficientStorage | Verdict::PreconditionRequired => DavPutOver::Refused,
+                        Verdict::Other(code) if (400..500).contains(&code) => DavPutOver::Refused,
+                        _ => DavPutOver::NotNow,
+                    };
+                    out.updated.push(answer);
+                }
+                Err(Fail::Stop(problem)) => {
+                    out.updated.push(answer);
+                    return Err(Fail::Stop(problem));
+                }
+                Err(_) => out.updated.push(answer),
+            }
+        }
+        Ok(())
+    }
+
     fn work(&mut self, ask: &DavAsk, homes: &[&String], left_out: bool, out: &mut DavDownload) -> Result<(), Fail> {
         self.put_creates(ask, out)?;
         self.deletes(ask, out)?;
+        self.updates(ask, out)?;
         // The calendars of the homes, when they are to be listed.
         let mut found: Vec<Found> = Vec::new();
         let mut stopped = None;

@@ -79,7 +79,7 @@ pub use calendar::{
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use dav_down::{
     DavAsk, DavAskCollection, DavCalendar, DavChange, DavCreate, DavCreated, DavDelete, DavDeleted, DavDownload, DavGone, DavKnown, DavListing,
-    DavProblem, DavPut, DavRead, DavReadState,
+    DavProblem, DavPut, DavPutOver, DavRead, DavReadState, DavUpdate, DavUpdated,
 };
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};

@@ -23,6 +23,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod lines;
+mod patch;
 mod read;
 mod rrule;
 #[cfg(test)]
@@ -38,6 +39,7 @@ mod zones;
 use mailcraft_model::{Event, Task};
 use mailcraft_time::Timestamp;
 
+pub use patch::patch_event;
 pub use read::{parse, parse_events};
 pub use rrule::{format_rrule, parse_rrule};
 pub use write::{write, write_in};
