@@ -1244,7 +1244,7 @@ msgid "Add Reminder…"
 msgstr "Aggiungi promemoria…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Add Rule"
 msgstr "Aggiungi regola"
@@ -3547,7 +3547,7 @@ msgid "Change email address"
 msgstr "Modifica l’indirizzo e-mail"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Change rule"
 msgstr "Modifica regola"
@@ -11130,6 +11130,12 @@ msgstr "Nuova cassetta postale"
 msgid "New Meeting"
 msgstr "Nuova riunione"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Rule…"
+msgstr "Nuova regola…"
+
 #. command label
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -11215,7 +11221,7 @@ msgid "New person"
 msgstr "Nuova persona"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "New rule"
 msgstr "Nuova regola"
@@ -15050,7 +15056,7 @@ msgid "Saturday"
 msgstr "sabato"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/rules_editors.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Salva"

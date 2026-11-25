@@ -1248,7 +1248,7 @@ msgid "Add Reminder…"
 msgstr "Emlékeztető hozzáadása…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Add Rule"
 msgstr "Szabály hozzáadása"
@@ -3551,7 +3551,7 @@ msgid "Change email address"
 msgstr "e-mail cím módosítása"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Change rule"
 msgstr "Szabály módosítása"
@@ -11127,6 +11127,12 @@ msgstr "Új postafiók"
 msgid "New Meeting"
 msgstr "Új értekezlet"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Rule…"
+msgstr "Új szabály…"
+
 #. command label
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -11212,7 +11218,7 @@ msgid "New person"
 msgstr "Új személy"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "New rule"
 msgstr "Új szabály"
@@ -15054,7 +15060,7 @@ msgid "Saturday"
 msgstr "szombat"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/rules_editors.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Mentés"

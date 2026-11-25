@@ -1035,7 +1035,7 @@ msgid "Add Reminder…"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 msgid "Add Rule"
 msgstr ""
 
@@ -2953,7 +2953,7 @@ msgid "Change email address"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 msgid "Change rule"
 msgstr ""
 
@@ -9236,6 +9236,11 @@ msgstr ""
 msgid "New Meeting"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "New Rule…"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/rules_sieve.rs
 msgid "New Sieve Rule"
@@ -9307,7 +9312,7 @@ msgid "New person"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 msgid "New rule"
 msgstr ""
 
@@ -12495,7 +12500,7 @@ msgid "Saturday"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/rules_editors.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 msgid "Save"
 msgstr ""
 

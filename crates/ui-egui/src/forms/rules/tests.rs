@@ -20,7 +20,7 @@ fn folder_id(s: &Session, path: &str) -> Id {
 fn a_new_rule_is_spelled_out_for_the_command() {
     let mut s = session();
     let mut f = RulesForm::new(&s, &json!({}));
-    // The sample has a rule, so the builder starts folded, with one condition and a move to Archive.
+    // The builder starts closed, with one condition and a move to Archive.
     assert!(!f.open && !f.lacks().is_none());
     assert_eq!((f.conds.len(), f.acts.len(), f.first_folder, f.first_category.as_str()), (1, 1, folder_id(&s, "Archive"), "Red category"));
     let receipts = folder_id(&s, "Receipts");
@@ -110,8 +110,12 @@ fn add_waits_for_what_a_rule_needs() {
     assert!(f.lacks().is_none());
     f.name = " ".into();
     assert!(!f.lacks().is_none());
-    // On an empty mailbox the builder is unfolded: there is nothing else to show.
-    assert!(RulesForm::new(&Session::empty(), &json!({})).open);
+    // On an empty mailbox the dialog opens on its (empty) list, as Outlook's does: New Rule…
+    // opens the builder.
+    let mut f = RulesForm::new(&Session::empty(), &json!({}));
+    assert!(!f.open && !f.modal());
+    f.new_rule();
+    assert!(f.open && f.modal() && f.focus);
 }
 
 #[test]

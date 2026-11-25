@@ -1225,7 +1225,7 @@ msgid "Add Reminder…"
 msgstr "Herinnering toevoegen…"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Add Rule"
 msgstr "Regel toevoegen"
@@ -3455,7 +3455,7 @@ msgid "Change email address"
 msgstr "Wijzig e-mailadres"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "Change rule"
 msgstr "Regel wijzigen"
@@ -10761,6 +10761,12 @@ msgstr "Nieuw postvak"
 msgid "New Meeting"
 msgstr "Nieuwe vergadering"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Rule…"
+msgstr "Nieuwe regel…"
+
 #. command label
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -10845,7 +10851,7 @@ msgid "New person"
 msgstr "Nieuwe persoon"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms/rules_editors.rs
 #, fuzzy
 msgid "New rule"
 msgstr "Nieuwe regel"
@@ -14587,7 +14593,7 @@ msgid "Saturday"
 msgstr "zaterdag"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/rules_editors.rs crates/ui-egui/src/sieve_editor.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Opslaan"

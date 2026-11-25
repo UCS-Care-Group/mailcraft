@@ -195,7 +195,7 @@ impl Form {
     /// Whether the keys are for something of the form's own that is open over it (a dialog), or
     /// the form waits for a question to be answered: its window leaves the keys alone.
     pub(crate) fn engaged(&self) -> bool {
-        self.event().is_some_and(|f| f.modal() || f.waiting())
+        self.modal() || self.waiting()
     }
 
     /// Whether a command of the form waits for the answer to a question the main window asks.
@@ -203,9 +203,14 @@ impl Form {
         self.event().is_some_and(event::EventForm::waiting)
     }
 
-    /// Whether the form has a dialog of its own open over it (the recurrence editor).
+    /// Whether the form has a dialog of its own open over it (the recurrence editor; in Rules
+    /// and Alerts, the rule builder or the Sieve editor).
     pub(crate) fn modal(&self) -> bool {
-        self.event().is_some_and(event::EventForm::modal)
+        match self {
+            Form::Event(f) => f.modal(),
+            Form::Rules(f) => f.modal(),
+            _ => false,
+        }
     }
 }
 
@@ -4495,19 +4500,20 @@ mod categories_tests;
 mod junk;
 #[cfg(test)]
 mod junk_tests;
+mod rules_editors;
 #[cfg(test)]
 mod task_place_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 pub(crate) mod rules {
-    use egui::{Align2, Rect, Sense, Ui, pos2, vec2};
+    use egui::{Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_engine::cmd::rules::{NotEditable, NotOnServer, by_address, cannot_edit, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
     use mailcraft_model::{Action, Condition, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
 
-    use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
+    use super::kit::{Pass, close_button, error, error_room, row, shown, tall_row};
     use crate::MailApp;
     use crate::theme::{paint_clipped, regular, semibold};
     use crate::widgets::icon_button;
@@ -4516,6 +4522,19 @@ pub(crate) mod rules {
     const MAX_PARTS: usize = 5;
     /// The width of a rule's button (an icon of 14 points, as `icon_button` lays it out).
     const BUTTON: f32 = 22.0;
+    /// What the Rules dialog takes of the window's height besides its list and what is over it:
+    /// its title, Close, its edges, and the room round it.
+    const LIST_AROUND: f32 = 200.0;
+    /// The least height of the list, however short the window.
+    const MIN_LIST: f32 = 120.0;
+
+    /// The height the list of rules may take before it scrolls, in a window `height` points high
+    /// with `used` points of the dialog over and under the list: what is left, so that the dialog
+    /// stays within the window, and never less than [`MIN_LIST`].
+    pub(crate) fn list_room(height: f32, used: f32) -> f32 {
+        let room = height - LIST_AROUND - used;
+        if room.is_finite() { room.max(MIN_LIST) } else { MIN_LIST }
+    }
 
     /// What a condition looks at, much in the order of Outlook's Rules Wizard. Each can be an
     /// exception too.
@@ -5493,8 +5512,8 @@ pub(crate) mod rules {
     pub struct RulesForm {
         /// The account whose rules are shown, and whose arriving mail a new rule is for.
         account: Id,
-        /// The New rule builder is unfolded.
-        open: bool,
+        /// The rule builder is open, in a dialog of its own over the list.
+        pub(crate) open: bool,
         name: String,
         conds: Vec<Cond>,
         /// The exceptions: any one of them holding leaves the message alone.
@@ -5520,27 +5539,29 @@ pub(crate) mod rules {
         first_category: String,
         /// How many messages the last Run Rules Now matched.
         ran: Option<u64>,
-        error: String,
+        pub(super) error: String,
         focus: bool,
         /// The builder changes this rule (Change Rule) rather than making one: its id and its
         /// account (0 for a rule for every account's mail, which stays one).
-        editing: Option<(Id, Id)>,
-        /// The Sieve rule editor, in the builder's place, when it is open (Advanced… › New Sieve
-        /// rule, or Change on a Sieve rule, #9999).
+        pub(super) editing: Option<(Id, Id)>,
+        /// The Sieve rule editor, in a dialog of its own over the list, when it is open (Advanced…
+        /// › New Sieve rule, or Change on a Sieve rule, #9999). Never open with the builder.
         pub(crate) sieve: Option<crate::sieve_editor::SieveEditor>,
         /// The builder makes or changes a filter of the owner's own Sieve script, as the webmail
         /// writes it (#9999): the digest of the script as it was read when it opened.
         webmail: Option<String>,
+        /// The list's height as shown, and its whole height, at the last frame (points).
+        pub(crate) list: (u32, u32),
     }
 
     impl RulesForm {
-        /// The dialog, with the builder unfolded when there are no rules yet. With a `folder`, as
-        /// Always Move Messages From This Sender opens it, the builder is unfolded and filled in to
-        /// move the mail of the selected message's sender (or message `id`'s) there. With `edit`,
-        /// it is open on that rule to change it (Change Rule), when it can be.
+        /// The dialog, on the list of rules. With a `folder`, as Always Move Messages From This
+        /// Sender opens it, the builder is open over it, filled in to move the mail of the
+        /// selected message's sender (or message `id`'s) there. With `edit`, the builder (or the
+        /// Sieve editor) is open on that rule to change it (Change Rule), when it can be.
         pub fn new(s: &Session, params: &Value) -> RulesForm {
             let first_category = s.mailbox.every_category().into_iter().next().map(|c| c.name).unwrap_or_default();
-            let mut f = RulesForm { open: s.mailbox.rules.is_empty(), first_category, focus: true, ..Default::default() };
+            let mut f = RulesForm { first_category, focus: true, ..Default::default() };
             f.choose(&s.mailbox, account_in_view(s));
             f.reset();
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
@@ -5799,13 +5820,36 @@ pub(crate) mod rules {
             (!acts).then_some(tl!("Move to folder and Copy to folder need a folder; Categorize needs a category."))
         }
 
-        /// Lay out the form. Returns `true` when the dialog should close.
+        /// Whether a dialog of the list's own is open over it (the rule builder, or the Sieve
+        /// editor): the keys are that dialog's.
+        pub(crate) fn modal(&self) -> bool {
+            self.open || self.sieve.is_some()
+        }
+
+        /// Open the rule builder on a new rule of the account shown.
+        fn new_rule(&mut self) {
+            self.reset();
+            self.sieve = None;
+            self.open = true;
+            self.focus = true;
+            self.error.clear();
+        }
+
+        /// Close the rule builder, and start it over for the next time.
+        fn close_builder(&mut self) {
+            self.reset();
+            self.open = false;
+        }
+
+        /// Lay out the form: whose rules, the buttons over the list, what keeps the rules off the
+        /// server, and the list, which scrolls within the dialog's height. The builder and the Sieve
+        /// editor open in dialogs of their own over it ([`super::rules_editors`]). Returns `true`
+        /// when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             // A held Space on a rule's button is one press: its repeats would reach the button
             // that takes its place, the next rule's, and delete or move that one too.
             ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
-            let mut pass = Pass::new(ui, &app.session, &mut false);
-            let t = pass.t;
+            let t = crate::theme::Tokens::get(ui.ctx());
             let accounts = rule_accounts(&app.session.mailbox);
             if !accounts.iter().any(|(id, _)| *id == self.account)
                 && let Some(first) = first_with_rules(&app.session.mailbox)
@@ -5837,12 +5881,12 @@ pub(crate) mod rules {
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
             let held = app.rules_held(account);
             let gone = if held { mb.rule_gone.iter().filter(|g| g.account == account && !g.id.is_empty()).count() } else { 0 };
-            // Whether the rule being made could be kept on the server, and why not (an account on
-            // this computer alone has none).
-            let place = mb
-                .account(self.editing.map_or(account, |(_, a)| a))
-                .filter(|a| self.open && a.kind != mailcraft_model::AccountKind::Local)
-                .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
+            // The rules of a Sieve script MailCraft didn't write, as the server runs them: the
+            // owner's, shown and never changed (#9999); a webmail's of the RainLoop kind has its
+            // filters changed here in its own shape.
+            let elsewhere = app.session.sieve.get(&account).and_then(|k| k.elsewhere.clone()).filter(|_| on_server);
+            let webmail = elsewhere.as_ref().is_some_and(|e| !e.ours && mailcraft_engine::cmd::rules_webmail::takes_new(&app.session, account));
+            let busy = webmail && app.sieve_own_busy(account);
             // The Sieve rule editor: the server's answer, and the check here once typing pauses.
             if let Some(editor) = self.sieve.as_mut() {
                 editor.tick(app, ui.ctx());
@@ -5854,193 +5898,179 @@ pub(crate) mod rules {
             let advanced = crate::sieve_editor::offered(app, account);
             // The owner's own script the server runs, to edit whole (#9999).
             let own_script = mailcraft_engine::cmd::sieve_own::own_script(&app.session, account).map(|(name, _)| name.to_string());
-            let mut sieve_asks = None;
+            let mut new_rule = false;
             let mut new_sieve = false;
             let mut edit_own = false;
             let mut new_filter = false;
             let mut run: Option<(&'static str, Value)> = None;
             let mut replace_sieve = false;
             let mut chosen = None;
-            let mut add = false;
             let mut change = None;
-            let mut cancel = false;
-            body(ui, |ui| {
-                // Whose rules: Outlook's "Apply changes to this folder".
-                if accounts.len() > 1 {
-                    row(ui, tl!("Rules for"), |ui| {
-                        let current = accounts.iter().find(|(id, _)| *id == account).map(|(_, name)| shown(name, 120)).unwrap_or_default();
-                        egui::ComboBox::from_id_salt("rules_account").width(260.0).selected_text(current).truncate().show_ui(ui, |ui| {
-                            for (id, name) in &accounts {
-                                if ui.selectable_label(*id == account, shown(name, 120)).clicked() {
-                                    chosen = Some(*id);
-                                }
+            // Whose rules: Outlook's "Apply changes to this folder".
+            if accounts.len() > 1 {
+                row(ui, tl!("Rules for"), |ui| {
+                    let current = accounts.iter().find(|(id, _)| *id == account).map(|(_, name)| shown(name, 120)).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("rules_account").width(260.0).selected_text(current).truncate().show_ui(ui, |ui| {
+                        for (id, name) in &accounts {
+                            if ui.selectable_label(*id == account, shown(name, 120)).clicked() {
+                                chosen = Some(*id);
                             }
-                        });
+                        }
                     });
-                    ui.add_space(4.0);
+                });
+            }
+            // The buttons, over the list: a new rule (or filter), Run Rules Now, Advanced…, and
+            // what the last run changed.
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(tl!("New Rule…")).clicked() {
+                    new_rule = true;
                 }
-                let mark_of = |id: Id| marks.iter().find(|(m, _)| *m == id).map(|(_, m)| m.as_str()).unwrap_or("");
-                // What keeps an IMAP account's server from running them, and the way past a script
-                // changed elsewhere: replacing it, which only the owner's click does (#9999).
-                if let Some((note, replace)) = &sieve_note {
-                    ui.label(egui::RichText::new(note.as_str()).color(t.text_dim).size(11.5));
-                    if *replace && ui.button(tl!("Replace with MailCraft's")).clicked() {
-                        replace_sieve = true;
+                if webmail {
+                    let new = ui.add_enabled(!busy, egui::Button::new(tl!("New Filter…")));
+                    if new.on_hover_text(tl!("A new filter in your webmail's Sieve script, in the format your webmail uses")).clicked() {
+                        new_filter = true;
                     }
-                    ui.add_space(4.0);
                 }
-                if on_server {
-                    heading(ui, t, tl!("On the server"), tl!("Run by the server as mail arrives, whether MailCraft is open or not"));
-                    for (i, r) in there.iter().enumerate() {
-                        // A rule waiting to go stands after those the server has, and moves among them once it is there.
-                        let up = i > 0 && there.get(i - 1).is_some_and(|p| p.on_server() == r.on_server());
-                        let down = there.get(i + 1).is_some_and(|n| n.on_server() == r.on_server());
-                        rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run, &mut change, None);
-                    }
-                    if there.is_empty() {
-                        ui.label(egui::RichText::new(tl!("None yet.")).color(t.text_dim).size(11.5));
-                    }
-                    // Deleted here, and still run by the server while it isn't told.
-                    if gone > 0 {
-                        let said = tln!(
-                            gone,
-                            "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).",
-                            "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
-                        );
-                        ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
-                    }
-                    ui.add_space(6.0);
-                    // The rules of a Sieve script MailCraft didn't write, as the server runs them:
-                    // the owner's, shown and never changed (#9999).
-                    if let Some(e) = app.session.sieve.get(&account).and_then(|k| k.elsewhere.clone()) {
-                        let title = if e.ours {
-                            tl!("In MailCraft's Sieve script, as it was changed elsewhere").to_string()
-                        } else {
-                            crate::i18n::fmt(tl!("In your Sieve script \"{name}\""), &[("name", &shown(&e.script, 80))])
-                        };
-                        // A webmail's of the RainLoop kind: its filters are changed here in its own shape (#9999).
-                        let webmail = !e.ours && mailcraft_engine::cmd::rules_webmail::takes_new(&app.session, account);
-                        let busy = webmail && app.sieve_own_busy(account);
-                        let tip = if e.ours {
-                            tl!("Made in another program: MailCraft shows these rules and never changes them")
-                        } else if webmail {
-                            tl!("Edited here in the format your webmail uses")
-                        } else {
-                            tl!("Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text")
-                        };
-                        heading(ui, t, &title, tip);
-                        // The script itself, edited whole as Sieve (#9999).
-                        if !e.ours && own_script.as_deref() == Some(e.script.as_str()) {
-                            let edit = ui.button(tl!("Edit Your Sieve Script…"));
-                            if edit.on_hover_text(tl!("Change the whole script as Sieve text; it is written back exactly as you leave it")).clicked()
-                            {
+                let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
+                let any = !(there.is_empty() && here.is_empty()) && reach;
+                let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
+                if button.clicked()
+                    && let Some(folder) = over
+                {
+                    run = Some(("rules.run", json!({"folder": folder})));
+                }
+                // Sieve written by hand, for an account whose server keeps MailCraft's script
+                // (#9999): not Outlook's, so out of the way.
+                if advanced {
+                    ui.menu_button(tl!("Advanced…"), |ui| {
+                        let tip = tl!("A rule written in Sieve, run by the server");
+                        if ui.button(tl!("New Sieve rule…")).on_hover_text(tip).clicked() {
+                            new_sieve = true;
+                            ui.close();
+                        }
+                        if let Some(name) = &own_script {
+                            let label = crate::i18n::fmt(tl!("Edit your Sieve script \"{name}\"…"), &[("name", &shown(name, 60))]);
+                            let tip = tl!("The whole script your server runs, made in another program, as Sieve text");
+                            if ui.button(label).on_hover_text(tip).clicked() {
                                 edit_own = true;
-                            }
-                        }
-                        let mark = if e.ours {
-                            tl!("On the server, changed elsewhere: Replace with MailCraft's would remove it").to_string()
-                        } else {
-                            tl!("On the server, made in another program: MailCraft never changes it").to_string()
-                        };
-                        for r in &e.rules {
-                            let block = e.blocks.iter().position(|b| b.rule == Some(r.id)).filter(|_| webmail);
-                            let Some(i) = block else {
-                                rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run, &mut change, None);
-                                continue;
-                            };
-                            // Moved past the filter beside it, whole; held while a change is saved.
-                            let movable = |j: Option<usize>| j.and_then(|j| e.blocks.get(j)).is_some_and(|b| b.at.is_some());
-                            let (up, down) = (movable(i.checked_sub(1)), movable(i.checked_add(1)));
-                            let why = mailcraft_engine::cmd::rules_webmail::read_only(&app.session, r.id).map(|why| tl!(why.said()));
-                            let lock = if busy { Some(tl!("Saving your Sieve script…")) } else { why };
-                            let shown_mark = if why.is_some() { mark.as_str() } else { tl!("Edited here in the format your webmail uses") };
-                            rule_row(ui, app, r, shown_mark, (up, down), account, &servers, &mut run, &mut change, lock);
-                        }
-                        if webmail {
-                            let new = ui.add_enabled(!busy, egui::Button::new(tl!("New Filter…")));
-                            if new.on_hover_text(tl!("A new filter in your webmail's Sieve script, in the format your webmail uses")).clicked() {
-                                new_filter = true;
-                            }
-                        }
-                        if e.unreadable {
-                            ui.label(egui::RichText::new(tl!("MailCraft can't read the rules of this script.")).color(t.text_dim).size(11.5));
-                        } else if e.rules.is_empty() {
-                            ui.label(egui::RichText::new(tl!("None.")).color(t.text_dim).size(11.5));
-                        }
-                        if e.replies && !e.ours {
-                            ui.label(egui::RichText::new(tl!("It also sends automatic replies of its own.")).color(t.text_dim).size(11.5));
-                        }
-                        ui.add_space(6.0);
-                    }
-                    heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
-                }
-                for (i, r) in here.iter().enumerate() {
-                    rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change, None);
-                }
-                if there.is_empty() && here.is_empty() {
-                    ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
-                }
-                ui.horizontal(|ui| {
-                    let tip = crate::i18n::fmt(tl!("Run every rule that is switched on over {folder}"), &[("folder", &folder_over)]);
-                    let any = !(there.is_empty() && here.is_empty()) && reach;
-                    let button = ui.add_enabled(any, egui::Button::new(tl!("Run Rules Now"))).on_hover_text(tip);
-                    if button.clicked()
-                        && let Some(folder) = over
-                    {
-                        run = Some(("rules.run", json!({"folder": folder})));
-                    }
-                    if let Some(n) = self.ran {
-                        // (What the rules changed, as the status bar says it.)
-                        let found = tln!(n, "{n} message changed", "{n} messages changed");
-                        ui.label(egui::RichText::new(found).color(t.text_dim));
-                    }
-                    // Sieve written by hand, for an account whose server keeps MailCraft's script
-                    // (#9999): not Outlook's, so out of the way.
-                    if advanced {
-                        ui.menu_button(tl!("Advanced…"), |ui| {
-                            let tip = tl!("A rule written in Sieve, run by the server");
-                            if ui.button(tl!("New Sieve rule…")).on_hover_text(tip).clicked() {
-                                new_sieve = true;
                                 ui.close();
                             }
-                            if let Some(name) = &own_script {
-                                let label = crate::i18n::fmt(tl!("Edit your Sieve script \"{name}\"…"), &[("name", &shown(name, 60))]);
-                                let tip = tl!("The whole script your server runs, made in another program, as Sieve text");
-                                if ui.button(label).on_hover_text(tip).clicked() {
-                                    edit_own = true;
-                                    ui.close();
-                                }
-                            }
-                        });
-                    }
-                });
-                ui.separator();
-                if let Some(editor) = self.sieve.as_mut() {
-                    sieve_asks = editor.ui(ui, app);
-                    return;
+                        }
+                    });
                 }
-                // The builder folds away under its heading.
-                let (head, head_resp) = ui.allocate_exact_size(vec2(ui.available_width().max(40.0), 24.0), Sense::click());
-                if head_resp.hovered() {
-                    ui.painter().rect_filled(head, 4.0, t.hover);
-                }
-                crate::icons::paint(
-                    ui.painter(),
-                    Rect::from_center_size(pos2(head.min.x + 10.0, head.center().y), vec2(12.0, 12.0)),
-                    if self.open { "expanded" } else { "collapsed" },
-                    t.icon,
-                    t.accent,
-                );
-                let title = if self.editing.is_some() { tl!("Change rule") } else { tl!("New rule") };
-                ui.painter().text(pos2(head.min.x + 24.0, head.center().y), Align2::LEFT_CENTER, title, semibold(12.5), t.text);
-                if head_resp.clicked() {
-                    self.open = !self.open;
-                    self.focus = self.open;
-                }
-                if self.open {
-                    (add, cancel) = self.builder(ui, &mut pass, &categories, place.as_ref(), held);
+                if let Some(n) = self.ran {
+                    // (What the rules changed, as the status bar says it.)
+                    let found = tln!(n, "{n} message changed", "{n} messages changed");
+                    ui.label(egui::RichText::new(found).color(t.text_dim));
                 }
             });
+            // What keeps an IMAP account's server from running them, and the way past a script
+            // changed elsewhere: replacing it, which only the owner's click does (#9999).
+            if let Some((note, replace)) = &sieve_note {
+                ui.label(egui::RichText::new(note.as_str()).color(t.text_dim).size(11.5));
+                if *replace && ui.button(tl!("Replace with MailCraft's")).clicked() {
+                    replace_sieve = true;
+                }
+            }
+            // Deleted here, and still run by the server while it isn't told.
+            if on_server && gone > 0 {
+                let said = tln!(
+                    gone,
+                    "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again).",
+                    "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+                );
+                ui.label(egui::RichText::new(said).color(t.orange).size(11.5));
+            }
+            ui.separator();
+            // The list takes the room the dialog has left within the window, and scrolls.
+            let above = (ui.cursor().top() - ui.max_rect().top()).max(0.0);
+            let below = if self.modal() { 0.0 } else { error_room(ui, &self.error) };
+            let room = list_room(ui.ctx().content_rect().height(), above + below);
+            let list = egui::ScrollArea::vertical().id_salt("rules_list").max_height(room).auto_shrink([false, true]).show(ui, |ui| {
+                // Room for the scroll bar beside the rules.
+                let margin = egui::Margin { left: 0, right: 12, top: 1, bottom: 2 };
+                egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                    let mark_of = |id: Id| marks.iter().find(|(m, _)| *m == id).map(|(_, m)| m.as_str()).unwrap_or("");
+                    if on_server {
+                        heading(ui, t, tl!("On the server"), tl!("Run by the server as mail arrives, whether MailCraft is open or not"));
+                        for (i, r) in there.iter().enumerate() {
+                            // A rule waiting to go stands after those the server has, and moves among them once it is there.
+                            let up = i > 0 && there.get(i - 1).is_some_and(|p| p.on_server() == r.on_server());
+                            let down = there.get(i + 1).is_some_and(|n| n.on_server() == r.on_server());
+                            rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run, &mut change, None);
+                        }
+                        if there.is_empty() {
+                            ui.label(egui::RichText::new(tl!("None yet.")).color(t.text_dim).size(11.5));
+                        }
+                        ui.add_space(6.0);
+                        if let Some(e) = &elsewhere {
+                            let title = if e.ours {
+                                tl!("In MailCraft's Sieve script, as it was changed elsewhere").to_string()
+                            } else {
+                                crate::i18n::fmt(tl!("In your Sieve script \"{name}\""), &[("name", &shown(&e.script, 80))])
+                            };
+                            let tip = if e.ours {
+                                tl!("Made in another program: MailCraft shows these rules and never changes them")
+                            } else if webmail {
+                                tl!("Edited here in the format your webmail uses")
+                            } else {
+                                tl!("Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text")
+                            };
+                            ui.horizontal(|ui| {
+                                heading(ui, t, &title, tip);
+                                // The script itself, edited whole as Sieve (#9999).
+                                if !e.ours && own_script.as_deref() == Some(e.script.as_str()) {
+                                    let edit = ui.small_button(tl!("Edit Your Sieve Script…"));
+                                    let tip = tl!("Change the whole script as Sieve text; it is written back exactly as you leave it");
+                                    if edit.on_hover_text(tip).clicked() {
+                                        edit_own = true;
+                                    }
+                                }
+                            });
+                            let mark = if e.ours {
+                                tl!("On the server, changed elsewhere: Replace with MailCraft's would remove it").to_string()
+                            } else {
+                                tl!("On the server, made in another program: MailCraft never changes it").to_string()
+                            };
+                            for r in &e.rules {
+                                let block = e.blocks.iter().position(|b| b.rule == Some(r.id)).filter(|_| webmail);
+                                let Some(i) = block else {
+                                    rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run, &mut change, None);
+                                    continue;
+                                };
+                                // Moved past the filter beside it, whole; held while a change is saved.
+                                let movable = |j: Option<usize>| j.and_then(|j| e.blocks.get(j)).is_some_and(|b| b.at.is_some());
+                                let (up, down) = (movable(i.checked_sub(1)), movable(i.checked_add(1)));
+                                let why = mailcraft_engine::cmd::rules_webmail::read_only(&app.session, r.id).map(|why| tl!(why.said()));
+                                let lock = if busy { Some(tl!("Saving your Sieve script…")) } else { why };
+                                let shown_mark = if why.is_some() { mark.as_str() } else { tl!("Edited here in the format your webmail uses") };
+                                rule_row(ui, app, r, shown_mark, (up, down), account, &servers, &mut run, &mut change, lock);
+                            }
+                            if e.unreadable {
+                                ui.label(egui::RichText::new(tl!("MailCraft can't read the rules of this script.")).color(t.text_dim).size(11.5));
+                            } else if e.rules.is_empty() {
+                                ui.label(egui::RichText::new(tl!("None.")).color(t.text_dim).size(11.5));
+                            }
+                            if e.replies && !e.ours {
+                                ui.label(egui::RichText::new(tl!("It also sends automatic replies of its own.")).color(t.text_dim).size(11.5));
+                            }
+                            ui.add_space(6.0);
+                        }
+                        heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
+                    }
+                    for (i, r) in here.iter().enumerate() {
+                        rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change, None);
+                    }
+                    if there.is_empty() && here.is_empty() {
+                        ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
+                    }
+                });
+            });
+            self.list = (list.inner_rect.height().round() as u32, list.content_size.y.round() as u32);
+            if !self.modal() {
+                error(ui, &self.error);
+            }
+            let close = close_button(ui);
             if let Some(id) = chosen {
                 // A rule being changed is another account's: the builder starts over.
                 if self.editing.is_some() {
@@ -6052,17 +6082,19 @@ pub(crate) mod rules {
                 // (A Sieve rule is its account's.)
                 self.sieve = self.sieve.take().filter(|e| e.account == id);
             }
-            if cancel {
-                self.reset();
+            if new_rule {
+                self.new_rule();
             }
             if new_sieve {
-                self.reset();
+                self.close_builder();
+                self.error.clear();
                 self.sieve = Some(crate::sieve_editor::SieveEditor::new_rule(account));
             }
             if edit_own {
                 match crate::sieve_editor::SieveEditor::own_script(app, account) {
                     Some(editor) => {
-                        self.reset();
+                        self.close_builder();
+                        self.error.clear();
                         self.sieve = Some(editor);
                     }
                     None => {
@@ -6077,7 +6109,8 @@ pub(crate) mod rules {
             }
             if let Some(id) = change {
                 if let Some(editor) = crate::sieve_editor::SieveEditor::open(&app.session.mailbox, id) {
-                    self.reset();
+                    self.close_builder();
+                    self.error.clear();
                     self.sieve = Some(editor);
                 } else if self.edit_filter(&app.session, id) || self.edit(&app.session.mailbox, id) {
                     self.sieve = None;
@@ -6085,7 +6118,27 @@ pub(crate) mod rules {
                     self.error = tl!("This rule can't be changed here.").to_string();
                 }
             }
-            match sieve_asks {
+            // The dialogs over the list: the builder, and the Sieve editor.
+            let mut add = false;
+            if self.open {
+                // Whether the rule being made could be kept on the server, and why not (an
+                // account on this computer alone has none).
+                let place = app
+                    .session
+                    .mailbox
+                    .account(self.editing.map_or(account, |(_, a)| a))
+                    .filter(|a| a.kind != mailcraft_model::AccountKind::Local)
+                    .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
+                match super::rules_editors::builder(self, ui.ctx(), app, &categories, place.as_ref(), held) {
+                    Some(super::rules_editors::Left::Ok) => add = true,
+                    Some(super::rules_editors::Left::Cancel) => {
+                        self.close_builder();
+                        self.error.clear();
+                    }
+                    None => {}
+                }
+            }
+            match super::rules_editors::sieve(self, ui.ctx(), app) {
                 Some(crate::sieve_editor::EditorAsks::Check) => {
                     if let Some(editor) = self.sieve.as_mut() {
                         editor.check_on_server(app);
@@ -6126,11 +6179,7 @@ pub(crate) mod rules {
                         self.error.clear();
                         // The count is of the last run; it goes when the rules change.
                         self.ran = v.get("matched").and_then(Value::as_u64).filter(|_| command == "rules.run");
-                        if add && command == "rules.edit" {
-                            // Saved: the builder folds away, ready for a new rule.
-                            self.reset();
-                            self.open = false;
-                        } else if add {
+                        if add && command == "rules.add" {
                             // Then the new rule alone over the mail already in the folder, as the
                             // menu that opened it says and Outlook offers.
                             let made = v.get("id").and_then(Value::as_u64);
@@ -6140,7 +6189,10 @@ pub(crate) mod rules {
                                     Err(e) => self.error = app.refusal_said(&e),
                                 }
                             }
-                            self.reset();
+                        }
+                        // Added or saved: the builder closes, ready for a new rule.
+                        if add {
+                            self.close_builder();
                         }
                     }
                     Err(e) => self.error = app.refusal_said(&e),
@@ -6151,11 +6203,10 @@ pub(crate) mod rules {
                     && self.webmail.is_none()
                     && !app.session.mailbox.rules.iter().any(|r| r.id == editing)
                 {
-                    self.reset();
+                    self.close_builder();
                 }
             }
-            error(ui, &self.error);
-            close_button(ui)
+            close
         }
 
         /// "+ condition", the exceptions and "+ exception" of the builder.
@@ -6208,16 +6259,17 @@ pub(crate) mod rules {
             });
         }
 
-        /// The builder, of a new rule or of one being changed. Returns whether Add (or Save) was
-        /// asked for and can run, and whether Cancel was pressed.
-        fn builder(
+        /// The builder's fields, of a new rule or of one being changed
+        /// ([`super::rules_editors::builder`] puts them in a dialog with its buttons). What the
+        /// rule still needs before it can be added or saved, in words; `None` when it can.
+        pub(super) fn builder(
             &mut self,
             ui: &mut Ui,
             pass: &mut Pass,
             categories: &[String],
             place: Option<&(String, Option<NotOnServer>)>,
             held: bool,
-        ) -> (bool, bool) {
+        ) -> Option<&'static str> {
             let t = pass.t;
             // A filter of a webmail's script has one condition, one move, and stops (#9999); it
             // reads the header lines as they are written, names and all.
@@ -6301,9 +6353,6 @@ pub(crate) mod rules {
             if let Some(i) = drop_act.filter(|i| *i < self.acts.len()) {
                 self.acts.remove(i);
             }
-            let mut add = false;
-            let lacks = self.lacks();
-            let ready = lacks.is_none();
             if webmail {
                 // (Stopping is what the webmail's filters do: shown, not changed.)
                 row(ui, "", |ui| {
@@ -6362,21 +6411,7 @@ pub(crate) mod rules {
                     ui.checkbox(&mut self.then_run, label);
                 });
             }
-            let mut cancel = false;
-            row(ui, "", |ui| {
-                let label = if self.editing.is_some() { tl!("Save") } else { tl!("Add Rule") };
-                add = ui.add_enabled(ready, egui::Button::new(label).min_size(vec2(84.0, 24.0))).clicked();
-                if self.editing.is_some() {
-                    cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(84.0, 24.0))).clicked();
-                }
-            });
-            // Under the button, wrapped within the dialog: what the rule still needs can be long.
-            if let Some(why) = lacks {
-                tall_row(ui, "", |ui| {
-                    ui.label(egui::RichText::new(why).color(t.text_dim).size(11.5));
-                });
-            }
-            (ready && !cancel && (add || pass.submit), cancel)
+            self.lacks()
         }
     }
 
@@ -6384,6 +6419,8 @@ pub(crate) mod rules {
     mod edit_tests;
     #[cfg(test)]
     mod keep_tests;
+    #[cfg(test)]
+    mod layout_tests;
     #[cfg(test)]
     mod webmail_tests;
 

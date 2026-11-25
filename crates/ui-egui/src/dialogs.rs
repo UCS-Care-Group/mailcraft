@@ -357,7 +357,8 @@ impl Dialog {
     }
 
     /// Whether it has something of its own open over it, which gets Escape and Enter before it
-    /// does ([`crate::keys`]): the recurrence editor of an appointment, Folder Size.
+    /// does ([`crate::keys`]): the recurrence editor of an appointment, the rule builder and the
+    /// Sieve editor of Rules and Alerts, Folder Size.
     pub(crate) fn inner_open(&self) -> bool {
         match self {
             Dialog::Form(form) => form.modal(),

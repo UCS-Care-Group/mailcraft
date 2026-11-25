@@ -184,6 +184,18 @@ fn check_waits_while_working_offline_and_cancel_keeps_nothing() {
     h.get_by_label("Cancel").click();
     h.run_steps(3);
     assert!(!editor_open(&mut h));
+    // Opened again over the list, Escape closes the editor alone, and keeps nothing either.
+    h.get_by_label("Advanced…").click();
+    h.run_steps(2);
+    h.get_by_label("New Sieve rule…").click();
+    h.run_steps(3);
+    assert!(editor_open(&mut h));
+    editor(&mut h).name = "Big".into();
+    h.run_steps(2);
+    h.key_press(egui::Key::Escape);
+    h.run_steps(3);
+    assert!(!editor_open(&mut h));
+    assert_eq!(h.state().dialog.as_ref().map(Dialog::name), Some("rules"), "Rules and Alerts stays");
     assert!(!h.state().session.mailbox.rules.iter().any(|r| r.is_sieve()));
     assert!(checks.lock().unwrap().is_empty());
 }

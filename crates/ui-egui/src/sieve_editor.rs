@@ -516,7 +516,10 @@ impl SieveEditor {
         };
         let mut changed = false;
         let cap = self.cap();
-        egui::ScrollArea::both().id_salt("sieve_editor_scroll").max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+        // As high as the window leaves room for, in the dialog over Rules and Alerts.
+        let room = ui.ctx().content_rect().height() - 420.0;
+        let most = if room.is_finite() { room.clamp(120.0, 320.0) } else { 320.0 };
+        egui::ScrollArea::both().id_salt("sieve_editor_scroll").max_height(most).auto_shrink([false, true]).show(ui, |ui| {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 let behind = ui.painter().add(Shape::Noop);
