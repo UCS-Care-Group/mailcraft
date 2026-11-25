@@ -503,6 +503,37 @@ fn one_still_being_made_moves_onto_this_computer_and_a_late_done_deletes_it_ther
 }
 
 #[test]
+fn moved_onto_this_computer_while_being_sent_a_late_failure_and_a_download_that_shows_it_delete_it_there() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "email": "gus@example.org", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    r.mv(&[gus], 0);
+    // It may have been made all the same; it isn't sent again.
+    r.answer(r.ada, &op, ContactResult::Failed, "");
+    assert!(r.due(r.ada).is_empty());
+    // A download shows it there: it is deleted there, not taken in.
+    let made = RemoteContact { id: "c-gus".into(), change_key: "ck-gus".into(), ..op.values.clone() };
+    run(&mut r.s, "sync.applyContacts", json!({"download": download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), made])}));
+    assert_eq!(r.places("Gus"), vec![0]);
+    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-gus".to_string())]);
+}
+
+#[test]
+fn moved_onto_this_computer_before_it_was_sent_its_record_goes_with_a_later_list() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    r.mv(&[gus], 0);
+    assert!(r.due(r.ada).is_empty());
+    let mut list = download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]);
+    list.read_at = NOW + 1;
+    run(&mut r.s, "sync.applyContacts", json!({"download": list}));
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
+    assert_eq!(r.places("Gus"), vec![0]);
+}
+
+#[test]
 fn moved_on_again_before_the_late_answer_it_is_made_where_it_went_and_deleted_where_it_was_sent() {
     let mut r = Rig::new();
     let (ada_main, team) = (r.main(r.ada), r.team());
@@ -549,17 +580,19 @@ fn a_move_still_being_made_goes_onto_this_computer_and_both_servers_copies_go() 
 }
 
 #[test]
-fn one_that_may_be_on_its_server_unheard_isnt_moved_onto_this_computer() {
+fn one_that_may_be_on_its_server_unheard_moves_onto_this_computer_and_goes_there_once_seen() {
     let mut r = Rig::new();
     let ada_main = r.main(r.ada);
     let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
     let op = r.upload(r.ada).ops.remove(0);
     // Failed: it may have been made, and only a later answer or a download will say.
     r.answer(r.ada, &op, ContactResult::Failed, "");
-    let before = r.s.mailbox.clone();
-    let e = r.s.run("people.moveToFolder", &json!({"ids": [gus], "folder": 0})).unwrap_err();
-    assert!(e.to_string().contains("still being sent"), "{e}");
-    assert!(r.s.mailbox == before);
+    r.mv(&[gus], 0);
+    assert!(r.due(r.ada).is_empty(), "not sent again");
+    let made = RemoteContact { id: "c-gus".into(), change_key: "ck-gus".into(), ..op.values.clone() };
+    run(&mut r.s, "sync.applyContacts", json!({"download": download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), made])}));
+    assert_eq!(r.places("Gus"), vec![0]);
+    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-gus".to_string())]);
 }
 
 #[test]

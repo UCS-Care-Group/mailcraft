@@ -102,33 +102,37 @@ fn sources(s: &Session, v: &Value, to: Id) -> Result<(Vec<Id>, Vec<(Id, String)>
 /// Whether contact `id` can't go into folder `to` yet: it is still to be made on a server, or on
 /// its way there unanswered (the sync thread may have sent it). Into a server's folder that could
 /// leave it in neither place, or link one server's answer to another's folder: it moves once the
-/// server has answered. Onto this computer it moves at once, under a new id (its note goes, and a
-/// late answer that it was made has the server delete it again:
-/// [`super::contacts_remote::apply_contact_outcomes`]), unless an answer said it may be there
-/// already, unnamed: with its note gone, nothing would delete it there.
+/// server has answered. Onto this computer it moves at once, under a new id ([`move_one`]).
 fn waits(mailbox: &Mailbox, id: Id, to: Id) -> bool {
-    mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create && (to != 0 || n.sent))
+    to != 0 && mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create)
 }
 
 /// Move contact `id` into folder `to` (see the module): the id it has there; `None` when it is
 /// there already.
-fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdError> {
+fn move_one(mailbox: &mut Mailbox, id: Id, to: Id, now: mailcraft_time::Timestamp) -> Result<Option<Id>, CmdError> {
     let c = mailbox.contact(id).cloned().ok_or_else(|| failed!("no contact with id {id}", id))?;
     if place(mailbox, &c) == to {
         return Ok(None);
     }
     let account = home(mailbox, to).map_or(0, |f| f.account);
     let server = server_copy(mailbox, id);
-    // One still to be made on a server (it moves only onto this computer: [`waits`]) may be on its
-    // way there: it leaves its id behind, so that a late answer is about it alone (the server is
-    // then told to delete it), never about where this one goes next.
-    let creating = mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create);
-    if server.is_none() && !creating {
-        // No server has it: it only changes folder (a new one there is noted to be made).
-        let c = mailbox.contact_mut(id)?;
-        (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);
-        note_contact(mailbox, id, None)?;
-        return Ok(Some(id));
+    match mailbox.contact_changes.iter_mut().find(|n| n.contact == id && n.kind == ContactChangeKind::Create) {
+        // Still to be made on a server (it moves only onto this computer: [`waits`]), and maybe on
+        // its way there: it leaves its id behind, as one sent and no longer wanted. An answer that
+        // it was made, or a download that shows it, has the server delete it (a list read later
+        // that doesn't show it drops it); never is it taken for where this one goes next.
+        Some(n) => {
+            (n.sent, n.tried) = (true, n.tried.max(now));
+            n.base.get_or_insert_with(|| Box::new(c.clone()));
+        }
+        None if server.is_none() => {
+            // No server has it: it only changes folder (a new one there is noted to be made).
+            let c = mailbox.contact_mut(id)?;
+            (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);
+            note_contact(mailbox, id, None)?;
+            return Ok(Some(id));
+        }
+        None => {}
     }
     // A new contact in the target; this one goes from its server, once that one is made.
     let moved = Contact { id: 0, folder: to, origin: Origin { account, ..Default::default() }, moved_from: if to == 0 { 0 } else { id }, ..c };
@@ -142,9 +146,10 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdErro
 fn move_to_folder(s: &mut Session, v: &Value) -> CmdResult {
     let to = target(&s.mailbox, v)?;
     let (ids, skipped) = sources(s, v, to)?;
+    let now = s.now();
     let mut moved = Vec::new();
     for id in ids {
-        let Some(now) = move_one(&mut s.mailbox, id, to)? else { continue };
+        let Some(now) = move_one(&mut s.mailbox, id, to, now)? else { continue };
         moved.push(json!({"from": id, "id": now}));
         if s.sel.contact == Some(id) {
             s.sel.contact = Some(now);
