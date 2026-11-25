@@ -2841,12 +2841,6 @@ msgstr "კალენდარი და კონტაქტები"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "კალენდარსა და კონტაქტებს თქვენი ნებართვა სჭირდება: ფაილი › ინფორმაცია › კალენდრისა და კონტაქტების დაკავშირება"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "სერვერზე არსებული კალენდრები და კონტაქტები ამ ვერსიაში ჯერ არ იკითხება და არ იწერება."
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -3243,6 +3237,12 @@ msgstr "ხელმოწერის შემდეგ შეიცვალ�
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "შეცვლილია: შეინახება, როცა სხვა ხელმოწერას აირჩევთ ან ამ გვერდს დატოვებთ."
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "სერვერზე არსებული კალენდრებისა და კონტაქტების ცვლილებები ამ ვერსიაში ჯერ არ იგზავნება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8952,6 +8952,12 @@ msgstr "MailCraft ჯერ ვერ შეუცვლის სახელ�
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft ჯერ არ უჭერს მხარს POP-ს. სანაცვლოდ გამოიყენეთ თქვენი პროვაიდერის IMAP სერვერი (ჩვეულებრივ imap.<your domain>, პორტი 993)."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft ინახავს {account}-ის კალენდრის სერვერიდან იმდენს, რამდენსაც შეუძლია: ზოგიერთი კალენდარი ან მოვლენა გამოტოვებულია."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -17297,6 +17303,12 @@ msgstr "კალენდარი „{name}“ ინტერნეტში 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "კალენდარი \"{name}\" კალენდრის სერვერზეა: ეს ვერსია მას კითხულობს, მაგრამ ცვლილებების გაგზავნა ჯერ არ შეუძლია."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "კალენდარი „{name}“ მხოლოდ იმას აჩვენებს, როდის არის მფლობელი დაკავებული: ამ ანგარიშს მისი შეცვლა არ შეუძლია."
 
@@ -17431,6 +17443,24 @@ msgstr ""
 "კალენდარი ({name}) ახლა თქვენი კალენდრების სიაშია, რადგან გაგიზიარეს და მიიღეთ. თქვენ ის მისამართითაც გახსენით, ამიტომ ორჯერ ჩანს.\n"
 "\n"
 "წაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account}-ის კალენდრის სერვერმა შეცდომებით უპასუხა, ამიტომ ზოგიერთი მოვლენა შეიძლება მოძველებული იყოს. MailCraft მოგვიანებით კვლავ სცდის."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr "{account}-ის კალენდრის სერვერს აქვს სერტიფიკატი, რომელსაც არ ენდობიან, ამიტომ მას არაფერი გაეგზავნა."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "{account}-ის კალენდრის სერვერმა შესვლა არ დაუშვა. MailCraft მოგვიანებით ან პაროლის შეცვლისას კვლავ სცდის."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23019,6 +23049,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "არცერთ ანგარიშს არ აქვს კალენდრისა და კონტაქტების სერვერი"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "არცერთ ანგარიშს არ აქვს კალენდრის სერვერი"
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no account has a folder of that kind"
@@ -25039,6 +25075,12 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr "ამ ანგარიშს კალენდრისა და კონტაქტების საკუთარი სერვერი არ აქვს: Microsoft-ის ანგარიში კალენდრებს Microsoft-ის მეშვეობით ინახავს, საერთო საფოსტო ყუთი კი თავისი მფლობელისას მიჰყვება"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "ამ ანგარიშს არ აქვს კალენდრის სერვერი"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this account has no signature; add one in File › Options"
@@ -25184,6 +25226,12 @@ msgstr "ეს წერილი უკვე გადადებულებ
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "ეს წერილი არ ჩამოტვირთულა: გახსენით, როცა ონლაინ იქნებით, შემდეგ ხელახლა გაგზავნეთ"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this read was made under the calendar server's earlier settings"
+msgstr "ეს წაკითხვა კალენდრის სერვერის წინა პარამეტრებით მოხდა"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
@@ -27397,6 +27445,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "სერვერზე არსებული კალენდრები და კონტაქტები ამ ვერსიაში ჯერ არ იკითხება და არ იწერება."
 
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."

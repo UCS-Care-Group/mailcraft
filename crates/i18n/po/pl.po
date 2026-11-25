@@ -2855,12 +2855,6 @@ msgstr "Kalendarz i kontakty"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Kalendarz i kontakty wymagają Twojej zgody: Plik › Informacje › Połącz kalendarz i kontakty"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "Kalendarze i kontakty na serwerze nie są jeszcze odczytywane ani zapisywane w tej wersji."
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -3258,6 +3252,12 @@ msgstr "Zmieniono po podpisaniu"
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "Zmieniono: zapisane po wybraniu innego podpisu lub opuszczeniu tej strony."
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "Zmiany w kalendarzach i kontaktach na serwerze nie są jeszcze wysyłane w tej wersji."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -9007,6 +9007,12 @@ msgstr "MailCraft nie zmienia jeszcze nazw ani nie przenosi folderów konta JMAP
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft nie obsługuje jeszcze POP. Użyj zamiast tego serwera IMAP dostawcy (zwykle imap.<twoja domena>, port 993)."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft przechowuje z serwera kalendarzy konta {account} tyle, ile może: niektóre kalendarze lub wydarzenia zostały pominięte."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -17415,6 +17421,12 @@ msgstr "Kalendarz „{name}” jest kopią kalendarza z sieci: można go tu tylk
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "Kalendarz \"{name}\" jest na serwerze kalendarza: ta wersja go odczytuje, ale nie może jeszcze wysyłać do niego zmian."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Kalendarz „{name}” pokazuje tylko, kiedy jego właściciel jest zajęty: to konto nie może go zmieniać."
 
@@ -17549,6 +17561,24 @@ msgstr ""
 "Kalendarz użytkownika {name} jest teraz na Twojej liście kalendarzy, ponieważ został Ci udostępniony i zaakceptowany. Otworzono go też według adresu, więc jest tam dwa razy.\n"
 "\n"
 "Usunąć kopię otwartą według adresu? Druga pozostaje i nic na serwerze się nie zmienia."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "Serwer kalendarzy konta {account} odpowiedział błędami, więc niektóre wydarzenia mogą być nieaktualne. MailCraft spróbuje ponownie później."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr "Serwer kalendarza konta {account} ma certyfikat, który nie jest zaufany, więc nic do niego nie wysłano."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "Serwer kalendarza konta {account} nie przyjął logowania. MailCraft spróbuje ponownie później lub gdy hasło się zmieni."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23185,6 +23215,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "żadne konto nie ma serwera kalendarzy i kontaktów"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "żadne konto nie ma serwera kalendarza"
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no account has a folder of that kind"
@@ -25207,6 +25243,12 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr "to konto nie ma własnego serwera kalendarzy i kontaktów: konto Microsoft prowadzi swoje kalendarze przez Microsoft, a skrzynka udostępniona podąża za skrzynką swojego właściciela"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "to konto nie ma serwera kalendarza"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this account has no signature; add one in File › Options"
@@ -25355,6 +25397,12 @@ msgstr "ta wiadomość jest już w folderze Odłożone"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "ta wiadomość nie została pobrana: otwórz ją, gdy będziesz online, a potem wyślij ją ponownie"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this read was made under the calendar server's earlier settings"
+msgstr "ten odczyt wykonano przy wcześniejszych ustawieniach serwera kalendarza"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
@@ -27967,6 +28015,18 @@ msgstr "−Wiersze"
 #, fuzzy
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 #~ msgstr "Pokazuj powiadomienie, gdy nadejdzie czas przypomnienia z kalendarza. Gdy wyłączone, żadne nie jest pokazywane; same przypomnienia pozostają w kalendarzu."
+
+#, fuzzy
+#~ msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+#~ msgstr "Serwer kalendarzy nie przyjął logowania. MailCraft spróbuje ponownie później lub gdy hasło się zmieni."
+
+#, fuzzy
+#~ msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+#~ msgstr "Certyfikat serwera kalendarzy nie jest zaufany, więc nic do niego nie wysłano."
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "Kalendarze i kontakty na serwerze nie są jeszcze odczytywane ani zapisywane w tej wersji."
 
 #, fuzzy
 #~ msgid "Writing a message is not available in this version yet."

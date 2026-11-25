@@ -2852,12 +2852,6 @@ msgstr "Naptár és kapcsolatok"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "Naptár és kapcsolatok kell az engedély: Fájl › Info › Csatlakoztassa naptár és kapcsolatok"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "A kiszolgáló naptárait és névjegyeit ez a verzió még nem olvassa és nem írja."
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -3253,6 +3247,12 @@ msgstr "Megváltozott, miután aláírták."
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "Az aláírás mentése automatikus, amikor másik aláírást választ, vagy elhagyja ezt az oldalt."
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "A kiszolgálón lévő naptárak és névjegyek módosításai ebben a verzióban még nem kerülnek elküldésre."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8971,6 +8971,12 @@ msgstr "A MailCraft még nem nevezi át vagy mozgatja át a JMAP fiók mappáit:
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft még nem támogatja a POP-t. Használja a szolgáltató IMAP szerverét helyette (általában az imap. < domain>, port 993)."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "A MailCraft annyit tárol {account} naptárkiszolgálójáról, amennyit tud: néhány naptár vagy esemény kimaradt."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -17359,6 +17365,12 @@ msgstr "A(z) „{name}” naptár egy weben lévő naptár másolata: itt csak o
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "A(z) \"{name}\" naptár egy naptárkiszolgálón van: ez a verzió olvassa, de még nem tud módosításokat küldeni rá."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "A(z) „{name}” naptár csak a tulajdonos foglaltságát mutatja. Ebből a fiókból nem szerkeszthető."
 
@@ -17493,6 +17505,24 @@ msgstr ""
 "A {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
 "\n"
 "Címre is megnyitottad, így kétszer is ott van. A másik a címre nyitott másolatot távolítsd el? A másik marad, és a szerveren semmi változás."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account} naptárkiszolgálója hibákkal válaszolt, ezért egyes események elavultak lehetnek. A MailCraft később újra próbálkozik."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr "A(z) {account} naptárkiszolgálójának tanúsítványa nem megbízható, ezért semmi sem lett elküldve neki."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "A(z) {account} naptárkiszolgálója nem fogadta el a bejelentkezést. A MailCraft később újra próbálkozik, vagy amikor a jelszó megváltozik."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23095,6 +23125,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "egyik fióknak sincs naptár- és névjegykiszolgálója"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "egyik fióknak sincs naptárkiszolgálója"
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no account has a folder of that kind"
@@ -25117,6 +25153,12 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr "ennek a fióknak nincs saját naptár- és névjegykiszolgálója: a Microsoft-fiók a naptárait a Microsofton keresztül kezeli, a megosztott postafiók pedig a tulajdonosáét követi"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "ennek a fióknak nincs naptárkiszolgálója"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this account has no signature; add one in File › Options"
@@ -25265,6 +25307,12 @@ msgstr "Ez az üzenet már a Snoozed mappában van."
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "Ez az üzenet nincs letöltve: nyissa meg, ha már online van, majd küldje el újra"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this read was made under the calendar server's earlier settings"
+msgstr "ez az olvasás a naptárkiszolgáló korábbi beállításaival történt"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
@@ -27743,6 +27791,18 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 #~ msgstr "Értesítést jelenít meg, amikor egy naptáremlékeztető esedékessé válik. Kikapcsolva nem jelenik meg értesítés; az emlékeztetők megmaradnak a naptárban."
+
+#, fuzzy
+#~ msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+#~ msgstr "Egy naptárkiszolgáló nem engedte a bejelentkezést. A MailCraft később újra próbálkozik, vagy amikor a jelszó megváltozik."
+
+#, fuzzy
+#~ msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+#~ msgstr "Egy naptárkiszolgáló tanúsítványa nem megbízható, ezért semmit nem küldtünk neki."
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "A kiszolgáló naptárait és névjegyeit ez a verzió még nem olvassa és nem írja."
 
 #, fuzzy
 #~ msgid "Writing a message is not available in this version yet."

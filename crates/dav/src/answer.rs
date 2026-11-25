@@ -61,6 +61,9 @@ pub struct Entry {
     pub data_too_large: bool,
     /// `resourcetype` holds `collection`.
     pub is_collection: bool,
+    /// `resourcetype` came with a 200: what the entry is (`is_collection` and the rest) is known.
+    /// An entry without it may be a calendar, or a member, whose properties failed.
+    pub typed: bool,
     /// `resourcetype` holds `calendar` (RFC 4791 §4.2).
     pub is_calendar: bool,
     /// `resourcetype` holds `addressbook` (RFC 6352 §5.2).
@@ -231,22 +234,25 @@ fn read_response(response: &Node, origin: &Origin, base: &str, out: &mut Multist
     }
 }
 
-/// Reads the properties that came with 200. False when the entry is unusable (an ETag that is
-/// not one).
+/// Reads the properties that came with 200. False when the entry is unusable (none are).
 fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipped: &mut usize) -> bool {
     for p in xml::properties(response) {
         match (p.namespace.as_str(), p.name.as_str()) {
+            // (An ETag that is empty or isn't one is none: the member is still there, and is
+            // not to be taken for one that is gone.)
             (DAV, "getetag") => match token_of(&p.text) {
                 Some(t) if !t.is_empty() => e.etag = Some(t),
-                _ => return false,
+                _ => {}
             },
             (DAV, "displayname") => {
-                let name: String = p.text.trim().chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();
-                if !name.is_empty() {
+                // (No control or format character: a right-to-left override makes a name read as
+                // something else.)
+                if let Some(name) = mailcraft_names::incoming(p.text.trim(), MAX_NAME) {
                     e.display_name = Some(name);
                 }
             }
             (DAV, "resourcetype") => {
+                e.typed = true;
                 e.is_collection = p.child(DAV, "collection").is_some();
                 e.is_calendar = p.child(CALDAV, "calendar").is_some();
                 e.is_addressbook = p.child(CARDDAV, "addressbook").is_some();

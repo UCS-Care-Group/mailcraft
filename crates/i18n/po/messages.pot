@@ -2371,11 +2371,6 @@ msgstr ""
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
@@ -2703,6 +2698,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Changed: saved when you choose another signature or leave this page."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
 msgstr ""
 
 #. interface
@@ -7452,6 +7452,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
 msgstr ""
 
 #. interface
@@ -14404,6 +14409,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 
@@ -14511,6 +14521,21 @@ msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
 msgstr ""
 
 #. interface
@@ -19177,6 +19202,11 @@ msgid "no account has a calendar and contacts server"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "no account has a calendar server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 msgid "no account has a folder of that kind"
 msgstr ""
@@ -20866,6 +20896,11 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this account has no calendar server"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this account has no signature; add one in File › Options"
 msgstr ""
@@ -20988,6 +21023,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message isn't downloaded: open it once you're online, then send it again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+msgid "this read was made under the calendar server's earlier settings"
 msgstr ""
 
 #. what a command says

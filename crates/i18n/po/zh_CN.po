@@ -2849,12 +2849,6 @@ msgstr "日历和联系人"
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
 msgstr "日历和联系人需要您的许可：文件 › 信息 › 连接日历和联系人"
 
-#. what a command says
-#: crates/engine/src/cmd/dav_sync.rs
-#, fuzzy
-msgid "Calendars and contacts on a server are not read or written yet in this version."
-msgstr "此版本尚不读取或写入服务器上的日历和联系人。"
-
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -3252,6 +3246,12 @@ msgstr "签名后已更改"
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr "已更改：选择其他签名或离开此页面时会自动保存。"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "Changes to calendars and contacts on a server are not sent yet in this version."
+msgstr "此版本尚不会将对服务器上日历和联系人的更改发送出去。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8970,6 +8970,12 @@ msgstr "MailCraft 暂不支持重命名或移动 JMAP 账户的文件夹：这�
 #, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
 msgstr "MailCraft 尚不支持 POP。请改用服务提供商的 IMAP 服务器（通常为 imap.<your domain>，端口 993）。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft 已尽可能保存 {account} 的日历服务器中的内容：部分日历或事件未被保存。"
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -17358,6 +17364,12 @@ msgstr "日历“{name}”是网络上某个日历的副本：在此只能读取
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "日历\"{name}\"位于日历服务器上：此版本可以读取它，但还不能向其发送更改。"
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "日历“{name}”仅显示所有者的忙闲状态；此账户无法更改该日历。"
 
@@ -17492,6 +17504,24 @@ msgstr ""
 "{name} 的日历已与您共享，且您已接受共享，因此它现在位于您的日历列表中。您还通过地址打开过它，所以它显示了两次。\n"
 "\n"
 "移除通过地址打开的副本吗？另一份会保留，服务器上的内容也不会更改。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account} 的日历服务器返回了错误，因此部分事件可能不是最新的。MailCraft 稍后会重试。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
+msgstr "{account} 的日历服务器的证书不受信任，因此未向其发送任何内容。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
+msgstr "{account} 的日历服务器未接受登录。MailCraft 稍后会重试，或在密码更改后重试。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23076,6 +23106,12 @@ msgid "no account has a calendar and contacts server"
 msgstr "没有账户拥有日历和联系人服务器"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "no account has a calendar server"
+msgstr "没有任何账户有日历服务器"
+
+#. what a command says
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no account has a folder of that kind"
@@ -25098,6 +25134,12 @@ msgid "this account has no calendar and contacts server of its own: a Microsoft 
 msgstr "此账户没有自己的日历和联系人服务器：Microsoft 账户通过 Microsoft 管理其日历，共享邮箱则沿用其所有者的"
 
 #. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this account has no calendar server"
+msgstr "此账户没有日历服务器"
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this account has no signature; add one in File › Options"
@@ -25246,6 +25288,12 @@ msgstr "此邮件已在“已暂缓”文件夹中"
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
 msgstr "此邮件尚未下载：请联网后打开，再重新发送"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
+msgid "this read was made under the calendar server's earlier settings"
+msgstr "此次读取是在日历服务器之前的设置下进行的"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs
@@ -27589,6 +27637,18 @@ msgstr "−行"
 #, fuzzy
 #~ msgid "Show a notification when a calendar reminder falls due. Off, none is shown; the reminders themselves stay in the calendar."
 #~ msgstr "日历提醒到期时显示通知。关闭后不显示通知；提醒仍保留在日历中。"
+
+#, fuzzy
+#~ msgid "A calendar server wouldn't sign in. MailCraft will try again later, or when the password changes."
+#~ msgstr "日历服务器未接受登录。MailCraft 稍后会重试，或在密码更改后重试。"
+
+#, fuzzy
+#~ msgid "A calendar server's certificate isn't trusted, so nothing was sent to it."
+#~ msgstr "日历服务器的证书不受信任，因此没有向其发送任何内容。"
+
+#, fuzzy
+#~ msgid "Calendars and contacts on a server are not read or written yet in this version."
+#~ msgstr "此版本尚不读取或写入服务器上的日历和联系人。"
 
 #, fuzzy
 #~ msgid "Writing a message is not available in this version yet."
