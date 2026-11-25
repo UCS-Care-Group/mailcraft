@@ -3108,6 +3108,20 @@ fn hostile_params_never_panic() {
     junk.push(json!({"id": sieve, "name": "x".repeat(100_000), "sieve": "\u{0}"}));
     junk.push(json!({"id": sieve, "sieve": ["keep;"], "name": null}));
     junk.push(json!({"id": sieve, "sieve": "/* open"}));
+    // The owner's own Sieve script (#9999): active on the server, edited with text that isn't Sieve,
+    // is too large, carries a NUL, or under a digest that isn't the read's.
+    let own = "require \"fileinto\";\r\nif true { fileinto \"x\"; }\r\n";
+    let _ = s.run(
+        "sync.applySieve",
+        &json!({"account": imap, "state": {"extensions": ["fileinto"], "scripts": [{"name": "mine", "active": true}], "script": null,
+            "activeScript": {"name": "mine", "text": own}}}),
+    );
+    let own_digest = crate::sieve::digest(own);
+    junk.push(json!({"account": imap, "text": "} elsif {", "digest": own_digest}));
+    junk.push(json!({"account": imap, "text": "#".repeat(1_100_000), "digest": own_digest}));
+    junk.push(json!({"account": imap, "text": "keep;\u{0}", "digest": own_digest}));
+    junk.push(json!({"account": imap, "text": "keep;", "digest": "\u{0}".repeat(100_000)}));
+    junk.push(json!({"account": imap, "text": ["keep;"], "digest": null}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

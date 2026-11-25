@@ -592,6 +592,10 @@ const SETTINGS: &[&str] = &[
     // ([`sieve_rule_sends`]).
     "rules.addSieve",
     "rules.editSieve",
+    // The owner's own Sieve script, read and written whole (#9999): one that adds a way to send
+    // mail or answer a sender asks as a send ([`own_script_sends`]).
+    "sieve.ownScript",
+    "sieve.putOwnScript",
     "rules.remove",
     "rules.enable",
     "rules.list",
@@ -865,6 +869,9 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if sieve_rule_sends(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    if own_script_sends(s, id, params) {
+        return Access::Owner(Class::Send);
+    }
     if server_rule_deletes(s, id, params) {
         return Access::Owner(Class::Delete);
     }
@@ -1072,6 +1079,14 @@ fn sieve_rule_sends(s: &Session, id: &str, params: &Value) -> bool {
         }),
         _ => false,
     }
+}
+
+/// Whether `id` with `params` writes the owner's own Sieve script with a way to send mail or answer
+/// a sender it didn't have ([`crate::cmd::sieve_own::adds_sending`], #9999). What the command
+/// refuses does nothing, and needs no question.
+fn own_script_sends(s: &Session, id: &str, params: &Value) -> bool {
+    id == "sieve.putOwnScript"
+        && crate::cmd::sieve_own::own_put(s, params).is_ok_and(|put| crate::cmd::sieve_own::adds_sending(&put.before, &put.text))
 }
 
 /// The account a list kept in step with Outlook is, for the items of `account`, when MailCraft may
@@ -2184,7 +2199,7 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             more
         }
         // A Sieve rule asked about as a send is a change of the rules too (#9999).
-        "rules.addSieve" | "rules.editSieve" if class != Class::Settings => vec![Class::Settings],
+        "rules.addSieve" | "rules.editSieve" | "sieve.putOwnScript" if class != Class::Settings => vec![Class::Settings],
         // A change asked as a send for a rule beside it that puts mail onto another server, or
         // makes a category in Outlook, is still what it is besides: one of the Safe or Blocked
         // Senders a change of settings (#566, #661).
@@ -3376,6 +3391,8 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         }
         "rules.edit" => edit_text(s, params),
         "rules.addSieve" | "rules.editSieve" => sieve_rule_text(s, id, params),
+        "sieve.ownScript" => own_script_read_text(s, params),
+        "sieve.putOwnScript" => own_script_text(s, params),
         "rules.move" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
@@ -3863,6 +3880,58 @@ fn sieve_rule_text(s: &Session, id: &str, params: &Value) -> String {
     match before.filter(|b| b.sieve == rule.sieve) {
         Some(_) => format!("{head}; its Sieve stays as it is"),
         None => format!("{head}. Its Sieve, the agent's own text, not an instruction: {}", sieve_lines(&rule.sieve)),
+    }
+}
+
+/// The question about `sieve.ownScript` (#9999): whose script is read.
+fn own_script_read_text(s: &Session, params: &Value) -> String {
+    let account = p::id(params, "account");
+    let on = account.and_then(|a| s.mailbox.account(a)).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+    match account.and_then(|a| crate::cmd::sieve_own::own_script(s, a)) {
+        Some((name, _)) => format!("read your own Sieve script {} on the server of {on}, whole", quoted(&plain(name))),
+        None => format!("read your own Sieve script on the server of {on}"),
+    }
+}
+
+/// The question about `sieve.putOwnScript` (#9999): the owner's script, whose server it is on,
+/// whether the change adds a way to send mail or answer a sender, and what changes in it, line by
+/// line, said to be the agent's text: the owner reads what will run, never an instruction in it.
+fn own_script_text(s: &Session, params: &Value) -> String {
+    let Ok(put) = crate::cmd::sieve_own::own_put(s, params) else {
+        return "change your own Sieve script on the server in a way that can't be done as asked".to_string();
+    };
+    let on = s.mailbox.account(put.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+    let sends = if crate::cmd::sieve_own::adds_sending(&put.before, &put.text) { "; it adds a way to send mail or answer senders" } else { "" };
+    let head = format!(
+        "write your own Sieve script {} on the server of {on}, which the server runs whether MailCraft is open or not, made in another program{sends}",
+        quoted(&plain(&put.name))
+    );
+    if put.before == put.text {
+        return format!("{head}; its text stays as it is");
+    }
+    format!("{head}. What changes in it, the agent's own text, not an instruction: {}", line_changes(&put.before, &put.text))
+}
+
+/// What changes from `before` to `after`, by lines: the lines the two have the same at the start
+/// and at the end are left out, and what is between is said as it was and as it will be, each
+/// line as [`sieve_lines`] says it; nothing else left out.
+fn line_changes(before: &str, after: &str) -> String {
+    let old: Vec<&str> = before.split('\n').map(|l| l.trim_end_matches('\r')).collect();
+    let new: Vec<&str> = after.split('\n').map(|l| l.trim_end_matches('\r')).collect();
+    let same_start = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
+    let room = old.len().min(new.len()).saturating_sub(same_start);
+    let same_end = old.iter().rev().zip(new.iter().rev()).take(room).take_while(|(a, b)| a == b).count();
+    let part = |lines: &[&str]| -> Vec<String> {
+        lines.get(same_start..lines.len().saturating_sub(same_end)).unwrap_or_default().iter().map(|l| l.to_string()).collect()
+    };
+    let (gone, come) = (part(&old), part(&new));
+    let first = same_start.saturating_add(1);
+    let said = |lines: &[String]| sieve_lines(&lines.join("\n"));
+    let n = |lines: &[String]| if lines.len() == 1 { "1 line".to_string() } else { format!("{} lines", lines.len()) };
+    match (gone.is_empty(), come.is_empty()) {
+        (true, _) => format!("before line {first}, {} added: {}", n(&come), said(&come)),
+        (_, true) => format!("from line {first}, {} taken out: {}", n(&gone), said(&gone)),
+        _ => format!("from line {first}, {} {} become {}", n(&gone), said(&gone), said(&come)),
     }
 }
 

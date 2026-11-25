@@ -7,7 +7,7 @@
 //! script, a name or a secret is logged.
 
 use mailcraft_engine::sieve::SCRIPT_NAME;
-use mailcraft_net::sieve::{self, Checked, ScriptChange, SieveError, SieveState, Written};
+use mailcraft_net::sieve::{self, Checked, OwnChange, OwnWritten, ScriptChange, SieveError, SieveState, Written};
 use mailcraft_ui_egui::sieve_replies::{ServerCheck, SieveJob, SieveResult};
 use serde_json::{Value, json};
 
@@ -36,7 +36,28 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
         }
         return out;
     }
-    if let Some(write) = &job.write {
+    // The owner's own script, written back as typed (#9999): never MailCraft's own this way.
+    if let Some(write) = job.write.as_ref().filter(|w| w.own) {
+        if write.name == SCRIPT_NAME {
+            out.error = "MailCraft's own script isn't written this way".into();
+            return out;
+        }
+        let Some(read) = write.last_written.as_deref() else {
+            out.error = "the script's text as it was read isn't known".into();
+            return out;
+        };
+        let change = OwnChange { name: &write.name, text: &write.text, read };
+        match sieve::write_own(&job.account, &server, &job.secret, &change) {
+            Ok(OwnWritten::Done { .. }) => out.written = Some("done".into()),
+            Ok(OwnWritten::Changed { .. }) => out.written = Some("changedElsewhere".into()),
+            Ok(OwnWritten::NoSpace) => out.written = Some("noSpace".into()),
+            Ok(OwnWritten::TooLarge) => out.written = Some("tooLarge".into()),
+            Err(e) => {
+                said(&mut out, &e);
+                return out;
+            }
+        }
+    } else if let Some(write) = &job.write {
         let change = ScriptChange { name: &write.name, text: &write.text, last_written: write.last_written.as_deref(), activate: write.activate };
         match sieve::write(&job.account, &server, &job.secret, &change) {
             Ok(Written::Done { .. }) => out.written = Some("done".into()),

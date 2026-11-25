@@ -209,3 +209,132 @@ fn the_cursor_goes_to_a_line_and_column_within_the_text() {
     assert_eq!(char_at(text, 99, 1), text.chars().count());
     assert_eq!(char_at("", 0, 0), 0);
 }
+
+/// The owner's own script on the stand-in server, as Roundcube would write it: CRLF throughout.
+const OWN: &str = "# rule:[Lists]\r\nrequire [\"fileinto\"];\r\nif header :contains \"subject\" \"[list]\" {\r\n  fileinto \"Lists\";\r\n}\r\n";
+
+/// What the stand-in server keeps: the owner's script's text, and every write of it.
+type Own = Arc<Mutex<(String, Vec<crate::sieve_replies::SieveWrite>)>>;
+
+/// A window with an IMAP account whose server runs the owner's own script `roundcube`. The
+/// stand-in host writes it only while it is still the one read (by its digest), as
+/// `mailcraft-net`'s `sieve::write_own` does, and reads it back after every job.
+fn own_window() -> (MailApp, Id, Own) {
+    use mailcraft_engine::sieve::digest;
+    let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0), Services::default());
+    app.autosave = false;
+    let account =
+        app.execute("account.add", json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    app.stand_in_password(account, "an invented password");
+    let own: Own = Arc::new(Mutex::new((OWN.to_string(), Vec::new())));
+    let server = own.clone();
+    app.services.sieve = Some(Box::new(move |job: SieveJob| {
+        let (tx, rx) = mpsc::channel();
+        let mut kept = server.lock().unwrap();
+        let written = job.write.as_ref().map(|w| {
+            kept.1.push(w.clone());
+            if w.own && w.last_written.as_deref() == Some(digest(&kept.0).as_str()) {
+                kept.0 = w.text.clone();
+                "done".to_string()
+            } else {
+                "changedElsewhere".to_string()
+            }
+        });
+        let state = json!({"extensions": EXTENSIONS, "scripts": [{"name": "roundcube", "active": true}], "script": null,
+            "activeScript": {"name": "roundcube", "text": kept.0}});
+        tx.send(SieveResult { account: job.account.id, state: Some(state), written, ..Default::default() }).unwrap();
+        rx
+    }));
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    app.poll_sieve();
+    (app, account, own)
+}
+
+#[test]
+fn the_owners_own_script_is_edited_whole_saved_as_typed_and_reloaded_when_it_changed_there() {
+    use mailcraft_engine::sieve::digest;
+    let (mut app, account, own) = own_window();
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = harness(app);
+    // Beside its rules, shown read-only, a button opens the whole script.
+    assert!(h.query_by_label("In your Sieve script \"roundcube\"").is_some());
+    h.get_by_label("Edit Your Sieve Script…").click();
+    h.run_steps(3);
+    assert!(editor_open(&mut h));
+    {
+        let e = editor(&mut h);
+        assert_eq!(e.account, account);
+        // Shown with plain line breaks, written with CRLF again: byte for byte when left alone.
+        assert_eq!(e.text, OWN.replace("\r\n", "\n"));
+        assert_eq!(e.written(), OWN);
+        assert_eq!(e.own.as_ref().map(|o| o.digest.clone()), Some(digest(OWN)));
+    }
+    // Roundcube's mark: the note stays up.
+    assert!(h.query_all_by_label_contains("written by a webmail (Roundcube)").next().is_some());
+    assert!(!enabled(&h, "Save"), "nothing has changed yet");
+    // A mistake keeps it from being saved.
+    editor(&mut h).text = OWN.replace("\r\n", "\n").replace("fileinto \"Lists\";", "bogus;");
+    h.run_steps(3);
+    assert!(editor(&mut h).problems.iter().any(|p| !p.warning && p.line == 4), "{:?}", editor(&mut h).problems);
+    assert!(!enabled(&h, "Save"));
+    // Changed, saved: written as typed, CRLF and all, under the digest of the read.
+    editor(&mut h).text = OWN.replace("\r\n", "\n").replace("\"Lists\"", "\"Lists/Old\"");
+    h.run_steps(3);
+    assert!(enabled(&h, "Save"));
+    h.get_by_label("Save").click();
+    h.run_steps(5);
+    let edited = OWN.replace("\"Lists\"", "\"Lists/Old\"");
+    {
+        let kept = own.lock().unwrap();
+        let w = kept.1.last().cloned().expect("the host was asked to write");
+        assert!(w.own && !w.activate);
+        assert_eq!((w.name.as_str(), w.text.as_str(), w.last_written.as_deref()), ("roundcube", edited.as_str(), Some(digest(OWN).as_str())));
+        assert_eq!(kept.0, edited);
+    }
+    assert!(!editor_open(&mut h), "saved, the editor closes");
+    // The rules shown are read from the new text.
+    let shown = h.state().session.sieve.get(&account).and_then(|k| k.elsewhere.clone()).unwrap();
+    assert_eq!(shown.text, edited);
+
+    // Opened again from Advanced…, while the script changes in webmail: nothing is written, and
+    // Reload brings the server's text.
+    h.get_by_label("Advanced…").click();
+    h.run_steps(2);
+    h.get_by_label("Edit your Sieve script \"roundcube\"…").click();
+    h.run_steps(3);
+    assert!(editor_open(&mut h));
+    let webmail = format!("{edited}# rule:[Later]\r\nif size :over 1M {{\r\n  discard;\r\n}}\r\n");
+    own.lock().unwrap().0 = webmail.clone();
+    editor(&mut h).text = "keep;\n".into();
+    h.run_steps(3);
+    h.get_by_label("Save").click();
+    h.run_steps(5);
+    assert_eq!(own.lock().unwrap().0, webmail, "nothing was written over");
+    assert!(editor_open(&mut h));
+    assert!(editor(&mut h).own.as_ref().is_some_and(|o| o.changed));
+    assert!(h.query_all_by_label_contains("changed on the server since you opened it").next().is_some());
+    assert!(!enabled(&h, "Save"));
+    h.get_by_label("Reload").click();
+    h.run_steps(6);
+    assert!(editor_open(&mut h));
+    let e = editor(&mut h);
+    assert_eq!(e.written(), webmail);
+    assert!(e.own.as_ref().is_some_and(|o| !o.changed && o.digest == digest(&webmail)));
+}
+
+#[test]
+fn a_script_of_rainloops_says_so_and_one_without_crlf_stays_without() {
+    let (mut app, account, own) = own_window();
+    own.lock().unwrap().0 = "# RAINLOOP:SIEVE\nrequire \"fileinto\";\nkeep;\n".into();
+    app.sieve_try_again(account);
+    app.poll_sieve();
+    let e = SieveEditor::own_script(&app, account).expect("the owner's script is known");
+    assert_eq!(e.own.as_ref().and_then(|o| o.webmail), Some(mailcraft_engine::cmd::sieve_own::Webmail::RainLoop));
+    assert_eq!(e.written(), "# RAINLOOP:SIEVE\nrequire \"fileinto\";\nkeep;\n");
+    // Mixed line breaks are kept as they are.
+    own.lock().unwrap().0 = "keep;\r\nstop;\n".into();
+    app.sieve_try_again(account);
+    app.poll_sieve();
+    let e = SieveEditor::own_script(&app, account).unwrap();
+    assert_eq!((e.text.as_str(), e.written().as_str()), ("keep;\r\nstop;\n", "keep;\r\nstop;\n"));
+}

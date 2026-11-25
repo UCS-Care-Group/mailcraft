@@ -562,6 +562,24 @@ msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
 msgstr "Sieve 规则只在服务器上运行，处理到达服务器的邮件。"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve script is at most 1 MB."
+msgstr "Sieve 脚本最多 1 MB。"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "A Sieve script is at most {mb} MB."
+msgstr "Sieve 脚本最多 {mb} MB。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve script needs some Sieve."
+msgstr "Sieve 脚本需要一些 Sieve 内容。"
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -2377,6 +2395,12 @@ msgstr "再次向服务器读取您的自动答复。"
 msgid "Ask the server whether it takes this rule; nothing is changed there"
 msgstr "询问服务器是否接受此规则；服务器上不会做任何更改"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Ask the server whether it takes this script; nothing is changed there"
+msgstr "询问服务器是否接受此脚本；服务器上不会有任何更改"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3499,6 +3523,12 @@ msgstr "更改颜色"
 #, fuzzy
 msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
 msgstr "更改文件夹窗格中此共享邮箱显示的名称及其颜色"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change the whole script as Sieve text; it is written back exactly as you leave it"
+msgstr "以 Sieve 文本修改整个脚本；它会完全按您留下的样子写回"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5707,6 +5737,12 @@ msgstr "将签名编辑为文本"
 msgid "Edit Task"
 msgstr "编辑任务"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit Your Sieve Script…"
+msgstr "编辑您的 Sieve 脚本…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
 #, fuzzy
@@ -5730,6 +5766,12 @@ msgstr "将签名编辑为文本"
 #, fuzzy
 msgid "Edit task"
 msgstr "编辑任务"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit your Sieve script \"{name}\"…"
+msgstr "编辑您的 Sieve 脚本“{name}”…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -7519,7 +7561,7 @@ msgid "Hold Unsent Mail"
 msgstr "保留未发送的邮件"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "首页"
@@ -8202,6 +8244,12 @@ msgstr "发给"
 #, fuzzy
 msgid "It also sends automatic replies of its own."
 msgstr "它还会发送自己的自动回复。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "It changed on the server since you opened it: reload it first."
+msgstr "自您打开后它已在服务器上更改：请先重新加载。"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8918,11 +8966,29 @@ msgstr "Sieve 规则第 {line} 行第 {column} 列：其中不能有控制字符
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "Sieve 规则第 {line} 行第 {column} 列：{what}"
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Line {line}, column {column} of your Sieve script: a control character can't be in it."
+msgstr "您的 Sieve 脚本第 {line} 行第 {column} 列：其中不能有控制字符。"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Line {line}, column {column} of your Sieve script: {what}"
+msgstr "您的 Sieve 脚本第 {line} 行第 {column} 列：{what}"
+
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Line {line}, column {column}: {what}"
 msgstr "第 {line} 行，第 {column} 列：{what}"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line}: {said}"
+msgstr "第 {line} 行：{said}"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9163,6 +9229,12 @@ msgstr "在其他程序中创建：MailCraft 从不更改此规则"
 #, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "在其他程序中创建：MailCraft 显示这些规则，但从不更改它们"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
+msgstr "在其他程序中创建：MailCraft 显示这些规则，仅按您编辑的脚本文本更改它们"
 
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -10382,7 +10454,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "发件人名称大部分由不可见字符组成，邮件实际来自 {real}。"
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "移动"
@@ -11212,6 +11284,12 @@ msgid "No Send/Receive is running"
 msgstr "当前没有正在进行的发送/接收"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "No Sieve script of your own runs on this account's server, as MailCraft last read it."
+msgstr "根据 MailCraft 上次读取的结果，此账户的服务器上没有运行您自己的 Sieve 脚本。"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "No account here has a mail server to send this through."
@@ -11954,6 +12032,12 @@ msgstr "那个时间您的日历上没有其他事项。"
 #, fuzzy
 msgid "Nothing has been sent or received yet."
 msgstr "尚未发送或接收任何内容。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Nothing has changed yet."
+msgstr "尚未做任何更改。"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -13783,6 +13867,15 @@ msgstr "使用 {owner} 的登录信息读取，直到您移除该日历：对方
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Read your script from the server again, in place of the text here"
+msgstr "从服务器重新读取您的脚本，替换此处的文本"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Reading"
 msgstr "阅读"
@@ -13998,6 +14091,12 @@ msgstr "刷新您的证书和密钥"
 #, fuzzy
 msgid "Related"
 msgstr "相关"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Reload"
+msgstr "重新加载"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15003,6 +15102,12 @@ msgstr "邮件文件另存为"
 msgid "Save Signature"
 msgstr "保存签名"
 
+#. command label
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Save Your Sieve Script"
+msgstr "保存您的 Sieve 脚本"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -15135,6 +15240,18 @@ msgstr "正在保存邮箱…正在写入正文和附件，已完成 {done}/{tot
 #, fuzzy
 msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "正在保存邮箱…已处理 {done}/{total} 封邮件"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Saving your Sieve script…"
+msgstr "正在保存您的 Sieve 脚本…"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Saving…"
+msgstr "正在保存…"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19247,6 +19364,12 @@ msgid "The server couldn't check this rule"
 msgstr "服务器无法检查此规则"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server couldn't check this script"
+msgstr "服务器无法检查此脚本"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
@@ -19317,6 +19440,12 @@ msgstr "服务器不允许更改此规则"
 #, fuzzy
 msgid "The server doesn't take this rule:"
 msgstr "服务器不接受此规则："
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server doesn't take this script:"
+msgstr "服务器不接受此脚本："
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -19392,6 +19521,18 @@ msgstr "服务器接受此规则，但有警告："
 #, fuzzy
 msgid "The server takes this rule."
 msgstr "服务器接受此规则。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this script, with warnings:"
+msgstr "服务器接受此脚本，但有警告："
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this script."
+msgstr "服务器接受此脚本。"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -19756,6 +19897,18 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "用户名太长或包含名称中不能包含的字符"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The whole script your server runs, made in another program, as Sieve text"
+msgstr "您的服务器运行的整个脚本（在其他程序中创建），以 Sieve 文本显示"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The whole script your server runs, made in another program, as it was read. Save writes back exactly this text, only while the script on the server is still the one you opened."
+msgstr "您的服务器运行的整个脚本（在其他程序中创建），按读取时的原样显示。“保存”会完全按此文本写回，但仅当服务器上的脚本仍是您打开的那个时。"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -20055,8 +20208,8 @@ msgstr "此账户的服务器不提供 Sieve 脚本（ManageSieve）。"
 msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
 msgstr "此账户的服务器不接受来自 MailCraft 的自动回复：它不提供带假期回复的 Sieve 脚本（ManageSieve）"
 
-#. interface
-#: crates/ui-egui/src/sieve_replies.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This account's server keeps no Sieve scripts."
 msgstr "此账户的服务器不保存 Sieve 脚本。"
@@ -20893,6 +21046,12 @@ msgstr "此规则包含规则生成器无法显示的部分：要更改它，请
 msgid "This rule isn't a Sieve rule: change it in the rule builder."
 msgstr "此规则不是 Sieve 规则：请在规则向导中更改。"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This script was written by a webmail ({webmail}). It may overwrite or drop the changes you make here the next time its filters are saved there."
+msgstr "此脚本由网页邮件（{webmail}）编写。下次在那里保存其过滤器时，它可能会覆盖或丢弃您在此处所做的更改。"
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20904,6 +21063,12 @@ msgstr "此系列尚在发送到该账户服务器的途中。请稍候，待它
 #, fuzzy
 msgid "This server can't check a rule without keeping it: it checks it when the rule is saved."
 msgstr "此服务器无法在不保存的情况下检查规则：会在保存规则时检查。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This server can't check a script without keeping it: it checks it when it is saved."
+msgstr "此服务器无法在不保留脚本的情况下检查它：它会在保存时检查。"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -22414,6 +22579,12 @@ msgid "Working offline: mail you send waits in the Outbox"
 msgstr "离线工作：您发送的邮件会在发件箱中等待"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Working with the server…"
+msgstr "正在与服务器通信…"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Workplace"
@@ -22430,6 +22601,12 @@ msgstr "写信"
 #, fuzzy
 msgid "Write a Note with the Response…"
 msgstr "随回复写一条备注…"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Write this text to the server in place of your script; it stays the one that runs"
+msgstr "将此文本写入服务器以替换您的脚本；它仍是正在运行的脚本"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -22635,6 +22812,18 @@ msgstr "你正在脱机工作。"
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "您正在离线工作。请在“发送/接收”中关闭“离线工作”以连接。"
 
+#. command label
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Your Sieve Script"
+msgstr "您的 Sieve 脚本"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\""
+msgstr "您的 Sieve 脚本“{name}”"
+
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
@@ -22646,6 +22835,42 @@ msgstr "服务器上运行的是你的 Sieve 脚本“{name}”，而不是 Mail
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
 msgstr "服务器上运行的是你的 Sieve 脚本“{name}”，而不是 MailCraft 的：这些回复保存在那里，但在它运行期间不会发送。MailCraft 从不关闭你的脚本。"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
+msgstr "自您打开后，您的 Sieve 脚本已在服务器上更改，因此未写入任何内容。请重新加载以查看其当前内容。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now: the changes made here are lost then."
+msgstr "自您打开后，您的 Sieve 脚本已在服务器上更改，因此未写入任何内容。重新加载以查看其当前内容：此处所做的更改将会丢失。"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script couldn't be read again: the server doesn't run it now, or can't be reached."
+msgstr "无法重新读取您的 Sieve 脚本：服务器现在未运行它，或无法连接。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script is saved on the server"
+msgstr "您的 Sieve 脚本已保存到服务器"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Your Sieve script isn't known just now: MailCraft reads it again."
+msgstr "暂时不知道您的 Sieve 脚本：MailCraft 正在重新读取。"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script wasn't saved"
+msgstr "您的 Sieve 脚本未保存"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -23931,6 +24156,12 @@ msgstr "颁发者：{issuer}"
 msgid "it can't take it"
 msgstr "无法接受此项"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it changed on the server since you opened it."
+msgstr "自您打开后它已在服务器上更改。"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -24044,6 +24275,12 @@ msgstr "图片已损坏或超过可显示的大小"
 #, fuzzy
 msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
 msgstr "它位于您自己在服务器上的 Sieve 脚本中，由其他程序创建：MailCraft 从不更改它"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is larger than MailCraft sends (1 MB)."
+msgstr "它超过了 MailCraft 发送的大小（1 MB）。"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -24340,7 +24577,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "没有账户通过 Microsoft Graph 同步"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "没有 ID 为 {account} 的账户"
@@ -25888,6 +26125,12 @@ msgstr "服务器继续执行已取消的密码验证"
 msgid "the server couldn't be reached"
 msgstr "无法访问服务器"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server couldn't be reached."
+msgstr "无法连接服务器。"
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
@@ -25983,6 +26226,12 @@ msgstr "服务器结束会话：{reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "服务器在问候响应中拒绝连接：{reason}"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server has no room for it (your quota, or its largest script)."
+msgstr "服务器没有空间存放它（您的配额，或其最大脚本大小）。"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/idle.rs

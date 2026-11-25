@@ -145,7 +145,10 @@ pub fn object(id: &str) -> Option<Object> {
         | "ui.sync"
         | "junk.add"
         | "junk.remove"
-        | "junk.list" => Account,
+        | "junk.list"
+        // The owner's own Sieve script on the account's server (#9999).
+        | "sieve.ownScript"
+        | "sieve.putOwnScript" => Account,
         "rules.add" | "rules.edit" | "rules.addSieve" | "rules.editSieve" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move"
         | "rules.keepOnServer" => Rule,
         _ if id.starts_with("signature.") => Signature,

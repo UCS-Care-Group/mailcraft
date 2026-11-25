@@ -195,6 +195,9 @@ pub mod shared;
 pub mod sieve_elsewhere;
 #[cfg(test)]
 mod sieve_elsewhere_tests;
+pub mod sieve_own;
+#[cfg(test)]
+mod sieve_own_tests;
 pub mod sieve_replies;
 #[cfg(test)]
 mod sieve_replies_tests;
@@ -283,6 +286,7 @@ pub fn registry() -> Registry {
     v.extend(account::specs());
     v.extend(auto_replies::specs());
     v.extend(sieve_replies::specs());
+    v.extend(sieve_own::specs());
     v.extend(offline::specs());
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());

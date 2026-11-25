@@ -48,6 +48,8 @@ pub(crate) struct SieveWorld {
     pub(crate) refusal: String,
     /// A script with the first in it is taken with the second as its warnings.
     pub(crate) warn_scripts_with: Option<(String, String)>,
+    /// The largest script it has room for (HAVESPACE, PUTSCRIPT), in bytes; `None`: any.
+    pub(crate) quota: Option<usize>,
     /// Say the VERSION of RFC 5804; a server from before it says none, and has no CHECKSCRIPT.
     pub(crate) version: bool,
     /// Send the client to another server instead of signing it in.
@@ -72,6 +74,7 @@ impl Default for SieveWorld {
             refuse_scripts_with: None,
             refusal: "line 1: error: unknown command".into(),
             warn_scripts_with: None,
+            quota: None,
             version: true,
             referral: false,
             log: Vec::new(),
@@ -293,7 +296,9 @@ fn serve_sieve(stream: TcpStream, shared: Arc<Mutex<SieveWorld>>) {
             "PUTSCRIPT" | "CHECKSCRIPT" => {
                 let (name, text) = if command == "PUTSCRIPT" { (arg(0), arg(1)) } else { (String::new(), arg(0)) };
                 let warned = world.warn_scripts_with.as_ref().filter(|(with, _)| text.contains(with.as_str())).map(|(_, said)| said.clone());
-                if world.refuse_scripts_with.as_ref().is_some_and(|bad| text.contains(bad.as_str())) {
+                if command == "PUTSCRIPT" && world.quota.is_some_and(|most| text.len() > most) {
+                    "NO (QUOTA/MAXSIZE) \"Script too large\"".to_string()
+                } else if world.refuse_scripts_with.as_ref().is_some_and(|bad| text.contains(bad.as_str())) {
                     format!("NO {}", said(&world.refusal))
                 } else if let Some(warnings) = warned.filter(|_| command == "CHECKSCRIPT") {
                     format!("OK (WARNINGS) {}", said(&warnings))
@@ -328,7 +333,10 @@ fn serve_sieve(stream: TcpStream, shared: Arc<Mutex<SieveWorld>>) {
                     "OK".to_string()
                 }
             }
-            "HAVESPACE" => "OK".to_string(),
+            "HAVESPACE" => match (world.quota, arg(1).parse::<usize>()) {
+                (Some(most), Ok(size)) if size > most => "NO (QUOTA/MAXSIZE) \"Script too large\"".to_string(),
+                _ => "OK".to_string(),
+            },
             _ => "NO \"Unknown command\"".to_string(),
         };
         drop(world);

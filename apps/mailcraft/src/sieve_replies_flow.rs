@@ -343,3 +343,62 @@ fn the_editors_check_reaches_the_server_and_brings_its_words_back_unwritten() {
     assert_eq!(world.log.iter().filter(|l| l.starts_with("CHECKSCRIPT")).count(), 2);
     assert!(world.scripts.is_empty() && !world.heard("PUTSCRIPT"));
 }
+
+/// The owner's own script, as a webmail wrote it: CRLF, comments, an extension MailCraft doesn't
+/// know (which the fake server offers).
+const OWN: &str = "# rule:[Lists]\r\nrequire [\"fileinto\", \"x-unknown\"];\r\n/* kept as is */\r\nif header :contains \"subject\" \"[list]\" {\r\n  fileinto \"INBOX/Lists\";\r\n}\r\n";
+
+fn own_world() -> SieveWorld {
+    SieveWorld {
+        extensions: "fileinto vacation x-unknown".into(),
+        scripts: vec![("roundcube".into(), OWN.into())],
+        active: Some("roundcube".into()),
+        ..world()
+    }
+}
+
+#[test]
+fn the_owners_own_script_is_written_back_as_typed_and_stays_active() {
+    let fake = Fake::sieve(own_world());
+    let (mut app, account) = window(&fake);
+    read(&mut app, account);
+    let got = app.execute("sieve.ownScript", json!({"account": account})).unwrap();
+    assert_eq!(got["script"]["text"], OWN);
+    let edited = OWN.replace("INBOX/Lists", "INBOX/Old lists");
+    app.execute("sieve.putOwnScript", json!({"account": account, "text": edited, "digest": got["script"]["digest"]})).unwrap();
+    app.poll_sieve();
+    {
+        let world = fake.world();
+        assert_eq!(world.script("roundcube").map(str::as_bytes), Some(edited.as_bytes()));
+        assert_eq!(world.active.as_deref(), Some("roundcube"));
+        assert_eq!(world.script(SCRIPT_NAME), None);
+        assert!(!world.heard("SETACTIVE") && !world.heard("DELETESCRIPT") && !world.heard("RENAMESCRIPT"));
+    }
+    assert_eq!(app.status_msg.as_ref().map(|(s, _)| s.as_str()), Some("Your Sieve script is saved on the server"));
+    // Read again with the write: the rules shown follow the new text; MailCraft's digest is untouched.
+    assert_eq!(app.execute("sieve.ownScript", json!({"account": account})).unwrap()["script"]["text"], edited.as_str());
+    assert_eq!(app.session.mailbox.account(account).unwrap().sieve_written, "");
+}
+
+#[test]
+fn the_owners_own_script_changed_on_the_server_meanwhile_is_left_as_it_is() {
+    let fake = Fake::sieve(own_world());
+    let (mut app, account) = window(&fake);
+    read(&mut app, account);
+    let digest_read = digest(OWN);
+    // Changed in webmail after MailCraft read it.
+    let webmail = format!("{OWN}# rule:[Later]\r\nif size :over 1M {{ discard; }}\r\n");
+    {
+        let mut world = fake.world();
+        world.scripts = vec![("roundcube".into(), webmail.clone())];
+    }
+    app.execute("sieve.putOwnScript", json!({"account": account, "text": "keep;\r\n", "digest": digest_read})).unwrap();
+    app.poll_sieve();
+    assert_eq!(fake.world().script("roundcube"), Some(webmail.as_str()));
+    let said = app.status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("changed on the server since you opened it"), "{said}");
+    // What the server has now is what is known, and the stale digest is refused at once.
+    assert_eq!(app.execute("sieve.ownScript", json!({"account": account})).unwrap()["script"]["text"], webmail.as_str());
+    assert!(app.execute("sieve.putOwnScript", json!({"account": account, "text": "keep;\r\n", "digest": digest_read})).is_err());
+    assert!(!fake.world().heard("PUTSCRIPT"));
+}

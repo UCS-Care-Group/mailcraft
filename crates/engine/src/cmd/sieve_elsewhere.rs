@@ -47,7 +47,7 @@ const MAX_UNKNOWN: usize = 20;
 pub const MAX_NAME: usize = sieve_rainloop::MAX_NAME;
 
 /// A script's rules as Rules and Alerts shows them.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Elsewhere {
     /// The script's name on the server.
     pub script: String,
@@ -59,6 +59,23 @@ pub struct Elsewhere {
     pub replies: bool,
     /// It couldn't be read as Sieve at all.
     pub unreadable: bool,
+    /// Its text exactly as the server gave it (never saved): what the owner's own script is
+    /// edited from, whole ([`crate::cmd::sieve_own`]).
+    pub text: String,
+}
+
+/// The script's text stays out of debug output: only its size.
+impl std::fmt::Debug for Elsewhere {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Elsewhere")
+            .field("script", &self.script)
+            .field("ours", &self.ours)
+            .field("rules", &self.rules)
+            .field("replies", &self.replies)
+            .field("unreadable", &self.unreadable)
+            .field("text", &self.text.len())
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -496,7 +513,7 @@ fn me(mb: &Mailbox, account: Id) -> Vec<String> {
 
 /// The rules of the script `script` (its text `text`) on `account`'s server, read-only.
 pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> Elsewhere {
-    let mut out = Elsewhere { script: script.chars().take(MAX_STRING).collect(), ours, ..Default::default() };
+    let mut out = Elsewhere { script: script.chars().take(MAX_STRING).collect(), ours, text: text.to_string(), ..Default::default() };
     let Some((commands, comments)) = parse(text) else {
         out.unreadable = true;
         return out;

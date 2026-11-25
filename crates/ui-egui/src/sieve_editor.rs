@@ -18,23 +18,33 @@
 //! **Hostile text.** What the server says is capped and without control characters
 //! (`mailcraft_proto::managesieve::kept_text`); the text typed is at most
 //! [`MAX_SIEVE_RULE`] bytes, and is the owner's, shown as it is and never run here.
+//!
+//! **The owner's own script, whole.** For an account whose server runs a script of the owner's
+//! own (made in webmail or another program), Advanced… › Edit your Sieve script… and the button by
+//! its rules open the same editor on the whole script, exactly as it was read
+//! ([`OwnScript`]): a script whose lines all end in CRLF is shown with plain line breaks and
+//! written with CRLF again, so text left alone goes back byte for byte. It is checked as a whole
+//! script ([`mailcraft_engine::cmd::sieve_own::problems`]), Check sends it to the server as it is
+//! (its line numbers are the script's own), and Save runs `sieve.putOwnScript`, which the host
+//! writes only while the server's script is the one read: else the editor says it changed there
+//! and offers Reload, and nothing is written. A note stays up while a webmail's marks are in it.
 
 use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::{Align, Align2, FontId, Rect, Sense, Shape, Ui, pos2, vec2};
 use mailcraft_engine::cmd::rules_sieve::{ForCheck, ServerLine, editor_problems, for_server_check, server_lines};
+use mailcraft_engine::cmd::sieve_own::{self, Webmail};
+use mailcraft_engine::sieve::{MAX_SCRIPT, digest};
 use mailcraft_engine::sieve_check::Problem;
 use mailcraft_model::{Id, MAX_SIEVE_RULE, Mailbox};
 use serde_json::{Value, json};
 
 use crate::forms::kit::shown;
-use crate::sieve_replies::{ServerCheck, SieveTrouble};
+use crate::sieve_replies::{OwnSaved, ServerCheck, SieveTrouble};
 use crate::theme::{Tokens, regular};
 use crate::{MailApp, now_ms};
 
 /// How long typing pauses before the text is checked here (milliseconds).
 const QUIET_MS: f64 = 300.0;
-/// From this size on, the editor says how much of [`MAX_SIEVE_RULE`] is used.
-const NEAR_CAP: usize = MAX_SIEVE_RULE / 4 * 3;
 /// Most problems listed under the editor.
 const MAX_LISTED: usize = 50;
 /// What a new Sieve rule starts with.
@@ -65,9 +75,34 @@ enum Said {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum EditorAsks {
     Check,
-    /// Run this command (`rules.addSieve` or `rules.editSieve`) with these params.
+    /// Run this command (`rules.addSieve`, `rules.editSieve` or `sieve.putOwnScript`) with these
+    /// params.
     Save(&'static str, Value),
+    /// Read the owner's own script from the server again, in place of the text here.
+    Reload,
     Cancel,
+}
+
+/// The owner's own script being edited whole (#9999): what it is on the server, and what became
+/// of a save.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct OwnScript {
+    /// Its name on the server.
+    pub(crate) name: String,
+    /// The digest of its text as read: written over only while the server's is still that.
+    pub(crate) digest: String,
+    /// Its text exactly as read.
+    pub(crate) read: String,
+    /// Every line of it ended in CRLF: shown with plain line breaks, written with CRLF again.
+    crlf: bool,
+    /// A webmail that wrote it, which may overwrite changes made here.
+    pub(crate) webmail: Option<Webmail>,
+    /// A save is under way.
+    pub(crate) saving: bool,
+    /// The server's script changed since it was read: nothing was written.
+    pub(crate) changed: bool,
+    /// It is being read again (Reload).
+    reloading: bool,
 }
 
 /// A Sieve rule being written or changed.
@@ -92,6 +127,10 @@ pub struct SieveEditor {
     /// What a command refused, or why Check couldn't run.
     pub(crate) error: String,
     focus: bool,
+    /// The owner's own script, whole, when that is what is edited (no name then).
+    pub(crate) own: Option<OwnScript>,
+    /// It was saved: the dialog closes the editor.
+    pub(crate) closed: bool,
 }
 
 /// Whether Rules and Alerts offers Advanced… for `account`: its server keeps MailCraft's Sieve
@@ -113,6 +152,37 @@ impl SieveEditor {
         Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() })
     }
 
+    /// The owner's own script `account`'s server runs, whole, as it was last read; `None` when it
+    /// runs none (or MailCraft's).
+    pub(crate) fn own_script(app: &MailApp, account: Id) -> Option<SieveEditor> {
+        let (name, text) = sieve_own::own_script(&app.session, account)?;
+        let lf = text.matches('\n').count();
+        let crlf = lf > 0 && text.matches("\r\n").count() == lf && text.matches('\r').count() == lf;
+        let own = OwnScript {
+            name: name.to_string(),
+            digest: digest(text),
+            read: text.to_string(),
+            crlf,
+            webmail: sieve_own::webmail(text),
+            ..Default::default()
+        };
+        let shown = if crlf { text.replace("\r\n", "\n") } else { text.to_string() };
+        Some(SieveEditor { account, text: shown, focus: true, own: Some(own), ..Default::default() })
+    }
+
+    /// The text as it would be written: with CRLF line breaks again where the script had them.
+    pub(crate) fn written(&self) -> String {
+        match &self.own {
+            Some(own) if own.crlf => self.text.replace("\r\n", "\n").replace('\n', "\r\n"),
+            _ => self.text.clone(),
+        }
+    }
+
+    /// The most bytes of text.
+    fn cap(&self) -> usize {
+        if self.own.is_some() { MAX_SCRIPT } else { MAX_SIEVE_RULE }
+    }
+
     /// The problems that are mistakes (not warnings).
     fn errors(&self) -> usize {
         self.problems.iter().filter(|p| !p.warning).count()
@@ -126,6 +196,7 @@ impl SieveEditor {
     /// Before the frame is drawn: the server's answer, if it came, and the check here once typing
     /// has paused.
     pub(crate) fn tick(&mut self, app: &mut MailApp, ctx: &egui::Context) {
+        self.own_tick(app, ctx);
         if let Some((ticket, for_check, text)) = self.asking.clone() {
             match app.sieve_check_answer(ticket) {
                 Some(result) => {
@@ -159,9 +230,55 @@ impl SieveEditor {
         self.check_here(&app.session.mailbox);
     }
 
-    /// Check the text here now ([`editor_problems`]).
+    /// The owner's own script: what became of a save, and a reload once it is read.
+    fn own_tick(&mut self, app: &mut MailApp, ctx: &egui::Context) {
+        let account = self.account;
+        let Some(own) = self.own.as_mut() else { return };
+        if own.saving {
+            match app.sieve.own_saved.remove(&account) {
+                Some(OwnSaved::Done) => {
+                    own.saving = false;
+                    self.closed = true;
+                }
+                Some(OwnSaved::Changed) => {
+                    own.saving = false;
+                    own.changed = true;
+                }
+                Some(OwnSaved::Failed(why)) => {
+                    own.saving = false;
+                    self.error = why;
+                }
+                None => ctx.request_repaint_after(std::time::Duration::from_millis(250)),
+            }
+        }
+        if own.reloading {
+            if app.sieve.busy_for(account).is_some() {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                return;
+            }
+            match SieveEditor::own_script(app, account) {
+                Some(fresh) => *self = fresh,
+                None => {
+                    own.reloading = false;
+                    self.error = tl!("Your Sieve script couldn't be read again: the server doesn't run it now, or can't be reached.").to_string();
+                }
+            }
+        }
+    }
+
+    /// Reload asked for: the server is read again, and the editor starts over from what it has.
+    pub(crate) fn reload(&mut self, app: &mut MailApp) {
+        let Some(own) = self.own.as_mut() else { return };
+        own.reloading = true;
+        self.error.clear();
+        app.sieve_try_again(self.account);
+    }
+
+    /// Check the text here now ([`editor_problems`], or for the owner's own script
+    /// [`sieve_own::problems`]).
     pub(crate) fn check_here(&mut self, mb: &Mailbox) {
         self.problems = match mb.account(self.account) {
+            Some(a) if self.own.is_some() && self.text.len() <= MAX_SCRIPT => sieve_own::problems(a, &self.text),
             Some(a) if self.text.len() <= MAX_SIEVE_RULE => editor_problems(a, &self.text),
             _ => Vec::new(),
         };
@@ -171,7 +288,14 @@ impl SieveEditor {
     /// Check asked for: the text in MailCraft's script, to the server.
     pub(crate) fn check_on_server(&mut self, app: &mut MailApp) {
         self.error.clear();
-        let made = for_server_check(&app.session, self.account, self.id, &self.name, &self.text).map_err(|e| app.refusal_said(&e.to_string()));
+        // The owner's own script goes as it is: the server's line numbers are its own.
+        let made = if self.own.is_some() {
+            let script = self.written();
+            let lines = script.matches('\n').count().saturating_add(1);
+            Ok(ForCheck { script, first_line: 1, lines })
+        } else {
+            for_server_check(&app.session, self.account, self.id, &self.name, &self.text).map_err(|e| app.refusal_said(&e.to_string()))
+        };
         let asked = made.and_then(|for_check| app.sieve_check_start(self.account, for_check.script.clone()).map(|ticket| (ticket, for_check)));
         match asked {
             Ok((ticket, for_check)) => {
@@ -184,6 +308,9 @@ impl SieveEditor {
 
     /// The command Save runs, with its params.
     pub(crate) fn command(&self) -> (&'static str, Value) {
+        if let Some(own) = &self.own {
+            return ("sieve.putOwnScript", json!({"account": self.account, "text": self.written(), "digest": own.digest}));
+        }
         match self.id {
             Some(id) => ("rules.editSieve", json!({"id": id, "name": self.name, "sieve": self.text})),
             None => ("rules.addSieve", json!({"account": self.account, "name": self.name, "sieve": self.text})),
@@ -192,13 +319,29 @@ impl SieveEditor {
 
     /// Why Save can't run yet, in words; `None` when it can.
     fn lacks(&self) -> Option<&'static str> {
-        if self.name.trim().is_empty() {
+        if let Some(own) = &self.own {
+            if own.saving {
+                return Some(tl!("Saving…"));
+            }
+            if own.changed {
+                return Some(tl!("It changed on the server since you opened it: reload it first."));
+            }
+            if self.text.trim().is_empty() {
+                return Some(tl!("A Sieve script needs some Sieve."));
+            }
+            if self.text.len() > MAX_SCRIPT {
+                return Some(tl!("A Sieve script is at most 1 MB."));
+            }
+            if self.written() == own.read {
+                return Some(tl!("Nothing has changed yet."));
+            }
+        } else if self.name.trim().is_empty() {
             return Some(tl!("A Sieve rule needs a name."));
         }
         if self.text.trim().is_empty() {
             return Some(tl!("A Sieve rule needs some Sieve."));
         }
-        if self.text.len() > MAX_SIEVE_RULE {
+        if self.own.is_none() && self.text.len() > MAX_SIEVE_RULE {
             return Some(tl!("A Sieve rule is at most 64 KB."));
         }
         if !self.checked_now() {
@@ -211,61 +354,121 @@ impl SieveEditor {
     pub(crate) fn ui(&mut self, ui: &mut Ui, app: &MailApp) -> Option<EditorAsks> {
         let t = Tokens::get(ui.ctx());
         let mut asks = None;
-        let title = if self.id.is_some() { tl!("Change Sieve rule") } else { tl!("New Sieve rule") };
-        ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
-        ui.label(
-            egui::RichText::new(tl!(
-                "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
-            ))
-            .font(regular(11.5))
-            .color(t.text_dim),
-        );
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.label(tl!("Name"));
-            let name = egui::TextEdit::singleline(&mut self.name).desired_width(320.0).char_limit(mailcraft_model::MAX_NAME);
-            let _ = crate::text_menu::field(ui.add(name));
-        });
+        let dim = |ui: &mut Ui, text: &str| {
+            ui.label(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim));
+        };
+        match &self.own {
+            Some(own) => {
+                let title = crate::i18n::fmt(tl!("Your Sieve script \"{name}\""), &[("name", &shown(&own.name, 80))]);
+                ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
+                dim(
+                    ui,
+                    tl!(
+                        "The whole script your server runs, made in another program, as it was read. Save writes back exactly this text, only while the script on the server is still the one you opened."
+                    ),
+                );
+                // A webmail's marks: it may write over this (#9999); the note stays up.
+                if let Some(webmail) = own.webmail {
+                    let which = match webmail {
+                        Webmail::RainLoop => "RainLoop or SnappyMail",
+                        Webmail::Roundcube => "Roundcube",
+                    };
+                    let note = crate::i18n::fmt(
+                        tl!(
+                            "This script was written by a webmail ({webmail}). It may overwrite or drop the changes you make here the next time its filters are saved there."
+                        ),
+                        &[("webmail", which)],
+                    );
+                    ui.label(egui::RichText::new(note).font(regular(11.5)).color(t.orange));
+                }
+            }
+            None => {
+                let title = if self.id.is_some() { tl!("Change Sieve rule") } else { tl!("New Sieve rule") };
+                ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
+                dim(
+                    ui,
+                    tl!(
+                        "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
+                    ),
+                );
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(tl!("Name"));
+                    let name = egui::TextEdit::singleline(&mut self.name).desired_width(320.0).char_limit(mailcraft_model::MAX_NAME);
+                    let _ = crate::text_menu::field(ui.add(name));
+                });
+            }
+        }
         ui.add_space(4.0);
         if self.code(ui, &t) {
             self.edited = Some(now_ms() as u64);
             self.error.clear();
         }
         let used = self.text.len();
-        if used >= NEAR_CAP {
-            let said = crate::i18n::fmt(
-                tl!("{used} of {most} KB"),
-                &[("used", &(used.div_ceil(1024)).to_string()), ("most", &(MAX_SIEVE_RULE >> 10).to_string())],
-            );
-            ui.label(egui::RichText::new(said).font(regular(11.0)).color(if used > MAX_SIEVE_RULE { t.red } else { t.orange }));
+        let cap = self.cap();
+        if used >= cap / 4 * 3 {
+            let said =
+                crate::i18n::fmt(tl!("{used} of {most} KB"), &[("used", &(used.div_ceil(1024)).to_string()), ("most", &(cap >> 10).to_string())]);
+            ui.label(egui::RichText::new(said).font(regular(11.0)).color(if used > cap { t.red } else { t.orange }));
         }
         self.problems_list(ui, &t);
         self.server_said(ui, &t);
+        if self.own.as_ref().is_some_and(|o| o.changed) {
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(tl!(
+                    "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now: the changes made here are lost then."
+                ))
+                .font(regular(11.5))
+                .color(t.red),
+            );
+        }
         ui.add_space(6.0);
+        let unavailable = app.sieve_check_unavailable(self.account);
         ui.horizontal(|ui| {
-            let lacks = self.lacks();
+            // (The owner's own script is saved through the server alone: Save waits as Check does.)
+            let lacks = self.lacks().map(str::to_string).or_else(|| unavailable.clone().filter(|_| self.own.is_some()));
             let save = ui.add_enabled(lacks.is_none(), egui::Button::new(tl!("Save")));
-            let save = match lacks {
-                Some(why) => save.on_disabled_hover_text(why),
-                None => save.on_hover_text(tl!("Keep this rule; it goes to the server with your other rules")),
+            let tip = if self.own.is_some() {
+                tl!("Write this text to the server in place of your script; it stays the one that runs")
+            } else {
+                tl!("Keep this rule; it goes to the server with your other rules")
+            };
+            let save = match &lacks {
+                Some(why) => save.on_disabled_hover_text(why.as_str()),
+                None => save.on_hover_text(tip),
             };
             if save.clicked() && lacks.is_none() {
                 let (command, params) = self.command();
                 asks = Some(EditorAsks::Save(command, params));
             }
-            let unavailable = app.sieve_check_unavailable(self.account);
             let busy = self.asking.is_some();
             let check = ui.add_enabled(unavailable.is_none() && !busy && !self.text.trim().is_empty(), egui::Button::new(tl!("Check")));
+            let tip = if self.own.is_some() {
+                tl!("Ask the server whether it takes this script; nothing is changed there")
+            } else {
+                tl!("Ask the server whether it takes this rule; nothing is changed there")
+            };
             let check = match &unavailable {
                 Some(why) => check.on_disabled_hover_text(why.as_str()),
-                None => check.on_hover_text(tl!("Ask the server whether it takes this rule; nothing is changed there")),
+                None => check.on_hover_text(tip),
             };
             if check.clicked() && unavailable.is_none() && !busy {
                 asks = Some(EditorAsks::Check);
             }
-            if busy {
+            if let Some(own) = &self.own
+                && (own.changed || own.reloading)
+            {
+                let reload = ui.add_enabled(!own.reloading, egui::Button::new(tl!("Reload")));
+                if reload.on_hover_text(tl!("Read your script from the server again, in place of the text here")).clicked() {
+                    asks = Some(EditorAsks::Reload);
+                }
+            }
+            let saving = self.own.as_ref().is_some_and(|o| o.saving || o.reloading);
+            if busy || saving {
                 ui.spinner();
-                ui.label(egui::RichText::new(tl!("Asking the server…")).color(t.text_dim));
+                let doing = if saving { tl!("Working with the server…") } else { tl!("Asking the server…") };
+                ui.label(egui::RichText::new(doing).color(t.text_dim));
             } else if let Some(why) = &unavailable {
                 ui.label(egui::RichText::new(shown(why, 160)).font(regular(11.0)).color(t.text_dim));
             }
@@ -312,6 +515,7 @@ impl SieveEditor {
             ui.fonts_mut(|f| f.layout_job(job))
         };
         let mut changed = false;
+        let cap = self.cap();
         egui::ScrollArea::both().id_salt("sieve_editor_scroll").max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
@@ -324,7 +528,7 @@ impl SieveEditor {
                     .margin(egui::Margin::symmetric(6, 4))
                     .desired_width(f32::INFINITY)
                     .desired_rows(14)
-                    .char_limit(MAX_SIEVE_RULE)
+                    .char_limit(cap)
                     .layouter(&mut layouter);
                 let out = edit.show(ui);
                 let response = crate::text_menu::field(out.response.response.clone());
@@ -397,11 +601,17 @@ impl SieveEditor {
         let Some(said) = &self.server else { return };
         let stale = said.text != self.text;
         let dim = |c: egui::Color32| if stale { t.text_dim } else { c };
+        let whole = self.own.is_some();
         let head = match &said.kind {
+            Said::Fine if whole => tl!("The server takes this script.").to_string(),
             Said::Fine => tl!("The server takes this rule.").to_string(),
+            Said::Warnings if whole => tl!("The server takes this script, with warnings:").to_string(),
             Said::Warnings => tl!("The server takes this rule, with warnings:").to_string(),
+            Said::Errors if whole => tl!("The server doesn't take this script:").to_string(),
             Said::Errors => tl!("The server doesn't take this rule:").to_string(),
+            Said::NotOffered if whole => tl!("This server can't check a script without keeping it: it checks it when it is saved.").to_string(),
             Said::NotOffered => tl!("This server can't check a rule without keeping it: it checks it when the rule is saved.").to_string(),
+            Said::Failed(why) if whole => crate::i18n::with_reason(tl!("The server couldn't check this script"), why),
             Said::Failed(why) => crate::i18n::with_reason(tl!("The server couldn't check this rule"), why),
         };
         let colour = match said.kind {
@@ -420,7 +630,11 @@ impl SieveEditor {
             let text = shown(&l.text, 300);
             match l.line {
                 Some(line) => {
-                    let label = crate::i18n::fmt(tl!("Line {line} of the rule: {said}"), &[("line", &line.to_string()), ("said", &text)]);
+                    let label = if whole {
+                        crate::i18n::fmt(tl!("Line {line}: {said}"), &[("line", &line.to_string()), ("said", &text)])
+                    } else {
+                        crate::i18n::fmt(tl!("Line {line} of the rule: {said}"), &[("line", &line.to_string()), ("said", &text)])
+                    };
                     let row = ui.add(egui::Button::new(egui::RichText::new(label).font(regular(11.5)).color(dim(t.text))).frame(false));
                     if row.on_hover_text(tl!("Go to this place in the text")).clicked() && !stale {
                         goto = Some((line, 1));
@@ -431,7 +645,7 @@ impl SieveEditor {
                 }
             }
         }
-        if matches!(said.kind, Said::Warnings | Said::Errors) && said.lines.iter().any(|l| l.line.is_none()) {
+        if !whole && matches!(said.kind, Said::Warnings | Said::Errors) && said.lines.iter().any(|l| l.line.is_none()) {
             ui.label(
                 egui::RichText::new(tl!(
                     "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."

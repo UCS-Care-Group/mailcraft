@@ -5729,9 +5729,16 @@ pub(crate) mod rules {
             if let Some(editor) = self.sieve.as_mut() {
                 editor.tick(app, ui.ctx());
             }
+            // (The owner's own script, once saved, closes its editor.)
+            if self.sieve.as_ref().is_some_and(|e| e.closed) {
+                self.sieve = None;
+            }
             let advanced = crate::sieve_editor::offered(app, account);
+            // The owner's own script the server runs, to edit whole (#9999).
+            let own_script = mailcraft_engine::cmd::sieve_own::own_script(&app.session, account).map(|(name, _)| name.to_string());
             let mut sieve_asks = None;
             let mut new_sieve = false;
+            let mut edit_own = false;
             let mut run: Option<(&'static str, Value)> = None;
             let mut replace_sieve = false;
             let mut chosen = None;
@@ -5792,7 +5799,20 @@ pub(crate) mod rules {
                         } else {
                             crate::i18n::fmt(tl!("In your Sieve script \"{name}\""), &[("name", &shown(&e.script, 80))])
                         };
-                        heading(ui, t, &title, tl!("Made in another program: MailCraft shows these rules and never changes them"));
+                        let tip = if e.ours {
+                            tl!("Made in another program: MailCraft shows these rules and never changes them")
+                        } else {
+                            tl!("Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text")
+                        };
+                        heading(ui, t, &title, tip);
+                        // The script itself, edited whole as Sieve (#9999).
+                        if !e.ours && own_script.as_deref() == Some(e.script.as_str()) {
+                            let edit = ui.button(tl!("Edit Your Sieve Script…"));
+                            if edit.on_hover_text(tl!("Change the whole script as Sieve text; it is written back exactly as you leave it")).clicked()
+                            {
+                                edit_own = true;
+                            }
+                        }
                         let mark = if e.ours {
                             tl!("On the server, changed elsewhere: Replace with MailCraft's would remove it").to_string()
                         } else {
@@ -5842,6 +5862,14 @@ pub(crate) mod rules {
                                 new_sieve = true;
                                 ui.close();
                             }
+                            if let Some(name) = &own_script {
+                                let label = crate::i18n::fmt(tl!("Edit your Sieve script \"{name}\"…"), &[("name", &shown(name, 60))]);
+                                let tip = tl!("The whole script your server runs, made in another program, as Sieve text");
+                                if ui.button(label).on_hover_text(tip).clicked() {
+                                    edit_own = true;
+                                    ui.close();
+                                }
+                            }
                         });
                     }
                 });
@@ -5890,6 +5918,18 @@ pub(crate) mod rules {
                 self.reset();
                 self.sieve = Some(crate::sieve_editor::SieveEditor::new_rule(account));
             }
+            if edit_own {
+                match crate::sieve_editor::SieveEditor::own_script(app, account) {
+                    Some(editor) => {
+                        self.reset();
+                        self.sieve = Some(editor);
+                    }
+                    None => {
+                        app.sieve_read_now(account);
+                        self.error = tl!("Your Sieve script isn't known just now: MailCraft reads it again.").to_string();
+                    }
+                }
+            }
             if let Some(id) = change {
                 if let Some(editor) = crate::sieve_editor::SieveEditor::open(&app.session.mailbox, id) {
                     self.reset();
@@ -5907,6 +5947,12 @@ pub(crate) mod rules {
                     }
                 }
                 Some(crate::sieve_editor::EditorAsks::Save(command, params)) => match app.execute(command, params) {
+                    // (The owner's own script waits for the server, which may say it changed there.)
+                    Ok(_) if self.sieve.as_ref().is_some_and(|e| e.own.is_some()) => {
+                        if let Some(own) = self.sieve.as_mut().and_then(|e| e.own.as_mut()) {
+                            own.saving = true;
+                        }
+                    }
                     Ok(_) => self.sieve = None,
                     Err(e) => {
                         let said = app.refusal_said(&e);
@@ -5915,6 +5961,11 @@ pub(crate) mod rules {
                         }
                     }
                 },
+                Some(crate::sieve_editor::EditorAsks::Reload) => {
+                    if let Some(editor) = self.sieve.as_mut() {
+                        editor.reload(app);
+                    }
+                }
                 Some(crate::sieve_editor::EditorAsks::Cancel) => self.sieve = None,
                 None => {}
             }

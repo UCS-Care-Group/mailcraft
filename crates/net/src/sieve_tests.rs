@@ -10,6 +10,7 @@ use crate::NetError;
 use crate::fake::Fake;
 use crate::fake_sieve::{FakeSieve, Opening, SieveWorld};
 use crate::sieve::{Checked, LooksLike, Reach, check, check_with, read_with};
+use crate::sieve::{OwnChange, OwnWritten, write_own};
 use crate::sieve::{PORT, ScriptChange, SieveError, Written, deactivate, digest, read, server_for, write};
 use crate::transport::Patience;
 
@@ -474,4 +475,99 @@ fn a_check_goes_only_to_the_mail_server_and_never_in_the_clear() {
     account.incoming = Some(Server { host: "127.0.0.1".into(), port: 1, security: Security::None });
     let err = check(&account, &server, "wrong horse", OURS).unwrap_err();
     assert!(err.is_refused_sign_in() && !err.to_string().contains("wrong horse"), "{err}");
+}
+
+/// The owner's own script, as a webmail wrote it: CRLF and a lone LF, comments, an extension
+/// MailCraft doesn't know, a `text:` block, trailing blanks.
+const THEIRS: &str = "# rule:[Lists]\r\nrequire [\"fileinto\", \"x-unknown\"];\r\n/* kept\n   as is */\r\nif header :contains \"subject\" \"[list]\" {  \r\n  fileinto \"Lists\";\r\n  x-unknown text:\r\n.. dot\r\n.\r\n;\r\n}\r\n\r\n";
+
+fn theirs_world() -> SieveWorld {
+    SieveWorld { scripts: vec![("roundcube".into(), THEIRS.into()), ("spare".into(), "keep;".into())], active: Some("roundcube".into()), ..world() }
+}
+
+#[test]
+fn the_owners_script_is_read_and_written_back_byte_for_byte_and_stays_active() {
+    let fake = Fake::sieve(theirs_world());
+    let (account, server) = account(&fake);
+    let state = read(&account, &server, PASSWORD, "mailcraft").unwrap();
+    let (name, text) = state.active_script.clone().unwrap();
+    assert_eq!((name.as_str(), text.as_str()), ("roundcube", THEIRS));
+    let edited = text.replace("\"Lists\"", "\"Lists/Old\"");
+    let read_digest = digest(&text);
+    let change = OwnChange { name: &name, text: &edited, read: &read_digest };
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Done { warnings: None });
+    let world = fake.world();
+    assert_eq!(world.script("roundcube").map(str::as_bytes), Some(edited.as_bytes()));
+    assert_eq!(world.active.as_deref(), Some("roundcube"));
+    // Nothing else: no other script made, switched, renamed or deleted.
+    assert_eq!(world.script("spare"), Some("keep;"));
+    assert_eq!(world.script("mailcraft"), None);
+    assert!(world.heard("HAVESPACE"));
+    assert!(!world.heard("SETACTIVE") && !world.heard("DELETESCRIPT") && !world.heard("RENAMESCRIPT"));
+    assert_eq!(world.log.iter().filter(|l| l.starts_with("PUTSCRIPT")).count(), 1);
+}
+
+#[test]
+fn the_owners_script_changed_removed_or_switched_off_since_it_was_read_is_never_written() {
+    let fake = Fake::sieve(theirs_world());
+    let (account, server) = account(&fake);
+    let read_digest = digest(THEIRS);
+    let change = OwnChange { name: "roundcube", text: "keep;\r\n", read: &read_digest };
+    // Changed in webmail meanwhile.
+    let webmail = format!("{THEIRS}discard;\r\n");
+    {
+        let mut world = fake.world();
+        if let Some((_, text)) = world.scripts.iter_mut().find(|(n, _)| n == "roundcube") {
+            *text = webmail.clone();
+        }
+    }
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Changed { now: Some(webmail.clone()) });
+    assert_eq!(fake.world().script("roundcube"), Some(webmail.as_str()));
+    // Switched off meanwhile, as it was read.
+    {
+        let mut world = fake.world();
+        if let Some((_, text)) = world.scripts.iter_mut().find(|(n, _)| n == "roundcube") {
+            *text = THEIRS.to_string();
+        }
+        world.active = Some("spare".into());
+    }
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Changed { now: Some(THEIRS.into()) });
+    // Removed meanwhile.
+    fake.world().scripts.retain(|(n, _)| n != "roundcube");
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Changed { now: None });
+    let world = fake.world();
+    assert!(!world.heard("PUTSCRIPT") && !world.heard("SETACTIVE"));
+    assert_eq!(world.active.as_deref(), Some("spare"));
+}
+
+#[test]
+fn the_owners_script_is_not_written_without_room_nor_when_too_large_nor_when_unchanged() {
+    let fake = Fake::sieve(SieveWorld { quota: Some(THEIRS.len() + 4), ..theirs_world() });
+    let (account, server) = account(&fake);
+    let read_digest = digest(THEIRS);
+    let longer = format!("{THEIRS}# a comment too many\r\n");
+    let change = OwnChange { name: "roundcube", text: &longer, read: &read_digest };
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::NoSpace);
+    let huge = "#".repeat(mailcraft_proto::managesieve::MAX_SCRIPT + 1);
+    let change = OwnChange { name: "roundcube", text: &huge, read: &read_digest };
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::TooLarge);
+    let change = OwnChange { name: "roundcube", text: THEIRS, read: &read_digest };
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Done { warnings: None });
+    let world = fake.world();
+    assert!(!world.heard("PUTSCRIPT"));
+    assert_eq!(world.script("roundcube"), Some(THEIRS));
+    // Only a size is in debug output.
+    assert!(!format!("{:?}", OwnWritten::Changed { now: Some(THEIRS.into()) }).contains("Lists"));
+}
+
+#[test]
+fn the_servers_refusal_of_the_owners_script_leaves_it_as_it_was() {
+    let fake =
+        Fake::sieve(SieveWorld { refuse_scripts_with: Some("bogus".into()), refusal: "line 2: unknown command 'bogus'".into(), ..theirs_world() });
+    let (account, server) = account(&fake);
+    let read_digest = digest(THEIRS);
+    let change = OwnChange { name: "roundcube", text: "keep;\r\nbogus;\r\n", read: &read_digest };
+    let e = write_own(&account, &server, PASSWORD, &change).unwrap_err();
+    assert!(e.to_string().contains("unknown command"), "{e}");
+    assert_eq!(fake.world().script("roundcube"), Some(THEIRS));
 }

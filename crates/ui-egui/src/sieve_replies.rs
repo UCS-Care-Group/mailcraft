@@ -70,6 +70,19 @@ pub struct SieveWrite {
     /// The digest of what may be written over; `None`: only where there is none.
     pub last_written: Option<String>,
     pub activate: bool,
+    /// The owner's own active script, written back as typed (#9999): only while the server's is
+    /// still the one whose digest is `last_written`, and still active; nothing else is done.
+    pub own: bool,
+}
+
+/// What became of a write of the owner's own script (#9999), for its editor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum OwnSaved {
+    Done,
+    /// The server's script isn't the one read any more: nothing was written.
+    Changed,
+    /// Not written: why.
+    Failed(String),
 }
 
 /// What a [`SieveJob`] came to. Never an error as a whole: every trouble is said.
@@ -148,6 +161,11 @@ pub struct SieveSync {
     check: Option<(u64, Receiver<SieveResult>)>,
     /// The last ticket given.
     checks: u64,
+    /// A write of the owner's own script, for each account, at the next chance (before any other).
+    own_waiting: HashMap<Id, SieveWrite>,
+    /// What became of the last write of the owner's own script, for each account, until its
+    /// editor takes it.
+    pub(crate) own_saved: HashMap<Id, OwnSaved>,
 }
 
 impl SieveSync {
@@ -230,13 +248,20 @@ impl MailApp {
         if text.is_empty() || name.is_empty() {
             return Err(tl!("Your automatic replies weren't changed").to_string());
         }
+        let own = sieve.get("own").and_then(Value::as_bool).unwrap_or(false);
         let write = SieveWrite {
             name: name.to_string(),
             text: text.to_string(),
             last_written: sieve.get("lastWritten").and_then(Value::as_str).map(str::to_string),
-            activate: sieve.get("activate").and_then(Value::as_bool).unwrap_or(false),
+            activate: sieve.get("activate").and_then(Value::as_bool).unwrap_or(false) && !own,
+            own,
         };
-        self.sieve.waiting.insert(account, write);
+        if own {
+            self.sieve.own_saved.remove(&account);
+            self.sieve.own_waiting.insert(account, write);
+        } else {
+            self.sieve.waiting.insert(account, write);
+        }
         self.sieve_tick_at(now_ms());
         Ok(())
     }
@@ -248,13 +273,23 @@ impl MailApp {
         if self.sieve.rx.is_some() || self.services.sieve.is_none() || self.offline() || self.unconfirmed {
             return false;
         }
-        let next = self.sieve.waiting.keys().next().copied().map(|a| (a, true)).or_else(|| self.sieve.wanted.iter().next().map(|a| (*a, false)));
+        let next = self
+            .sieve
+            .own_waiting
+            .keys()
+            .next()
+            .copied()
+            .map(|a| (a, true))
+            .or_else(|| self.sieve.waiting.keys().next().copied().map(|a| (a, true)))
+            .or_else(|| self.sieve.wanted.iter().next().map(|a| (*a, false)));
         let Some((account, writing)) = next else { return false };
-        let write = if writing { self.sieve.waiting.remove(&account) } else { None };
+        let write = if writing { self.sieve.own_waiting.remove(&account).or_else(|| self.sieve.waiting.remove(&account)) } else { None };
         self.sieve.wanted.remove(&account);
         let Some(owner) = self.session.mailbox.account(account).cloned().filter(is_sieve_account) else { return false };
         let Some(secret) = self.sieve_secret(&owner) else {
-            if write.is_some() {
+            if write.as_ref().is_some_and(|w| w.own) {
+                self.sieve.own_saved.insert(account, OwnSaved::Failed(tl!("Sign in with Send/Receive first.").to_string()));
+            } else if write.is_some() {
                 self.status(tl!("Sign in with Send/Receive first, then change your automatic replies."));
             }
             return false;
@@ -263,8 +298,10 @@ impl MailApp {
         let Some(host) = self.services.sieve.as_ref() else { return false };
         self.sieve.rx = Some((account, write.clone(), host(job)));
         self.sieve.read.insert(account, now);
-        if write.is_some() {
-            self.session.sync_status = tl!("Changing your automatic replies…").to_string();
+        match &write {
+            Some(w) if w.own => self.session.sync_status = tl!("Saving your Sieve script…").to_string(),
+            Some(_) => self.session.sync_status = tl!("Changing your automatic replies…").to_string(),
+            None => {}
         }
         true
     }
@@ -305,9 +342,11 @@ impl MailApp {
             None
         };
         let mut said_error = None;
+        let own = write.as_ref().is_some_and(|w| w.own);
         if let Some(state) = &result.state {
             let mut params = json!({"account": account, "state": state});
-            if let (Some(written), Some(write)) = (&result.written, &write) {
+            // (The owner's own script is never taken for MailCraft's: its digest isn't kept.)
+            if let (Some(written), Some(write)) = (&result.written, write.as_ref().filter(|w| !w.own)) {
                 params["written"] = json!({"result": written, "text": write.text});
             }
             if let Err(e) = self.session.run("sync.applySieve", &params) {
@@ -333,6 +372,40 @@ impl MailApp {
             if result.state.is_some() {
                 self.sieve_rules_write(account, false);
             }
+            return;
+        }
+        if own {
+            let (saved, said) = match (result.written.as_deref(), &trouble) {
+                (Some("done"), _) => (OwnSaved::Done, tl!("Your Sieve script is saved on the server").to_string()),
+                (Some("changedElsewhere"), _) => (
+                    OwnSaved::Changed,
+                    crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), tl!("it changed on the server since you opened it.")),
+                ),
+                (Some("noSpace"), _) => {
+                    let why = tl!("the server has no room for it (your quota, or its largest script).");
+                    (OwnSaved::Failed(why.to_string()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), why))
+                }
+                (Some(_), _) => {
+                    let why = tl!("it is larger than MailCraft sends (1 MB).");
+                    (OwnSaved::Failed(why.to_string()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), why))
+                }
+                (None, Some(SieveTrouble::Failed(why))) => {
+                    (OwnSaved::Failed(why.clone()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), why))
+                }
+                (None, Some(SieveTrouble::Unavailable)) if !result.why.is_empty() => {
+                    (OwnSaved::Failed(result.why.clone()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), &result.why))
+                }
+                (None, Some(SieveTrouble::SignIn)) => {
+                    let why = tl!("the server didn't take your sign-in.");
+                    (OwnSaved::Failed(why.to_string()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), why))
+                }
+                (None, _) => {
+                    let why = tl!("the server couldn't be reached.");
+                    (OwnSaved::Failed(why.to_string()), crate::i18n::with_reason(tl!("Your Sieve script wasn't saved"), why))
+                }
+            };
+            self.sieve.own_saved.insert(account, saved);
+            self.status(said);
             return;
         }
         if rules {
@@ -402,6 +475,17 @@ impl MailApp {
     /// After the engine ran `id`: a rule changed, so the script of each IMAP account whose server
     /// keeps rules is written again, once what the server has is known (#9999).
     pub(crate) fn sieve_after(&mut self, id: &str, r: Result<Value, String>) -> Result<Value, String> {
+        // The owner's own script, as the owner (or an agent the owner let) typed it (#9999).
+        if id == "sieve.putOwnScript" {
+            let answer = r?;
+            let account = answer.get("account").and_then(Value::as_u64).unwrap_or_default();
+            let sieve = answer.get("sieve").cloned().unwrap_or_default();
+            if self.services.sieve.is_none() {
+                return Err(tl!("This build can't reach the server. Use the desktop app.").to_string());
+            }
+            self.sieve_write(account, &sieve).map_err(|_| tl!("Your Sieve script wasn't saved").to_string())?;
+            return Ok(answer);
+        }
         if r.is_err() || !id.starts_with("rules.") || matches!(id, "rules.list" | "rules.run") {
             return r;
         }
@@ -545,7 +629,8 @@ impl MailApp {
         let opening = self.session.openings();
         if self.sieve.opening != opening {
             if self.sieve.rx.as_ref().is_some_and(|(_, write, _)| write.is_some())
-                && self.session.sync_status == tl!("Changing your automatic replies…")
+                && (self.session.sync_status == tl!("Changing your automatic replies…")
+                    || self.session.sync_status == tl!("Saving your Sieve script…"))
             {
                 self.session.sync_status.clear();
             }

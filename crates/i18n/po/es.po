@@ -562,6 +562,24 @@ msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
 msgstr "Una regla Sieve solo se ejecuta en el servidor, sobre el correo cuando llega allí."
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve script is at most 1 MB."
+msgstr "Un script Sieve ocupa como máximo 1 MB."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "A Sieve script is at most {mb} MB."
+msgstr "Un script Sieve ocupa como máximo {mb} MB."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A Sieve script needs some Sieve."
+msgstr "Un script Sieve necesita algo de Sieve."
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "A brand's name on another address."
@@ -2380,6 +2398,12 @@ msgstr "Volver a pedir al servidor sus respuestas automáticas."
 msgid "Ask the server whether it takes this rule; nothing is changed there"
 msgstr "Preguntar al servidor si acepta esta regla; allí no se cambia nada"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Ask the server whether it takes this script; nothing is changed there"
+msgstr "Preguntar al servidor si acepta este script; allí no se cambia nada"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3501,6 +3525,12 @@ msgstr "Cambiar el color"
 #, fuzzy
 msgid "Change the name the folder pane shows for this shared mailbox, and its colour"
 msgstr "Cambie el nombre que el panel de carpetas muestra para este buzón compartido, y su color"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change the whole script as Sieve text; it is written back exactly as you leave it"
+msgstr "Cambiar todo el script como texto Sieve; se vuelve a escribir exactamente como lo deje"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5708,6 +5738,12 @@ msgstr "Editar firma como texto"
 msgid "Edit Task"
 msgstr "Editar tarea"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit Your Sieve Script…"
+msgstr "Editar su script Sieve…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
 #, fuzzy
@@ -5731,6 +5767,12 @@ msgstr "Editar firma como texto"
 #, fuzzy
 msgid "Edit task"
 msgstr "Editar tarea"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit your Sieve script \"{name}\"…"
+msgstr "Editar su script Sieve «{name}»…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
@@ -7524,7 +7566,7 @@ msgid "Hold Unsent Mail"
 msgstr "Retener correo no enviado"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Inicio"
@@ -8208,6 +8250,12 @@ msgstr "Emitido para"
 #, fuzzy
 msgid "It also sends automatic replies of its own."
 msgstr "También envía sus propias respuestas automáticas."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "It changed on the server since you opened it: reload it first."
+msgstr "Cambió en el servidor desde que lo abrió: vuelva a cargarlo primero."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8925,11 +8973,29 @@ msgstr "Línea {line}, columna {column} de la regla Sieve: no puede contener un 
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "Línea {line}, columna {column} de la regla Sieve: {what}"
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Line {line}, column {column} of your Sieve script: a control character can't be in it."
+msgstr "Línea {line}, columna {column} de su script Sieve: no puede contener un carácter de control."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Line {line}, column {column} of your Sieve script: {what}"
+msgstr "Línea {line}, columna {column} de su script Sieve: {what}"
+
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Line {line}, column {column}: {what}"
 msgstr "Línea {line}, columna {column}: {what}"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line}: {said}"
+msgstr "Línea {line}: {said}"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -9170,6 +9236,12 @@ msgstr "Creada en otro programa: MailCraft nunca cambia esta regla"
 #, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Creadas en otro programa: MailCraft muestra estas reglas y nunca las cambia"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
+msgstr "Creado en otro programa: MailCraft muestra estas reglas y solo las cambia según edite el texto del script"
 
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -10390,7 +10462,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "El nombre del remitente son sobre todo caracteres que no se muestran, y el mensaje vino de {real}."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "Mover"
@@ -11223,6 +11295,12 @@ msgid "No Send/Receive is running"
 msgstr "No hay ningún envío y recepción en curso"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "No Sieve script of your own runs on this account's server, as MailCraft last read it."
+msgstr "En el servidor de esta cuenta no se ejecuta ningún script Sieve propio, según lo último que leyó MailCraft."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "No account here has a mail server to send this through."
@@ -11965,6 +12043,12 @@ msgstr "No hay nada más en su calendario a esa hora."
 #, fuzzy
 msgid "Nothing has been sent or received yet."
 msgstr "Todavía no se ha enviado ni recibido nada."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Nothing has changed yet."
+msgstr "Todavía no ha cambiado nada."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -13795,6 +13879,15 @@ msgstr "Se lee con el inicio de sesión de {owner}, mientras lo conserve: la per
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Read your script from the server again, in place of the text here"
+msgstr "Volver a leer su script del servidor, en lugar del texto de aquí"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Reading"
 msgstr "Lectura"
@@ -14008,6 +14101,12 @@ msgstr "Actualizar sus certificados y claves"
 #, fuzzy
 msgid "Related"
 msgstr "Relacionados"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Reload"
+msgstr "Volver a cargar"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15013,6 +15112,12 @@ msgstr "Guardar archivo de mensaje como"
 msgid "Save Signature"
 msgstr "Guardar firma"
 
+#. command label
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Save Your Sieve Script"
+msgstr "Guardar su script Sieve"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -15145,6 +15250,18 @@ msgstr "Guardando el buzón… escribiendo {done} de {total} cuerpos y datos adj
 #, fuzzy
 msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "Guardando el buzón… {done} de {total} mensajes"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Saving your Sieve script…"
+msgstr "Guardando su script Sieve…"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Saving…"
+msgstr "Guardando…"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19259,6 +19376,12 @@ msgid "The server couldn't check this rule"
 msgstr "El servidor no pudo comprobar esta regla"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server couldn't check this script"
+msgstr "El servidor no pudo comprobar este script"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
@@ -19329,6 +19452,12 @@ msgstr "El servidor no permite cambiar esta regla"
 #, fuzzy
 msgid "The server doesn't take this rule:"
 msgstr "El servidor no acepta esta regla:"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server doesn't take this script:"
+msgstr "El servidor no acepta este script:"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
@@ -19407,6 +19536,18 @@ msgstr "El servidor acepta esta regla, con advertencias:"
 #, fuzzy
 msgid "The server takes this rule."
 msgstr "El servidor acepta esta regla."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this script, with warnings:"
+msgstr "El servidor acepta este script, con advertencias:"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server takes this script."
+msgstr "El servidor acepta este script."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -19774,6 +19915,18 @@ msgid "The user name is too long or has a character in it that a name can't have
 msgstr "El nombre de usuario es demasiado largo o contiene un carácter que un nombre no puede tener"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The whole script your server runs, made in another program, as Sieve text"
+msgstr "Todo el script que ejecuta su servidor, creado en otro programa, como texto Sieve"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The whole script your server runs, made in another program, as it was read. Save writes back exactly this text, only while the script on the server is still the one you opened."
+msgstr "Todo el script que ejecuta su servidor, creado en otro programa, tal como se leyó. Guardar vuelve a escribir exactamente este texto, solo mientras el script del servidor siga siendo el que abrió."
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
@@ -20073,8 +20226,8 @@ msgstr "El servidor de esta cuenta no ofrece scripts Sieve (ManageSieve)."
 msgid "This account's server doesn't take automatic replies from MailCraft: it offers no Sieve scripts with vacation replies (ManageSieve)"
 msgstr "El servidor de esta cuenta no acepta respuestas automáticas de MailCraft: no ofrece scripts Sieve con respuestas de vacaciones (ManageSieve)"
 
-#. interface
-#: crates/ui-egui/src/sieve_replies.rs
+#. interface, what a command says
+#: crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This account's server keeps no Sieve scripts."
 msgstr "El servidor de esta cuenta no guarda scripts Sieve."
@@ -20921,6 +21074,12 @@ msgstr "Esta regla tiene una parte que el generador de reglas no puede mostrar: 
 msgid "This rule isn't a Sieve rule: change it in the rule builder."
 msgstr "Esta regla no es una regla Sieve: cámbiela en el asistente de reglas."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This script was written by a webmail ({webmail}). It may overwrite or drop the changes you make here the next time its filters are saved there."
+msgstr "Este script lo escribió un webmail ({webmail}). Puede sobrescribir o descartar los cambios que haga aquí la próxima vez que se guarden allí sus filtros."
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -20932,6 +21091,12 @@ msgstr "Esta serie sigue en camino al servidor de la cuenta. Cambie uno de sus d
 #, fuzzy
 msgid "This server can't check a rule without keeping it: it checks it when the rule is saved."
 msgstr "Este servidor no puede comprobar una regla sin guardarla: la comprueba al guardar la regla."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This server can't check a script without keeping it: it checks it when it is saved."
+msgstr "Este servidor no puede comprobar un script sin guardarlo: lo comprueba al guardarlo."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -22439,6 +22604,12 @@ msgid "Working offline: mail you send waits in the Outbox"
 msgstr "Trabajando sin conexión: el correo que envíe espera en la Bandeja de salida"
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Working with the server…"
+msgstr "Trabajando con el servidor…"
+
+#. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Workplace"
@@ -22455,6 +22626,12 @@ msgstr "Escribir"
 #, fuzzy
 msgid "Write a Note with the Response…"
 msgstr "Escribir una nota con la respuesta…"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Write this text to the server in place of your script; it stays the one that runs"
+msgstr "Escribir este texto en el servidor en lugar de su script; sigue siendo el que se ejecuta"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -22660,6 +22837,18 @@ msgstr "Está trabajando sin conexión."
 msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect."
 msgstr "Está trabajando sin conexión. Desactive Trabajar sin conexión (Enviar y recibir) para conectarse."
 
+#. command label
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Your Sieve Script"
+msgstr "Su script Sieve"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script \"{name}\""
+msgstr "Su script Sieve «{name}»"
+
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
@@ -22671,6 +22860,42 @@ msgstr "En el servidor se ejecuta su script Sieve «{name}» en lugar del de Mai
 #, fuzzy
 msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: these replies are kept there, but aren't sent while it runs. MailCraft never switches your script off."
 msgstr "En el servidor se ejecuta su script Sieve «{name}» en lugar del de MailCraft: estas respuestas se guardan allí, pero no se envían mientras se ejecute. MailCraft nunca desactiva su script."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_own.rs
+#, fuzzy
+msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
+msgstr "Su script Sieve cambió en el servidor desde que lo abrió, así que no se escribió nada. Vuelva a cargarlo para ver lo que tiene ahora."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now: the changes made here are lost then."
+msgstr "Su script Sieve cambió en el servidor desde que lo abrió, así que no se escribió nada. Vuelva a cargarlo para ver lo que tiene ahora: los cambios hechos aquí se pierden entonces."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your Sieve script couldn't be read again: the server doesn't run it now, or can't be reached."
+msgstr "No se pudo volver a leer su script Sieve: el servidor ya no lo ejecuta o no se puede alcanzar."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script is saved on the server"
+msgstr "Su script Sieve está guardado en el servidor"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Your Sieve script isn't known just now: MailCraft reads it again."
+msgstr "Su script Sieve no se conoce en este momento: MailCraft lo vuelve a leer."
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "Your Sieve script wasn't saved"
+msgstr "Su script Sieve no se guardó"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -23957,6 +24182,12 @@ msgstr "emitido por {issuer}"
 msgid "it can't take it"
 msgstr "no puede aceptarlo"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it changed on the server since you opened it."
+msgstr "cambió en el servidor desde que lo abrió."
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -24070,6 +24301,12 @@ msgstr "está dañada, o es más grande de lo que se puede mostrar"
 #, fuzzy
 msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
 msgstr "está en su propio script Sieve del servidor, creado en otro programa: MailCraft nunca la cambia"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "it is larger than MailCraft sends (1 MB)."
+msgstr "es más grande de lo que envía MailCraft (1 MB)."
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -24366,7 +24603,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "ninguna cuenta se sincroniza a través de Microsoft Graph"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "no hay ninguna cuenta con el id {account}"
@@ -25914,6 +26151,12 @@ msgstr "el servidor continuó una autenticación por contraseña cancelada"
 msgid "the server couldn't be reached"
 msgstr "no se pudo conectar con el servidor"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server couldn't be reached."
+msgstr "no se pudo alcanzar el servidor."
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
@@ -26009,6 +26252,12 @@ msgstr "el servidor terminó la sesión: {reason}"
 #, fuzzy
 msgid "the server greeted with a refusal: {reason}"
 msgstr "el servidor saludó con un rechazo: {reason}"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+#, fuzzy
+msgid "the server has no room for it (your quota, or its largest script)."
+msgstr "el servidor no tiene espacio para él (su cuota, o su script más grande)."
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/idle.rs
