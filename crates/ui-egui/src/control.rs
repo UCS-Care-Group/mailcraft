@@ -17,6 +17,7 @@
 //! A request the MCP bridge marked as an agent's (`agent`) goes through [`crate::agent_gate`].
 //! - `ui.parity`: feature catalog parity
 
+use std::borrow::Cow;
 use std::sync::mpsc::Sender;
 
 use serde_json::{Value, json};
@@ -68,8 +69,14 @@ pub enum Outcome {
 /// tests click by asking `ui.inspect` for an item's rectangle instead of guessing coordinates.
 #[derive(Default)]
 pub struct HitMap {
-    /// What, its id, where, and the window of its own it is in (0: the main window).
-    items: Vec<(&'static str, u64, egui::Rect, u64)>,
+    /// What, its id, where, and the window of its own it is in (0: the main window). A control
+    /// may also be named by a key of its own (one occurrence of a calendar series, say), which
+    /// carries ids and dates as text rather than as the numeric id beside them.
+    items: Vec<(Name, u64, egui::Rect, u64)>,
+    /// How many of `items` are named by a key of their own ([`HitMap::add_key`]): those are
+    /// recorded within a budget of their own, so that they never crowd the window's other controls
+    /// out of the list.
+    keyed: usize,
     /// The window of its own being laid out (#286): what is recorded meanwhile is in it.
     scope: u64,
 }
@@ -77,14 +84,43 @@ pub struct HitMap {
 impl HitMap {
     pub fn clear(&mut self) {
         self.items.clear();
+        self.keyed = 0;
     }
 
     /// Record that the `kind` (`message`, `messageRead` for a row's read/unread switch, `folder`,
     /// `event`, `contact`, `task`; `module` for the module bar's icons, numbered from 0 as Mail,
     /// Calendar, People, Tasks) with `id` is at `rect`.
     pub fn add(&mut self, kind: &'static str, id: u64, rect: egui::Rect) {
-        // A list far longer than a screen can show isn't worth recording.
-        if self.items.len() < 4000 {
+        self.push(Name::Word(Cow::Borrowed(kind)), id, rect);
+    }
+
+    /// Record a control named by a `key` that is not one fixed word: an event's id and the day
+    /// of one of its occurrences, as in `eventOccurrence:7:2026-10-14`. Its numeric id is 0;
+    /// agents and tests find it by its key alone.
+    pub fn add_key(&mut self, key: impl Into<Cow<'static, str>>, rect: egui::Rect) {
+        self.push_keyed(Name::Word(key.into()), rect);
+    }
+
+    /// Record one occurrence of the event `event`, the series' own day `day`, under the key
+    /// `eventOccurrence:{event}:{day}` ([`HitMap::add_key`]), which is written out only when it is
+    /// asked for: a frame draws many and is inspected seldom.
+    pub fn add_occurrence(&mut self, event: u64, day: mailcraft_engine::time::Date, rect: egui::Rect) {
+        self.push_keyed(Name::Occurrence(event, day), rect);
+    }
+
+    fn push_keyed(&mut self, name: Name, rect: egui::Rect) {
+        if self.keyed < Self::MOST {
+            self.keyed += 1;
+            self.items.push((name, 0, rect, self.scope));
+        }
+    }
+
+    /// The most entries of either kind a frame records: a list far longer than a screen can show
+    /// isn't worth recording.
+    const MOST: usize = 4000;
+
+    fn push(&mut self, kind: Name, id: u64, rect: egui::Rect) {
+        if self.items.len().saturating_sub(self.keyed) < Self::MOST {
             self.items.push((kind, id, rect, self.scope));
         }
     }
@@ -101,13 +137,13 @@ impl HitMap {
 
     /// Where `kind` with `id` is: in the main window when it is there, else in a window of its own.
     pub fn rect(&self, kind: &str, id: u64) -> Option<egui::Rect> {
-        let found = |main: bool| self.items.iter().find(|(k, i, _, w)| *k == kind && *i == id && (*w == 0) == main);
+        let found = |main: bool| self.items.iter().find(|(k, i, _, w)| k.is(kind) && *i == id && (*w == 0) == main);
         found(true).or_else(|| found(false)).map(|(_, _, r, _)| *r)
     }
 
     /// Where `kind` with `id` is in the window of its own numbered `window` (0: the main window).
     pub fn rect_in(&self, window: u64, kind: &str, id: u64) -> Option<egui::Rect> {
-        self.items.iter().find(|(k, i, _, w)| *k == kind && *i == id && *w == window).map(|(_, _, r, _)| *r)
+        self.items.iter().find(|(k, i, _, w)| k.is(kind) && *i == id && *w == window).map(|(_, _, r, _)| *r)
     }
 
     fn to_json(&self) -> Value {
@@ -115,7 +151,7 @@ impl HitMap {
             self.items
                 .iter()
                 .map(|(kind, id, r, window)| {
-                    let mut at = json!({"kind": kind, "id": id, "rect": [r.left(), r.top(), r.width(), r.height()]});
+                    let mut at = json!({"kind": kind.text(), "id": id, "rect": [r.left(), r.top(), r.width(), r.height()]});
                     if *window != 0 {
                         at["window"] = json!(window);
                     }
@@ -123,6 +159,31 @@ impl HitMap {
                 })
                 .collect(),
         )
+    }
+}
+
+/// What a hit entry is called: a word (`message`, `event`) or a key of its own, or one occurrence
+/// of a series, whose key ([`HitMap::add_occurrence`]) is written out only when it is asked for.
+enum Name {
+    Word(Cow<'static, str>),
+    Occurrence(u64, mailcraft_engine::time::Date),
+}
+
+impl Name {
+    /// The name as `ui.inspect` gives it.
+    fn text(&self) -> Cow<'_, str> {
+        match self {
+            Name::Word(word) => Cow::Borrowed(word.as_ref()),
+            Name::Occurrence(event, day) => Cow::Owned(format!("eventOccurrence:{event}:{}", day.iso())),
+        }
+    }
+
+    /// Whether this is the entry called `kind`.
+    fn is(&self, kind: &str) -> bool {
+        match self {
+            Name::Word(word) => word.as_ref() == kind,
+            Name::Occurrence(..) => kind.starts_with("eventOccurrence:") && self.text() == kind,
+        }
     }
 }
 
@@ -311,6 +372,12 @@ fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Out
             Err(e) => err(e),
         },
         "ui.inspect" => ok(inspect(app, ctx)),
+        // The families installed on this computer, which `format.font` writes text in (#1493).
+        // Read-only: it starts the look if it hasn't been made, and says so while it is being.
+        "ui.fonts" => {
+            crate::fonts::ask(ctx);
+            ok(crate::fonts::inspect(ctx))
+        }
         // Whether the mailbox is open (while it opens, this alone is answered: `opening`), and
         // the one being read in the background, if any.
         "app.status" => ok(json!({"mailbox": "open", "opening": crate::opening::ahead_inspect(app)})),

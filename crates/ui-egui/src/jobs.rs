@@ -53,7 +53,7 @@ impl MailApp {
             free_busy: self.free_busy.busy(),
             graph: self.graph_rx.is_some(),
             mail_run: self.sync_rx.is_some(),
-            signing_in: self.signing_in.is_some(),
+            signing_in: self.signing_in.as_ref().map(|s| s.account),
             queued: !self.session.driver.round.queue.is_empty(),
             inbox_queued: !self.session.driver.round.inbox_queue.is_empty(),
             approving: self.approving(),
@@ -112,7 +112,12 @@ impl MailApp {
                 // The account being added was for the old mailbox: the dialog closes, stopping
                 // what it asked of the host and keeping nothing that was typed.
                 JobKind::AccountSetup => match self.dialog.take() {
-                    Some(Dialog::Form(Form::Account(mut setup))) => setup.give_up(self),
+                    Some(Dialog::Form(Form::Account(mut setup))) => {
+                        setup.give_up(self);
+                        // The account dialog is gone: a compose window it belonged to does not
+                        // keep the next one.
+                        self.windows.dialog_for = None;
+                    }
                     other => self.dialog = other,
                 },
                 JobKind::AdminConsent => self.forget_admin_consent(),

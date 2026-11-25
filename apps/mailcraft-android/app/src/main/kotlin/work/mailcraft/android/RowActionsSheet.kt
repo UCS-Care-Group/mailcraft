@@ -33,17 +33,20 @@ private val Gutter = 16.dp
 private val IconBox = 24.dp
 
 /** Where the sheet is: its list of actions, or one of the two pickers. */
-private enum class SheetPage { Actions, Move, Categories }
+internal enum class SheetPage { Actions, Move, Categories }
 
-/** All the actions on one message: the sheet that a long press opens. */
+/** All the actions on one message: the sheet that a long press or the row's more button opens. */
 @Composable
 internal fun RowActionsSheet(
     context: MailListContext,
     row: InboxRow,
     onTriage: (Triage, InboxRow) -> Unit,
+    onReply: (InboxRow) -> Unit,
+    /** The page the sheet opens at: the reading view asks for a picker straight away. */
+    start: SheetPage = SheetPage.Actions,
     onClose: () -> Unit,
 ) {
-    var page by remember { mutableStateOf(SheetPage.Actions) }
+    var page by remember { mutableStateOf(start) }
     val texts = context.texts
     val choose = { triage: Triage ->
         onTriage(triage, row)
@@ -59,7 +62,12 @@ internal fun RowActionsSheet(
                 modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp),
             )
             when (page) {
-                SheetPage.Actions -> ActionItems(texts, row, { page = it }, choose)
+                SheetPage.Actions -> ActionItems(
+                    texts, row, isDraftRow(context.accounts, row), { page = it }, choose,
+                ) {
+                    onReply(row)
+                    onClose()
+                }
                 SheetPage.Move -> {
                     val folders = context.accounts.firstOrNull { it.id == row.account }?.folders.orEmpty()
                     folders.filter { it.id != row.folder }.forEach { folder ->
@@ -78,19 +86,32 @@ internal fun RowActionsSheet(
     }
 }
 
+/** Whether [row] is in a Drafts folder (found by the folder's role): it is continued, not answered. */
+internal fun isDraftRow(accounts: List<AccountItem>, row: InboxRow): Boolean =
+    accounts.firstOrNull { it.id == row.account }?.folders?.firstOrNull { it.id == row.folder }?.kind == "drafts"
+
 @Composable
-private fun ActionItems(texts: Texts, row: InboxRow, goTo: (SheetPage) -> Unit, choose: (Triage) -> Unit) {
-    SheetItem(ListIcons.Read, if (row.unread) texts.t("Mark as read") else texts.t("Mark as unread")) {
-        choose(Triage.MarkRead(read = row.unread))
-    }
+@Suppress("LongParameterList")
+private fun ActionItems(
+    texts: Texts,
+    row: InboxRow,
+    draft: Boolean,
+    goTo: (SheetPage) -> Unit,
+    choose: (Triage) -> Unit,
+    reply: () -> Unit,
+) {
+    SheetItem(ListIcons.Reply, if (draft) texts.t("Edit draft") else texts.t("Reply"), reply)
     SheetItem(ListIcons.Flag, if (row.flagged) texts.t("Clear flag") else texts.t("Flag")) {
         choose(Triage.Flag(on = !row.flagged))
     }
+    SheetItem(ListIcons.Read, if (row.unread) texts.t("Mark as read") else texts.t("Mark as unread")) {
+        choose(Triage.MarkRead(read = row.unread))
+    }
+    SheetItem(ListIcons.Move, texts.t("Move to…")) { goTo(SheetPage.Move) }
+    SheetItem(ListIcons.Tag, texts.t("Categories…")) { goTo(SheetPage.Categories) }
     SheetItem(ListIcons.Archive, texts.t("Archive")) { choose(Triage.Archive) }
     SheetItem(ListIcons.Delete, texts.t("Delete")) { choose(Triage.Delete) }
     SheetItem(ListIcons.Junk, texts.t("Move to Junk")) { choose(Triage.Junk) }
-    SheetItem(ListIcons.Move, texts.t("Move to…")) { goTo(SheetPage.Move) }
-    SheetItem(ListIcons.Tag, texts.t("Categories…")) { goTo(SheetPage.Categories) }
 }
 
 @Composable

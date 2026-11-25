@@ -994,3 +994,17 @@ fn another_folder_listed_for_an_agent_shows_every_conversation_closed() {
     // The Inbox's stays open in the window.
     assert!(s.rows().iter().any(|r| r.id == newer && r.open));
 }
+
+#[test]
+fn opening_its_own_row_in_a_window_keeps_the_conversation_out_of_the_selection() {
+    // The newest message's own row under the open conversation, opened in a window (#1734's
+    // `open`): the selection stays that one row, so Delete takes only it.
+    let (mut s, newer, older, _) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    let (whole, focus) = (s.sel.whole.clone(), s.sel.focus_row);
+    run(&mut s, "mail.select", json!({"id": newer, "open": true}));
+    assert_eq!((s.sel.whole.clone(), s.sel.focus_row), (whole, focus));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!(folder_of(&s, older), folder(&s, FolderKind::Inbox));
+}

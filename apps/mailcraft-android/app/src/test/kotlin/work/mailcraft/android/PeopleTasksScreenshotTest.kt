@@ -33,6 +33,12 @@ class PhonePeopleTasksScreenshotTest {
     private val todayPage = page(Tab.Today)
     private val peoplePage = page(Tab.People)
     private val personPage = page(Tab.People, people = PeopleTasksShots.person)
+    private val newPersonPage = page(Tab.People, people = PeopleTasksShots.newPerson)
+    private val readOnlyPersonPage = page(Tab.People, people = PeopleTasksShots.readOnlyPerson)
+    private val badPersonPage = page(Tab.People, people = PeopleTasksShots.badPerson)
+    private val movePage = page(Tab.People, people = PeopleTasksShots.movePerson)
+    private val askingPage = page(Tab.People, people = PeopleTasksShots.moveAsking)
+    private val localOnlyPersonPage = page(Tab.People, people = PeopleTasksShots.localOnlyPerson)
     private val tasksPage = page(Tab.Tasks)
     private val editorPage = page(Tab.Tasks, tasks = PeopleTasksShots.editor)
 
@@ -59,6 +65,48 @@ class PhonePeopleTasksScreenshotTest {
     @Test fun personDark100() = shoot("phone_person_dark_100", true, 1f, personPage)
 
     @Test fun personDark200() = shoot("phone_person_dark_200", true, 2f, personPage)
+
+    @Test fun readOnlyPersonLight100() = shoot("phone_read_only_person_light_100", false, 1f, readOnlyPersonPage)
+
+    @Test fun readOnlyPersonLight200() = shoot("phone_read_only_person_light_200", false, 2f, readOnlyPersonPage)
+
+    @Test fun readOnlyPersonDark100() = shoot("phone_read_only_person_dark_100", true, 1f, readOnlyPersonPage)
+
+    @Test fun readOnlyPersonDark200() = shoot("phone_read_only_person_dark_200", true, 2f, readOnlyPersonPage)
+
+    @Test fun localOnlyPersonLight100() = shoot("phone_local_only_person_light_100", false, 1f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonLight200() = shoot("phone_local_only_person_light_200", false, 2f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonDark100() = shoot("phone_local_only_person_dark_100", true, 1f, localOnlyPersonPage)
+
+    @Test fun localOnlyPersonDark200() = shoot("phone_local_only_person_dark_200", true, 2f, localOnlyPersonPage)
+
+    @Test fun newPersonLight100() = shoot("phone_new_person_light_100", false, 1f, newPersonPage)
+
+    @Test fun newPersonLight200() = shoot("phone_new_person_light_200", false, 2f, newPersonPage)
+
+    @Test fun newPersonDark100() = shoot("phone_new_person_dark_100", true, 1f, newPersonPage)
+
+    @Test fun newPersonDark200() = shoot("phone_new_person_dark_200", true, 2f, newPersonPage)
+
+    @Test fun badPersonLight100() = shoot("phone_bad_person_light_100", false, 1f, badPersonPage)
+
+    @Test fun moveLight100() = shoot("phone_move_person_light_100", false, 1f, movePage)
+
+    @Test fun moveLight200() = shoot("phone_move_person_light_200", false, 2f, movePage)
+
+    @Test fun moveDark100() = shoot("phone_move_person_dark_100", true, 1f, movePage)
+
+    @Test fun moveDark200() = shoot("phone_move_person_dark_200", true, 2f, movePage)
+
+    @Test fun askingLight100() = shoot("phone_move_asking_light_100", false, 1f, askingPage)
+
+    @Test fun askingLight200() = shoot("phone_move_asking_light_200", false, 2f, askingPage)
+
+    @Test fun askingDark100() = shoot("phone_move_asking_dark_100", true, 1f, askingPage)
+
+    @Test fun askingDark200() = shoot("phone_move_asking_dark_200", true, 2f, askingPage)
 
     @Test fun tasksLight100() = shoot("phone_tasks_light_100", false, 1f, tasksPage)
 
@@ -96,6 +144,7 @@ class TabletPeopleTasksScreenshotTest {
     private val todayPage = page(Tab.Today)
     private val peoplePage = page(Tab.People, people = PeopleTasksShots.person)
     private val tasksPage = page(Tab.Tasks, tasks = PeopleTasksShots.editor)
+    private val newPersonPage = page(Tab.People, people = PeopleTasksShots.newPerson)
 
     @Test fun todayLight100() = shoot("tablet_today_light_100", false, 1f, todayPage)
 
@@ -112,6 +161,10 @@ class TabletPeopleTasksScreenshotTest {
     @Test fun peopleDark100() = shoot("tablet_people_dark_100", true, 1f, peoplePage)
 
     @Test fun peopleDark200() = shoot("tablet_people_dark_200", true, 2f, peoplePage)
+
+    @Test fun newPersonLight100() = shoot("tablet_new_person_light_100", false, 1f, newPersonPage)
+
+    @Test fun newPersonDark200() = shoot("tablet_new_person_dark_200", true, 2f, newPersonPage)
 
     @Test fun tasksLight100() = shoot("tablet_tasks_light_100", false, 1f, tasksPage)
 

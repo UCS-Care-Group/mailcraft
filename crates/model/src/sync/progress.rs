@@ -20,6 +20,8 @@ pub enum SyncPhase {
     NewMail,
     /// The calendar and the contacts.
     CalendarAndContacts,
+    /// Giving a renamed category's new name to the mail on the server that isn't kept here (#851).
+    Renaming,
 }
 
 impl SyncPhase {
@@ -31,6 +33,7 @@ impl SyncPhase {
             SyncPhase::Folders => "Folders",
             SyncPhase::NewMail => "New mail",
             SyncPhase::CalendarAndContacts => "Calendar and contacts",
+            SyncPhase::Renaming => "Renaming a category on the server",
         }
     }
 }

@@ -28,16 +28,26 @@ pub mod categories_remote;
 mod categories_remote_tests;
 pub mod category;
 #[cfg(test)]
+mod category_sweep_tests;
+#[cfg(test)]
 mod category_tests;
+#[cfg(test)]
+mod clock_choice_tests;
 pub mod compose;
 #[cfg(test)]
+mod compose_send_counts_tests;
+#[cfg(test)]
 mod compose_trust_tests;
+pub mod contacts_move;
+pub mod contacts_remote;
 #[cfg(test)]
 mod conversation_thread_tests;
 pub mod dav_account;
 #[cfg(test)]
 mod dav_account_tests;
 pub mod dav_sync;
+#[cfg(test)]
+mod dav_sync_tests;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;
@@ -59,6 +69,8 @@ mod folder_empty_tests;
 mod folder_kind_tests;
 #[cfg(test)]
 mod folder_new_tests;
+#[cfg(test)]
+mod folder_order_tests;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod followup;
@@ -86,6 +98,8 @@ pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
 pub mod help;
+#[cfg(test)]
+mod hidden_quote_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
 pub mod imap_again;
@@ -153,9 +167,15 @@ mod reply_to_first_tests;
 #[cfg(test)]
 mod resend_reply_to_tests;
 pub mod rules;
+#[cfg(test)]
+mod rules_holds_tests;
+#[cfg(test)]
+mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
+#[cfg(test)]
+mod rules_waiting_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
@@ -264,6 +284,8 @@ pub fn registry() -> Registry {
     v.extend(graph_send::specs());
     v.extend(remote::specs());
     v.extend(tasks_remote::specs());
+    v.extend(contacts_remote::specs());
+    v.extend(contacts_move::specs());
     v.extend(sync_progress::specs());
     v.extend(search_server::specs());
     Registry::new(v)

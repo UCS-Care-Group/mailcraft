@@ -1,0 +1,1 @@
+| 2026-11-25 | CS2 (#1917): contacts sync hardened: an undo whose contact is in a folder that may only be read now is not undone (and says so); a mailbox file's contacts folders are cut to size, and its waiting contact changes dropped before they are capped, with no key a deletion waits on given out again |

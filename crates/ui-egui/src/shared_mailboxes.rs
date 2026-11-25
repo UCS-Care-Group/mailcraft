@@ -120,6 +120,7 @@ impl MailApp {
             // A renewed sign-in that isn't the owner's stops the run before the Outbox or
             // anything of the mail goes.
             signer: Some(owner.clone()),
+            contacts: None,
         };
         self.resume_fetch();
         if self.offline() {
@@ -440,7 +441,7 @@ impl MailApp {
             Ok(()) => {
                 self.shared_checking.remove(&shared);
                 if ours {
-                    self.dialog = None;
+                    self.set_dialog(None);
                 }
             }
             Err(said) => {

@@ -21,6 +21,7 @@ const FIELD_URIS: &[&str] = &[
     "message:ToRecipients",
     "message:CcRecipients",
     "message:From",
+    "message:InternetMessageId",
     "message:IsRead",
     "item:Categories",
     "item:Importance",
@@ -601,6 +602,12 @@ impl State {
                 response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
             ));
         }
+        // (Asked for and left out, with nothing said.)
+        let extra: Vec<String> = if self.omits_recipients {
+            extra.into_iter().filter(|e| e != "message:ToRecipients" && e != "message:CcRecipients").collect()
+        } else {
+            extra
+        };
         // Where the read goes on from: the state it was given, or the start.
         enum From {
             Listing { done: usize, rev: u64 },
@@ -689,7 +696,7 @@ impl State {
             Check::is(one, TYPES, "ItemId", &["Id", "ChangeKey"])?;
             Check::empty(one)?;
             let id = Check::attribute(one, "Id")?;
-            let code = match self.item(id) {
+            let code = match self.item(id).filter(|_| !self.gone_from_get_item.iter().any(|gone| gone == id)) {
                 Some(_) if self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId") => {
                     messages.push_str(&error_message("GetItem", "ErrorInvalidPropertyRequest"));
                     "ErrorInvalidPropertyRequest"

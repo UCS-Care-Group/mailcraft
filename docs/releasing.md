@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-16 · **Change:** minor · **Status:** releases v0.1.0 to v0.13.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-11-22 · **Change:** minor · **Status:** releases v0.1.0 to v0.14.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 This file is MailCraft's release recipe. The scripts in `packaging/` are WordCraft's with MailCraft's
 names, and differ from them only where the program does (what it opens, its description, its
@@ -69,7 +69,7 @@ WordCraft does.
 5. A maintainer checks the draft (files, names, checksums, notes) and publishes it by hand:
    Releases › the draft › Edit › Publish release, or `gh release edit v0.2.0 --draft=false`.
    Nothing is public until then.
-6. Announce it to the testers: a comment on [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)
+6. Announce it to the testers: a comment on [#11](https://github.com/UCSLabs/mailcraft/issues/11)
    headed `## MailCraft v<version> is out`, with the download link and the release's headlines
    (the tester welcome promises it): the notes' **in short** list. Add anyone who signed up since to #11's Testers table.
 
@@ -234,7 +234,7 @@ nothing; the `.msi`, installed by Windows Installer, isn't affected.
 
 Every file of a release also gets a build provenance attestation (`actions/attest-build-provenance`):
 a signed statement, kept by GitHub outside the release, of the workflow run and commit that made
-it. Check a download with `gh attestation verify <file> -R UCS-Care-Group/mailcraft`.
+it. Check a download with `gh attestation verify <file> -R UCSLabs/mailcraft`.
 
 What the build fetches is pinned: every action by full commit SHA (Dependabot moves them, a week
 after their release), the shared workflows of `storytold/craft-common-actions` by full commit SHA
@@ -259,12 +259,13 @@ no environment, is given no secrets and publishes nothing.
 
 Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenance GitHub attests
 (which workflow run, at which commit, made each file), as a file, so it can be checked without
-GitHub's command line (`gh attestation verify <file> -R UCS-Care-Group/mailcraft` does the same
+GitHub's command line (`gh attestation verify <file> -R UCSLabs/mailcraft` does the same
 online).
 ## The Android release
 
-**Off for now (since 0.14.0):** `release.yml`'s `android` and `android-e2e` jobs don't run, so a
-release has no APK and nothing goes to Google Play. Android CI on pull requests is unchanged. What
+**Off for now (since 0.14.0):** `release.yml`'s `android` and `android-e2e` jobs run only when the
+repository variable `ANDROID_RELEASE` is `true`, and it isn't set, so a release has no APK and
+nothing goes to Google Play. Android CI on pull requests is unchanged. What
 follows is how it works when the jobs are turned back on.
 
 The same version tag builds the Android app (`.github/workflows/android.yml`, called from
@@ -333,7 +334,7 @@ MailCraft, and where each part stands:
 
 | Needs | State |
 |---|---|
-| One release per version with Craft file names and `SHA256SUMS.txt` | The workflow above produces it; twenty-two have been published, v0.1.0 to v0.13.0 |
+| One release per version with Craft file names and `SHA256SUMS.txt` | The workflow above produces it; twenty-three have been published, v0.1.0 to v0.14.0 |
 | An icon in the Craft style: an engraved animal in black ink and cream on one flat app colour, in the rounded tile (`rx` 112 of 512, the figure clipped 6 units in) | MailCraft's icon is its own instead (an envelope that is also a calendar page, on a blue tile): `cargo xtask icon` builds every size from `assets/app-icon/source/mailcraft.svg`. The launcher takes its 128 px PNG as it is |
 | A row in the launcher's catalog (`crates/core/src/catalog.rs` in `storytold/craft-launcher`): id, name, tagline, what it is like, colours, `owner/repo`; for an app outside the organisation also its own reverse-DNS id and publisher (the "community apps" group) | A pull request on that repository, after the first release; the 128 px icon goes with it |
 
@@ -438,6 +439,9 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-11-22 | Twenty-three releases published, v0.1.0 to v0.14.0, in the status line and the checklist |
+| 2026-11-20 | The Android jobs in `release.yml` are kept off by the repository variable `ANDROID_RELEASE` instead of `if: false`, which actionlint refuses |
+| 2026-11-19 | Android left out of releases for now: `release.yml`'s `android` and `android-e2e` jobs are off |
 | 2026-11-16 | MB4.2: the Android release (signed APK in the release, signed AAB to Play's internal track with our own uploader, `cargo xtask play-upload`, which `cargo xtask workflows` lets run beside the Play key alone), its secrets, each version and release candidate its own rising Android version code (`cargo xtask version-code`), and platform markers on release-note fragments |
 | 2026-11-16 | Tagging a merge commit on its pull request's `ci-ok` holds for a pull request that ran the whole suite (the release's always does); otherwise wait for CI on `main` |
 | 2026-11-15 | Releases published: twenty-two, v0.1.0 to v0.13.0 |

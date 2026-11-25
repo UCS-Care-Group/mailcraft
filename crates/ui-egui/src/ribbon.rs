@@ -52,6 +52,34 @@ const MODE_W: f32 = 24.0;
 /// A note after the buttons is drawn when this much room is left for it.
 const NOTE_MIN: f32 = 180.0;
 
+/// The sizes of the ribbon: MailCraft's own, or closer together where the look is dense
+/// ([`Tokens::dense`], Classic Light, #1203). The row is fitted to the window the same way at
+/// either size ([`plan`]): a narrower button only leaves more of the row in view.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Sizes {
+    /// The simplified row: the band's height and a button's.
+    band: f32,
+    button: f32,
+    /// In a button: the space at its start (and its end without a `▾`), the gap before its
+    /// label and the label's size.
+    pad: f32,
+    label_gap: f32,
+    label: f32,
+    /// The gaps above the ribbon's sheet and under it.
+    top_gap: f32,
+    sheet_gap: f32,
+}
+
+impl Sizes {
+    fn of(t: &Tokens) -> Sizes {
+        if t.dense {
+            Sizes { band: 40.0, button: 28.0, pad: 6.0, label_gap: 6.0, label: 12.0, top_gap: 3.0, sheet_gap: 4.0 }
+        } else {
+            Sizes { band: BAND_H, button: BUTTON_H, pad: PAD, label_gap: LABEL_GAP, label: LABEL_SIZE, top_gap: TOP_GAP, sheet_gap: SHEET_GAP }
+        }
+    }
+}
+
 /// How the ribbon lays its commands out (the menu at its right end, View › Layout,
 /// `ui.ribbonMode`): `Simplified`, one row of commands with what doesn't fit behind `…`, which
 /// is what a new installation starts with; or `Classic`, three rows in groups with their names.
@@ -160,6 +188,7 @@ pub(crate) enum Menu {
     Junk,
     RecentAttachments,
     OpenCalendar,
+    Spelling,
 }
 
 impl Menu {
@@ -200,18 +229,62 @@ fn menu_usable(app: &MailApp, menu: Menu) -> bool {
     (menu != Menu::RecentAttachments || crate::recent_attachments::available(app)) && menu.command().is_none_or(|command| app.enabled(command))
 }
 
-/// Whether a menu holds a text field the owner clicks in and types into: a colour typed by hand,
-/// a folder search. Such a menu keeps a click made inside it — that click is for the field, and
-/// not a way out of the menu. Every item of these menus shuts it itself
-/// ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen folder), and
-/// a click outside it still shuts it. The font menu joins them when it gets its search field
-/// (#1494).
-fn holds_a_field(menu: Menu) -> bool {
-    matches!(menu, Menu::FontColor | Menu::Highlight | Menu::MoveMessages | Menu::Rules | Menu::MoveFolder)
+/// Whether a menu holds a text field the owner clicks in and types into: the font menu's search
+/// (#1493), a colour typed by hand, a folder search. Such a menu keeps a click made inside it —
+/// that click is for the field, and not a way out of the menu. Every item of these menus shuts it
+/// itself ([`crate::widgets::mi`], [`crate::widgets::mi_check], the colour squares, a chosen
+/// folder), and a click outside it still shuts it.
+///
+/// Every menu is said here, rather than the ones with a field being picked out of the rest: a
+/// popup's close behaviour is settled before its contents are drawn, so this can't be answered
+/// from the widgets in it — it can only be answered by whoever adds a menu, and an arm for each
+/// makes the compiler ask them. `the_menus_that_hold_a_field_are_the_ones_that_draw_one` checks
+/// the answers against what the menus really draw.
+pub(crate) fn holds_a_field(menu: Menu) -> bool {
+    match menu {
+        // The search field that finds one family among the ones installed here (#1493).
+        Menu::Font => true,
+        // A colour typed by hand, not picked from the squares. The highlight menu is not one of
+        // them: it draws squares only, each of which shuts the menu itself.
+        Menu::FontColor => true,
+        // The folder search: at the top of the first two, and a submenu down in the third.
+        Menu::MoveMessages | Menu::MoveFolder => true,
+        Menu::Rules => true,
+        // Everything else is items, and every item shuts the menu when it is clicked.
+        Menu::NewItems
+        | Menu::Highlight
+        | Menu::CategorizeMail
+        | Menu::FollowUp
+        | Menu::ComposeFollowUp
+        | Menu::FilterMail
+        | Menu::ShowAs
+        | Menu::Reminder
+        | Menu::CategorizeEvent
+        | Menu::CategorizeContact
+        | Menu::CategorizeTask
+        | Menu::FilterTasks
+        | Menu::Signature
+        | Menu::ReadingPane
+        | Menu::GmailCategories
+        | Menu::NavigationBar
+        | Menu::Preview
+        | Menu::ArrangeBy
+        | Menu::Theme
+        | Menu::RibbonLayout
+        | Menu::TimeScale
+        | Menu::ChangeView
+        | Menu::Zoom
+        | Menu::RecentSearches
+        | Menu::FontSize
+        | Menu::Junk
+        | Menu::RecentAttachments
+        | Menu::OpenCalendar
+        | Menu::Spelling => false,
+    }
 }
 
 /// The menus a button of the simplified row opens: its own, and those of what hangs under it.
-fn button_menus(b: &Button<'_>) -> Vec<Menu> {
+pub(crate) fn button_menus(b: &Button<'_>) -> Vec<Menu> {
     b.item.menu.into_iter().chain(b.drops.iter().filter_map(|under| under.menu)).collect()
 }
 
@@ -224,10 +297,17 @@ fn menu_popup<'a>(resp: &egui::Response, menus: impl IntoIterator<Item = Menu>) 
 }
 
 /// A menu as an entry of another (a `▾`, a `…`): it opens while it can ([`menu_usable`]), and is
-/// greyed otherwise, saying why when hovered.
+/// greyed otherwise, saying why when hovered. One that holds a text field ([`holds_a_field`]) keeps
+/// a click made inside it here too: reached through a `…` or a `▾` because the ribbon is narrow,
+/// its search is still the owner's to click in (#1493).
 pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) {
     if menu_usable(app, menu) {
-        ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        if holds_a_field(menu) {
+            let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+            egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| menu_contents(ui, app, menu));
+        } else {
+            ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+        }
         return;
     }
     let reason = menu.command().and_then(|c| app.session.registry.get(c)).and_then(|spec| (spec.enabled)(&app.session));
@@ -635,6 +715,18 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
+    // The Calendar's Clipboard: the three window commands that take the whole selected set, or
+    // put what was copied or cut at the time picked in the grid. They are here whatever is
+    // selected — readiness is the commands' own (`enabled`: the set for Copy and Cut, the clip and
+    // the picked time for Paste), never a focus — so the group neither comes nor goes with a click.
+    groups.push(g(
+        "Clipboard",
+        vec![
+            Item::small("copy", "Copy", "Copy", "ui.calendarCopy", no()).at(4, 6),
+            Item::small("move", "Cut", "Cut", "ui.calendarCut", no()).at(4, 6),
+            Item::small("paste", "Paste", "Paste", "ui.calendarPaste", no()).at(4, 6),
+        ],
+    ));
     // Somebody else's calendar, by their address (#70), or one on the web (#209).
     groups.push(g("Manage Calendars", vec![Item::big_menu("calendar", "calendar", "Open\nCalendar", "Open Calendar", Menu::OpenCalendar).at(4, 9)]));
     groups.push(g(
@@ -680,6 +772,8 @@ fn home_people(app: &MailApp) -> Tab {
                 // The contacts picked together, else every group that shares an address or a
                 // number (#506).
                 Item::big("mergeContacts", "Merge\nDuplicates", "people.merge", merge_params(app)).at(3, 4),
+                // Into another contacts folder or On this computer (#1144): the dialog asks which.
+                Item::big("move", "Move", "people.moveToFolder", move_params(app)).at(3, 4),
             ],
         ),
         g(
@@ -698,6 +792,12 @@ fn home_people(app: &MailApp) -> Tab {
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
 /// there are two or more.
 pub(crate) fn merge_params(app: &MailApp) -> Value {
+    if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
+}
+
+/// What Move to Contacts Folder… opens its dialog with: the contacts picked together, else the
+/// selected one.
+pub(crate) fn move_params(app: &MailApp) -> Value {
     if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
 }
 
@@ -992,14 +1092,13 @@ fn insert() -> Tab {
     ])
 }
 
-/// Review, while a message is being written, in classic Outlook's groups: Word Count, and the
-/// rest still to be built.
+/// Review, while a message is being written.
 fn review() -> Tab {
     Tab::of(vec![
         g(
             "Proofing",
             vec![
-                Item::pending("review.spelling", "Spelling & Grammar", 0),
+                Item::big_menu("spelling", "spelling", "Spelling", "Check spelling with a local dictionary", Menu::Spelling).at(0, 2),
                 Item::pending("review.thesaurus", "Thesaurus", 0),
                 Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3),
             ],
@@ -1125,7 +1224,7 @@ fn view(app: &MailApp) -> Tab {
 /// mail's.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
-    let tight = app.session.prefs.tight_spacing;
+    let (tight, shade) = (app.session.prefs.tight_spacing, app.session.prefs.shade_rows);
     let mut layout = vec![
         Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
         Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
@@ -1145,6 +1244,7 @@ fn view_of_any(app: &MailApp) -> Tab {
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
                 Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
+                Item::big("shadeRows", "Shade\nRows", "view.shadeRows", no()).checked(shade).at(1, 4),
             ],
         ),
         g(
@@ -1522,7 +1622,7 @@ pub fn category_menu(
             if on {
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, "✓", medium(10.0), Tokens::get(ui.ctx()).on_swatch);
             }
-            if ui.add(egui::Button::new(name.as_str()).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
+            if ui.add(egui::Button::new(crate::i18n::category_label(&name)).selected(on).min_size(vec2(170.0, 0.0))).clicked() {
                 let _ = app.run(command, json!({"category": name}));
                 ui.close();
             }
@@ -1593,8 +1693,9 @@ pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
 }
 
 /// What `menu` lists.
-fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
+pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
+        Menu::Spelling => crate::spelling::review(ui, app),
         Menu::RecentAttachments => crate::recent_attachments::contents(ui, app),
         Menu::NewItems => new_items(ui, app),
         Menu::MoveMessages => {
@@ -1783,7 +1884,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::ReadingPane => {
             let cur = app.session.view.reading_pane;
-            for (label, code, pane) in [("Right", "right", Pane::Right), ("Bottom", "bottom", Pane::Bottom), ("Off", "off", Pane::Off)] {
+            for (label, code, pane) in
+                [(tl_later!("Right"), "right", Pane::Right), (tl_later!("Bottom"), "bottom", Pane::Bottom), (tl_later!("Off"), "off", Pane::Off)]
+            {
                 mi_check(ui, app, label, cur == pane, "view.readingPane", json!({"value": code}));
             }
         }
@@ -1799,7 +1902,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;
-            for (label, n) in [("Off", 0u8), ("1 Line", 1), ("2 Lines", 2), ("3 Lines", 3)] {
+            for (label, n) in [(tl_later!("Off"), 0u8), (tl_later!("1 Line"), 1), (tl_later!("2 Lines"), 2), (tl_later!("3 Lines"), 3)] {
                 mi_check(ui, app, label, lines == n, "view.previewLines", json!({"value": n}));
             }
             ui.separator();
@@ -1866,13 +1969,75 @@ pub(crate) fn size_menu(ui: &mut Ui, app: &mut MailApp) {
     }
 }
 
-/// The fonts a message may ask for (`format.font`), each in a menu entry.
+/// How many of the families installed here a font menu lists before it asks to narrow them down.
+const MOST_FONTS: usize = 400;
+
+/// Where the font menu's field keeps what has been typed in it: the same place every time the
+/// menu is opened, so the menu can be opened again with the search still in it.
+pub(crate) fn font_search_key() -> egui::Id {
+    egui::Id::unique("mailcraft-font-search")
+}
+
+/// The fonts a message may be written in (`format.font`): the six MailCraft has fallbacks for,
+/// and after them every family installed on this computer, with a field to find one among them
+/// (#1493). The same menu serves the composer and File › Signatures.
 pub(crate) fn font_menu(ui: &mut Ui, app: &mut MailApp) {
-    use mailcraft_model::rich::Font;
+    use mailcraft_model::rich::Built;
     let now = look_now(app).font;
+    let chosen = now.clone().flatten().map(|f| f.key().to_string());
     mi_check(ui, app, "Default", now == Some(None), "format.font", json!({"value": null}));
-    for f in Font::ALL {
-        mi_check(ui, app, f.label(), now == Some(Some(f)), "format.font", json!({"value": f.label()}));
+    for built in Built::ALL {
+        let checked = chosen.as_deref() == Some(built.key());
+        mi_check(ui, app, built.label(), checked, "format.font", json!({"value": built.label()}));
+    }
+    let ctx = ui.ctx().clone();
+    // The list is made on a thread of its own the first time it is asked for; the window is asked
+    // to draw again when it arrives.
+    crate::fonts::ask(&ctx);
+    ui.separator();
+    let key = font_search_key();
+    let mut query: String = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+    let field =
+        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut query).hint_text(tl!("Find a font")).char_limit(64).desired_width(190.0)));
+    ui.data_mut(|d| d.insert_temp(key, query.clone()));
+    app.hit.add("fontSearch", 0, field.rect);
+    let enabled = app.enabled("format.font");
+    // The list is made once with the index, in order and folded for searching: a menu open for a
+    // minute shouldn't build three thousand names again every frame (#1493).
+    let Some(index) = crate::fonts::index(&ctx) else {
+        ui.label(egui::RichText::new(tl!("Looking for fonts…")).color(crate::theme::Tokens::get(&ctx).text_dim));
+        return;
+    };
+    let needle = query.trim().to_lowercase();
+    let shown = index.menu().iter().filter(|family| needle.is_empty() || family.folded.contains(&needle));
+    let total = shown.clone().count();
+    let room = ui.available_height().min(320.0);
+    egui::ScrollArea::vertical().id_salt("font-menu").max_height(room.max(120.0)).auto_shrink([false, true]).show(ui, |ui| {
+        for family in shown.take(MOST_FONTS) {
+            let checked = chosen.as_deref() == Some(family.folded.as_str());
+            let mark = egui::RichText::new("✓");
+            let mark = if checked { mark } else { mark.color(egui::Color32::TRANSPARENT) };
+            let button = egui::Button::new((mark, family.name.as_str())).selected(checked).min_size(vec2(190.0, 0.0));
+            if ui.add_enabled(enabled, button).clicked() {
+                // The family as it is named here, with a font of its kind after it for whoever
+                // doesn't have it: what its own file says it is (#1493).
+                let value = format!("{}, {}", family.name, crate::fonts::generic_family(&ctx, &family.folded));
+                let _ = app.run("format.font", json!({"value": value}));
+                ui.close();
+            }
+        }
+        if total > MOST_FONTS {
+            ui.label(
+                egui::RichText::new(tln!(total - MOST_FONTS, "…and {n} more — type to narrow it", "…and {n} more — type to narrow it"))
+                    .color(crate::theme::Tokens::get(&ctx).text_dim),
+            );
+        }
+    });
+    ui.separator();
+    // Not a formatting command: it looks again at the fonts folder, and the menu shows the new
+    // list as it arrives.
+    if ui.button(tl!("Check for new fonts")).clicked() {
+        crate::fonts::rescan(&ctx);
     }
 }
 
@@ -2088,15 +2253,15 @@ pub(crate) fn plan(buttons: &[Button<'_>], width: &dyn Fn(usize, bool) -> f32, a
     }
 }
 
-/// The width of a button of the simplified row whose name is `text` wide.
-fn button_width(b: &Button<'_>, labelled: bool, text: f32) -> f32 {
-    let label = if labelled { LABEL_GAP + text } else { 0.0 };
+/// The width of a button of the simplified row whose name is `text` wide, at `sizes`.
+fn button_width(b: &Button<'_>, labelled: bool, text: f32, sizes: Sizes) -> f32 {
+    let label = if labelled { sizes.label_gap + text } else { 0.0 };
     let end = match (b.has_drop(), labelled) {
         (true, true) => DROP_GAP_LABEL + DROP_W,
         (true, false) => DROP_GAP_ICON + DROP_W,
-        (false, _) => PAD,
+        (false, _) => sizes.pad,
     };
-    PAD + ICON + label + end
+    sizes.pad + ICON + label + end
 }
 
 /// What is under a button's `▾`: its own menu, then the controls under it.
@@ -2152,6 +2317,7 @@ pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 /// One button of the simplified row, in `rect`.
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
+    let sizes = Sizes::of(t);
     let id = ui.scope_id().with(("ribbon", item.key));
     let on = usable(app, item);
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
@@ -2160,10 +2326,16 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let main = ui.interact(main_rect, id, if item.pending { Sense::hover() } else { Sense::click() });
     app.hit.add("ribbon", hit_id(item.key), main_rect);
     if item.pending {
-        let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
+        let icon = Rect::from_center_size(pos2(rect.min.x + sizes.pad + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
         icons::paint(ui.painter(), icon, item.icon, t.text_disabled, t.text_disabled);
         if labelled {
-            ui.painter().text(pos2(icon.max.x + LABEL_GAP, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(LABEL_SIZE), t.text_disabled);
+            ui.painter().text(
+                pos2(icon.max.x + sizes.label_gap, rect.center().y),
+                Align2::LEFT_CENTER,
+                item.name(),
+                regular(sizes.label),
+                t.text_disabled,
+            );
         }
         pending_tip(main, item);
         return;
@@ -2172,10 +2344,10 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         bg(ui, main_rect, &main, item.checked, t);
     }
     let (ink, accent, text) = if on { (t.icon, t.accent, t.text) } else { (t.text_disabled, t.text_disabled, t.text_disabled) };
-    let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
+    let icon = Rect::from_center_size(pos2(rect.min.x + sizes.pad + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
     icons::paint(ui.painter(), icon, item.icon, ink, accent);
     if labelled {
-        ui.painter().text(pos2(icon.max.x + LABEL_GAP, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(LABEL_SIZE), text);
+        ui.painter().text(pos2(icon.max.x + sizes.label_gap, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(sizes.label), text);
     }
     let Some((command, params)) = &item.command else {
         // The whole button opens its menu.
@@ -2216,10 +2388,11 @@ pub(crate) fn behind_more(ctx: &egui::Context) -> Vec<&'static str> {
 /// The simplified layout: one row of `tab` in `area`, with `…` at its end for what doesn't fit.
 fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect) {
     let buttons = row(tab);
+    let sizes = Sizes::of(t);
     let names: Vec<f32> =
-        buttons.iter().map(|b| ui.ctx().fonts_mut(|f| f.layout_no_wrap(b.item.name(), regular(LABEL_SIZE), t.text).size().x)).collect();
+        buttons.iter().map(|b| ui.ctx().fonts_mut(|f| f.layout_no_wrap(b.item.name(), regular(sizes.label), t.text).size().x)).collect();
     let width = |i: usize, labelled: bool| match (buttons.get(i), names.get(i)) {
-        (Some(b), Some(text)) => button_width(b, labelled, *text),
+        (Some(b), Some(text)) => button_width(b, labelled, *text, sizes),
         _ => 0.0,
     };
     let plan = plan(&buttons, &width, area.width());
@@ -2543,19 +2716,40 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 for tab in tabs {
-                    let shown = tl!(tab);
+                    // Named in capitals, a little smaller, where the theme has it so (#1203).
+                    // (Unicode's capitals, not a locale's: right for every catalogue shipped, not for Turkish's dotted i.)
+                    let (shown, size) = if t.tab_caps { (tl!(tab).to_uppercase(), TAB_SIZE - 1.5) } else { (tl!(tab).to_string(), TAB_SIZE) };
                     let active = current == *tab;
                     // As wide as its name in the heavier weight, so a tab keeps its place when chosen.
-                    let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.to_string(), semibold(TAB_SIZE), t.text).size().x);
+                    let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), semibold(size), t.text).size().x);
                     let w = text_w + 24.0;
                     let (r, resp) = ui.allocate_exact_size(vec2(w, TAB_H), Sense::click());
                     app.hit.add("ribbonTab", hit_id(tab), r);
-                    if resp.hovered() && !active {
-                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), 4.0, t.hover);
+                    // File as a button in the accent, apart from the tabs (#1203).
+                    let filled = t.file_tab_fill && *tab == "File";
+                    if filled {
+                        // Under the pointer a step away from its words, so they keep their contrast.
+                        let shade = Tokens::away_from(t.on_accent);
+                        let fill = if resp.is_pointer_button_down_on() {
+                            t.accent.lerp_to_gamma(shade, 0.2)
+                        } else if resp.hovered() {
+                            t.accent.lerp_to_gamma(shade, 0.12)
+                        } else {
+                            t.accent
+                        };
+                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 3.0)), f32::from(t.control_radius), fill);
+                    } else if resp.hovered() && !active {
+                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), f32::from(t.control_radius).min(4.0), t.hover);
                     }
                     // The tab that came up for the message being written stands out.
-                    let color = if matches!(*tab, "Message" | "Attachments") && !active { t.accent_text } else { t.text };
-                    ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active { semibold(TAB_SIZE) } else { regular(TAB_SIZE) }, color);
+                    let color = if filled {
+                        t.on_accent
+                    } else if matches!(*tab, "Message" | "Attachments") && !active {
+                        t.accent_text
+                    } else {
+                        t.text
+                    };
+                    ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active || filled { semibold(size) } else { regular(size) }, color);
                     if active {
                         // The tab in view: its name in the heavier weight, underlined in the accent.
                         let u = Rect::from_min_size(pos2(r.center().x - text_w / 2.0, r.min.y + 25.0), vec2(text_w, 2.0));
@@ -2594,15 +2788,16 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
 fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
     let t = Tokens::get(ui.ctx());
     let mode = app.ui.ribbon_mode;
+    let sizes = Sizes::of(&t);
     // The ribbon is a sheet on the window's own colour, with a gap under it before the panes. The
     // commands have the sheet less its edges and the layout button at its right end.
     let (height, edge) = match mode {
         Mode::Classic => (CONTENT_H + LABEL_H + 10.0, 4.0),
-        Mode::Simplified => (BAND_H, (BAND_H - BUTTON_H) / 2.0),
+        Mode::Simplified => (sizes.band, (sizes.band - sizes.button) / 2.0),
     };
-    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + TOP_GAP) as i8, bottom: (edge + SHEET_GAP) as i8 };
+    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + sizes.top_gap) as i8, bottom: (edge + sizes.sheet_gap) as i8 };
     egui::Panel::top(id)
-        .exact_size(height + TOP_GAP + SHEET_GAP)
+        .exact_size(height + sizes.top_gap + sizes.sheet_gap)
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.tab_strip).inner_margin(margin))
         .show(ui, |ui| {
@@ -2610,7 +2805,7 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
             let sheet = Rect::from_min_max(pos2(area.min.x - 8.0, area.min.y - edge), pos2(area.max.x + 8.0 + MODE_W, area.max.y + edge));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
             let line = t.ribbon_edge;
-            ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
+            ui.painter().rect(sheet, t.sheet_radius, t.ribbon, line, egui::StrokeKind::Inside);
             app.hit.add("ribbonBand", 0, sheet);
             match mode {
                 Mode::Classic => {
@@ -2648,6 +2843,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
             });
         });
 }
+
+#[cfg(test)]
+mod dense_tests;
 
 #[cfg(test)]
 mod fit_tests;

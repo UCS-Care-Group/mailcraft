@@ -31,7 +31,7 @@
 //! (`POST /me/calendars/{id}/events`), one changed here has what changed sent
 //! (`PATCH /me/events/{id}`), one deleted here is deleted (`DELETE /me/events/{id}`). Each is
 //! named by the id that came with it ([`mailcraft_model::Origin`]); a new one goes with a mark
-//! (`transactionId`) that keeps a second try from making a second event. Contacts are only read.
+//! (`transactionId`) that keeps a second try from making a second event.
 //!
 //! A series goes with its rule (`recurrence`) and its times by the clock in the owner's zone;
 //! one occurrence of a series is found by its time (`GET /me/events/{id}/instances`) and then
@@ -58,6 +58,9 @@
 //! it, with everything but letters, digits and `-._~` as `%XX` (an id may hold `=`, `/` and `+`).
 //! The ids are Graph's ordinary ones, which change when an item is moved to another calendar:
 //! a change that waits for such an item is answered "not found", and the mailbox says so.
+//!
+//! Contacts go both ways too, folder by folder, their changes read by Graph's lists of changes
+//! ([`read_contacts`], [`push_contacts`]; #1917).
 //!
 //! [`check_calendar`] makes, reads, changes, reads and deletes one appointment a year ahead, and
 //! says what Graph answered at each step: the one way to see for oneself that what is written
@@ -157,7 +160,7 @@ const NEAR: i64 = 90;
 const NEAR_DAY: i64 = 12 * 3_600 - 1;
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,middleName,surname,nickName,companyName,jobTitle,department,emailAddresses,\
                               businessPhones,homePhones,mobilePhone,businessAddress,homeAddress,otherAddress,businessHomePage,birthday,\
-                              personalNotes,lastModifiedDateTime";
+                              personalNotes,lastModifiedDateTime,categories";
 /// How times and descriptions are asked for: in UTC, and as text rather than HTML.
 const EVENT_PREFERENCES: &str = "outlook.timezone=\"UTC\", outlook.body-content-type=\"text\"";
 /// The names UTC goes by in an answer.
@@ -1352,6 +1355,20 @@ fn push_events_at(base: &str, token: &str, upload: &EventsUpload, options: &Even
         }
     }
     log::debug!("calendar: {} of {} changes answered", uploaded.outcomes.len(), upload.ops.len());
+    // Then a renamed category, for the events that aren't kept here (#851): once every change was
+    // answered, in the owner's own calendars alone (never a shared mailbox's, nor a calendar
+    // opened by address).
+    let answered = uploaded.outcomes.len() >= upload.ops.len().min(MAX_EVENT_OPS) && !uploaded.token_refused;
+    if let Some(rename) = upload.rename.as_ref().filter(|_| answered && !graph.shared()) {
+        let mut lists = vec!["/v1.0/me/calendar/events".to_string()];
+        let own = rename.calendars.iter().map(|id| mailcraft_model::remote::clean_key(id));
+        for id in own.filter(|id| !id.is_empty() && people::address_of(id).is_none()).take(mailcraft_model::remote::MAX_RENAMED_CALENDARS) {
+            lists.push(format!("{CALENDARS}/{}/events", http::encode(&id)));
+        }
+        let came = recategorize::rename(&graph, &recategorize::Items { lists, item: "/me/events/".into() }, rename, None, &mut |_, _| {});
+        uploaded.token_refused = came.token_refused;
+        uploaded.renamed = Some(came.renamed);
+    }
     uploaded
 }
 
@@ -1978,6 +1995,11 @@ fn contact_of(entry: &Value) -> Option<RemoteContact> {
         birthday: Some(text(entry, "birthday")).filter(|day| day.len() <= MAX_DATE).and_then(mailcraft_time::parse_iso).map(|(day, _)| day.date),
         notes: text(entry, "personalNotes").to_string(),
         modified: instant(text(entry, "lastModifiedDateTime")).unwrap_or(0),
+        // (An answer that doesn't say leaves them as they are here.)
+        categories: entry
+            .get("categories")
+            .and_then(Value::as_array)
+            .map(|names| names.iter().take(MAX_ENTRIES).filter_map(Value::as_str).map(str::to_string).collect()),
     };
     // Entries with nothing in them (no mobile number, no home address) go here.
     contact.tidy();
@@ -2254,6 +2276,11 @@ mod people;
 pub use people::{Opened, open_calendar};
 
 mod tasks;
+
+mod contacts;
+pub use contacts::{ContactsRead, MAX_DEPTH, MAX_FOLDER_CONTACTS, push_contacts, read_contacts};
+#[cfg(test)]
+mod contacts_tests;
 pub use tasks::{push_tasks, tasks};
 
 mod rules;
@@ -2261,6 +2288,8 @@ pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
 
 mod categories;
 pub use categories::push_categories;
+
+mod recategorize;
 
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
@@ -2288,6 +2317,8 @@ mod auto_replies_tests;
 mod categories_tests;
 #[cfg(test)]
 mod people_tests;
+#[cfg(test)]
+mod recategorize_tests;
 #[cfg(test)]
 mod rules_tests;
 #[cfg(test)]
