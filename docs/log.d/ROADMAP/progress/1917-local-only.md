@@ -1,0 +1,1 @@
+| 2026-11-25 | #1917 CS6.1: a contact's card (desktop and Android) marks each address, number or web page its account's server has no place for as kept on this computer only, and says why; `people.get` lists them as `localOnly`. Nothing is limited or refused for it |

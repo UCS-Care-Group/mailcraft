@@ -197,6 +197,14 @@ pub struct Contact {
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
     pub origin: Origin,
+    /// The contacts folder it is kept in ([`crate::contact_sync::ContactFolder`]); 0 for On this
+    /// computer.
+    #[serde(skip_serializing_if = "is_no_folder")]
+    pub folder: Id,
+}
+
+fn is_no_folder(id: &Id) -> bool {
+    *id == 0
 }
 
 impl Contact {

@@ -71,8 +71,22 @@ internal class ReadingController(
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
             state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
-            if (opened.view.unread && remember(marked, id) && !source.markRead(id)) forget(id)
+            if (opened.view.unread && remember(marked, id)) {
+                if (source.markRead(id)) triaged(id, unread = false) else forget(id)
+            }
             loadPictures(mine, id, opened)
+        }
+    }
+
+    /** The open message [id] was flagged or unflagged (null: unchanged) or marked read or unread, by the toolbar. */
+    fun triaged(id: ULong, unread: Boolean? = null, flagged: Boolean? = null) {
+        // Marked unread on purpose: the next open reads it again.
+        if (unread == true) forget(id)
+        state.update {
+            val opened = it.opened
+            if (it.id != id || opened == null) return@update it
+            val view = opened.view.copy(unread = unread ?: opened.view.unread, flagged = flagged ?: opened.view.flagged)
+            it.copy(opened = OpenedMessage(view, opened.facts, opened.links, opened.attachments))
         }
     }
 

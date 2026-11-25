@@ -134,7 +134,7 @@ fn only_an_account_with_a_server_of_its_own_may_have_one() {
 }
 
 #[test]
-fn the_host_side_refuses_politely_until_it_is_built() {
+fn the_host_side_refuses_what_is_not_built_and_asks_what_is() {
     let (mut s, id) = session();
     // Switched on, but no account has a server yet: out of reach, with the reason.
     for command in ["sync.davRequest", "sync.davChanges"] {
@@ -143,9 +143,15 @@ fn the_host_side_refuses_politely_until_it_is_built() {
     set(&mut s, id);
     for command in SYNC {
         assert!(s.enabled(command), "{command}");
+    }
+    // (Calendars down is built, D5; changes going up are D6.)
+    assert!(s.run("sync.davRequest", &json!({"account": id})).is_ok());
+    for command in ["sync.davChanges", "sync.applyDavUploaded"] {
         let said = s.run(command, &json!({"account": id, "result": {}}));
         assert!(matches!(said, Err(CmdError::Failed(_))), "{command}: {said:?}");
     }
+    // A download that isn't for an account here is refused.
+    assert!(s.run("sync.applyDav", &json!({"result": {}})).is_err());
     // Junk of every shape is refused and changes nothing.
     let kept = s.mailbox.account(id).unwrap().dav.clone();
     for junk in [json!(null), json!([]), json!("x"), json!({"account": -1}), json!({"result": {"deep": [[[]]]}}), json!({"account": 1e300})] {
