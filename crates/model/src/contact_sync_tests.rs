@@ -83,7 +83,7 @@ fn folders_and_changes_are_capped() {
     let copy = file.contact_folders[0].clone();
     file.contact_folders.push(ContactFolder { id: 1_000_000, ..copy });
     let folder = file.contact_folders[0].id;
-    file.contact_changes = vec![ContactChange { account, folder, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
+    file.contact_changes = vec![ContactChange { account, folder, sent: true, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
     let said = file.repair();
     assert!(said.iter().any(|l| l.contains("folders")) && said.iter().any(|l| l.contains("cut")), "{said:?}");
     assert_eq!((file.contact_folders.len(), file.contact_changes.len()), (MAX_CONTACT_FOLDERS, MAX_CONTACT_CHANGES));
@@ -255,6 +255,46 @@ fn person() -> impl Strategy<Value = Contact> {
             categories: if category.is_empty() { Vec::new() } else { vec![category.to_string()] },
             ..Default::default()
         })
+}
+
+/// Review of #1937 and #1934 (fourth round): a change waits only in a folder of its own
+/// account, a change needs its contact (a new contact gone here only once sent), and a change
+/// moved with its contact keeps it even when the new key is out of range too.
+#[test]
+fn repair_keeps_only_changes_that_can_go_to_their_own_accounts_folder() {
+    const MAX: crate::Id = 1 << 53;
+    let mut mb = Mailbox::default();
+    let ada_account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    let bo_account = mb.add_account(Account { email: "bo@example.org".into(), ..Default::default() });
+    let adas = mb.ensure_main_contact_folder(ada_account).unwrap();
+    let bos = mb.ensure_main_contact_folder(bo_account).unwrap();
+    let id = mb.add_contact(Contact { folder: adas, ..ada() });
+    let note = |kind, contact, folder, sent| ContactChange { account: ada_account, kind, contact, folder, sent, ..Default::default() };
+    // At the top of the range, so the one moved gets a key out of range again.
+    mb.contacts.insert(MAX, std::sync::Arc::new(Contact { id: MAX, folder: adas, ..ada() }));
+    mb.contacts.insert(MAX + 5, std::sync::Arc::new(Contact { id: MAX + 5, first: "Big".into(), folder: adas, ..Default::default() }));
+    mb.contact_changes = vec![
+        note(ContactChangeKind::Create, id, bos, false),
+        note(ContactChangeKind::Create, 4_242, adas, false),
+        ContactChange {
+            remote: "c-1".into(),
+            base: Some(Box::new(ada())),
+            fields: BTreeSet::from([ContactField::Last]),
+            ..note(ContactChangeKind::Change, 4_243, adas, true)
+        },
+        ContactChange {
+            remote: "c-2".into(),
+            base: Some(Box::new(ada())),
+            fields: BTreeSet::from([ContactField::Last]),
+            ..note(ContactChangeKind::Change, MAX + 40, adas, true)
+        },
+        note(ContactChangeKind::Create, 4_244, adas, true),
+        note(ContactChangeKind::Create, id, adas, false),
+        note(ContactChangeKind::Create, MAX + 5, adas, false),
+    ];
+    mb.repair();
+    let big = mb.contacts.values().find(|c| c.first == "Big").unwrap().id;
+    assert_eq!(mb.contact_changes.iter().map(|c| c.contact).collect::<Vec<_>>(), [4_244, id, big]);
 }
 
 proptest! {

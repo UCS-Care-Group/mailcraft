@@ -714,3 +714,51 @@ fn a_refusal_puts_back_only_what_was_sent() {
     assert_eq!((c.last.as_str(), c.company.as_str(), c.notes.as_str()), ("", "New Ltd", "Met in May"));
     assert_eq!(notes(&s), [(bo, ContactChangeKind::Change, vec![ContactField::Company, ContactField::Notes])]);
 }
+
+/// Review of #1937 (fourth round): a new contact made there without its name heard, then undone
+/// here, is deleted there once a download shows it, not taken in again; one a list read after
+/// doesn't show is let go.
+#[test]
+fn a_new_contact_undone_before_its_name_was_heard_is_deleted_there() {
+    let (mut s, account) = session();
+    let dee = run(&mut s, "people.new", json!({"first": "Dee"}))["id"].as_u64().unwrap();
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.contact(dee).is_none() && upload(&mut s, account).ops.is_empty());
+    let theirs = RemoteContact { id: "c-dee".into(), change_key: "ck-dee".into(), ..op.values.clone() };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+    assert!(s.mailbox.contacts.values().all(|c| c.first != "Dee"));
+    let gone = upload(&mut s, account).ops.remove(0);
+    assert_eq!((gone.kind, gone.remote.as_str()), (ContactChangeKind::Delete, "c-dee"));
+    answer(&mut s, account, &gone, ContactResult::Done, "");
+    assert!(s.mailbox.contact_changes.is_empty());
+    // Undone again, and not made there after all: a list read after the answer lets it go.
+    let (mut s, account) = session();
+    run(&mut s, "people.new", json!({"first": "Dee"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    run(&mut s, "edit.undo", json!({}));
+    let list = |read_at| ContactsDownload { read_at, ..download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]) };
+    run(&mut s, "sync.applyContacts", json!({"download": list(NOW - 1)}));
+    assert_eq!(s.mailbox.contact_changes.len(), 1, "a list read before says nothing");
+    run(&mut s, "sync.applyContacts", json!({"download": list(NOW + 1)}));
+    assert!(s.mailbox.contact_changes.is_empty() && upload(&mut s, account).ops.is_empty());
+}
+
+/// Review of #1937 (fourth round): a download that came before the answer, not yet showing the
+/// change: what the server took, and is still so here, isn't sent again.
+#[test]
+fn an_answer_after_a_download_retires_what_the_server_took() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    let older = RemoteContact { company: "Example Ltd".into(), change_key: "ck-c-bo-2".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![older, person("c-cy", "Cy")])}));
+    assert_eq!(notes(&s), [(bo, ContactChangeKind::Change, vec![ContactField::Last])]);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    assert!(s.mailbox.contact_changes.is_empty(), "{:?}", notes(&s));
+    let c = s.mailbox.contact(bo).unwrap();
+    assert_eq!((c.last.as_str(), c.company.as_str(), c.origin.change_key.as_str()), ("Marsh", "Example Ltd", "ck-c-bo-2"));
+}
