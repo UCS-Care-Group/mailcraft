@@ -36,9 +36,9 @@
 
     <Icon Id="MailcraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="MailcraftIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/UCS-Care-Group/mailcraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/UCS-Care-Group/mailcraft" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/UCS-Care-Group/mailcraft/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/UCSLabs/mailcraft" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/UCSLabs/mailcraft" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/UCSLabs/mailcraft/issues" />
 
     <!-- Installer UI (#198): WixUI_Minimal is welcome + license, progress, then a finish page so
          people can see the install worked. Its dialogs and bitmaps are WiX's own

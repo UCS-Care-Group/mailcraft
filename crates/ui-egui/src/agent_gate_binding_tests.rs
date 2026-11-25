@@ -157,6 +157,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
+    ("people.moveToFolder", r#"{"ids": [$contact], "folder": 0}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
     ("category.remove", r#"{"name": "Purple category"}"#, Setup::None),
     ("compose.discard", "{}", Setup::Writing),

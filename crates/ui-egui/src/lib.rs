@@ -98,6 +98,9 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+mod dav_job;
+#[cfg(test)]
+mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
 #[cfg(test)]
@@ -190,6 +193,7 @@ mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
+mod move_contacts;
 mod move_items;
 #[cfg(test)]
 mod move_items_tests;
@@ -315,6 +319,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 #[cfg(test)]
+mod theme_classic_tests;
+#[cfg(test)]
 mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
@@ -343,6 +349,7 @@ use serde_json::{Value, json};
 
 pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
+pub use dav_job::{DavDone, DavJob};
 pub use files::FileDialogRequest;
 pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
@@ -575,6 +582,12 @@ pub struct Services {
     /// arrives through the channel and the host wakes the UI. Absent in the browser and the
     /// tests: subscribed calendars are then listed with what they held and not updated.
     pub subscription: Option<Box<dyn Fn(SubscriptionJob) -> Receiver<SubscriptionDone>>>,
+    /// Desktop: read an account's calendars from its CalDAV server (#209, `mailcraft_net::dav::look`),
+    /// on a background thread, when `MAILCRAFT_DAV=1` and the account is due. The job holds the
+    /// account's passwords by origin; the host sends one only in answer to that origin's own
+    /// challenge, over TLS, to the pinned certificate when one is set. Absent in the browser and
+    /// the tests.
+    pub dav: Option<Box<dyn Fn(DavJob) -> Receiver<DavDone>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -904,7 +917,7 @@ pub struct UiState {
     pub ribbon_collapsed: bool,
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
-    /// Interface theme: light, dark, or follow the OS appearance.
+    /// Interface theme: light, Classic Light (#1203), dark, or follow the OS appearance.
     pub theme: theme::Appearance,
     /// High contrast: a stronger version of whichever theme is in use.
     #[serde(deserialize_with = "theme::lenient_bool")]
@@ -1176,7 +1189,6 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
-    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
     (
         "ui.spelling",
         "Spelling Options",
@@ -1202,6 +1214,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"word": string} — ignore the word until MailCraft quits (not saved). A duplicate is a success. A full list (10000 words) is an error. Answers {"word", "ignored": true}"#,
     ),
     ("ui.dictionary.list", "List Dictionary", "File › Options", r#"{} — the custom dictionary, the owner's words. Answers {"words": [string]}"#),
+    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"classicLight"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
     (
         "ui.animations",
@@ -1838,6 +1851,8 @@ pub struct MailApp {
     open_shared: open_shared::OpenShared,
     /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
     subscribed: subscribed::Subscribed,
+    /// Reading an account's calendars from its CalDAV server ([`dav_job`]).
+    dav: dav_job::DavSync,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -2150,6 +2165,7 @@ impl MailApp {
             auto_replies: Default::default(),
             open_shared: Default::default(),
             subscribed: Default::default(),
+            dav: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
@@ -2959,7 +2975,7 @@ impl MailApp {
                     self.ui.theme = a;
                     Ok(json!({"value": a.code()}))
                 }
-                None => Err("`value` is light, dark or system".into()),
+                None => Err("`value` is light, classicLight, dark or system".into()),
             },
             "ui.animations" => match s("value").and_then(motion::Motion::from_code) {
                 Some(m) => {
@@ -3441,11 +3457,10 @@ impl MailApp {
     }
 
     /// Whether the entry under `key` is waiting to be removed from the credential store, or is
-    /// being removed. **Every write of a calendar and contacts password to the store must ask
-    /// this first** (D5 wires it in): a write for a name with a forget pending would be removed
+    /// being removed. **Every write of a calendar and contacts password to the store, or into
+    /// [`MailApp::dav_passwords`], must ask this first** ([`MailApp::hold_dav_password`] does): a write for a name with a forget pending would be removed
     /// along with the old password, so it waits until the forget has completed
     /// ([`poll_dav_forgetting`](Self::poll_dav_forgetting)), or is queued again then.
-    #[allow(dead_code)] // D5's writes call it; until then only the tests do
     pub(crate) fn dav_forget_pending(&self, key: &str) -> bool {
         self.dav_forget_queue.iter().any(|k| k == key) || self.dav_forgetting.iter().any(|(_, keys)| keys.iter().any(|k| k == key))
     }
@@ -3961,6 +3976,7 @@ impl MailApp {
                     // A renewed sign-in that isn't the account's own stops the run before the
                     // Outbox goes.
                     signer: Some(request.account.clone()),
+                    contacts: None,
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -4070,6 +4086,7 @@ impl MailApp {
             // A renewed sign-in that isn't the account's own stops the run before the Outbox or
             // anything of the mail goes.
             signer: Some(signer),
+            contacts: None,
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -5363,6 +5380,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The calendars subscribed to, when they are due ([`subscribed`]).
             self.subscribed_tick();
+            // The calendars of a calendar server, when they are due ([`dav_job`]).
+            self.dav_tick();
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).

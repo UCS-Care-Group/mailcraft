@@ -102,7 +102,10 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
-        let round = self.job_busy().blocks(Start::InboxCheck);
+        // (Read once for the whole tick: right only while the loop below starts at most one pass,
+        // since a pass it started would make this `busy` stale.)
+        let busy = self.job_busy();
+        let round = busy.blocks_every(Start::InboxCheck);
         // (A clock put back starts the minute again.)
         if round || self.inbox_check.last == 0 || now < self.inbox_check.last {
             self.inbox_check.queue.clear();
@@ -124,8 +127,10 @@ impl MailApp {
                 .collect();
         }
         while let Some(account) = self.inbox_check.queue.pop_front() {
-            // (The calendar's job is at work for it: its check is left out of this tick.)
-            if !self.calendar_job_for(account) && self.start_inbox_pass(account, true, true).is_some() {
+            // (The calendar's job is at work for it, or it is signing in (or the account a shared
+            // mailbox is read through is): its check is left out of this tick, and the others go on.)
+            let signer = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+            if !self.calendar_job_for(account) && !busy.blocks(Start::InboxCheck, signer) && self.start_inbox_pass(account, true, true).is_some() {
                 return Some(account);
             }
         }
@@ -228,6 +233,7 @@ impl MailApp {
             // A renewed sign-in that isn't the account's own (a shared mailbox's: its owner's)
             // stops the run before anything is read.
             signer: Some(owner.clone()),
+            contacts: None,
         };
         let graph = self.services.graph.as_ref()?;
         if !check {

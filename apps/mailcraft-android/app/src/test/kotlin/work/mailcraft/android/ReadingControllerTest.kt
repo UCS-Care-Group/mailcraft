@@ -85,6 +85,16 @@ class ReadingControllerTest {
     }
 
     @Test
+    fun aMessageMarkedUnreadFromTheToolbarIsReadAgainWhenOpenedAgain() {
+        val r = rig()
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL), r.source.marked)
+        r.c.triaged(7uL, unread = true)
+        r.c.open(7uL, 360, dark = false)
+        assertEquals(listOf(7uL, 7uL), r.source.marked)
+    }
+
+    @Test
     fun downloadPicturesForThisMessageFetchesEachAddressOnceAndNeverATrackingPixel() {
         val r = rig()
         r.c.open(7uL, 360, dark = false)

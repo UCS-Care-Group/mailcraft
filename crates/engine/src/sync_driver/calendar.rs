@@ -64,6 +64,9 @@ pub struct CalendarDriver {
     pub directory: bool,
     /// Ask at once: the window came back to the front, or the owner switched to the calendar.
     pub due: bool,
+    /// The accounts the wish to ask at once was kept for while they were signing in (#1557): each
+    /// is asked at once when it can be, though another account's job has had the wish since.
+    pub due_for: HashSet<Id>,
     /// Whether the window had the focus and the calendar was in front at the last look.
     focused: bool,
     in_front: bool,
@@ -105,6 +108,7 @@ impl CalendarDriver {
         self.book.forget_accounts(gone);
         self.sent.retain(|account, _| !gone.contains(account));
         self.by_hand.retain(|account| !gone.contains(account));
+        self.due_for.retain(|account| !gone.contains(account));
         self.shown.retain(|account, _| !gone.contains(account));
         self.extras_missing.retain(|account| !gone.contains(account));
         self.settings_asked.retain(|account, _| !gone.contains(account));
@@ -120,6 +124,7 @@ impl CalendarDriver {
     pub fn forget_jobs(&mut self) {
         self.directory = false;
         self.by_hand.clear();
+        self.due_for.clear();
     }
 
     /// The window is looked at: whether it has the focus and whether the calendar is in front.
@@ -198,11 +203,13 @@ impl CalendarDriver {
     }
 
     /// Whether `account`'s days on screen are to be asked for at `now`: the owner or the window
-    /// asked (`elsewhere` counts) while the calendar is in front, or it is due by the clock (soon
-    /// after an unseen change, more often in front), or the wide stretch is (`wide`).
+    /// asked (`elsewhere` counts, and a wish kept for it while it was signing in) while the
+    /// calendar is in front, or it is due by the clock (soon after an unseen change, more often in
+    /// front), or the wide stretch is (`wide`).
     pub fn refresh_due(&self, account: Id, in_front: bool, unseen: bool, elsewhere: bool, wide: bool, now: f64) -> bool {
         let every = calendar_every_ms(unseen, in_front);
-        ((self.due || elsewhere) && in_front) || self.book.checked(account).is_none_or(|at| now - at >= every) || wide
+        let wished = self.due || self.due_for.contains(&account);
+        ((wished || elsewhere) && in_front) || self.book.checked(account).is_none_or(|at| now - at >= every) || wide
     }
 
     /// Whether the working hours are to come along with a job for `account` at `now`: once an
@@ -222,6 +229,7 @@ impl CalendarDriver {
             self.book.started(account, now);
             self.shown.insert(account, window);
             self.due = false;
+            self.due_for.remove(&account);
         }
     }
 
