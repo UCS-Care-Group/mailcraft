@@ -86,3 +86,16 @@ fn nobody_there_moves_at_once() {
     assert_eq!(d.duplicate, None);
     assert!(app.session.mailbox.contacts.values().any(|c| c.first == "Bo" && c.folder == 0));
 }
+
+#[test]
+fn one_still_being_sent_is_left_out_and_named() {
+    let (mut app, rowan) = app();
+    let main = targets(&app.session.mailbox)[1].0;
+    app.session.mailbox.contact_mut(rowan).unwrap().emails.clear();
+    let gus = app.execute("people.new", json!({"first": "Gus", "folder": main})).unwrap()["id"].as_u64().unwrap();
+    let mut d = MoveContacts::open(&app, &json!({"ids": [rowan, gus]})).unwrap();
+    assert!(d.go(&mut app, main), "{}", d.error);
+    assert_eq!(app.session.mailbox.contact(rowan).unwrap().folder, main);
+    let said = app.status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("Gus") && said.contains("1 contact wasn't moved"), "{said}");
+}

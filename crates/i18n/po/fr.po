@@ -25899,6 +25899,12 @@ msgstr "{m} min {s} s"
 msgid "{names} and {n} more"
 msgstr "{names} et {n} de plus"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{names} are still being sent to their servers: try again shortly."
+msgstr "{names} sont encore en cours d’envoi vers leurs serveurs : réessayez dans un instant."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -26393,6 +26399,14 @@ msgid "{n} contact isn't undone: too many changes are waiting to be sent to its 
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} contact n'est pas annulé : trop de modifications attendent d'être envoyées à son serveur."
 msgstr[1] "{n} contacts ne sont pas annulés : trop de modifications attendent d'être envoyées à leurs serveurs."
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+#, fuzzy
+msgid "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly."
+msgid_plural "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+msgstr[0] "{n} contact n’a pas été déplacé, car il est encore en cours d’envoi vers son serveur : {names}. Réessayez dans un instant."
+msgstr[1] "{n} contacts n’ont pas été déplacés, car ils sont encore en cours d’envoi vers leurs serveurs : {names}. Réessayez dans un instant."
 
 #. interface
 #: crates/ui-egui/src/lib.rs

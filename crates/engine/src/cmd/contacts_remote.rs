@@ -258,10 +258,15 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
     }
     // A contact a move took away, back and to be made on its server again: the one the move made,
     // taken away now, is deleted from its server only once that is done, as the move held its own
-    // deletion (#1144).
+    // deletion (#1144). So too when its deletion was waiting, and so may be on its way: an answer
+    // that it was deleted makes it again ([`apply_contact_outcomes`]), and the link holds this one's
+    // deletion till then.
+    // lean: an answer comes before another account's job runs (one job at a time); with jobs side
+    // by side, this one's deletion would have to wait out that answer too.
     for id in touched.changed_contacts() {
         let Some(from) = now.contact(*id).filter(|_| mailbox.contact(*id).is_none()).map(|c| c.moved_from).filter(|f| *f != 0) else { continue };
-        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create);
+        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create)
+            || now.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Delete);
         if creating && let Ok(c) = mailbox.contact_mut(from) {
             c.moved_from = *id;
         }

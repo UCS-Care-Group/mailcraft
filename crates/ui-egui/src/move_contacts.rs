@@ -152,8 +152,17 @@ impl MoveContacts {
 
     fn go(&mut self, app: &mut MailApp, folder: Id) -> bool {
         match app.execute("people.moveToFolder", json!({"ids": self.ids, "folder": folder})) {
-            Ok(_) => {
+            Ok(said) => {
                 app.people_picked.clear();
+                let skipped: Vec<&str> = said["skipped"].as_array().into_iter().flatten().filter_map(|c| c["name"].as_str()).collect();
+                if !skipped.is_empty() {
+                    let line = tln!(
+                        skipped.len() as u64,
+                        "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly.",
+                        "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+                    );
+                    app.status(crate::i18n::fmt(&line, &[("names", &skipped.join(", "))]));
+                }
                 true
             }
             Err(e) => {
