@@ -152,6 +152,24 @@ fn a_reply_in_sent_items_is_listed_under_the_conversation_and_selected_in_the_in
 }
 
 #[test]
+fn a_reply_in_sent_items_picked_from_the_reading_pane_opens_the_closed_conversation_and_stays_in_the_inbox() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let inbox = s.view.folder;
+    // The conversation is closed, its row selected: the reading pane lists its messages, and one
+    // of them is in Sent Items.
+    run(&mut s, "mail.select", json!({"id": newer}));
+    assert!(under(&mut s, newer).is_empty());
+    run(&mut s, "mail.select", json!({"id": reply}));
+    // The list stays the Inbox's; the conversation opens to list the reply under its row.
+    assert_eq!(s.view.folder, inbox, "the list went to another folder");
+    assert_eq!((s.sel.messages.clone(), s.sel.focus()), (vec![reply], Some(reply)));
+    assert_eq!(under(&mut s, newer).len(), 3);
+    // The Inbox's own older message, picked next, is as well in the Inbox.
+    run(&mut s, "mail.select", json!({"id": older}));
+    assert_eq!((s.view.folder, s.sel.messages.clone()), (inbox, vec![older]));
+}
+
+#[test]
 fn deleting_or_moving_a_message_under_the_open_row_takes_only_that_one() {
     let (mut s, newer, older, reply) = release_checklist();
     let (inbox, sent, deleted, archive) =
