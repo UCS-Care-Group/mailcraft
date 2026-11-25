@@ -3897,6 +3897,7 @@ impl MailApp {
                     // A renewed sign-in that isn't the account's own stops the run before the
                     // Outbox goes.
                     signer: Some(request.account.clone()),
+                    contacts: None,
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -4006,6 +4007,7 @@ impl MailApp {
             // A renewed sign-in that isn't the account's own stops the run before the Outbox or
             // anything of the mail goes.
             signer: Some(signer),
+            contacts: None,
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);

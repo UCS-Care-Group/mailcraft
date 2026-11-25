@@ -3756,7 +3756,7 @@ impl Session {
         self.tell_events_again(&now, &u.touched);
         // The contacts it puts back go to their servers as such (#1917): undone after a change
         // went up, the server is told the opposite.
-        let no_room = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, &u.touched);
+        let (no_room, read_only) = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, &u.touched);
         if no_room > 0 {
             let line = self.interface_language.tn(
                 no_room as u64,
@@ -3764,6 +3764,14 @@ impl Session {
                 "{n} contacts aren't undone: too many changes are waiting to be sent to their servers.",
             );
             self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &no_room.to_string())]));
+        }
+        if read_only > 0 {
+            let line = self.interface_language.tn(
+                read_only as u64,
+                "{n} contact isn't undone: its contacts folder can only be read now.",
+                "{n} contacts aren't undone: their contacts folders can only be read now.",
+            );
+            self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &read_only.to_string())]));
         }
         // Undone, the step is to be done again from here: what that does is the way back (with
         // the events it told their servers of again).

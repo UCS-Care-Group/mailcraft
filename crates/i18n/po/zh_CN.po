@@ -17551,6 +17551,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "连接测试只检查此服务器是否响应。如果它确实需要登录，您发送第一封邮件时会得到提示。"
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "无法记录已发送的联系人更改：{error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18270,6 +18276,12 @@ msgstr "无法导入服务器上的规则：{error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "无法记录已发送的规则：{error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "同一页面还会请求更改您的联系人，这样您在此创建、更改或删除的联系人也会同步到其服务器。"
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20905,6 +20917,12 @@ msgstr "等待 MailCraft 的 Google 注册"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "等待审批的过程意外停止"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "正在等待您允许在其服务器上更改此帐户的联系人：文件 › 信息 › 再次询问"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -26251,6 +26269,13 @@ msgstr[0] "{n} 个联系人"
 msgid "{n} contact is deleted once the kept one is saved. Undo brings it back."
 msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings them back."
 msgstr[0] "保存要保留的联系人后，将删除其余 {n} 个联系人。撤销可恢复它们。"
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} 个联系人未撤消：其联系人文件夹现在只能读取。"
 
 #. what a command says
 #: crates/engine/src/session.rs

@@ -18,6 +18,7 @@ use serde_json::Value;
 use super::{Busy, MAX_ASKED, Pacing, Start, WIDE_AHEAD, WIDE_BEHIND};
 use crate::Session;
 use crate::cmd::calendar_settings::MailboxHours;
+use crate::cmd::contacts_remote;
 use crate::cmd::remote::{self, Dropped};
 
 /// Where a shared mailbox's calendars stand with the owner's permission for reading them.
@@ -159,7 +160,8 @@ impl Session {
             let changes = if self.driver.calendar.quiet_over(account, ready, now) { self.calendar_changes(account) } else { None };
             let push = self.driver.calendar.push_wanted(account, changes.as_ref(), now);
             // A change that was just sent and isn't seen on the server yet: asked for again soon.
-            let unseen = remote::recheck_due(self, account);
+            // (So is a contact change that is due to go up, #1917.)
+            let unseen = remote::recheck_due(self, account) || contacts_remote::contacts_due(&self.mailbox, account, self.now());
             // Other days came into view: they are asked for without waiting.
             let elsewhere = self.driver.calendar.elsewhere(account, in_front, window);
             // The wide stretch with the contacts, every quarter of an hour: after the mail.
@@ -291,8 +293,14 @@ pub struct CalendarCame<'a> {
     /// The sign-in covers everything but the category list.
     pub extras_missing: bool,
     pub hours: Option<&'a MailboxHours>,
-    /// The contacts, with the wide stretch.
+    /// The contacts of the account's own main folder, with the wide stretch.
     pub contacts: Option<&'a ContactsDownload>,
+    /// Its other contacts folders, parents before the folders under them (#1917).
+    pub more_contacts: &'a [ContactsDownload],
+    /// What the server said to the contact changes it was told.
+    pub contacts_uploaded: Option<&'a mailcraft_model::contact_sync::ContactsUploaded>,
+    /// The sign-in doesn't cover changing contacts: they wait here, and say why.
+    pub contacts_consent_needed: bool,
     /// The host's own job put something among its errors (a part it couldn't bring down, say):
     /// the wide stretch and the contacts are asked for again at the next job.
     pub job_errors: bool,
@@ -359,12 +367,27 @@ impl Session {
         }
         // (A shared mailbox's job may bring only calendars other than its main one.)
         taken |= shared && !came.more_events.is_empty();
-        // The contacts came with the wide stretch: both in, and it is a quarter of an hour
-        // until the next.
-        if let Some(contacts) = came.contacts
-            && let Err(e) = remote::apply_contacts(self, contacts)
-        {
-            out.errors.push(said!("The contacts couldn't be taken in: {error}", error = e.to_string()));
+        // The contacts (#1917): what the server made of the changes first, then what it has, one
+        // folder after the other (they came with the wide stretch: it is a quarter of an hour
+        // until the next).
+        if let Some(uploaded) = came.contacts_uploaded {
+            match contacts_remote::apply_contact_outcomes(self, uploaded) {
+                Ok(applied) => {
+                    for line in applied.messages {
+                        out.status.push(Text::verbatim(line.clone()));
+                        out.problems.push(Text::verbatim(line));
+                    }
+                }
+                Err(e) => out.errors.push(said!("The contact changes sent couldn't be noted: {error}", error = e.to_string())),
+            }
+        }
+        for contacts in came.contacts.into_iter().chain(came.more_contacts) {
+            if let Err(e) = remote::apply_contacts(self, contacts) {
+                out.errors.push(said!("The contacts couldn't be taken in: {error}", error = e.to_string()));
+            }
+        }
+        if came.contacts_consent_needed {
+            contacts_remote::wait_for_permission(self, account);
         }
         // (A part that couldn't be had is among the errors, the host's own included: then the next
         // job asks again.)

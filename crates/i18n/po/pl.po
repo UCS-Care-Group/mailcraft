@@ -17614,6 +17614,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "Test połączenia sprawdza tylko, czy ten serwer odpowiada. Jeśli jednak wymaga logowania, pierwsza wysłana wiadomość to pokaże."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "Nie udało się zapisać wysłanych zmian kontaktów: {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18335,6 +18341,12 @@ msgstr "Nie można przyjąć reguł z serwera: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Nie można zapisać informacji o wysłanych regułach: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "Ta sama strona prosi też o zgodę na zmianę Twoich kontaktów, aby kontakty utworzone, zmienione lub usunięte tutaj trafiały także na jego serwer."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -21010,6 +21022,12 @@ msgstr "Oczekiwanie na rejestrację MailCraft w Google"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Oczekiwanie na zatwierdzenie nieoczekiwanie się zakończyło"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Oczekiwanie na Twoją zgodę na zmianę kontaktów tego konta na jego serwerze: Plik › Informacje › Zapytaj ponownie"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -26406,6 +26424,15 @@ msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings t
 msgstr[0] "{n} kontakt zostanie usunięty po zapisaniu zachowanego. Cofnięcie przywróci go."
 msgstr[1] "{n} kontakty zostaną usunięte po zapisaniu zachowanego. Cofnięcie przywróci je."
 msgstr[2] "{n} kontaktów zostanie usuniętych po zapisaniu zachowanego. Cofnięcie przywróci je."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} kontakt nie zostaje cofnięty: jego folder kontaktów jest teraz tylko do odczytu."
+msgstr[1] "{n} kontakty nie zostają cofnięte: ich foldery kontaktów są teraz tylko do odczytu."
+msgstr[2] "{n} kontaktów nie zostaje cofniętych: ich foldery kontaktów są teraz tylko do odczytu."
 
 #. what a command says
 #: crates/engine/src/session.rs
