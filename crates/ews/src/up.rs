@@ -47,6 +47,38 @@ use crate::run::{Asked, Run, base};
 /// Codes a server gives when it doesn't have a property (the flag, here).
 const LACKS_PROPERTY: [&str; 3] = ["ErrorInvalidPropertyRequest", "ErrorInvalidPropertyForOperation", "ErrorInvalidPropertySet"];
 
+/// Most moves asked in one request.
+const MOVE_BATCH: usize = 25;
+
+/// The moves at the head of `changes` that can go up in one request: into one folder that is
+/// known to the server already, each a different message. (A copy, a move into a folder made in
+/// this run, and anything else is asked by itself, so the order of the changes holds.)
+fn plain_moves<'a>(changes: &[&'a MessageChange]) -> Vec<(&'a MessageChange, &'a str, &'a str)> {
+    let mut out: Vec<(&MessageChange, &str, &str)> = Vec::new();
+    for change in changes.iter().take(MOVE_BATCH) {
+        let MessageChange::Move { id, to, to_folder: None, .. } = change else { break };
+        if out.iter().any(|(_, have, target)| *have == id.as_str() || *target != to.as_str()) {
+            break;
+        }
+        out.push((change, id.as_str(), to.as_str()));
+    }
+    out
+}
+
+/// The deletes at the head of `changes` that can go up in one request: each a different message
+/// with an id the server gave. (A draft known only by its marker is found first, by itself.)
+fn plain_deletes<'a>(changes: &[&'a MessageChange]) -> Vec<(&'a MessageChange, &'a str)> {
+    let mut out: Vec<(&MessageChange, &str)> = Vec::new();
+    for change in changes.iter().take(MOVE_BATCH) {
+        let MessageChange::Delete { id } = change else { break };
+        if marker_of(id).is_some() || out.iter().any(|(_, have)| *have == id.as_str()) {
+            break;
+        }
+        out.push((change, id.as_str()));
+    }
+    out
+}
+
 fn refused_status(code: &ResponseCode) -> u16 {
     if *code == ResponseCode::AccessDenied { 403 } else { 400 }
 }
@@ -113,10 +145,46 @@ impl<E: HttpExchange> Run<'_, E> {
                 piece.changes.push(FolderChangeDone { change: change.clone(), outcome });
             }
         }
-        for change in request.messages.iter().take(MAX_MESSAGE_CHANGES) {
-            if let Some(outcome) = self.message_change(change, &made).await? {
-                piece.messages.push(MessageChangeDone { change: change.clone(), outcome, there: None });
+        let changes: Vec<&MessageChange> = request.messages.iter().take(MAX_MESSAGE_CHANGES).collect();
+        let (mut moves, mut copies, mut deletes, mut updates) = (0usize, 0usize, 0usize, 0usize);
+        for change in &changes {
+            match change {
+                MessageChange::Move { .. } => moves += 1,
+                MessageChange::Copy { .. } => copies += 1,
+                MessageChange::Delete { .. } => deletes += 1,
+                MessageChange::Update { .. } => updates += 1,
+                _ => {}
             }
+        }
+        if !changes.is_empty() {
+            log::info!("ews up: asked {moves} moves, {copies} copies, {deletes} deletes, {updates} updates");
+        }
+        let mut rest: &[&MessageChange] = &changes;
+        while let Some((change, after)) = rest.split_first() {
+            // Moves that go to one folder (what Delete does, into Deleted Items) go up together.
+            // So do deletes, one request for each run of them.
+            let together = plain_moves(rest);
+            let deleting = plain_deletes(rest);
+            let (sent, outcomes): (Vec<&MessageChange>, Vec<Option<MessageOutcome>>) = if together.len() > 1 {
+                (together.iter().map(|(change, ..)| *change).collect(), self.moves(&together).await?)
+            } else if deleting.len() > 1 {
+                (deleting.iter().map(|(change, _)| *change).collect(), self.deletes(&deleting).await?)
+            } else {
+                (Vec::new(), Vec::new())
+            };
+            if !sent.is_empty() {
+                for (change, outcome) in sent.iter().zip(outcomes) {
+                    if let Some(outcome) = outcome {
+                        piece.messages.push(MessageChangeDone { change: (*change).clone(), outcome, there: None });
+                    }
+                }
+                rest = rest.get(sent.len()..).unwrap_or_default();
+                continue;
+            }
+            if let Some(outcome) = self.message_change(change, &made).await? {
+                piece.messages.push(MessageChangeDone { change: (*change).clone(), outcome, there: None });
+            }
+            rest = after;
         }
         for draft in request.drafts.iter().take(MAX_DRAFTS) {
             let (done, ended) = self.draft(draft).await;
@@ -269,6 +337,52 @@ impl<E: HttpExchange> Run<'_, E> {
         match asked {
             Ok(outcome) => Ok(Some(outcome)),
             Err(error) => settle(error),
+        }
+    }
+
+    /// Plain moves into one folder, asked in one request; what became of each, in order (none for
+    /// one whose answer was lost: it is worked out again next run).
+    async fn moves(&mut self, moves: &[(&MessageChange, &str, &str)]) -> Result<Vec<Option<MessageOutcome>>, Asked> {
+        let to = moves.first().map(|(_, _, to)| *to).unwrap_or_default();
+        let ids: Vec<&str> = moves.iter().map(|(_, id, _)| *id).collect();
+        let op = MoveItem::many(&ids, to);
+        log::info!("ews up: {} moves asked in one request", ids.len());
+        match self.ask_once(&op.element(), &|reply| op.answers(reply)).await {
+            Ok(answers) => Ok(answers
+                .into_iter()
+                .zip(&ids)
+                .map(|(answer, id)| match answer {
+                    Ok(saved) => {
+                        let new = if saved.id == *id { String::new() } else { saved.id };
+                        Some(MessageOutcome::Done { categories: None, flag: None, folder: to.to_owned(), id: new })
+                    }
+                    Err(code) => settle(Asked::Code(code)).ok().flatten(),
+                })
+                .collect()),
+            Err(error) => {
+                let all = settle(error)?;
+                Ok(moves.iter().map(|_| all.clone()).collect())
+            }
+        }
+    }
+
+    /// Plain deletes asked in one request; what became of each, in order.
+    async fn deletes(&mut self, deletes: &[(&MessageChange, &str)]) -> Result<Vec<Option<MessageOutcome>>, Asked> {
+        let ids: Vec<&str> = deletes.iter().map(|(_, id)| *id).collect();
+        let op = DeleteItem::many(&ids, DeleteMode::SoftDelete);
+        log::info!("ews up: {} deletes asked in one request", ids.len());
+        match self.ask(&op.element(), &|reply| op.answers(reply)).await {
+            Ok(answers) => Ok(answers
+                .into_iter()
+                .map(|answer| match answer {
+                    Ok(()) => Some(MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() }),
+                    Err(code) => settle(Asked::Code(code)).ok().flatten(),
+                })
+                .collect()),
+            Err(error) => {
+                let all = settle(error)?;
+                Ok(deletes.iter().map(|_| all.clone()).collect())
+            }
         }
     }
 
@@ -692,8 +806,14 @@ fn is_code_name(code: &ResponseCode, name: &str) -> bool {
 fn settle(error: Asked) -> Result<Option<MessageOutcome>, Asked> {
     match error {
         Asked::Code(ResponseCode::ItemNotFound) => Ok(Some(MessageOutcome::Gone)),
-        Asked::Code(code) => Ok(Some(MessageOutcome::Refused { status: refused_status(&code) })),
-        Asked::Bad | Asked::Unreadable => Ok(Some(MessageOutcome::Refused { status: 400 })),
+        Asked::Code(code) => {
+            log::warn!("ews up: the server refused a message change with {code:?}");
+            Ok(Some(MessageOutcome::Refused { status: refused_status(&code) }))
+        }
+        Asked::Bad | Asked::Unreadable => {
+            log::warn!("ews up: a message change got an answer that could not be read");
+            Ok(Some(MessageOutcome::Refused { status: 400 }))
+        }
         Asked::Lost => Ok(None),
         stop @ Asked::Stop(_) => Err(stop),
     }

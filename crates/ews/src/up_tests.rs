@@ -174,6 +174,42 @@ fn a_move_gives_the_message_its_new_id_and_a_copy_makes_one() {
 }
 
 #[test]
+fn moves_into_one_folder_go_up_in_one_request_and_each_is_answered() {
+    let standin = StandIn::new();
+    let ids: Vec<String> = ["One", "Two", "Three"].iter().map(|subject| mail(&standin, subject)).collect();
+    let archive = standin.state().add_folder("Archive");
+    // The third is gone from the server already: only it is told so.
+    standin.state().items.retain(|item| item.id != ids[2]);
+    let changes: Vec<MessageChange> =
+        ids.iter().zip(1..).map(|(id, message)| MessageChange::Move { message, id: id.clone(), to: archive.clone(), to_folder: None }).collect();
+    let result = run(&standin, &EwsMailRequest { messages: changes, ..base() });
+    let (MessageOutcome::Done { folder: a, id: first, .. }, MessageOutcome::Done { id: second, .. }) = (done(&result, 0), done(&result, 1)) else {
+        panic!("{:?} {:?}", done(&result, 0), done(&result, 1))
+    };
+    assert!(*a == archive && !first.is_empty() && !second.is_empty());
+    assert!(matches!(done(&result, 2), MessageOutcome::Gone));
+    let state = standin.state();
+    assert_eq!(state.requests.iter().filter(|r| r.operation == "MoveItem").count(), 1);
+    assert_eq!(state.items.iter().filter(|item| item.folder == archive).count(), 2);
+}
+
+#[test]
+fn moves_into_different_folders_are_asked_one_by_one() {
+    let standin = StandIn::new();
+    let (a, b) = (mail(&standin, "One"), mail(&standin, "Two"));
+    let first = standin.state().add_folder("First");
+    let second = standin.state().add_folder("Second");
+    let changes = vec![
+        MessageChange::Move { message: 1, id: a, to: first.clone(), to_folder: None },
+        MessageChange::Move { message: 2, id: b, to: second.clone(), to_folder: None },
+    ];
+    let result = run(&standin, &EwsMailRequest { messages: changes, ..base() });
+    assert!(matches!(done(&result, 0), MessageOutcome::Done { folder, .. } if *folder == first));
+    assert!(matches!(done(&result, 1), MessageOutcome::Done { folder, .. } if *folder == second));
+    assert_eq!(standin.state().requests.iter().filter(|r| r.operation == "MoveItem").count(), 2);
+}
+
+#[test]
 fn a_delete_for_good_is_a_soft_delete_and_never_a_hard_one() {
     let standin = StandIn::new();
     let id = mail(&standin, "Budget");
@@ -184,6 +220,24 @@ fn a_delete_for_good_is_a_soft_delete_and_never_a_hard_one() {
     // Gone already: nothing to do.
     let again = run(&standin, &EwsMailRequest { messages: vec![MessageChange::Delete { id }], ..base() });
     assert!(matches!(done(&again, 0), MessageOutcome::Gone));
+}
+
+#[test]
+fn deletes_go_up_in_one_request_and_each_is_answered() {
+    let standin = StandIn::new();
+    let ids: Vec<String> = ["One", "Two", "Three", "Four"].iter().map(|subject| mail(&standin, subject)).collect();
+    // The third is gone from the server already: only it is told so.
+    standin.state().items.retain(|item| item.id != ids[2]);
+    let changes: Vec<MessageChange> = ids.iter().map(|id| MessageChange::Delete { id: id.clone() }).collect();
+    let result = run(&standin, &EwsMailRequest { messages: changes, ..base() });
+    for at in [0, 1, 3] {
+        assert!(matches!(done(&result, at), MessageOutcome::Done { .. }), "{at}");
+    }
+    assert!(matches!(done(&result, 2), MessageOutcome::Gone));
+    let state = standin.state();
+    assert_eq!(state.requests.iter().filter(|r| r.operation == "DeleteItem").count(), 1);
+    assert_eq!(state.deletes, ["SoftDelete"]);
+    assert!(state.items.is_empty());
 }
 
 #[test]
