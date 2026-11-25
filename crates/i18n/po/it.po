@@ -12615,7 +12615,7 @@ msgid "Part of your mailbox is damaged"
 msgstr "Una parte della tua casella è danneggiata"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Password"
 msgstr "Password"

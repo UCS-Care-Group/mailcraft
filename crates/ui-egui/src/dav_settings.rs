@@ -266,13 +266,15 @@ pub fn show(ctx: &egui::Context, d: &mut DavSettings, app: &mut MailApp, t: &Tok
         hint(ui, t, tl!("Leave it empty to sign in with the account's address."));
         ui.checkbox(&mut d.separate, tl!("These servers have a password of their own"));
         if d.separate {
-            if let Some(origin) = d.password_origin() {
-                let room = egui::Margin::from(ui.spacing().button_padding);
-                ui.label(crate::i18n::fmt(tl!("Password for {server}"), &[("server", &crate::forms::kit::shown(host(&origin), 80))]));
-                crate::secret_field::field(ui, &mut d.password, &mut d.shown, watch, room, |edit| edit);
-                if d.contacts_elsewhere() {
-                    hint(ui, t, tl!("The contacts are on another server: File › Info asks for its password."));
-                }
+            // (Before an address is typed or found, the field is for the server Find will find.)
+            let room = egui::Margin::from(ui.spacing().button_padding);
+            match d.password_origin() {
+                Some(origin) => ui.label(crate::i18n::fmt(tl!("Password for {server}"), &[("server", &crate::forms::kit::shown(host(&origin), 80))])),
+                None => ui.label(tl!("Password")),
+            };
+            crate::secret_field::field(ui, &mut d.password, &mut d.shown, watch, room, |edit| edit);
+            if d.contacts_elsewhere() {
+                hint(ui, t, tl!("The contacts are on another server: File › Info asks for its password."));
             }
             let said = if remember {
                 tl!("Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it.")

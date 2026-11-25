@@ -12654,7 +12654,7 @@ msgid "Part of your mailbox is damaged"
 msgstr "O parte din cutia poștală este deteriorată"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Password"
 msgstr "Parolă"

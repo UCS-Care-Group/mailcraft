@@ -43,6 +43,10 @@
 //! turn that off for the computer from the start, and `{"host": {"updates": "didntStart 0.4.2"}}`
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
+//! `{"host": {"davFind": true}}` has Find in File › Info › Calendars and Contacts search a stand-in
+//! (#209): it asks once about `dav.example.net`, and on a yes finds two calendars and an address
+//! book there (nothing is sent). `{"click": "label"}` clicks the last thing with that label (the
+//! one in front), and `{"typePassword": "text"}` types into the password field in front.
 //! `{"host": {"ownKeys": true}}` lists two made-up keys of the owner's in File › Options › Security (#30).
 //! `{"host": {"pictures": true}}` lets pictures on the web be downloaded, each a drawn stand-in
 //! (nothing is fetched), so that the pictures bar offers what it does in the app.
@@ -847,6 +851,29 @@ fn main() {
                 // In front or not, for desktop alerts about new mail.
                 harness.input_mut().focused = !host.unfocused;
             }
+            // Find searches a stand-in for calendar and contacts servers (#209): one question,
+            // then what a yes finds.
+            if said.get("davFind").is_some() {
+                harness.state_mut().services.dav_find = Some(Box::new(|job: mailcraft_ui_egui::dav_find::DavFindJob| {
+                    use mailcraft_ui_egui::dav_find::DavFindEvent;
+                    let (tx, rx) = channel();
+                    let _ = tx.send(DavFindEvent::Question { host: "dav.example.net".into(), why: mailcraft_model::DavFindQuestion::Elsewhere });
+                    std::thread::spawn(move || {
+                        let end = match job.answers.recv() {
+                            Ok(true) => Ok(mailcraft_model::DavFound {
+                                calendar_homes: vec!["https://dav.example.net/calendars/ada/".into()],
+                                contact_homes: vec!["https://dav.example.net/addressbooks/ada/".into()],
+                                calendars: 2,
+                                address_books: 1,
+                                passed_over: 1,
+                            }),
+                            _ => Err(mailcraft_model::DavFindFailure::Declined),
+                        };
+                        let _ = tx.send(DavFindEvent::Finished(end));
+                    });
+                    rx
+                }));
+            }
             // Pictures on the web can be downloaded: each is a drawn stand-in (nothing is fetched).
             if said.get("pictures").is_some() {
                 harness.state_mut().services.pictures = Some(Box::new(|address: String| {
@@ -933,6 +960,20 @@ fn main() {
         // What the system hands the program (a later start, the command line): `{"open": "…"}`.
         if let Some(what) = l.get("open").and_then(|v| v.as_str()) {
             harness.state_mut().open_from_system(what);
+            step_n(&mut harness, 2);
+        }
+        // A click on what has this label, the last one (in front): `{"click": "Find"}`.
+        if let Some(label) = l.get("click").and_then(|v| v.as_str()) {
+            use egui_kittest::kittest::Queryable;
+            harness.query_all_by_label(label).last().expect("something with that label").click();
+            step_n(&mut harness, 2);
+        }
+        // Text typed into the password field in front: `{"typePassword": "…"}`.
+        if let Some(text) = l.get("typePassword").and_then(|v| v.as_str()) {
+            use egui_kittest::kittest::Queryable;
+            harness.query_all_by_role(egui::accesskit::Role::PasswordInput).last().expect("a password field").focus();
+            step_n(&mut harness, 1);
+            harness.event(egui::Event::Text(text.to_owned()));
             step_n(&mut harness, 2);
         }
         if let Some(wheel) = l.get("wheel") {

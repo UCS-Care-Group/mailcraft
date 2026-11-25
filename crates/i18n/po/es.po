@@ -12623,7 +12623,7 @@ msgid "Part of your mailbox is damaged"
 msgstr "Parte de su buzón está dañada"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Password"
 msgstr "Contraseña"

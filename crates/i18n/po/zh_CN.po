@@ -12613,7 +12613,7 @@ msgid "Part of your mailbox is damaged"
 msgstr "您的邮箱部分损坏"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Password"
 msgstr "密码"
