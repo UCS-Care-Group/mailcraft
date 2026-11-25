@@ -22885,3 +22885,1427 @@ msgstr "−Papirkurv"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linjer"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "And {n} more link like it."
+msgid_plural "And {n} more links like it."
+msgstr[0] "Og {n} lignende lenke."
+msgstr[1] "Og {n} lignende lenker."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Attached {n} file"
+msgid_plural "Attached {n} files"
+msgstr[0] "La ved {n} fil"
+msgstr[1] "La ved {n} filer"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "Delayed message goes {when}"
+msgid_plural "{n} delayed messages: the next goes {when}"
+msgstr[0] "Utsatt melding går {when}"
+msgstr[1] "{n} utsatte meldinger: den neste går {when}"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Downloaded {n} attachment"
+msgid_plural "Downloaded {n} attachments"
+msgstr[0] "Lastet ned {n} vedlegg"
+msgstr[1] "Lastet ned {n} vedlegg"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
+#, fuzzy
+msgid "Ends after {n} time"
+msgid_plural "Ends after {n} times"
+msgstr[0] "Slutter etter {n} gang"
+msgstr[1] "Slutter etter {n} ganger"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} day"
+msgid_plural "Every {n} days"
+msgstr[0] "Hver {n}. dag"
+msgstr[1] "Hver {n}. dag"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} hour"
+msgid_plural "Every {n} hours"
+msgstr[0] "Hver {n}. time"
+msgstr[1] "Hver {n}. time"
+
+#. interface
+#: crates/ui-egui/src/subscribed.rs
+#, fuzzy
+msgid "Every {n} minute"
+msgid_plural "Every {n} minutes"
+msgstr[0] "Hvert {n}. minutt"
+msgstr[1] "Hvert {n}. minutt"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "Every {n} month"
+msgid_plural "Every {n} months"
+msgstr[0] "Hver {n}. måned"
+msgstr[1] "Hver {n}. måned"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "Every {n} week"
+msgid_plural "Every {n} weeks"
+msgstr[0] "Hver {n}. uke"
+msgstr[1] "Hver {n}. uke"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "Every {n} year"
+msgid_plural "Every {n} years"
+msgstr[0] "Hvert {n}. år"
+msgstr[1] "Hvert {n}. år"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs.rs
+#, fuzzy
+msgid "Forwarded to {n} person"
+msgid_plural "Forwarded to {n} people"
+msgstr[0] "Videresendt til {n} person"
+msgstr[1] "Videresendt til {n} personer"
+
+#. what a command says
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Found {n} folder"
+msgid_plural "Found {n} folders"
+msgstr[0] "Fant {n} mappe"
+msgstr[1] "Fant {n} mapper"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Gmail refused to move {n} message between its categories; it is asked again at the next run"
+msgid_plural "Gmail refused to move {n} messages between its categories; they are asked again at the next run"
+msgstr[0] "Gmail nektet å flytte {n} melding mellom kategoriene sine; det spørres igjen ved neste kjøring"
+msgstr[1] "Gmail nektet å flytte {n} meldinger mellom kategoriene sine; det spørres igjen ved neste kjøring"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "Gmail wouldn't move {n} message; it stays where Gmail has it"
+msgid_plural "Gmail wouldn't move {n} messages; they stay where Gmail has them"
+msgstr[0] "Gmail ville ikke flytte {n} melding; den blir liggende der Gmail har den"
+msgstr[1] "Gmail ville ikke flytte {n} meldinger; de blir liggende der Gmail har dem"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Import {n} message from {name} into {folder}?"
+msgid_plural "Import {n} messages from {name} into {folder}?"
+msgstr[0] "Importere {n} melding fra {name} til {folder}?"
+msgstr[1] "Importere {n} meldinger fra {name} til {folder}?"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its rule goes too; if its server keeps it, it stays there."
+msgid_plural "Its {n} rules go too; those its server keeps stay there."
+msgstr[0] "Regelen går med også; hvis serveren holder den, blir den liggende der."
+msgstr[1] "De {n} reglene går med også; de serveren holder, blir liggende der."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone"
+msgid_plural "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
+msgstr[0] "MailCraft ble startet med {n} ting som ikke er en e-postlenke eller en fil det åpner: den ble latt i fred"
+msgstr[1] "MailCraft ble startet med {n} ting som ikke er e-postlenker eller filer det åpner: de ble latt i fred"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Merge {n} Contact…"
+msgid_plural "Merge {n} Contacts…"
+msgstr[0] "Flett {n} kontakt…"
+msgstr[1] "Flett {n} kontakter…"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Saved {n} attachment"
+msgid_plural "Saved {n} attachments"
+msgstr[0] "Lagret {n} vedlegg"
+msgstr[1] "Lagret {n} vedlegg"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "Saved {n} message to {name}"
+msgid_plural "Saved {n} messages to {name}"
+msgstr[0] "Lagret {n} melding i {name}"
+msgstr[1] "Lagret {n} meldinger i {name}"
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
+#, fuzzy
+msgid "Send your {n} local task to {address}'s To Do?"
+msgid_plural "Send your {n} local tasks to {address}'s To Do?"
+msgstr[0] "Sende din {n} lokale oppgave til To Do hos {address}?"
+msgstr[1] "Sende dine {n} lokale oppgaver til To Do hos {address}?"
+
+#. what a command says
+#: crates/model/src/sync/progress.rs
+#, fuzzy
+msgid "Sending {n} message"
+msgid_plural "Sending {n} messages"
+msgstr[0] "Sender {n} melding"
+msgstr[1] "Sender {n} meldinger"
+
+#. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The category was renamed on {n} event on the server"
+msgid_plural "The category was renamed on {n} events on the server"
+msgstr[0] "Kategorien fikk nytt navn på {n} hendelse på serveren"
+msgstr[1] "Kategorien fikk nytt navn på {n} hendelser på serveren"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The category was renamed on {n} message on the server"
+msgid_plural "The category was renamed on {n} messages on the server"
+msgstr[0] "Kategorien fikk nytt navn på {n} melding på serveren"
+msgstr[1] "Kategorien fikk nytt navn på {n} meldinger på serveren"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "The folder \"{name}\" wasn't deleted: the server has {n} new item in it that you hadn't seen. It comes back with it; delete it again if you still want it gone."
+msgid_plural "The folder \"{name}\" wasn't deleted: the server has {n} new items in it that you hadn't seen. It comes back with them; delete it again if you still want it gone."
+msgstr[0] "Mappen «{name}» ble ikke slettet: serveren har {n} nytt element i den som du ikke hadde sett. Den kommer tilbake med det; slett den igjen hvis du fortsatt vil bli kvitt den."
+msgstr[1] "Mappen «{name}» ble ikke slettet: serveren har {n} nye elementer i den som du ikke hadde sett. Den kommer tilbake med dem; slett den igjen hvis du fortsatt vil bli kvitt den."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} sends the {n} person invited the invitation by mail."
+msgid_plural "The server of {account} sends the {n} people invited the invitation by mail."
+msgstr[0] "Serveren til {account} sender invitasjonen på e-post til den {n} inviterte."
+msgstr[1] "Serveren til {account} sender invitasjonen på e-post til de {n} inviterte."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited of the new time."
+msgid_plural "The server of {account} tells the {n} people invited of the new time."
+msgstr[0] "Serveren til {account} sier fra om den nye tiden til den {n} inviterte."
+msgstr[1] "Serveren til {account} sier fra om den nye tiden til de {n} inviterte."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The server of {account} tells the {n} person invited, so that they know it is cancelled."
+msgid_plural "The server of {account} tells the {n} people invited, so that they know it is cancelled."
+msgstr[0] "Serveren til {account} sier fra til den {n} inviterte, så de vet at det er avlyst."
+msgstr[1] "Serveren til {account} sier fra til de {n} inviterte, så de vet at det er avlyst."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below send the {n} person invited the invitation by mail."
+msgid_plural "The servers of the accounts named below send the {n} people invited the invitation by mail."
+msgstr[0] "Serverne til kontoene nedenfor sender invitasjonen på e-post til den {n} inviterte."
+msgstr[1] "Serverne til kontoene nedenfor sender invitasjonen på e-post til de {n} inviterte."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited of the new time."
+msgid_plural "The servers of the accounts named below tell the {n} people invited of the new time."
+msgstr[0] "Serverne til kontoene nedenfor sier fra om den nye tiden til den {n} inviterte."
+msgstr[1] "Serverne til kontoene nedenfor sier fra om den nye tiden til de {n} inviterte."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The servers of the accounts named below tell the {n} person invited, so that they know it is cancelled."
+msgid_plural "The servers of the accounts named below tell the {n} people invited, so that they know it is cancelled."
+msgstr[0] "Serverne til kontoene nedenfor sier fra til den {n} inviterte, så de vet at det er avlyst."
+msgstr[1] "Serverne til kontoene nedenfor sier fra til de {n} inviterte, så de vet at det er avlyst."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] "Dette sletter samtalen fra {folder}: dens {n} melding der går til Slettet."
+msgstr[1] "Dette sletter samtalen fra {folder}: dens {n} meldinger der går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Dette sletter {n} melding i denne samtalen som er listet her. Den går til Slettet."
+msgstr[1] "Dette sletter {n} meldinger i denne samtalen som er listet her. De går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} appointment from your calendar."
+msgid_plural "This deletes {n} appointments from your calendar."
+msgstr[0] "Dette sletter {n} avtale fra kalenderen din."
+msgstr[1] "Dette sletter {n} avtaler fra kalenderen din."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] "Dette sletter {n} melding i {folder}, med alle meldingene i samtalen der. Den går til Slettet."
+msgstr[1] "Dette sletter {n} meldinger i {folder}, med alle meldingene i samtalene der. De går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] "Dette sletter {n} melding i {folder}, med alle meldingene i samtalene der. Den går til Slettet."
+msgstr[1] "Dette sletter {n} meldinger i {folder}, med alle meldingene i samtalene der. De går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] "Dette sletter {n} melding, med meldingene i samtalen som er listet her. Den går til Slettet."
+msgstr[1] "Dette sletter {n} meldinger, med meldingene i samtalene som er listet her. De går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Dette sletter {n} melding, med meldingene i samtalene som er listet her. Den går til Slettet."
+msgstr[1] "Dette sletter {n} meldinger, med meldingene i samtalene som er listet her. De går til Slettet."
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "This message has more recipients than MailCraft checks: only the first one was looked at."
+msgid_plural "This message has more recipients than MailCraft checks: only the first {n} were looked at."
+msgstr[0] "Denne meldingen har flere mottakere enn MailCraft sjekker: bare den første ble sett på."
+msgstr[1] "Denne meldingen har flere mottakere enn MailCraft sjekker: bare de første {n} ble sett på."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment to {when}, in {to}."
+msgid_plural "This moves {n} appointments, the earliest to {when} and the others by as much, in {to}."
+msgstr[0] "Dette flytter {n} avtale til {when}, i {to}."
+msgstr[1] "Dette flytter {n} avtaler, den tidligste til {when} og de andre like mye, i {to}."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This moves {n} appointment, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgid_plural "This moves {n} appointments, the earliest with a time of day to {when} and the others by as much, in {to}."
+msgstr[0] "Dette flytter {n} avtale, den tidligste med klokkeslett til {when} og de andre like mye, i {to}."
+msgstr[1] "Dette flytter {n} avtaler, den tidligste med klokkeslett til {when} og de andre like mye, i {to}."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribe from {n} list."
+msgid_plural "Unsubscribe from {n} lists."
+msgstr[0] "Meld av fra {n} liste."
+msgstr[1] "Meld av fra {n} lister."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
+msgid "Updated {n} day ago"
+msgid_plural "Updated {n} days ago"
+msgstr[0] "Oppdatert for {n} dag siden"
+msgstr[1] "Oppdatert for {n} dager siden"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
+msgid "Updated {n} hour ago"
+msgid_plural "Updated {n} hours ago"
+msgstr[0] "Oppdatert for {n} time siden"
+msgstr[1] "Oppdatert for {n} timer siden"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Freshness.kt
+#, fuzzy
+msgid "Updated {n} minute ago"
+msgid_plural "Updated {n} minutes ago"
+msgstr[0] "Oppdatert for {n} minutt siden"
+msgstr[1] "Oppdatert for {n} minutter siden"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] "og {n} til"
+msgstr[1] "og {n} til"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "and {n} more folder"
+msgid_plural "and {n} more folders"
+msgstr[0] "og {n} mappe til"
+msgstr[1] "og {n} mapper til"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "and {n} more, not merged now"
+msgid_plural "and {n} more, not merged now"
+msgstr[0] "og {n} til, ikke flettet nå"
+msgstr[1] "og {n} til, ikke flettet nå"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "time"
+msgid_plural "times"
+msgstr[0] "gang"
+msgstr[1] "ganger"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "to {n} person"
+msgid_plural "to {n} people"
+msgstr[0] "til {n} person"
+msgstr[1] "til {n} personer"
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "{account} now uses Microsoft Graph, and its mail is downloading again. {n} change that didn't reach the IMAP server is in the copy of your mailbox from before the switch: {backup}."
+msgid_plural "{account} now uses Microsoft Graph, and its mail is downloading again. {n} changes that didn't reach the IMAP server are in the copy of your mailbox from before the switch: {backup}."
+msgstr[0] "{account} bruker nå Microsoft Graph, og e-posten lastes ned på nytt. {n} endring som ikke nådde IMAP-serveren, ligger i kopien av postkassen din fra før byttet: {backup}."
+msgstr[1] "{account} bruker nå Microsoft Graph, og e-posten lastes ned på nytt. {n} endringer som ikke nådde IMAP-serveren, ligger i kopien av postkassen din fra før byttet: {backup}."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "{n} Public key was imported."
+msgid_plural "{n} Public keys were imported."
+msgstr[0] "{n} offentlig nøkkel ble importert."
+msgstr[1] "{n} offentlige nøkler ble importert."
+
+#. interface
+#: crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "{n} Reminder"
+msgid_plural "{n} Reminders"
+msgstr[0] "{n} påminnelse"
+msgstr[1] "{n} påminnelser"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "{n} accepted"
+msgid_plural "{n} accepted"
+msgstr[0] "{n} godtatt"
+msgstr[1] "{n} godtatt"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
+msgid "{n} account"
+msgid_plural "{n} accounts"
+msgstr[0] "{n} konto"
+msgstr[1] "{n} kontoer"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{n} account has one"
+msgid_plural "{n} accounts have one"
+msgstr[0] "{n} konto har en"
+msgstr[1] "{n} kontoer har en"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{n} appointment"
+msgid_plural "{n} appointments"
+msgstr[0] "{n} avtale"
+msgstr[1] "{n} avtaler"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} attachment"
+msgid_plural "{n} attachments"
+msgstr[0] "{n} vedlegg"
+msgstr[1] "{n} vedlegg"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{n} attendee"
+msgid_plural "{n} attendees"
+msgstr[0] "{n} deltaker"
+msgstr[1] "{n} deltakere"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "{n} body or attachment is missing from the mailbox's content folder, or damaged."
+msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+msgstr[0] "{n} brødtekst eller vedlegg mangler i innholdsmappen i postkassen, eller er skadet."
+msgstr[1] "{n} brødtekster eller vedlegg mangler i innholdsmappen i postkassen, eller er skadet."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} by a message from your account through your Outbox:"
+msgid_plural "{n} by a message each from your account through your Outbox:"
+msgstr[0] "{n} av en melding fra kontoen din gjennom utboksen:"
+msgstr[1] "{n} av én melding hver fra kontoen din gjennom utboksen:"
+
+#. what a command says
+#: crates/model/src/message.rs
+#, fuzzy
+msgid "{n} byte"
+msgid_plural "{n} bytes"
+msgstr[0] "{n} byte"
+msgstr[1] "{n} byte"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} calendar item"
+msgid_plural "{n} calendar items"
+msgstr[0] "{n} kalenderelement"
+msgstr[1] "{n} kalenderelementer"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} calendar item selected"
+msgid_plural "{n} calendar items selected"
+msgstr[0] "{n} kalenderelement valgt"
+msgstr[1] "{n} kalenderelementer valgt"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} category couldn't be put back: the list of categories is full."
+msgid_plural "{n} categories couldn't be put back: the list of categories is full."
+msgstr[0] "{n} kategori kunne ikke settes tilbake: listen over kategorier er full."
+msgstr[1] "{n} kategorier kunne ikke settes tilbake: listen over kategorier er full."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} change made here hasn't reached the server and will be lost."
+msgid_plural "{n} changes made here haven't reached the server and will be lost."
+msgstr[0] "{n} endring gjort her har ikke nådd serveren og vil gå tapt."
+msgstr[1] "{n} endringer gjort her har ikke nådd serveren og vil gå tapt."
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "{n} change waiting for the IMAP server won't reach it; it stays in the backup copy."
+msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."
+msgstr[0] "{n} endring som venter på IMAP-serveren, når den ikke; den blir liggende i sikkerhetskopien."
+msgstr[1] "{n} endringer som venter på IMAP-serveren, når den ikke; de blir liggende i sikkerhetskopien."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} contact"
+msgid_plural "{n} contacts"
+msgstr[0] "{n} kontakt"
+msgstr[1] "{n} kontakter"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "{n} contact is deleted once the kept one is saved. Undo brings it back."
+msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings them back."
+msgstr[0] "{n} kontakt slettes når den som beholdes, er lagret. Angre henter den tilbake."
+msgstr[1] "{n} kontakter slettes når den som beholdes, er lagret. Angre henter dem tilbake."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} copy on this computer of mail its server has removed"
+msgid_plural "{n} copies on this computer of mail its server has removed"
+msgstr[0] "{n} kopi på denne datamaskinen av e-post serveren har fjernet"
+msgstr[1] "{n} kopier på denne datamaskinen av e-post serveren har fjernet"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} copy on this computer of mail its server has would be removed"
+msgid_plural "{n} copies on this computer of mail its server has would be removed"
+msgstr[0] "{n} kopi på denne datamaskinen av e-post serveren har, ville blitt fjernet"
+msgstr[1] "{n} kopier på denne datamaskinen av e-post serveren har, ville blitt fjernet"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} copy you changed (its flag, categories, read mark or a to-do) is kept."
+msgid_plural "{n} copies you changed (their flag, categories, read mark or a to-do) are kept."
+msgstr[0] "{n} kopi du endret (flagget, kategoriene, lesemerket eller en oppgave) beholdes."
+msgstr[1] "{n} kopier du endret (flaggene, kategoriene, lesemerkene eller oppgavene) beholdes."
+
+#. date and time, interface
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "{n} day"
+msgid_plural "{n} days"
+msgstr[0] "{n} dag"
+msgstr[1] "{n} dager"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} day before"
+msgid_plural "{n} days before"
+msgstr[0] "{n} dag før"
+msgstr[1] "{n} dager før"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "{n} declined"
+msgid_plural "{n} declined"
+msgstr[0] "{n} avslått"
+msgstr[1] "{n} avslått"
+
+#. interface
+#: crates/ui-egui/src/send_later.rs
+#, fuzzy
+msgid "{n} delayed message didn't go at its time"
+msgid_plural "{n} delayed messages didn't go at their time"
+msgstr[0] "{n} utsatt melding gikk ikke på tiden sin"
+msgstr[1] "{n} utsatte meldinger gikk ikke på tiden sin"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} distribution list, kept as a contact listing its members"
+msgid_plural "{n} distribution lists, kept as contacts listing their members"
+msgstr[0] "{n} distribusjonsliste, bevart som en kontakt som lister medlemmene"
+msgstr[1] "{n} distribusjonslister, bevart som kontakter som lister medlemmene"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "{n} downloaded picture is kept on this computer ({size})."
+msgid_plural "{n} downloaded pictures are kept on this computer ({size})."
+msgstr[0] "{n} nedlastet bilde ligger på denne datamaskinen ({size})."
+msgstr[1] "{n} nedlastede bilder ligger på denne datamaskinen ({size})."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
+#, fuzzy
+msgid "{n} downloaded picture is kept on this phone ({size})."
+msgid_plural "{n} downloaded pictures are kept on this phone ({size})."
+msgstr[0] "{n} nedlastet bilde ligger på denne telefonen ({size})."
+msgstr[1] "{n} nedlastede bilder ligger på denne telefonen ({size})."
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} event"
+msgid_plural "{n} events"
+msgstr[0] "{n} hendelse"
+msgstr[1] "{n} hendelser"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} event added to the calendar, and the tasks in the file."
+msgid_plural "{n} events added to the calendar, and the tasks in the file."
+msgstr[0] "{n} hendelse lagt til i kalenderen, og oppgavene i filen."
+msgstr[1] "{n} hendelser lagt til i kalenderen, og oppgavene i filen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} event added to the calendar."
+msgid_plural "{n} events added to the calendar."
+msgstr[0] "{n} hendelse lagt til i kalenderen."
+msgstr[1] "{n} hendelser lagt til i kalenderen."
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} event in view"
+msgid_plural "{n} events in view"
+msgstr[0] "{n} hendelse i visningen"
+msgstr[1] "{n} hendelser i visningen"
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
+msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
+msgstr[0] "{n} hendelse beholder kategoriene som de var på serveren: for mange endringer venter på å sendes."
+msgstr[1] "{n} hendelser beholder kategoriene som de var på serverne: for mange endringer venter på å sendes."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} file left out"
+msgid_plural "{n} files left out"
+msgstr[0] "{n} fil utelatt"
+msgstr[1] "{n} filer utelatt"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "{n} file or folder is left out: not a mailbox file, a link, or over a limit"
+msgid_plural "{n} files or folders are left out: not mailbox files, links, or over a limit"
+msgstr[0] "{n} fil eller mappe er utelatt: ikke en postkassefil, en lenke, eller over en grense"
+msgstr[1] "{n} filer eller mapper er utelatt: ikke postkassefiler, lenker, eller over en grense"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "{n} folder"
+msgid_plural "{n} folders"
+msgstr[0] "{n} mappe"
+msgstr[1] "{n} mapper"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} found in the address list"
+msgid_plural "{n} found in the address list"
+msgstr[0] "{n} funnet i adresselisten"
+msgstr[1] "{n} funnet i adresselisten"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+#, fuzzy
+msgid "{n} group of contacts was merged."
+msgid_plural "{n} groups of contacts were merged."
+msgstr[0] "{n} gruppe kontakter ble flettet."
+msgstr[1] "{n} grupper kontakter ble flettet."
+
+#. date and time, interface
+#: crates/i18n/src/date.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "{n} hour"
+msgid_plural "{n} hours"
+msgstr[0] "{n} time"
+msgstr[1] "{n} timer"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} hour before"
+msgid_plural "{n} hours before"
+msgstr[0] "{n} time før"
+msgstr[1] "{n} timer før"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} in one click: its server is sent the address it gave, nothing else."
+msgid_plural "{n} in one click: each list's server is sent the address it gave, nothing else, one at a time."
+msgstr[0] "{n} med ett klikk: serveren til listen får adressen den oppgav, ingenting annet."
+msgstr[1] "{n} med ett klikk: serveren til hver liste får adressen den oppgav, ingenting annet, én om gangen."
+
+#. interface
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} item"
+msgid_plural "{n} items"
+msgstr[0] "{n} element"
+msgstr[1] "{n} elementer"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "{n} item added to your calendar"
+msgid_plural "{n} items added to your calendar"
+msgstr[0] "{n} element lagt til i kalenderen din"
+msgstr[1] "{n} elementer lagt til i kalenderen din"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} item couldn't be read and is left out"
+msgid_plural "{n} items couldn't be read and are left out"
+msgstr[0] "{n} element kunne ikke leses og er utelatt"
+msgstr[1] "{n} elementer kunne ikke leses og er utelatt"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{n} item here is only on this computer: not in your Outlook calendar. A change to it stays here."
+msgid_plural "{n} items here are only on this computer: not in your Outlook calendar. A change to one of them stays here."
+msgstr[0] "{n} element her finnes bare på denne datamaskinen: ikke i Outlook-kalenderen din. En endring i det blir liggende her."
+msgstr[1] "{n} elementer her finnes bare på denne datamaskinen: ikke i Outlook-kalenderen din. En endring i ett av dem blir liggende her."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} item is only on this computer, and not in your Outlook calendar."
+msgid_plural "{n} items are only on this computer, and not in your Outlook calendar."
+msgstr[0] "{n} element finnes bare på denne datamaskinen, og ikke i Outlook-kalenderen din."
+msgstr[1] "{n} elementer finnes bare på denne datamaskinen, og ikke i Outlook-kalenderen din."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} item moved to your account's calendar"
+msgid_plural "{n} items moved to your account's calendar"
+msgstr[0] "{n} element flyttet til kalenderen til kontoen din"
+msgstr[1] "{n} elementer flyttet til kalenderen til kontoen din"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "{n} item selected"
+msgid_plural "{n} items selected"
+msgstr[0] "{n} element valgt"
+msgstr[1] "{n} elementer valgt"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} journal entry"
+msgid_plural "{n} journal entries"
+msgstr[0] "{n} journaloppføring"
+msgstr[1] "{n} journaloppføringer"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} kept because it differs"
+msgid_plural "{n} kept because they differ"
+msgstr[0] "{n} beholdt fordi den er ulik"
+msgstr[1] "{n} beholdt fordi de er ulike"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "{n} mailbox file"
+msgid_plural "{n} mailbox files"
+msgstr[0] "{n} postkassefil"
+msgstr[1] "{n} postkassefiler"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{n} message"
+msgid_plural "{n} messages"
+msgstr[0] "{n} melding"
+msgstr[1] "{n} meldinger"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
+msgid "{n} message archived"
+msgid_plural "{n} messages archived"
+msgstr[0] "{n} melding arkivert"
+msgstr[1] "{n} meldinger arkivert"
+
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message changed"
+msgid_plural "{n} messages changed"
+msgstr[0] "{n} melding endret"
+msgstr[1] "{n} meldinger endret"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} melding kopiert inn i kontoen: send/motta legger den på Microsofts server, uten de fleste av hodene (som Received)"
+msgstr[1] "{n} meldinger kopiert inn i kontoen: send/motta legger dem på Microsofts server, uten de fleste av hodene (som Received)"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "{n} message couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run: Gmail refused {m} of them; the rest wait for the next run"
+msgstr[0] "{n} melding kunne ikke flyttes mellom Gmails kategorier denne kjøringen: Gmail nektet {m} av dem; resten venter til neste kjøring"
+msgstr[1] "{n} meldinger kunne ikke flyttes mellom Gmails kategorier denne kjøringen: Gmail nektet {m} av dem; resten venter til neste kjøring"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "{n} message couldn't be moved between Gmail's categories this run; it waits for the next run"
+msgid_plural "{n} messages couldn't be moved between Gmail's categories this run; they wait for the next run"
+msgstr[0] "{n} melding kunne ikke flyttes mellom Gmails kategorier denne kjøringen; den venter til neste kjøring"
+msgstr[1] "{n} meldinger kunne ikke flyttes mellom Gmails kategorier denne kjøringen; de venter til neste kjøring"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
+msgid "{n} message deleted"
+msgid_plural "{n} messages deleted"
+msgstr[0] "{n} melding slettet"
+msgstr[1] "{n} meldinger slettet"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt
+#, fuzzy
+msgid "{n} message in the conversation"
+msgid_plural "{n} messages in the conversation"
+msgstr[0] "{n} melding i samtalen"
+msgstr[1] "{n} meldinger i samtalen"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "{n} message in this conversation:"
+msgid_plural "{n} messages in this conversation:"
+msgstr[0] "{n} melding i denne samtalen:"
+msgstr[1] "{n} meldinger i denne samtalen:"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "{n} message is already here and is left out"
+msgid_plural "{n} messages are already here and are left out"
+msgstr[0] "{n} melding er allerede her og er utelatt"
+msgstr[1] "{n} meldinger er allerede her og er utelatt"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
+msgid "{n} message moved"
+msgid_plural "{n} messages moved"
+msgstr[0] "{n} melding flyttet"
+msgstr[1] "{n} meldinger flyttet"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} melding flyttet inn i kontoen: send/motta legger den på Microsofts server, uten de fleste av hodene (som Received)"
+msgstr[1] "{n} meldinger flyttet inn i kontoen: send/motta legger dem på Microsofts server, uten de fleste av hodene (som Received)"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#, fuzzy
+msgid "{n} message moved to Junk"
+msgid_plural "{n} messages moved to Junk"
+msgstr[0] "{n} melding flyttet til Søppelpost"
+msgstr[1] "{n} meldinger flyttet til Søppelpost"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} message of unknown size"
+msgid_plural "{n} messages of unknown size"
+msgstr[0] "{n} melding med ukjent størrelse"
+msgstr[1] "{n} meldinger med ukjent størrelse"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} message on this computer is a copy of mail its server has in the same folder, and will be removed."
+msgid_plural "{n} messages on this computer are copies of mail their server has in the same folder, and will be removed."
+msgstr[0] "{n} melding på denne datamaskinen er en kopi av e-post serveren har i samme mappe, og blir fjernet."
+msgstr[1] "{n} meldinger på denne datamaskinen er kopier av e-post serveren har i samme mappe, og blir fjernet."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message removed"
+msgid_plural "{n} messages removed"
+msgstr[0] "{n} melding fjernet"
+msgstr[1] "{n} meldinger fjernet"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
+msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
+msgstr[0] "{n} melding blir liggende der den ble flyttet: den er digitalt signert eller kryptert, og kopien i postkassen den kom fra ble fjernet mens kopien den først ble flyttet ut av beholder bytene den kom som. Flytt den tilbake for å legge den der igjen."
+msgstr[1] "{n} meldinger blir liggende der de ble flyttet: de er digitalt signert eller kryptert, og kopiene i postkassen de kom fra ble fjernet mens kopiene de først ble flyttet ut av beholder bytene de kom som. Flytt dem tilbake for å legge dem der igjen."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message that came back empty after a refused delete is being downloaded again."
+msgid_plural "{n} messages that came back empty after a refused delete are being downloaded again."
+msgstr[0] "{n} melding som kom tilbake tom etter en avvist sletting, lastes ned igjen."
+msgstr[1] "{n} meldinger som kom tilbake tomme etter en avvist sletting, lastes ned igjen."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message was already here"
+msgid_plural "{n} messages were already here"
+msgstr[0] "{n} melding var allerede her"
+msgstr[1] "{n} meldinger var allerede her"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} message was dragged: only the first was opened."
+msgid_plural "{n} messages were dragged: only the first was opened."
+msgstr[0] "{n} melding ble dratt: bare den første ble åpnet."
+msgstr[1] "{n} meldinger ble dratt: bare den første ble åpnet."
+
+#. interface
+#: crates/ui-egui/src/left_out.rs
+#, fuzzy
+msgid "{n} message was left out because it failed to download."
+msgid_plural "{n} messages were left out because they failed to download."
+msgstr[0] "{n} melding ble utelatt fordi den ikke kunne lastes ned."
+msgstr[1] "{n} meldinger ble utelatt fordi de ikke kunne lastes ned."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} message will be permanently deleted."
+msgid_plural "{n} messages will be permanently deleted."
+msgstr[0] "{n} melding blir slettet for godt."
+msgstr[1] "{n} meldinger blir slettet for godt."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message with characters that couldn't be read is being downloaded again."
+msgid_plural "{n} messages with characters that couldn't be read are being downloaded again."
+msgstr[0] "{n} melding med tegn som ikke kunne leses, lastes ned igjen."
+msgstr[1] "{n} meldinger med tegn som ikke kunne leses, lastes ned igjen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} message you are writing has changes that aren't saved."
+msgid_plural "{n} messages you are writing have changes that aren't saved."
+msgstr[0] "{n} melding du skriver har endringer som ikke er lagret."
+msgstr[1] "{n} meldinger du skriver har endringer som ikke er lagret."
+
+#. date and time, interface
+#: crates/i18n/src/date.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/reminders.rs
+#, fuzzy
+msgid "{n} minute"
+msgid_plural "{n} minutes"
+msgstr[0] "{n} minutt"
+msgstr[1] "{n} minutter"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} minute before"
+msgid_plural "{n} minutes before"
+msgstr[0] "{n} minutt før"
+msgstr[1] "{n} minutter før"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} more by mail isn't sent now: select fewer messages to see it."
+msgid_plural "{n} more by mail aren't sent now: select fewer messages to see them."
+msgstr[0] "{n} til per e-post sendes ikke nå: velg færre meldinger for å se det."
+msgstr[1] "{n} til per e-post sendes ikke nå: velg færre meldinger for å se dem."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{n} more file was not attached: a message takes at most {max} files from a share."
+msgid_plural "{n} more files were not attached: a message takes at most {max} files from a share."
+msgstr[0] "{n} fil til ble ikke lagt ved: en melding tar høyst {max} filer fra en deling."
+msgstr[1] "{n} filer til ble ikke lagt ved: en melding tar høyst {max} filer fra en deling."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} more folder isn't listed."
+msgid_plural "{n} more folders aren't listed."
+msgstr[0] "{n} mappe til er ikke listet."
+msgstr[1] "{n} mapper til er ikke listet."
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "{n} more not listed"
+msgid_plural "{n} more not listed"
+msgstr[0] "{n} til ikke listet"
+msgstr[1] "{n} til ikke listet"
+
+#. interface
+#: crates/ui-egui/src/agent_gate.rs
+#, fuzzy
+msgid "{n} more question is waiting."
+msgid_plural "{n} more questions are waiting."
+msgstr[0] "{n} spørsmål til venter."
+msgstr[1] "{n} spørsmål til venter."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{n} more was left out: at most {mb} MB at a time"
+msgid_plural "{n} more were left out: at most {mb} MB at a time"
+msgstr[0] "{n} til ble utelatt: høyst {mb} MB om gangen"
+msgstr[1] "{n} til ble utelatt: høyst {mb} MB om gangen"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{n} more was left out: at most {most} files at a time"
+msgid_plural "{n} more were left out: at most {most} files at a time"
+msgstr[0] "{n} til ble utelatt: høyst {most} filer om gangen"
+msgstr[1] "{n} til ble utelatt: høyst {most} filer om gangen"
+
+#. interface, what a command says
+#: crates/mobile/src/sync.rs crates/model/src/sync.rs crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgid "{n} new message"
+msgid_plural "{n} new messages"
+msgstr[0] "{n} ny melding"
+msgstr[1] "{n} nye meldinger"
+
+#. what a command says
+#: crates/model/src/sync.rs
+#, fuzzy
+msgid "{n} new message, {sent} sent"
+msgid_plural "{n} new messages, {sent} sent"
+msgstr[0] "{n} ny melding, {sent} sendt"
+msgstr[1] "{n} nye meldinger, {sent} sendt"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "{n} not answered"
+msgid_plural "{n} not answered"
+msgstr[0] "{n} ikke besvart"
+msgstr[1] "{n} ikke besvart"
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} note"
+msgid_plural "{n} notes"
+msgstr[0] "{n} notat"
+msgstr[1] "{n} notater"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} of them is a meeting with people invited: moving it makes the account's server send them the invitation by mail."
+msgid_plural "{n} of them are meetings with people invited: moving those makes the account's server send them the invitations by mail."
+msgstr[0] "{n} av dem er et møte med inviterte: å flytte det får serveren til kontoen til å sende dem invitasjonen på e-post."
+msgstr[1] "{n} av dem er møter med inviterte: å flytte dem får serveren til kontoen til å sende dem invitasjonene på e-post."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
+#, fuzzy
+msgid "{n} older message taken back to its headers"
+msgid_plural "{n} older messages taken back to its headers"
+msgstr[0] "{n} eldre melding hentet tilbake til hodene sine"
+msgstr[1] "{n} eldre meldinger hentet tilbake til hodene sine"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{n} older message wasn't searched: its text isn't loaded yet"
+msgid_plural "{n} older messages weren't searched: their text isn't loaded yet"
+msgstr[0] "{n} eldre melding ble ikke søkt i: teksten er ikke lastet ennå"
+msgstr[1] "{n} eldre meldinger ble ikke søkt i: teksten er ikke lastet ennå"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
+msgid "{n} open"
+msgid_plural "{n} open"
+msgstr[0] "{n} åpen"
+msgstr[1] "{n} åpne"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} open task"
+msgid_plural "{n} open tasks"
+msgstr[0] "{n} åpen oppgave"
+msgstr[1] "{n} åpne oppgaver"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} part of a message couldn't be read from the mailbox's content folder"
+msgid_plural "{n} parts of messages couldn't be read from the mailbox's content folder"
+msgstr[0] "{n} del av en melding kunne ikke leses fra innholdsmappen i postkassen"
+msgstr[1] "{n} deler av meldinger kunne ikke leses fra innholdsmappen i postkassen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} person is invited to this meeting."
+msgid_plural "{n} people are invited to this meeting."
+msgstr[0] "{n} person er invitert til dette møtet."
+msgstr[1] "{n} personer er invitert til dette møtet."
+
+#. interface
+#: crates/ui-egui/src/send_warnings.rs
+#, fuzzy
+msgid "{n} person outside your organisation, at {domains} domains, would see the others' addresses in To and Cc."
+msgid_plural "{n} people outside your organisation, at {domains} domains, would see each other's addresses in To and Cc."
+msgstr[0] "{n} person utenfor organisasjonen din, i {domains} domener, ville se de andres adresser i Til og Kopi."
+msgstr[1] "{n} personer utenfor organisasjonen din, i {domains} domener, ville se hverandres adresser i Til og Kopi."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "{n} person proposed another time."
+msgid_plural "{n} people proposed another time."
+msgstr[0] "{n} person foreslo en annen tid."
+msgstr[1] "{n} personer foreslo en annen tid."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{n} person without an address"
+msgid_plural "{n} people without an address"
+msgstr[0] "{n} person uten adresse"
+msgstr[1] "{n} personer uten adresse"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
+#, fuzzy
+msgid "{n} picture in the message"
+msgid_plural "{n} pictures in the message"
+msgstr[0] "{n} bilde i meldingen"
+msgstr[1] "{n} bilder i meldingen"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{n} problem"
+msgid_plural "{n} problems"
+msgstr[0] "{n} problem"
+msgstr[1] "{n} problemer"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} remembered sign-in could not be removed from the credential store"
+msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
+msgstr[0] "{n} husket pålogging kunne ikke fjernes fra legitimasjonslageret"
+msgstr[1] "{n} huskede pålogginger kunne ikke fjernes fra legitimasjonslageret"
+
+#. interface
+#: crates/ui-egui/src/alerts.rs
+#, fuzzy
+msgid "{n} reminder is due"
+msgid_plural "{n} reminders are due"
+msgstr[0] "{n} påminnelse forfaller"
+msgstr[1] "{n} påminnelser forfaller"
+
+#. interface
+#: crates/ui-egui/src/find_replace.rs
+#, fuzzy
+msgid "{n} replacement was made."
+msgid_plural "{n} replacements were made."
+msgstr[0] "{n} erstatning ble gjort."
+msgstr[1] "{n} erstatninger ble gjort."
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{n} result in {scope}"
+msgid_plural "{n} results in {scope}"
+msgstr[0] "{n} treff i {scope}"
+msgstr[1] "{n} treff i {scope}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "{n} rule deleted here is still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgid_plural "{n} rules deleted here are still on the server until MailCraft may change the server's rules (File › Info › Ask again)."
+msgstr[0] "{n} regel slettet her ligger fortsatt på serveren til MailCraft får endre reglene på serveren (Fil › Info › Spør igjen)."
+msgstr[1] "{n} regler slettet her ligger fortsatt på serveren til MailCraft får endre reglene på serveren (Fil › Info › Spør igjen)."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{n} second"
+msgid_plural "{n} seconds"
+msgstr[0] "{n} sekund"
+msgstr[1] "{n} sekunder"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+#, fuzzy
+msgid "{n} selected"
+msgid_plural "{n} selected"
+msgstr[0] "{n} valgt"
+msgstr[1] "{n} valgt"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} sender is left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgid_plural "{n} senders are left out: mail your server doesn't vouch for, in Junk E-mail, with a warning about its sender, or that doesn't say how."
+msgstr[0] "{n} avsender er utelatt: e-post serveren din ikke garanterer for, i Søppelpost, med en advarsel om avsenderen, eller som ikke sier hvordan."
+msgstr[1] "{n} avsendere er utelatt: e-post serveren din ikke garanterer for, i Søppelpost, med en advarsel om avsenderen, eller som ikke sier hvordan."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} stays on this computer"
+msgid_plural "{n} stay on this computer"
+msgstr[0] "{n} blir på denne datamaskinen"
+msgstr[1] "{n} blir på denne datamaskinen"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} task"
+msgid_plural "{n} tasks"
+msgstr[0] "{n} oppgave"
+msgstr[1] "{n} oppgaver"
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
+#, fuzzy
+msgid "{n} task exists only on this computer"
+msgid_plural "{n} tasks exist only on this computer"
+msgstr[0] "{n} oppgave finnes bare på denne datamaskinen"
+msgstr[1] "{n} oppgaver finnes bare på denne datamaskinen"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
+msgid "{n} task is only on this phone."
+msgid_plural "{n} tasks are only on this phone."
+msgstr[0] "{n} oppgave finnes bare på denne telefonen."
+msgstr[1] "{n} oppgaver finnes bare på denne telefonen."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt
+#, fuzzy
+msgid "{n} task is only on this phone. Send it to To Do at the next sync?"
+msgid_plural "{n} tasks are only on this phone. Send them to To Do at the next sync?"
+msgstr[0] "{n} oppgave finnes bare på denne telefonen. Sende den til To Do ved neste synkronisering?"
+msgstr[1] "{n} oppgaver finnes bare på denne telefonen. Sende dem til To Do ved neste synkronisering?"
+
+#. interface
+#: crates/ui-egui/src/meeting_dialogs/share.rs
+#, fuzzy
+msgid "{n} tentative"
+msgid_plural "{n} tentative"
+msgstr[0] "{n} foreløpig"
+msgstr[1] "{n} foreløpig"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "{n} thing in it didn't fit with the rest and was put right."
+msgid_plural "{n} things in it didn't fit with the rest and were put right."
+msgstr[0] "{n} ting i den passet ikke med resten og ble rettet."
+msgstr[1] "{n} ting i den passet ikke med resten og ble rettet."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/gmail_tabs.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{n} unread"
+msgid_plural "{n} unread"
+msgstr[0] "{n} ulest"
+msgstr[1] "{n} ulest"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#, fuzzy
+msgid "{n} unread message"
+msgid_plural "{n} unread messages"
+msgstr[0] "{n} ulest melding"
+msgstr[1] "{n} uleste meldinger"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} unread on the server"
+msgid_plural "{n} unread on the server"
+msgstr[0] "{n} ulest på serveren"
+msgstr[1] "{n} ulest på serveren"
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "{n} unsubscribes on its own page: open its message to do it there."
+msgid_plural "{n} unsubscribe on their own page: open each of those messages to do it there."
+msgstr[0] "{n} melder av på sin egen side: åpne meldingen for å gjøre det der."
+msgstr[1] "{n} melder av på sine egne sider: åpne hver av meldingene for å gjøre det der."
+
+#. interface
+#: crates/ui-egui/src/import_pst.rs
+#, fuzzy
+msgid "{n} was here already"
+msgid_plural "{n} were here already"
+msgstr[0] "{n} var her allerede"
+msgstr[1] "{n} var her allerede"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} was there already"
+msgid_plural "{n} were there already"
+msgstr[0] "{n} var der allerede"
+msgstr[1] "{n} var der allerede"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarMapping.kt
+#, fuzzy
+msgid "{n} week before"
+msgid_plural "{n} weeks before"
+msgstr[0] "{n} uke før"
+msgstr[1] "{n} uker før"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{people} and {n} more"
+msgid_plural "{people} and {n} more"
+msgstr[0] "{people} og {n} til"
+msgstr[1] "{people} og {n} til"
+
+#. what a command says
+#: crates/model/src/sync.rs
+#, fuzzy
+msgid "{sent} message sent"
+msgid_plural "{sent} messages sent"
+msgstr[0] "{sent} melding sendt"
+msgstr[1] "{sent} meldinger sendt"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsSummaries.kt
+#, fuzzy
+msgid "{used} of {cap} used by {n} message"
+msgid_plural "{used} of {cap} used by {n} messages"
+msgstr[0] "{used} av {cap} brukt av {n} melding"
+msgstr[1] "{used} av {cap} brukt av {n} meldinger"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "…and {n} more — type to narrow it"
+msgid_plural "…and {n} more — type to narrow it"
+msgstr[0] "…og {n} til – skriv for å snevre inn"
+msgstr[1] "…og {n} til – skriv for å snevre inn"
