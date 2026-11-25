@@ -35,6 +35,8 @@ mod cert;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod dav;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod dav_find;
+#[cfg(not(target_arch = "wasm32"))]
 mod discover;
 #[cfg(not(target_arch = "wasm32"))]
 mod dns;
