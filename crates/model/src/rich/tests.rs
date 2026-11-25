@@ -302,6 +302,26 @@ fn auto_capitalization_respects_sentence_endings_and_existing_word_case() {
 }
 
 #[test]
+fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
+    for (typed, expected) in [
+        ("We need the dept. of finance ", "We need the dept. of finance "),
+        ("no. thanks ", "No. Thanks "),
+        ("See no. three ", "See no. three "),
+        ("Ready? no. thanks ", "Ready? No. Thanks "),
+        ("Ready. no. thanks ", "Ready. No. Thanks "),
+        ("Visit the dept. no. three ", "Visit the dept. no. three "),
+        ("Done. thanks ", "Done. Thanks "),
+        ("“no.” thanks ", "“No.” Thanks "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), "en").unwrap();
+        }
+        assert_eq!(body.plain(), expected, "{typed:?}");
+    }
+}
+
+#[test]
 fn auto_capitalization_keeps_a_pasted_word_when_followed_by_typed_punctuation() {
     let mut body = RichBody::default();
     body.paste(&RichText::from_plain("ready")).unwrap();

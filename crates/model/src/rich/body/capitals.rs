@@ -88,36 +88,46 @@ fn sentence_punctuation(c: char) -> bool {
     matches!(c, '.' | '!' | '?' | '。' | '！' | '？')
 }
 
-fn sentence_ends(before: &str, starts_at_paragraph: bool, language: &str) -> bool {
-    let before = before.trim_end_matches(|c: char| c.is_whitespace() || closing(c));
-    if before.ends_with(|c| c != '.' && sentence_punctuation(c)) {
-        return true;
+fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) -> bool {
+    loop {
+        before = before.trim_end_matches(|c: char| c.is_whitespace() || closing(c));
+        if before.ends_with(|c| c != '.' && sentence_punctuation(c)) {
+            return true;
+        }
+        let Some(stem) = before.strip_suffix('.') else { return false };
+        if stem.ends_with('.') {
+            return false;
+        }
+        let last = stem.split_whitespace().next_back().unwrap_or_default().trim_start_matches(opening);
+        // Initials and dotted abbreviations like e.g. and z.B.
+        if last.is_empty()
+            || last.split('.').all(|part| {
+                let mut letters = part.chars();
+                letters.next().is_some_and(char::is_alphabetic) && letters.next().is_none()
+            })
+        {
+            return false;
+        }
+        // A bare number at the start of a paragraph can be a list marker. Czech,
+        // German, Hungarian and Polish also put a dot after ordinal numbers in prose.
+        if last.chars().all(|c| c.is_ascii_digit())
+            && ((starts_at_paragraph && stem.trim_start() == last) || ["cs", "de", "hu", "pl"].iter().any(|tag| language.eq_ignore_ascii_case(tag)))
+        {
+            return false;
+        }
+        if last.eq_ignore_ascii_case("no") {
+            let previous = stem.strip_suffix(last).unwrap_or_default().trim_end_matches(|c: char| c.is_whitespace() || opening(c));
+            if previous.is_empty() {
+                return starts_at_paragraph;
+            }
+            before = previous;
+            continue;
+        }
+        let abbreviations = [
+            "approx", "art", "avv", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "evtl",
+            "fig", "ggf", "hr", "inc", "ing", "mevr", "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "prof", "rif", "sig", "sig.na",
+            "sig.ra", "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
+        ];
+        return !abbreviations.contains(&last.to_lowercase().as_str());
     }
-    let Some(stem) = before.strip_suffix('.') else { return false };
-    if stem.ends_with('.') {
-        return false;
-    }
-    let last = stem.split_whitespace().next_back().unwrap_or_default().trim_start_matches(opening);
-    // Initials and dotted abbreviations like e.g. and z.B.
-    if last.is_empty()
-        || last.split('.').all(|part| {
-            let mut letters = part.chars();
-            letters.next().is_some_and(char::is_alphabetic) && letters.next().is_none()
-        })
-    {
-        return false;
-    }
-    // A bare number at the start of a paragraph can be a list marker. Czech,
-    // German, Hungarian and Polish also put a dot after ordinal numbers in prose.
-    if last.chars().all(|c| c.is_ascii_digit())
-        && ((starts_at_paragraph && stem.trim_start() == last) || ["cs", "de", "hu", "pl"].iter().any(|tag| language.eq_ignore_ascii_case(tag)))
-    {
-        return false;
-    }
-    let abbreviations = [
-        "approx", "art", "avv", "bijv", "bzw", "ca", "cf", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "evtl", "fig", "ggf",
-        "hr", "inc", "ing", "mevr", "mlle", "mme", "mr", "mrs", "ms", "no", "nr", "núm", "pag", "pág", "prof", "rif", "sig", "sig.na", "sig.ra",
-        "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
-    ];
-    !abbreviations.contains(&last.to_lowercase().as_str())
 }
