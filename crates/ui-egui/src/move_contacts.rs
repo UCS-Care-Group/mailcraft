@@ -94,7 +94,9 @@ impl MoveContacts {
         let mut chosen = None;
         egui::ScrollArea::vertical().max_height(280.0).auto_shrink([false, true]).show(ui, |ui| {
             for (id, label) in &rows {
-                let r = ui.selectable_label(self.folder == Some(*id), label);
+                // A row as wide as the list, so the whole line takes a click.
+                let row = egui::Button::selectable(self.folder == Some(*id), label.as_str()).min_size(egui::vec2(ui.available_width(), 28.0));
+                let r = ui.add(row);
                 if r.clicked() {
                     self.folder = Some(*id);
                 }
