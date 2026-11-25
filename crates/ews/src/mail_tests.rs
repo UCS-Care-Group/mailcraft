@@ -653,6 +653,25 @@ fn a_message_is_fetched_whole_and_the_missing_and_the_refused_are_told() {
 }
 
 #[test]
+fn a_fetch_stops_asking_once_the_batch_holds_as_much_as_it_may_and_leaves_the_rest_for_the_next() {
+    let standin = StandIn::new();
+    let ids: Vec<String> = (0..5).map(|n| standin.state().deliver("inbox", &format!("Message {n}"), false)).collect();
+    let fetch = |ids: &[String]| EwsFetchRequest { email: "ada@example.org".into(), url: URL.into(), ids: ids.to_vec(), ..Default::default() };
+    let cancel = AtomicBool::new(false);
+    let all = block_on(crate::run::fetch_batch(&client(), &standin, &fetch(&ids), &cancel, &mut |_| true, usize::MAX, 0)).unwrap();
+    assert_eq!(all.fetched.len(), 5);
+    // Room for the two first messages and one more of that size: it stops before the fourth.
+    let one = all.fetched[0].mime.len();
+    let got = block_on(crate::run::fetch_batch(&client(), &standin, &fetch(&ids), &cancel, &mut |_| true, 3 * one, one)).unwrap();
+    let taken = got.fetched.len();
+    assert!((2..5).contains(&taken), "{taken}");
+    assert!(got.missing.is_empty() && got.failed.is_empty() && !got.offline && got.errors.is_empty(), "{:?}", got.errors);
+    // The ids it didn't ask for are in no list: the next fetch takes them.
+    let next = block_on(crate::run::fetch_batch(&client(), &standin, &fetch(&ids[taken..]), &cancel, &mut |_| true, usize::MAX, 0)).unwrap();
+    assert_eq!(next.fetched.len(), 5 - taken);
+}
+
+#[test]
 fn a_fetch_with_a_refused_sign_in_says_so() {
     let standin = StandIn::new();
     let id = standin.state().deliver("inbox", "Kickoff", false);

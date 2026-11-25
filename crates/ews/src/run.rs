@@ -51,7 +51,7 @@ use crate::client::Client;
 use crate::error::{Error, ResponseCode};
 use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
-use crate::http::{HttpExchange, TransportError};
+use crate::http::{HttpExchange, RESPONSE_LIMIT, TransportError};
 use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_RECIPIENTS_ASKED, Shape, SyncFolderItems};
 use crate::reply::Reply;
 use crate::soap::Element;
@@ -68,6 +68,10 @@ const MAX_PAGES: usize = 5_000;
 const MAX_HIERARCHY_PAGES: usize = 20;
 /// The most messages one fetch asks for.
 const MAX_FETCH: usize = 100;
+/// The most octets one fetch holds at once: it keeps every message it fetched until it returns, so
+/// it stops asking when the next one, at the most an answer may weigh, could pass this (the same
+/// as a JMAP batch, and as the engine keeps of one).
+const MAX_BATCH_OCTETS: usize = 64 << 20;
 /// After this many folders in a row that couldn't be read, the run ends.
 const MAX_IN_A_ROW: usize = 3;
 /// The most `GetItem`s for recipients one page asks: a page of the most changes the model takes in,
@@ -789,14 +793,37 @@ pub async fn fetch_messages<E: HttpExchange>(
     cancel: &AtomicBool,
     wait: &mut dyn FnMut(u32) -> bool,
 ) -> GraphFetchResult {
+    fetch_batch(client, exchange, request, cancel, wait, MAX_BATCH_OCTETS, RESPONSE_LIMIT).await
+}
+
+/// [`fetch_messages`], stopping before a request when what is held, with `room` more (the most one
+/// answer may weigh), would pass `limit`. The ids not asked for are left for the next fetch: they
+/// are in none of the answer's lists.
+pub(crate) async fn fetch_batch<E: HttpExchange>(
+    client: &Client,
+    exchange: &E,
+    request: &EwsFetchRequest,
+    cancel: &AtomicBool,
+    wait: &mut dyn FnMut(u32) -> bool,
+    limit: usize,
+    room: usize,
+) -> GraphFetchResult {
     let mut run = Run::new(client, exchange, cancel, wait);
     let mut out = GraphFetchResult { account: request.account, email: request.email.clone(), ..GraphFetchResult::default() };
     let mut outcome = Outcome::default();
+    let mut held = 0usize;
     log::info!("ews fetch: {} messages asked, one request each", request.ids.len().min(MAX_FETCH));
     for id in request.ids.iter().take(MAX_FETCH) {
+        if held > 0 && held.saturating_add(room) > limit {
+            log::info!("ews fetch: stopped at {} messages, the batch holds {held} octets", out.fetched.len());
+            break;
+        }
         let op = GetItemMime::new(id);
         match run.ask(&op.element(), &|reply| op.answer(reply)).await {
-            Ok(mime) => out.fetched.push(GraphFetched { id: id.clone(), mime }),
+            Ok(mime) => {
+                held = held.saturating_add(mime.len());
+                out.fetched.push(GraphFetched { id: id.clone(), mime });
+            }
             Err(Asked::Code(ResponseCode::ItemNotFound)) => out.missing.push(id.clone()),
             Err(Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => out.failed.push(id.clone()),
             Err(Asked::Stop(stop)) => {
