@@ -105,6 +105,20 @@ pub enum Condition {
         #[serde(skip_serializing_if = "Option::is_none")]
         to: Option<Date>,
     },
+    /// A header line named one of `names` contains one of the words, or with `exact` is one of
+    /// them (letters A to Z in either case, the line's value trimmed): Outlook's "with specific
+    /// words in the message header", narrowed to the lines named, as a Sieve `header :contains`
+    /// or `header :is` test of a script made elsewhere says it (#9999). Only read from such a
+    /// script: no command makes one, and a server it can't be said to refuses it. Here, it can't be
+    /// told of a message whose header lines are kept outside memory.
+    Header {
+        #[serde(with = "words")]
+        names: Vec<String>,
+        #[serde(with = "words")]
+        words: Vec<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        exact: bool,
+    },
 }
 
 /// What a rule is matched by besides the message.
@@ -199,6 +213,15 @@ impl Condition {
             Condition::AutomaticReply => m.is_automatic_reply(),
             Condition::Category(names) => names.iter().any(|c| m.has_category(c)),
             Condition::Flagged => m.flag == FlagStatus::Flagged,
+            Condition::Header { names, words, exact } => {
+                let lines = m.all_headers();
+                let values = || lines.iter().filter(|(n, _)| names.iter().any(|w| n.trim().eq_ignore_ascii_case(w.trim()))).map(|(_, v)| v.trim());
+                if *exact {
+                    words.iter().any(|w| values().any(|v| v.eq_ignore_ascii_case(w.trim())))
+                } else {
+                    any(words, &|t| values().any(|v| contains_ci(v, t)))
+                }
+            }
             Condition::ReceivedBetween { from, to } => {
                 let at = if m.received != 0 { m.received } else { m.date };
                 let day = how.zone.wall(at).date;
@@ -238,6 +261,8 @@ impl Condition {
             Condition::AutomaticReply => "is an automatic reply".into(),
             Condition::Category(c) => format!("category is {}", words(c)),
             Condition::Flagged => "is flagged".into(),
+            Condition::Header { names, words: w, exact: false } => format!("message header {} contains {}", words(names), words(w)),
+            Condition::Header { names, words: w, exact: true } => format!("message header {} is exactly {}", words(names), words(w)),
             Condition::ReceivedBetween { from, to } => match (from, to) {
                 (Some(f), Some(t)) => format!("received from {} to {}", f.iso(), t.iso()),
                 (Some(f), None) => format!("received on or after {}", f.iso()),
@@ -335,6 +360,8 @@ impl Condition {
             | Condition::ToOrCcMe
             | Condition::NotToMe => m.headers_cut || (m.unfetched && m.to.iter().chain(&m.cc).any(|a| a.email.trim().is_empty())),
             Condition::Category(_) => m.headers_cut || m.categories_cut,
+            // Nor a line kept outside memory with the message's header block.
+            Condition::Header { .. } => m.unfetched || m.incomplete || m.headers_cut || !m.header_block.is_loaded(),
             // Nor the end of a subject its server's list left out.
             Condition::SubjectContains(_) => m.unfetched && m.headers_cut,
             // A calendar part kept on disk and not brought in (one too large to be read) doesn't

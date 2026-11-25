@@ -23607,6 +23607,18 @@ msgstr "დაბალი"
 msgid "mark it as read"
 msgstr "წაკითხულად მონიშვნა"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "შეტყობინების სათაური {names} შეიცავს {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "შეტყობინების სათაური {names} ზუსტად არის {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

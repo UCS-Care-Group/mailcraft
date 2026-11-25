@@ -323,6 +323,7 @@ fn predicate(condition: &Condition) -> Result<(&'static str, Value), &'static st
         Condition::ToOrCcMe => ("sentToOrCcMe", json!(true)),
         Condition::NotToMe => ("notSentToMe", json!(true)),
         Condition::ReceivedBetween { .. } => return Err("the server's rules have no condition on the day mail came"),
+        Condition::Header { .. } => return Err("the server's rules look for words in the whole header, not in the lines a Sieve script names"),
     })
 }
 

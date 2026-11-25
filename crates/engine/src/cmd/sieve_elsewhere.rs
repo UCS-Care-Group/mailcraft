@@ -13,11 +13,21 @@
 //! rule is one of its parts not known here, named by its command or test alone: a script's
 //! strings are never shown as what it does, nor taken for instructions. A `vacation` is no rule:
 //! it says that the script sends Automatic Replies.
+//!
+//! **Names.** A rule is named by the comment a webmail writes before it: `# rule:[name]` right
+//! before its `if`, or, in a script with the line `# RAINLOOP:SIEVE`, the `Name` of the filter
+//! block it is in ([`crate::sieve_rainloop`]). A name is display text from the server: one line,
+//! without control or format characters, at most [`MAX_NAME`] characters. Without one it is
+//! "<script> N". A rule whose test is `false`, or a filter block the webmail says is off and that
+//! has no `if`, is shown switched off.
 
-use mailcraft_model::{Action, Condition, Id, Keep, Mailbox, Rule, ServerRule};
+use std::ops::Range;
+
+use mailcraft_model::{Action, Condition, Id, Keep, Mailbox, Rule, ServerRule, Words, same_word};
 
 use super::sieve_replies::SIEVE_ID;
-use crate::sieve::{Tok, tokens};
+use crate::sieve::{Comment, Tok, lex};
+use crate::sieve_rainloop;
 
 /// Where the ids of these rules begin: far above any a mailbox gives out, so that a command naming
 /// one is known for what it is, and refused.
@@ -33,6 +43,8 @@ const MAX_LIST: usize = 64;
 const MAX_STRING: usize = 1_024;
 /// Parts not known here kept for one rule.
 const MAX_UNKNOWN: usize = 20;
+/// The longest rule name kept from a comment, in characters.
+pub const MAX_NAME: usize = sieve_rainloop::MAX_NAME;
 
 /// A script's rules as Rules and Alerts shows them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -70,10 +82,14 @@ struct Command {
     args: Vec<Arg>,
     tests: Vec<Test>,
     block: Option<Vec<Command>>,
+    /// Its bytes in the script, from its name to its `;` or `}`.
+    at: Range<usize>,
 }
 
 struct Parser {
     toks: Vec<Tok>,
+    /// Where each token is.
+    spans: Vec<Range<usize>>,
     at: usize,
     commands: usize,
 }
@@ -193,6 +209,7 @@ impl Parser {
             if self.commands > MAX_COMMANDS {
                 return None;
             }
+            let start = self.spans.get(self.at).map_or(0, |r| r.start);
             let Some(Tok::Ident(name)) = self.next() else { return None };
             let args = self.args()?;
             let mut tests = Vec::new();
@@ -210,17 +227,86 @@ impl Parser {
             } else {
                 return None;
             };
-            out.push(Command { name, args, tests, block });
+            let end = self.at.checked_sub(1).and_then(|i| self.spans.get(i)).map_or(start, |r| r.end);
+            out.push(Command { name, args, tests, block, at: start..end });
         }
         Some(out)
     }
 }
 
-/// The script's commands, or `None` when it isn't Sieve or is beyond the caps.
-fn parse(text: &str) -> Option<Vec<Command>> {
-    let mut p = Parser { toks: tokens(text)?, at: 0, commands: 0 };
+/// The script's commands and its comments, or `None` when it isn't Sieve or is beyond the caps.
+fn parse(text: &str) -> Option<(Vec<Command>, Vec<Comment>)> {
+    let lexed = lex(text)?;
+    let (toks, spans) = lexed.toks.into_iter().unzip();
+    let mut p = Parser { toks, spans, at: 0, commands: 0 };
     let commands = p.commands(0)?;
-    (p.at >= p.toks.len()).then_some(commands)
+    (p.at >= p.toks.len()).then_some((commands, lexed.comments))
+}
+
+/// The name a `# rule:[name]` comment gives, cleaned: `None` when it isn't one, or nothing is left.
+fn rule_comment(script: &str, c: &Comment) -> Option<String> {
+    if c.bracketed {
+        return None;
+    }
+    let inner = c.text(script).trim().strip_prefix("rule:[")?.strip_suffix(']')?;
+    mailcraft_names::incoming(inner, MAX_NAME)
+}
+
+/// The header names of a test as they are shown: trimmed, each once whatever its letters' case.
+fn shown_names(names: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for n in names.iter().map(|n| n.trim()) {
+        if !out.iter().any(|o| o.eq_ignore_ascii_case(n)) {
+            out.push(n.to_string());
+        }
+    }
+    out
+}
+
+/// Whether two lists of words are the same words, A to Z in either case, in any order (as Sieve's
+/// default comparator, `i;ascii-casemap`, compares them).
+fn same_ascii(a: &[String], b: &[String]) -> bool {
+    let has = |x: &[String], y: &[String]| x.iter().all(|w| y.iter().any(|v| v.eq_ignore_ascii_case(w)));
+    has(a, b) && has(b, a)
+}
+
+/// The words of `a` with those of `b` that aren't among them.
+fn union(kind: Words, a: &[String], b: &[String]) -> Vec<String> {
+    let mut out = a.to_vec();
+    for w in b {
+        if !out.iter().any(|o| same_word(kind, o, w)) {
+            out.push(w.clone());
+        }
+    }
+    out
+}
+
+/// One condition that holds exactly when any of `conditions` does, when there is one: conditions
+/// of one kind that look for words, any of which is enough, are one that looks for all their words;
+/// header conditions that read the same lines, or look for the same words (in either case), are
+/// one with all their words, or all their lines.
+fn any_of(conditions: &[Condition]) -> Option<Condition> {
+    let (first, rest) = conditions.split_first()?;
+    let mut out = first.clone();
+    for c in rest {
+        out = match (&out, c) {
+            (Condition::Header { names: n1, words: w1, exact: e1 }, Condition::Header { names: n2, words: w2, exact: e2 }) if e1 == e2 => {
+                if same_ascii(n1, n2) {
+                    Condition::Header { names: n1.clone(), words: union(Words::Text, w1, w2), exact: *e1 }
+                } else if same_ascii(w1, w2) {
+                    Condition::Header { names: shown_names(&[n1.clone(), n2.clone()].concat()), words: w1.clone(), exact: *e1 }
+                } else {
+                    return None;
+                }
+            }
+            (a, b) if std::mem::discriminant(a) == std::mem::discriminant(b) => {
+                let (x, y) = (a.words()?, b.words()?);
+                a.with_words(union(a.word_kind(), x, y))
+            }
+            _ => return None,
+        };
+    }
+    Some(out)
 }
 
 /// The strings of an argument (one string, or a list).
@@ -260,9 +346,16 @@ fn condition(t: &Test, me: &[String]) -> Option<Condition> {
     let is = tags.iter().any(|t| t == "is");
     let to_cc = names == ["cc", "to"];
     match t.name.as_str() {
-        "header" if contains && only(&["contains"]) && !keys.is_empty() => match names.as_slice() {
-            [n] if n == "subject" => Some(Condition::SubjectContains(keys)),
-            _ => None,
+        "header" if only(&["contains", "is"]) && contains != is && !keys.is_empty() => match names.as_slice() {
+            [n] if n == "subject" && contains => Some(Condition::SubjectContains(keys)),
+            [n] if n == "from" && contains => Some(Condition::FromContains(keys)),
+            _ if to_cc && contains => Some(Condition::ToContains(keys)),
+            // (An empty name or word would hold of a line that is there at all; that isn't said here.)
+            _ if names.is_empty() || names.iter().chain(&keys).any(|w| w.trim().is_empty()) => None,
+            _ => {
+                let raw = lists.first().map(|n| shown_names(n)).unwrap_or_default();
+                Some(Condition::Header { names: raw, words: keys, exact: is })
+            }
         },
         "address" if only(&["all", "contains", "is"]) && contains != is && !keys.is_empty() => {
             let mine = || {
@@ -297,6 +390,11 @@ fn read_tests(t: &Test, me: &[String], rule: &mut Rule, unknown: &mut Vec<String
             }
         }
         "true" => {}
+        // A rule switched off (as a webmail writes one): shown so, and what it tested is unknown.
+        "false" => {
+            rule.enabled = false;
+            unknown.push("false".into());
+        }
         "not" => {
             let spared: Vec<&Test> = match t.tests.as_slice() {
                 [one] if one.name == "anyof" => one.tests.iter().collect(),
@@ -315,13 +413,19 @@ fn read_tests(t: &Test, me: &[String], rule: &mut Rule, unknown: &mut Vec<String
         }
         "anyof" => match t.tests.as_slice() {
             [one] => read_tests(one, me, rule, unknown),
-            [a, b] => match (condition(a, me), condition(b, me)) {
-                (Some(Condition::SubjectContains(x)), Some(Condition::BodyContains(y))) if x == y => {
-                    rule.conditions.push(Condition::SubjectOrBodyContains(x));
+            many => {
+                let each: Option<Vec<Condition>> = many.iter().map(|sub| condition(sub, me)).collect();
+                match each.as_deref() {
+                    Some([Condition::SubjectContains(x), Condition::BodyContains(y)]) if x == y => {
+                        rule.conditions.push(Condition::SubjectOrBodyContains(x.clone()));
+                    }
+                    Some(all) => match any_of(all) {
+                        Some(c) => rule.conditions.push(c),
+                        None => unknown.push("anyof".into()),
+                    },
+                    None => unknown.push("anyof".into()),
                 }
-                _ => unknown.push("anyof".into()),
-            },
-            _ => unknown.push("anyof".into()),
+            }
         },
         "size" => {
             let over = t.args.windows(2).find_map(|w| match w {
@@ -393,15 +497,75 @@ fn me(mb: &Mailbox, account: Id) -> Vec<String> {
 /// The rules of the script `script` (its text `text`) on `account`'s server, read-only.
 pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> Elsewhere {
     let mut out = Elsewhere { script: script.chars().take(MAX_STRING).collect(), ours, ..Default::default() };
-    let Some(commands) = parse(text) else {
+    let Some((commands, comments)) = parse(text) else {
         out.unreadable = true;
         return out;
     };
     let me = me(mb, account);
     let base = ELSEWHERE_BASE.saturating_add(account.saturating_mul(MAX_RULES as u64));
+    let filters = if sieve_rainloop::signed(text, &comments) { sieve_rainloop::filters(text, &comments) } else { Vec::new() };
+    // Where each filter block's Sieve is: from its comment to its end, or to the next one's.
+    let regions: Vec<Range<usize>> = filters
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let next = filters.get(i.saturating_add(1)).map_or(text.len(), |n| n.header.start);
+            f.header.end..f.end.as_ref().map_or(next, |e| e.start.min(next))
+        })
+        .collect();
+    let is_if = |c: &Command| c.name == "if";
+    // A block the webmail says is off, with no `if` in it, is a rule switched off.
+    let mut off: Vec<(usize, String)> = filters
+        .iter()
+        .zip(&regions)
+        .filter(|(f, r)| f.enabled == Some(false) && !commands.iter().any(|c| is_if(c) && r.contains(&c.at.start)))
+        .map(|(f, _)| (f.header.start, f.name.clone().unwrap_or_default()))
+        .collect();
+    off.reverse();
+    let mut named_filter = vec![false; filters.len()];
+    let mut before = 0;
+    let push_off = |out: &mut Elsewhere, name: String| {
+        let n = out.rules.len();
+        let name = if name.is_empty() { format!("{} {}", out.script, n.saturating_add(1)) } else { name };
+        let server = ServerRule { id: format!("{SIEVE_ID}{}", out.script), read_only: true, unknown: vec!["filter".into()], ..Default::default() };
+        out.rules.push(Rule {
+            id: base.saturating_add(n as u64),
+            name,
+            enabled: false,
+            account,
+            keep: Keep::Server,
+            server: Some(server),
+            ..Default::default()
+        });
+    };
     for c in &commands {
+        while out.rules.len() < MAX_RULES && off.last().is_some_and(|(at, _)| *at < c.at.start) {
+            if let Some((_, name)) = off.pop() {
+                push_off(&mut out, name);
+            }
+        }
         if out.rules.len() >= MAX_RULES {
             break;
+        }
+        let between = before..c.at.start;
+        before = c.at.end;
+        // Its name: the filter block it is the first `if` of, or the `# rule:[…]` right before it.
+        let mut name = None;
+        if is_if(c) {
+            if let Some(i) = regions.iter().position(|r| r.contains(&c.at.start))
+                && let Some(seen) = named_filter.get_mut(i)
+                && !*seen
+            {
+                *seen = true;
+                name = filters.get(i).and_then(|f| f.name.clone());
+            }
+            if name.is_none() {
+                name = comments
+                    .iter()
+                    .filter(|k| between.start <= k.at.start && k.at.end <= between.end)
+                    .filter_map(|k| rule_comment(text, k))
+                    .next_back();
+            }
         }
         let mut rule = Rule { enabled: true, account, keep: Keep::Server, ..Default::default() };
         let mut unknown = Vec::new();
@@ -433,9 +597,13 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         unknown.dedup();
         let n = out.rules.len();
         rule.id = base.saturating_add(n as u64);
-        rule.name = format!("{} {}", out.script, n.saturating_add(1));
+        rule.name = name.unwrap_or_else(|| format!("{} {}", out.script, n.saturating_add(1)));
         rule.server = Some(ServerRule { id: format!("{SIEVE_ID}{}", out.script), read_only: true, unknown, ..Default::default() });
         out.rules.push(rule);
+    }
+    while out.rules.len() < MAX_RULES {
+        let Some((_, name)) = off.pop() else { break };
+        push_off(&mut out, name);
     }
     out
 }

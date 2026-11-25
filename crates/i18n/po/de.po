@@ -22360,6 +22360,18 @@ msgstr "niedrig"
 msgid "mark it as read"
 msgstr "als gelesen markieren"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "Kopfzeile {names} enthält {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "Kopfzeile {names} ist genau {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 msgid "message {id} keeps no original"

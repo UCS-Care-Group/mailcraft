@@ -23768,6 +23768,18 @@ msgstr "mică"
 msgid "mark it as read"
 msgstr "marchează ca citit"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "antetul mesajului {names} conține {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "antetul mesajului {names} este exact {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

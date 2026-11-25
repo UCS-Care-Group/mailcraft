@@ -295,3 +295,15 @@ fn a_rule_the_builder_cant_show_or_the_command_refuses_isnt_opened() {
     s.mailbox.rules[0] = all;
     assert!(f.edit(&s.mailbox, id));
 }
+
+/// A Sieve `header` test of the owner's own script is said as Outlook says words in the message
+/// header, `:is` as exactly (#9999); the builder can't show it, so it isn't offered for changing.
+#[test]
+fn a_header_condition_is_said_and_not_offered_to_the_builder() {
+    let s = session();
+    let header = |exact| Condition::Header { names: vec!["X-Spam-Flag".into(), "X-Spam".into()], words: vec!["YES".into()], exact };
+    let rule = |exact| Rule { conditions: vec![header(exact)], actions: vec![mailcraft_model::Action::MarkRead], ..Default::default() };
+    assert_eq!(describe(&s.mailbox, &rule(true)), "When message header \"X-Spam-Flag\" or \"X-Spam\" is exactly \"YES\": mark it as read");
+    assert_eq!(describe(&s.mailbox, &rule(false)), "When message header \"X-Spam-Flag\" or \"X-Spam\" contains \"YES\": mark it as read");
+    assert!(Cond::of(&header(true), false).is_none() && Cond::of(&header(false), true).is_none());
+}

@@ -23079,6 +23079,18 @@ msgstr "laag"
 msgid "mark it as read"
 msgstr "als gelezen markeren"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "berichtkop {names} bevat {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "berichtkop {names} is precies {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

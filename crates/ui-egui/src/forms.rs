@@ -4809,6 +4809,8 @@ pub(crate) mod rules {
                 Condition::ReceivedBetween { from, to } => {
                     vec![Cond { from: from.map(Date::iso).unwrap_or_default(), to: to.map(Date::iso).unwrap_or_default(), ..with(When::Received) }]
                 }
+                // (Only a Sieve script made elsewhere has one, and its rules aren't changed here.)
+                Condition::Header { .. } => return None,
                 Condition::Category(names) => match names.as_slice() {
                     [] => return None,
                     [one] => vec![Cond { category: one.clone(), ..with(When::Category) }],
@@ -5166,6 +5168,12 @@ pub(crate) mod rules {
             Condition::AutomaticReply => tl!("is an automatic reply").to_string(),
             Condition::Category(c) => one(tl!("category is {words}"), c),
             Condition::Flagged => tl!("is flagged").to_string(),
+            Condition::Header { names, words: w, exact: false } => {
+                fmt(tl!("message header {names} contains {words}"), &[("words", &words(w)), ("names", &words(names))])
+            }
+            Condition::Header { names, words: w, exact: true } => {
+                fmt(tl!("message header {names} is exactly {words}"), &[("words", &words(w)), ("names", &words(names))])
+            }
             Condition::ReceivedBetween { from, to } => {
                 let day = |d: &mailcraft_time::Date| crate::dates::medium(*d);
                 match (from, to) {

@@ -1442,6 +1442,7 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Category(vec!["Blue".into()]),
         Condition::Flagged,
         Condition::ReceivedBetween { from: None, to: None },
+        Condition::Header { names: vec!["Sensitivity".into()], words: vec!["private".into()], exact: false },
     ];
     // Every kind of condition is in the list: the match has no catch-all, so a new kind can't be
     // left out of it.
@@ -1467,6 +1468,7 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::Category(_) => 18,
         Condition::Flagged => 19,
         Condition::ReceivedBetween { .. } => 20,
+        Condition::Header { .. } => 21,
     };
     assert_eq!(conditions.iter().map(kind).collect::<Vec<_>>(), (0..conditions.len()).collect::<Vec<_>>());
     for sent in [false, true] {

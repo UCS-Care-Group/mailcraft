@@ -512,3 +512,29 @@ fn sent_only_to_me_doesnt_hold_of_recipients_cut_short() {
     let placed = mb.queued.iter().filter(|q| matches!(q, Queued::PlaceMessage { account, .. } if *account == other)).count();
     assert!(!rule.matches_in(&msg, &how) && (copied, placed) == (0, 0), "acted on a guess: copies {copied}, placed on the IMAP server {placed}");
 }
+
+/// A Sieve script's `header` test, read from a script made elsewhere (#9999): the lines named
+/// alone, `:is` the whole value (A to Z in either case), `:contains` a part of it; and it can't be
+/// told of a message whose header block is kept outside memory.
+#[test]
+fn a_header_condition_reads_the_lines_it_names() {
+    let m = Message { headers: vec![("X-Spam-Flag".into(), " YES ".into()), ("X-Mailer".into(), "Harbor Mail 3".into())], ..Default::default() };
+    let header = |names: &[&str], w: &[&str], exact| Condition::Header { names: words(names), words: words(w), exact };
+    assert!(header(&["x-spam-flag", "X-Spam"], &["yes"], true).matches(&m));
+    assert!(!header(&["X-Spam-Flag"], &["YE"], true).matches(&m));
+    assert!(header(&["X-Spam-Flag"], &["YE"], false).matches(&m));
+    // Not a line it doesn't name.
+    assert!(!header(&["X-Spam"], &["harbor"], false).matches(&m));
+    assert!(header(&["X-Mailer"], &["harbor"], false).matches(&m));
+    assert!(!header(&["X-Mailer"], &[""], false).matches(&m));
+    assert_eq!(header(&["X-Spam-Flag", "X-Spam"], &["YES"], true).describe(), "message header \"X-Spam-Flag\" or \"X-Spam\" is exactly \"YES\"");
+    assert_eq!(header(&["X-Mailer"], &["Harbor"], false).describe(), "message header \"X-Mailer\" contains \"Harbor\"");
+    assert!(!header(&["X-Mailer"], &["harbor"], false).unread_in(&m));
+    let kept = Message { header_block: HeaderBlock { kept: Some(ContentRef { sha256: [0; 32], len: 10 }), ..Default::default() }, ..m.clone() };
+    assert!(header(&["X-Mailer"], &["harbor"], false).unread_in(&kept));
+    // Written and read back.
+    let c = header(&["X-Spam"], &["YES", "Yes"], true);
+    let json = serde_json::to_string(&c).unwrap();
+    assert_eq!(json, r#"{"type":"header","value":{"names":"X-Spam","words":["YES","Yes"],"exact":true}}"#);
+    assert_eq!(serde_json::from_str::<Condition>(&json).unwrap(), c);
+}

@@ -23663,6 +23663,18 @@ msgstr "bassa"
 msgid "mark it as read"
 msgstr "segnalo come letto"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "l'intestazione del messaggio {names} contiene {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "l'intestazione del messaggio {names} è esattamente {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

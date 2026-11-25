@@ -23591,6 +23591,18 @@ msgstr "basse"
 msgid "mark it as read"
 msgstr "le marquer comme lu"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "l'en-tête du message {names} contient {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "l'en-tête du message {names} est exactement {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

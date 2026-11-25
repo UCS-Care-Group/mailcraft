@@ -15,6 +15,8 @@
 //! that has another shape, or was changed elsewhere, is not taken for MailCraft's own (the host
 //! compares its digest with the one kept, `mailcraft_model::SieveKept`).
 
+use std::ops::Range;
+
 use mailcraft_model::auto_replies::{AutoReplyStatus, ExternalAudience};
 use mailcraft_time::{DateTime, Timestamp};
 
@@ -107,36 +109,81 @@ pub fn as_written(text: &str) -> String {
 /// The tokens of a script (RFC 5228 §8.1), or `None` for one that isn't Sieve, or is larger than
 /// [`MAX_SCRIPT`] or has more than [`MAX_TOKENS`]. Line breaks inside strings come back as `\n`.
 pub fn tokens(script: &str) -> Option<Vec<Tok>> {
+    Some(lex(script)?.toks.into_iter().map(|(t, _)| t).collect())
+}
+
+/// A comment of a script, where it is: its bytes, from its `#` or `/*` to the end of its line
+/// (the line break not included) or past its `*/`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Comment {
+    pub at: Range<usize>,
+    /// A `/* … */` one (else a `#` one).
+    pub bracketed: bool,
+}
+
+impl Comment {
+    /// What it says, without its `#` or `/*` and `*/`: a part of `script`, the text it was read
+    /// from (empty for another text).
+    pub fn text<'a>(&self, script: &'a str) -> &'a str {
+        let inner = if self.bracketed {
+            self.at.start.checked_add(2).zip(self.at.end.checked_sub(2)).filter(|(a, b)| a <= b)
+        } else {
+            self.at.start.checked_add(1).map(|a| (a, self.at.end)).filter(|(a, b)| a <= b)
+        };
+        inner.and_then(|(a, b)| script.get(a..b)).unwrap_or_default()
+    }
+}
+
+/// A script's tokens with where each is (its bytes), and its comments, in order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Lexed {
+    pub toks: Vec<(Tok, Range<usize>)>,
+    pub comments: Vec<Comment>,
+}
+
+/// [`tokens`] with where each is, and the comments between them (counted with the tokens towards
+/// [`MAX_TOKENS`]).
+pub fn lex(script: &str) -> Option<Lexed> {
     if script.len() > MAX_SCRIPT {
         return None;
     }
-    let mut out = Vec::new();
+    let mut out = Lexed::default();
     let mut rest = script;
+    let at = |rest: &str| script.len().saturating_sub(rest.len());
     loop {
-        if out.len() > MAX_TOKENS {
+        if out.toks.len().saturating_add(out.comments.len()) > MAX_TOKENS {
             return None;
         }
         rest = rest.trim_start_matches([' ', '\t', '\r', '\n']);
         let Some(c) = rest.chars().next() else { return Some(out) };
+        let start = at(rest);
         match c {
-            '#' => rest = rest.find('\n').and_then(|at| rest.get(at..)).unwrap_or(""),
+            '#' => {
+                let line = rest.find('\n').unwrap_or(rest.len());
+                let line = if rest.get(..line)?.ends_with('\r') { line.saturating_sub(1) } else { line };
+                rest = rest.get(line..)?;
+                out.comments.push(Comment { at: start..at(rest), bracketed: false });
+                continue;
+            }
             '/' if rest.starts_with("/*") => {
                 let end = rest.get(2..)?.find("*/")?;
                 rest = rest.get(end.checked_add(4)?..)?;
+                out.comments.push(Comment { at: start..at(rest), bracketed: true });
+                continue;
             }
             '[' | ']' | '(' | ')' | '{' | '}' | ',' | ';' => {
-                out.push(Tok::Punct(c));
                 rest = rest.get(1..)?;
+                out.toks.push((Tok::Punct(c), start..at(rest)));
             }
             '"' => {
                 let (value, after) = quoted_value(rest.get(1..)?)?;
-                out.push(Tok::Str(value));
                 rest = after;
+                out.toks.push((Tok::Str(value), start..at(rest)));
             }
             ':' => {
                 let word = identifier(rest.get(1..)?)?;
                 rest = rest.get(word.len().checked_add(1)?..)?;
-                out.push(Tok::Tag(word.to_ascii_lowercase()));
+                out.toks.push((Tok::Tag(word.to_ascii_lowercase()), start..at(rest)));
             }
             '0'..='9' => {
                 let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
@@ -152,17 +199,17 @@ pub fn tokens(script: &str) -> Option<Vec<Tok>> {
                     n = n.checked_mul(scale)?;
                     rest = rest.get(1..)?;
                 }
-                out.push(Tok::Num(n));
+                out.toks.push((Tok::Num(n), start..at(rest)));
             }
             _ => {
                 let word = identifier(rest)?;
                 rest = rest.get(word.len()..)?;
                 if word.eq_ignore_ascii_case("text") && rest.starts_with(':') {
                     let (value, after) = text_block(rest.get(1..)?)?;
-                    out.push(Tok::Str(value));
                     rest = after;
+                    out.toks.push((Tok::Str(value), start..at(rest)));
                 } else {
-                    out.push(Tok::Ident(word.to_ascii_lowercase()));
+                    out.toks.push((Tok::Ident(word.to_ascii_lowercase()), start..at(rest)));
                 }
             }
         }

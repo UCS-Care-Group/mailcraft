@@ -23683,6 +23683,18 @@ msgstr "alacsony"
 msgid "mark it as read"
 msgstr "olvasottnak jelölés"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "a(z) {names} üzenetfejléc tartalmazza: {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "a(z) {names} üzenetfejléc pontosan {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

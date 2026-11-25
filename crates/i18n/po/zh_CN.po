@@ -23662,6 +23662,18 @@ msgstr "低"
 msgid "mark it as read"
 msgstr "标记为已读"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "邮件头 {names} 包含 {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "邮件头 {names} 正好是 {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy

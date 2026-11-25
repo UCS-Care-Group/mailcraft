@@ -23743,6 +23743,18 @@ msgstr "nízká"
 msgid "mark it as read"
 msgstr "označit jako přečtené"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} contains {words}"
+msgstr "hlavička zprávy {names} obsahuje {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "message header {names} is exactly {words}"
+msgstr "hlavička zprávy {names} je přesně {words}"
+
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
