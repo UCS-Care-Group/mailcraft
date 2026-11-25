@@ -43,8 +43,10 @@ use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
 use crate::theme::Tokens;
 
-/// How many places a selection is kept for: the reading pane and the message windows.
-const MAX_PLACES: usize = 48;
+/// How many places a selection is kept for: the reading pane, every message of a conversation it
+/// stacks that is shown whole (#1778), the message windows, the original under a reply and the
+/// sample of File › Signatures, so that none shown in a frame makes room for another.
+const MAX_PLACES: usize = mailcraft_engine::stack::WHOLE + 1 + super::view::KEPT_IN_WINDOWS + 2;
 /// The longest address "Copy Link Address" takes.
 const MAX_LINK: usize = 8192;
 /// While a drag that selects is this near the top or bottom of the body, the body scrolls.
@@ -654,6 +656,19 @@ impl PlaceState {
         self.copy_when_laid = false;
     }
 
+    /// The body shows other blocks than when its text was selected (#1778: the quoted history
+    /// shown or hidden): what was selected in it, a drag going on there and a copy waiting for it
+    /// are let go of, so that nothing hidden when it was selected is copied.
+    pub(super) fn body_range_changed(&mut self) {
+        self.no_body();
+        if self.pressed.as_ref().is_some_and(|(zone, _)| *zone == Zone::Body) {
+            self.pressed = None;
+        }
+        if self.dragging == Some(Zone::Body) {
+            self.dragging = None;
+        }
+    }
+
     /// Do to the selection what the pointer did in the text of `zone`: a drag selects from where
     /// it went down, with Shift it moves the end of what is selected; two clicks take a word and
     /// three a paragraph as the button goes down, and a drag from there goes on by words or
@@ -719,11 +734,16 @@ impl PlaceState {
 
 impl Selections {
     /// The state of `place`, made when it is not there yet.
-    fn open(&mut self, place: Place) -> Option<&mut PlaceState> {
+    fn open(&mut self, place: Place, frame: u64) -> Option<&mut PlaceState> {
         if !self.places.iter().any(|s| s.place == place) {
-            // The places that were not shown for longest make room.
+            // The places that were not shown for longest make room; one shown in this frame
+            // doesn't, while any other can (#1778: its selection would be lost every frame).
+            let shown_now = |s: &PlaceState| s.frame >= frame;
+            let oldest_of = |only_earlier: bool| {
+                self.places.iter().enumerate().filter(|(_, s)| !only_earlier || !shown_now(s)).min_by_key(|(_, s)| s.frame).map(|(i, _)| i)
+            };
             if self.places.len() >= MAX_PLACES
-                && let Some(oldest) = self.places.iter().enumerate().min_by_key(|(_, s)| s.frame).map(|(i, _)| i)
+                && let Some(oldest) = oldest_of(true).or_else(|| oldest_of(false))
             {
                 self.places.swap_remove(oldest);
             }
@@ -794,7 +814,7 @@ impl Selections {
         self.places.iter().find(|s| s.place == place).and_then(|s| s.selection.as_ref()).map(|s| (s.zone, s.anchor, s.head))
     }
 
-    #[cfg(test)]
+    /// The place the keys are for: the one the pointer last went down in.
     pub(crate) fn focus(&self) -> Option<Place> {
         self.focus
     }
@@ -876,6 +896,7 @@ fn params(place: Place) -> Value {
     match place {
         Place::Pane => json!({"pane": true}),
         Place::Window(id) => json!({"window": id}),
+        Place::Thread(id) => json!({"thread": id}),
         Place::Quote => json!({"quote": true}),
         Place::Preview => json!({"preview": true}),
     }
@@ -907,7 +928,7 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_
     let escape = crate::keys::escape(ctx, ui.layer_id());
     let selections = &mut app.text_selection;
     let had_keys = selections.focus == Some(place);
-    let Some(state) = selections.open(place) else { return };
+    let Some(state) = selections.open(place, frame) else { return };
     // Another message, or the same one after it was away: nothing of before holds.
     let fresh = state.message != m.id || state.frame.saturating_add(1) < frame;
     if fresh {
@@ -1127,6 +1148,9 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 /// The place a command is about: the one it names, else the one the keys are for, else the
 /// reading pane.
 fn place_of(app: &MailApp, p: &Value) -> Result<Place, String> {
+    if let Some(id) = p.get("thread").filter(|v| !v.is_null()) {
+        return id.as_u64().map(Place::Thread).ok_or_else(|| "`thread` is the id of a message stacked in the reading pane".to_string());
+    }
     match p.get("window") {
         None | Some(Value::Null) if p.get("pane").and_then(Value::as_bool) == Some(true) => Ok(Place::Pane),
         None | Some(Value::Null) => Ok(app.text_selection.focus.unwrap_or(Place::Pane)),
@@ -1261,6 +1285,7 @@ pub(crate) fn inspect(app: &MailApp, ctx: &egui::Context) -> Value {
         let window = match state.place {
             Place::Pane => Value::Null,
             Place::Window(id) => json!(id),
+            Place::Thread(id) => json!({"thread": id}),
             Place::Quote => json!("quote"),
             Place::Preview => json!("preview"),
         };
@@ -1322,7 +1347,7 @@ mod tests {
         // Only so many places are kept, the ones shown longest ago making room.
         for id in 0..(MAX_PLACES as u64 * 3) {
             let place = Place::Window(100 + id);
-            assert!(all.open(place).is_some());
+            assert!(all.open(place, 20 + id).is_some());
             if let Some(state) = all.state(place) {
                 state.frame = 20 + id;
             }

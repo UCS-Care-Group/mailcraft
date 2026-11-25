@@ -32,6 +32,9 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+pub mod history;
+#[cfg(test)]
+mod history_tests;
 mod look;
 mod media;
 mod preview;

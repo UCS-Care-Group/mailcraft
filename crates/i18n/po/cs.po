@@ -189,7 +189,7 @@ msgid "(no recipients)"
 msgstr "(žádní příjemci)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reading/conversation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(bez předmětu)"
@@ -3733,6 +3733,12 @@ msgstr "Zavřeli jste stránku? Tímto se znovu otevře přihlašovací stránka
 msgid "Closes this window. Nothing is kept."
 msgstr "Zavře toto okno. Nic se neuchová."
 
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "Collapse All"
+msgstr "Sbalit vše"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -3951,6 +3957,19 @@ msgstr "Přispěvatelé"
 #, fuzzy
 msgid "Contributors choose their own names; see docs/contributors.md."
 msgstr "Přispěvatelé si volí vlastní jména; viz docs/contributors.md."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Conversation\n"
+"Settings"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Conversation Settings"
+msgstr "Nastavení konverzací"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
@@ -5799,6 +5818,12 @@ msgstr "Server Exchange {host}"
 msgid "Exchange server · no usable server address"
 msgstr "Server Exchange · žádná použitelná adresa serveru"
 
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "Expand All"
+msgstr "Rozbalit vše"
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
@@ -7128,6 +7153,12 @@ msgstr "Skrýt podrobnosti"
 #, fuzzy
 msgid "Hide password"
 msgstr "Skrýt heslo"
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "Hide quoted text"
+msgstr "Skrýt citovaný text"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -15547,6 +15578,12 @@ msgstr "Zobrazit úkoly z"
 #, fuzzy
 msgid "Show Training"
 msgstr "Zobrazit školení"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Show Whole Conversation in Reading Pane"
+msgstr "Zobrazit celou konverzaci v podokně čtení"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -26730,6 +26767,15 @@ msgstr[1] "{n} zprávy v konverzaci"
 msgstr[2] "{n} zpráv v konverzaci"
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "{n} message in this conversation"
+msgid_plural "{n} messages in this conversation"
+msgstr[0] "{n} zpráva v této konverzaci"
+msgstr[1] "{n} zprávy v této konverzaci"
+msgstr[2] "{n} zpráv v této konverzaci"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "{n} message in this conversation:"
@@ -27016,6 +27062,15 @@ msgstr "{n} z {total}"
 #, fuzzy
 msgid "{n} of {total} so far."
 msgstr "Zatím {n} z {total}."
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "{n} older message of this conversation isn't shown"
+msgid_plural "{n} older messages of this conversation aren't shown"
+msgstr[0] "{n} starší zpráva této konverzace není zobrazena"
+msgstr[1] "{n} starší zprávy této konverzace nejsou zobrazeny"
+msgstr[2] "{n} starších zpráv této konverzace není zobrazeno"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -27550,6 +27605,12 @@ msgstr "{why}, takže se přihlášení nepamatují: MailCraft se při každém 
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. Změny, které v něm byly provedeny zde ({n}), čekají v tomto počítači."
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+#, fuzzy
+msgid "··· Show quoted text"
+msgstr "··· Zobrazit citovaný text"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

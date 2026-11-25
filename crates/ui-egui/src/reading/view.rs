@@ -39,7 +39,22 @@ pub const FRAME_BUDGET: usize = 60_000;
 const KEPT: usize = 4;
 
 /// How many layouts are kept for windows: one each, and a few that outlive theirs for a moment.
-const KEPT_IN_WINDOWS: usize = 16;
+pub(crate) const KEPT_IN_WINDOWS: usize = 16;
+
+/// How many layouts are kept for the messages of a conversation stacked in the reading pane
+/// ([`Place::Thread`], #1778): more than it shows whole at once
+/// ([`super::conversation_state::MAX_OPEN`]), so that none of them is laid out again every frame.
+pub(crate) const KEPT_IN_STACK: usize = 64;
+
+/// Which layouts make room for each other: the pane's, a stacked conversation's, and those of
+/// windows, quotes and previews.
+fn kind_of(place: Place) -> u8 {
+    match place {
+        Place::Pane => 0,
+        Place::Thread(_) => 1,
+        Place::Window(_) | Place::Quote | Place::Preview => 2,
+    }
+}
 
 /// How many other looks of a message's blocks are kept besides the one in use.
 const KEPT_CLASSES: usize = 3;
@@ -62,6 +77,10 @@ pub struct Doc {
     /// Per block: `Some` when it goes on in the paragraph of the block before, which was cut for
     /// its length, with what was dropped at the cut. Empty when nothing was cut.
     pub cuts: Arc<[Option<Glue>]>,
+    /// The block from which the rest is the earlier messages it quotes under its own text
+    /// ([`mailcraft_html::history::start`], #1778): a message stacked with its conversation leaves
+    /// them out until the owner asks for them.
+    pub history: Option<usize>,
     /// The message's media lists (`@media` and `<style media>`): what its look can change with.
     pub lists: Arc<[String]>,
     /// It has some, so another pane width or the other theme can make another look of it; else
@@ -102,13 +121,22 @@ impl Doc {
             Some(read) if can_download => {
                 let doc = Doc { lists: lists.clone(), responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
                 if !doc.remote.is_empty() {
-                    return doc;
+                    return doc.of_subject(&message.subject);
                 }
                 (mailcraft_html::text_blocks(&message.body.text), false, true)
             }
             _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
         };
-        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }
+        Doc { lists, responsive, sender_dark, from_text, ..Doc::from_blocks(blocks) }.of_subject(&message.subject)
+    }
+
+    /// A forward (by its subject) has no quoted history to leave out: what it carries is usually
+    /// nowhere else in the conversation ([`mailcraft_html::history::start_in`]).
+    fn of_subject(mut self, subject: &str) -> Doc {
+        if mailcraft_html::history::is_forward(subject) {
+            self.history = None;
+        }
+        self
     }
 
     /// The blocks as a body, with what is known of their pictures on the web.
@@ -136,6 +164,7 @@ impl Doc {
             }
         }
         let (blocks, cuts) = in_pieces(blocks);
+        doc.history = mailcraft_html::history::start(&blocks);
         doc.blocks = blocks;
         doc.cuts = cuts.into();
         doc
@@ -244,6 +273,9 @@ struct Key {
     /// The message fonts egui had ([`crate::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
+    /// How many of its blocks are laid out: fewer than all when its quoted history is left out
+    /// ([`Doc::history`]).
+    upto: usize,
 }
 
 struct Entry {
@@ -304,7 +336,11 @@ impl Store {
     fn entry(&mut self, message: &Arc<Message>, place: Place, frame: u64, can_download: bool, env: Env) -> Option<&mut Entry> {
         let shows = |e: &Entry| {
             // Flagging or filing a message makes a new one of it; its body is still the same.
-            Arc::ptr_eq(&e.message, message) || (e.message.id == message.id && same_body(&e.message, message))
+            // (Nor a reply that became a forward, or back: a forward's history isn't cut, #1778.)
+            Arc::ptr_eq(&e.message, message)
+                || (e.message.id == message.id
+                    && same_body(&e.message, message)
+                    && mailcraft_html::history::is_forward(&e.message.subject) == mailcraft_html::history::is_forward(&message.subject))
         };
         let index = match self.entries.iter().position(|e| e.place == place && shows(e)) {
             Some(index) => index,
@@ -314,15 +350,22 @@ impl Store {
                     self.entries.iter().find(|e| shows(e) && (!e.doc.responsive || e.look == Look::of(&e.doc.lists, env))).map(|e| e.doc.clone());
                 // What was kept here of this message before it changed is of no use any more.
                 self.entries.retain(|e| e.place != place || e.message.id != message.id || message.id == 0);
-                let (kept, room) = match place {
-                    Place::Pane => (self.entries.iter().filter(|e| e.place == Place::Pane).count(), KEPT),
+                let room = match place {
+                    Place::Pane => KEPT,
+                    Place::Thread(_) => {
+                        // A message of the column that was closed, or of another conversation, is
+                        // shown nowhere now.
+                        self.entries.retain(|e| kind_of(e.place) != 1 || e.used.saturating_add(2) >= frame);
+                        KEPT_IN_STACK
+                    }
                     Place::Window(_) | Place::Quote | Place::Preview => {
                         // A window shows one message, and a window that is gone shows none.
-                        self.entries.retain(|e| e.place == Place::Pane || (e.place != place && e.used.saturating_add(2) >= frame));
-                        (self.entries.iter().filter(|e| e.place != Place::Pane).count(), KEPT_IN_WINDOWS)
+                        self.entries.retain(|e| kind_of(e.place) != 2 || (e.place != place && e.used.saturating_add(2) >= frame));
+                        KEPT_IN_WINDOWS
                     }
                 };
-                let of_a_kind = |e: &Entry| (e.place == Place::Pane) == (place == Place::Pane);
+                let of_a_kind = |e: &Entry| kind_of(e.place) == kind_of(place);
+                let kept = self.entries.iter().filter(|e| of_a_kind(e)).count();
                 if kept >= room
                     && let Some(oldest) = self.entries.iter().enumerate().filter(|(_, e)| of_a_kind(e)).min_by_key(|(_, e)| e.used).map(|(i, _)| i)
                 {
@@ -456,6 +499,15 @@ pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
 /// it runs. Pictures from the web are shown when `access` says the owner asked for them, as far
 /// as they have come.
 pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access) {
+    show_in(app, ui, message, place, access, false, false);
+}
+
+/// [`show`] for a body stacked with others of its conversation in one scrolling column
+/// (`stacked`): the pointer is sensed over the part of it that is in view, not over all the room
+/// in view as for a body that has the pane to itself, so that each body of the column, and the
+/// rows between them, have the pointer to themselves. `trim`: the earlier messages it quotes
+/// under its own text ([`Doc::history`]) are left out (#1778).
+pub fn show_in(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, stacked: bool, trim: bool) {
     let ctx = ui.ctx().clone();
     let light = on_light_page(app, place);
     let t = if light { Tokens::light() } else { Tokens::get(&ctx) };
@@ -464,7 +516,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let width = ((ui.available_width().min(super::MAX_TEXT_WIDTH) / WIDTH_STEP).floor() * WIDTH_STEP).max(1.0);
     // Links whose text names one place and which go to another wear a mark (#508); not in a
     // quote or a preview, which are the owner's own.
-    let flagged = if matches!(place, Place::Pane | Place::Window(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
+    let flagged =
+        if matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
     let store = Store::of(&ctx);
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     #[cfg(test)]
@@ -489,7 +542,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let here = match place {
         Place::Pane => Some(mailcraft_engine::ReadIn::Pane),
         Place::Window(n) => Some(mailcraft_engine::ReadIn::Window(n)),
-        Place::Quote | Place::Preview => None,
+        // A message stacked beside the selected one is no reply's original: Reply takes the
+        // selected message, read in the pane.
+        Place::Thread(_) | Place::Quote | Place::Preview => None,
     };
     if let Some(here) = here {
         app.session.read_at(message.id, here, env, entry.doc.from_text && message.body.html.is_some());
@@ -505,7 +560,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let mut pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());
     let showing = access == Access::Allowed && !entry.doc.remote.is_empty();
     // The zoom is the owner's for the message being read (`view.zoom`), not for a quote or a preview.
-    let zoom = if matches!(place, Place::Pane | Place::Window(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
+    let zoom =
+        if matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_)) { f32::from(app.session.prefs.zoom_percent()) / 100.0 } else { 1.0 };
     let key = Key {
         width: width as u32,
         zoom: zoom.to_bits(),
@@ -520,7 +576,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
             crate::fonts::tick(&ctx);
             crate::fonts::generation(&ctx)
         },
+        upto: match entry.doc.history {
+            Some(start) if trim => start.min(entry.doc.blocks.len()),
+            _ => entry.doc.blocks.len(),
+        },
     };
+    // Other blocks shown than before (the quoted history shown or hidden): what was selected in
+    // them is not what is shown now.
+    let range_changed = entry.key.is_some_and(|old| old.upto != key.upto);
     if entry.key == Some(key) {
         entry.next = None;
     } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, fonts: key.fonts, ..old } == key) {
@@ -556,7 +619,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         None => &mut entry.laid,
     };
     if !making.done {
-        making.advance(&ctx, &entry.doc.blocks, Some(&entry.message), &mut pictures, FRAME_BUDGET);
+        let blocks = entry.doc.blocks.get(..key.upto).unwrap_or(&entry.doc.blocks);
+        making.advance(&ctx, blocks, Some(&entry.message), &mut pictures, FRAME_BUDGET);
         if !making.done {
             // The rest follows in the next frames.
             ctx.request_repaint();
@@ -567,9 +631,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     }
     drop(pictures);
     let mut state = app.text_selection.state(place);
+    if range_changed && let Some(state) = state.as_deref_mut() {
+        state.body_range_changed();
+    }
     // A copy that waited for the layout to be whole is due now.
     let due = state.as_deref_mut().and_then(|state| state.bind(&entry.doc, entry.laid.done));
-    let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged);
+    let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged, stacked);
     #[cfg(test)]
     {
         entry.origin = origin;
@@ -615,7 +682,7 @@ fn wheel_zoom(app: &mut MailApp, ui: &Ui) {
 /// window's theme: the owner asked for it, and it is a message being read (not the original
 /// under a reply being written, nor File › Signatures' sample).
 pub fn on_light_page(app: &MailApp, place: Place) -> bool {
-    app.ui.light_messages && matches!(place, Place::Pane | Place::Window(_))
+    app.ui.light_messages && matches!(place, Place::Pane | Place::Window(_) | Place::Thread(_))
 }
 
 /// What the body scrolls on: the light theme's page when [`on_light_page`] (the edges of the
@@ -665,6 +732,14 @@ pub fn current_look(ctx: &egui::Context, place: Place, message: mailcraft_model:
     store.entries.iter().find(|e| e.place == place && e.message.id == message).map(|e| e.look.clone())
 }
 
+/// Whether the message shown at `place` quotes earlier messages under its own text
+/// ([`Doc::history`]), as its blocks were last made.
+pub fn has_history(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> bool {
+    let store = Store::of(ctx);
+    let store = store.lock().unwrap_or_else(|e| e.into_inner());
+    store.entries.iter().any(|e| e.place == place && e.message.id == message && e.doc.history.is_some())
+}
+
 /// The blocks in use for a message shown at `place`, for tests.
 #[cfg(test)]
 pub fn current_doc(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> Option<Arc<Doc>> {
@@ -705,6 +780,7 @@ pub fn paint(
     access: Access,
     mut state: Option<&mut select::PlaceState>,
     flagged: &[String],
+    stacked: bool,
 ) -> (egui::Pos2, Option<Action>) {
     let (area, _) = ui.allocate_exact_size(vec2(laid.size.x.max(1.0), laid.size.y.max(1.0)), Sense::hover());
     let origin = area.min.to_vec2();
@@ -712,7 +788,10 @@ pub fn paint(
     let ctx = ui.ctx().clone();
     // The pointer is sensed over all of the body that is in view, its margins and the room under
     // a short message too: a drag that selects begins and ends wherever the pointer happens to be.
-    let response = ui.interact(clip, ui.scope_id().with("body"), select::sense(ui));
+    // A body stacked with others of its conversation shares the room in view with them, and
+    // senses over itself alone ([`show_in`]).
+    let sensed = if stacked { area.intersect(clip) } else { clip };
+    let response = ui.interact(sensed, ui.scope_id().with("body"), select::sense(ui));
     if let Some(state) = state.as_deref_mut() {
         select::body(ui, &response, laid, area.min, state);
     }

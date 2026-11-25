@@ -159,7 +159,7 @@ msgid "(no recipients)"
 msgstr ""
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reading/conversation.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 msgid "(no subject)"
 msgstr ""
 
@@ -3107,6 +3107,11 @@ msgstr ""
 msgid "Closes this window. Nothing is kept."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Collapse All"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Collapse Conversation"
@@ -3287,6 +3292,18 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "Contributors choose their own names; see docs/contributors.md."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Conversation\n"
+"Settings"
+msgstr ""
+
+#. command label, ribbon
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Conversation Settings"
 msgstr ""
 
 #. android
@@ -4816,6 +4833,11 @@ msgstr ""
 msgid "Exchange server · no usable server address"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Expand All"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Expand Conversation"
@@ -5898,6 +5920,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/secret_field.rs
 msgid "Hide password"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "Hide quoted text"
 msgstr ""
 
 #. interface
@@ -12871,6 +12898,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/help.rs
 msgid "Show Training"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Show Whole Conversation in Reading Pane"
 msgstr ""
 
 #. interface
@@ -22134,6 +22166,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "{n} message in this conversation"
+msgid_plural "{n} messages in this conversation"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "{n} message in this conversation:"
 msgid_plural "{n} messages in this conversation:"
@@ -22357,6 +22396,13 @@ msgstr ""
 #: crates/ui-egui/src/reading/remote.rs
 msgid "{n} of {total} so far."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "{n} older message of this conversation isn't shown"
+msgid_plural "{n} older messages of this conversation aren't shown"
+msgstr[0] ""
+msgstr[1] ""
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
@@ -22783,6 +22829,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{why}. {n} changes made in it here wait on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/conversation.rs
+msgid "··· Show quoted text"
 msgstr ""
 
 #. interface

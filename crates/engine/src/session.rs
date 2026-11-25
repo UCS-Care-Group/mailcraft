@@ -273,6 +273,20 @@ pub fn enum_code<T: Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
+/// How many selections [`Session::reads_on_open`] keeps.
+pub const READS_KEPT: usize = 8;
+
+/// A selection, and the messages it marked read as it opened them ([`Session::reads_on_open`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReadOnOpen {
+    /// Its number: each selection's is one more than the one before.
+    pub count: u64,
+    /// The message it selected (0 for none).
+    pub focus: Id,
+    /// What it read.
+    pub ids: Vec<Id>,
+}
+
 /// View state that commands change (the View tab, the navigation bar, the search box).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -285,6 +299,11 @@ pub struct ViewState {
     pub sort_descending: bool,
     /// Show messages grouped into conversations.
     pub conversations: bool,
+    /// In conversation view, the reading pane shows the selected message's whole conversation,
+    /// one message under another, as Gmail does (`view.conversationSettings`, #1778): beyond what
+    /// Outlook does, so off unless the owner turns it on. Off: the selected message alone, with a
+    /// line of the conversation's other messages to go to.
+    pub whole_conversation: bool,
     /// The conversations opened in the list (#503), each by its account and its key
     /// ([`Session::threads`], #795): their messages are listed under their rows. Another folder, tab
     /// or search starts with all of them closed. Not kept with the view's settings, which would
@@ -360,6 +379,7 @@ impl Default for ViewState {
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
+            whole_conversation: false,
             open: Vec::new(),
             filter: Filter::All,
             gmail: None,
@@ -1299,10 +1319,15 @@ pub struct Session {
     pub(crate) threads_cache: crate::conversations::ThreadsCache,
     /// How many times the list was built ([`Session::list_builds`]).
     list_builds: u64,
-    /// The message a selection just opened, to be marked read once the command that selected it
-    /// has done ([`Session::mark_opened`]): selecting is a reading command, so that a click or
-    /// an arrow key doesn't copy the mailbox and compare it afterwards.
-    pub(crate) opened: Option<Id>,
+    /// The messages a selection just opened, to be marked read once the command that selected
+    /// it has done ([`Session::mark_opened`]): selecting is a reading command, so that a click or
+    /// an arrow key doesn't copy the mailbox and compare it afterwards. The selected message, or
+    /// its whole conversation when the reading pane shows that (#1778).
+    pub(crate) opened: Vec<Id>,
+    /// The last selections and what each read as it opened ([`Session::reads_on_open`]).
+    pub(crate) reads_on_open: std::collections::VecDeque<ReadOnOpen>,
+    /// How many selections there have been, the last one's number.
+    reads_on_open_count: u64,
     /// The known correspondents, and the sender warnings worked out against them
     /// ([`Session::sender_warnings`]). Never saved.
     pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
@@ -1519,7 +1544,9 @@ impl Session {
             conversation_cache: None,
             threads_cache: Default::default(),
             list_builds: 0,
-            opened: None,
+            opened: Vec::new(),
+            reads_on_open: std::collections::VecDeque::new(),
+            reads_on_open_count: 0,
             sender_checks: Default::default(),
             signatures: Default::default(),
             content_source: None,
@@ -2097,19 +2124,54 @@ impl Session {
         }
     }
 
+    /// The last selections, oldest first, each with the messages it marked read as it opened
+    /// them (File › Options, #1778): of a conversation stacked in the reading pane, those that
+    /// weren't read until then, which the pane shows whole as it shows the ones not read yet. A
+    /// selection that read nothing is there too, with none. Kept for the last [`READS_KEPT`]
+    /// selections, so that a reader that takes them in once a frame misses none of several
+    /// selections in one frame.
+    pub fn reads_on_open(&self) -> &std::collections::VecDeque<ReadOnOpen> {
+        &self.reads_on_open
+    }
+
+    /// A selection begins ([`crate::cmd::mail::mark_opened`]): it is noted, having read nothing
+    /// yet.
+    pub(crate) fn note_selection(&mut self, focus: Option<Id>) {
+        self.reads_on_open_count = self.reads_on_open_count.wrapping_add(1);
+        if self.reads_on_open.len() >= READS_KEPT {
+            self.reads_on_open.pop_front();
+        }
+        self.reads_on_open.push_back(ReadOnOpen { count: self.reads_on_open_count, focus: focus.unwrap_or_default(), ids: Vec::new() });
+    }
+
     /// The message a selection opened ([`Session::opened`]) is marked read, once the command
     /// that selected it has done. After a command on the light path (`light`), whose copy of the
     /// mailbox wasn't taken, this is the one change: the list, the counts and the conversation
     /// are carried through it as through any read mark alone ([`Session::list_stands`]).
     /// Otherwise the command's own comparison sees it.
-    fn mark_opened_read(&mut self, id: Id, light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
-        let Some(old) = self.mailbox.messages.get(&id).cloned().filter(|m| !m.read && !m.draft) else { return };
+    fn mark_opened_read(&mut self, ids: &[Id], light: bool, counts_before: Option<Arc<crate::counts::FolderCounts>>) {
+        let old: Vec<Arc<Message>> = ids.iter().filter_map(|id| self.mailbox.messages.get(id).cloned()).filter(|m| !m.read && !m.draft).collect();
+        if old.is_empty() {
+            return;
+        }
         let carried = light
             && self.view.filter == Filter::All
             && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
             && self.list_cache.as_ref().is_some_and(|c| c.key == self.list_key());
-        let Ok(m) = self.mailbox.message_mut(id) else { return };
-        m.read = true;
+        let mut marked = Vec::with_capacity(old.len());
+        for m in &old {
+            if let Ok(m) = self.mailbox.message_mut(m.id) {
+                m.read = true;
+                marked.push(m.id);
+            }
+        }
+        if marked.is_empty() {
+            return;
+        }
+        // What the selection, the last one noted, read.
+        if let Some(last) = self.reads_on_open.back_mut() {
+            last.ids.clone_from(&marked);
+        }
         self.dirty = true;
         if !light {
             // A new revision whatever the command's own comparison does after (an Undo or Redo
@@ -2118,11 +2180,11 @@ impl Session {
             self.rev += 1;
             return;
         }
-        self.hold([&old]);
+        self.hold(&old);
         let rev_before = self.rev;
         self.rev += 1;
         if carried {
-            self.keep_through_read_marks(&[id], rev_before, counts_before);
+            self.keep_through_read_marks(&marked, rev_before, counts_before);
         }
     }
 
@@ -4415,10 +4477,11 @@ impl Session {
                 Err(failed!("{command} failed unexpectedly; nothing was changed", command = mailcraft_i18n::Arg::words(spec.label)))
             }
         };
-        // The message a selection opened is marked read now that the command is done; one that
-        // failed marks nothing.
-        if let Some(opened) = self.opened.take().filter(|_| result.is_ok()) {
-            self.mark_opened_read(opened, light, if light { counts_before.clone() } else { None });
+        // What a selection opened is marked read now that the command is done; one that failed
+        // marks nothing.
+        let opened = std::mem::take(&mut self.opened);
+        if !opened.is_empty() && result.is_ok() {
+            self.mark_opened_read(&opened, light, if light { counts_before.clone() } else { None });
         }
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
         // gone for good, an appointment the owner is changing taken away) is undone, whatever

@@ -40,6 +40,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .reads()
             .params(r#"{"value": "bar"|"foot"} — the switch between Mail, Calendar, People and Tasks as the bar of icons down the window's left edge, or as a row of names at the foot of the pane on the left, where older mail programs had it (#1174)"#),
         CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).reads().params(TOGGLE),
+        CommandSpec::new("view.conversationSettings", "Conversation Settings", "View › Messages", conversation_settings)
+            .reads()
+            .params(r#"{"wholeConversation"?: bool} — in conversation view, the reading pane shows the selected message's whole conversation, one message under another, the selected one and those not read yet whole, within `mailcraft_engine::stack`'s bounds (200 listed, 48 whole besides the selected one), the others a row each (off, the default: the selected message alone, with a line of the conversation's others); turning it on turns conversation view on (#1778). Without params, says the settings"#),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
             .reads()
             .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),
@@ -177,6 +180,17 @@ fn folder_pane(s: &mut Session, v: &Value) -> CmdResult {
 fn conversations(s: &mut Session, v: &Value) -> CmdResult {
     s.view.conversations = p::bool(v, "value").unwrap_or(!s.view.conversations);
     Ok(json!({"value": s.view.conversations}))
+}
+
+fn conversation_settings(s: &mut Session, v: &Value) -> CmdResult {
+    if let Some(whole) = p::bool(v, "wholeConversation") {
+        s.view.whole_conversation = whole;
+        // A whole conversation is read only in conversation view: asking for it asks for that.
+        if whole {
+            s.view.conversations = true;
+        }
+    }
+    Ok(json!({"wholeConversation": s.view.whole_conversation, "conversations": s.view.conversations}))
 }
 
 fn sort(s: &mut Session, v: &Value) -> CmdResult {

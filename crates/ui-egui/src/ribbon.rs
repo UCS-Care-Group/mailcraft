@@ -173,6 +173,7 @@ pub(crate) enum Menu {
     ReadingPane,
     GmailCategories,
     NavigationBar,
+    ConversationSettings,
     Preview,
     ArrangeBy,
     Theme,
@@ -267,6 +268,7 @@ pub(crate) fn holds_a_field(menu: Menu) -> bool {
         | Menu::ReadingPane
         | Menu::GmailCategories
         | Menu::NavigationBar
+        | Menu::ConversationSettings
         | Menu::Preview
         | Menu::ArrangeBy
         | Menu::Theme
@@ -1234,6 +1236,14 @@ fn view_of_any(app: &MailApp) -> Tab {
             "Messages",
             vec![
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
+                Item::big_menu(
+                    "conversationSettings",
+                    "conversations",
+                    "Conversation\nSettings",
+                    "Conversation Settings",
+                    Menu::ConversationSettings,
+                )
+                .at(1, 3),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
                 Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
                 Item::big("shadeRows", "Shade\nRows", "view.shadeRows", no()).checked(shade).at(1, 4),
@@ -1891,6 +1901,12 @@ pub(crate) fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             let tabs = app.session.view.gmail_tabs;
             mi_check(ui, app, "As Folders", !tabs, "view.gmailCategories", json!({"value": "folders"}));
             mi_check(ui, app, "As Tabs above the Inbox", tabs, "view.gmailCategories", json!({"value": "tabs"}));
+        }
+        Menu::ConversationSettings => {
+            // Gmail's way, beyond Outlook's (#1778): off unless the owner turns it on. It shows in
+            // conversation view only, which turning it on turns on too.
+            let whole = app.session.view.conversations && app.session.view.whole_conversation;
+            mi_check(ui, app, "Show Whole Conversation in Reading Pane", whole, "view.conversationSettings", json!({"wholeConversation": !whole}));
         }
         Menu::Preview => {
             let lines = app.session.prefs.preview_lines;
