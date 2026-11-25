@@ -666,6 +666,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         // Graph says neither of the marks a JMAP server keeps as keywords.
         answered: false,
         forwarded: false,
+        marks_said: false,
         flag,
         // Every message page of a Graph listing selects the flag, so a Graph message object
         // without one is a server saying unflagged; the light listing of read states arrives as

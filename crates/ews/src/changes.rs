@@ -217,13 +217,16 @@ impl ItemUpdate {
         }
         if let Some(status) = self.flag_tag {
             let uri = || Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer");
-            let value = match status {
-                FlagStatus::None => "0",
-                FlagStatus::Complete => "1",
-                FlagStatus::Flagged => "2",
-            };
-            let property = Element::new("t:ExtendedProperty").child(uri()).child(Element::new("t:Value").text(value));
-            put(Element::new("t:SetItemField").child(uri()).child(Element::new("t:Message").child(property)));
+            // (Clearing deletes the property, as [MS-OXOFLAG] clears a flag — writing 0 leaves
+            // whatever the flag carried behind it on a server that keeps such things; Kerio
+            // takes the delete and answers the flag as none after (measured 2026-11-24).)
+            if status == FlagStatus::None {
+                put(Element::new("t:DeleteItemField").child(uri()));
+            } else {
+                let value = if status == FlagStatus::Complete { "1" } else { "2" };
+                let property = Element::new("t:ExtendedProperty").child(uri()).child(Element::new("t:Value").text(value));
+                put(Element::new("t:SetItemField").child(uri()).child(Element::new("t:Message").child(property)));
+            }
         }
         if let Some(categories) = &self.categories {
             if categories.is_empty() {

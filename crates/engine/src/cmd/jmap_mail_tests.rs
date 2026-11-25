@@ -41,7 +41,7 @@ pub(super) fn mailboxes() -> Vec<GraphFolder> {
 /// An email as a window brings one that isn't here: what a list shows of it.
 pub(super) fn email(id: &str, subject: &str, received: i64) -> GraphMessage {
     GraphMessage {
-        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), size: 1_200, ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, marks_said: true, id: id.into(), size: 1_200, ..Default::default() },
         message_id: format!("{id}@example.org"),
         subject: subject.into(),
         from: Address::new("Zoe Park", "zoe@example.org"),
@@ -56,7 +56,7 @@ pub(super) fn email(id: &str, subject: &str, received: i64) -> GraphMessage {
 /// An email as a window brings one that is here: its marks alone.
 pub(super) fn marks(id: &str, read: bool, flagged: bool) -> GraphMessage {
     let flag = if flagged { FlagStatus::Flagged } else { FlagStatus::None };
-    GraphMessage { server: ServerMessage { read_said: true, flag_said: true, id: id.into(), read, flag, ..Default::default() }, ..Default::default() }
+    GraphMessage { server: ServerMessage { read_said: true, flag_said: true, marks_said: true, id: id.into(), read, flag, ..Default::default() }, ..Default::default() }
 }
 
 pub(super) fn window(folder: &str, messages: Vec<GraphMessage>, afresh: bool) -> MessagePage {

@@ -304,21 +304,21 @@ fn extended_read(item: &Node) -> Option<bool> {
     })
 }
 
-/// The answered and forwarded marks as `PR_ICON_ID` (0x1081): the icon a MAPI client draws,
-/// which numbers what the message has had done to it — 102 is a reply sent, 104 a forward
-/// ([MS-OXOCORG]'s icon table, the icons Outlook itself picks). A server that computes the
-/// icon from its real marks answers it lean: measured on Kerio 2026-11-24, a web-mail or
-/// IMAP `\Answered` came back 102 and `\Forwarded` 104, which is how Outlook shows a replied
-/// arrow there — the same door, read. One icon says one thing: a message both answered and
-/// forwarded shows the one the server's table ranks first, and the other mark waits for a
-/// server that names them apart.
-fn extended_marks(item: &Node) -> (bool, bool) {
-    match extended_value(item, "4225", 0x1081).and_then(|v| v.parse::<i64>().ok()) {
-        Some(102) => (true, false),
-        Some(104) => (false, true),
-        Some(_) => (false, false),
-        None => (false, false),
-    }
+/// The answered and forwarded marks as `PR_LAST_VERB_EXECUTED` (0x1081): what the server
+/// last saw done with the message — 102 a reply to the sender, 103 to all, 108 to the
+/// folder, 104 a forward ([MS-OXOMSG]'s verbs; 0x1082 carries its time, unasked). A
+/// server derives it from its real marks: measured on Kerio 2026-11-24, a web-mail or
+/// IMAP `\Answered` came back 102 and `\Forwarded` 104 — the door Outlook's replied
+/// arrow rides, read. One verb says one thing: reply then forward shows the forward,
+/// and the reply waits for a server that names them apart. A server that never got the
+/// verb says nothing, which is no answer and not no mark — the marks are said apart
+/// (`marks_said`), so one held here for a send the server never heard of survives.
+fn extended_verb(item: &Node) -> Option<(bool, bool)> {
+    extended_value(item, "4225", 0x1081).and_then(|t| t.parse::<i64>().ok()).map(|verb| match verb {
+        102 | 103 | 108 => (true, false),
+        104 => (false, true),
+        _ => (false, false),
+    })
 }
 
 fn flag(node: &Node, name: &str) -> bool {
@@ -402,14 +402,15 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
     let native_read = item.child_in(TYPES, "IsRead").map(|n| n.text.trim().eq_ignore_ascii_case("true"));
     let ext_read = extended_read(item);
-    let (answered, forwarded) = extended_marks(item);
+    let verb = extended_verb(item);
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
             read: native_read.or(ext_read).unwrap_or(false),
             read_said: native_read.is_some() || ext_read.is_some(),
-            answered,
-            forwarded,
+            answered: verb.is_some_and(|v| v.0),
+            forwarded: verb.is_some_and(|v| v.1),
+            marks_said: verb.is_some(),
             flag: status,
             flag_said: flag_node.is_some() || ext_flag.is_some(),
             categories,

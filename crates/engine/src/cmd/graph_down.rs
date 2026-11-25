@@ -321,13 +321,14 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if now.read_said && m.read == last.read {
         m.read = now.read;
     }
-    // The marks a JMAP server keeps as keywords, as the read state (a Graph server says neither:
-    // they stay false on both sides, and what is set here stays). The keywords came or they did
-    // not as a whole: whether they were named is asked once, by the read state's own word.
-    if now.read_said && m.answered == last.answered {
+    // The marks a JMAP server keeps as keywords and EWS answers as its last-verb tag, as the
+    // read state (a Graph server says neither: they stay false on both sides, and what is set
+    // here stays). Whether they were named is asked by their own word, not the read state's:
+    // a server that never heard of this computer's send must not unanswer a reply made here.
+    if now.marks_said && m.answered == last.answered {
         m.answered = now.answered;
     }
-    if now.read_said && m.forwarded == last.forwarded {
+    if now.marks_said && m.forwarded == last.forwarded {
         m.forwarded = now.forwarded;
     }
     // The flag is its status and its due date: changed here, both stay as they are.
@@ -407,6 +408,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let mut agreed = now.clone();
     if !agreed.read_said {
         agreed.read = last.read;
+    }
+    if !agreed.marks_said {
         agreed.answered = last.answered;
         agreed.forwarded = last.forwarded;
     }

@@ -148,27 +148,35 @@ fn the_flag_status_tag_reads_the_flag_kerio_keeps() {
     }
 }
 
-/// The answered and forwarded marks ride the icon number (`PR_ICON_ID`): 102 is a reply
-/// sent, 104 a forward ([MS-OXOCORG], the icons Outlook draws); any other icon says no
-/// mark, and a server that doesn't answer the tag says it too, as the field has always
-/// answered false on EWS (#1784, the marks: measured on Kerio 2026-11-24, a web-mail
-/// `\Answered` came back 102 and `\Forwarded` 104 — the same door Outlook's arrow rides).
+/// The answered and forwarded marks ride the last verb (`PR_LAST_VERB_EXECUTED`): 102
+/// is a reply to the sender, 103 to all, 108 to the folder, 104 a forward ([MS-OXOMSG]'s
+/// verbs); any other verb says neither mark, and a server that doesn't answer the tag
+/// says nothing, which the merge holds rather than applies (#1784, the marks: measured
+/// on Kerio 2026-11-24, a web-mail `\Answered` came back 102 and `\Forwarded` 104 —
+/// the same door Outlook's replied arrow rides).
 #[test]
-fn the_icon_tag_brings_the_answered_and_forwarded_marks() {
-    for (tag, value, answered, forwarded) in [
-        ("0x1081", "102", true, false),
-        ("1081", "102", true, false),
-        ("4225", "104", false, true),
-        ("0x1081", "103", false, false),
-        ("0x1081", "twelve", false, false),
+fn the_last_verb_tag_brings_the_answered_and_forwarded_marks() {
+    for (tag, value, answered, forwarded, said) in [
+        ("0x1081", "102", true, false, true),
+        ("1081", "102", true, false, true),
+        ("4225", "104", false, true, true),
+        ("0x1081", "103", true, false, true),
+        ("0x1081", "108", true, false, true),
+        ("0x1081", "105", false, false, true),
+        ("0x1081", "twelve", false, false, false),
     ] {
         let xml = format!(
             "<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/><t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"{tag}\" PropertyType=\"Integer\"/><t:Value>{value}</t:Value></t:ExtendedProperty></t:Message></t:Create>"
         );
         let got = page(&xml, 10).unwrap();
         let m = &got.messages[0].server;
-        assert_eq!((m.answered, m.forwarded), (answered, forwarded), "tag {tag}={value}");
+        assert_eq!((m.answered, m.forwarded, m.marks_said), (answered, forwarded, said), "tag {tag}={value}");
     }
+    // (No verb named at all: nothing said, so a mark held here for a send the server
+    // never heard of survives the sync; keeping it is the merge's, not the reader's.)
+    let got = page("<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/></t:Message></t:Create>", 10).unwrap();
+    let m = &got.messages[0].server;
+    assert!(!m.answered && !m.forwarded && !m.marks_said, "an answer that names no verb says nothing of the marks");
 }
 
 /// Every shape of the list asks over the `IdOnly` base with its properties named: the `Default`
@@ -208,7 +216,7 @@ fn every_shape_asks_the_light_base_with_its_properties_named() {
                 body.contains("PropertyTag=\"0x1090\"") == extended,
                 "and the MAPI flag tag rides with it: on Kerio it is the only flag there is"
             );
-            assert!(body.contains("PropertyTag=\"0x1081\"") == extended, "and the icon tag with them: it carries the answered and forwarded marks");
+            assert!(body.contains("PropertyTag=\"0x1081\"") == extended, "and the verb tag with them: it carries the answered and forwarded marks");
             assert!(!body.contains("\"0E67\""), "and never the bare tag Kerio drops the connection for");
         }
     }

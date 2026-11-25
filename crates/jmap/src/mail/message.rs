@@ -116,6 +116,7 @@ fn server(id: &str, mailbox: &str, marks: Marks, size: u64) -> ServerMessage {
         read_said: marks.keywords,
         answered: marks.answered,
         forwarded: marks.forwarded,
+        marks_said: marks.keywords,
         flag: if marks.flagged { FlagStatus::Flagged } else { FlagStatus::None },
         flag_said: marks.keywords,
         size,

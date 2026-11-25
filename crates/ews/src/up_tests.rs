@@ -777,3 +777,28 @@ fn a_draft_asks_for_a_read_receipt_where_the_schema_puts_it() {
     let xml = UpdateItem::draft("ID1", "CK", update).element().write();
     assert!(xml.contains("message:IsReadReceiptRequested") && xml.contains("<t:IsReadReceiptRequested>false<"), "{xml}");
 }
+
+/// The flag over the tag, written and cleared the way a server without a flag family
+/// takes it (measured on Kerio 2026-11-24: the set lands as IMAP's `\Flagged`, the delete
+/// answers the flag as none; [MS-OXOFLAG] clears by deleting, not by writing a number).
+#[test]
+fn the_flag_over_the_tag_is_written_as_set_and_cleared_as_delete() {
+    use crate::changes::{ItemUpdate, UpdateItem};
+    use mailcraft_model::FlagStatus;
+    let body = UpdateItem::marks("ID1", ItemUpdate { flag_tag: Some(FlagStatus::Flagged), ..ItemUpdate::default() }).element().write();
+    assert!(
+        body.contains("t:SetItemField") && body.contains("PropertyTag=\"0x1090\"") && body.contains("<t:Value>2</t:Value>"),
+        "flagged is written as MAPI numbers it: {body}"
+    );
+    assert!(
+        body.contains("t:ExtendedFieldURI") && !body.contains("item:Flag"),
+        "the tag answers directly under SetItemField, and the flag family is never named"
+    );
+    let body = UpdateItem::marks("ID1", ItemUpdate { flag_tag: Some(FlagStatus::Complete), ..ItemUpdate::default() }).element().write();
+    assert!(body.contains("<t:Value>1</t:Value>"), "a worked-through flag is 1");
+    let body = UpdateItem::marks("ID1", ItemUpdate { flag_tag: Some(FlagStatus::None), ..ItemUpdate::default() }).element().write();
+    assert!(
+        body.contains("t:DeleteItemField") && body.contains("PropertyTag=\"0x1090\"") && !body.contains("<t:Value>"),
+        "clearing deletes the property: {body}"
+    );
+}

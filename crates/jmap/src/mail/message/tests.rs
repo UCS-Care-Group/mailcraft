@@ -360,7 +360,7 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
     assert_eq!(
         had,
         GraphMessage {
-            server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, read_said: true, flag_said: true, ..Default::default() },
+            server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, read_said: true, marks_said: true, flag_said: true, ..Default::default() },
             ..Default::default()
         }
     );
