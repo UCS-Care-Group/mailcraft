@@ -762,3 +762,34 @@ fn an_answer_after_a_download_retires_what_the_server_took() {
     let c = s.mailbox.contact(bo).unwrap();
     assert_eq!((c.last.as_str(), c.company.as_str(), c.origin.change_key.as_str()), ("Marsh", "Example Ltd", "ck-c-bo-2"));
 }
+
+/// Review of #1934 (fifth round): a new contact whose try failed, then undone, waits for a list
+/// read after that try; and when the server lists it without its categories, the deletion
+/// that goes up remembers those sent.
+#[test]
+fn a_failed_new_contact_undone_waits_for_a_later_list_and_keeps_its_categories() {
+    let failed = |s: &mut Session, account| {
+        run(s, "people.new", json!({"first": "Dee", "categories": ["Red category"]}));
+        let op = upload(s, account).ops.remove(0);
+        let outcome = ContactOutcome { op: op.clone(), result: ContactResult::Failed, ..Default::default() };
+        let uploaded = ContactsUploaded { account, email: EMAIL.into(), outcomes: vec![outcome], ..Default::default() };
+        run(s, "sync.applyContactChanges", json!({"result": uploaded}));
+        run(s, "edit.undo", json!({}));
+        op
+    };
+    let (mut s, account) = session();
+    failed(&mut s, account);
+    let list = |read_at| ContactsDownload { read_at, ..download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]) };
+    run(&mut s, "sync.applyContacts", json!({"download": list(NOW - 1)}));
+    assert_eq!(s.mailbox.contact_changes.len(), 1, "a list read before the try says nothing");
+    run(&mut s, "sync.applyContacts", json!({"download": list(NOW + 1)}));
+    assert!(s.mailbox.contact_changes.is_empty() && upload(&mut s, account).ops.is_empty());
+
+    let (mut s, account) = session();
+    let op = failed(&mut s, account);
+    let theirs = RemoteContact { id: "c-dee".into(), change_key: "ck-dee".into(), categories: None, ..op.values };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+    let note = &s.mailbox.contact_changes[0];
+    assert_eq!(note.kind, ContactChangeKind::Delete);
+    assert_eq!(note.base.as_ref().map(|b| b.categories.clone()), Some(vec!["Red category".to_string()]));
+}

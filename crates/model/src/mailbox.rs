@@ -3810,12 +3810,14 @@ impl Mailbox {
         // (A new contact gone here may wait only once sent: it is the record that it isn't wanted.)
         let owner: HashMap<Id, Id> = self.contact_folders.iter().map(|f| (f.id, f.account)).collect();
         let contacts = &self.contacts;
+        // (A new or changed contact that is here is in the note's folder; a deleted one isn't.)
         self.contact_changes.retain(|c| {
-            let here = contacts.contains_key(&c.contact);
+            let contact = contacts.get(&c.contact);
+            let here = contact.is_some_and(|x| x.folder == c.folder);
             let whole = match c.kind {
-                ContactChangeKind::Create => here || c.sent,
+                ContactChangeKind::Create => c.remote.is_empty() && contact.map_or(c.sent && c.contact != 0, |_| here),
                 ContactChangeKind::Change => here && !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
-                ContactChangeKind::Delete => !c.remote.is_empty() && c.base.is_some(),
+                ContactChangeKind::Delete => !here && !c.remote.is_empty() && c.base.is_some(),
             };
             whole && accounts.contains(&c.account) && owner.get(&c.folder) == Some(&c.account)
         });

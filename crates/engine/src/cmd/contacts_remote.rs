@@ -178,7 +178,7 @@ fn put_note(mailbox: &mut Mailbox, at: Option<usize>, change: Option<ContactChan
                 if old.kind == change.kind {
                     (change.attempts, change.denied, change.sent) = (old.attempts, old.denied, old.sent);
                     if change.kind == ContactChangeKind::Create {
-                        change.unconfirmed = old.unconfirmed;
+                        (change.unconfirmed, change.tried) = (old.unconfirmed, old.tried);
                         change.base = old.base.take();
                     }
                 }
@@ -428,7 +428,18 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                     }
                 }
             }
-            None => match twin(mailbox, account, folder, &fresh) {
+            None => match twin(mailbox, account, folder, &fresh).inspect(|twin| {
+                // A server that didn't say what its categories are has those that were sent.
+                if remote.categories.is_none() {
+                    let sent = mailbox
+                        .contact_changes
+                        .iter()
+                        .find(|c| c.contact == *twin)
+                        .and_then(|c| c.base.as_deref())
+                        .or_else(|| mailbox.contact(*twin));
+                    fresh.categories = sent.map(|c| c.categories.clone()).unwrap_or_default();
+                }
+            }) {
                 // Made there, and no longer wanted here: it is deleted there.
                 Some(twin) if mailbox.contact(twin).is_none() => {
                     if let Some(note) = mailbox.contact_changes.iter_mut().find(|c| c.contact == twin) {
@@ -445,16 +456,6 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                     merged.skipped += 1;
                 }
                 Some(twin) => {
-                    // A server that didn't say what its categories are has those that were sent.
-                    if remote.categories.is_none() {
-                        let sent = mailbox
-                            .contact_changes
-                            .iter()
-                            .find(|c| c.contact == twin)
-                            .and_then(|c| c.base.as_deref())
-                            .or_else(|| mailbox.contact(twin));
-                        fresh.categories = sent.map(|c| c.categories.clone()).unwrap_or_default();
-                    }
                     let _ = note_contact(mailbox, twin, Some(fresh));
                     merged.updated += 1;
                 }
@@ -479,12 +480,12 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         {
             c.unconfirmed = 0;
         }
-        // One no longer wanted here that such a list doesn't show either: nothing left to do. (One
-        // whose try failed has no time of its own: any list said to be read at all is taken.)
+        // One no longer wanted here that such a list, read after it was last tried, doesn't show
+        // either: nothing left to do.
         let contacts = &mailbox.contacts;
         mailbox.contact_changes.retain(|c| {
             let unwanted = c.folder == folder && c.kind == ContactChangeKind::Create && c.sent && !contacts.contains_key(&c.contact);
-            !(unwanted && read != 0 && c.unconfirmed == 0)
+            !(unwanted && c.unconfirmed == 0 && read > c.tried)
         });
         let listed_here = |id: &Id| mailbox.contact(*id).is_some_and(|c| c.folder == folder);
         gone.extend(known.iter().filter(|(remote, id)| !seen.contains(*remote) && listed_here(id)).map(|(remote, _)| remote.clone()));
@@ -660,7 +661,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                     // It may have reached the server, unless the server said it took nothing
                     // (too many requests: the rest of the batch wasn't tried either).
                     if kind == ContactChangeKind::Create && outcome.status != 429 {
-                        (change.sent, change.base) = (true, Some(Box::new(contact_from_remote(&outcome.op.values))));
+                        (change.sent, change.tried, change.base) = (true, now, Some(Box::new(contact_from_remote(&outcome.op.values))));
                     }
                     applied.failed += 1;
                 }
@@ -669,7 +670,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                 // Made, but under a name not heard: not sent again (it would be made twice) until
                 // a download shows it ([`merge_contacts`] takes it for this one) or doesn't.
                 if let Some(change) = at.and_then(|at| mailbox.contact_changes.get_mut(at)) {
-                    (change.unconfirmed, change.sent) = (now.max(1), true);
+                    (change.unconfirmed, change.sent, change.tried) = (now.max(1), true, now);
                     change.base = Some(Box::new(contact_from_remote(&outcome.op.values)));
                     applied.done += 1;
                 }

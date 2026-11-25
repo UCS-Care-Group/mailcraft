@@ -83,7 +83,7 @@ fn folders_and_changes_are_capped() {
     let copy = file.contact_folders[0].clone();
     file.contact_folders.push(ContactFolder { id: 1_000_000, ..copy });
     let folder = file.contact_folders[0].id;
-    file.contact_changes = vec![ContactChange { account, folder, sent: true, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
+    file.contact_changes = vec![ContactChange { account, folder, contact: 4_242, sent: true, ..Default::default() }; MAX_CONTACT_CHANGES + 1];
     let said = file.repair();
     assert!(said.iter().any(|l| l.contains("folders")) && said.iter().any(|l| l.contains("cut")), "{said:?}");
     assert_eq!((file.contact_folders.len(), file.contact_changes.len()), (MAX_CONTACT_FOLDERS, MAX_CONTACT_CHANGES));
@@ -97,8 +97,8 @@ fn repair_drops_folders_out_of_range_and_keeps_a_rehomed_contacts_change() {
     let mut mb = Mailbox::default();
     let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
     mb.contact_folders.push(ContactFolder { id: TOO_BIG, account, remote: "f-big".into(), ..Default::default() });
-    mb.contacts.insert(TOO_BIG + 1, std::sync::Arc::new(Contact { id: TOO_BIG + 1, ..ada() }));
     let main = mb.ensure_main_contact_folder(account).unwrap();
+    mb.contacts.insert(TOO_BIG + 1, std::sync::Arc::new(Contact { id: TOO_BIG + 1, folder: main, ..ada() }));
     mb.contact_changes.push(ContactChange { account, kind: ContactChangeKind::Create, contact: TOO_BIG + 1, folder: main, ..Default::default() });
     let mut text: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
     text.repair();
@@ -180,7 +180,7 @@ fn repair_frees_contacts_of_gone_accounts_and_drops_changes_that_cant_be_sent() 
         ContactChange { folder: 4242, ..change(ContactChangeKind::Create, "", false, &[]) },
         ContactChange { account: 999, ..change(ContactChangeKind::Create, "", false, &[]) },
         change(ContactChangeKind::Change, "c-1", true, &[ContactField::Last]),
-        change(ContactChangeKind::Delete, "c-1", true, &[]),
+        ContactChange { contact: 4_243, ..change(ContactChangeKind::Delete, "c-1", true, &[]) },
         change(ContactChangeKind::Create, "", false, &[]),
     ];
     let said = mb.repair();
@@ -295,6 +295,48 @@ fn repair_keeps_only_changes_that_can_go_to_their_own_accounts_folder() {
     mb.repair();
     let big = mb.contacts.values().find(|c| c.first == "Big").unwrap().id;
     assert_eq!(mb.contact_changes.iter().map(|c| c.contact).collect::<Vec<_>>(), [4_244, id, big]);
+}
+
+/// Review of #1934 (fifth round): a note must name its contact as it is. A new or changed
+/// contact that is here is in the note's folder, a deleted one isn't, a new one has no server
+/// name, and a sent one gone here names a contact.
+#[test]
+fn repair_drops_notes_that_dont_match_their_contact() {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    let main = mb.ensure_main_contact_folder(account).unwrap();
+    let other = mb.add_contact_folder(ContactFolder { account, name: "Other".into(), writable: true, ..Default::default() }).unwrap();
+    let id = mb.add_contact(Contact { folder: main, ..ada() });
+    let note = |kind, contact, folder| ContactChange { account, kind, contact, folder, sent: true, ..Default::default() };
+    let sent = |kind, folder| ContactChange {
+        remote: "c-1".into(),
+        base: Some(Box::new(ada())),
+        fields: BTreeSet::from([ContactField::Last]),
+        ..note(kind, id, folder)
+    };
+    mb.contact_changes = vec![
+        note(ContactChangeKind::Create, id, other),
+        sent(ContactChangeKind::Change, other),
+        sent(ContactChangeKind::Delete, main),
+        ContactChange { remote: "c-1".into(), ..note(ContactChangeKind::Create, id, main) },
+        note(ContactChangeKind::Create, 0, main),
+        // Kept: each as it should be.
+        note(ContactChangeKind::Create, id, main),
+        sent(ContactChangeKind::Change, main),
+        sent(ContactChangeKind::Delete, other),
+        note(ContactChangeKind::Create, 4_244, main),
+    ];
+    mb.repair();
+    let kept: Vec<_> = mb.contact_changes.iter().map(|c| (c.kind, c.contact, c.folder)).collect();
+    assert_eq!(
+        kept,
+        [
+            (ContactChangeKind::Create, id, main),
+            (ContactChangeKind::Change, id, main),
+            (ContactChangeKind::Delete, id, other),
+            (ContactChangeKind::Create, 4_244, main)
+        ]
+    );
 }
 
 proptest! {
