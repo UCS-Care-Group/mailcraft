@@ -251,7 +251,7 @@ fn changes_go_up_as_a_new_card_a_patch_of_what_changed_and_a_destroy() {
         assert_eq!(card["addressBookIds"], json!({personal.clone(): true}));
         assert!(card["uid"].as_str().unwrap().starts_with("urn:uuid:"));
         // Only the full name went: the e-mail addresses and what MailCraft doesn't show are as they were.
-        assert_eq!(d.contacts.patches, vec![(bo.clone(), json!({"name": {"full": "Bo Parker"}}))]);
+        assert_eq!(d.contacts.patches, vec![(bo.clone(), json!({"name/full": "Bo Parker"}))]);
         assert_eq!(d.contacts.get(&bo).unwrap()["imAddresses"], json!({"i1": {"handle": "kept"}}));
         assert!(d.contacts.get(&cy).is_none());
         let theirs = d.contacts.get(&sent.outcomes[3].remote).unwrap();
@@ -390,6 +390,135 @@ fn an_account_whose_name_is_no_address_is_passed_over() {
     assert!(got[0].complete && got[0].contacts.is_empty());
     let asked: Vec<String> = fake.sent.borrow().iter().map(|r| String::from_utf8_lossy(r.body()).to_string()).collect();
     assert!(!asked.iter().any(|b| b.contains("\"A2\"")));
+}
+
+#[test]
+fn a_full_listing_names_every_book_and_a_book_that_cant_be_read_is_not_taken_for_gone() {
+    let (stand_in, [_, archive, hidden, _]) = served();
+    let gone_book = ContactOp { folder: hidden.clone(), ..op(ContactChangeKind::Delete, 1, "CC77", &[], RemoteContact::default()) };
+    let pieces = run_stand_in(&stand_in, &ask(JmapContactsRequest { ops: vec![gone_book], ..Default::default() }));
+    let listed: Vec<JmapContactPlace> = pieces.iter().flat_map(|p| p.contact_listed.clone()).collect();
+    let own = listed.iter().find(|p| p.owner == FolderOwner::Own).unwrap();
+    assert_eq!(own.books.iter().cloned().collect::<BTreeSet<_>>(), [String::new(), archive, hidden].into());
+    assert!(listed.iter().any(|p| p.owner == FolderOwner::Person(ZOE.into())));
+    // The deletion in the book that can't be read now waits: neither done nor sent.
+    let sent = pieces.iter().find_map(|p| p.contacts_sent.clone()).unwrap();
+    assert!(sent.outcomes.is_empty(), "{sent:?}");
+}
+
+#[test]
+fn a_lost_answer_leaves_a_new_card_unconfirmed_and_what_was_done_already_done() {
+    let fake = Fake::new(|req, _| {
+        if req.method() == Method::Get {
+            return hostile_session();
+        }
+        if String::from_utf8_lossy(req.body()).contains("ContactCard/set") {
+            return json_reply(500, &json!({"type": "about:blank", "status": 500}));
+        }
+        api_reply(req, |name, args| match name {
+            "AddressBook/get" => super::changes_tests::Answer::Is(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+            "ContactCard/get" if args.get("ids").and_then(Value::as_array).is_some_and(|ids| !ids.is_empty()) => super::changes_tests::Answer::Is(
+                json!({"state": "s1", "list": [{"id": "CC1", "addressBookIds": {"AB1": true}, "notes": {"n1": {"note": "same"}}}], "notFound": []}),
+            ),
+            _ => super::changes_tests::reading(name, args),
+        })
+    });
+    let ops = vec![
+        op(ContactChangeKind::Change, 1, "CC1", &[ContactField::Notes], RemoteContact { notes: "same".into(), ..Default::default() }),
+        op(ContactChangeKind::Create, 2, "", &[], RemoteContact { display_name: "New".into(), ..Default::default() }),
+    ];
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest { ops, ..Default::default() }), ..asks(super::changes_tests::FAKE_SESSION) };
+    let sent = run_fake(&fake, &request).iter().find_map(|p| p.contacts_sent.clone()).unwrap();
+    assert_eq!(sent.outcomes.len(), 2, "{sent:?}");
+    let of = |contact: u64| sent.outcomes.iter().find(|o| o.op.contact == contact).unwrap();
+    // The change the server had already: done, not failed by the call after it.
+    assert_eq!((of(1).result, of(1).remote.as_str()), (ContactResult::Done, "CC1"));
+    // The new card may have been made: made under a name not heard, so that it isn't made twice.
+    assert_eq!((of(2).result, of(2).remote.as_str()), (ContactResult::Done, ""));
+}
+
+#[test]
+fn a_deletion_is_never_a_destroy_on_a_guess_and_reads_follow_the_get_limit() {
+    // A card whose books the server doesn't say.
+    let fake = hostile(|name| match name {
+        "AddressBook/get" => Some(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+        "ContactCard/get" => Some(json!({"state": "s1", "list": [{"id": "CC2"}], "notFound": []})),
+        _ => None,
+    });
+    let ops = vec![op(ContactChangeKind::Delete, 3, "CC2", &[], RemoteContact::default())];
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest { ops, ..Default::default() }), ..asks(super::changes_tests::FAKE_SESSION) };
+    let pieces = run_fake(&fake, &request);
+    let sent = pieces.iter().find_map(|p| p.contacts_sent.clone()).unwrap();
+    assert_eq!(sent.outcomes.first().map(|o| o.result), Some(ContactResult::Failed), "{sent:?}");
+    let bodies: Vec<String> = fake.sent.borrow().iter().map(|r| String::from_utf8_lossy(r.body()).to_string()).collect();
+    assert!(!bodies.iter().any(|b| b.contains("ContactCard/set")));
+
+    // Two changes, a server that gives one card a `get`: two gets, then the set.
+    let (stand_in, [personal, ..]) = served();
+    let (a, b) = stand_in.with(|d| {
+        d.max_get = 1;
+        (d.contacts.card(ACCOUNT, person("A A", "a@example.org", &personal)), d.contacts.card(ACCOUNT, person("B B", "b@example.org", &personal)))
+    });
+    let noted = RemoteContact { notes: "x".into(), ..Default::default() };
+    let ops = vec![
+        op(ContactChangeKind::Change, 1, &a, &[ContactField::Notes], noted.clone()),
+        op(ContactChangeKind::Change, 2, &b, &[ContactField::Notes], noted),
+    ];
+    let pieces = run_stand_in(&stand_in, &ask(JmapContactsRequest { ops, ..Default::default() }));
+    let sent = pieces.iter().find_map(|p| p.contacts_sent.clone()).unwrap();
+    assert!(sent.outcomes.iter().all(|o| o.result == ContactResult::Done), "{sent:?}");
+}
+
+#[test]
+fn a_get_that_lists_a_card_twice_and_leaves_one_out_is_no_complete_read() {
+    let fake = hostile(|name| match name {
+        "AddressBook/get" => Some(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+        "ContactCard/query" => Some(json!({"queryState": "q", "ids": ["CA", "CB"], "total": 2})),
+        "ContactCard/get" => Some(json!({"state": "s1", "list": [
+            {"id": "CA", "addressBookIds": {"AB1": true}, "name": {"full": "A"}},
+            {"id": "CA", "addressBookIds": {"AB1": true}, "name": {"full": "A"}}], "notFound": []})),
+        _ => None,
+    });
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest::default()), ..asks(super::changes_tests::FAKE_SESSION) };
+    let got = downloads(&run_fake(&fake, &request));
+    assert_eq!(got.len(), 1);
+    assert!(!got[0].complete && got[0].delta.is_empty(), "{got:?}");
+    assert_eq!(got[0].contacts.len(), 1);
+}
+
+#[test]
+fn two_shared_accounts_under_one_name_are_one_place() {
+    let fake = Fake::new(|req, _| {
+        if req.method() == Method::Get {
+            return json_reply(
+                200,
+                &json!({
+                    "capabilities": {CORE: {"maxCallsInRequest": 16, "maxObjectsInGet": 50, "maxObjectsInSet": 50}, MAIL: {}, CONTACTS: {}},
+                    "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": {MAIL: {}, CONTACTS: {}}},
+                                 "A2": {"name": ZOE, "isPersonal": false, "accountCapabilities": {CONTACTS: {}}},
+                                 "A3": {"name": ZOE, "isPersonal": false, "accountCapabilities": {CONTACTS: {}}}},
+                    "primaryAccounts": {MAIL: "A1", CONTACTS: "A1"},
+                    "apiUrl": "https://jmap.example.org/jmap/api",
+                    "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?type={type}",
+                    "uploadUrl": "/jmap/upload/{accountId}/",
+                    "state": "1",
+                }),
+            );
+        }
+        api_reply(req, |name, args| match name {
+            "AddressBook/get" => super::changes_tests::Answer::Is(json!({"list": [{"id": "AB1", "name": "Book", "isDefault": true}]})),
+            "ContactCard/query" => super::changes_tests::Answer::Is(json!({"queryState": "q", "ids": [], "total": 0})),
+            "ContactCard/get" => super::changes_tests::Answer::Is(json!({"state": "s1", "list": [], "notFound": []})),
+            _ => super::changes_tests::reading(name, args),
+        })
+    });
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest::default()), ..asks(super::changes_tests::FAKE_SESSION) };
+    let got = downloads(&run_fake(&fake, &request));
+    let zoes = got.iter().filter(|d| d.folder.as_ref().is_some_and(|f| f.owner == FolderOwner::Person(ZOE.into()))).count();
+    assert_eq!(zoes, 1, "{got:?}");
+    let asked: Vec<String> = fake.sent.borrow().iter().map(|r| String::from_utf8_lossy(r.body()).to_string()).collect();
+    let asked_of = |account: &str| asked.iter().any(|b| b.contains(&format!("\"{account}\"")));
+    assert!(asked_of("A2") != asked_of("A3"), "one of the two, never both");
 }
 
 proptest! {

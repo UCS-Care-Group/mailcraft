@@ -45,9 +45,6 @@ pub(super) const CARD_PROPERTIES: [&str; 15] = [
     "uid",
 ];
 
-/// The parts of a name MailCraft keeps (RFC 9553 §2.2.1.2): given, middle (`given2`) and surname.
-const NAME_PARTS: [&str; 3] = ["given", "given2", "surname"];
-
 /// The entries of a card's map property (`emails`, `phones`…), in the order a person reads them: by
 /// preference (`pref`, 1 first; none last), then by key.
 fn entries<'a>(card: &'a Value, property: &str) -> Vec<(&'a String, &'a Map<String, Value>)> {
@@ -84,32 +81,41 @@ fn label_of(entry: &Map<String, Value>) -> String {
     label.to_string()
 }
 
-/// `entry` with what says `label` set as a card says it, and every other such word taken away.
+/// `entry` with what says `label` set as a card says it, and every other word MailCraft labels with
+/// taken away; the contexts and features it doesn't label with (`billing`, `voice`…) stay.
 fn labelled(mut entry: Map<String, Value>, label: &str, phone: bool) -> Map<String, Value> {
-    for member in ["contexts", "label"] {
-        entry.remove(member);
-    }
-    if phone {
-        entry.remove("features");
-    }
+    let set = |entry: &mut Map<String, Value>, member: &str, take: &[&str], put: Option<&str>| {
+        let mut words = entry.get(member).and_then(Value::as_object).cloned().unwrap_or_default();
+        for word in take {
+            words.remove(*word);
+        }
+        if let Some(word) = put {
+            words.insert(word.to_string(), Value::Bool(true));
+        }
+        if words.is_empty() {
+            entry.remove(member);
+        } else {
+            entry.insert(member.to_string(), Value::Object(words));
+        }
+    };
     let low = label.trim().to_ascii_lowercase();
-    match low.as_str() {
-        "" => {}
-        "work" | "business" => {
-            entry.insert("contexts".into(), json!({"work": true}));
-        }
-        "home" | "private" => {
-            entry.insert("contexts".into(), json!({"private": true}));
-        }
-        "mobile" | "cell" if phone => {
-            entry.insert("features".into(), json!({"mobile": true}));
-        }
-        "fax" if phone => {
-            entry.insert("features".into(), json!({"fax": true}));
-        }
-        _ => {
-            entry.insert("label".into(), Value::String(label.trim().to_string()));
-        }
+    let context = match low.as_str() {
+        "work" | "business" => Some("work"),
+        "home" | "private" => Some("private"),
+        _ => None,
+    };
+    let feature = match low.as_str() {
+        "mobile" | "cell" if phone => Some("mobile"),
+        "fax" if phone => Some("fax"),
+        _ => None,
+    };
+    set(&mut entry, "contexts", &["work", "private"], context);
+    if phone {
+        set(&mut entry, "features", &["mobile", "fax"], feature);
+    }
+    entry.remove("label");
+    if !low.is_empty() && context.is_none() && feature.is_none() {
+        entry.insert("label".into(), Value::String(label.trim().to_string()));
     }
     entry
 }
@@ -175,7 +181,8 @@ fn notes_of(card: &Value) -> String {
     notes.into_iter().map(|(_, n)| n).collect::<Vec<_>>().join("\n\n")
 }
 
-/// The address books a card is in (the ids the server gave), [`MAX_ENTRIES`] at the most.
+/// The address books a card is in (the ids the server gave). Not capped: a book left out would read
+/// as one the card left (the answer's size bounds it).
 pub(super) fn books_of(card: &Value) -> Vec<String> {
     card.get("addressBookIds")
         .and_then(Value::as_object)
@@ -183,7 +190,6 @@ pub(super) fn books_of(card: &Value) -> Vec<String> {
         .flatten()
         .filter(|(id, on)| **on == Value::Bool(true) && Id::new(id).is_ok())
         .map(|(id, _)| id.clone())
-        .take(MAX_ENTRIES)
         .collect()
 }
 
@@ -268,13 +274,17 @@ fn fresh_key(map: &Map<String, Value>, prefix: &str) -> String {
 
 /// A map property rebuilt from `wanted`: an entry the server has that still reads as one wanted is
 /// kept whole under its key (each once); then one with the same value (`same`) is given the wanted
-/// label by `make`, under its key; a wanted one with neither is made by `make` under a new key.
-/// Entries no longer wanted go.
+/// label by `make`, under its key; with `pair`, one still left is paired with the next server entry
+/// still left, in order, and `make` changes that one (an edit keeps what MailCraft doesn't show of
+/// it); a wanted one with none is made by `make` under a new key. Entries no longer wanted go; those
+/// past what was read ([`MAX_ENTRIES`]) were never shown, and stay as they are.
+#[allow(clippy::too_many_arguments)]
 fn rebuilt<T: PartialEq>(
     server: &Value,
     property: &str,
     prefix: &str,
     wanted: &[T],
+    pair: bool,
     read: impl Fn(&Map<String, Value>) -> T,
     same: impl Fn(&Map<String, Value>, &T) -> bool,
     make: impl Fn(Option<&Map<String, Value>>, &T) -> Map<String, Value>,
@@ -282,12 +292,19 @@ fn rebuilt<T: PartialEq>(
     let had = entries(server, property);
     let mut used = vec![false; had.len()];
     let mut slots: Vec<Option<usize>> = vec![None; wanted.len()];
-    for exact in [true, false] {
+    for pass in 0..3 {
+        if pass == 2 && !pair {
+            break;
+        }
         for (slot, want) in slots.iter_mut().zip(wanted) {
             if slot.is_some() {
                 continue;
             }
-            let fits = |e: &Map<String, Value>| if exact { read(e) == *want } else { same(e, want) };
+            let fits = |e: &Map<String, Value>| match pass {
+                0 => read(e) == *want,
+                1 => same(e, want),
+                _ => true,
+            };
             if let Some(i) = had.iter().enumerate().position(|(i, (_, e))| !used.get(i).copied().unwrap_or(true) && fits(e)) {
                 if let Some(u) = used.get_mut(i) {
                     *u = true;
@@ -299,6 +316,14 @@ fn rebuilt<T: PartialEq>(
     // New keys stay clear of those the server had.
     let mut taken: Map<String, Value> = had.iter().map(|(key, _)| ((*key).clone(), Value::Null)).collect();
     let mut out = Map::new();
+    if let Some(all) = server.get(property).and_then(Value::as_object) {
+        for (key, entry) in all.iter().filter(|(_, e)| e.is_object()) {
+            if !had.iter().any(|(k, _)| *k == key) {
+                taken.insert(key.clone(), Value::Null);
+                out.insert(key.clone(), entry.clone());
+            }
+        }
+    }
     for (slot, want) in slots.into_iter().zip(wanted) {
         match slot.and_then(|i| had.get(i)) {
             Some((key, e)) if read(e) == *want => out.insert((*key).clone(), Value::Object((*e).clone())),
@@ -331,14 +356,37 @@ fn address_entry(a: &PostalAddress) -> Map<String, Value> {
     labelled(Map::from_iter([("components".to_string(), Value::Array(parts))]), &a.label, false)
 }
 
+/// The server's postal address `entry` changed to say `a`: the parts MailCraft shows replaced (the
+/// street as one `name` part, in place of the number and street name), every other part (an
+/// apartment, a district) and member (its coordinates, its time zone) kept; its whole text goes, as
+/// it no longer says the same.
+fn address_edited(entry: &Map<String, Value>, a: &PostalAddress) -> Map<String, Value> {
+    const SHOWN: [&str; 6] = ["number", "name", "locality", "region", "postcode", "country"];
+    let mut out = entry.clone();
+    let kept = entry
+        .get("components")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|p| p.get("kind").and_then(Value::as_str).is_none_or(|k| !SHOWN.contains(&k) && k != "separator"));
+    let fresh = address_entry(a);
+    let mut parts: Vec<Value> = fresh.get("components").and_then(Value::as_array).cloned().unwrap_or_default();
+    parts.extend(kept.cloned());
+    for member in ["full", "isOrdered", "defaultSeparator"] {
+        out.remove(member);
+    }
+    out.insert("components".into(), Value::Array(parts));
+    labelled(out, &a.label, false)
+}
+
 fn birthday_entry(d: Date) -> Value {
     json!({"kind": "birth", "date": {"@type": "PartialDate", "year": d.year, "month": d.month, "day": d.day}})
 }
 
 /// The `name` property: `server`'s name (none for a new card) with the full name from `values` when
-/// `full`, and its given, middle and surname parts from `values` when `parts`; the other members and
-/// parts (a title, a suffix) stay. `null` when nothing is left.
-fn name_value(server: Option<&Map<String, Value>>, values: &RemoteContact, full: bool, parts: bool) -> Value {
+/// `full`, and those of its given, middle and surname parts named in `parts` from `values`; the other
+/// members and parts (a title, a suffix, a part not named) stay. `null` when nothing is left.
+fn name_value(server: Option<&Map<String, Value>>, values: &RemoteContact, full: bool, parts: &[&str]) -> Value {
     let mut name = server.cloned().unwrap_or_default();
     if full {
         match values.display_name.trim() {
@@ -346,18 +394,18 @@ fn name_value(server: Option<&Map<String, Value>>, values: &RemoteContact, full:
             shown => name.insert("full".into(), Value::String(shown.to_string())),
         };
     }
-    if parts {
+    if !parts.is_empty() {
         // (Separators belong to the parts' order, which changes: they go.)
         let mut components: Vec<Value> = name
             .get("components")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
-            .filter(|p| p.get("kind").and_then(Value::as_str).is_some_and(|k| !NAME_PARTS.contains(&k) && k != "separator"))
+            .filter(|p| p.get("kind").and_then(Value::as_str).is_some_and(|k| !parts.contains(&k) && k != "separator"))
             .cloned()
             .collect();
         for (kind, value) in [("given", &values.first), ("given2", &values.middle), ("surname", &values.last)] {
-            if !value.trim().is_empty() {
+            if parts.contains(&kind) && !value.trim().is_empty() {
                 components.push(json!({"kind": kind, "value": value.trim()}));
             }
         }
@@ -398,10 +446,27 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
     let wants = |f: F| fields.contains(&f);
     let now = fields_of(server);
     let full = wants(F::DisplayName) && now.display_name.trim() != values.display_name.trim();
-    let parts = (wants(F::First) || wants(F::Middle) || wants(F::Last))
-        && (now.first.trim(), now.middle.trim(), now.last.trim()) != (values.first.trim(), values.middle.trim(), values.last.trim());
-    if full || parts {
-        out.insert("name".into(), name_value(server.get("name").and_then(Value::as_object), values, full, parts));
+    let parts: Vec<&str> = [
+        (F::First, "given", &now.first, &values.first),
+        (F::Middle, "given2", &now.middle, &values.middle),
+        (F::Last, "surname", &now.last, &values.last),
+    ]
+    .into_iter()
+    .filter(|(f, _, was, is)| wants(*f) && was.trim() != is.trim())
+    .map(|(_, kind, ..)| kind)
+    .collect();
+    let name = server.get("name").and_then(Value::as_object);
+    match (full, parts.is_empty(), name) {
+        // The full name alone, on a card that has a name: that member only, so that nothing else
+        // of the name (its parts, as another device may just have changed them) is written.
+        (true, true, Some(_)) => {
+            let shown = values.display_name.trim();
+            out.insert("name/full".into(), if shown.is_empty() { Value::Null } else { json!(shown) });
+        }
+        (false, true, _) => {}
+        _ => {
+            out.insert("name".into(), name_value(name, values, full, &parts));
+        }
     }
     if wants(F::Nickname) && now.nickname.trim() != values.nickname.trim() {
         let mut map = server.get("nicknames").and_then(Value::as_object).cloned().unwrap_or_default();
@@ -455,7 +520,8 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
                 org.insert("units".into(), Value::Array(units));
             }
         }
-        if org.keys().all(|k| k == "@type") {
+        // (An organisation is a name or units, RFC 9553 §2.2.3: with neither, it goes.)
+        if !org.contains_key("name") && !org.contains_key("units") {
             map.remove(&key);
         } else {
             map.insert(key, Value::Object(org));
@@ -486,47 +552,76 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
         let read = |e: &Map<String, Value>| Labeled::new(label_of(e), text(e, "address").trim());
         let same = |e: &Map<String, Value>, w: &Labeled| text(e, "address").trim().eq_ignore_ascii_case(w.value.trim());
         let make = |e: Option<&Map<String, Value>>, w: &Labeled| labelled_value(e, "address", w, false);
-        out.insert("emails".into(), rebuilt(server, "emails", "e", &filled(&values.emails), read, same, make));
+        out.insert("emails".into(), rebuilt(server, "emails", "e", &filled(&values.emails), false, read, same, make));
     }
     if wants(F::Phones) && filled(&now.phones) != filled(&values.phones) {
         let read = |p: &Map<String, Value>| Labeled::new(label_of(p), text(p, "number").trim());
         let same = |e: &Map<String, Value>, w: &Labeled| text(e, "number").trim() == w.value.trim();
         let make = |e: Option<&Map<String, Value>>, w: &Labeled| labelled_value(e, "number", w, true);
-        out.insert("phones".into(), rebuilt(server, "phones", "p", &filled(&values.phones), read, same, make));
+        out.insert("phones".into(), rebuilt(server, "phones", "p", &filled(&values.phones), false, read, same, make));
     }
     let addresses: Vec<PostalAddress> = values.addresses.iter().filter(|a| !a.is_empty()).cloned().collect();
     if wants(F::Addresses) && now.addresses != addresses {
         let same = |e: &Map<String, Value>, w: &PostalAddress| PostalAddress { label: w.label.clone(), ..address_of(e) } == *w;
         let make = |e: Option<&Map<String, Value>>, w: &PostalAddress| match e {
-            Some(e) => labelled(e.clone(), &w.label, false),
+            Some(e) if same(e, w) => labelled(e.clone(), &w.label, false),
+            Some(e) => address_edited(e, w),
             None => address_entry(w),
         };
-        out.insert("addresses".into(), rebuilt(server, "addresses", "a", &addresses, address_of, same, make));
+        out.insert("addresses".into(), rebuilt(server, "addresses", "a", &addresses, true, address_of, same, make));
     }
     let sites: Vec<String> = values.websites.iter().map(|w| w.trim().to_string()).filter(|w| !w.is_empty()).collect();
     if wants(F::Websites) && now.websites != sites {
         let read = |l: &Map<String, Value>| text(l, "uri").trim().to_string();
         let make = |_: Option<&Map<String, Value>>, w: &String| Map::from_iter([("uri".to_string(), json!(w))]);
-        out.insert("links".into(), rebuilt(server, "links", "l", &sites, read, |_, _| false, make));
+        out.insert("links".into(), rebuilt(server, "links", "l", &sites, false, read, |_, _| false, make));
     }
     if wants(F::Birthday) && now.birthday != values.birthday {
-        let mut map: Map<String, Value> = server
-            .get("anniversaries")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-            .filter(|(_, a)| a.get("kind").and_then(Value::as_str) != Some("birth"))
-            .map(|(k, a)| (k.clone(), a.clone()))
-            .collect();
-        if let Some(day) = values.birthday {
-            let key = fresh_key(&map, "b");
-            map.insert(key, birthday_entry(day));
+        let mut map = server.get("anniversaries").and_then(Value::as_object).cloned().unwrap_or_default();
+        // The birth entry read (else the first): a new date goes in it, its place and the rest stay.
+        let births: Vec<String> =
+            entries(server, "anniversaries").into_iter().filter(|(_, a)| text(a, "kind") == "birth").map(|(k, _)| k.clone()).collect();
+        let shown = births
+            .iter()
+            .find(|k| map.get(*k).is_some_and(|a| birthday_of(&json!({"anniversaries": {"x": a}})).is_some()))
+            .or(births.first())
+            .cloned();
+        match (values.birthday, shown) {
+            (Some(day), Some(key)) => {
+                if let Some(Value::Object(entry)) = map.get_mut(&key) {
+                    entry.insert("date".into(), birthday_entry(day).get("date").cloned().unwrap_or(Value::Null));
+                }
+            }
+            (Some(day), None) => {
+                let key = fresh_key(&map, "b");
+                map.insert(key, birthday_entry(day));
+            }
+            // No birthday: every birth entry goes (one left would show).
+            (None, _) => map.retain(|_, a| a.get("kind").and_then(Value::as_str) != Some("birth")),
         }
         out.insert("anniversaries".into(), if map.is_empty() { Value::Null } else { Value::Object(map) });
     }
     if wants(F::Notes) && now.notes.trim() != values.notes.trim() {
         let note = values.notes.trim();
-        out.insert("notes".into(), if note.is_empty() { Value::Null } else { json!({"n1": {"note": note}}) });
+        let had: Vec<(&String, &Value)> = server
+            .get("notes")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter(|(_, n)| n.get("note").and_then(Value::as_str).is_some())
+            .collect();
+        let patched = match (note, had.as_slice()) {
+            ("", _) => Value::Null,
+            // One note: its text changes, its author and time stay. (Several are read as one text,
+            // which can't be split back: the edited text replaces them.)
+            (note, [(key, entry)]) => {
+                let mut entry = entry.as_object().cloned().unwrap_or_default();
+                entry.insert("note".into(), json!(note));
+                json!({(*key).clone(): entry})
+            }
+            (note, _) => json!({"n1": {"note": note}}),
+        };
+        out.insert("notes".into(), patched);
     }
     if wants(F::Categories)
         && let Some(categories) = &values.categories
@@ -535,7 +630,16 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
         wanted.sort();
         wanted.dedup();
         if now.categories.as_ref() != Some(&wanted) {
-            let map: Map<String, Value> = wanted.into_iter().map(|c| (c, Value::Bool(true))).collect();
+            // (Keywords past those read were never shown: they stay.)
+            let unseen = server
+                .get("keywords")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+                .filter(|(_, on)| **on == Value::Bool(true))
+                .skip(MAX_ENTRIES)
+                .map(|(k, _)| k.clone());
+            let map: Map<String, Value> = wanted.into_iter().chain(unseen).map(|c| (c, Value::Bool(true))).collect();
             out.insert("keywords".into(), if map.is_empty() { Value::Null } else { Value::Object(map) });
         }
     }

@@ -19,7 +19,10 @@
 //!    properties of the fields the owner changed, worked out from the card as the server has it now
 //!    (`ContactCard/get` first: a card it no longer has is gone), so nothing else of the card is
 //!    written over (ADR 0028); a deletion takes the card out of its folder's address book, and
-//!    destroys it only when that was the last one it was in. `ifInState` is not sent: a card's state is
+//!    destroys it only when that was the last one it was in (as the card read just before says: a
+//!    book another device adds it to between that read and the `set` is not seen, a window JMAP gives
+//!    no per-card guard for; when the read doesn't say which books it is in, it isn't destroyed).
+//!    `ifInState` is not sent: a card's state is
 //!    the whole account's, and a change elsewhere to another card must not refuse this one (changes
 //!    merge field by field, in the engine). What each became of: done; gone (`notFound`); denied
 //!    (`forbidden`); refused for good (`invalidProperties`, `overQuota`, `tooLarge` and anything else
@@ -43,7 +46,7 @@
 //! the next account goes on. Everything the server says is hostile: ids are held to the JMAP alphabet,
 //! answers to sizes, lists to counts; the lines name no contact, no address book and no address.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use mailcraft_model::contact_sync::{
     ContactChangeKind, ContactOp, ContactOutcome, ContactResult, ContactsUploaded, FolderOwner, MAX_CONTACT_FOLDERS, RemoteContactFolder,
@@ -87,6 +90,10 @@ struct Place {
     account: String,
     owner: FolderOwner,
     books: Vec<Book>,
+    /// `books` is every book the server lists (none cut off), but `unreadable`: one among neither
+    /// is gone.
+    whole: bool,
+    unreadable: Vec<String>,
 }
 
 impl Place {
@@ -137,6 +144,15 @@ fn result_of(error: &Value) -> ContactResult {
     }
 }
 
+/// What became of `op` when the server's answer to it never came (`why`): failed, to be tried again.
+/// A new card may have been made all the same, and a new uid would make it twice: it is answered as
+/// made under a name not heard, which the engine sends again only once a read of its folder shows
+/// it isn't there (and asks for that read: [`JmapContactPlace::state`] left empty).
+fn unheard(op: &ContactOp, why: &str) -> ContactOutcome {
+    let result = if op.kind == ContactChangeKind::Create { ContactResult::Done } else { ContactResult::Failed };
+    ContactOutcome { op: op.clone(), result, error: why.to_string(), ..Default::default() }
+}
+
 /// A uid for a new card (RFC 9553 §2.1.9): a UUID's shape, made of the time, the contact and a count,
 /// so that no two are the same.
 fn new_uid(contact: u64) -> String {
@@ -175,10 +191,13 @@ impl<H: HttpExchange> Run<'_, H> {
                 break;
             }
             let person = FolderOwner::Person(a.name().trim().to_string()).tidied();
+            // (Two accounts under one name can't be told apart here: the first is kept, the other
+            // passed over, so that neither's changes go to the other.)
             if !a.is_personal()
                 && a.has_capability(CAPABILITY_CONTACTS)
                 && !accounts.iter().any(|(had, ..)| had == id.as_str())
                 && let Some(person) = person
+                && !accounts.iter().any(|(_, owner, _)| *owner == person)
             {
                 accounts.push((id.as_str().to_string(), person, a.is_read_only()));
             }
@@ -187,16 +206,19 @@ impl<H: HttpExchange> Run<'_, H> {
         let mut books = 0usize;
         for (account, owner, read_only) in accounts {
             match self.books(&account, read_only).await {
-                Ok((mut list, complete)) => {
+                Ok((mut list, unreadable, complete)) => {
                     let room = MAX_CONTACT_FOLDERS.saturating_sub(books);
-                    // A list cut short here doesn't say which books are gone.
-                    if complete && list.len() <= room {
-                        let ids = list.iter().map(|b| if b.default { String::new() } else { b.id.clone() }).collect();
+                    // A list cut short here doesn't say which books are gone. One the user may not
+                    // read is listed still: not gone.
+                    let whole = complete && list.len() <= room;
+                    if whole {
+                        let ids =
+                            list.iter().map(|b| if b.default { String::new() } else { b.id.clone() }).chain(unreadable.iter().cloned()).collect();
                         out.listed.push(JmapContactPlace { owner: owner.clone(), state: String::new(), books: ids });
                     }
                     list.truncate(room);
                     books = books.saturating_add(list.len());
-                    places.push(Place { account, owner, books: list });
+                    places.push(Place { account, owner, books: list, whole, unreadable });
                 }
                 Err(stop) => {
                     if self.contacts_trouble(&mut out, stop) {
@@ -258,13 +280,15 @@ impl<H: HttpExchange> Run<'_, H> {
     }
 
     /// `AddressBook/get` of `account`: the books the user may read, the default one first.
-    /// Also whether the list is all of them: every entry read, none cut off.
-    async fn books(&self, account: &str, read_only: bool) -> Result<(Vec<Book>, bool), Stop> {
+    /// Also the ids of those listed that the user may not read, and whether the list is all of them:
+    /// every entry read, none cut off.
+    async fn books(&self, account: &str, read_only: bool) -> Result<(Vec<Book>, Vec<String>, bool), Stop> {
         let args = arguments(&get(account, None, &["id", "name", "isDefault", "myRights"]))?;
         let answer = self.contacts_call("AddressBook/get", args, BOOKS_BYTES).await?;
         let list = answer.get("list").and_then(Value::as_array);
         let readable = |b: &Value| b.get("id").and_then(Value::as_str).is_some_and(|id| Id::new(id).is_ok());
         let complete = list.is_some_and(|l| l.len() <= MAX_CONTACT_FOLDERS && l.iter().all(readable));
+        let mut unreadable = Vec::new();
         let mut books: Vec<Book> = list
             .into_iter()
             .flatten()
@@ -274,6 +298,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 let right = |name: &str| b.get("myRights").and_then(|r| r.get(name)).and_then(Value::as_bool);
                 // (A server that says nothing of the rights lets them be read, and says when a change can't be made.)
                 if right("mayRead") == Some(false) {
+                    unreadable.push(id.to_string());
                     return None;
                 }
                 let name = b.get("name").and_then(Value::as_str).unwrap_or("").to_string();
@@ -286,7 +311,7 @@ impl<H: HttpExchange> Run<'_, H> {
         for (at, book) in books.iter_mut().enumerate() {
             book.default = at == 0;
         }
-        Ok((books, complete))
+        Ok((books, unreadable, complete))
     }
 
     /// Send `ops` to the address books of `places` (see the module), noting what became of each in
@@ -313,24 +338,34 @@ impl<H: HttpExchange> Run<'_, H> {
                 // Its owner's address books couldn't be listed (or the share is gone): tried again later,
                 // never taken for gone.
                 (None, ..) => sent.outcomes.push(outcome(op, ContactResult::Failed, "the server didn't list the address books")),
-                // The address book is gone: a deletion is done. A change or a new contact is left
-                // unanswered, never refused (that would undo it here): once the books were listed in
-                // full, the engine keeps it on this computer as it drops the folder.
-                (_, _, ContactChangeKind::Delete) => sent.outcomes.push(outcome(op, ContactResult::Gone, "")),
+                // The address book is gone (the books were listed in full, and it isn't among them): a
+                // deletion is done. A change or a new contact is left unanswered, never refused (that
+                // would undo it here): the engine keeps it on this computer as it drops the folder.
+                // A book merely cut off the list, or one that can't be read now, is not gone: the op
+                // waits.
+                (Some(at), None, ContactChangeKind::Delete)
+                    if places.get(at).is_some_and(|p| p.whole && !p.unreadable.contains(&op.folder)) =>
+                {
+                    sent.outcomes.push(outcome(op, ContactResult::Gone, ""))
+                }
                 _ => {}
             }
         }
         for (at, list) in by_place {
             let Some(place) = places.get(at) else { continue };
             for chunk in list.chunks(limit) {
+                let before = sent.outcomes.len();
                 if let Err(stop) = self.send_chunk(place, chunk, sent).await {
+                    // Only the ops not answered already (one found done before the call failed stays so).
+                    let answered: BTreeSet<u64> = sent.outcomes.get(before..).unwrap_or_default().iter().map(|o| o.op.contact).collect();
+                    let open = chunk.iter().filter(|(op, _)| !answered.contains(&op.contact));
                     match stop {
                         Stop::Failed(error) | Stop::Down(error) => {
                             let why = self.said(&error);
-                            sent.outcomes.extend(chunk.iter().map(|(op, _)| outcome(op, ContactResult::Failed, &why)));
+                            sent.outcomes.extend(open.map(|(op, _)| unheard(op, &why)));
                         }
                         Stop::Busy(seconds, why) => {
-                            let failed = chunk.iter().map(|(op, _)| ContactOutcome {
+                            let failed = open.map(|(op, _)| ContactOutcome {
                                 retry_after: Some(seconds),
                                 status: 429,
                                 ..outcome(op, ContactResult::Failed, &why)
@@ -353,15 +388,10 @@ impl<H: HttpExchange> Run<'_, H> {
         let mut wanted: Vec<&str> = chunk.iter().filter(|(op, _)| op.kind != ContactChangeKind::Create).map(|(op, _)| op.remote.as_str()).collect();
         wanted.sort_unstable();
         wanted.dedup();
-        let mut cards: HashMap<String, Value> = HashMap::new();
-        if !wanted.is_empty() {
-            let args = arguments(&get(&place.account, Some(&wanted), &card::CARD_PROPERTIES))?;
-            let answer = self.contacts_call("ContactCard/get", args, CARDS_BYTES).await?;
-            for c in answer.get("list").and_then(Value::as_array).into_iter().flatten().take(PAGE) {
-                if let Some(id) = card::id_of(c) {
-                    cards.insert(id, c.clone());
-                }
-            }
+        // (A card the server says nothing of is neither had nor gone: the call fails, nothing is sent.)
+        let (cards, _, unanswered) = self.raw_cards(&place.account, &wanted).await?;
+        if unanswered {
+            return Err(Stop::Failed(crate::connection::unusable("cards asked for and not answered").into()));
         }
         let (mut create, mut update, mut destroy) = (Map::new(), Map::new(), Vec::new());
         // The address books each deleted card is to be taken out of.
@@ -396,6 +426,10 @@ impl<H: HttpExchange> Run<'_, H> {
                 },
                 ContactChangeKind::Delete => match cards.get(&op.remote) {
                     None => sent.outcomes.push(ContactOutcome { op: (*op).clone(), result: ContactResult::Gone, ..Default::default() }),
+                    // Which books it is in, unsaid: never destroyed on a guess.
+                    Some(c) if !c.get("addressBookIds").is_some_and(Value::is_object) => {
+                        sent.outcomes.push(unheard(op, "the server didn't say which address books the contact is in"));
+                    }
                     Some(_) => {
                         out_of.entry(op.remote.as_str()).or_default().insert(book.as_str());
                         asked.push((op, op.remote.clone()));
@@ -468,9 +502,7 @@ impl<H: HttpExchange> Run<'_, H> {
                 },
             };
             // An answer that says nothing of it: tried again later, as for a failure.
-            let failed =
-                || ContactOutcome { op: op.clone(), result: ContactResult::Failed, error: "the server didn't say".into(), ..Default::default() };
-            sent.outcomes.push(said.unwrap_or_else(failed));
+            sent.outcomes.push(said.unwrap_or_else(|| unheard(op, "the server didn't say")));
         }
         Ok(())
     }
@@ -579,23 +611,43 @@ impl<H: HttpExchange> Run<'_, H> {
         Ok(self.downloads(place, &cards, &gone, false, &since, read_at))
     }
 
-    /// The cards `ids` of `account`, a page at a time: those it has (a group's left out), and the ids
-    /// it said it hasn't got.
-    async fn cards(&self, account: &str, ids: &[&str]) -> Result<(Vec<(RemoteContact, Vec<String>)>, Vec<String>), Stop> {
+    /// The cards `ids` of `account` as the server has them, a page at a time (`maxObjectsInGet`): by
+    /// id, each once and only those asked for; the ids it said it hasn't got; and whether it left any
+    /// out of both (then nothing can be taken as gone or had).
+    async fn raw_cards(&self, account: &str, ids: &[&str]) -> Result<(BTreeMap<String, Value>, BTreeSet<String>, bool), Stop> {
         let page = usize::try_from(self.connection.client().limits().max_objects_in_get()).unwrap_or(usize::MAX).clamp(1, PAGE);
-        let (mut cards, mut missing) = (Vec::new(), Vec::new());
+        let (mut cards, mut missing) = (BTreeMap::new(), BTreeSet::new());
         for chunk in ids.chunks(page) {
+            let asked: BTreeSet<&str> = chunk.iter().copied().collect();
             let args = arguments(&get(account, Some(chunk), &card::CARD_PROPERTIES))?;
             let answer = self.contacts_call("ContactCard/get", args, CARDS_BYTES).await?;
             for c in answer.get("list").and_then(Value::as_array).into_iter().flatten().take(page) {
-                match card::read(c) {
-                    Some(contact) => cards.push((contact, card::books_of(c))),
-                    // A group, now: as good as gone for the contacts.
-                    None => missing.extend(card::id_of(c)),
+                if let Some(id) = card::id_of(c).filter(|id| asked.contains(id.as_str())) {
+                    cards.entry(id).or_insert_with(|| c.clone());
                 }
             }
             let not_found = answer.get("notFound").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str);
-            missing.extend(not_found.filter(|id| Id::new(id).is_ok()).take(page).map(str::to_string));
+            missing.extend(not_found.filter(|id| asked.contains(id) && !cards.contains_key(*id)).map(str::to_string));
+        }
+        let unanswered = ids.iter().any(|id| !cards.contains_key(*id) && !missing.contains(*id));
+        Ok((cards, missing, unanswered))
+    }
+
+    /// The cards `ids` of `account`: those it has (a group's left out), and the ids it said it hasn't
+    /// got. One it says nothing of fails the read (where changes were read up to then stays).
+    async fn cards(&self, account: &str, ids: &[&str]) -> Result<(Vec<(RemoteContact, Vec<String>)>, Vec<String>), Stop> {
+        let (raw, not_found, unanswered) = self.raw_cards(account, ids).await?;
+        if unanswered {
+            return Err(Stop::Failed(crate::connection::unusable("cards asked for and not answered").into()));
+        }
+        let mut missing: Vec<String> = not_found.into_iter().collect();
+        let mut cards = Vec::new();
+        for c in raw.values() {
+            match card::read(c) {
+                Some(contact) => cards.push((contact, card::books_of(c))),
+                // A group, now: as good as gone for the contacts.
+                None => missing.extend(card::id_of(c)),
+            }
         }
         Ok((cards, missing))
     }
@@ -638,14 +690,13 @@ impl<H: HttpExchange> Run<'_, H> {
                 complete = total.is_some_and(|t| t <= position) && position < MAX_CONTACTS;
                 break;
             }
-            let args = arguments(&get(&place.account, Some(&ids), &card::CARD_PROPERTIES))?;
-            let got = self.contacts_call("ContactCard/get", args, CARDS_BYTES).await?;
-            let listed = got.get("list").and_then(Value::as_array).map_or(0, Vec::len);
-            cards.extend(
-                got.get("list").and_then(Value::as_array).into_iter().flatten().take(page).filter_map(|c| Some((card::read(c)?, card::books_of(c)))),
-            );
+            // Each id once, and each answered with its card: anything else (one listed twice, one
+            // not there, one not answered) leaves the read incomplete.
+            let distinct: BTreeSet<&str> = ids.iter().copied().collect();
+            let (got, not_found, unanswered) = self.raw_cards(&place.account, &ids).await?;
+            cards.extend(got.values().filter_map(|c| Some((card::read(c)?, card::books_of(c)))));
             position = position.saturating_add(ids.len());
-            if listed < ids.len() {
+            if distinct.len() < ids.len() || unanswered || !not_found.is_empty() {
                 // A card listed and then not there: changed meanwhile.
                 break;
             }

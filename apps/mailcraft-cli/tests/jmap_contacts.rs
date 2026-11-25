@@ -141,6 +141,28 @@ impl Rig {
 }
 
 #[test]
+fn a_new_contact_whose_answer_was_lost_makes_the_next_run_read_its_book_whole() {
+    let mut rig = Rig::new();
+    rig.run();
+    let own = |s: &Session, account: Id| {
+        let request = jmap_mail_request(s, account, true).unwrap();
+        request.contacts.unwrap().places.into_iter().find(|p| p.owner == FolderOwner::Own).unwrap().state
+    };
+    assert!(!own(&rig.s, rig.account).is_empty(), "read up to a state");
+    let main = rig.s.mailbox.contact_folders.iter().find(|f| f.account == rig.account && f.is_main()).unwrap().id;
+    rig.s.mailbox.contact_changes.push(mailcraft_model::contact_sync::ContactChange {
+        account: rig.account,
+        kind: mailcraft_model::contact_sync::ContactChangeKind::Create,
+        contact: 999,
+        folder: main,
+        sent: true,
+        unconfirmed: 1,
+        ..Default::default()
+    });
+    assert_eq!(own(&rig.s, rig.account), "", "read whole, so the card is found or known not made");
+}
+
+#[test]
 fn deleting_a_contact_from_one_book_takes_the_card_out_of_that_book_only() {
     let mut rig = Rig::new();
     let work = rig.work_book();

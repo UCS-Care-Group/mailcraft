@@ -36,6 +36,7 @@
 
 use std::collections::HashSet;
 
+use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::sync::{
     GraphFetchResult, JmapContactPlace, JmapContactsRequest, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope,
     MAX_JMAP_WINDOW, SendOutcome, SyncPhase,
@@ -165,6 +166,12 @@ fn contacts_request(s: &Session, account: Id) -> Result<JmapContactsRequest, Cmd
                 place.books.push(f.remote.clone());
             }
             None => places.push(JmapContactPlace { owner: f.owner.clone(), state: f.delta.clone(), books: vec![f.remote.clone()] }),
+        }
+        // A new contact that may have been made, its answer lost: only a whole read says whether
+        // it was (changes may not show it), before it goes up again.
+        let unsure = s.mailbox.contact_changes.iter().any(|c| c.folder == f.id && c.kind == ContactChangeKind::Create && c.unconfirmed != 0);
+        if unsure && let Some(place) = places.iter_mut().find(|p| p.owner == f.owner) {
+            place.state.clear();
         }
     }
     Ok(JmapContactsRequest { ops: super::contacts_remote::contact_upload(s, account)?.ops, places })

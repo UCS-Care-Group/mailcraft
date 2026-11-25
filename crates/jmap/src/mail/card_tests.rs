@@ -103,7 +103,8 @@ fn a_change_patches_only_the_properties_of_the_fields_changed_and_keeps_what_isn
     assert!(p["emails"].as_object().unwrap().values().any(|e| e == &json!({"address": "countess@example.org"})));
     // The number, relabelled, is the same entry with its context instead of its feature.
     assert_eq!(p["phones"], json!({"p1": {"number": "+44 20 7946 0001", "contexts": {"work": true}}}));
-    assert_eq!(p["notes"], json!({"n1": {"note": "Met at the salon. Wrote the first program."}}));
+    // The one note's text changes; its author stays.
+    assert_eq!(p["notes"], json!({"n1": {"note": "Met at the salon. Wrote the first program.", "author": {"name": "Zoe"}}}));
     // A field not named is not sent, though it differs.
     values.company = "Babbage & Co".into();
     assert!(!patch(&server, &values, &fields).contains_key("organizations"));
@@ -155,4 +156,96 @@ proptest! {
         let _ = patch(&card, &values, &ContactField::ALL.into_iter().collect());
         let _ = super::card::books_of(&card);
     }
+}
+
+#[test]
+fn a_relabelled_entry_keeps_the_contexts_and_features_mailcraft_does_not_label_with() {
+    let mut server = ada();
+    server["emails"]["e1"]["contexts"] = json!({"work": true, "billing": true});
+    server["phones"]["p1"]["features"] = json!({"mobile": true, "text": true});
+    let mut values = read(&server).unwrap();
+    values.emails[0].label = "home".into();
+    values.phones[0].label = "fax".into();
+    let p = patch(&server, &values, &[ContactField::Emails, ContactField::Phones].into());
+    assert_eq!(p["emails"]["e1"]["contexts"], json!({"private": true, "billing": true}));
+    assert_eq!(p["phones"]["p1"]["features"], json!({"fax": true, "text": true}));
+}
+
+#[test]
+fn entries_past_those_read_are_kept_by_a_change_of_the_rest() {
+    let mut server = ada();
+    let emails: serde_json::Map<String, Value> = (0..70).map(|n| (format!("x{n:02}"), json!({"address": format!("a{n}@example.org")}))).collect();
+    server["emails"] = Value::Object(emails);
+    let keywords: serde_json::Map<String, Value> = (0..70).map(|n| (format!("k{n:02}"), json!(true))).collect();
+    server["keywords"] = Value::Object(keywords);
+    let mut values = read(&server).unwrap();
+    assert_eq!(values.emails.len(), 64);
+    values.emails.push(Labeled::new("", "new@example.org"));
+    values.categories.as_mut().unwrap().push("New".into());
+    let p = patch(&server, &values, &[ContactField::Emails, ContactField::Categories].into());
+    let sent = p["emails"].as_object().unwrap();
+    assert_eq!(sent.len(), 71, "the 70 the server had and the new one");
+    assert_eq!(sent["x69"], json!({"address": "a69@example.org"}));
+    let words = p["keywords"].as_object().unwrap();
+    assert_eq!(words.len(), 71);
+    assert!(words.contains_key("k69") && words.contains_key("New"));
+}
+
+#[test]
+fn a_changed_name_part_writes_that_part_alone() {
+    let server = ada();
+    // The queued values have an older first name; only the surname was changed here.
+    let mut values = read(&server).unwrap();
+    (values.first, values.last) = ("Old".into(), "King".into());
+    let p = patch(&server, &values, &[ContactField::Last].into());
+    let parts = p["name"]["components"].as_array().unwrap();
+    assert!(parts.contains(&json!({"kind": "given", "value": "Ada"})));
+    assert!(parts.contains(&json!({"kind": "surname", "value": "King"})));
+    assert!(!parts.iter().any(|p| p["value"] == "Old"));
+}
+
+#[test]
+fn a_changed_display_name_alone_patches_the_full_name_only() {
+    let server = ada();
+    let mut values = read(&server).unwrap();
+    values.display_name = "Countess Lovelace".into();
+    let p = patch(&server, &values, &[ContactField::DisplayName].into());
+    assert_eq!(p, serde_json::Map::from_iter([("name/full".to_string(), json!("Countess Lovelace"))]));
+}
+
+#[test]
+fn an_organisation_with_neither_name_nor_units_goes() {
+    let mut server = ada();
+    server["organizations"] = json!({"o1": {"name": "Analytical Engines", "sortAs": "Engines"}});
+    let mut values = read(&server).unwrap();
+    values.company.clear();
+    let p = patch(&server, &values, &[ContactField::Company].into());
+    assert_eq!(p["organizations"], Value::Null);
+}
+
+#[test]
+fn an_edited_address_keeps_the_parts_mailcraft_does_not_show() {
+    let server = ada();
+    let mut values = read(&server).unwrap();
+    values.addresses[0].street = "14 Engine Row".into();
+    let p = patch(&server, &values, &[ContactField::Addresses].into());
+    let a1 = &p["addresses"]["a1"];
+    let parts = a1["components"].as_array().unwrap();
+    assert!(parts.contains(&json!({"kind": "apartment", "value": "3"})));
+    assert!(parts.contains(&json!({"kind": "name", "value": "14 Engine Row"})));
+    assert!(parts.contains(&json!({"kind": "locality", "value": "London"})));
+    assert_eq!(a1["contexts"], json!({"work": true}));
+    assert_eq!(p["addresses"].as_object().unwrap().len(), 1);
+}
+
+#[test]
+fn a_corrected_birthday_keeps_its_place() {
+    let mut server = ada();
+    server["anniversaries"]["b1"]["place"] = json!({"full": "London"});
+    let mut values = read(&server).unwrap();
+    values.birthday = Date::new(1815, 12, 11);
+    let p = patch(&server, &values, &[ContactField::Birthday].into());
+    assert_eq!(p["anniversaries"]["b1"]["place"], json!({"full": "London"}));
+    assert_eq!(p["anniversaries"]["b1"]["date"]["day"], 11);
+    assert_eq!(p["anniversaries"]["w1"], server["anniversaries"]["w1"]);
 }
