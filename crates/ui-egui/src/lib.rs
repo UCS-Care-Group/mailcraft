@@ -309,6 +309,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 #[cfg(test)]
+mod theme_classic_tests;
+#[cfg(test)]
 mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
@@ -898,7 +900,7 @@ pub struct UiState {
     pub ribbon_collapsed: bool,
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
-    /// Interface theme: light, dark, or follow the OS appearance.
+    /// Interface theme: light, Classic Light (#1203), dark, or follow the OS appearance.
     pub theme: theme::Appearance,
     /// High contrast: a stronger version of whichever theme is in use.
     #[serde(deserialize_with = "theme::lenient_bool")]
@@ -1149,7 +1151,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
-    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
+    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"classicLight"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
     (
         "ui.animations",
@@ -2895,7 +2897,7 @@ impl MailApp {
                     self.ui.theme = a;
                     Ok(json!({"value": a.code()}))
                 }
-                None => Err("`value` is light, dark or system".into()),
+                None => Err("`value` is light, classicLight, dark or system".into()),
             },
             "ui.animations" => match s("value").and_then(motion::Motion::from_code) {
                 Some(m) => {
