@@ -198,13 +198,23 @@ fn put_note(mailbox: &mut Mailbox, at: Option<usize>, change: Option<ContactChan
 /// A contact whose change can't be noted for want of room is kept on this computer instead (out
 /// of its folder, so no download can overwrite what the undo brought back; the server's copy
 /// comes down beside it). How many were.
-pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &BTreeSet<Id>) -> usize {
+pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::undo::Touched) -> usize {
     mailbox.contact_folders.clone_from(&now.contact_folders);
     // (The touched contacts' notes stay where they are and are worked out again in place, so
     // what was sent of them is remembered.)
     mailbox.contact_changes.clone_from(&now.contact_changes);
     let mut no_room = 0;
-    for id in touched {
+    for id in touched.changed_contacts() {
+        // Of a contact the step changed, only the fields it changed go back: what a server
+        // changed since in the others, and the server's key for it, stay as they are now.
+        if let (Some(fields), Some(cur)) = (touched.contact_fields(*id), now.contact(*id))
+            && let Ok(c) = mailbox.contact_mut(*id)
+        {
+            for field in ContactField::ALL.into_iter().filter(|f| !fields.contains(f)) {
+                field.copy(cur, c);
+            }
+            (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+        }
         if note_contact(mailbox, *id, server_copy(now, *id)).is_err()
             && let Ok(c) = mailbox.contact_mut(*id)
         {
@@ -281,7 +291,7 @@ fn take_folder(mailbox: &mut Mailbox, account: Id, listed: Option<&RemoteContact
         ..Default::default()
     }
     .tidied()
-    .ok_or_else(|| bad("the contacts folder's owner isn't an e-mail address"))?;
+    .ok_or_else(|| bad("the contacts folder's id can't be read, or its owner isn't an e-mail address"))?;
     let parent = clean_key(&listed.parent);
     let parent = if parent.is_empty() { 0 } else { mailbox.contact_folder_named(account, &folder.owner, &parent).unwrap_or(0) };
     match mailbox.contact_folder_named(account, &folder.owner, &folder.remote) {
@@ -340,12 +350,13 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     let whole = download.contacts.len() <= MAX_CONTACTS;
     let mut known: HashMap<String, Id> = HashMap::new();
     let mut extra: Vec<Id> = Vec::new();
-    for c in mailbox.contacts.values().filter(|c| c.origin.account == account && !c.origin.id.is_empty() && home(mailbox, c.folder).is_some()) {
+    // (Only this folder's: what another folder of the account lists, or says is gone, is not this one's.)
+    for c in mailbox.contacts.values().filter(|c| c.origin.account == account && !c.origin.id.is_empty() && c.folder == folder) {
         extra.extend(known.insert(c.origin.id.clone(), c.id));
     }
     // Deleted here and not told yet: still listed there, and not brought back.
     let deleting: HashSet<String> =
-        mailbox.contact_changes.iter().filter(|c| c.account == account && c.kind == ContactChangeKind::Delete).map(|c| c.remote.clone()).collect();
+        mailbox.contact_changes.iter().filter(|c| c.folder == folder && c.kind == ContactChangeKind::Delete).map(|c| c.remote.clone()).collect();
     let mut seen: HashSet<String> = HashSet::new();
     for remote in download.contacts.iter().take(MAX_CONTACTS) {
         let mut remote = remote.clone();
@@ -415,10 +426,16 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     // What the server no longer has.
     let mut gone: HashSet<String> = download.gone.iter().map(|id| clean_key(id)).filter(|id| !id.is_empty() && !seen.contains(id)).collect();
     if download.complete && whole {
-        // A new contact the server said it made without saying its name, and which its whole
-        // list doesn't show: it wasn't made after all, and goes up again.
-        for c in mailbox.contact_changes.iter_mut().filter(|c| c.folder == folder && c.kind == ContactChangeKind::Create && c.unconfirmed) {
-            c.unconfirmed = false;
+        // A new contact the server said it made without saying its name, and which a whole list
+        // read after that answer (by this computer's clock) doesn't show: it wasn't made after
+        // all, and goes up again. A list not said to be read after it says nothing about it.
+        let read = download.read_at;
+        for c in mailbox
+            .contact_changes
+            .iter_mut()
+            .filter(|c| c.folder == folder && c.kind == ContactChangeKind::Create && c.unconfirmed != 0 && read > c.unconfirmed)
+        {
+            c.unconfirmed = 0;
         }
         let listed_here = |id: &Id| mailbox.contact(*id).is_some_and(|c| c.folder == folder);
         gone.extend(known.iter().filter(|(remote, id)| !seen.contains(*remote) && listed_here(id)).map(|(remote, _)| remote.clone()));
@@ -434,7 +451,7 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
     }
     for remote in gone {
         // A deletion made here that the server has had (or another device made).
-        mailbox.contact_changes.retain(|c| !(c.account == account && c.kind == ContactChangeKind::Delete && c.remote == remote));
+        mailbox.contact_changes.retain(|c| !(c.folder == folder && c.kind == ContactChangeKind::Delete && c.remote == remote));
         let Some(id) = known.get(&remote).copied() else { continue };
         if not_sent(mailbox, id) {
             // Changed here: made again rather than lost.
@@ -471,7 +488,7 @@ pub fn contact_upload(s: &mut Session, account: Id) -> Result<ContactsUpload, Cm
     let (mailbox, now) = (&s.mailbox, s.now());
     let mut ops = Vec::new();
     let mut sent = Vec::new();
-    for (at, change) in mailbox.contact_changes.iter().enumerate().filter(|(_, c)| c.account == account && c.next_try <= now && !c.unconfirmed) {
+    for (at, change) in mailbox.contact_changes.iter().enumerate().filter(|(_, c)| c.account == account && c.next_try <= now && c.unconfirmed == 0) {
         if ops.len() >= MAX_CONTACT_OPS {
             break;
         }
@@ -581,6 +598,19 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
         outcome.tidy();
         let (id, kind) = (outcome.op.contact, outcome.op.kind);
         let at = mailbox.contact_changes.iter().position(|c| c.account == account && c.contact == id && c.kind == kind);
+        // An answer about another of the server's contacts than the one this contact is linked to
+        // now (it was made again meanwhile, or the answer names a different one) isn't about
+        // this contact: left alone.
+        if kind != ContactChangeKind::Create {
+            let linked = at
+                .and_then(|at| mailbox.contact_changes.get(at))
+                .map(|c| c.remote.clone())
+                .or_else(|| mailbox.contact(id).map(|c| c.origin.id.clone()));
+            let named = !outcome.op.remote.is_empty() && (outcome.remote.is_empty() || outcome.remote == outcome.op.remote);
+            if !named || linked.is_some_and(|linked| linked != outcome.op.remote) {
+                continue;
+            }
+        }
         let hold = |change: &mut ContactChange| {
             change.attempts = change.attempts.saturating_add(1);
             change.next_try = now.saturating_add(wait_after(change.attempts, outcome.retry_after));
@@ -600,7 +630,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                 // Made, but under a name not heard: not sent again (it would be made twice) until
                 // a download shows it ([`merge_contacts`] takes it for this one) or doesn't.
                 if let Some(change) = at.and_then(|at| mailbox.contact_changes.get_mut(at)) {
-                    (change.unconfirmed, change.sent) = (true, true);
+                    (change.unconfirmed, change.sent) = (now.max(1), true);
                     applied.done += 1;
                 }
             }
@@ -630,14 +660,17 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                     }
                     ContactChangeKind::Change => {
                         let Some(mut base) = server_copy(mailbox, id) else { continue };
-                        let sent = contact_from_remote(&outcome.op.values);
-                        for field in &outcome.op.fields {
-                            field.copy(&sent, &mut base);
-                        }
-                        // The server's key for what it has after this change, unless a download
-                        // since brought a newer copy (whose key is then the one it has).
-                        if !outcome.change_key.is_empty() && base.origin.change_key == outcome.op.values.change_key {
-                            base.origin.change_key.clone_from(&outcome.change_key);
+                        // The server's copy is what was sent, under the key it answered with,
+                        // unless a download since brought a newer copy: then that copy, fields
+                        // and key, is what it has.
+                        if base.origin.change_key == outcome.op.values.change_key {
+                            let sent = contact_from_remote(&outcome.op.values);
+                            for field in &outcome.op.fields {
+                                field.copy(&sent, &mut base);
+                            }
+                            if !outcome.change_key.is_empty() {
+                                base.origin.change_key.clone_from(&outcome.change_key);
+                            }
                         }
                         Some(base)
                     }

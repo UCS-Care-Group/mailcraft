@@ -3750,7 +3750,7 @@ impl Session {
         self.tell_events_again(&now, &u.touched);
         // The contacts it puts back go to their servers as such (#1917): undone after a change
         // went up, the server is told the opposite.
-        let no_room = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, u.touched.changed_contacts());
+        let no_room = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, &u.touched);
         if no_room > 0 {
             let line = self.interface_language.tn(
                 no_room as u64,

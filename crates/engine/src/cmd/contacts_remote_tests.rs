@@ -221,9 +221,12 @@ fn a_download_while_a_change_waits_merges_field_by_field() {
     run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![back, person("c-cy", "Cy")])}));
     assert_eq!((s.mailbox.contacts.len(), s.mailbox.contact(bo).unwrap().origin.id.as_str()), (count, "c-bo-2"));
     assert!(s.mailbox.contact_changes.is_empty());
-    // Its late answer then changes nothing more.
+    // Its late answer then changes nothing more: not the contact's fields, nor its key.
+    let adopted = s.mailbox.contact(bo).cloned();
     answer(&mut s, account, &op, ContactResult::Done, "c-bo-2");
     assert!(s.mailbox.contact_changes.is_empty());
+    assert_eq!(s.mailbox.contact(bo).cloned(), adopted);
+    assert_eq!(s.mailbox.contact(bo).unwrap().origin.change_key, "ck-c-bo-2-1");
 }
 
 #[test]
@@ -510,9 +513,10 @@ fn a_new_contact_made_without_a_name_is_not_made_twice() {
     let dee = run(&mut s, "people.new", json!({"first": "Dee", "email": "dee@example.org"}))["id"].as_u64().unwrap();
     let op = upload(&mut s, account).ops.remove(0);
     answer(&mut s, account, &op, ContactResult::Done, "");
-    assert!(s.mailbox.contact_changes[0].unconfirmed && upload(&mut s, account).ops.is_empty());
-    // A whole list without it: it wasn't made after all.
-    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")])}));
+    assert!(s.mailbox.contact_changes[0].unconfirmed == NOW && upload(&mut s, account).ops.is_empty());
+    // A whole list read after the answer, without it: it wasn't made after all.
+    let after = ContactsDownload { read_at: NOW + 1, ..download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]) };
+    run(&mut s, "sync.applyContacts", json!({"download": after}));
     let op = upload(&mut s, account).ops.remove(0);
     assert_eq!(op.contact, dee);
     answer(&mut s, account, &op, ContactResult::Done, "");
@@ -548,9 +552,99 @@ fn a_late_answer_keeps_the_newer_key_of_a_download() {
     let op = upload(&mut s, account).ops.remove(0);
     let newer = RemoteContact { last: "Marsh".into(), change_key: "ck-c-bo-3".into(), ..person("c-bo", "Bo") };
     run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![newer, person("c-cy", "Cy")])}));
+    // And changed there again since (CodeRabbit on #1934): the newer copy stands, fields and key.
+    let lake = RemoteContact { last: "Lake".into(), change_key: "ck-c-bo-4".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![lake, person("c-cy", "Cy")])}));
     answer(&mut s, account, &op, ContactResult::Done, "");
-    assert_eq!(s.mailbox.contact(bo).unwrap().origin.change_key, "ck-c-bo-3");
+    let c = s.mailbox.contact(bo).unwrap();
+    assert_eq!((c.last.as_str(), c.origin.change_key.as_str()), ("Lake", "ck-c-bo-4"));
     assert!(s.mailbox.contact_changes.is_empty());
+}
+
+/// Review of #1935/#1936: undone, a step puts back only the fields it changed; what the server
+/// changed since in the others stays, and isn't sent back.
+#[test]
+fn undo_puts_back_only_the_fields_the_step_changed() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    let there = RemoteContact { last: "Marsh".into(), company: "Example Ltd".into(), change_key: "ck-c-bo-5".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![there, person("c-cy", "Cy")])}));
+    run(&mut s, "edit.undo", json!({}));
+    let c = s.mailbox.contact(bo).unwrap();
+    assert_eq!((c.last.as_str(), c.company.as_str(), c.origin.change_key.as_str()), ("", "Example Ltd", "ck-c-bo-5"));
+    assert_eq!(notes(&s), [(bo, ContactChangeKind::Change, vec![ContactField::Last])]);
+    assert_eq!(upload(&mut s, account).ops[0].values.change_key, "ck-c-bo-5");
+}
+
+/// Review of #1935/#1936: a folder's download says nothing of another folder's contacts, even
+/// under the same ids.
+#[test]
+fn a_folders_gone_list_touches_only_its_own_contacts() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(
+        &mut s,
+        "sync.applyContacts",
+        json!({"download": ContactsDownload { gone: vec!["c-bo".into()], complete: false, ..team(true, vec![], account) }}),
+    );
+    run(&mut s, "sync.applyContacts", json!({"download": team(true, vec![person("c-cy", "Cy again")], account)}));
+    assert!(s.mailbox.contact(bo).is_some());
+    run(&mut s, "sync.applyContacts", json!({"download": team(true, vec![], account)}));
+    assert!(s.mailbox.contacts.values().any(|c| c.first == "Cy") && s.mailbox.contact(bo).is_some());
+}
+
+/// Review of #1935/#1936: a folder whose id can't be read is refused, never taken for the main one.
+#[test]
+fn a_folder_id_that_cant_be_read_is_not_the_main_folder() {
+    let (mut s, account) = session();
+    let main = s.mailbox.main_contact_folder(account).unwrap();
+    let (name, writable) = s.mailbox.contact_folder(main).map(|f| (f.name.clone(), f.writable)).unwrap();
+    for id in ["a b", "\u{7}", " "] {
+        let mut odd = team(false, vec![person("c-x", "X")], account);
+        if let Some(f) = odd.folder.as_mut() {
+            (f.id, f.owner) = (id.into(), FolderOwner::Own);
+        }
+        assert!(s.run("sync.applyContacts", &json!({"download": odd})).is_err(), "{id:?}");
+    }
+    assert_eq!(s.mailbox.contact_folder(main).map(|f| (f.name.clone(), f.writable)), Some((name, writable)));
+    assert!(s.mailbox.contacts.values().all(|c| c.first != "X"));
+}
+
+/// Review of #1935/#1936: an answer naming another of the server's contacts than the one this
+/// contact is linked to changes nothing.
+#[test]
+fn an_answer_about_another_server_contact_changes_nothing() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    let snapshot = s.mailbox.clone();
+    let elsewhere = ContactOp { remote: "c-someone-else".into(), ..op.clone() };
+    for result in [ContactResult::Done, ContactResult::Refused, ContactResult::Gone, ContactResult::Failed] {
+        answer(&mut s, account, &elsewhere, result, "");
+        answer(&mut s, account, &op, result, "c-other");
+    }
+    assert!(s.mailbox == snapshot);
+}
+
+/// Review of #1934 (second round): only a whole list read after the answer re-arms a new contact
+/// the server made without saying its name.
+#[test]
+fn a_list_read_before_the_answer_doesnt_send_a_new_contact_again() {
+    let (mut s, account) = session();
+    run(&mut s, "people.new", json!({"first": "Dee"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    let list = |read_at| ContactsDownload { read_at, ..download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]) };
+    for read_at in [0, NOW - 5, NOW] {
+        run(&mut s, "sync.applyContacts", json!({"download": list(read_at)}));
+        assert!(upload(&mut s, account).ops.is_empty(), "{read_at}");
+    }
+    run(&mut s, "sync.applyContacts", json!({"download": list(NOW + 1)}));
+    assert_eq!(upload(&mut s, account).ops.len(), 1);
 }
 
 /// Review of #1934: a refusal puts back only what was sent, and keeps what was changed since.
