@@ -181,6 +181,9 @@ pub mod rules_sieve;
 mod rules_sieve_tests;
 #[cfg(test)]
 mod rules_waiting_tests;
+pub mod rules_webmail;
+#[cfg(test)]
+mod rules_webmail_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;

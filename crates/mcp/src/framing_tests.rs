@@ -903,6 +903,8 @@ const WRITTEN_PARAMS: &[&str] = &[
     "extensions",
     // A Sieve rule's text, the agent's own (`rules.addSieve`, `rules.editSieve`, #9999).
     "sieve",
+    // The words a header condition of a webmail's filter looks for (#9999).
+    "words",
     "query",
     "text",
     "html",

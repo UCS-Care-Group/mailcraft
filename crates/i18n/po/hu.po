@@ -702,6 +702,30 @@ msgstr "Egy fájl"
 msgid "A file dialog is already open."
 msgstr "Már van fájlablak."
 
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's has one condition here, on a recipient or a message header, and no exception."
+msgstr "A webes levelezője szűrőjének itt egy feltétele van, címzettre vagy fejlécre, és nincs kivétele."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's is kept in your Sieve script on the server."
+msgstr "A webes levelezője szűrője a kiszolgálón lévő Sieve-szkriptjében marad."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's looks for at most {n} things."
+msgstr "A webes levelezője szűrője legfeljebb {n} dolgot keres."
+
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's moves mail to one folder of its account and stops the filters after it, with no desktop alert."
+msgstr "A webes levelezője szűrője a fiókja egy mappájába helyezi a leveleket, és leállítja az utána következő szűrőket, asztali értesítés nélkül."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -817,10 +841,28 @@ msgid "A message asking to unsubscribe goes from {from} to {to}, through your Ou
 msgstr "A leiratkozást kérő üzenet {from} címről {to} címre megy a Postázandó üzeneteken keresztül."
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "A message header condition is only for a filter of your webmail's Sieve script."
+msgstr "Fejlécfeltétel csak a webes levelezője Sieve-szkriptjének szűrőjéhez tartozhat."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A message header condition needs the names of its header lines, such as X-Spam-Flag."
+msgstr "A fejlécfeltételhez meg kell adni a fejlécsorok nevét, például X-Spam-Flag."
+
+#. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "A name must follow the colon."
 msgstr "A kettőspont után név kell."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A new filter in your webmail's Sieve script, in the format your webmail uses"
+msgstr "Új szűrő a webes levelezője Sieve-szkriptjében, a webes levelezője formátumában"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5770,6 +5812,12 @@ msgstr "Feladat szerkesztése"
 msgid "Edit your Sieve script \"{name}\"…"
 msgstr "A(z) „{name}” Sieve-szkript szerkesztése…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edited here in the format your webmail uses"
+msgstr "Itt szerkesztve, a webes levelezője formátumában"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7373,6 +7421,12 @@ msgstr "Küldjenek választ a"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header name"
+msgstr "Fejléc neve"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -10043,6 +10097,18 @@ msgstr ""
 msgid "Message Preview"
 msgstr "Üzenetek előnézete"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header contains"
+msgstr "A fejléc tartalmazza"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header is"
+msgstr "A fejléc pontosan"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
 #, fuzzy
@@ -11024,6 +11090,12 @@ msgstr "Új névjegy"
 #, fuzzy
 msgid "New Email"
 msgstr "Új e-mail"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Filter…"
+msgstr "Új szűrő…"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
@@ -15243,7 +15315,7 @@ msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "A postafiókát megmentve… a {total} {done} üzenetei"
 
 #. interface
-#: crates/ui-egui/src/sieve_replies.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Saving your Sieve script…"
 msgstr "A Sieve-szkript mentése…"
@@ -16153,6 +16225,12 @@ msgstr "Beállítások…"
 #, fuzzy
 msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
 msgstr "Több cím: válassza el őket pontosvesszővel (;). Bármelyik elég."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several header lines: set their names apart with a semicolon (;). Any one of them is enough."
+msgstr "Több fejlécsor: válassza el a nevüket pontosvesszővel (;). Bármelyik elég."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20546,6 +20624,12 @@ msgstr "Ez a fájl nem importálható: {why}"
 msgid "This file has a password. Nothing is imported without it."
 msgstr "Ez a fájl jelszóval rendelkezik, és semmi sem importálható nélküle."
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "This filter of your webmail's can't be changed here: {why}."
+msgstr "A webes levelezője ezen szűrője itt nem módosítható: {why}."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
 #, fuzzy
@@ -22855,7 +22939,7 @@ msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: t
 msgstr "A szerveren a MailCraft helyett az Ön „{name}” Sieve-szkriptje fut: ezek a válaszok ott tárolódnak, de amíg az fut, nem mennek ki. A MailCraft soha nem kapcsolja ki az Ön szkriptjét."
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
 msgstr "A Sieve-szkript megnyitása óta megváltozott a kiszolgálón, ezért semmi sem íródott ki. Töltse be újra, hogy lássa, mi van most benne."
@@ -23171,6 +23255,12 @@ msgstr "A szabályai a szerverre kerültek, de ott egy másik Sieve-szkriptje fu
 #, fuzzy
 msgid "Your rules weren't changed on the server"
 msgstr "A szabályai nem változtak meg a szerveren"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "Your webmail's Sieve script isn't the one this account's server runs, as MailCraft last read it."
+msgstr "A webes levelezője Sieve-szkriptje nem az, amelyet a fiók kiszolgálója futtat, a MailCraft legutóbbi olvasása szerint."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -23497,7 +23587,7 @@ msgid "a rule of one account can't go to another account's server"
 msgstr "a fiók szabálya nem helyezhető át másik fiók kiszolgálójára"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr "a szabály a fiókjánál marad: törölje, és hozzon létre egyet a másik fiókhoz"
@@ -24322,6 +24412,12 @@ msgid "it looks for a name, and the server looks at addresses only"
 msgstr "Keres egy nevet, és a szerver csak a címeket nézi."
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it moves mail to a folder MailCraft doesn't have"
+msgstr "olyan mappába helyezi a leveleket, amely nincs meg a MailCraftban"
+
+#. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
@@ -24358,10 +24454,22 @@ msgid "it took too long"
 msgstr "Túl sokáig tartott."
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it uses settings of your webmail that MailCraft doesn't know yet"
+msgstr "a webes levelezője olyan beállításait használja, amelyeket a MailCraft még nem ismer"
+
+#. name
 #: crates/engine/src/agent.rs
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "ír másoknak, vagy kinyúl a webre"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its Sieve doesn't match its settings: it was changed by hand"
+msgstr "a Sieve-je nem egyezik a beállításaival: kézzel módosították"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24375,11 +24483,23 @@ msgstr "a Sieve-kódjában hiba van"
 msgid "its account"
 msgstr "a saját fiókja"
 
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its conditions can't be shown in the rule builder"
+msgstr "a feltételei nem jeleníthetők meg a szabályvarázslóban"
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "A neve nem olyan, amivel egy tanúsítvány ellen lehet ellenőrizni"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its settings in the script can't be read"
+msgstr "a beállításai a szkriptben nem olvashatók"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24598,7 +24718,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "nincs fiókot lépésben tartani a Microsoft Graph"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
@@ -24742,7 +24862,7 @@ msgid "no picture {id} was put in this message"
 msgstr "ebbe az üzenetbe nem került {id} kép"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "nincs szabály az id {id}-val"
@@ -25696,6 +25816,12 @@ msgstr "a fájl üres"
 msgid "the file is larger than a file of Public keys can be (1 MB)"
 msgstr "a fájl nagyobb, mint egy fájl nyilvános billentyűk lehet (1 MB)"
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "the filter next to it in your webmail's script has no end, so it can't be moved"
+msgstr "a webes levelezője szkriptjében mellette lévő szűrőnek nincs vége, ezért nem helyezhető át"
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -26620,7 +26746,7 @@ msgid "there are too many categories"
 msgstr "Túl sok a kategória."
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "there are too many rules"
 msgstr "Túl sok a szabály."

@@ -28,6 +28,7 @@ use mailcraft_model::{Action, Condition, Id, Keep, Mailbox, Rule, ServerRule, Wo
 use super::sieve_replies::SIEVE_ID;
 use crate::sieve::{Comment, Tok, lex};
 use crate::sieve_rainloop;
+use crate::sieve_rainloop::{ReadOnly, Settings};
 
 /// Where the ids of these rules begin: far above any a mailbox gives out, so that a command naming
 /// one is known for what it is, and refused.
@@ -62,6 +63,24 @@ pub struct Elsewhere {
     /// Its text exactly as the server gave it (never saved): what the owner's own script is
     /// edited from, whole ([`crate::cmd::sieve_own`]).
     pub text: String,
+    /// In a script of a webmail of the RainLoop kind ([`sieve_rainloop::signed`]), its filter
+    /// blocks, in order: those that can be changed here ([`crate::cmd::rules_webmail`]) and those
+    /// that can't, with why.
+    pub blocks: Vec<Block>,
+}
+
+/// A filter block of a webmail's script, and the rule it is shown as.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Block {
+    /// Its bytes, from its `BEGIN:FILTER` comment to the end of its `END:FILTER` one, when it has
+    /// that end.
+    pub at: Option<Range<usize>>,
+    /// The rule it is shown as, when there is one.
+    pub rule: Option<Id>,
+    /// Its id, as the webmail gave it.
+    pub id: String,
+    /// Its settings, when it can be changed here; else why it can't.
+    pub settings: Result<Settings, ReadOnly>,
 }
 
 /// The script's text stays out of debug output: only its size.
@@ -74,6 +93,7 @@ impl std::fmt::Debug for Elsewhere {
             .field("replies", &self.replies)
             .field("unreadable", &self.unreadable)
             .field("text", &self.text.len())
+            .field("blocks", &self.blocks.len())
             .finish()
     }
 }
@@ -541,7 +561,10 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
     off.reverse();
     let mut named_filter = vec![false; filters.len()];
     let mut before = 0;
-    let push_off = |out: &mut Elsewhere, name: String| {
+    // Where each rule's source starts: its command, or a block switched off's comment.
+    let mut starts: Vec<usize> = Vec::new();
+    let push_off = |out: &mut Elsewhere, starts: &mut Vec<usize>, at: usize, name: String| {
+        starts.push(at);
         let n = out.rules.len();
         let name = if name.is_empty() { format!("{} {}", out.script, n.saturating_add(1)) } else { name };
         let server = ServerRule { id: format!("{SIEVE_ID}{}", out.script), read_only: true, unknown: vec!["filter".into()], ..Default::default() };
@@ -557,8 +580,8 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
     };
     for c in &commands {
         while out.rules.len() < MAX_RULES && off.last().is_some_and(|(at, _)| *at < c.at.start) {
-            if let Some((_, name)) = off.pop() {
-                push_off(&mut out, name);
+            if let Some((at, name)) = off.pop() {
+                push_off(&mut out, &mut starts, at, name);
             }
         }
         if out.rules.len() >= MAX_RULES {
@@ -616,13 +639,95 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         rule.id = base.saturating_add(n as u64);
         rule.name = name.unwrap_or_else(|| format!("{} {}", out.script, n.saturating_add(1)));
         rule.server = Some(ServerRule { id: format!("{SIEVE_ID}{}", out.script), read_only: true, unknown, ..Default::default() });
+        starts.push(c.at.start);
         out.rules.push(rule);
     }
     while out.rules.len() < MAX_RULES {
-        let Some((_, name)) = off.pop() else { break };
-        push_off(&mut out, name);
+        let Some((at, name)) = off.pop() else { break };
+        push_off(&mut out, &mut starts, at, name);
+    }
+    out.blocks = blocks(mb, account, text, &filters, &regions, &starts, &mut out.rules);
+    out
+}
+
+/// The filter blocks `filters` (their Sieve in `regions`) of the script `text`, and the rules
+/// `rules` (each read from the bytes at `starts`): a block that can be changed here makes its rule
+/// what its settings say, and changeable.
+fn blocks(
+    mb: &Mailbox,
+    account: Id,
+    text: &str,
+    filters: &[sieve_rainloop::Filter],
+    regions: &[Range<usize>],
+    starts: &[usize],
+    rules: &mut [Rule],
+) -> Vec<Block> {
+    let mut out = Vec::with_capacity(filters.len());
+    for (f, region) in filters.iter().zip(regions) {
+        let at = f.whole();
+        let index = at.as_ref().and_then(|at| starts.iter().position(|s| at.contains(s)));
+        let rule = index.and_then(|i| rules.get(i)).map(|r| r.id);
+        let settings = match (&at, &f.settings) {
+            (Some(_), Some(json)) => Settings::read(json),
+            _ => Err(ReadOnly::Unreadable),
+        };
+        let settings = settings.and_then(|s| {
+            let between = text.get(region.clone()).unwrap_or_default();
+            if s.agrees(between) && f.id == s.id { Ok(s) } else { Err(ReadOnly::Disagrees) }
+        });
+        let shown = settings.as_ref().map_err(|why| *why).and_then(|s| webmail_rule(mb, account, s));
+        let settings = match (settings, shown, index.and_then(|i| rules.get_mut(i))) {
+            (Ok(s), Ok((conditions, folder)), Some(r)) => {
+                r.enabled = s.enabled;
+                r.conditions = vec![conditions];
+                r.exceptions.clear();
+                r.actions = vec![Action::MoveTo(folder)];
+                r.stop = true;
+                if let Some(server) = r.server.as_mut() {
+                    server.read_only = false;
+                    server.unknown.clear();
+                }
+                Ok(s)
+            }
+            (Ok(_), Ok(_), None) => Err(ReadOnly::Unreadable),
+            (Ok(_), Err(why), _) | (Err(why), _, _) => Err(why),
+        };
+        out.push(Block { at, rule, id: f.id.clone(), settings });
     }
     out
+}
+
+/// The condition and the folder a filter's settings `s` are shown as on `account`, when its
+/// conditions can be one condition and its folder is one MailCraft has.
+pub(crate) fn webmail_rule(mb: &Mailbox, account: Id, s: &Settings) -> Result<(Condition, Id), ReadOnly> {
+    let condition = webmail_conditions(&s.conditions).ok_or(ReadOnly::Shape)?;
+    let folder = mb.folders.iter().find(|f| f.account == account && f.remote == s.folder).map(|f| f.id).ok_or(ReadOnly::Folder)?;
+    Ok((condition, folder))
+}
+
+/// A filter's conditions, any one of which is enough, as one condition of a rule, when they can
+/// be: recipients that contain any of some words; or header lines that contain (or are) any of
+/// some words, each of the lines with each of the words (in either case, as Sieve compares them).
+pub(crate) fn webmail_conditions(conditions: &[sieve_rainloop::Condition]) -> Option<Condition> {
+    let first = conditions.first()?;
+    if conditions.iter().all(|c| c.test.field == "Recipient") {
+        let words: Vec<String> = conditions.iter().map(|c| c.value.clone()).collect();
+        return Some(Condition::ToContains(union(Words::Text, &[], &words)));
+    }
+    let kind = first.test;
+    if !conditions.iter().all(|c| c.test == kind && c.test.field == "Header") {
+        return None;
+    }
+    let names: Vec<String> = shown_names(&conditions.iter().map(|c| c.second.clone()).collect::<Vec<_>>());
+    let mut words: Vec<String> = Vec::new();
+    for c in conditions {
+        if !words.iter().any(|w| w.eq_ignore_ascii_case(&c.value)) {
+            words.push(c.value.clone());
+        }
+    }
+    let has = |n: &str, w: &str| conditions.iter().any(|c| c.second.trim().eq_ignore_ascii_case(n) && c.value.eq_ignore_ascii_case(w));
+    let every = names.iter().all(|n| words.iter().all(|w| has(n, w)));
+    every.then(|| Condition::Header { names, words, exact: kind.kind == "EqualTo" })
 }
 
 /// Whether `id` is one of these rules' (they are refused by every command that would change one).

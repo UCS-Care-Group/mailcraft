@@ -4545,9 +4545,17 @@ pub(crate) mod rules {
         Category,
         Flagged,
         Received,
+        /// A header line named so contains these words: only for a filter of a webmail's Sieve
+        /// script (#9999).
+        Header,
+        /// A header line named so is one of these words: the same.
+        HeaderIs,
     }
 
     impl When {
+        /// What a filter of a webmail's Sieve script can look at (#9999).
+        const WEBMAIL: [When; 3] = [When::To, When::Header, When::HeaderIs];
+
         const ALL: [When; 21] = [
             When::Person,
             When::From,
@@ -4595,6 +4603,8 @@ pub(crate) mod rules {
                 When::Category => "Has the category",
                 When::Flagged => "Is flagged",
                 When::Received => "Received between",
+                When::Header => "Message header contains",
+                When::HeaderIs => "Message header is",
             }
         }
 
@@ -4636,13 +4646,25 @@ pub(crate) mod rules {
                 When::Category => "category",
                 When::Flagged => "flagged",
                 When::Received => "receivedBetween",
+                When::Header | When::HeaderIs => "header",
             }
         }
 
         /// The condition is words to look for, or people's addresses: several, any one of
         /// which is enough, set apart by semicolons.
         fn takes_text(self) -> bool {
-            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody)
+            matches!(
+                self,
+                When::Person
+                    | When::From
+                    | When::SentTo
+                    | When::To
+                    | When::Subject
+                    | When::Body
+                    | When::SubjectOrBody
+                    | When::Header
+                    | When::HeaderIs
+            )
         }
 
         /// It takes people's whole addresses.
@@ -4686,6 +4708,9 @@ pub(crate) mod rules {
         from: String,
         to: String,
         category: String,
+        /// The names of the header lines a message header condition looks in, set apart by
+        /// semicolons (#9999).
+        names: String,
         /// A sender's text Always Move filled in that isn't a whole address: looked for as one
         /// text, a semicolon in it too, as `rules.fromMessage` looks for it, while the field still
         /// holds it as filled in.
@@ -4704,6 +4729,7 @@ pub(crate) mod rules {
                 from: String::new(),
                 to: String::new(),
                 category: String::new(),
+                names: String::new(),
                 whole: None,
             }
         }
@@ -4734,6 +4760,16 @@ pub(crate) mod rules {
                 return Some(too_many_words());
             }
             let ok = match self.kind {
+                When::Header | When::HeaderIs => {
+                    let names = split_words(&self.names);
+                    if names.is_empty() || !names.iter().all(|n| mailcraft_engine::sieve_rainloop::header_name(n)) {
+                        return Some(tl!("A message header condition needs the names of its header lines, such as X-Spam-Flag."));
+                    }
+                    if words.iter().any(|w| w.chars().count() > MAX_WORD) {
+                        return Some(tl!("A word to look for is at most 200 characters."));
+                    }
+                    !words.is_empty()
+                }
                 kind if kind.takes_people() => {
                     // One whole address each, as `rules.add` takes a person: no longer than an
                     // address can be.
@@ -4809,8 +4845,14 @@ pub(crate) mod rules {
                 Condition::ReceivedBetween { from, to } => {
                     vec![Cond { from: from.map(Date::iso).unwrap_or_default(), to: to.map(Date::iso).unwrap_or_default(), ..with(When::Received) }]
                 }
-                // (Only a Sieve script made elsewhere has one, and its rules aren't changed here.)
-                Condition::Header { .. } => return None,
+                // (Only a filter of a webmail's Sieve script has one, #9999.)
+                Condition::Header { names, words: w, exact } => {
+                    if names.iter().chain(w).any(|t| t.contains(';')) {
+                        return None;
+                    }
+                    let kind = if *exact { When::HeaderIs } else { When::Header };
+                    vec![Cond { names: names.join("; "), text: w.join("; "), ..with(kind) }]
+                }
                 Condition::Category(names) => match names.as_slice() {
                     [] => return None,
                     [one] => vec![Cond { category: one.clone(), ..with(When::Category) }],
@@ -4824,6 +4866,9 @@ pub(crate) mod rules {
         fn param(&self) -> Value {
             let kind = self.kind.code();
             match self.kind {
+                When::Header | When::HeaderIs => {
+                    json!({"type": kind, "value": {"names": split_words(&self.names), "words": self.words(), "exact": self.kind == When::HeaderIs}})
+                }
                 k if k.takes_text() => match self.words().as_slice() {
                     [one] => json!({"type": kind, "value": one}),
                     words => json!({"type": kind, "value": words}),
@@ -4981,9 +5026,10 @@ pub(crate) mod rules {
         addresses: bool,
         categories: &[String],
         removable: bool,
+        kinds: &[When],
     ) -> bool {
         egui::ComboBox::from_id_salt((part, i)).width(190.0).selected_text(tl!(c.kind.label_as(addresses))).truncate().show_ui(ui, |ui| {
-            for kind in When::ALL {
+            for kind in kinds.iter().copied() {
                 if ui.selectable_label(kind == c.kind, tl!(kind.label_as(addresses))).clicked() {
                     c.kind = kind;
                 }
@@ -5025,6 +5071,13 @@ pub(crate) mod rules {
                         }
                     }
                 });
+            }
+            When::Header | When::HeaderIs => {
+                pass.text(ui, (part, "names", i), &mut c.names, 130.0, tl!("Header name"))
+                    .on_hover_text(tl!("Several header lines: set their names apart with a semicolon (;). Any one of them is enough."));
+                let width = (ui.available_width() - if removable { 30.0 } else { 0.0 }).max(60.0);
+                pass.text(ui, (part, "text", i), &mut c.text, width, tl!("Text to look for"))
+                    .on_hover_text(tl!("Several texts: set them apart with a semicolon (;). Any one of them is enough."));
             }
             kind if kind.takes_people() => {
                 pass.text(ui, (part, "text", i), &mut c.text, width, tl!("Addresses"))
@@ -5336,10 +5389,13 @@ pub(crate) mod rules {
         servers: &[(Id, String)],
         run: &mut Option<(&'static str, Value)>,
         change: &mut Option<Id>,
+        lock: Option<&str>,
     ) {
         let t = crate::theme::Tokens::get(ui.ctx());
         let mb = &app.session.mailbox;
-        let fixed = r.read_only();
+        // (A filter of a webmail's script is held still while a change of it is saved, or can't be
+        // changed for a reason of its own, #9999.)
+        let fixed = r.read_only() || lock.is_some();
         // The servers that could keep it: its own account's, or for a rule for every account, any.
         let to: Vec<&(Id, String)> = if r.keep == Keep::Here && !r.on_server() {
             servers.iter().filter(|(id, _)| (r.account == 0 || r.account == *id) && server_cannot(mb, r, *id).is_none()).collect()
@@ -5348,7 +5404,11 @@ pub(crate) mod rules {
         };
         ui.horizontal(|ui| {
             let mut on = r.enabled;
-            let tip = if fixed { tl!("The server doesn't let this rule be changed") } else { tl!("Run this rule on mail as it arrives") };
+            let tip = match lock {
+                Some(why) => why,
+                None if fixed => tl!("The server doesn't let this rule be changed"),
+                None => tl!("Run this rule on mail as it arrives"),
+            };
             if ui.add_enabled(!fixed, egui::Checkbox::without_text(&mut on)).on_hover_text(tip).on_disabled_hover_text(tip).changed() {
                 *run = Some(("rules.enable", json!({"id": r.id, "value": on})));
             }
@@ -5357,7 +5417,7 @@ pub(crate) mod rules {
             let width = (ui.available_width() - buttons).max(40.0);
             // (Clicked, not focused: Tab goes from the switch to the buttons.)
             let (rect, resp) = ui.allocate_exact_size(vec2(width, 54.0), Sense::CLICK);
-            let not_changeable = not_changeable(mb, r);
+            let not_changeable: Option<&str> = lock.or_else(|| not_changeable(mb, r));
             let words = if r.known() {
                 shown(&describe(mb, r), 600)
             } else {
@@ -5468,6 +5528,9 @@ pub(crate) mod rules {
         /// The Sieve rule editor, in the builder's place, when it is open (Advanced… › New Sieve
         /// rule, or Change on a Sieve rule, #9999).
         pub(crate) sieve: Option<crate::sieve_editor::SieveEditor>,
+        /// The builder makes or changes a filter of the owner's own Sieve script, as the webmail
+        /// writes it (#9999): the digest of the script as it was read when it opened.
+        webmail: Option<String>,
     }
 
     impl RulesForm {
@@ -5487,7 +5550,7 @@ pub(crate) mod rules {
                 if let Some(account) = s.mailbox.rules.iter().find(|r| r.id == rule).map(|r| r.account).filter(|a| *a != 0) {
                     f.choose(&s.mailbox, account);
                 }
-                if !f.edit(&s.mailbox, rule) {
+                if !f.edit_filter(s, rule) && !f.edit(&s.mailbox, rule) {
                     f.sieve = crate::sieve_editor::SieveEditor::open(&s.mailbox, rule);
                 }
             }
@@ -5590,9 +5653,49 @@ pub(crate) mod rules {
             true
         }
 
+        /// Open the builder on the filter of the owner's own Sieve script that rule `id` is shown
+        /// as, to change it in the webmail's own shape (#9999). `false`, and nothing changes, when
+        /// it isn't one or can't be changed.
+        pub(crate) fn edit_filter(&mut self, s: &Session, id: Id) -> bool {
+            use mailcraft_engine::cmd::rules_webmail::find;
+            let Some(found) = find(s, id).filter(|f| f.block.settings.is_ok()) else { return false };
+            let Some(r) = found.script.rules.iter().find(|r| r.id == id) else { return false };
+            let Some(conds) = r.conditions.iter().map(|c| Cond::of(c, false)).collect::<Option<Vec<_>>>() else { return false };
+            let digest = mailcraft_engine::sieve::digest(&found.script.text);
+            let account = found.account;
+            self.reset();
+            self.choose(&s.mailbox, account);
+            self.name.clone_from(&r.name);
+            self.conds = conds.into_iter().flatten().collect();
+            let fresh = self.fresh_action();
+            self.acts = r.actions.iter().map(|a| Act::of(a, fresh.clone())).collect();
+            self.stop = true;
+            self.editing = Some((id, account));
+            self.webmail = Some(digest);
+            self.open = true;
+            self.focus = true;
+            self.error.clear();
+            true
+        }
+
+        /// Open the builder on a new filter of `account`'s own Sieve script, as the webmail writes
+        /// it (#9999).
+        fn new_filter(&mut self, s: &Session, account: Id) {
+            let Some(text) = s.sieve.get(&account).and_then(|k| k.elsewhere.as_ref()).map(|e| e.text.clone()) else { return };
+            self.reset();
+            self.choose(&s.mailbox, account);
+            self.conds = vec![Cond { kind: When::Header, ..Default::default() }];
+            self.stop = true;
+            self.webmail = Some(mailcraft_engine::sieve::digest(&text));
+            self.open = true;
+            self.focus = true;
+            self.error.clear();
+        }
+
         /// Start the builder over: one empty condition, one action, a new rule.
         fn reset(&mut self) {
             self.editing = None;
+            self.webmail = None;
             self.name.clear();
             self.stop = false;
             self.alert = false;
@@ -5613,6 +5716,21 @@ pub(crate) mod rules {
         pub fn command(&self) -> (&'static str, Value) {
             let conditions: Vec<Value> = self.conds.iter().map(Cond::param).collect();
             let actions: Vec<Value> = self.acts.iter().map(Act::param).collect();
+            // A filter of the webmail's script (#9999): under the digest of the script it was opened on.
+            if let Some(digest) = &self.webmail {
+                let mut params = json!({"name": self.name, "conditions": conditions, "actions": actions, "stop": true, "digest": digest});
+                return match self.editing {
+                    Some((id, _)) => {
+                        params["id"] = json!(id);
+                        ("rules.edit", params)
+                    }
+                    None => {
+                        params["webmail"] = json!(true);
+                        params["account"] = json!(self.account);
+                        ("rules.add", params)
+                    }
+                };
+            }
             let mut params = json!({"name": self.name, "conditions": conditions, "actions": actions, "stop": self.stop});
             if !self.unless.is_empty() {
                 params["exceptions"] = json!(self.unless.iter().map(Cond::param).collect::<Vec<_>>());
@@ -5739,6 +5857,7 @@ pub(crate) mod rules {
             let mut sieve_asks = None;
             let mut new_sieve = false;
             let mut edit_own = false;
+            let mut new_filter = false;
             let mut run: Option<(&'static str, Value)> = None;
             let mut replace_sieve = false;
             let mut chosen = None;
@@ -5776,7 +5895,7 @@ pub(crate) mod rules {
                         // A rule waiting to go stands after those the server has, and moves among them once it is there.
                         let up = i > 0 && there.get(i - 1).is_some_and(|p| p.on_server() == r.on_server());
                         let down = there.get(i + 1).is_some_and(|n| n.on_server() == r.on_server());
-                        rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run, &mut change);
+                        rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run, &mut change, None);
                     }
                     if there.is_empty() {
                         ui.label(egui::RichText::new(tl!("None yet.")).color(t.text_dim).size(11.5));
@@ -5799,8 +5918,13 @@ pub(crate) mod rules {
                         } else {
                             crate::i18n::fmt(tl!("In your Sieve script \"{name}\""), &[("name", &shown(&e.script, 80))])
                         };
+                        // A webmail's of the RainLoop kind: its filters are changed here in its own shape (#9999).
+                        let webmail = !e.ours && mailcraft_engine::cmd::rules_webmail::takes_new(&app.session, account);
+                        let busy = webmail && app.sieve_own_busy(account);
                         let tip = if e.ours {
                             tl!("Made in another program: MailCraft shows these rules and never changes them")
+                        } else if webmail {
+                            tl!("Edited here in the format your webmail uses")
                         } else {
                             tl!("Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text")
                         };
@@ -5819,7 +5943,24 @@ pub(crate) mod rules {
                             tl!("On the server, made in another program: MailCraft never changes it").to_string()
                         };
                         for r in &e.rules {
-                            rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run, &mut change);
+                            let block = e.blocks.iter().position(|b| b.rule == Some(r.id)).filter(|_| webmail);
+                            let Some(i) = block else {
+                                rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run, &mut change, None);
+                                continue;
+                            };
+                            // Moved past the filter beside it, whole; held while a change is saved.
+                            let movable = |j: Option<usize>| j.and_then(|j| e.blocks.get(j)).is_some_and(|b| b.at.is_some());
+                            let (up, down) = (movable(i.checked_sub(1)), movable(i.checked_add(1)));
+                            let why = mailcraft_engine::cmd::rules_webmail::read_only(&app.session, r.id).map(|why| tl!(why.said()));
+                            let lock = if busy { Some(tl!("Saving your Sieve script…")) } else { why };
+                            let shown_mark = if why.is_some() { mark.as_str() } else { tl!("Edited here in the format your webmail uses") };
+                            rule_row(ui, app, r, shown_mark, (up, down), account, &servers, &mut run, &mut change, lock);
+                        }
+                        if webmail {
+                            let new = ui.add_enabled(!busy, egui::Button::new(tl!("New Filter…")));
+                            if new.on_hover_text(tl!("A new filter in your webmail's Sieve script, in the format your webmail uses")).clicked() {
+                                new_filter = true;
+                            }
                         }
                         if e.unreadable {
                             ui.label(egui::RichText::new(tl!("MailCraft can't read the rules of this script.")).color(t.text_dim).size(11.5));
@@ -5834,7 +5975,7 @@ pub(crate) mod rules {
                     heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
                 }
                 for (i, r) in here.iter().enumerate() {
-                    rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change);
+                    rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change, None);
                 }
                 if there.is_empty() && here.is_empty() {
                     ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
@@ -5930,11 +6071,15 @@ pub(crate) mod rules {
                     }
                 }
             }
+            if new_filter {
+                self.new_filter(&app.session, account);
+                self.sieve = None;
+            }
             if let Some(id) = change {
                 if let Some(editor) = crate::sieve_editor::SieveEditor::open(&app.session.mailbox, id) {
                     self.reset();
                     self.sieve = Some(editor);
-                } else if self.edit(&app.session.mailbox, id) {
+                } else if self.edit_filter(&app.session, id) || self.edit(&app.session.mailbox, id) {
                     self.sieve = None;
                 } else {
                     self.error = tl!("This rule can't be changed here.").to_string();
@@ -6000,8 +6145,10 @@ pub(crate) mod rules {
                     }
                     Err(e) => self.error = app.refusal_said(&e),
                 }
-                // The rule being changed was deleted: nothing is left to change.
+                // The rule being changed was deleted: nothing is left to change. (A filter of a
+                // webmail's script goes when the server is read again.)
                 if let Some((editing, _)) = self.editing
+                    && self.webmail.is_none()
                     && !app.session.mailbox.rules.iter().any(|r| r.id == editing)
                 {
                     self.reset();
@@ -6011,38 +6158,8 @@ pub(crate) mod rules {
             close_button(ui)
         }
 
-        /// The builder, of a new rule or of one being changed. Returns whether Add (or Save) was
-        /// asked for and can run, and whether Cancel was pressed.
-        fn builder(
-            &mut self,
-            ui: &mut Ui,
-            pass: &mut Pass,
-            categories: &[String],
-            place: Option<&(String, Option<NotOnServer>)>,
-            held: bool,
-        ) -> (bool, bool) {
-            let t = pass.t;
-            // A rule kept on the server looks at addresses alone, as the server does; one kept here
-            // at names too.
-            let on_server = self.server && place.is_some_and(|(_, cannot)| cannot.is_none());
-            row(ui, tl!("Name"), |ui| {
-                let resp = pass.text(ui, "rule_name", &mut self.name, f32::INFINITY, "");
-                if std::mem::take(&mut self.focus) {
-                    resp.request_focus();
-                }
-            });
-            let mut drop_cond = None;
-            let many = self.conds.len() > 1;
-            for (i, c) in self.conds.iter_mut().enumerate() {
-                row(ui, if i == 0 { tl!("When") } else { tl!("and") }, |ui| {
-                    if cond_row(ui, pass, c, ("when", i), on_server, categories, many) {
-                        drop_cond = Some(i);
-                    }
-                });
-            }
-            if let Some(i) = drop_cond.filter(|i| *i < self.conds.len()) {
-                self.conds.remove(i);
-            }
+        /// "+ condition", the exceptions and "+ exception" of the builder.
+        fn more_conditions(&mut self, ui: &mut Ui, pass: &mut Pass, categories: &[String], on_server: bool) {
             row(ui, "", |ui| {
                 if ui
                     .add_enabled(self.conds.len() < MAX_PARTS, egui::Button::new(tl!("+ condition")))
@@ -6056,7 +6173,7 @@ pub(crate) mod rules {
             let mut drop_unless = None;
             for (i, c) in self.unless.iter_mut().enumerate() {
                 row(ui, if i == 0 { tl!("Except if") } else { tl!("or") }, |ui| {
-                    if cond_row(ui, pass, c, ("unless", i), on_server, categories, true) {
+                    if cond_row(ui, pass, c, ("unless", i), on_server, categories, true, &When::ALL) {
                         drop_unless = Some(i);
                     }
                 });
@@ -6073,14 +6190,72 @@ pub(crate) mod rules {
                     self.unless.push(Cond::default());
                 }
             });
+        }
+
+        /// "+ action", and the switches to stop the rules after it and show an alert.
+        fn more_actions(&mut self, ui: &mut Ui) {
+            row(ui, "", |ui| {
+                if ui.add_enabled(self.acts.len() < MAX_PARTS, egui::Button::new(tl!("+ action"))).clicked() {
+                    let fresh = self.fresh_action();
+                    self.acts.push(fresh);
+                }
+            });
+            row(ui, "", |ui| {
+                ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
+                ui.checkbox(&mut self.alert, tl!("Show a desktop alert")).on_hover_text(tl!(
+                    "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
+                ));
+            });
+        }
+
+        /// The builder, of a new rule or of one being changed. Returns whether Add (or Save) was
+        /// asked for and can run, and whether Cancel was pressed.
+        fn builder(
+            &mut self,
+            ui: &mut Ui,
+            pass: &mut Pass,
+            categories: &[String],
+            place: Option<&(String, Option<NotOnServer>)>,
+            held: bool,
+        ) -> (bool, bool) {
+            let t = pass.t;
+            // A filter of a webmail's script has one condition, one move, and stops (#9999); it
+            // reads the header lines as they are written, names and all.
+            let webmail = self.webmail.is_some();
+            // A rule kept on the server looks at addresses alone, as the server does; one kept here
+            // at names too.
+            let on_server = !webmail && self.server && place.is_some_and(|(_, cannot)| cannot.is_none());
+            row(ui, tl!("Name"), |ui| {
+                let resp = pass.text(ui, "rule_name", &mut self.name, f32::INFINITY, "");
+                if std::mem::take(&mut self.focus) {
+                    resp.request_focus();
+                }
+            });
+            let kinds: &[When] = if webmail { &When::WEBMAIL } else { &When::ALL };
+            let mut drop_cond = None;
+            let many = self.conds.len() > 1;
+            for (i, c) in self.conds.iter_mut().enumerate() {
+                row(ui, if i == 0 { tl!("When") } else { tl!("and") }, |ui| {
+                    if cond_row(ui, pass, c, ("when", i), on_server, categories, many, kinds) {
+                        drop_cond = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = drop_cond.filter(|i| *i < self.conds.len()) {
+                self.conds.remove(i);
+            }
+            if !webmail {
+                self.more_conditions(ui, pass, categories, on_server);
+            }
             let mut drop_act = None;
             // The last action can go when the alert is all the rule does.
             let many = self.acts.len() > 1 || self.alert;
             let folders = &self.folders;
+            let doings: &[Do] = if webmail { &[Do::Move] } else { &Do::ALL };
             for (i, a) in self.acts.iter_mut().enumerate() {
                 row(ui, if i == 0 { tl!("Do") } else { tl!("and") }, |ui| {
                     egui::ComboBox::from_id_salt(("do", i)).width(150.0).selected_text(tl!(a.kind.label())).show_ui(ui, |ui| {
-                        for kind in Do::ALL {
+                        for kind in doings.iter().copied() {
                             if ui.selectable_label(kind == a.kind, tl!(kind.label())).clicked() {
                                 a.kind = kind;
                             }
@@ -6129,20 +6304,20 @@ pub(crate) mod rules {
             let mut add = false;
             let lacks = self.lacks();
             let ready = lacks.is_none();
-            row(ui, "", |ui| {
-                if ui.add_enabled(self.acts.len() < MAX_PARTS, egui::Button::new(tl!("+ action"))).clicked() {
-                    let fresh = self.fresh_action();
-                    self.acts.push(fresh);
-                }
-            });
-            row(ui, "", |ui| {
-                ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
-                ui.checkbox(&mut self.alert, tl!("Show a desktop alert")).on_hover_text(tl!(
-                    "A desktop alert for the mail this rule acts on as it arrives, while MailCraft isn't the window in front, even when the one for new mail is off in File › Options"
-                ));
-            });
+            if webmail {
+                // (Stopping is what the webmail's filters do: shown, not changed.)
+                row(ui, "", |ui| {
+                    ui.add_enabled(false, egui::Checkbox::new(&mut true, tl!("Stop processing more rules")));
+                });
+                tall_row(ui, "", |ui| {
+                    ui.label(egui::RichText::new(tl!("Edited here in the format your webmail uses")).color(t.text_dim).size(11.5));
+                });
+            } else {
+                self.more_actions(ui);
+            }
             // Where it is kept: the owner says, while the server can do all of it; greyed, with why,
             // when it can't.
+            let place = place.filter(|_| !webmail);
             if let Some((address, cannot)) = place {
                 let can = cannot.is_none();
                 let mut ticked = self.server && can;
@@ -6209,6 +6384,8 @@ pub(crate) mod rules {
     mod edit_tests;
     #[cfg(test)]
     mod keep_tests;
+    #[cfg(test)]
+    mod webmail_tests;
 
     #[cfg(test)]
     mod tests;

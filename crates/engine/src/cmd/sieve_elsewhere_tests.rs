@@ -189,9 +189,12 @@ fn a_rainloop_script_shows_its_rules_by_name_with_nothing_unknown() {
     assert!(!e.unreadable && !e.replies);
     let names: Vec<&str> = e.rules.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, ["Spam", "ML-list"]);
+    // (Each filter is one this version knows, whose Sieve is what its settings give: it can be
+    // changed here, in the webmail's own shape, `rules_webmail`.)
     for r in &e.rules {
-        assert!(r.server.as_ref().unwrap().unknown.is_empty() && r.known() && r.enabled && r.read_only() && r.stop, "{r:?}");
+        assert!(r.server.as_ref().unwrap().unknown.is_empty() && r.known() && r.enabled && !r.read_only() && r.stop, "{r:?}");
     }
+    assert!(e.blocks.iter().all(|b| b.settings.is_ok()));
     // `:is` stays exact; the two lines, whose words are the same but for case, are one condition.
     assert_eq!(
         e.rules[0].conditions,

@@ -489,6 +489,18 @@ impl MailApp {
         if r.is_err() || !id.starts_with("rules.") || matches!(id, "rules.list" | "rules.run") {
             return r;
         }
+        // A filter of the owner's own script, as the webmail writes it (#9999): that script is
+        // written, as `sieve.putOwnScript` writes it; MailCraft's own is left as it is.
+        if let Ok(answer) = &r
+            && let Some(sieve) = answer.get("sieve").filter(|s| s.get("own").and_then(Value::as_bool) == Some(true))
+        {
+            let account = answer.get("account").and_then(Value::as_u64).unwrap_or_default();
+            if self.services.sieve.is_none() {
+                return Err(tl!("This build can't reach the server. Use the desktop app.").to_string());
+            }
+            self.sieve_write(account, sieve).map_err(|_| tl!("Your Sieve script wasn't saved").to_string())?;
+            return r;
+        }
         for account in self.sieve_accounts() {
             if !self.session.mailbox.keeps_sieve_rules(account) {
                 continue;
@@ -500,6 +512,13 @@ impl MailApp {
             }
         }
         r
+    }
+
+    /// Whether a write of `account`'s own script waits or is under way (#9999): its filters aren't
+    /// changed again until the server is read after it.
+    pub(crate) fn sieve_own_busy(&self, account: Id) -> bool {
+        self.sieve.own_waiting.contains_key(&account)
+            || self.sieve.rx.as_ref().is_some_and(|(a, w, _)| *a == account && w.as_ref().is_some_and(|w| w.own))
     }
 
     /// What the rules window says of an IMAP account's server, when it keeps the rules there from

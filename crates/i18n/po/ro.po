@@ -699,6 +699,30 @@ msgstr "Un fișier"
 msgid "A file dialog is already open."
 msgstr "O fereastră de fișiere este deja deschisă."
 
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's has one condition here, on a recipient or a message header, and no exception."
+msgstr "Un filtru al webmailului dvs. are aici o singură condiție, pe un destinatar sau un antet, și nicio excepție."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's is kept in your Sieve script on the server."
+msgstr "Un filtru al webmailului dvs. rămâne în scriptul dvs. Sieve de pe server."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's looks for at most {n} things."
+msgstr "Un filtru al webmailului dvs. caută cel mult {n} lucruri."
+
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's moves mail to one folder of its account and stops the filters after it, with no desktop alert."
+msgstr "Un filtru al webmailului dvs. mută mesajele într-un dosar al contului său și oprește filtrele de după el, fără alertă pe desktop."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -814,10 +838,28 @@ msgid "A message asking to unsubscribe goes from {from} to {to}, through your Ou
 msgstr "Un mesaj care cere dezabonarea pleacă de la {from} către {to}, prin Mesaje de trimis."
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "A message header condition is only for a filter of your webmail's Sieve script."
+msgstr "O condiție pe antet este doar pentru un filtru al scriptului Sieve al webmailului dvs."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A message header condition needs the names of its header lines, such as X-Spam-Flag."
+msgstr "O condiție pe antet are nevoie de numele liniilor sale de antet, cum ar fi X-Spam-Flag."
+
+#. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "A name must follow the colon."
 msgstr "După două puncte trebuie să urmeze un nume."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A new filter in your webmail's Sieve script, in the format your webmail uses"
+msgstr "Un filtru nou în scriptul Sieve al webmailului dvs., în formatul webmailului dvs."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5782,6 +5824,12 @@ msgstr "Editează sarcina"
 msgid "Edit your Sieve script \"{name}\"…"
 msgstr "Editează scriptul tău Sieve „{name}”…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edited here in the format your webmail uses"
+msgstr "Editat aici în formatul webmailului dvs."
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7404,6 +7452,12 @@ msgstr "Răspunsurile să fie trimise la"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header name"
+msgstr "Numele antetului"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -10078,6 +10132,18 @@ msgstr ""
 msgid "Message Preview"
 msgstr "Previzualizare mesaj"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header contains"
+msgstr "Antetul conține"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header is"
+msgstr "Antetul este"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
 #, fuzzy
@@ -11064,6 +11130,12 @@ msgstr "Contact nou"
 #, fuzzy
 msgid "New Email"
 msgstr "E-mail nou"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Filter…"
+msgstr "Filtru nou…"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
@@ -15291,7 +15363,7 @@ msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "Se salvează cutia poștală… {done} din {total} mesaje"
 
 #. interface
-#: crates/ui-egui/src/sieve_replies.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Saving your Sieve script…"
 msgstr "Se salvează scriptul tău Sieve…"
@@ -16205,6 +16277,12 @@ msgstr "Setări…"
 #, fuzzy
 msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
 msgstr "Mai multe adrese: separați-le cu punct și virgulă (;). Oricare dintre ele este suficientă."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several header lines: set their names apart with a semicolon (;). Any one of them is enough."
+msgstr "Mai multe linii de antet: separați-le numele cu punct și virgulă (;). Oricare dintre ele este suficientă."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20616,6 +20694,12 @@ msgstr "Acest fișier nu poate fi importat: {why}"
 msgid "This file has a password. Nothing is imported without it."
 msgstr "Acest fișier are parolă. Nu se importă nimic fără ea."
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "This filter of your webmail's can't be changed here: {why}."
+msgstr "Acest filtru al webmailului dvs. nu poate fi schimbat aici: {why}."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
 #, fuzzy
@@ -22938,7 +23022,7 @@ msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: t
 msgstr "Pe server rulează scriptul dvs. Sieve „{name}” în locul celui al MailCraft: aceste răspunsuri sunt păstrate acolo, dar nu sunt trimise cât timp rulează. MailCraft nu vă oprește niciodată scriptul."
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
 msgstr "Scriptul tău Sieve s-a schimbat pe server de când l-ai deschis, așa că nu s-a scris nimic. Reîncarcă-l ca să vezi ce conține acum."
@@ -23254,6 +23338,12 @@ msgstr "Regulile dvs. au fost salvate pe server, dar acolo rulează alt script S
 #, fuzzy
 msgid "Your rules weren't changed on the server"
 msgstr "Regulile dvs. nu au fost modificate pe server"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "Your webmail's Sieve script isn't the one this account's server runs, as MailCraft last read it."
+msgstr "Scriptul Sieve al webmailului dvs. nu este cel pe care îl rulează serverul acestui cont, după ultima citire a MailCraft."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -23580,7 +23670,7 @@ msgid "a rule of one account can't go to another account's server"
 msgstr "o regulă a unui cont nu poate ajunge pe serverul altui cont"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr "o regulă rămâne la contul ei: ștergeți-o și creați una pentru celălalt cont"
@@ -24407,6 +24497,12 @@ msgid "it looks for a name, and the server looks at addresses only"
 msgstr "caută un nume, iar serverul se uită doar la adrese"
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it moves mail to a folder MailCraft doesn't have"
+msgstr "mută mesajele într-un dosar pe care MailCraft nu îl are"
+
+#. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
@@ -24443,10 +24539,22 @@ msgid "it took too long"
 msgstr "a durat prea mult"
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it uses settings of your webmail that MailCraft doesn't know yet"
+msgstr "folosește setări ale webmailului dvs. pe care MailCraft nu le cunoaște încă"
+
+#. name
 #: crates/engine/src/agent.rs
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "scrie altor persoane sau accesează webul"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its Sieve doesn't match its settings: it was changed by hand"
+msgstr "Sieve-ul său nu se potrivește cu setările sale: a fost schimbat de mână"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24460,11 +24568,23 @@ msgstr "Sieve-ul ei conține o greșeală"
 msgid "its account"
 msgstr "contul său"
 
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its conditions can't be shown in the rule builder"
+msgstr "condițiile sale nu pot fi afișate în asistentul de reguli"
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "numele lui nu este unul cu care se poate verifica un certificat"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its settings in the script can't be read"
+msgstr "setările sale din script nu pot fi citite"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24683,7 +24803,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "niciun cont nu este sincronizat prin Microsoft Graph"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "nu există cont cu ID-ul {account}"
@@ -24827,7 +24947,7 @@ msgid "no picture {id} was put in this message"
 msgstr "imaginea {id} nu a fost pusă în acest mesaj"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "nu există regulă cu ID-ul {id}"
@@ -25781,6 +25901,12 @@ msgstr "fișierul este gol"
 msgid "the file is larger than a file of Public keys can be (1 MB)"
 msgstr "fișierul este mai mare decât poate fi un fișier de chei publice (1 MB)"
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "the filter next to it in your webmail's script has no end, so it can't be moved"
+msgstr "filtrul de alături din scriptul webmailului dvs. nu are sfârșit, așa că nu poate fi mutat"
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -26705,7 +26831,7 @@ msgid "there are too many categories"
 msgstr "sunt prea multe categorii"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "there are too many rules"
 msgstr "sunt prea multe reguli"

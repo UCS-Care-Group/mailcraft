@@ -297,13 +297,22 @@ fn a_rule_the_builder_cant_show_or_the_command_refuses_isnt_opened() {
 }
 
 /// A Sieve `header` test of the owner's own script is said as Outlook says words in the message
-/// header, `:is` as exactly (#9999); the builder can't show it, so it isn't offered for changing.
+/// header, `:is` as exactly (#9999); the builder shows it, for a filter of a webmail's script, with
+/// its lines' names, and gives it back as it was.
 #[test]
-fn a_header_condition_is_said_and_not_offered_to_the_builder() {
+fn a_header_condition_is_said_and_shown_in_the_builder() {
     let s = session();
     let header = |exact| Condition::Header { names: vec!["X-Spam-Flag".into(), "X-Spam".into()], words: vec!["YES".into()], exact };
     let rule = |exact| Rule { conditions: vec![header(exact)], actions: vec![mailcraft_model::Action::MarkRead], ..Default::default() };
     assert_eq!(describe(&s.mailbox, &rule(true)), "When message header \"X-Spam-Flag\" or \"X-Spam\" is exactly \"YES\": mark it as read");
     assert_eq!(describe(&s.mailbox, &rule(false)), "When message header \"X-Spam-Flag\" or \"X-Spam\" contains \"YES\": mark it as read");
-    assert!(Cond::of(&header(true), false).is_none() && Cond::of(&header(false), true).is_none());
+    let shown = Cond::of(&header(true), false).unwrap();
+    assert_eq!((shown[0].kind, shown[0].names.as_str(), shown[0].text.as_str()), (When::HeaderIs, "X-Spam-Flag; X-Spam", "YES"));
+    assert_eq!(shown[0].param(), json!({"type": "header", "value": {"names": ["X-Spam-Flag", "X-Spam"], "words": ["YES"], "exact": true}}));
+    assert_eq!(Cond::of(&header(false), false).unwrap()[0].kind, When::Header);
+    assert_eq!(shown[0].lacks(), None);
+    let nameless = Cond { names: "X Spam:".into(), ..shown[0].clone() };
+    assert!(nameless.lacks().is_some());
+    // Not among what a rule of MailCraft's own looks at.
+    assert!(!When::ALL.contains(&When::Header) && When::WEBMAIL.contains(&When::HeaderIs));
 }

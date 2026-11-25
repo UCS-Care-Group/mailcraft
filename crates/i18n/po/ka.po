@@ -697,6 +697,30 @@ msgstr "ფაილი"
 msgid "A file dialog is already open."
 msgstr "ფაილის დიალოგი უკვე გახსნილია."
 
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's has one condition here, on a recipient or a message header, and no exception."
+msgstr "თქვენი ვებფოსტის ფილტრს აქ აქვს ერთი პირობა, მიმღებზე ან სათაურზე, და არანაირი გამონაკლისი."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's is kept in your Sieve script on the server."
+msgstr "თქვენი ვებფოსტის ფილტრი ინახება თქვენს Sieve სკრიპტში სერვერზე."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's looks for at most {n} things."
+msgstr "თქვენი ვებფოსტის ფილტრი ეძებს არაუმეტეს {n} რამეს."
+
+#. name
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "A filter of your webmail's moves mail to one folder of its account and stops the filters after it, with no desktop alert."
+msgstr "თქვენი ვებფოსტის ფილტრი ფოსტას გადაიტანს თავისი ანგარიშის ერთ საქაღალდეში და აჩერებს მომდევნო ფილტრებს, სამუშაო მაგიდის შეტყობინების გარეშე."
+
 #. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
@@ -812,10 +836,28 @@ msgid "A message asking to unsubscribe goes from {from} to {to}, through your Ou
 msgstr "გამოწერის გაუქმების მოთხოვნა გაიგზავნება მისამართიდან {from} მისამართზე {to}, თქვენი „გასაგზავნების“ გავლით."
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "A message header condition is only for a filter of your webmail's Sieve script."
+msgstr "სათაურის პირობა მხოლოდ თქვენი ვებფოსტის Sieve სკრიპტის ფილტრისთვისაა."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A message header condition needs the names of its header lines, such as X-Spam-Flag."
+msgstr "სათაურის პირობას სჭირდება მისი სათაურის სტრიქონების სახელები, მაგალითად X-Spam-Flag."
+
+#. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "A name must follow the colon."
 msgstr "ორწერტილს სახელი უნდა მოსდევდეს."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A new filter in your webmail's Sieve script, in the format your webmail uses"
+msgstr "ახალი ფილტრი თქვენი ვებფოსტის Sieve სკრიპტში, თქვენი ვებფოსტის ფორმატში"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -5762,6 +5804,12 @@ msgstr "დავალების რედაქტირება"
 msgid "Edit your Sieve script \"{name}\"…"
 msgstr "თქვენი Sieve სკრიპტის „{name}“ რედაქტირება…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edited here in the format your webmail uses"
+msgstr "აქ რედაქტირებული თქვენი ვებფოსტის ფორმატში"
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7367,6 +7415,12 @@ msgstr "პასუხები გაიგზავნოს"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "პასუხები სხვა მისამართებზე გაიგზავნოს"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header name"
+msgstr "სათაურის სახელი"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -10022,6 +10076,18 @@ msgstr ""
 msgid "Message Preview"
 msgstr "წერილის წინასწარი ხედი"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header contains"
+msgstr "სათაური შეიცავს"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Message header is"
+msgstr "სათაური არის"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
 #, fuzzy
@@ -11003,6 +11069,12 @@ msgstr "ახალი კონტაქტი"
 #, fuzzy
 msgid "New Email"
 msgstr "ახალი წერილი"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "New Filter…"
+msgstr "ახალი ფილტრი…"
 
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
@@ -15194,7 +15266,7 @@ msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "საფოსტო ყუთის შენახვა… წერილი: {done} / {total}"
 
 #. interface
-#: crates/ui-egui/src/sieve_replies.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Saving your Sieve script…"
 msgstr "თქვენი Sieve სკრიპტი ინახება…"
@@ -16106,6 +16178,12 @@ msgstr "პარამეტრები…"
 #, fuzzy
 msgid "Several addresses: set them apart with a semicolon (;). Any one of them is enough."
 msgstr "რამდენიმე მისამართი: გამოყავით წერტილ-მძიმით (;). საკმარისია რომელიმე მათგანი."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Several header lines: set their names apart with a semicolon (;). Any one of them is enough."
+msgstr "რამდენიმე სათაურის სტრიქონი: გამოყავით მათი სახელები წერტილმძიმით (;). საკმარისია ერთ-ერთი."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20476,6 +20554,12 @@ msgstr "ამ ფაილის იმპორტი შეუძლებე
 msgid "This file has a password. Nothing is imported without it."
 msgstr "ამ ფაილს პაროლი აქვს. მის გარეშე არაფერი შემოიტანება."
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "This filter of your webmail's can't be changed here: {why}."
+msgstr "თქვენი ვებფოსტის ამ ფილტრის შეცვლა აქ შეუძლებელია: {why}."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListBar.kt
 #, fuzzy
@@ -22785,7 +22869,7 @@ msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: t
 msgstr "სერვერზე MailCraft-ის ნაცვლად თქვენი Sieve-ის სკრიპტი „{name}“ მუშაობს: ეს პასუხები იქ ინახება, მაგრამ სანამ ის მუშაობს, არ იგზავნება. MailCraft თქვენს სკრიპტს არასოდეს გამორთავს."
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
 msgstr "თქვენი Sieve სკრიპტი გახსნის შემდეგ სერვერზე შეიცვალა, ამიტომ არაფერი ჩაწერილა. თავიდან ჩატვირთეთ, რომ ნახოთ, რა არის მასში ახლა."
@@ -23099,6 +23183,12 @@ msgstr "თქვენი წესები სერვერზე შეი
 #, fuzzy
 msgid "Your rules weren't changed on the server"
 msgstr "თქვენი წესები სერვერზე არ შეცვლილა"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "Your webmail's Sieve script isn't the one this account's server runs, as MailCraft last read it."
+msgstr "თქვენი ვებფოსტის Sieve სკრიპტი არ არის ის, რომელსაც ამ ანგარიშის სერვერი უშვებს, როგორც MailCraft-მა ბოლოს წაიკითხა."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -23421,7 +23511,7 @@ msgid "a rule of one account can't go to another account's server"
 msgstr "ერთი ანგარიშის წესი სხვა ანგარიშის სერვერზე ვერ გადავა"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr "წესი თავის ანგარიშთან რჩება: წაშალეთ და შექმენით ახალი მეორე ანგარიშისთვის"
@@ -24246,6 +24336,12 @@ msgid "it looks for a name, and the server looks at addresses only"
 msgstr "ეძებს სახელს, სერვერი კი მხოლოდ მისამართებს უყურებს"
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it moves mail to a folder MailCraft doesn't have"
+msgstr "ის ფოსტას გადაიტანს საქაღალდეში, რომელიც MailCraft-ს არ აქვს"
+
+#. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it moves mail to more than one folder"
@@ -24282,10 +24378,22 @@ msgid "it took too long"
 msgstr "ზედმეტად დიდხანს გაგრძელდა"
 
 #. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "it uses settings of your webmail that MailCraft doesn't know yet"
+msgstr "ის იყენებს თქვენი ვებფოსტის პარამეტრებს, რომლებიც MailCraft-მა ჯერ არ იცის"
+
+#. name
 #: crates/engine/src/agent.rs
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "სხვა ადამიანებს წერს ან ინტერნეტს მიმართავს"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its Sieve doesn't match its settings: it was changed by hand"
+msgstr "მისი Sieve არ ემთხვევა მის პარამეტრებს: ის ხელით შეიცვალა"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24299,11 +24407,23 @@ msgstr "მის Sieve-ში შეცდომაა"
 msgid "its account"
 msgstr "მისი ანგარიში"
 
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its conditions can't be shown in the rule builder"
+msgstr "მისი პირობების ჩვენება წესების ოსტატში შეუძლებელია"
+
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
 #, fuzzy
 msgid "its name isn't one a certificate can be checked against"
 msgstr "მისი სახელი ისეთი არ არის, რომლითაც სერტიფიკატის შემოწმება შეიძლება"
+
+#. name
+#: crates/engine/src/sieve_rainloop.rs
+#, fuzzy
+msgid "its settings in the script can't be read"
+msgstr "მისი პარამეტრების წაკითხვა სკრიპტში შეუძლებელია"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24522,7 +24642,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "Microsoft Graph-ით არცერთი ანგარიში არ სინქრონიზდება"
 
 #. what a command says
-#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
+#: crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/sieve_replies.rs
 #, fuzzy
 msgid "no account with id {account}"
 msgstr "ანგარიში id-ით {account} არ არსებობს"
@@ -24666,7 +24786,7 @@ msgid "no picture {id} was put in this message"
 msgstr "ამ შეტყობინებაში სურათი {id} არ ჩასმულა"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "წესი id-ით {id} არ არსებობს"
@@ -25619,6 +25739,12 @@ msgstr "ფაილი ცარიელია"
 msgid "the file is larger than a file of Public keys can be (1 MB)"
 msgstr "ფაილი იმაზე დიდია, რისი ზომაც საჯარო გასაღებების ფაილს შეიძლება ჰქონდეს (1 მბ)"
 
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+#, fuzzy
+msgid "the filter next to it in your webmail's script has no end, so it can't be moved"
+msgstr "თქვენი ვებფოსტის სკრიპტში მის გვერდით ფილტრს დასასრული არ აქვს, ამიტომ მისი გადატანა შეუძლებელია"
+
 #. why a command can't run
 #: crates/engine/src/cmd/folder.rs
 #, fuzzy
@@ -26542,7 +26668,7 @@ msgid "there are too many categories"
 msgstr "ზედმეტად ბევრი კატეგორიაა"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "there are too many rules"
 msgstr "ზედმეტად ბევრი წესია"

@@ -892,6 +892,10 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x))) {
         return Access::Owner(Class::Delete);
     }
+    // So is a filter of the owner's own Sieve script, as the webmail wrote it (#9999).
+    if removes_webmail_filter(s, id, params) {
+        return Access::Owner(Class::Delete);
+    }
     // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
     // (#494): Discard throws the message away with its draft; a window closed with changes in its
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
@@ -1977,6 +1981,13 @@ fn rules_delete(s: &Session, id: &str, params: &Value) -> bool {
     let there = |x: &mailcraft_model::Rule| x.on_server() || x.unanswered;
     server_rule_deletes(s, id, params)
         || (id == "rules.remove" && p::id(params, "id").is_some_and(|r| s.mailbox.rules.iter().any(|x| x.id == r && there(x))))
+        || removes_webmail_filter(s, id, params)
+}
+
+/// Whether `id` deletes a filter of the owner's own Sieve script, as the webmail wrote it (#9999):
+/// on the server, where undo doesn't reach.
+fn removes_webmail_filter(s: &Session, id: &str, params: &Value) -> bool {
+    id == "rules.remove" && p::id(params, "id").is_some_and(|r| crate::cmd::rules_webmail::find(s, r).is_some())
 }
 
 /// Whether the rules this command makes, switches on or runs put mail on another account's
@@ -3303,6 +3314,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             format!("{verb} {}, which also {}", quoted(label.unwrap_or("the last change")), does.join("; it also "))
         }
+        // A filter of the owner's own Sieve script, as the webmail wrote it (#9999).
+        "rules.add" if params.get("webmail").is_some() => webmail_text(s, id, params),
+        "rules.edit" | "rules.enable" | "rules.remove" | "rules.move"
+            if p::id(params, "id").is_some_and(crate::cmd::sieve_elsewhere::is_elsewhere) =>
+        {
+            webmail_text(s, id, params)
+        }
         // Each with the rules switched on that put mail onto another server which the change
         // reaches ([`beside_onto_server`]).
         "rules.add" => {
@@ -3845,6 +3863,50 @@ fn edit_text(s: &Session, params: &Value) -> String {
         rule_words(s, &after),
         beside_said(s, after.account, after.id, after.enabled)
     )
+}
+
+/// The question about a filter of the owner's own Sieve script, as the webmail wrote it (#9999):
+/// which, whose server it is on, and what it does before and after; the script's names and words
+/// are its owner's data, said as text.
+fn webmail_text(s: &Session, id: &str, params: &Value) -> String {
+    use crate::cmd::rules_webmail as w;
+    let account = p::id(params, "account").or_else(|| p::id(params, "id").and_then(|r| w::find(s, r)).map(|f| f.account));
+    let script = account.and_then(|a| crate::cmd::sieve_own::own_script(s, a)).map(|(name, _)| quoted(&plain(name))).unwrap_or_default();
+    let on = account.and_then(|a| s.mailbox.account(a)).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+    let place = format!(
+        "in your own Sieve script {script} on the server of {on}, as your webmail writes it, which the server runs whether MailCraft is open or not"
+    );
+    let before = p::id(params, "id").and_then(|r| w::find(s, r)).and_then(|f| f.script.rules.iter().find(|x| Some(x.id) == f.block.rule).cloned());
+    match id {
+        "rules.add" => match w::added(s, params) {
+            Ok((_, r, _)) => format!("create the filter {} {place}: {}", quoted(&r.name), rule_words(s, &r)),
+            Err(_) => "create a filter in your own Sieve script that can't be made as asked".to_string(),
+        },
+        "rules.edit" => match (w::edited(s, params), before) {
+            (Ok((_, after, _)), Some(b)) => {
+                let renamed = if b.name == after.name { String::new() } else { format!(", naming it {}", quoted(&after.name)) };
+                let off = if after.enabled { "" } else { " (switched off)" };
+                format!("change the filter {}{off} {place}{renamed}, from {} to {}", quoted(&b.name), rule_words(s, &b), rule_words(s, &after))
+            }
+            _ => "change a filter of your own Sieve script that can't be changed as asked".to_string(),
+        },
+        "rules.enable" => match (w::enabled(s, params), before) {
+            (Ok((_, _, on, _)), Some(b)) => {
+                format!("{} the filter {} {place}: {}", if on { "switch on" } else { "switch off" }, quoted(&b.name), rule_words(s, &b))
+            }
+            _ => "switch on or off a filter of your own Sieve script that can't be changed as asked".to_string(),
+        },
+        "rules.remove" => match (w::removed(s, params), before) {
+            (Ok(_), Some(b)) => format!("delete the filter {} {place}: {}", quoted(&b.name), rule_words(s, &b)),
+            _ => "delete a filter of your own Sieve script that can't be deleted as asked".to_string(),
+        },
+        _ => match (w::moved(s, params), before) {
+            (Ok((_, _, up, _)), Some(b)) => {
+                format!("move the filter {} {} {place}, which changes which filters run first", quoted(&b.name), if up { "up" } else { "down" })
+            }
+            _ => "move a filter of your own Sieve script that can't be moved as asked".to_string(),
+        },
+    }
 }
 
 /// The question about `rules.addSieve` and `rules.editSieve` (#9999): the rule, where it runs,
