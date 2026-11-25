@@ -5,6 +5,7 @@
 use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
+use mailcraft_model::contact_sync::{FolderOwner, RemoteContactFolder};
 use mailcraft_model::remote::{ContactsDownload, RemoteContact};
 use serde_json::json;
 
@@ -18,7 +19,7 @@ fn add(w: &mut Harness<'_, MailApp>, email: &str) -> Id {
 
 fn from_server(w: &mut Harness<'_, MailApp>, account: Id, email: &str, name: &str) -> Id {
     let contact = RemoteContact { id: "w1".into(), display_name: name.into(), ..Default::default() };
-    let download = ContactsDownload { account, email: email.into(), complete: true, contacts: vec![contact] };
+    let download = ContactsDownload { account, email: email.into(), complete: true, contacts: vec![contact], ..Default::default() };
     mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
     w.state().session.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }
@@ -77,17 +78,37 @@ fn with_every_account_each_contact_says_where_it_is() {
 }
 
 #[test]
-fn a_contact_the_server_keeps_says_it_is_read_only_here() {
+fn a_contact_of_a_read_only_folder_says_it_is_read_only_here() {
     let mut w = testing::window("view.people");
     let work = add(&mut w, "work@example.org");
     let theirs = from_server(&mut w, work, "work@example.org", "Wren Work");
     let ours = w.state().session.mailbox.contacts.values().find(|c| c.origin.is_local()).unwrap().id;
+    // A shared mailbox's folder the account may only read (#1917).
+    let folder = RemoteContactFolder {
+        id: "f-sales".into(),
+        name: "Sales".into(),
+        owner: FolderOwner::Mailbox("sales@example.org".into()),
+        ..Default::default()
+    };
+    let contact = RemoteContact { id: "s1".into(), display_name: "Sam Sales".into(), ..Default::default() };
+    let download = ContactsDownload {
+        account: work,
+        email: "work@example.org".into(),
+        complete: true,
+        contacts: vec![contact],
+        folder: Some(folder),
+        ..Default::default()
+    };
+    mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
+    let shared = w.state().session.mailbox.contacts.values().find(|c| c.display_name == "Sam Sales").unwrap().id;
     let read_only = |w: &Harness<'_, MailApp>, id: Id| read_only_here(w.state(), w.state().session.mailbox.contact(id).unwrap());
-    assert!(read_only(&w, theirs));
-    assert!(!read_only(&w, ours));
+    assert!(read_only(&w, shared));
+    assert!(!read_only(&w, theirs) && !read_only(&w, ours));
     // What the mark says is what Edit is told.
-    assert!(w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).is_err());
+    assert!(w.state_mut().execute("people.edit", json!({"id": shared, "first": "Ren"})).is_err());
+    assert!(w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).is_ok());
     assert!(w.state_mut().execute("people.edit", json!({"id": ours, "notes": "Changed here"})).is_ok());
+    let theirs = shared;
     // The card with the mark draws.
     w.state_mut().execute("people.select", json!({"id": theirs})).unwrap();
     w.run();

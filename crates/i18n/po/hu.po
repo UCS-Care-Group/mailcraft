@@ -1927,6 +1927,12 @@ msgid "Apply Sent Category Changes"
 msgstr "Elküldött kategóriamódosítások alkalmazása"
 
 #. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Apply Sent Contact Changes"
+msgstr "Elküldött névjegymódosítások alkalmazása"
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -3888,6 +3894,12 @@ msgstr "Kapcsolatfelvétel a résztvevőkkel"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Kapcsolattartó kártya"
+
+#. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Contact Changes to Send"
+msgstr "Küldendő névjegymódosítások"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
@@ -14719,7 +14731,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -17528,6 +17540,18 @@ msgstr "A kapcsolatfelvételi űrlapot lezárták: nyissa meg újra, hogy a kulc
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "A kontaktlencséket nem lehetett felvenni: {error}"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The contacts folder \"{name}\" can only be read: a new contact can't be put there."
+msgstr "A(z) „{name}” névjegymappa csak olvasható: nem lehet bele új névjegyet tenni."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The contacts folder \"{name}\" can only be read: this contact can't be changed or deleted here."
+msgstr "A(z) „{name}” névjegymappa csak olvasható: ez a névjegy itt nem módosítható és nem törölhető."
+
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -18310,6 +18334,12 @@ msgstr "A szervert nem sikerült átkeresni. Próbálja újra néhány perc múl
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "A szerver nem fogadta el a felhasználó nevét és jelszavát. Ellenőrizze őket, vagy írja be a felhasználónevét a kiszolgáló beállításaiban (DOMAIN\\user or you@p példán.org)."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The server didn't delete {name}{why}: it is back."
+msgstr "A kiszolgáló nem törölte ezt: {name}{why}; visszakerült."
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -18333,6 +18363,12 @@ msgstr "A szerver nem mondta, hogy mikor vannak mások elfoglaltak."
 #, fuzzy
 msgid "The server didn't send the messages. Try again in a few minutes."
 msgstr "A szerver nem küldte el az üzeneteket, de pár perc múlva újra megpróbálhatja."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
+msgstr "A kiszolgáló nem fogadta el a módosítást: {name}{why}; ismét úgy szerepel, ahogy a kiszolgálón."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19042,12 +19078,6 @@ msgid "This account's calendar can't be asked yet: Send/Receive signs it in firs
 msgstr "A fiók naptára még nem érhető el. Előbb jelentkezzen be a Küldés/fogadás paranccsal."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -19232,6 +19262,12 @@ msgstr "Ez a számítógép, bárhová is megy."
 #, fuzzy
 msgid "This contact will be permanently deleted."
 msgstr "Ezt a kapcsolatot véglegesen törölni fogják."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This contacts folder can only be read, so this contact can't be edited or deleted here. Favorite is kept on this computer."
+msgstr "Ez a névjegymappa csak olvasható, ezért ez a névjegy itt nem szerkeszthető és nem törölhető. A kedvenc jelölés ezen a számítógépen marad."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -20170,6 +20206,12 @@ msgstr "Holnap"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Túl sok naptár változás vár, hogy küldje el a szerverre. Hagyja, hogy a Küldés / Fogadás őket át először."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Too many contact changes are waiting to be sent to the server. Let Send/Receive get them through first."
+msgstr "Túl sok névjegymódosítás vár a kiszolgálóra küldésre. Előbb hagyja, hogy a Küldés/fogadás továbbítsa őket."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -22318,12 +22360,6 @@ msgstr "bizalmas"
 msgid "connection problem: {reason}"
 msgstr "kapcsolati probléma: {reason}"
 
-#. what a command says
-#: crates/engine/src/cmd/people.rs
-#, fuzzy
-msgid "contact"
-msgstr "érintés"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23011,7 +23047,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -23045,6 +23081,12 @@ msgstr "nincs ilyen azonosítójú naptár: {id}"
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "nincs ilyen azonosítójú névjegy: {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "no contacts folder with id {id}"
+msgstr "nincs {id} azonosítójú névjegymappa"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
@@ -24991,6 +25033,12 @@ msgid "this account has no {folder} folder"
 msgstr "Ez a fiók nem rendelkezik {folder} mappával"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "this account has too many contacts folders"
+msgstr "ennek a fióknak túl sok névjegymappája van"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
 msgid "this account may not save it"
@@ -25738,6 +25786,12 @@ msgstr "{name} válaszolt erre a meghívásra."
 msgid "{name} could not be read, so it was not attached."
 msgstr "{name} nem olvasható, ezért nem lett csatolva."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} couldn't be added to {folder}{why}: it is kept on this computer."
+msgstr "{name} nem adható hozzá ehhez: {folder}{why}; ezen a számítógépen marad."
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -26169,6 +26223,14 @@ msgid "{n} contact is deleted once the kept one is saved. Undo brings it back."
 msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings them back."
 msgstr[0] "A megtartott névjegy mentésekor {n} névjegy törlődik. A Visszavonás visszaállítja őket."
 msgstr[1] "A megtartott névjegy mentésekor {n} névjegy törlődik. A Visszavonás visszaállítja őket."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} névjegy nem lesz visszavonva: túl sok módosítás vár a kiszolgálójára küldésre."
+msgstr[1] "{n} névjegy nem lesz visszavonva: túl sok módosítás vár a kiszolgálóikra küldésre."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27319,6 +27381,20 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Sorok"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} névjegy csak ezen a számítógépen marad: túl sok módosítás vár küldésre."
+#~ msgstr[1] "{n} névjegy csak ezen a számítógépen marad: túl sok módosítás vár küldésre."
+
+#, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
+
+#, fuzzy
+#~ msgid "contact"
+#~ msgstr "érintés"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

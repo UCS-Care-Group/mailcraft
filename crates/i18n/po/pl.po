@@ -1927,6 +1927,12 @@ msgid "Apply Sent Category Changes"
 msgstr "Zastosuj wysłane zmiany kategorii"
 
 #. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Apply Sent Contact Changes"
+msgstr "Zastosuj wysłane zmiany kontaktów"
+
+#. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
 msgid "Apply Sent Rule Changes"
@@ -3895,6 +3901,12 @@ msgstr "Skontaktuj się z uczestnikami"
 #, fuzzy
 msgid "Contact Card"
 msgstr "Karta kontaktu"
+
+#. command label
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Contact Changes to Send"
+msgstr "Zmiany kontaktów do wysłania"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
@@ -14769,7 +14781,7 @@ msgid "Send & Receive"
 msgstr "Wyślij/Odbierz"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Wyślij/Odbierz"
@@ -17586,6 +17598,18 @@ msgstr "Formularz kontaktu został zamknięty: otwórz go ponownie, aby dodać k
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Nie udało się wczytać kontaktów: {error}"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The contacts folder \"{name}\" can only be read: a new contact can't be put there."
+msgstr "Folder kontaktów „{name}” jest tylko do odczytu: nie można w nim umieścić nowego kontaktu."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The contacts folder \"{name}\" can only be read: this contact can't be changed or deleted here."
+msgstr "Folder kontaktów „{name}” jest tylko do odczytu: tego kontaktu nie można tutaj zmienić ani usunąć."
+
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
@@ -18369,6 +18393,12 @@ msgstr "Nie można przeszukać serwera. Spróbuj ponownie za kilka minut."
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "Serwer nie przyjął nazwy użytkownika i hasła. Sprawdź je lub wpisz nazwę użytkownika w Ustawieniach serwera (DOMENA\\użytkownik lub ty@example.org)."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The server didn't delete {name}{why}: it is back."
+msgstr "Serwer nie usunął kontaktu {name}{why}: wrócił."
+
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
 #, fuzzy
@@ -18392,6 +18422,12 @@ msgstr "Serwer nie podał, kiedy inne osoby są zajęte"
 #, fuzzy
 msgid "The server didn't send the messages. Try again in a few minutes."
 msgstr "Serwer nie wysłał wiadomości. Spróbuj ponownie za kilka minut."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "The server didn't take the change to {name}{why}: it is as the server has it again."
+msgstr "Serwer nie przyjął zmiany kontaktu {name}{why}: jest znowu taki, jak na serwerze."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19107,12 +19143,6 @@ msgid "This account's calendar can't be asked yet: Send/Receive signs it in firs
 msgstr "Nie można jeszcze zapytać kalendarza tego konta: Wyślij/Odbierz najpierw je zaloguje."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "Ten kontakt przechowuje serwer tego konta. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu edytować ani usuwać. Ulubione i kategorie są przechowywane na tym komputerze."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -19297,6 +19327,12 @@ msgstr "Tego komputera, gdziekolwiek się znajduje"
 #, fuzzy
 msgid "This contact will be permanently deleted."
 msgstr "Ten kontakt zostanie trwale usunięty."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This contacts folder can only be read, so this contact can't be edited or deleted here. Favorite is kept on this computer."
+msgstr "Ten folder kontaktów jest tylko do odczytu, więc tego kontaktu nie można tutaj edytować ani usunąć. Ulubione są przechowywane na tym komputerze."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -20247,6 +20283,12 @@ msgstr "Jutro"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Zbyt wiele zmian kalendarza czeka na wysłanie na serwer. Pozwól najpierw przesłać je przez Wyślij/Odbierz."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Too many contact changes are waiting to be sent to the server. Let Send/Receive get them through first."
+msgstr "Zbyt wiele zmian kontaktów czeka na wysłanie na serwer. Najpierw pozwól funkcji Wyślij/Odbierz je przesłać."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -22408,12 +22450,6 @@ msgstr "poufne"
 msgid "connection problem: {reason}"
 msgstr "problem z połączeniem: {reason}"
 
-#. what a command says
-#: crates/engine/src/cmd/people.rs
-#, fuzzy
-msgid "contact"
-msgstr "kontakt"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23101,7 +23137,7 @@ msgid "no account with id {account}"
 msgstr "brak konta o identyfikatorze {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "brak konta o identyfikatorze {id}"
@@ -23135,6 +23171,12 @@ msgstr "brak kalendarza o identyfikatorze {id}"
 #, fuzzy
 msgid "no contact with id {id}"
 msgstr "brak kontaktu o identyfikatorze {id}"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "no contacts folder with id {id}"
+msgstr "brak folderu kontaktów o identyfikatorze {id}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/zones.rs
@@ -25081,6 +25123,12 @@ msgid "this account has no {folder} folder"
 msgstr "to konto nie ma folderu {folder}"
 
 #. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "this account has too many contacts folders"
+msgstr "to konto ma zbyt wiele folderów kontaktów"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
 #, fuzzy
 msgid "this account may not save it"
@@ -25831,6 +25879,12 @@ msgstr "{name} odpowiedział(a) na to zaproszenie."
 msgid "{name} could not be read, so it was not attached."
 msgstr "Nie udało się odczytać {name}, więc nie został załączony."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} couldn't be added to {folder}{why}: it is kept on this computer."
+msgstr "Nie można dodać {name} do {folder}{why}: kontakt pozostaje na tym komputerze."
+
 #. interface
 #: crates/ui-egui/src/files.rs
 #, fuzzy
@@ -26280,6 +26334,15 @@ msgid_plural "{n} contacts are deleted once the kept one is saved. Undo brings t
 msgstr[0] "{n} kontakt zostanie usunięty po zapisaniu zachowanego. Cofnięcie przywróci go."
 msgstr[1] "{n} kontakty zostaną usunięte po zapisaniu zachowanego. Cofnięcie przywróci je."
 msgstr[2] "{n} kontaktów zostanie usuniętych po zapisaniu zachowanego. Cofnięcie przywróci je."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} kontakt nie zostaje cofnięty: zbyt wiele zmian czeka na wysłanie na jego serwer."
+msgstr[1] "{n} kontakty nie zostają cofnięte: zbyt wiele zmian czeka na wysłanie na ich serwery."
+msgstr[2] "{n} kontaktów nie zostaje cofniętych: zbyt wiele zmian czeka na wysłanie na ich serwery."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27538,6 +27601,21 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Wiersze"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} kontakt wraca tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
+#~ msgstr[1] "{n} kontakty wracają tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
+#~ msgstr[2] "{n} kontaktów wraca tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
+
+#, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "Ten kontakt przechowuje serwer tego konta. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu edytować ani usuwać. Ulubione i kategorie są przechowywane na tym komputerze."
+
+#, fuzzy
+#~ msgid "contact"
+#~ msgstr "kontakt"
 
 #, fuzzy
 #~ msgid "Use a 12-hour clock (3:05 PM)"

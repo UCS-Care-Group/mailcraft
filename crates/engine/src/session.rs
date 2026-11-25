@@ -3748,6 +3748,17 @@ impl Session {
             .and_then(|(_, mut counts)| Arc::make_mut(&mut counts).apply(&changes).then_some((after, counts)));
         self.undo_said = said;
         self.tell_events_again(&now, &u.touched);
+        // The contacts it puts back go to their servers as such (#1917): undone after a change
+        // went up, the server is told the opposite.
+        let no_room = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, &u.touched);
+        if no_room > 0 {
+            let line = self.interface_language.tn(
+                no_room as u64,
+                "{n} contact isn't undone: too many changes are waiting to be sent to its server.",
+                "{n} contacts aren't undone: too many changes are waiting to be sent to their servers.",
+            );
+            self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &no_room.to_string())]));
+        }
         // Undone, the step is to be done again from here: what that does is the way back (with
         // the events it told their servers of again).
         let touched = crate::undo::touched(&now, &self.mailbox);
