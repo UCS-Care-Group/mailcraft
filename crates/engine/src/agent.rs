@@ -507,6 +507,9 @@ const DELETE: &[&str] = &[
     "people.delete",
     // A merge removes the contacts merged into the kept one.
     "people.merge",
+    // A move into another contacts folder (#1144) deletes the contacts where they were, on that
+    // account's server too, once the new folder has them.
+    "people.moveToFolder",
     "tasks.delete",
     "category.remove",
     "compose.discard",
@@ -2988,6 +2991,31 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 name(p::id(params, "keep"))
             )
         }
+        "people.moveToFolder" => {
+            let ids: Vec<Id> = match params.get("ids").and_then(Value::as_array) {
+                Some(a) => a.iter().take(1000).filter_map(Value::as_u64).collect(),
+                None => s.sel.contact.into_iter().collect(),
+            };
+            let names: Vec<String> = ids.iter().filter_map(|c| s.mailbox.contact(*c)).map(|c| quoted(&c.name())).collect();
+            // 0 is On this computer, which `p::id` doesn't take.
+            let into = match params.get("folder").and_then(Value::as_u64) {
+                Some(0) => "On this computer".to_string(),
+                Some(f) => s.mailbox.contact_folders.iter().find(|x| x.id == f).map_or_else(
+                    || "a folder that isn't there".to_string(),
+                    |x| {
+                        let whose = s.mailbox.account(x.account).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+                        format!("{} of {whose}", quoted(&x.name))
+                    },
+                ),
+                None => "no folder".to_string(),
+            };
+            let who = if names.is_empty() {
+                "(no contacts)".to_string()
+            } else {
+                format!("{} ({})", plural(names.len(), "{n} contact", "{n} contacts"), some(&names, 8))
+            };
+            format!("move {who} into {into}, deleting them where they are now")
+        }
         "tasks.new" | "tasks.fromMessage" if new_task_onto(s, id, params).is_some() => {
             let account = new_task_onto(s, id, params).and_then(|a| s.mailbox.account(a));
             format!("put a task in the To Do of {}", account.map(|a| a.email.trim().to_string()).unwrap_or_else(|| "an account".to_string()))
@@ -3855,6 +3883,19 @@ mod tests {
         assert_eq!(check(&s, "folder.select", &json!({"path": "Inbox"}), &[]), Verdict::Run);
         assert!(matches!(check(&s, "compose.send", &json!({}), &[]), Verdict::Ask(Class::Send, _)));
         assert_eq!(check(&s, "compose.send", &json!({}), &[Class::Send]), Verdict::Run);
+    }
+
+    #[test]
+    fn a_contact_move_is_asked_about_by_name() {
+        let mut s = Session::empty();
+        s.run("people.new", &json!({"first": "Bo", "last": "Example", "email": "bo@example.org"})).unwrap();
+        let id = s.sel.contact.unwrap();
+        let params = json!({"ids": [id], "folder": 0});
+        assert_eq!(classify(&s, "people.moveToFolder", &params), Access::Owner(Class::Delete));
+        let d = describe(&s, "people.moveToFolder", &params);
+        assert!(d.contains("Bo Example") && d.contains("On this computer") && d.contains("deleting"), "{d}");
+        let junk = describe(&s, "people.moveToFolder", &json!({"ids": "x", "folder": "y"}));
+        assert!(junk.contains("no folder"), "{junk}");
     }
 
     #[test]
