@@ -88,6 +88,28 @@ fn folders_and_changes_are_capped() {
     assert_eq!((file.contact_folders.len(), file.contact_changes.len()), (MAX_CONTACT_FOLDERS, MAX_CONTACT_CHANGES));
 }
 
+/// Review of #1934: a folder whose id is out of range is dropped (its id could be given out
+/// again), and a contact given a new key keeps the change waiting for it.
+#[test]
+fn repair_drops_folders_out_of_range_and_keeps_a_rehomed_contacts_change() {
+    const TOO_BIG: crate::Id = (1 << 53) + 1;
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    mb.contact_folders.push(ContactFolder { id: TOO_BIG, account, remote: "f-big".into(), ..Default::default() });
+    mb.contacts.insert(TOO_BIG + 1, std::sync::Arc::new(Contact { id: TOO_BIG + 1, ..ada() }));
+    mb.contact_changes.push(ContactChange { account, kind: ContactChangeKind::Create, contact: TOO_BIG + 1, ..Default::default() });
+    let mut text: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    text.repair();
+    assert!(text.contact_folders.iter().all(|f| f.id <= 1 << 53));
+    let moved = text.contacts.values().find(|c| c.first == "Ada").unwrap().id;
+    assert!(moved <= 1 << 53);
+    assert_eq!(text.contact_changes[0].contact, moved);
+    // Two new folders get ids of their own.
+    let a = text.add_contact_folder(ContactFolder { account, remote: "a".into(), ..Default::default() }).unwrap();
+    let b = text.add_contact_folder(ContactFolder { account, remote: "b".into(), ..Default::default() }).unwrap();
+    assert!(a != b && text.contact_folders.iter().filter(|f| f.id == a || f.id == b).count() == 2);
+}
+
 #[test]
 fn an_owner_from_outside_is_an_address_or_no_folder() {
     let bad = ContactFolder { owner: FolderOwner::Mailbox("not an address".into()), ..Default::default() };

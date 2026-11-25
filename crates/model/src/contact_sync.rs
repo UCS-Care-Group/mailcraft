@@ -299,6 +299,15 @@ pub struct ContactChange {
     /// Why it didn't go the last time, for the owner to read.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
+    /// Handed to a host to send at least once: it may have reached the server even when no answer
+    /// came back. Only a new contact that was sent is taken for one the server lists under a name
+    /// not heard yet.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent: bool,
+    /// For a new contact: the server said it made it but not what it calls it. Not sent again (that
+    /// could make it twice) until a download shows it, or a whole list of its folder doesn't.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unconfirmed: bool,
 }
 
 /// How long a change waits after failing `attempts` times in a row (seconds): 30 s, doubling,

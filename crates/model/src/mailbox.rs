@@ -3749,7 +3749,7 @@ impl Mailbox {
         self.contact_folders.retain(|f| {
             let n = per.entry(f.account).or_default();
             *n += 1;
-            f.id != 0 && accounts.contains(&f.account) && *n <= MAX_CONTACT_FOLDERS && seen.insert(f.id)
+            f.id != 0 && f.id <= MAX_ID && accounts.contains(&f.account) && *n <= MAX_CONTACT_FOLDERS && seen.insert(f.id)
         });
         if self.contact_folders.len() != before {
             fixed.push("contacts folders tidied".to_string());
@@ -4992,6 +4992,16 @@ impl Mailbox {
             if let Some(v) = self.messages.remove(k) {
                 self.messages.insert(*next, v);
                 *next += 1;
+            }
+        }
+        // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
+        // in order from `next`).
+        let first = *next;
+        let moved: HashMap<Id, Id> =
+            self.contacts.range(MAX_ID + 1..).map(|(k, _)| *k).enumerate().map(|(n, k)| (k, first.saturating_add(n as Id))).collect();
+        for change in self.contact_changes.iter_mut() {
+            if let Some(new) = moved.get(&change.contact) {
+                change.contact = *new;
             }
         }
         let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
