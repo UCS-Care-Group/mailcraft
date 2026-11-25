@@ -1247,6 +1247,19 @@ pub struct Mailbox {
     pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// The contacts folders of the accounts whose servers keep contacts (#1917), at most
+    /// [`crate::contact_sync::MAX_CONTACT_FOLDERS`] an account. A contact's
+    /// [`Contact::folder`] names one, or is 0 (On this computer).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_folders: Vec<crate::contact_sync::ContactFolder>,
+    /// Changes made here to contacts of folders a server keeps that the server is yet to be
+    /// told, oldest first, one a contact at most ([`crate::contact_sync::ContactChange`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_changes: Vec<crate::contact_sync::ContactChange>,
+    /// The contacts folder the owner last put a new contact in (0: On this computer); `None`
+    /// until they have.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_place: Option<Id>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1413,6 +1426,9 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: Messages::new(),
             contacts: BTreeMap::new(),
+            contact_folders: Vec::new(),
+            contact_changes: Vec::new(),
+            contact_place: None,
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
@@ -1640,6 +1656,15 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
         self.rule_gone.retain(|gone| !going.contains(&gone.account));
+        // Its contacts folders and what waited for them; a contact still in one is kept on this
+        // computer.
+        self.contact_changes.retain(|change| !going.contains(&change.account));
+        let folders: HashSet<Id> = self.contact_folders.iter().filter(|f| going.contains(&f.account)).map(|f| f.id).collect();
+        self.contact_folders.retain(|f| !going.contains(&f.account));
+        for c in self.contacts.values_mut().filter(|c| folders.contains(&c.folder)) {
+            let c = Arc::make_mut(c);
+            (c.folder, c.origin) = (0, crate::Origin::default());
+        }
         // Its rules go with it, as Outlook keeps an account's rules in its mailbox (#566): one
         // left behind would act on the mail of accounts it was never made for. Those for every
         // account stay.
@@ -3675,6 +3700,94 @@ impl Mailbox {
         self.contacts.remove(&id).map(|_| ()).ok_or(not_found("contact", id))
     }
 
+    pub fn contact_folder(&self, id: Id) -> Option<&crate::contact_sync::ContactFolder> {
+        if id == 0 {
+            return None;
+        }
+        self.contact_folders.iter().find(|f| f.id == id)
+    }
+
+    /// The account's own main contacts folder, when there is one.
+    pub fn main_contact_folder(&self, account: Id) -> Option<Id> {
+        self.contact_folders.iter().find(|f| f.account == account && f.owner.is_own() && f.is_main()).map(|f| f.id)
+    }
+
+    /// The folder of `account` that is `remote` of `owner` on its server, when there is one.
+    pub fn contact_folder_named(&self, account: Id, owner: &crate::contact_sync::FolderOwner, remote: &str) -> Option<Id> {
+        self.contact_folders.iter().find(|f| f.account == account && f.owner == *owner && f.remote == remote).map(|f| f.id)
+    }
+
+    /// Add a contacts folder (given an id of its own); `None` when the account has
+    /// [`crate::contact_sync::MAX_CONTACT_FOLDERS`] already, or no such account is here.
+    pub fn add_contact_folder(&mut self, mut folder: crate::contact_sync::ContactFolder) -> Option<Id> {
+        let count = self.contact_folders.iter().filter(|f| f.account == folder.account).count();
+        if count >= crate::contact_sync::MAX_CONTACT_FOLDERS || self.account(folder.account).is_none() {
+            return None;
+        }
+        folder.id = self.alloc_id();
+        let id = folder.id;
+        self.contact_folders.push(folder);
+        Some(id)
+    }
+
+    /// The account's own main contacts folder, made when it has none yet.
+    pub fn ensure_main_contact_folder(&mut self, account: Id) -> Option<Id> {
+        self.main_contact_folder(account).or_else(|| self.add_contact_folder(crate::contact_sync::ContactFolder::main(account)))
+    }
+
+    /// Contacts folders and their changes as a file may have them, put right (#1917): a file
+    /// from before folders were kept has its accounts' contacts in each account's main folder;
+    /// folders of accounts that are gone, or beyond the cap, go (their contacts are kept on
+    /// this computer); changes beyond the cap go, said.
+    fn repair_contact_folders(&mut self) -> Vec<String> {
+        use crate::contact_sync::{MAX_CONTACT_CHANGES, MAX_CONTACT_FOLDERS};
+        let mut fixed = Vec::new();
+        let accounts: HashSet<Id> = self.accounts.iter().map(|a| a.id).collect();
+        let mut per: HashMap<Id, usize> = HashMap::new();
+        let mut seen: HashSet<Id> = HashSet::new();
+        let before = self.contact_folders.len();
+        self.contact_folders.retain(|f| {
+            let n = per.entry(f.account).or_default();
+            *n += 1;
+            f.id != 0 && accounts.contains(&f.account) && *n <= MAX_CONTACT_FOLDERS && seen.insert(f.id)
+        });
+        if self.contact_folders.len() != before {
+            fixed.push("contacts folders tidied".to_string());
+        }
+        let folders: HashSet<Id> = self.contact_folders.iter().map(|f| f.id).collect();
+        let lost: Vec<Id> = self.contacts.values().filter(|c| c.folder != 0 && !folders.contains(&c.folder)).map(|c| c.id).collect();
+        let homeless: Vec<(Id, Id)> = self
+            .contacts
+            .values()
+            .filter(|c| c.folder == 0 && c.origin.is_remote() && accounts.contains(&c.origin.account))
+            .map(|c| (c.id, c.origin.account))
+            .collect();
+        for id in &lost {
+            if let Ok(c) = self.contact_mut(*id) {
+                (c.folder, c.origin) = (0, crate::Origin::default());
+            }
+        }
+        let mut moved = 0usize;
+        for (id, account) in homeless {
+            let Some(folder) = self.ensure_main_contact_folder(account) else { continue };
+            if let Ok(c) = self.contact_mut(id) {
+                c.folder = folder;
+                moved += 1;
+            }
+        }
+        if moved > 0 {
+            fixed.push(format!("{moved} contact(s) put in their account's contacts folder"));
+        }
+        if !lost.is_empty() {
+            fixed.push(format!("{} contact(s) of a contacts folder that is gone kept on this computer", lost.len()));
+        }
+        if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        fixed
+    }
+
     /// The contact with this address, if any.
     pub fn contact_by_email(&self, email: &str) -> Option<&Contact> {
         self.contacts.values().map(Arc::as_ref).find(|c| c.has_email(email))
@@ -4844,6 +4957,7 @@ impl Mailbox {
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
+            .chain(self.contact_folders.iter().map(|f| f.id))
             .chain(self.rules.iter().map(|r| r.id))
             .filter(sane)
             .max()
@@ -5222,6 +5336,8 @@ impl Mailbox {
             fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
         }
         self.next_id = self.next_id.max(1);
+        // (After the ids are put right: a folder it makes takes a new one.)
+        fixed.extend(self.repair_contact_folders());
         fixed
     }
 

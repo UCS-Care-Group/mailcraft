@@ -107,6 +107,11 @@ impl Touched {
         self.changed_contacts.contains(&id)
     }
 
+    /// The contacts the change added, changed or took away.
+    pub(crate) fn changed_contacts(&self) -> &BTreeSet<Id> {
+        &self.changed_contacts
+    }
+
     /// The events whose categories the change changed, with the categories it left them (#661).
     pub(crate) fn event_categories(&self) -> &BTreeMap<Id, Vec<String>> {
         &self.event_categories

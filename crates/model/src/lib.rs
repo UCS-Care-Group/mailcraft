@@ -15,6 +15,9 @@ pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
+pub mod contact_sync;
+#[cfg(test)]
+mod contact_sync_tests;
 pub mod dav;
 mod dav_server;
 pub mod device_limits;
