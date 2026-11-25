@@ -9601,6 +9601,48 @@ msgstr "Microsoft 不为此类账户提供此功能。"
 msgid "Microsoft has no mailbox at this address"
 msgstr "Microsoft 在此地址没有邮箱"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
+msgstr "Microsoft 为每个联系人保存一个住宅地址、一个商务地址和一个其他地址；标记的地址仅保留在此手机上。"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
+msgstr "Microsoft 为每个联系人保存一个住宅地址、一个商务地址和一个其他地址；此地址仅保留在此电脑上。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
+msgstr "Microsoft 为每个联系人保存一个手机号码、两个住宅号码和两个商务号码；标记的号码仅保留在此手机上。"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."
+msgstr "Microsoft 为每个联系人保存一个手机号码、两个住宅号码和两个商务号码；此号码仅保留在此电脑上。"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one web page for a contact; this one stays on this computer."
+msgstr "Microsoft 为每个联系人保存一个网页；此网页仅保留在此电脑上。"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
+msgstr "Microsoft 为每个联系人保存三个电子邮件地址；标记的地址仅保留在此手机上。"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; this one stays on this computer."
+msgstr "Microsoft 为每个联系人保存三个电子邮件地址；此地址仅保留在此电脑上。"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -11560,6 +11602,12 @@ msgid "On this computer for now"
 msgstr "目前在这台计算机上"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "On this computer only"
+msgstr "仅在此电脑上"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer, for the mail of every account"
@@ -11576,6 +11624,12 @@ msgstr "保存在这台计算机上。它们尚无各自的视图。"
 #, fuzzy
 msgid "On this device only: no mail server"
 msgstr "仅在此设备上：无邮件服务器"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "On this phone only"
+msgstr "仅在此手机上"
 
 #. interface
 #: crates/ui-egui/src/updates.rs

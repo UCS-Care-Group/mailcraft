@@ -420,3 +420,36 @@ proptest! {
         prop_assert_eq!(ContactField::merged(&base, &theirs, &ContactField::changed(&base, &base)), theirs.clone());
     }
 }
+
+/// #1917: what a server has no place for is said for a folder of an account whose server limits
+/// places (Microsoft's), by position in the contact's own lists; never On this computer, nor for
+/// a server that keeps every entry.
+#[test]
+fn local_only_names_what_the_server_has_no_place_for() {
+    use crate::contact_sync::{LocalOnly, local_only};
+    use crate::{AccountKind, OAuth, OAuthProvider, PostalAddress};
+    let mut mb = Mailbox::default();
+    let oauth = OAuth { provider: OAuthProvider::Microsoft, ..Default::default() };
+    let ms = mb.add_account(Account { email: "ada@example.org".into(), kind: AccountKind::Microsoft, oauth: Some(oauth), ..Default::default() });
+    let imap = mb.add_account(Account { email: "bo@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let ms_folder = mb.ensure_main_contact_folder(ms).unwrap();
+    let imap_folder = mb.ensure_main_contact_folder(imap).unwrap();
+    let address = |label: &str, city: &str| PostalAddress { label: label.into(), city: city.into(), ..Default::default() };
+    let many = Contact {
+        // An empty one between is neither placed nor marked.
+        emails: ["a", "", "b", "c", "d", "e"]
+            .iter()
+            .map(|n| Labeled::new("work", if n.is_empty() { String::new() } else { format!("{n}@example.org") }))
+            .collect(),
+        phones: vec![Labeled::new("mobile", "+44 7700 900001"), Labeled::new("mobile", "+44 7700 900002"), Labeled::new("home", "+44 20 7946 0001")],
+        addresses: vec![address("home", "Leeds"), address("home", "York"), address("work", "Hull"), address("other", "Bath")],
+        websites: vec!["https://a.example".into(), "https://b.example".into()],
+        ..ada()
+    };
+    let at = |folder| Contact { folder, ..many.clone() };
+    let expected = LocalOnly { emails: vec![4, 5], phones: vec![1], addresses: vec![3], websites: vec![1] };
+    assert_eq!(local_only(&mb, &at(ms_folder)), expected);
+    assert!(local_only(&mb, &at(0)).is_empty(), "On this computer: nothing is marked");
+    assert!(local_only(&mb, &at(imap_folder)).is_empty(), "a server with no limit: nothing is marked");
+    assert!(local_only(&mb, &Contact { folder: ms_folder, ..ada() }).is_empty(), "what fits isn't marked");
+}

@@ -496,6 +496,18 @@ pub struct GraphPlaces {
     pub website: Option<usize>,
 }
 
+impl GraphPlaces {
+    /// Whether the phone number at `at` has a place.
+    pub fn has_phone(&self, at: usize) -> bool {
+        self.mobile == Some(at) || self.home_phones.contains(&at) || self.business_phones.contains(&at)
+    }
+
+    /// Whether the postal address at `at` has a place.
+    pub fn has_address(&self, at: usize) -> bool {
+        [self.business_address, self.home_address, self.other_address].contains(&Some(at))
+    }
+}
+
 /// Graph's places for `emails`, `phones`, `addresses` and `websites`, in their order: the first
 /// three addresses; the first mobile (or cell) number, the first two home ones, the first two of
 /// the rest that aren't mobile; the first work (or business) address, the first home one, and the
@@ -542,16 +554,13 @@ pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) -> Contact {
             fresh.emails.push(email.clone());
         }
     }
-    let placed_phone =
-        |places: &GraphPlaces, at: usize| places.mobile == Some(at) || places.home_phones.contains(&at) || places.business_phones.contains(&at);
     for (at, phone) in old.phones.iter().enumerate() {
-        if !phone.value.trim().is_empty() && !placed_phone(&places, at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
+        if !phone.value.trim().is_empty() && !places.has_phone(at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
             fresh.phones.push(phone.clone());
         }
     }
-    let placed_address = |places: &GraphPlaces, at: usize| [places.business_address, places.home_address, places.other_address].contains(&Some(at));
     for (at, address) in old.addresses.iter().enumerate() {
-        if !placed_address(&places, at) && !fresh.addresses.contains(address) {
+        if !places.has_address(at) && !fresh.addresses.contains(address) {
             fresh.addresses.push(address.clone());
         }
     }
@@ -569,12 +578,12 @@ pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) -> Contact {
         }
     }
     for at in base.phones.len()..fresh.phones.len() {
-        if let Some(p) = fresh.phones.get(at).filter(|_| !placed_phone(&now, at)) {
+        if let Some(p) = fresh.phones.get(at).filter(|_| !now.has_phone(at)) {
             base.phones.push(p.clone());
         }
     }
     for at in base.addresses.len()..fresh.addresses.len() {
-        if let Some(a) = fresh.addresses.get(at).filter(|_| !placed_address(&now, at)) {
+        if let Some(a) = fresh.addresses.get(at).filter(|_| !now.has_address(at)) {
             base.addresses.push(a.clone());
         }
     }
@@ -584,4 +593,45 @@ pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) -> Contact {
         }
     }
     base
+}
+
+/// The entries of a contact that its server has no place for, by their position in the
+/// contact's own lists (#1917): they are kept, and shown, on this computer only. MailCraft never
+/// limits how many a contact has; this only says which of them the server can't hold.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalOnly {
+    pub emails: Vec<usize>,
+    pub phones: Vec<usize>,
+    pub addresses: Vec<usize>,
+    pub websites: Vec<usize>,
+}
+
+impl LocalOnly {
+    pub fn is_empty(&self) -> bool {
+        self.emails.is_empty() && self.phones.is_empty() && self.addresses.is_empty() && self.websites.is_empty()
+    }
+}
+
+/// What of `c` its server has no place for: nothing On this computer, nor for a server that
+/// keeps every entry.
+pub fn local_only(mailbox: &crate::Mailbox, c: &Contact) -> LocalOnly {
+    match mailbox.contact_folder(c.folder).and_then(|f| mailbox.account(f.account)) {
+        // As the contacts job: such an account's contacts are kept through Graph.
+        Some(a) if a.keeps_contacts() => graph_local_only(c),
+        // Other servers keep every entry, as far as MailCraft knows; one that doesn't adds its
+        // places here.
+        _ => LocalOnly::default(),
+    }
+}
+
+/// What of `c`, empty entries aside, has no place among Graph's ([`graph_places`]).
+fn graph_local_only(c: &Contact) -> LocalOnly {
+    let places = graph_places(&c.emails, &c.phones, &c.addresses, &c.websites);
+    let filled = |value: &str| !value.trim().is_empty();
+    LocalOnly {
+        emails: c.emails.iter().enumerate().filter(|(at, e)| filled(&e.value) && !places.emails.contains(at)).map(|(at, _)| at).collect(),
+        phones: c.phones.iter().enumerate().filter(|(at, p)| filled(&p.value) && !places.has_phone(*at)).map(|(at, _)| at).collect(),
+        addresses: c.addresses.iter().enumerate().filter(|(at, a)| !a.is_empty() && !places.has_address(*at)).map(|(at, _)| at).collect(),
+        websites: c.websites.iter().enumerate().filter(|(at, w)| filled(w) && places.website != Some(*at)).map(|(at, _)| at).collect(),
+    }
 }
