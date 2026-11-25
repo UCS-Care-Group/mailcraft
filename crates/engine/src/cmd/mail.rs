@@ -16,7 +16,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
             .reads()
-            .params(r#"{"id": number} | {"ids": [number] ([] selects nothing)}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
+            .params(r#"{"id": number} | {"ids": [number] ([] selects nothing)}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "open"?: bool (it is being opened in a window of its own: marked read as File › Options says, even with the reading pane off; when it is the selection already, the selection is left as it is), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
         CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).reads().key("Mod+A"),
         CommandSpec::new("mail.next", "Next Message", "Mail", next).reads().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
         CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).reads().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
@@ -82,7 +82,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.openAttachment", "Open Attachment", "Attachments › Actions", open_attachment)
             .pure()
             .params(
-                r#"{"index": number, "id"?: number} — opens the file with the computer's own program for it, in the MailCraft window only (never for an agent). Programs, scripts, shortcuts, installers and disk images are refused: save them instead. Anywhere else answers why it opened nothing"#,
+                r#"{"index": number, "id"?: number, "confirmed"?: bool} — opens the file with the computer's own program for it, in the MailCraft window only (never for an agent). Programs, scripts, shortcuts, installers and disk images are refused: save them instead. Office files with macros, web pages, Markdown, and keys, certificates and signatures are asked about first: the window asks, and any other caller passes `"confirmed": true` once the owner said yes. Anywhere else answers why it opened nothing"#,
             )
             .selection(needs_message),
         CommandSpec::new("mail.saveAttachment", "Save Attachment", "Attachments › Actions", save_attachment)
@@ -157,7 +157,14 @@ pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate
 }
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
+    let open = p::bool(v, "open") == Some(true);
     let (ids, copy) = select_target(s, v)?;
+    // Opened in a window while it is the selection: marked, and the selection (the row it is on,
+    // whether a conversation's row stands for the rest) left as it is.
+    if open && !ids.is_empty() && s.sel.messages == ids {
+        mark_opened(s, true);
+        return Ok(json!({"selected": s.sel.messages}));
+    }
     let Some(last) = ids.last().copied() else {
         s.sel.clear_messages();
         return done();
@@ -174,7 +181,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
             s.sel.whole = heads_in(&rows, a, b);
             s.sel.focus_row = Some((last, copy));
             s.keep_listed();
-            mark_opened(s);
+            mark_opened(s, open);
             return Ok(json!({"selected": s.sel.messages}));
         }
     }
@@ -242,15 +249,17 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
     // tab and with no search, when the list doesn't show it there.
     s.show_selected();
-    mark_opened(s);
+    mark_opened(s, open);
     Ok(json!({"selected": s.sel.messages}))
 }
 
 /// Reading a message marks it read (File › Options). Not an undo step: it follows the selection.
 /// Marked once the command is done ([`Session::opened`]): selecting changes nothing else of the
 /// mailbox, and is a reading command, which takes no copy of it.
-fn mark_opened(s: &mut Session) {
-    if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 {
+/// Only when the reading pane shows it, or `open` says it is opened some other way (in a window
+/// of its own, #1734): with the pane off, selecting reads nothing.
+pub(crate) fn mark_opened(s: &mut Session, open: bool) {
+    if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 || (!open && s.view.reading_pane == crate::session::Pane::Off) {
         s.opened = None;
         return;
     }
@@ -410,7 +419,7 @@ fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
     }
     s.sel.focus_row = Some((row.id, row.copy));
     s.keep_selected(rows);
-    mark_opened(s);
+    mark_opened(s, false);
     Ok(json!({"selected": s.sel.messages}))
 }
 
@@ -679,11 +688,16 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
     let (view, sel) = (s.view.clone(), s.sel.clone());
     s.view.folder = folder;
+    // A folder named is that folder alone, not every account's of its kind (#625); a search
+    // without one looks where the window does.
+    if v.get("folder").is_some_and(|f| !f.is_null()) {
+        s.view.unified = None;
+    }
     s.view.module = crate::Module::Mail;
     s.view.search = query;
     s.view.scope = crate::Scope::Folder;
     // Another folder or search lists every conversation closed, as the window does (#503).
-    if s.view.folder != view.folder || s.view.search != view.search {
+    if s.view.folder != view.folder || s.view.search != view.search || s.view.unified != view.unified {
         s.view.open.clear();
     }
     let out = list_in_view(s, limit);
@@ -859,15 +873,19 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     // An id, read strictly (#1449): an id as text or `null` is refused, never taken to mean the
     // folder in view, which would mark all of another folder's mail read without a word.
-    let folder = p::id_strict(v, "folder")?.unwrap_or(s.view.folder);
+    let named = p::id_strict(v, "folder")?;
+    let folder = named.unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
-    let ids: Vec<Id> = s.mailbox.messages_in(folder).filter(|m| !m.read).map(|m| m.id).collect();
+    // Without a folder named, the list in view's: every account's of a kind, when it shows them
+    // (#625), each message marked in its own account.
+    let folders = named.is_none().then(|| crate::unified::in_view(s)).flatten().unwrap_or_else(|| vec![folder]);
+    let ids: Vec<Id> = folders.iter().flat_map(|f| s.mailbox.messages_in(*f)).filter(|m| !m.read).map(|m| m.id).collect();
     for id in &ids {
         s.mailbox.message_mut(*id)?.read = true;
     }
-    Ok(json!({"folder": folder, "changed": ids.len()}))
+    Ok(json!({"folder": folder, "folders": folders, "changed": ids.len()}))
 }
 
 fn flag(s: &mut Session, v: &Value) -> CmdResult {

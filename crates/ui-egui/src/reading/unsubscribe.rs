@@ -101,6 +101,10 @@ pub(crate) fn poll(app: &mut MailApp) {
         app.unsubscribing.say(id, if let Err(why) = answer { Outcome::Failed(why) } else { Outcome::Accepted });
     }
     // One at a time: each list's server is asked once, and none waits on another's slowness long.
+    // Under Work Offline nothing goes to a server: the next waits, kept, until it is turned off.
+    if app.offline() {
+        return;
+    }
     if let Some((id, url)) = app.unsubscribing.waiting.pop_front() {
         match &app.services.unsubscribe {
             Some(post) => app.unsubscribing.flying = Some((id, post(url))),

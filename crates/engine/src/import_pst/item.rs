@@ -291,6 +291,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         out.importance = parsed.importance;
         out.categories = parsed.categories;
         (out.headers, out.header_block) = (parsed.headers, parsed.header_block);
+        out.headers_cut = parsed.headers_cut;
     }
 
     // Who it is from: who it was sent for, else who sent it.

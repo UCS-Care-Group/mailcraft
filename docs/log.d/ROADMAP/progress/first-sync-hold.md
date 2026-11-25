@@ -1,1 +1,0 @@
-| 2026-11-17 | MB3.3: a new account's first sync that the owner answers "Not now" for want of room holds the account back in the core (`Core.hold_background_sync`), kept as account ids in a small app preference and said to the core again at every start and before each background run, as the worker may start without the window; "Sync anyway" or a pull to refresh lets it go |

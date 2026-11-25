@@ -92,6 +92,7 @@ internal class PictureStack(
         onLink = links::open,
         attachments = attachments,
         onCompose = onCompose,
+        onTriaged = { id, unread, flagged -> reading.triaged(id, unread, flagged) },
     )
 
     private companion object {

@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-14 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-11-20 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -10,7 +10,7 @@ much as the work.
 1. **Read [AGENTS.md](AGENTS.md).** It is for people as much as for agents: never crash, mail is
    private and hostile, no vendor assets, clean room. None of it is negotiable.
 2. **Read the plan.** Work to beta follows the roadmap reset, tracked in
-   [#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Work that goes against an accepted
+   [#2](https://github.com/UCSLabs/mailcraft/issues/2). Work that goes against an accepted
    decision won't be merged, however good it is; propose a change to the decision first.
 3. **Claim an issue by commenting on it.** Comment "I'm taking this" on an open issue that nobody
    has claimed in its comments, and start: you don't wait for anyone to assign it to you (a maintainer may add the `claimed`
@@ -27,7 +27,7 @@ much as the work.
    never from that pull request's code. The pull request can still be updated and merged if nobody
    has built the feature meanwhile.
 5. **Found a bug and have the fix? Send both at once.** Open the
-   [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
+   [problem report](https://github.com/UCSLabs/mailcraft/issues/new?template=problem.yml)
    and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
    claim and no wait. A report without a fix is just as welcome. If the fix needs one of the
    [owners' decisions](#decisions-that-are-the-owners-not-a-contributors) below, ask in the issue
@@ -63,6 +63,10 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   ([`docs/log.d/README.md`](docs/log.d/README.md)), and a release-notes line in
   `packaging/release-notes.d/` ([its README](packaging/release-notes.d/README.md)), never in the
   table or the notes themselves: they are joined in at release, so pull requests don't conflict there.
+- **New interface texts are translated in every catalogue, marked `#, fuzzy`** (a draft; a
+  best-effort translation is fine), after `cargo xtask i18n`
+  ([`docs/translating.md`](docs/translating.md#new-texts-in-a-pull-request)). Left empty, they
+  don't block a review.
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Security fixes: a fix for a security finding comes with a test that covers every site of its
   root cause**, not only the one that was reported: a table over every command, reader or writer
@@ -110,7 +114,7 @@ label.
 
 ## A first contribution
 
-Issues labelled [`good first issue`](https://github.com/UCS-Care-Group/mailcraft/labels/good%20first%20issue)
+Issues labelled [`good first issue`](https://github.com/UCSLabs/mailcraft/labels/good%20first%20issue)
 are small and self-contained, with the files to look at named in the issue. Comment on one to
 claim it.
 
@@ -133,9 +137,9 @@ Ask in an issue first, and don't put any of these into a pull request until the 
 ## Testing MailCraft
 
 Want to use it rather than build it? Sign up with the
-[tester form](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=tester-signup.yml).
+[tester form](https://github.com/UCSLabs/mailcraft/issues/new?template=tester-signup.yml).
 Found something wrong? Use the
-[problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml).
+[problem report](https://github.com/UCSLabs/mailcraft/issues/new?template=problem.yml).
 
 A build from this repository sends Help › Report a Problem › Send report to the project's real
 report relay (`MAILCRAFT_REPORT_URL` in `.cargo/config.toml`), where every report becomes an
@@ -147,6 +151,10 @@ issue the maintainers read. Don't press it to try the window out: build with
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-20 | minor | New interface texts in a pull request are translated in every catalogue and marked `#, fuzzy`; left empty, they don't block a review |
+| 2026-11-17 | patch | The merge queue runs the whole suite on Linux alone; the push to `main` runs every system |
+| 2026-11-16 | minor | Continuous integration: the tiers, the cheap checks first in `quick`, a pull request's tests chosen from the packages it changes, and the `full-ci` label that runs the whole suite |
+| 2026-11-15 | patch | `cargo xtask ci` lists all its steps (i18n --check, release-notes, docs-log) |
 | 2026-11-14 | patch | `cargo xtask ci` names its wasm-clock step: no std clock or sleep in code the browser runs (#1337) |
 | 2026-11-12 | minor | An open pull request holds its feature while its author answers a review within 7 days; after that the feature is free to be built afresh |
 | 2026-11-11 | patch | #956 part 3: Send report goes to the real report relay: build with `MAILCRAFT_REPORT_URL=` to try the window out |

@@ -38,7 +38,7 @@ internal sealed interface PeopleState {
 /** A label and a value on a person's page: a number, an address. */
 internal data class ContactLine(val label: String, val value: String)
 
-/** A person's page. Read-only: the app offers no editing in this version. */
+/** A person's page. Read-only: a new person is added in the form, but one already there is not edited. */
 internal data class PersonCard(
     val id: ULong,
     val name: String,
@@ -153,5 +153,20 @@ internal suspend fun loadPerson(
         PersonState.Ready(personCard(core.person(id)))
     } catch (_: CoreException) {
         PersonState.Failed(core.t("This person could not be read."))
+    }
+}
+
+private val MADE_ID = Regex("\"id\"\\s*:\\s*(\\d+)")
+
+/** Adds the person with `people.new`; the new person's id, or null when the core refused. */
+internal suspend fun addPerson(
+    core: Core,
+    draft: PersonDraft,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+): ULong? = withContext(dispatcher) {
+    try {
+        MADE_ID.find(core.execute("people.new", draft.params()))?.groupValues?.get(1)?.toULongOrNull()
+    } catch (_: CoreException) {
+        null
     }
 }

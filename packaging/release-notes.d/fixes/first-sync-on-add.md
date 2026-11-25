@@ -1,1 +1,0 @@
-- Android: mail starts to come as soon as an account is added or signed in again, with the list showing that it is updating, instead of waiting up to a quarter of an hour for the next background run; a new account's first sync asks first when the phone hasn't room for it ([#1567](https://github.com/GITHUB_REPOSITORY/pull/1567)).

@@ -1,10 +1,14 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:OptIn(ExperimentalMaterial3Api::class)
 @file:Suppress("MaxLineLength")
 
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -32,7 +36,12 @@ private object ListShots {
     fun Filtered(menuOpen: Boolean) {
         ShellShots.Fixed {
             Column {
-                MailListBar(EnglishTexts, MailQuery(1uL, filter = ListFilter.Unread), MailListActions.None, menuOpen)
+                val query = MailQuery(1uL, filter = ListFilter.Unread)
+                TopAppBar(
+                    title = { Text("Inbox") },
+                    actions = { MailBarActions(EnglishTexts, query, MailListActions.None, false, {}, menuOpen) },
+                )
+                MailListBar(EnglishTexts, query, MailListActions.None)
             }
         }
     }

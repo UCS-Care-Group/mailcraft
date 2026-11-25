@@ -1,6 +1,6 @@
 # DAV model and documents
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-02 · **Change:** patch
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-15 · **Change:** minor
 
 **Status:** foundation only.
 
@@ -82,6 +82,8 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-11-15 | #209 D3: the `dav_discovery` fuzz target for the discovery state machine |
+| 2026-11-15 | #209 D2: the `dav_answers` fuzz target for the typed answers, addresses and statuses |
 | 2026-11-02 | Validate changed recurrence UNTIL against the effective surviving DTSTART |
 | 2026-11-02 | Refuse lossy alarm and alias edits; strengthen unsafe-edit assertions |
 | 2026-11-01 | Timing and recurrence changes refuse a lossy writer baseline |
