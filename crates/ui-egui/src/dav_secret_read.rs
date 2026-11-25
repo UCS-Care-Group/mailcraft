@@ -11,11 +11,17 @@
 //! Remove all data, or for a name with a forget pending. What comes back is taken only while the
 //! settings still give its name and no forget is pending for it; it goes where the opening read's
 //! answers go (`MailApp::secret_cache`), where `MailApp::dav_password_from` finds it.
+//!
+//! **Remembering.** A password of their own is written to the store only once a server took it
+//! (`MailApp::remember_dav_password`, from the job's answer), as a mail password is (#802): one
+//! that was only typed, or that a server refused, is never kept. Only while the owner lets
+//! sign-ins be remembered, never for a name with a forget pending, and the name is noted so that
+//! Remove all data finds it. The account's mail password is never written under a DAV name.
 
 use std::collections::HashSet;
 use std::sync::mpsc::{self, Receiver};
 
-use crate::{MailApp, StoreTrouble};
+use crate::{Id, MailApp, StoreTrouble};
 
 /// What one read brings: each name asked, with what was found under it, and why the store
 /// couldn't be used, when it said.
@@ -113,6 +119,32 @@ impl MailApp {
                 // Noted, as one the opening read brings is, so that Remove all data finds it.
                 self.index_secret_key(key.clone());
                 self.secret_cache.insert(key, secret);
+            }
+        }
+    }
+
+    /// Have the store keep the password a server of the account took for `origin`, when the owner
+    /// lets sign-ins be remembered (File › Options). Nothing when it holds that one already.
+    pub(crate) fn remember_dav_password(&mut self, account: Id, origin: &str, password: &str) {
+        if !self.ui.remember_sign_in || password.is_empty() || self.data_removed || self.unconfirmed {
+            return;
+        }
+        let Some(key) = self.session.mailbox.account(account).and_then(|a| Self::dav_secret_key(a, origin)) else { return };
+        if self.dav_forget_pending(&key) || self.secret_cache.get(&key).is_some_and(|kept| kept == password) {
+            return;
+        }
+        let Some(store) = self.services.secrets.clone() else { return };
+        match store.set(&key, password) {
+            Ok(()) => {
+                self.secret_cache.insert(key.clone(), password.to_string());
+                self.index_secret_key(key);
+            }
+            Err(_) => {
+                // A store error can echo its input; never put it in diagnostics. A partial write
+                // must not leave a password that seems kept.
+                log::warn!("couldn't keep a calendar server's password in the operating system's credential store");
+                store.delete(&key);
+                self.secret_cache.remove(&key);
             }
         }
     }

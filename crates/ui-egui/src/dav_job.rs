@@ -12,7 +12,8 @@
 //! ([`mailcraft_model::DavServer::may_use_mail_password`]), the account's mail password. The host
 //! sends one only in answer to that origin's own challenge. A password that was accepted is held
 //! for the session under its origin, unless a forget is pending for its name
-//! ([`MailApp::dav_forget_pending`]); nothing is written to the credential store here. A password
+//! ([`MailApp::dav_forget_pending`]), and kept in the credential store when the owner lets
+//! sign-ins be remembered (`MailApp::remember_dav_password`, `dav_secret_read.rs`). A password
 //! the server refused is not kept to compare with: only a keyed hash of it, with the settings it
 //! was sent under, so that the same password under the same settings is not sent again (a
 //! lockout) and a password or user name put right is.
@@ -110,12 +111,11 @@ impl DavSync {
 impl MailApp {
     /// The password the account has for `origin` ([`mailcraft_model::origin_of`] form), by the rules
     /// in the module's note. `None` when the owner has to be asked.
-    #[cfg(test)]
     pub(crate) fn dav_password(&self, account: Id, origin: &str) -> Option<String> {
         self.dav_password_from(account, origin).map(|(password, _)| password)
     }
 
-    /// As `MailApp::dav_password` (the tests' look at it), and whether it is the account's mail password (which is
+    /// As `MailApp::dav_password` (the tests' look at it, and what Enter Password asks for), and whether it is the account's mail password (which is
     /// asked again at every job, under the rule as it stands, and never held).
     fn dav_password_from(&self, account: Id, origin: &str) -> Option<(String, bool)> {
         let a = self.session.mailbox.account(account)?;
@@ -280,11 +280,13 @@ impl MailApp {
             }
         };
         // A password the server took is held for the session (the one that was sent, not what
-        // would be found now), unless it is the mail password: that one is looked up at every
-        // job, by the rule as it stands.
+        // would be found now), and remembered when the owner lets it be, unless it is the mail
+        // password: that one is looked up at every job, by the rule as it stands.
         for origin in signed_in {
-            if let Some((password, false)) = sent.get(&origin) {
-                self.hold_dav_password(account, &origin, password);
+            if let Some((password, false)) = sent.get(&origin)
+                && self.hold_dav_password(account, &origin, password)
+            {
+                self.remember_dav_password(account, &origin, password);
             }
         }
         let now = now_ms();

@@ -69,11 +69,12 @@ fn key(a: &MailApp, id: Id) -> String {
     MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), HOME).unwrap()
 }
 
-/// Tick until a job has started (or give up: none was to start).
+/// Tick until a job has started and its answer is taken in (or give up: none was to start).
 fn until_a_job(a: &mut MailApp, sent: &Sent) {
     for _ in 0..2_000 {
         a.dav_tick();
         if !sent.lock().unwrap().is_empty() {
+            a.dav_tick();
             return;
         }
         std::thread::sleep(Duration::from_millis(1));
@@ -158,4 +159,78 @@ fn servers_that_share_the_mail_password_need_nothing_read() {
     until_a_job(&mut a, &sent);
     assert_eq!(store.asked.load(Ordering::SeqCst), 0);
     assert_eq!(sent.lock().unwrap()[0].get(HOME).map(String::as_str), Some("mail"));
+}
+
+/// A window whose host signs in to the home with whatever it is given (`took`), or refuses it.
+fn signing_in(store: &Arc<Store>, separate: bool, took: bool) -> (MailApp, Id, Sent) {
+    let (mut a, id, sent) = app(store, separate);
+    let seen = sent.clone();
+    a.services.dav = Some(Box::new(move |job: DavJob| {
+        seen.lock().unwrap().push(job.passwords.clone());
+        let (send, receive) = std::sync::mpsc::channel();
+        let (signed_in, problem) =
+            if took { (vec![HOME.to_string()], mailcraft_model::DavProblem::None) } else { (vec![], mailcraft_model::DavProblem::WrongPassword) };
+        let download = DavDownload {
+            account: job.ask.account,
+            email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
+            signed_in,
+            problem,
+            ..Default::default()
+        };
+        send.send(DavDone { download }).unwrap();
+        receive
+    }));
+    (a, id, sent)
+}
+
+#[test]
+fn a_password_the_server_took_is_remembered_when_the_owner_lets_it_be() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, sent) = signing_in(&store, true, true);
+    a.dav_passwords.insert((id, HOME.into()), "typed".into());
+    until_a_job(&mut a, &sent);
+    let k = key(&a, id);
+    assert_eq!(store.held.lock().unwrap().get(&k).map(String::as_str), Some("typed"));
+    assert!(a.ui.remembered_keys.contains(&k), "noted for Remove all data");
+    // A new window finds it there: the next session reads it back.
+    let (mut b, id, sent) = app(&store, true);
+    until_a_job(&mut b, &sent);
+    assert_eq!(sent.lock().unwrap()[0].get(HOME).map(String::as_str), Some("typed"));
+    assert_eq!(key(&b, id), k);
+}
+
+#[test]
+fn nothing_is_written_while_remembering_is_off_or_for_a_refused_password() {
+    for (remember, took) in [(false, true), (true, false)] {
+        let store = Arc::new(Store::default());
+        let (mut a, id, sent) = signing_in(&store, true, took);
+        a.ui.remember_sign_in = remember;
+        a.dav_passwords.insert((id, HOME.into()), "typed".into());
+        until_a_job(&mut a, &sent);
+        assert!(store.held.lock().unwrap().is_empty(), "remember {remember}, took {took}");
+    }
+}
+
+#[test]
+fn the_mail_password_is_never_written_under_a_calendar_server_s_name() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, sent) = signing_in(&store, false, true);
+    a.passwords.insert(id, "mail".into());
+    until_a_job(&mut a, &sent);
+    assert_eq!(sent.lock().unwrap()[0].get(HOME).map(String::as_str), Some("mail"));
+    assert!(store.held.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_password_is_not_written_while_a_forget_is_pending_for_its_name() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, _) = signing_in(&store, true, true);
+    let k = key(&a, id);
+    a.dav_forget_queue.push(k.clone());
+    a.remember_dav_password(id, HOME, "typed");
+    assert!(store.held.lock().unwrap().is_empty());
+    a.dav_forget_queue.clear();
+    a.remember_dav_password(id, HOME, "typed");
+    assert_eq!(store.held.lock().unwrap().get(&k).map(String::as_str), Some("typed"));
 }

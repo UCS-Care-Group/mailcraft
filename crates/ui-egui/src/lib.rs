@@ -101,6 +101,9 @@ pub mod dates;
 mod dav_job;
 #[cfg(test)]
 mod dav_job_tests;
+mod dav_password_ask;
+#[cfg(test)]
+mod dav_password_ask_tests;
 mod dav_secret_read;
 #[cfg(test)]
 mod dav_secret_read_tests;

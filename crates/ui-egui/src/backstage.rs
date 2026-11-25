@@ -263,6 +263,8 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if a.kind == AccountKind::Exchange {
             crate::ews_setup::info_rows(app, ui, t, a);
         }
+        // Its calendar servers want a password of their own that nothing here has (#209).
+        crate::dav_password_ask::info_row(app, ui, t, a.id);
         // Where keeping the to-dos, the rules, the automatic replies and the categories in step
         // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
         // is its tip.

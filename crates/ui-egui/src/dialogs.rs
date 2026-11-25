@@ -47,6 +47,8 @@ pub enum Dialog {
     /// Delay Delivery, Send Later and Change Send Time (#950): a date and a time; runs
     /// `compose.delay`, `compose.sendLater` or `mail.setSendTime`.
     SendLater(crate::send_later::Ask),
+    /// The password of an account's calendar servers (#209).
+    DavPassword(Box<crate::dav_password_ask::DavPasswordAsk>),
     /// Direct Replies To: where replies to the message being written go; runs `compose.replyTo`.
     ReplyTo {
         text: String,
@@ -295,6 +297,7 @@ impl Dialog {
             Dialog::AddReminder(d) => d.name(),
             Dialog::ReplyTo { .. } => "replyTo",
             Dialog::SendLater(d) => d.name(),
+            Dialog::DavPassword(d) => d.name(),
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Subscribe { .. } => "subscribe",
@@ -379,6 +382,7 @@ impl Dialog {
                     .filter(|id| app.session.mailbox.message(*id).is_some_and(|m| crate::send_later::waits(app, m)))?;
                 Dialog::SendLater(crate::send_later::Ask::open(app, crate::send_later::Mode::Change(queued))?)
             }
+            "davPassword" => Dialog::DavPassword(Box::new(crate::dav_password_ask::DavPasswordAsk::open(app, id("id")?)?)),
             "replyTo" => Dialog::ReplyTo { text: app.session.compose.as_ref()?.reply_to.clone(), error: String::new() },
             "sharedMailbox" => {
                 // Under the account named, else the first that can open one.
@@ -2488,6 +2492,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::SendLater(d) => {
             if matches!(crate::send_later::show(ctx, d, app, &t, enter), crate::send_later::Outcome::Close) {
+                close = true;
+            }
+        }
+        Dialog::DavPassword(d) => {
+            if matches!(crate::dav_password_ask::show(ctx, d, app, &t, enter), crate::dav_password_ask::Outcome::Close) {
                 close = true;
             }
         }

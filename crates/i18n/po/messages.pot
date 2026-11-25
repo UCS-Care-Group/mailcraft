@@ -2351,6 +2351,11 @@ msgstr ""
 msgid "Calendar Listed Twice"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "Calendar Server Password"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
 msgid "Calendar and Contacts Changes to Send"
@@ -4625,6 +4630,11 @@ msgid "Ends on a day"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "Enter Password…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/send_later.rs
 msgid "Enter a date and a time."
 msgstr ""
@@ -5529,6 +5539,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Give it a title first"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
 msgstr ""
 
 #. interface
@@ -7495,7 +7510,7 @@ msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr ""
 
@@ -9584,7 +9599,7 @@ msgid "Numbering"
 msgstr ""
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -9721,6 +9736,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
 msgstr ""
 
 #. what a command says
@@ -10398,6 +10418,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Password for {account}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "Password for {server}"
 msgstr ""
 
 #. interface
@@ -14576,6 +14601,11 @@ msgid ""
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "The calendar server needs its password."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dav_job.rs
 msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
 msgstr ""
@@ -14593,6 +14623,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "The calendars and contacts of {account} have a password of their own."
 msgstr ""
 
 #. interface
