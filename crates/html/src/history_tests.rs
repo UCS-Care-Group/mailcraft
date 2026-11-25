@@ -228,6 +228,17 @@ fn an_answer_in_the_quote_right_under_a_header_is_kept() {
 }
 
 #[test]
+fn a_marker_in_a_quote_the_sender_answered_in_doesnt_cut_it() {
+    // Answered in the quote under the header: an Original Message line further down the quote,
+    // with an answer under it, is part of what the sender answered.
+    let html = "<p>Hi,</p><hr><div><b>From:</b> Ada<br><b>Sent:</b> Monday<br><b>To:</b> Ben</div>        <blockquote><p>Numbers?</p><p>-----Original Message-----</p><p>Old.</p></blockquote><p>Fine.</p>";
+    assert_eq!(start(&parse(html)), None);
+    // And under an On … wrote: line.
+    let html = "<p>Hi,</p><p>On Monday, Ada wrote:</p><blockquote><p>Numbers?</p></blockquote><p>Fine.</p>        <blockquote><p>-----Original Message-----</p></blockquote><p>Also fine.</p>";
+    assert_eq!(start(&parse(html)), None);
+}
+
+#[test]
 fn quotes_in_the_older_messages_under_a_header_dont_keep_them() {
     // The message answered was itself a Gmail reply: its own quote and signature are history.
     let html = "<p>Done.</p><hr><div><b>From:</b> Ada<br><b>Sent:</b> Monday<br><b>To:</b> Ben</div>        <p>Sure.</p><p>On Sunday, Ben wrote:</p><blockquote><p>Can you?</p></blockquote><p>Ada</p>";

@@ -57,7 +57,12 @@ pub fn start_in(blocks: &[Block], subject: &str) -> Option<usize> {
     if read.lines.iter().flatten().any(|l| is_forwarded_line(l)) {
         return None;
     }
-    let cut = (1..blocks.len()).find(|&i| read.begins_history(i))?;
+    // The first boundary decides: one whose quote the sender answered in keeps the message whole,
+    // whatever markers the quote has further down (they are in what the sender answered).
+    let (cut, history) = (1..blocks.len()).find_map(|i| read.boundary(i).map(|h| (i, h)))?;
+    if !history {
+        return None;
+    }
     // What comes before is the sender's own: there must be something to read in it.
     read.content.get(..cut).unwrap_or_default().iter().any(|c| *c).then_some(cut)
 }
@@ -108,29 +113,32 @@ impl<'a> Read<'a> {
         self.lines.get(i).map(Vec::as_slice).unwrap_or_default()
     }
 
-    /// Whether the history begins at block `i`.
-    fn begins_history(&self, i: usize) -> bool {
+    /// Whether block `i` is where a quoted message begins: `Some(true)` when the history begins
+    /// there, `Some(false)` when the sender answered in the quote under it (the message is theirs
+    /// to the end), `None` when it isn't such a block.
+    fn boundary(&self, i: usize) -> Option<bool> {
         let lines = self.lines(i);
         let Some(first) = lines.first() else {
             // A rule is where it begins when a header comes right under it.
-            return self.blocks.get(i).is_some_and(|b| matches!(b.kind, BlockKind::Rule))
-                && self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0) && !self.answered_under(j));
+            if !self.blocks.get(i).is_some_and(|b| matches!(b.kind, BlockKind::Rule)) {
+                return None;
+            }
+            let j = self.next_text(i + 1).filter(|&j| self.header_at(j, 0))?;
+            return Some(!self.answered_under(j));
         };
         if is_separator(first) {
             // Its own block, the header under it; or the header's first line in the same block.
-            return if lines.len() > 1 {
-                self.header_at(i, 1) && !self.answered_under(i)
-            } else {
-                self.next_text(i + 1).is_some_and(|j| self.header_at(j, 0) && !self.answered_under(j))
-            };
+            let j =
+                if lines.len() > 1 { Some(i).filter(|&i| self.header_at(i, 1)) } else { self.next_text(i + 1).filter(|&j| self.header_at(j, 0)) }?;
+            return Some(!self.answered_under(j));
         }
         // (A rule just above a header, Outlook's line over it, was found first: the blocks are
         // looked at in order.)
         if is_original_message(first) || self.header_at(i, 0) {
-            return !self.answered_under(i);
+            return Some(!self.answered_under(i));
         }
         // A line that introduces a quote, unless answers are written in the quote under it.
-        is_wrote(lines) && !self.answers_from.get(i + 1).copied().unwrap_or(false)
+        is_wrote(lines).then(|| !self.answers_from.get(i + 1).copied().unwrap_or(false))
     }
 
     /// Whether the sender answered in the quote right under the header (or the
