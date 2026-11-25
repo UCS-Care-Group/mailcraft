@@ -665,6 +665,10 @@ fn a_fetch_stops_asking_once_the_batch_holds_as_much_as_it_may_and_leaves_the_re
     let got = block_on(crate::run::fetch_batch(&client(), &standin, &fetch(&ids), &cancel, &mut |_| true, 3 * one, one)).unwrap();
     let taken = got.fetched.len();
     assert!((2..5).contains(&taken), "{taken}");
+    // What it holds is within the limit, and one more answer of that size would not have fitted.
+    let held: usize = got.fetched.iter().map(|f| f.mime.len()).sum();
+    assert!(held <= 3 * one, "{held} held, limit {}", 3 * one);
+    assert!(held + one > 3 * one, "{held} held: one more would still fit");
     assert!(got.missing.is_empty() && got.failed.is_empty() && !got.offline && got.errors.is_empty(), "{:?}", got.errors);
     // The ids it didn't ask for are in no list: the next fetch takes them.
     let next = block_on(crate::run::fetch_batch(&client(), &standin, &fetch(&ids[taken..]), &cancel, &mut |_| true, usize::MAX, 0)).unwrap();
