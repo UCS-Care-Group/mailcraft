@@ -208,6 +208,12 @@ msgid "(none)"
 msgstr "(nessuno)"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "(read only)"
+msgstr "(sola lettura)"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -930,7 +936,7 @@ msgid "Accessibility"
 msgstr "Accessibilità"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "Account"
@@ -1721,6 +1727,14 @@ msgstr "Un elemento finirebbe dove si trova già; non è stato spostato nulla."
 #, fuzzy
 msgid "An unsubscribe is already on its way."
 msgstr "Una disiscrizione è già in corso."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "And {n} more change was put back."
+msgid_plural "And {n} more changes were put back."
+msgstr[0] "E un'altra modifica ({n}) è stata annullata."
+msgstr[1] "E altre {n} modifiche sono state annullate."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -2925,6 +2939,12 @@ msgstr "Calibri"
 msgid "Call"
 msgstr "Chiama"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Can only be read"
+msgstr "Solo lettura"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -3953,7 +3973,7 @@ msgid "Contact Changes to Send"
 msgstr "Modifiche ai contatti da inviare"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "Contatti"
@@ -8384,8 +8404,8 @@ msgstr "Conservazione di una copia di quanto inviato"
 msgid "Kept Public key"
 msgstr "Chiave pubblica conservata"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Kept in"
 msgstr "Conservata in"
@@ -8407,6 +8427,12 @@ msgstr "Conservata nella memoria di questo browser, salvata man mano. Usare Apri
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Conservata in {path}, salvata man mano."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Kept in: {folder}"
+msgstr "Conservato in: {folder}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
@@ -11430,8 +11456,8 @@ msgstr "Non ancora letto."
 msgid "Not saved"
 msgstr "Non salvato"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Not sent yet"
 msgstr "Non ancora inviato"
@@ -11767,7 +11793,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "Sul server: qui può essere attivata o disattivata, spostata o eliminata"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Su questo computer"
@@ -13275,12 +13301,6 @@ msgstr "Rileggi ora i Preferiti da Outlook"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Letto con l'accesso di {owner}, finché lo mantieni: la persona deve aver condiviso il suo calendario con te. È conservato solo su questo computer: non comparirà in Outlook né sugli altri tuoi dispositivi. Microsoft ti chiede una volta di consentire a MailCraft di leggere i calendari di altre persone."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "Read-only"
-msgstr "Sola lettura"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15677,6 +15697,12 @@ msgstr "Mostra come"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "Mostra calendario"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Folder"
+msgstr "Mostra cartella contatti"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -19603,6 +19629,12 @@ msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on 
 msgstr "La chiave di questo certificato è di un tipo che MailCraft non usa: qui si importa solo ECDSA su P-256 o P-384."
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Questa modifica è su questo computer e va al server al prossimo Invia/Ricevi."
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
@@ -23467,7 +23499,7 @@ msgid "no contact with id {id}"
 msgstr "nessun contatto con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/contacts_remote.rs
+#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no contacts folder with id {id}"
 msgstr "nessuna cartella contatti con ID {id}"
@@ -25470,6 +25502,12 @@ msgstr "questa versione non può disiscriversi con un clic"
 msgid "this contact has no e-mail address"
 msgstr "questo contatto non ha un indirizzo di posta elettronica"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "this contacts folder can only be read"
+msgstr "questa cartella contatti è di sola lettura"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -26001,6 +26039,12 @@ msgstr "{done} di {total}"
 #, fuzzy
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
 msgstr "{folders} verranno create in una nuova cartella denominata {name} su questo computer, con {messages}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{folder} ({owner})"
+msgstr "{folder} ({owner})"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
@@ -26618,6 +26662,14 @@ msgid "{n} change made here hasn't reached the server and will be lost."
 msgid_plural "{n} changes made here haven't reached the server and will be lost."
 msgstr[0] "{n} modifica apportata qui non ha raggiunto il server e andrà persa."
 msgstr[1] "{n} modifiche apportate qui non hanno raggiunto il server e andranno perse."
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{n} change to contacts isn't on the server yet: it is tried again later"
+msgid_plural "{n} changes to contacts aren't on the server yet: they are tried again later"
+msgstr[0] "{n} modifica ai contatti non è ancora sul server: verrà ritentata più tardi"
+msgstr[1] "{n} modifiche ai contatti non sono ancora sul server: verranno ritentate più tardi"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -27585,6 +27637,12 @@ msgstr[0] "{people} e altri {n}"
 msgstr[1] "{people} e altri {n}"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{person}'s shared contacts"
+msgstr "Contatti condivisi di {person}"
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "{phase} {time}"
 msgstr "{phase} {time}"
@@ -27819,6 +27877,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "Read-only"
+#~ msgstr "Sola lettura"
 
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."
