@@ -241,8 +241,9 @@ fn an_exchange_contact_in_a_writable_book_is_not_marked_read_only() {
             emails: vec![mailcraft_model::Labeled::new("", "wren@example.org")],
             ..Default::default()
         }],
+        ..Default::default()
     };
-    mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
+    mailcraft_engine::cmd::remote::apply_book_contacts(&mut w.state_mut().session, &download).unwrap();
     let theirs = w.state().session.mailbox.contacts.values().find(|c| c.display_name == "Wren Work").unwrap().id;
     assert!(!read_only_here(w.state(), w.state().session.mailbox.contact(theirs).unwrap()), "an Exchange book that may be written is not read-only");
     w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).unwrap();

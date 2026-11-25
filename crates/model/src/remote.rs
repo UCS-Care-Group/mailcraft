@@ -345,6 +345,9 @@ impl RemoteContact {
         RemoteContact {
             id: c.origin.id.clone(),
             change_key: c.origin.change_key.clone(),
+            uid: c.uid.clone(),
+            book: c.book.clone(),
+            book_id: c.book_id.clone(),
             display_name: c.display_name.clone(),
             first: c.first.clone(),
             middle: c.middle.clone(),

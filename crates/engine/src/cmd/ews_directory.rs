@@ -143,7 +143,7 @@ pub fn ews_directory_request(
         }
     }
     let changes = super::remote::event_upload(s, account).ok().filter(|upload| whole && !upload.ops.is_empty());
-    let contact_changes = super::remote::contact_upload(s, account).filter(|upload| whole && !upload.ops.is_empty());
+    let contact_changes = super::remote::book_contact_upload(s, account).filter(|upload| whole && !upload.ops.is_empty());
     let task_changes = super::tasks_remote::task_upload(&s.mailbox, account).ok().filter(|upload| whole && !upload.ops.is_empty());
     Ok(EwsDirectoryRequest {
         account,
@@ -204,7 +204,7 @@ pub fn apply_ews_directory(s: &mut Session, result: &EwsDirectoryResult) -> CmdR
     }
     if let Some(outcomes) = &result.contacts_uploaded {
         uploaded |= !outcomes.outcomes.is_empty();
-        let applied = super::remote::apply_contact_outcomes(s, outcomes)?;
+        let applied = super::remote::apply_book_contact_outcomes(s, outcomes)?;
         counts["contacts"] = applied.get("saved").cloned().unwrap_or_else(|| json!(0));
     }
     if let Some(outcomes) = &result.tasks_uploaded {

@@ -420,6 +420,7 @@ impl<E: HttpExchange> Run<'_, E> {
             complete: complete && folders.len() <= mailcraft_model::remote::MAX_REMOTE_CALENDARS,
             books: Vec::new(),
             contacts: Vec::new(),
+            ..Default::default()
         };
         for folder in folders.iter().take(mailcraft_model::remote::MAX_REMOTE_CALENDARS) {
             let book = clean_name(&folder.display_name, owner_address);
