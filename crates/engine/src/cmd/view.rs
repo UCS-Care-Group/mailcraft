@@ -75,6 +75,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.peopleAccount", "Show Contacts Of", "People", people_account)
             .reads()
             .params(r#"{"value": "all" | "here" | number} — every account's contacts, those kept on this computer (0 is the same), or one account's"#),
+        CommandSpec::new("view.peopleFolder", "Show Contacts Folder", "People", people_folder)
+            .reads()
+            .params(r#"{"value": number} — the contacts of one of an account's contacts folders alone (people.get says a contact's "folder"); view.peopleAccount shows all of them again"#),
         CommandSpec::new("view.reset", "Reset View", "View › Current View", reset).pure(),
         CommandSpec::new("view.inspect", "Inspect View", "View", inspect).reads(),
     ];
@@ -409,13 +412,23 @@ fn people_account(s: &mut Session, v: &Value) -> CmdResult {
     if matches!(value, AccountChoice::Account(account) if !people::keeps_contacts(&s.mailbox, account)) {
         return Err(bad("that account's contacts aren't read from its server"));
     }
-    s.view.people_account = value;
+    (s.view.people_account, s.view.people_folder) = (value, None);
     // The contacts, and no longer the organisation's address list.
     s.view.people_book = None;
     // The selected contact stays selected only where it is listed.
-    let shown = people::shown_account(s);
-    s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| shown.shows(&c.origin)));
+    s.sel.contact = s.sel.contact.filter(|id| s.mailbox.contact(*id).is_some_and(|c| people::shows(s, c)));
     Ok(json!({"value": value.code()}))
+}
+
+fn people_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::u64(v, "value").filter(|id| *id != 0).ok_or_else(|| bad("`value` is a contacts folder's id"))?;
+    let account = super::contacts_remote::home(&s.mailbox, id).map(|f| f.account).ok_or_else(|| failed!("no contacts folder with id {id}", id))?;
+    if !people::keeps_contacts(&s.mailbox, account) {
+        return Err(bad("that account's contacts aren't read from its server"));
+    }
+    (s.view.people_account, s.view.people_folder, s.view.people_book) = (AccountChoice::Account(account), Some(id), None);
+    s.sel.contact = s.sel.contact.filter(|c| s.mailbox.contact(*c).is_some_and(|c| people::shows(s, c)));
+    Ok(json!({"value": id}))
 }
 
 fn reset(s: &mut Session, _: &Value) -> CmdResult {

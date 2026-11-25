@@ -208,6 +208,12 @@ msgid "(none)"
 msgstr "（无）"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "(read only)"
+msgstr "（只读）"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "(the server didn't confirm the sender)"
@@ -925,7 +931,7 @@ msgid "Accessibility"
 msgstr "无障碍"
 
 #. command label, interface
-#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/help.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/forms/junk.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Account"
 msgstr "账户"
@@ -1710,6 +1716,13 @@ msgstr "某个项目将落在它原本所在的位置；未移动任何内容。
 #, fuzzy
 msgid "An unsubscribe is already on its way."
 msgstr "退订请求已在处理中。"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "And {n} more change was put back."
+msgid_plural "And {n} more changes were put back."
+msgstr[0] "另有 {n} 项更改已恢复。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -2915,6 +2928,12 @@ msgstr "Calibri"
 msgid "Call"
 msgstr "拨打"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Can only be read"
+msgstr "只能读取"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 #, fuzzy
@@ -3909,7 +3928,7 @@ msgid "Contact Changes to Send"
 msgstr "待发送的联系人更改"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "联系人"
@@ -8281,8 +8300,8 @@ msgstr "保留发送内容的副本"
 msgid "Kept Public key"
 msgstr "已保存的公钥"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Kept in"
 msgstr "保存在"
@@ -8304,6 +8323,12 @@ msgstr "保存在此浏览器中，随操作自动保存。使用“打开和导
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "保存在 {path}，随操作自动保存。"
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Kept in: {folder}"
+msgstr "保存在：{folder}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
@@ -11308,8 +11333,8 @@ msgstr "尚未读取。"
 msgid "Not saved"
 msgstr "未保存"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Not sent yet"
 msgstr "尚未发送"
@@ -11645,7 +11670,7 @@ msgid "On the server: here it can be switched on or off, moved or deleted"
 msgstr "保存在服务器上：可在此启用、停用、移动或删除"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/widgets.rs
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "在这台计算机上"
@@ -13158,12 +13183,6 @@ msgstr "立即从 Outlook 重新读取收藏夹"
 #, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "使用 {owner} 的登录信息读取，直到您移除该日历：对方须先与您共享日历。此日历仅保存在本机，不会出现在 Outlook 或其他设备上。Microsoft 会询问您是否允许 MailCraft 读取他人的日历。"
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "Read-only"
-msgstr "只读"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
@@ -15549,6 +15568,12 @@ msgstr "显示为"
 #, fuzzy
 msgid "Show Calendar"
 msgstr "显示日历"
+
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Show Contacts Folder"
+msgstr "显示联系人文件夹"
 
 #. command label
 #: crates/engine/src/cmd/view.rs
@@ -19423,6 +19448,12 @@ msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on 
 msgstr "MailCraft 不支持此证书的密钥类型；此处仅导入 P-256 或 P-384 曲线上的 ECDSA 密钥。"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "此更改保存在这台计算机上，将在下次发送/接收时发送到服务器。"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
@@ -23275,7 +23306,7 @@ msgid "no contact with id {id}"
 msgstr "没有 ID 为 {id} 的联系人"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/contacts_remote.rs
+#: crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "no contacts folder with id {id}"
 msgstr "没有 ID 为 {id} 的联系人文件夹"
@@ -25272,6 +25303,12 @@ msgstr "此版本无法一键退订"
 msgid "this contact has no e-mail address"
 msgstr "该联系人没有电子邮件地址"
 
+#. why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "this contacts folder can only be read"
+msgstr "此联系人文件夹只能读取"
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -25800,6 +25837,12 @@ msgstr "{total} 中的 {done}"
 #, fuzzy
 msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
 msgstr "将在此计算机上创建名为 {name} 的新文件夹，并在其中创建 {folders}，包含 {messages}。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{folder} ({owner})"
+msgstr "{folder}（{owner}）"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
@@ -26403,6 +26446,13 @@ msgstr[0] "有 {n} 个类别无法还原：类别列表已满。"
 msgid "{n} change made here hasn't reached the server and will be lost."
 msgid_plural "{n} changes made here haven't reached the server and will be lost."
 msgstr[0] "此处的 {n} 项更改尚未同步到服务器，将会丢失。"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{n} change to contacts isn't on the server yet: it is tried again later"
+msgid_plural "{n} changes to contacts aren't on the server yet: they are tried again later"
+msgstr[0] "{n} 项联系人更改尚未到达服务器：稍后将重试"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -27253,6 +27303,12 @@ msgid_plural "{people} and {n} more"
 msgstr[0] "{people} 及另外 {n} 人"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "{person}'s shared contacts"
+msgstr "{person} 共享的联系人"
+
+#. interface
 #: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{phase} {time}"
@@ -27486,6 +27542,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Read-only"
+#~ msgstr "只读"
 
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."

@@ -340,6 +340,10 @@ pub struct ViewState {
     pub task_account: AccountChoice,
     /// Whose contacts People shows.
     pub people_account: AccountChoice,
+    /// The contacts folder of that account People shows alone (`view.peopleFolder`, #1917); none:
+    /// all of its folders. Not kept between sessions: an id means another folder in another file.
+    #[serde(skip)]
+    pub people_folder: Option<Id>,
     /// The Exchange server account whose organisation's address list People shows in place of
     /// the contacts (`people.addressBook`, #1262); none: the contacts.
     pub people_book: Option<Id>,
@@ -382,6 +386,7 @@ impl Default for ViewState {
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
             people_account: AccountChoice::All,
+            people_folder: None,
             people_book: None,
         }
     }
@@ -3536,6 +3541,7 @@ impl Session {
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
         self.view.people_account = AccountChoice::All;
+        self.view.people_folder = None;
         self.dirty = false;
         self.rev += 1;
         self.normalize();

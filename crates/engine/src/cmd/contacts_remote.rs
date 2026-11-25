@@ -270,12 +270,16 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
 }
 
 /// The folder a new contact goes into when the command doesn't say (C8), without making
-/// anything: with one account that keeps contacts, its main folder; with more, the account the
-/// list shows (On this computer when it shows that), else the folder last used, else the first
-/// account's. `Err(account)` is that account's main folder, not made yet.
+/// anything: the folder the list shows alone, when a contact can go there; else with one account
+/// that keeps contacts, its main folder; with more, the account the list shows (On this computer
+/// when it shows that), else the folder last used, else the first account's. `Err(account)` is
+/// that account's main folder, not made yet.
 pub fn default_contact_folder(s: &Session) -> Result<Id, Id> {
-    let accounts = super::people::contact_accounts(&s.mailbox);
     let usable = |f: Id| f == 0 || home(&s.mailbox, f).is_some_and(|f| f.writable);
+    if let Some(folder) = super::people::shown_folder(s).filter(|f| usable(*f)) {
+        return Ok(folder);
+    }
+    let accounts = super::people::contact_accounts(&s.mailbox);
     let account = match accounts.as_slice() {
         [] => return Ok(0),
         [one] => *one,
