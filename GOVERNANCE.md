@@ -12,7 +12,7 @@ can't.
 | **Owner** | UCS Care Group, through Martin Ball ([@benandez](https://github.com/benandez)) | Sets the direction ([`ROADMAP.md`](ROADMAP.md)); makes the decisions listed below; publishes releases; holds the release signing keys, the Microsoft registration and the organisation's accounts; answers security reports ([`SECURITY.md`](SECURITY.md)) and conduct reports ([`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)). |
 | **Maintainers** | [@benandez](https://github.com/benandez), [@billsecond](https://github.com/billsecond) (administrators of the repository) | Review and merge pull requests; triage issues; keep CI, dependencies and security alerts in order. Changes to sync, the store, sign-in and secrets are reviewed by a code owner ([`.github/CODEOWNERS`](.github/CODEOWNERS)). |
 | **Contributors** | Anyone who opens an issue or a pull request | Follow [`CONTRIBUTING.md`](CONTRIBUTING.md): claim an issue before building (a bug fix comes with its report instead), one issue per pull request, `cargo xtask ci` before every commit, tests with every change; sign the [CLA](CLA.md) once. |
-| **Testers** | People signed up in [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11) | Use a release on their own mail and report what goes wrong. |
+| **Testers** | People signed up in [#11](https://github.com/UCSLabs/mailcraft/issues/11) | Use a release on their own mail and report what goes wrong. |
 
 ## How decisions are made
 

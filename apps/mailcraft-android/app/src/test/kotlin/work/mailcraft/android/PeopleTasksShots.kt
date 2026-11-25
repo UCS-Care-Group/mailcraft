@@ -31,6 +31,18 @@ internal object PeopleTasksShots {
     val people = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)))
     val person = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada))
 
+    val newPerson = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)),
+        editor = PersonDraft(
+            first = "Ida", last = "Example", emails = "ida@example.org\nida.home@example.org", phones = "+44 20 7946 0001",
+            company = "Example Ltd", title = "Designer", notes = "Met at the garden club.",
+        ),
+    )
+    val badPerson = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)),
+        editor = PersonDraft(first = "Ida", emails = "ida at example"),
+    )
+
     private fun task(id: ULong, title: String, due: String?, done: Boolean = false, important: Boolean = false) =
         TaskRow(id, title, due, done, important)
 
