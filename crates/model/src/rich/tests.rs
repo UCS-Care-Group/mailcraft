@@ -311,6 +311,11 @@ fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
         ("Ready. no. thanks ", "Ready. No. Thanks "),
         ("Visit the dept. no. three ", "Visit the dept. no. three "),
         ("Done. thanks ", "Done. Thanks "),
+        ("She has a Ph.D. in physics ", "She has a Ph.D. in physics "),
+        ("He has an M.Sc. in chemistry ", "He has an M.Sc. in chemistry "),
+        ("A B.Sc. in mathematics ", "A B.Sc. in mathematics "),
+        ("A Sc.D. in biology ", "A Sc.D. in biology "),
+        ("Her Ph.D. is complete. thanks ", "Her Ph.D. is complete. Thanks "),
         ("“no.” thanks ", "“No.” Thanks "),
     ] {
         let mut body = RichBody::default();

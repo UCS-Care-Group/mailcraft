@@ -124,9 +124,9 @@ fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) ->
             continue;
         }
         let abbreviations = [
-            "approx", "art", "avv", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "evtl",
-            "fig", "ggf", "hr", "inc", "ing", "mevr", "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "prof", "rif", "sig", "sig.na",
-            "sig.ra", "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
+            "approx", "art", "avv", "b.sc", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc",
+            "evtl", "fig", "ggf", "hr", "inc", "ing", "m.sc", "mevr", "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "ph.d", "prof",
+            "rif", "sc.d", "sig", "sig.na", "sig.ra", "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
         ];
         return !abbreviations.contains(&last.to_lowercase().as_str());
     }
