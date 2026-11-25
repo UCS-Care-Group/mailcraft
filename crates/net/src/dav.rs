@@ -245,12 +245,16 @@ struct Run<'a> {
     /// The last request ([`Run::call`]) was answered at another address than the one it was
     /// made to.
     redirected: bool,
+    /// Something couldn't be read for an error of the server's (a home, a collection, a
+    /// document): said as [`DavProblem::ServerErrors`] when nothing worse ended the run.
+    errors: bool,
 }
 
 /// Read what `ask` says through `x`. The passwords are asked for by origin, and only when that
 /// origin challenges ([`Passwords`]). `now` is Unix seconds (for a `Retry-After` date).
 pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i64, limits: &Limits) -> DavDownload {
-    let mut out = DavDownload { account: ask.account, email: ask.email.clone(), server: ask.server.clone(), ..Default::default() };
+    let mut out =
+        DavDownload { account: ask.account, email: ask.email.clone(), server: ask.server.clone(), generation: ask.generation, ..Default::default() };
     let mut run = Run {
         x,
         user: ask.username.clone(),
@@ -265,6 +269,7 @@ pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i6
         skipped: 0,
         wait: 0,
         redirected: false,
+        errors: false,
     };
     // A site for each origin a home of the settings is on, and for none else.
     let mut homes: Vec<&String> = Vec::new();
@@ -289,6 +294,9 @@ pub fn run(ask: &DavAsk, passwords: Passwords<'_>, x: &dyn HttpExchange, now: i6
     let ended = run.work(ask, &homes, left_out, &mut out);
     if let Err(Fail::Stop(problem)) = ended {
         out.problem = problem;
+    } else if run.errors {
+        // (So that the window says it, rather than the run going round the same failure quietly.)
+        out.problem = DavProblem::ServerErrors;
     }
     out.wait = run.wait;
     out.signed_in = run.signed_in;
@@ -342,7 +350,10 @@ impl Run<'_> {
                         stopped = Some(problem);
                         break;
                     }
-                    Err(_) => listing.complete = false,
+                    Err(_) => {
+                        listing.complete = false;
+                        self.errors = true;
+                    }
                 }
             }
             listing.complete &= !listing.capped;
@@ -357,6 +368,9 @@ impl Run<'_> {
         let targets: Vec<(DavAskCollection, Option<&Found>)> = if ask.list_homes {
             found
                 .iter()
+                // (A calendar the engine has no room for is not read: it would be read whole at
+                // every run, and none of it kept.)
+                .filter(|f| !ask.no_room || known.contains_key(f.calendar.href.as_str()))
                 .map(|f| {
                     let ask = known
                         .get(f.calendar.href.as_str())
@@ -373,6 +387,9 @@ impl Run<'_> {
             let ended = self.read_collection(collection, *listed, &mut read);
             if ended.is_err() {
                 read.complete = false;
+            }
+            if let Err(Fail::Skip | Fail::TooLarge) = ended {
+                self.errors = true;
             }
             if read.state != DavReadState::Skipped || !read.changes.is_empty() {
                 out.collections.push(read);
@@ -506,7 +523,7 @@ impl Run<'_> {
         let mut ms = self.multistatus(site, &response, home)?;
         self.skip(ms.skipped);
         let understood = ms.entries.iter().filter(|e| !e.is_base).all(|e| (200..300).contains(&e.status) && e.typed);
-        let mut whole = !redirected && understood && ms.skipped == 0 && !ms.capped && !ms.truncated;
+        let mut whole = !redirected && understood && has_base(&ms) && ms.skipped == 0 && !ms.capped && !ms.truncated;
         // Only what is inside the home is one of its calendars.
         let before = ms.entries.len();
         ms.entries.retain(|e| e.is_base || self.inside(site, home, &e.href));
@@ -602,8 +619,10 @@ impl Run<'_> {
         self.skip(ms.skipped);
         // Whether the listing is all there is (what isn't in it is gone), and whether every member
         // that can be held is in it (the change tag and token may be kept once they are fetched).
-        let mut whole = ms.skipped == 0 && !ms.capped && !ms.truncated;
-        let mut all = !ms.capped && !ms.truncated;
+        // An answer that doesn't describe the collection itself is no listing of it at all.
+        let described = has_base(&ms);
+        let mut whole = described && ms.skipped == 0 && !ms.capped && !ms.truncated;
+        let mut all = described && !ms.capped && !ms.truncated;
         let mut members: Vec<(String, String)> = Vec::new();
         let mut seen: HashSet<&str> = HashSet::new();
         for entry in ms.entries.iter().filter(|e| !e.is_base) {
@@ -790,7 +809,12 @@ impl Run<'_> {
                     let etag = etags.get(href.as_str()).copied().unwrap_or_default().to_string();
                     out.changes.push(DavChange { href, etag, raw: None, gone: false });
                 }
-                Got::NotNow => all = false,
+                Got::NotNow => {
+                    // lean: said as a problem each run, not counted per document; a count kept by
+                    // the engine would let one that keeps failing be passed over.
+                    self.errors = true;
+                    all = false;
+                }
             }
         }
         Ok(if all { Fetched::All } else { Fetched::Partly })
@@ -833,6 +857,13 @@ impl Run<'_> {
         }
         Ok(true)
     }
+}
+
+/// Whether a multistatus describes the address that was asked, with a status that says it is
+/// there (a Depth 1 listing names the collection itself first, RFC 4918 §9.1). Without it, an
+/// answer with no members is no word that the collection is empty.
+fn has_base(ms: &Multistatus) -> bool {
+    ms.entries.iter().any(|e| e.is_base && (200..300).contains(&e.status))
 }
 
 /// Whether a member is to be read: it isn't here, or is here under another ETag. One the server

@@ -8948,6 +8948,12 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft ჯერ არ უჭერს მხარს POP-ს. სანაცვლოდ გამოიყენეთ თქვენი პროვაიდერის IMAP სერვერი (ჩვეულებრივ imap.<your domain>, პორტი 993)."
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft ინახავს {account}-ის კალენდრის სერვერიდან იმდენს, რამდენსაც შეუძლია: ზოგიერთი კალენდარი ან მოვლენა გამოტოვებულია."
+
+#. interface
 #: crates/ui-egui/src/software.rs
 #, fuzzy
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
@@ -17377,6 +17383,12 @@ msgstr ""
 "კალენდარი ({name}) ახლა თქვენი კალენდრების სიაშია, რადგან გაგიზიარეს და მიიღეთ. თქვენ ის მისამართითაც გახსენით, ამიტომ ორჯერ ჩანს.\n"
 "\n"
 "წაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account}-ის კალენდრის სერვერმა შეცდომებით უპასუხა, ამიტომ ზოგიერთი მოვლენა შეიძლება მოძველებული იყოს. MailCraft მოგვიანებით კვლავ სცდის."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs

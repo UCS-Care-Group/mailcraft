@@ -36,7 +36,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mailcraft_model::dav_down::{MAX_ACCOUNT_RESOURCES, MAX_CHANGES, MAX_KNOWN, MAX_READ, MAX_RESOURCES};
+use mailcraft_model::dav_down::{MAX_ACCOUNT_RESOURCES, MAX_ACCOUNT_TEXT, MAX_CHANGES, MAX_KNOWN, MAX_READ, MAX_RESOURCES};
 use mailcraft_model::remote::MAX_KEY;
 use mailcraft_model::{
     Calendar, DavAsk, DavAskCollection, DavChange, DavCollectionState, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState,
@@ -74,6 +74,13 @@ pub struct Seen {
 const MAX_PER_RESOURCE: usize = 1_000;
 /// Most calendars a mailbox has (as for those made elsewhere).
 const MAX_CALENDARS: usize = 200;
+/// Longest line (a title, a place, a name, a category) and note kept of a server's event, and
+/// most categories, attendees and skipped days: as for a subscribed calendar.
+const MAX_LINE: usize = 500;
+const MAX_NOTE: usize = 100_000;
+const MAX_CATEGORIES: usize = 50;
+const MAX_ATTENDEES: usize = 500;
+const MAX_EXCEPTIONS: usize = 5_000;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -117,6 +124,9 @@ fn uploaded(_: &mut Session, _: &Value) -> CmdResult {
 /// (calendars, events, to-dos, contacts) and what waits to be sent to it stay, as does whatever
 /// was made here.
 pub(super) fn forget_account(s: &mut Session, account: Id, collections: &[String]) {
+    // (A read asked for before this is not taken in, even when the settings come back as they were.)
+    let generation = s.dav_generation.entry(account).or_default();
+    *generation = generation.wrapping_add(1);
     let hrefs: HashSet<&str> = collections.iter().map(String::as_str).collect();
     let followed: Vec<Id> =
         s.mailbox.calendars.iter().filter(|c| c.origin.account == account && hrefs.contains(c.origin.id.as_str())).map(|c| c.id).collect();
@@ -192,8 +202,11 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     let relist = v.get("relist").and_then(Value::as_bool).unwrap_or(false);
     let calendars: Vec<&DavCollectionState> = server.collections.iter().filter(|c| !c.contacts).take(DavServer::MAX_COLLECTIONS).collect();
     let list_homes = relist || calendars.is_empty() || now.saturating_sub(listed) >= RELIST_AFTER || listed > now;
+    // (Only a collection with a calendar here is read: one that found no room is never fetched.)
+    let held: HashSet<&str> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account.id).map(|c| c.origin.id.as_str()).collect();
     let mut collections: Vec<DavAskCollection> = calendars
         .iter()
+        .filter(|state| held.contains(state.href.as_str()))
         .map(|state| DavAskCollection { href: state.href.clone(), sync_token: state.sync_token.clone(), ctag: state.ctag.clone(), known: Vec::new() })
         .collect();
     // What is here, by collection, in one look at the events: a read (and one that goes on after a
@@ -212,6 +225,18 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         etag.is_empty() && read_in.and_then(|f| f.get(href)).is_none_or(|r| now.saturating_sub(r.at) >= REREAD_AFTER || r.at > now)
     };
     let mut seen: Vec<HashSet<&str>> = vec![HashSet::new(); collections.len()];
+    // What was read in without giving an event here: it is here too, as far as fetching goes. It
+    // is named first: a new version that gave no event (a document that can't be read) is what
+    // the server has now, not the event kept of the version before, which would otherwise be
+    // fetched again at every run.
+    let by_href: HashMap<String, usize> = collections.iter().enumerate().map(|(at, c)| (c.href.clone(), at)).collect();
+    for (href, r) in read_in.into_iter().flatten().filter(|(_, r)| r.bare) {
+        let Some(&at) = by_href.get(r.collection.as_str()) else { continue };
+        let (Some(ask), Some(seen)) = (collections.get_mut(at), seen.get_mut(at)) else { continue };
+        if ask.known.len() < MAX_KNOWN && seen.insert(href.as_str()) && !due(href, &r.etag) {
+            ask.known.push(DavKnown { href: href.clone(), etag: r.etag.clone() });
+        }
+    }
     for event in s.mailbox.events.values().filter(|e| e.origin.account == account.id && !e.origin.id.is_empty()) {
         let (Some(&at), href) = (by_calendar.get(&event.calendar), resource_of(&event.origin.id)) else { continue };
         let (Some(ask), Some(seen)) = (collections.get_mut(at), seen.get_mut(at)) else { continue };
@@ -223,15 +248,6 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
             ask.known.push(DavKnown { href: href.to_string(), etag: etag.clone() });
         }
     }
-    // And what was read in without giving an event here: it is here too, as far as fetching goes.
-    let by_href: HashMap<String, usize> = collections.iter().enumerate().map(|(at, c)| (c.href.clone(), at)).collect();
-    for (href, r) in read_in.into_iter().flatten().filter(|(_, r)| r.bare) {
-        let Some(&at) = by_href.get(r.collection.as_str()) else { continue };
-        let (Some(ask), Some(seen)) = (collections.get_mut(at), seen.get_mut(at)) else { continue };
-        if ask.known.len() < MAX_KNOWN && seen.insert(href.as_str()) && !due(href, &r.etag) {
-            ask.known.push(DavKnown { href: href.clone(), etag: r.etag.clone() });
-        }
-    }
     let ask = DavAsk {
         account: account.id,
         email: account.email.trim().to_string(),
@@ -241,6 +257,8 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         list_homes,
         server: server.identity(&account.email),
         collections,
+        no_room: s.mailbox.calendars.len() >= MAX_CALENDARS,
+        generation: s.dav_generation.get(&account.id).copied().unwrap_or(0),
     };
     // (After every other, even within one second.)
     let turn = now.max(s.dav_asked.values().copied().max().map_or(i64::MIN, |last| last.saturating_add(1)));
@@ -258,6 +276,8 @@ struct Took {
     removed: usize,
     calendars: usize,
     skipped: usize,
+    /// Something found no room here (events, their text, or a calendar).
+    full: bool,
 }
 
 /// Whether `href` is a resource inside `collection` on the same origin: the collection's address
@@ -293,10 +313,12 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     // (Nothing of the parameter in the error: it is the server's text, and may be logged.)
     let download: DavDownload = serde_json::from_value(download).map_err(|_| bad("`result` is not what a calendar server's read brings"))?;
     let took = take_in(s, &download)?;
+    // (What the engine found full is said, unless the host has something worse to say.)
+    let problem = if took.full && matches!(download.problem, DavProblem::None | DavProblem::Limits) { DavProblem::Full } else { download.problem };
     Ok(json!({
         "added": took.added, "updated": took.updated, "removed": took.removed, "calendars": took.calendars,
         "skipped": took.skipped.saturating_add(download.skipped as usize),
-        "problem": serde_json::to_value(download.problem).unwrap_or(Value::Null),
+        "problem": serde_json::to_value(problem).unwrap_or(Value::Null),
         "wait": download.wait.min(600),
     }))
 }
@@ -325,6 +347,11 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
     if download.server != server.identity(&owner.email) {
         return Err(fail("this read was made under the calendar server's earlier settings"));
     }
+    // And one asked for before the settings were put away or changed, even if they are as they
+    // were again: what it knew of the account was forgotten since.
+    if download.generation != s.dav_generation.get(&account).copied().unwrap_or(0) {
+        return Err(fail("this read was made under the calendar server's earlier settings"));
+    }
     let mut took = Took::default();
     let offset_at = super::remote::offset_of(s);
     let now = s.now();
@@ -341,7 +368,12 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
         }
     }
     // (Counted once: each read adds to it. What waits to be sent is looked at once, too.)
-    let mut total = s.mailbox.events.values().filter(|e| e.origin.account == account && !e.origin.id.is_empty()).count();
+    let mut room = s
+        .mailbox
+        .events
+        .values()
+        .filter(|e| e.origin.account == account && !e.origin.id.is_empty())
+        .fold(Room::default(), |r, e| Room { total: r.total.saturating_add(1), text: r.text.saturating_add(text_size(e)) });
     let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
     let mut reads = 0usize;
     let mut done: HashSet<&str> = HashSet::new();
@@ -369,7 +401,7 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
             continue;
         };
         let to = Target { account, calendar, collection: &state.href, now, pending: &pending };
-        let read_in = take_read(s, to, read, &offset_at, &mut docs, &mut total, &mut took);
+        let read_in = take_read(s, to, read, &offset_at, &mut docs, &mut room, &mut took);
         changed |= read_in.changed;
         // The state moves with what was taken in, and only when all of it was: a change that
         // found no room here is asked for again, from where the token was.
@@ -439,7 +471,15 @@ fn take_listing(
         let pending: HashSet<Id> = s.mailbox.event_changes.iter().map(|c| c.event).collect();
         for href in gone {
             let ids: HashSet<Id> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account && c.origin.id == href).map(|c| c.id).collect();
-            let events: Vec<Id> = s.mailbox.events.values().filter(|e| ids.contains(&e.calendar)).map(|e| e.id).collect();
+            // (Only what the server gave goes, as when the server is put away: anything else in
+            // the calendar stays, and the calendar with it, as the mailbox's own.)
+            let events: Vec<Id> = s
+                .mailbox
+                .events
+                .values()
+                .filter(|e| ids.contains(&e.calendar) && e.origin.account == account && !e.origin.id.is_empty())
+                .map(|e| e.id)
+                .collect();
             // (A calendar with something in it that waits to be sent stays until that is settled.)
             if events.iter().any(|e| pending.contains(e)) {
                 continue;
@@ -448,7 +488,12 @@ fn take_listing(
                 let _ = s.mailbox.remove_event(event);
                 took.removed += 1;
             }
-            s.mailbox.calendars.retain(|c| !ids.contains(&c.id));
+            let in_use: HashSet<Id> = s.mailbox.events.values().map(|e| e.calendar).filter(|c| ids.contains(c)).collect();
+            for c in s.mailbox.calendars.iter_mut().filter(|c| in_use.contains(&c.id)) {
+                c.origin = Origin::default();
+                c.rights = Rights::default();
+            }
+            s.mailbox.calendars.retain(|c| !ids.contains(&c.id) || in_use.contains(&c.id));
             if let Ok(a) = s.mailbox.account_mut(account)
                 && let Some(d) = a.dav.as_mut()
             {
@@ -464,6 +509,14 @@ fn take_listing(
     for item in &listed {
         let name: String = item.name.chars().filter(|c| !c.is_control()).take(mailcraft_model::MAX_NAME).collect();
         let name = if name.trim().is_empty() { "Calendar".to_string() } else { name.trim().to_string() };
+        // A calendar the mailbox has no room for is not kept, so never read (`DavAsk::no_room`),
+        // and that is said.
+        let here = s.mailbox.calendars.iter().any(|c| c.origin.account == account && c.origin.id == item.href);
+        if !here && s.mailbox.calendars.len() >= MAX_CALENDARS {
+            took.skipped += 1;
+            took.full = true;
+            continue;
+        }
         let Ok(a) = s.mailbox.account_mut(account) else { return changed };
         let Some(d) = a.dav.as_mut() else { return changed };
         let room = d.collections.len() < DavServer::MAX_COLLECTIONS;
@@ -519,6 +572,22 @@ fn take_listing(
     changed
 }
 
+/// What the account's events from its server take up here: how many, and their text in bytes
+/// ([`text_size`]). Both are capped ([`MAX_ACCOUNT_RESOURCES`], [`MAX_ACCOUNT_TEXT`]).
+#[derive(Default)]
+struct Room {
+    total: usize,
+    text: usize,
+}
+
+impl Room {
+    /// An event of `size` went.
+    fn gone(&mut self, size: usize) {
+        self.total = self.total.saturating_sub(1);
+        self.text = self.text.saturating_sub(size);
+    }
+}
+
 /// The collection a read is of, and where its events go.
 struct Target<'a> {
     account: Id,
@@ -550,7 +619,7 @@ fn take_read(
     read: &DavRead,
     offset_at: &dyn Fn(i64) -> i32,
     docs: &mut Docs<'_>,
-    total: &mut usize,
+    room: &mut Room,
     took: &mut Took,
 ) -> ReadIn {
     let Target { account, calendar, collection, now, pending } = to;
@@ -559,7 +628,9 @@ fn take_read(
     // looks at its own resource's and not at all).
     let mut here: HashMap<String, Id> = HashMap::new();
     let mut of_resource: HashMap<String, Vec<String>> = HashMap::new();
-    for event in s.mailbox.events.values().filter(|e| e.calendar == calendar && e.origin.account == account) {
+    // (Only what the server gave: an event without an address is the mailbox's own, and no
+    // listing of the server's can say it is gone.)
+    for event in s.mailbox.events.values().filter(|e| e.calendar == calendar && e.origin.account == account && !e.origin.id.is_empty()) {
         here.insert(event.origin.id.clone(), event.id);
         of_resource.entry(resource_of(&event.origin.id).to_string()).or_default().push(event.origin.id.clone());
     }
@@ -596,12 +667,13 @@ fn take_read(
             of_resource.get(change.href.as_str()).into_iter().flatten().filter_map(|k| here.get(k).map(|i| (k.clone(), *i))).collect();
         let new_keys: HashSet<String> = fresh.iter().map(|(k, _)| k.clone()).collect();
         for (key, id) in old.iter().filter(|(k, _)| (change.gone || whole) && !new_keys.contains(k)) {
+            let size = s.mailbox.event(*id).map_or(0, text_size);
             if !pending.contains(id) && s.mailbox.remove_event(*id).is_ok() {
                 here.remove(key);
                 if let Some(keys) = of_resource.get_mut(change.href.as_str()) {
                     keys.retain(|k| k != key);
                 }
-                *total = total.saturating_sub(1);
+                room.gone(size);
                 took.removed += 1;
             }
         }
@@ -621,28 +693,40 @@ fn take_read(
                 occurrence: None,
             };
             tidy(&mut event);
+            let size = text_size(&event);
             match here.get(&key).copied() {
                 Some(id) if pending.contains(&id) => {}
                 Some(id) => {
                     event.id = id;
-                    if s.mailbox.event(id) != Some(&event)
-                        && let Ok(slot) = s.mailbox.event_mut(id)
-                    {
+                    let old = s.mailbox.event(id).map_or(0, text_size);
+                    if s.mailbox.event(id) == Some(&event) {
+                        // (As it was.)
+                    } else if room.text.saturating_sub(old).saturating_add(size) > MAX_ACCOUNT_TEXT {
+                        // (No room for the new version: the one here stays as it is, and the new
+                        // one is asked for again.)
+                        took.skipped += 1;
+                        took.full = true;
+                        all = false;
+                        partly = true;
+                    } else if let Ok(slot) = s.mailbox.event_mut(id) {
                         *slot = event;
+                        room.text = room.text.saturating_sub(old).saturating_add(size);
                         took.updated += 1;
                     }
                 }
-                None if *total < MAX_ACCOUNT_RESOURCES => {
+                None if room.total < MAX_ACCOUNT_RESOURCES && room.text.saturating_add(size) <= MAX_ACCOUNT_TEXT => {
                     if let Ok(id) = s.mailbox.add_event(event) {
                         of_resource.entry(change.href.clone()).or_default().push(key.clone());
                         here.insert(key, id);
-                        *total += 1;
+                        room.total = room.total.saturating_add(1);
+                        room.text = room.text.saturating_add(size);
                         took.added += 1;
                     }
                 }
                 None => {
-                    // (No room: asked for again, so the token stays.)
+                    // (No room: asked for again, so the token stays; and said.)
                     took.skipped += 1;
+                    took.full = true;
                     all = false;
                     partly = true;
                 }
@@ -686,10 +770,10 @@ fn take_read(
             .collect();
         for resource in gone {
             for key in of_resource.get(&resource).into_iter().flatten() {
-                if let Some(id) = here.get(key)
-                    && s.mailbox.remove_event(*id).is_ok()
-                {
-                    *total = total.saturating_sub(1);
+                let Some(id) = here.get(key) else { continue };
+                let size = s.mailbox.event(*id).map_or(0, text_size);
+                if s.mailbox.remove_event(*id).is_ok() {
+                    room.gone(size);
                     took.removed += 1;
                 }
             }
@@ -771,15 +855,63 @@ fn keyed(href: &str, events: Vec<Event>) -> Vec<(String, Event)> {
     out
 }
 
-/// A server's event cut to what the mailbox keeps.
+/// A server's event cut to what the mailbox keeps: no control or format character (a
+/// right-to-left override makes a title read as something else), every text capped, as for a
+/// subscribed calendar.
 fn tidy(event: &mut Event) {
-    let line = |text: &str, max: usize| -> String { text.chars().filter(|c| !c.is_control() || *c == '\t').take(max).collect() };
-    event.title = line(&event.title, 500);
-    event.location = line(&event.location, 500);
-    event.description = event.description.chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\t')).take(100_000).collect();
-    event.attendees.truncate(500);
-    event.categories.truncate(50);
-    event.exceptions.truncate(5_000);
+    let line = |text: &str| mailcraft_names::incoming(text, MAX_LINE).unwrap_or_default();
+    let plain =
+        |text: &str, max: usize| -> String { text.chars().filter(|c| !c.is_control() && !mailcraft_names::is_format(*c)).take(max).collect() };
+    event.title = line(&event.title);
+    event.location = line(&event.location);
+    event.description = event
+        .description
+        .chars()
+        .filter(|c| matches!(c, '\n' | '\t') || !(c.is_control() || mailcraft_names::is_format(*c)))
+        .take(MAX_NOTE)
+        .collect();
+    event.uid = plain(&event.uid, MAX_KEY);
+    event.start_zone = plain(&event.start_zone, MAX_LINE);
+    event.end_zone = plain(&event.end_zone, MAX_LINE);
+    event.categories.truncate(MAX_CATEGORIES);
+    event.categories = event.categories.iter().filter_map(|c| mailcraft_names::incoming(c, MAX_LINE)).collect();
+    event.attendees.truncate(MAX_ATTENDEES);
+    for person in event.organizer.iter_mut().chain(event.attendees.iter_mut().map(|a| &mut a.address)) {
+        person.name = line(&person.name);
+        person.email = plain(&person.email, MAX_LINE);
+    }
+    if let Some(online) = event.online.as_mut() {
+        online.join_url = plain(&online.join_url, MAX_KEY);
+    }
+    event.exceptions.truncate(MAX_EXCEPTIONS);
+}
+
+/// The bytes of text an event of the server's takes up here, counted against [`MAX_ACCOUNT_TEXT`]
+/// (each skipped day as the size of a date).
+pub(crate) fn text_size(e: &Event) -> usize {
+    let people = e
+        .organizer
+        .iter()
+        .chain(e.attendees.iter().map(|a| &a.address))
+        .fold(0usize, |n, p| n.saturating_add(p.name.len()).saturating_add(p.email.len()));
+    let categories = e.categories.iter().fold(0usize, |n, c| n.saturating_add(c.len()));
+    [
+        e.title.len(),
+        e.location.len(),
+        e.description.len(),
+        e.uid.len(),
+        e.start_zone.len(),
+        e.end_zone.len(),
+        e.origin.id.len(),
+        e.origin.change_key.len(),
+        e.origin.series.len(),
+        e.online.as_ref().map_or(0, |o| o.join_url.len()),
+        e.exceptions.len().saturating_mul(std::mem::size_of::<mailcraft_time::Date>()),
+        people,
+        categories,
+    ]
+    .iter()
+    .fold(0usize, |n, part| n.saturating_add(*part))
 }
 
 /// The kept documents, where there is a place to keep them.

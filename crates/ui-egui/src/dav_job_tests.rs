@@ -144,8 +144,14 @@ fn failing_job(a: &mut MailApp, problem: mailcraft_model::DavProblem) -> Arc<Mut
     a.services.dav = Some(Box::new(move |job: DavJob| {
         seen.lock().unwrap().push(job.passwords.clone());
         let (send, receive) = std::sync::mpsc::channel();
-        let download =
-            DavDownload { account: job.ask.account, email: job.ask.email.clone(), server: job.ask.server.clone(), problem, ..Default::default() };
+        let download = DavDownload {
+            account: job.ask.account,
+            email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
+            generation: job.ask.generation,
+            problem,
+            ..Default::default()
+        };
         send.send(DavDone { download }).unwrap();
         receive
     }));
@@ -238,8 +244,14 @@ fn one_account_in_trouble_does_not_hold_up_another() {
         log.lock().unwrap().push(job.ask.account);
         let (send, receive) = std::sync::mpsc::channel();
         let problem = if job.ask.account == first { mailcraft_model::DavProblem::Unreachable } else { mailcraft_model::DavProblem::None };
-        let download =
-            DavDownload { account: job.ask.account, email: job.ask.email.clone(), server: job.ask.server.clone(), problem, ..Default::default() };
+        let download = DavDownload {
+            account: job.ask.account,
+            email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
+            generation: job.ask.generation,
+            problem,
+            ..Default::default()
+        };
         send.send(DavDone { download }).unwrap();
         receive
     }));
@@ -360,4 +372,48 @@ fn no_job_starts_while_the_credential_store_is_still_being_read() {
     let jobs = jobs.lock().unwrap();
     assert_eq!(jobs.len(), 1);
     assert_eq!(jobs[0].get(HOME).map(String::as_str), Some("mail"), "with the remembered password");
+}
+
+// ---- found in review, round 6 ------------------------------------------------------------------
+
+#[test]
+fn r6_a_job_out_while_the_server_was_put_away_and_set_again_is_not_taken_in() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Unreachable);
+    a.dav_tick();
+    // While the job is out: off, and on again with the same settings.
+    a.execute("account.davOff", json!({"id": id})).unwrap();
+    a.execute("account.davSet", json!({"id": id, "calendarHomes": [format!("{HOME}/cal/ada/")]})).unwrap();
+    a.dav_tick();
+    assert!(!a.dav.trouble.contains_key(&id), "its answer says nothing of the account as it is now");
+    assert!(say(&a).is_empty());
+}
+
+#[test]
+fn r6_an_account_that_is_full_is_said_once_and_errors_of_the_server_are_said() {
+    let (mut a, id) = app(false);
+    a.passwords.insert(id, "mail".into());
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Full);
+    a.dav_tick();
+    a.dav_tick();
+    assert!(say(&a).contains("as much"), "{:?}", say(&a));
+    // A clean run between, then full again: not said again.
+    a.status_msg = None;
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::None);
+    a.dav.next = 0.0;
+    a.dav.trouble.clear();
+    a.dav_tick();
+    a.dav_tick();
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Full);
+    a.dav.next = 0.0;
+    a.dav_tick();
+    a.dav_tick();
+    assert!(say(&a).is_empty(), "{:?}", say(&a));
+    let _ = failing_job(&mut a, mailcraft_model::DavProblem::ServerErrors);
+    a.dav.next = 0.0;
+    a.dav.trouble.clear();
+    a.dav_tick();
+    a.dav_tick();
+    assert!(say(&a).contains("errors"), "{:?}", say(&a));
 }

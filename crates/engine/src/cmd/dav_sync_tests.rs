@@ -69,7 +69,9 @@ fn server_of(s: &Session, id: Id) -> String {
 
 fn apply(s: &mut Session, id: Id, listing: Option<DavListing>, reads: Vec<DavRead>) -> Value {
     let server = server_of(s, id);
-    let download = DavDownload { account: id, email: "ada@example.org".into(), server, listing, collections: reads, ..Default::default() };
+    let generation = s.dav_generation.get(&id).copied().unwrap_or(0);
+    let download =
+        DavDownload { account: id, email: "ada@example.org".into(), server, generation, listing, collections: reads, ..Default::default() };
     s.run("sync.applyDav", &json!({"result": download})).unwrap()
 }
 
@@ -831,4 +833,131 @@ fn r_a_calendar_that_replaces_one_finds_room_when_the_calendars_are_at_their_cap
     apply(&mut s, id, Some(new), vec![]);
     let d = s.mailbox.account(id).unwrap().dav.as_ref().unwrap();
     assert_eq!(d.collections.iter().map(|c| c.href.as_str()).collect::<Vec<_>>(), vec!["https://dav.example.org/cal/ada/new/"]);
+}
+
+// ---- found in review, round 6 ------------------------------------------------------------------
+
+/// An event of the server's put straight into the mailbox, in the account's calendar.
+fn held(s: &mut Session, id: Id, key: &str, description: String) -> Id {
+    let calendar = s.mailbox.calendars.iter().find(|c| c.origin.account == id).unwrap().id;
+    let origin = mailcraft_model::Origin { account: id, id: key.into(), change_key: "\"1\"".into(), ..Default::default() };
+    s.mailbox.add_event(mailcraft_model::Event { calendar, title: key.into(), description, origin, ..Default::default() }).unwrap()
+}
+
+#[test]
+fn r6_event_text_past_the_accounts_budget_is_not_taken_in_nothing_held_goes_and_it_is_said() {
+    use mailcraft_model::dav_down::MAX_ACCOUNT_TEXT;
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], false, true, "tok-1")]);
+    // What is held already comes to all but a few bytes of the budget.
+    let filler = held(&mut s, id, &format!("{COLLECTION}big.ics"), String::new());
+    let used: usize = s.mailbox.events.values().filter(|e| e.origin.account == id).map(|e| super::dav_sync::text_size(e)).sum();
+    s.mailbox.event_mut(filler).unwrap().description = "x".repeat(MAX_ACCOUNT_TEXT - used - 10);
+    let said = apply(&mut s, id, None, vec![read(vec![change("b.ics", "\"1\"", &event("b", 3, "B"))], false, true, "tok-2")]);
+    assert_eq!((said["added"].clone(), said["problem"].clone()), (json!(0), json!("full")), "{said}");
+    assert!(!titles(&s).contains(&"B".to_string()));
+    assert_eq!(s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0].sync_token, "tok-1", "asked for again");
+    // A new version of one held that would go past it: the one held stays as it was.
+    let longer = event("a", 2, &"A".repeat(400));
+    let said = apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"2\"", &longer)], false, true, "tok-2")]);
+    assert_eq!((said["updated"].clone(), said["problem"].clone()), (json!(0), json!("full")));
+    assert!(titles(&s).contains(&"A".to_string()), "nothing held is let go of to make room");
+    // Room made on the server's own word: then it comes in.
+    let said = apply(&mut s, id, None, vec![read(vec![gone("big.ics"), change("b.ics", "\"1\"", &event("b", 3, "B"))], false, true, "tok-3")]);
+    assert_eq!((said["added"].clone(), said["problem"].clone()), (json!(1), json!("none")));
+}
+
+#[test]
+fn r6_a_read_asked_for_before_the_server_was_put_away_and_set_again_is_not_taken_in() {
+    let (mut s, id) = session();
+    let homes = json!({"id": id, "calendarHomes": ["https://dav.example.org/cal/ada/"]});
+    let stale = |s: &mut Session| {
+        let ask: mailcraft_model::DavAsk = serde_json::from_value(s.run("sync.davRequest", &json!({})).unwrap()["ask"].clone()).unwrap();
+        DavDownload {
+            account: id,
+            email: ask.email,
+            server: ask.server,
+            generation: ask.generation,
+            listing: Some(listing()),
+            collections: vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")],
+            ..Default::default()
+        }
+    };
+    // Off and on again while the job is out.
+    let job = stale(&mut s);
+    s.run("account.davOff", &json!({"id": id})).unwrap();
+    s.run("account.davSet", &homes).unwrap();
+    assert!(s.run("sync.applyDav", &json!({"result": job})).is_err());
+    assert!(titles(&s).is_empty() && !s.mailbox.calendars.iter().any(|c| c.origin.account == id));
+    // To another server and back.
+    let job = stale(&mut s);
+    s.run("account.davSet", &json!({"id": id, "username": "grace"})).unwrap();
+    s.run("account.davSet", &json!({"id": id, "username": ""})).unwrap();
+    assert_eq!(job.server, server_of(&s, id), "the same settings again");
+    assert!(s.run("sync.applyDav", &json!({"result": job})).is_err());
+    // One asked for now is taken in.
+    let job = stale(&mut s);
+    s.run("sync.applyDav", &json!({"result": job})).unwrap();
+    assert_eq!(titles(&s), vec!["A"]);
+}
+
+#[test]
+fn r6_format_characters_are_stripped_and_every_text_is_capped() {
+    let (mut s, id) = session();
+    let categories: Vec<String> = (0..80).map(|i| format!("c{i}{}", "k".repeat(600))).collect();
+    let doc = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{}\u{202e}u\r\nDTSTART:20261102T100000Z\r\nSUMMARY:Pay\u{202e}fdp.exe\r\nLOCATION:Room\u{200b} 1\r\nDESCRIPTION:Note\u{2066}d\r\nCATEGORIES:{}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        "u".repeat(200),
+        categories.join(",")
+    );
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &doc)], true, true, "")]);
+    let e = s.mailbox.events.values().find(|e| e.origin.account == id).unwrap();
+    for text in [&e.title, &e.location, &e.description, &e.uid] {
+        assert!(!text.chars().any(mailcraft_names::is_format), "{text:?}");
+    }
+    assert_eq!(e.title, "Payfdp.exe");
+    assert!(e.uid.chars().count() <= mailcraft_model::remote::MAX_KEY);
+    assert!(e.categories.len() <= 50 && e.categories.iter().all(|c| c.chars().count() <= 500), "{}", e.categories.len());
+}
+
+#[test]
+fn r6_a_new_version_that_could_not_be_read_is_named_by_its_new_etag_so_it_is_not_fetched_again() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"2\"", "not a calendar")], false, true, "")]);
+    assert_eq!(titles(&s), vec!["A"], "what is here stays");
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    assert_eq!(ask["ask"]["collections"][0]["known"], json!([{"href": format!("{COLLECTION}a.ics"), "etag": "\"2\""}]));
+}
+
+#[test]
+fn r6_a_calendar_the_mailbox_has_no_room_for_is_never_read_and_that_is_said() {
+    let (mut s, id) = session();
+    while s.mailbox.calendars.len() < 200 {
+        let cid = s.mailbox.alloc_id();
+        s.mailbox.calendars.push(mailcraft_model::Calendar { id: cid, name: format!("Mine {cid}"), ..Default::default() });
+    }
+    let said = apply(&mut s, id, Some(listing()), vec![]);
+    assert_eq!(said["problem"], "full");
+    assert!(!s.mailbox.calendars.iter().any(|c| c.origin.account == id));
+    let ask = s.run("sync.davRequest", &json!({})).unwrap();
+    assert_eq!((ask["ask"]["collections"].clone(), ask["ask"]["noRoom"].clone()), (json!([]), json!(true)), "nothing to read, and none to find");
+}
+
+#[test]
+fn r6_a_calendar_no_longer_listed_and_a_whole_listing_keep_what_is_not_the_servers() {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
+    // Something in the calendar without an address of the server's.
+    let own = held(&mut s, id, "", String::new());
+    s.mailbox.event_mut(own).unwrap().title = "Mine".into();
+    apply(&mut s, id, None, vec![read(vec![], true, true, "")]);
+    assert_eq!(titles(&s), vec!["Mine"], "a whole listing of the collection takes only what the server gave");
+    let mut empty = listing();
+    empty.calendars.clear();
+    apply(&mut s, id, Some(empty), vec![]);
+    assert_eq!(titles(&s), vec!["Mine"]);
+    let calendar = s.mailbox.event(own).unwrap().calendar;
+    let c = s.mailbox.calendar(calendar).unwrap();
+    assert_eq!((c.origin.account, c.origin.id.as_str()), (0, ""), "the calendar stays, as the mailbox's own");
 }

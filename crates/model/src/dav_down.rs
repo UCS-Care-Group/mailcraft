@@ -30,6 +30,9 @@ pub const MAX_CHANGES: usize = 5_000;
 pub const MAX_HREF: usize = crate::remote::MAX_KEY;
 /// Most known resources a request names (a collection read without a token).
 pub const MAX_KNOWN: usize = MAX_RESOURCES;
+/// Most bytes of event text (titles, places, notes, people, categories, addresses) an account's
+/// calendars from its server hold here, all together: what is over is not taken in, and said.
+pub const MAX_ACCOUNT_TEXT: usize = 64 * 1024 * 1024;
 
 /// Which collection to ask what, as the engine says it: the state kept at the last complete read,
 /// and what is here already (so that a read, or a read that goes on after one that stopped short,
@@ -78,8 +81,14 @@ pub struct DavAsk {
     /// The settings the read is made under ([`crate::DavServer::identity`]), handed back in the
     /// download: one read under settings that have changed since is not taken in.
     pub server: String,
-    /// The collections already known, with their state.
+    /// The collections already known, with their state: only those that have a calendar here.
     pub collections: Vec<DavAskCollection>,
+    /// The mailbox has no room for another calendar: a listing reads only `collections`, never
+    /// one it finds that isn't among them.
+    pub no_room: bool,
+    /// The account's settings were put away or changed this many times this session: handed
+    /// back in the download, so that one read before an off and on again is not taken in.
+    pub generation: u64,
 }
 
 impl std::fmt::Debug for DavAsk {
@@ -200,6 +209,12 @@ pub enum DavProblem {
     Refused,
     /// The run reached its limits (requests, bytes or time) and goes on at the next.
     Limits,
+    /// The server answered some requests with errors (or answers that are none): what it holds
+    /// may be out of date here. Asked again at the next run.
+    ServerErrors,
+    /// The mailbox holds as much from this server as it may (events, their text, or calendars):
+    /// what is over is not taken in. Said by the engine, never by a host.
+    Full,
 }
 
 /// What a host read from an account's calendar server (`sync.applyDav`).
@@ -210,6 +225,8 @@ pub struct DavDownload {
     pub email: String,
     /// The settings the read was made under, as the request said ([`DavAsk::server`]).
     pub server: String,
+    /// As the request said ([`DavAsk::generation`]).
+    pub generation: u64,
     /// The homes' collections, when they were listed.
     pub listing: Option<DavListing>,
     pub collections: Vec<DavRead>,

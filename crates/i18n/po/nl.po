@@ -8655,6 +8655,12 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft ondersteunt POP nog niet. Gebruik in plaats daarvan de IMAP-server van uw provider (meestal imap.<uw domein>, poort 993)."
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft bewaart van de agendaserver van {account} zoveel als het kan: sommige agenda's of afspraken zijn weggelaten."
+
+#. interface
 #: crates/ui-egui/src/software.rs
 #, fuzzy
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
@@ -16878,6 +16884,12 @@ msgstr ""
 "De agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
 "\n"
 "De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "De agendaserver van {account} antwoordde met fouten, dus sommige afspraken zijn mogelijk niet actueel. MailCraft probeert het later opnieuw."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs

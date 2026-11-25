@@ -140,6 +140,9 @@ impl Store {
     /// Lists the account's folder (once), as it is when what was queued is done. A folder that
     /// isn't there is empty.
     pub fn open(mailbox_file: &Path, account: Id) -> Store {
+        // lean: waits on the writer on the caller's thread (the window's, for `sync.applyDav`):
+        // queued writes are capped per account, so the wait is short; listing and keeping on the
+        // writer itself if it shows.
         settle();
         #[cfg(test)]
         LISTINGS.with(|n| n.set(n.get() + 1));

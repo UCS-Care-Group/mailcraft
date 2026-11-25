@@ -381,9 +381,13 @@ fn bare(href: &str) -> String {
 fn a_member_without_a_usable_etag_is_still_there_and_is_asked_for_in_both_passes() {
     let doc = "BEGIN:VCALENDAR\nEND:VCALENDAR";
     let x = Scripted::new(move |request| match kind(request) {
-        "members" => {
-            multistatus(&format!("{}{}{}", member("/cal/work/a.ics", "\"1\"", None), bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", None)))
-        }
+        "members" => multistatus(&format!(
+            "{}{}{}{}",
+            base("/cal/work/", "200 OK"),
+            member("/cal/work/a.ics", "\"1\"", None),
+            bare("/cal/work/b.ics"),
+            member("/cal/work/c.ics", "", None)
+        )),
         "sync" => multistatus(&format!("{}{}<d:sync-token>t2</d:sync-token>", bare("/cal/work/b.ics"), member("/cal/work/c.ics", "", None))),
         _ => multistatus(&format!(
             "{}{}{}",
@@ -429,7 +433,7 @@ fn a_change_pass_with_more_deletions_than_a_read_holds_starts_over_by_listing_an
     let server = |count: usize| {
         Scripted::new(move |request| match kind(request) {
             "sync" => multistatus(&format!("{}<d:sync-token>new</d:sync-token>", gone(count))),
-            "members" => multistatus(&listing_of(3)),
+            "members" => multistatus(&format!("{}{}", base("/cal/work/", "200 OK"), listing_of(3))),
             "state" => multistatus(
                 "<d:response><d:href>/cal/work/</d:href><d:propstat><d:prop><d:sync-token>fresh</d:sync-token></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
             ),
@@ -465,7 +469,7 @@ fn a_change_pass_with_more_changes_than_a_read_holds_goes_on_at_the_next_run() {
         Scripted::new(move |request| match kind(request) {
             // (A server that sends all of them, whatever it was asked for.)
             "sync" => multistatus(&format!("{}<d:sync-token>new</d:sync-token>", listing_of(count))),
-            "members" => multistatus(&listing_of(count)),
+            "members" => multistatus(&format!("{}{}", base("/cal/work/", "200 OK"), listing_of(count))),
             "state" => multistatus(""),
             _ => multistatus(
                 &asked(&String::from_utf8_lossy(request.body()))
@@ -582,7 +586,9 @@ fn a_redirect_on_the_same_origin_is_followed_one_step_at_a_time_up_to_five() {
     });
     let held = Held::new(Some(PASSWORD));
     let out = run(&collection_ask(), &held.lookup(), &x, NOW, &Limits::default());
-    assert_eq!(out.problem, DavProblem::None);
+    // (Followed, and the run goes on; but a collection answered at another address is not read,
+    // and that is said.)
+    assert_eq!(out.problem, DavProblem::ServerErrors);
     // Endless redirects stop after five.
     let endless = Scripted::new(|request| HttpResponse::new(302, Vec::new()).with_field("location", &format!("{}x/", request.url())));
     let out = run(&collection_ask(), &held.lookup(), &endless, NOW, &Limits::default());
@@ -993,7 +999,7 @@ fn i2_a_change_pass_the_server_refuses_reads_the_collection_afresh_instead_of_st
         } else if body.contains("multiget") {
             multistatus(&member("/cal/work/a.ics", "\"1\"", Some(DOC)))
         } else {
-            multistatus(&member("/cal/work/a.ics", "\"1\"", None))
+            multistatus(&format!("{}{}", base("/cal/work/", "200 OK"), member("/cal/work/a.ics", "\"1\"", None)))
         }
     });
     let mut ask = collection_ask();
@@ -1031,7 +1037,7 @@ fn r_a_home_answered_at_another_address_or_listing_calendars_outside_it_is_no_wh
 #[test]
 fn r_a_resource_the_server_refuses_for_good_does_not_hold_the_read_up() {
     let x = Scripted::new(|request| match kind(request) {
-        "members" => multistatus(&member("/cal/work/a.ics", "\"1\"", None)),
+        "members" => multistatus(&format!("{}{}", base("/cal/work/", "200 OK"), member("/cal/work/a.ics", "\"1\"", None))),
         "state" => multistatus(""),
         "multiget" => HttpResponse::new(501, Vec::new()),
         _ => HttpResponse::new(403, Vec::new()),
@@ -1088,7 +1094,7 @@ fn r_a_change_page_of_members_without_an_etag_cut_short_by_the_bytes_goes_on_at_
 #[test]
 fn r_a_member_that_can_never_be_had_is_said_without_its_document() {
     let x = Scripted::new(|request| match kind(request) {
-        "members" => multistatus(&member("/cal/work/a.ics", "\"1\"", None)),
+        "members" => multistatus(&format!("{}{}", base("/cal/work/", "200 OK"), member("/cal/work/a.ics", "\"1\"", None))),
         "state" => multistatus(""),
         "multiget" => HttpResponse::new(501, Vec::new()),
         _ => HttpResponse::new(403, Vec::new()),
@@ -1143,4 +1149,92 @@ fn r_a_change_the_server_could_not_describe_or_gave_no_etag_for_holds_the_token_
     let work = &out.collections[0];
     assert!(work.complete && work.sync_token == "t2", "{work:?}");
     assert_eq!(names(work), vec!["a.ics".to_string(), "b.ics".to_string()], "{work:?}");
+}
+
+// ---- found in review, round 6 ------------------------------------------------------------------
+
+/// The collection itself, as a Depth 1 listing names it first, with `status`.
+fn base(href: &str, status: &str) -> String {
+    format!(
+        "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype></d:prop><d:status>HTTP/1.1 {status}</d:status></d:propstat></d:response>"
+    )
+}
+
+#[test]
+fn r6_an_empty_answer_or_one_that_does_not_describe_the_collection_is_no_whole_listing() {
+    let listed = |members: String| {
+        let x = Scripted::new(move |request| match kind(request) {
+            "members" => multistatus(&members),
+            _ => multistatus(""),
+        });
+        let out = run(&collection_ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+        out.collections.first().map(|c| (c.members.clone(), c.complete)).unwrap_or((None, false))
+    };
+    assert_eq!(listed(String::new()), (None, false), "<d:multistatus/>: nothing is gone, and the change tag is not kept");
+    let gone = "<d:response><d:href>/cal/work/</d:href><d:status>HTTP/1.1 404 Not Found</d:status></d:response>".to_string();
+    assert_eq!(listed(gone), (None, false), "the collection itself not found");
+    assert_eq!(listed(member("/cal/work/a.ics", "\"1\"", None)).0, None, "members without the collection itself");
+    // The collection itself, and nothing in it: an empty calendar (RFC 4918), which is whole.
+    assert_eq!(listed(base("/cal/work/", "200 OK")), (Some(Vec::new()), true));
+}
+
+#[test]
+fn r6_an_empty_home_listing_is_not_whole() {
+    let mut ask = collection_ask();
+    ask.list_homes = true;
+    ask.collections.clear();
+    let x = Scripted::new(|_| multistatus(""));
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert!(!out.listing.as_ref().unwrap().complete, "no calendar is gone on an answer that says nothing of the home");
+    let x = Scripted::new(|_| home_listing(""));
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert!(out.listing.as_ref().unwrap().complete, "a home with no calendars, which says so");
+}
+
+#[test]
+fn r6_a_document_or_a_home_that_keeps_failing_is_said_as_a_problem() {
+    // A change pass whose one document the server fails to give.
+    let x = Scripted::new(|request| match kind(request) {
+        "sync" => multistatus(&format!("{}<d:sync-token>t2</d:sync-token>", member("/cal/work/a.ics", "\"2\"", None))),
+        "state" => multistatus(""),
+        _ => HttpResponse::new(500, Vec::new()),
+    });
+    let mut ask = collection_ask();
+    ask.collections[0].sync_token = "t1".into();
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert_eq!(out.problem, DavProblem::ServerErrors, "{:?}", out.collections);
+    assert_eq!(out.collections[0].sync_token, "t1", "the token stays");
+    // A home whose listing fails.
+    let mut ask = collection_ask();
+    ask.list_homes = true;
+    ask.collections.clear();
+    let x = Scripted::new(|_| HttpResponse::new(500, Vec::new()));
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert_eq!(out.problem, DavProblem::ServerErrors);
+    assert!(!out.listing.as_ref().unwrap().complete);
+}
+
+#[test]
+fn r6_a_listed_calendar_the_engine_has_no_room_for_is_not_read() {
+    let x = Scripted::new(|request| {
+        if request.field("depth") == Some("1") && request.url().ends_with("/cal/") {
+            home_listing(&format!("{}{}", calendar_child("/cal/work/"), calendar_child("/cal/new/")))
+        } else {
+            multistatus("")
+        }
+    });
+    let mut ask = collection_ask();
+    ask.list_homes = true;
+    ask.no_room = true;
+    let out = run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    assert_eq!(out.listing.as_ref().unwrap().calendars.len(), 2, "both are said to the engine");
+    assert!(x.seen.borrow().iter().all(|(url, _)| !url.contains("/cal/new/")), "but the new one is never asked: {:?}", x.seen.borrow());
+}
+
+#[test]
+fn r6_the_generation_asked_under_comes_back_with_the_download() {
+    let mut ask = collection_ask();
+    ask.generation = 3;
+    let x = Scripted::new(|_| multistatus(""));
+    assert_eq!(run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default()).generation, 3);
 }

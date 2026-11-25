@@ -8967,6 +8967,12 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft még nem támogatja a POP-t. Használja a szolgáltató IMAP szerverét helyette (általában az imap. < domain>, port 993)."
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "A MailCraft annyit tárol {account} naptárkiszolgálójáról, amennyit tud: néhány naptár vagy esemény kimaradt."
+
+#. interface
 #: crates/ui-egui/src/software.rs
 #, fuzzy
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
@@ -17439,6 +17445,12 @@ msgstr ""
 "A {name} naptára most már a naptárlistádban van, mert azt megosztották veled és elfogadták.\n"
 "\n"
 "Címre is megnyitottad, így kétszer is ott van. A másik a címre nyitott másolatot távolítsd el? A másik marad, és a szerveren semmi változás."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account} naptárkiszolgálója hibákkal válaszolt, ezért egyes események elavultak lehetnek. A MailCraft később újra próbálkozik."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs

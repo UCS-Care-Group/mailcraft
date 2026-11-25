@@ -8966,6 +8966,12 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft 尚不支持 POP。请改用服务提供商的 IMAP 服务器（通常为 imap.<your domain>，端口 993）。"
 
 #. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft 已尽可能保存 {account} 的日历服务器中的内容：部分日历或事件未被保存。"
+
+#. interface
 #: crates/ui-egui/src/software.rs
 #, fuzzy
 msgid "MailCraft is drawing without the graphics card, which uses a lot of processor time. Installing or updating the graphics driver usually fixes this."
@@ -17438,6 +17444,12 @@ msgstr ""
 "{name} 的日历已与您共享，且您已接受共享，因此它现在位于您的日历列表中。您还通过地址打开过它，所以它显示了两次。\n"
 "\n"
 "移除通过地址打开的副本吗？另一份会保留，服务器上的内容也不会更改。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+msgstr "{account} 的日历服务器返回了错误，因此部分事件可能不是最新的。MailCraft 稍后会重试。"
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs

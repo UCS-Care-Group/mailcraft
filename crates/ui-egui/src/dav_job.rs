@@ -89,6 +89,9 @@ pub(crate) struct DavSync {
     shown: HashMap<Id, DavProblem>,
     /// Whether each account's servers have a password of their own, to see it change.
     separate: HashMap<Id, bool>,
+    /// The accounts the owner was told are full ([`DavProblem::Full`]): said once for this
+    /// mailbox, however many runs find it so.
+    full_said: std::collections::HashSet<Id>,
 }
 
 impl DavSync {
@@ -244,12 +247,20 @@ impl MailApp {
         let sent_under = std::mem::take(&mut self.dav.sent_under);
         // A job asked under settings that have changed since (another user name, server or
         // certificate) says nothing of the account as it is now: none of it is taken in, no
-        // password it carried is held, and no trouble is counted.
-        if sent_under != self.dav_identity(account) {
+        // password it carried is held, and no trouble is counted. So for one asked before the
+        // settings were put away or changed, even when they are as they were again.
+        let generation = self.session.dav_generation.get(&account).copied().unwrap_or(0);
+        if sent_under != self.dav_identity(account) || download.generation != generation {
             return;
         }
         let applied = match self.session.run("sync.applyDav", &json!({"result": download})) {
-            Ok(applied) => applied,
+            Ok(applied) => {
+                // (The engine says what it found too: an account that is full.)
+                if let Some(said) = applied.get("problem").and_then(|p| serde_json::from_value::<DavProblem>(p.clone()).ok()) {
+                    problem = said;
+                }
+                applied
+            }
             Err(_) => {
                 // (A job whose thread died, or an answer that isn't one: trouble like any other,
                 // so that the account is left alone for a while. Nothing of it is held.)
@@ -288,8 +299,10 @@ impl MailApp {
             let backoff = (EVERY * 2f64.powi(i32::try_from(failing).unwrap_or(10).min(10))).min(LONGEST);
             self.dav.trouble.insert(account, (failing, now + wait.max(backoff)));
             // Said to the owner once for each account and kind of trouble, naming the account as
-            // the folder pane does (nothing of the server, nor the name that signs in).
-            if self.dav.shown.insert(account, problem) != Some(problem) {
+            // the folder pane does (nothing of the server, nor the name that signs in). That it
+            // is full is said once for the mailbox: it stays so until the owner makes room.
+            let new = if problem == DavProblem::Full { self.dav.full_said.insert(account) } else { true };
+            if self.dav.shown.insert(account, problem) != Some(problem) && new {
                 let name = self
                     .session
                     .mailbox
@@ -302,6 +315,12 @@ impl MailApp {
                     }
                     DavProblem::Certificate => {
                         Some(tl!("The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."))
+                    }
+                    DavProblem::ServerErrors => Some(tl!(
+                        "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
+                    )),
+                    DavProblem::Full => {
+                        Some(tl!("MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."))
                     }
                     _ => None,
                 };

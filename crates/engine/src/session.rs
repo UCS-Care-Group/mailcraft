@@ -1375,6 +1375,10 @@ pub struct Session {
     /// fetched again until it changes ([`crate::cmd::dav_sync`]). Never saved: after a restart
     /// each is read once.
     pub dav_seen: std::collections::HashMap<Id, std::collections::HashMap<String, crate::cmd::dav_sync::Seen>>,
+    /// How many times each account's calendar server settings were put away or changed: a read
+    /// asked for before (`DavAsk::generation`) is not taken in, even when the settings are the
+    /// same again. Never saved, and never cleared: it only goes up.
+    pub dav_generation: std::collections::HashMap<Id, u64>,
     /// The width and theme each message was last read at in each place (the reading pane, a window
     /// of its own), whether its text part was shown instead of its HTML, and when it was last said
     /// ([`Session::read_at`]): a reply or forward quotes it as it was read where it was asked for,
@@ -1553,6 +1557,7 @@ impl Session {
             dav_listed: Default::default(),
             dav_asked: Default::default(),
             dav_seen: Default::default(),
+            dav_generation: Default::default(),
             read_at: HashMap::new(),
             read_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
