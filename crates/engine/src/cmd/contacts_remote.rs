@@ -103,6 +103,15 @@ pub(crate) fn note_contact(mailbox: &mut Mailbox, id: Id, server: Option<Contact
     let server = server.filter(|s| !s.origin.id.is_empty());
     let at = mailbox.contact_changes.iter().position(|c| c.contact == id);
     let here = mailbox.contact(id).cloned();
+    // A new contact that was sent, and is gone here (undone, deleted) before its server's name for
+    // it was heard: its note stays, as the record that it is not wanted. When a download shows it
+    // there, it is deleted there ([`merge_contacts`]); it is never sent again.
+    if here.is_none()
+        && server.is_none()
+        && at.and_then(|at| mailbox.contact_changes.get(at)).is_some_and(|c| c.kind == ContactChangeKind::Create && c.sent)
+    {
+        return Ok(());
+    }
     // Where it is here: on a server that may change it, on one that may not (nothing to tell),
     // or on this computer (or nowhere). A change that waits when its folder becomes one that may
     // only be read is kept (and held: [`contact_upload`] doesn't send it), not lost.
@@ -169,7 +178,7 @@ fn put_note(mailbox: &mut Mailbox, at: Option<usize>, change: Option<ContactChan
                 if old.kind == change.kind {
                     (change.attempts, change.denied, change.sent) = (old.attempts, old.denied, old.sent);
                     if change.kind == ContactChangeKind::Create {
-                        change.unconfirmed = old.unconfirmed;
+                        (change.unconfirmed, change.tried) = (old.unconfirmed, old.tried);
                         change.base = old.base.take();
                     }
                 }
@@ -328,10 +337,9 @@ fn twin(mailbox: &Mailbox, account: Id, folder: Id, fresh: &Contact) -> Option<I
         .contact_changes
         .iter()
         .filter(|c| c.account == account && c.kind == ContactChangeKind::Create && c.folder == folder && c.sent)
-        .find(|c| {
-            let here = mailbox.contact(c.contact);
-            here.is_some() && c.base.as_deref().or(here).is_some_and(|sent| same_person(sent, fresh))
-        })
+        .filter(|c| c.base.as_deref().or_else(|| mailbox.contact(c.contact)).is_some_and(|sent| same_person(sent, fresh)))
+        // One still here first: rather taken in than deleted there when it can't be told which.
+        .min_by_key(|c| mailbox.contact(c.contact).is_none())
         .map(|c| c.contact)
 }
 
@@ -433,18 +441,34 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                     }
                 }
             }
-            None => match twin(mailbox, account, folder, &fresh) {
-                Some(twin) => {
-                    // A server that didn't say what its categories are has those that were sent.
-                    if remote.categories.is_none() {
-                        let sent = mailbox
-                            .contact_changes
-                            .iter()
-                            .find(|c| c.contact == twin)
-                            .and_then(|c| c.base.as_deref())
-                            .or_else(|| mailbox.contact(twin));
-                        fresh.categories = sent.map(|c| c.categories.clone()).unwrap_or_default();
+            None => match twin(mailbox, account, folder, &fresh).inspect(|twin| {
+                // A server that didn't say what its categories are has those that were sent.
+                if remote.categories.is_none() {
+                    let sent = mailbox
+                        .contact_changes
+                        .iter()
+                        .find(|c| c.contact == *twin)
+                        .and_then(|c| c.base.as_deref())
+                        .or_else(|| mailbox.contact(*twin));
+                    fresh.categories = sent.map(|c| c.categories.clone()).unwrap_or_default();
+                }
+            }) {
+                // Made there, and no longer wanted here: it is deleted there.
+                Some(twin) if mailbox.contact(twin).is_none() => {
+                    if let Some(note) = mailbox.contact_changes.iter_mut().find(|c| c.contact == twin) {
+                        *note = ContactChange {
+                            account,
+                            kind: ContactChangeKind::Delete,
+                            contact: twin,
+                            folder,
+                            remote: remote.id.clone(),
+                            base: Some(Box::new(fresh)),
+                            ..Default::default()
+                        };
                     }
+                    merged.skipped += 1;
+                }
+                Some(twin) => {
                     let server = match mailbox.contact(twin).cloned() {
                         Some(here) if graph => mailcraft_model::contact_sync::keep_graph_overflow(&mut fresh, &here),
                         _ => fresh,
@@ -473,6 +497,13 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
         {
             c.unconfirmed = 0;
         }
+        // One no longer wanted here that such a list, read after it was last tried, doesn't show
+        // either: nothing left to do.
+        let contacts = &mailbox.contacts;
+        mailbox.contact_changes.retain(|c| {
+            let unwanted = c.folder == folder && c.kind == ContactChangeKind::Create && c.sent && !contacts.contains_key(&c.contact);
+            !(unwanted && c.unconfirmed == 0 && read > c.tried)
+        });
         let listed_here = |id: &Id| mailbox.contact(*id).is_some_and(|c| c.folder == folder);
         gone.extend(known.iter().filter(|(remote, id)| !seen.contains(*remote) && listed_here(id)).map(|(remote, _)| remote.clone()));
         gone.extend(mailbox.contact_changes.iter().filter(|c| c.folder == folder && c.kind == ContactChangeKind::Delete).map(|c| c.remote.clone()));
@@ -685,7 +716,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                     // It may have reached the server, unless the server said it took nothing
                     // (too many requests: the rest of the batch wasn't tried either).
                     if kind == ContactChangeKind::Create && outcome.status != 429 {
-                        (change.sent, change.base) = (true, Some(Box::new(contact_from_remote(&outcome.op.values))));
+                        (change.sent, change.tried, change.base) = (true, now, Some(Box::new(contact_from_remote(&outcome.op.values))));
                     }
                     applied.failed += 1;
                 }
@@ -694,7 +725,7 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                 // Made, but under a name not heard: not sent again (it would be made twice) until
                 // a download shows it ([`merge_contacts`] takes it for this one) or doesn't.
                 if let Some(change) = at.and_then(|at| mailbox.contact_changes.get_mut(at)) {
-                    (change.unconfirmed, change.sent) = (now.max(1), true);
+                    (change.unconfirmed, change.sent, change.tried) = (now.max(1), true, now);
                     change.base = Some(Box::new(contact_from_remote(&outcome.op.values)));
                     applied.done += 1;
                 }
@@ -733,13 +764,20 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                         // The server's copy is what was sent, under the key it answered with,
                         // unless a download since brought a newer copy: then that copy, fields
                         // and key, is what it has.
+                        let sent = contact_from_remote(&outcome.op.values);
                         if base.origin.change_key == outcome.op.values.change_key {
-                            let sent = contact_from_remote(&outcome.op.values);
                             for field in &outcome.op.fields {
                                 field.copy(&sent, &mut base);
                             }
                             if !outcome.change_key.is_empty() {
                                 base.origin.change_key.clone_from(&outcome.change_key);
+                            }
+                        } else if let Some(here) = mailbox.contact(id) {
+                            // A download came first (its key stands). What the server took and is
+                            // still so here is through: it isn't sent again. A field changed again
+                            // here, or one the server has otherwise, is left as the download says.
+                            for field in outcome.op.fields.iter().filter(|f| !f.differs(here, &sent)) {
+                                field.copy(&sent, &mut base);
                             }
                         }
                         Some(base)

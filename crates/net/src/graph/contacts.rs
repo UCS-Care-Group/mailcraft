@@ -250,15 +250,16 @@ fn followable(graph: &Graph<'_>, delta: &str) -> Option<Url> {
 fn main_folder_id(graph: &Graph<'_>, prefix: &str) -> Result<Option<String>, NetError> {
     let (mut id, mut listed) = (None, false);
     let first = graph.url(&format!("{prefix}/contacts?{}", http::form(&[("$top", "1"), ("$select", "parentFolderId")])));
-    graph.list(Doing::Contacts, first, &[], 1, &mut |entry| {
+    let ended = graph.list(Doing::Contacts, first, &[], 1, &mut |entry| {
         listed = true;
         let parent = text(entry, "parentFolderId");
         if valid_id(parent) {
             id = Some(parent.to_string());
         }
     })?;
-    // A contact listed without a folder that can be asked for: not an empty folder.
-    if listed && id.is_none() {
+    // A contact listed without a folder that can be asked for, or a list that didn't come to its
+    // end: not an empty folder.
+    if (listed || !ended) && id.is_none() {
         return Err(nonsense("Microsoft Graph didn't say which folder the contacts are in"));
     }
     Ok(id)

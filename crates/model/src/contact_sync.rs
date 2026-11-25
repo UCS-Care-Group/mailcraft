@@ -315,6 +315,10 @@ pub struct ContactChange {
     /// ([`crate::remote::ContactsDownload::read_at`]).
     #[serde(skip_serializing_if = "is_zero_time")]
     pub unconfirmed: Timestamp,
+    /// For a new contact that was sent: when an answer last said it was tried (Unix seconds).
+    /// Only a list read after that can say the server doesn't have it.
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub tried: Timestamp,
 }
 
 /// How long a change waits after failing `attempts` times in a row (seconds): 30 s, doubling,

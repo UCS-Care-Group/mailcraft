@@ -112,6 +112,7 @@ pub fn graph_in_contacts(
     out.contacts_uploaded = got.uploaded.map(|u| u.for_account(&account));
     out.errors.extend(got.errors);
     out.token_refused |= got.token_refused;
+    out.sign_in_refused |= got.sign_in_refused;
     for download in got.downloads {
         let download = download.for_account(&account);
         if download.folder.is_none() && out.contacts.is_none() {
@@ -155,6 +156,8 @@ struct ContactsGot {
     /// The tokens got for changing contacts: their refresh token is the account's newest.
     tokens: Option<Tokens>,
     errors: Vec<String>,
+    /// The sign-in itself was refused when a token for changing contacts was asked for.
+    sign_in_refused: bool,
     /// Graph stopped taking a token: the run's own, or the one for changing contacts.
     token_refused: bool,
 }
@@ -170,12 +173,11 @@ fn contacts_part(
     renew: &dyn Fn(bool) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
     signer: Option<&mailcraft_model::Account>,
 ) -> ContactsGot {
-    use mailcraft_model::contact_sync::{ContactOutcome, ContactResult, ContactsUploaded};
+    use mailcraft_model::contact_sync::ContactResult;
     use mailcraft_net::graph;
     let mut got = ContactsGot::default();
     let shared = !ask.mailboxes.is_empty() || ask.folders.iter().any(|f| !f.owner.is_own());
     let mut write: Option<String> = None;
-    let mut why = String::new();
     if !ask.upload.ops.is_empty() || (ask.read && shared) {
         match renew(shared) {
             Ok(renewed) if signer.is_some_and(|s| crate::job_sign_in::foreign_sign_in(s, Some(&renewed.tokens)).is_some()) => {
@@ -190,26 +192,19 @@ fn contacts_part(
                 log::info!("contacts: the sign-in doesn't cover changing contacts; the changes wait for the owner's permission");
                 got.consent_needed = true;
             }
-            Err(e) => {
-                log::info!("contacts: no token for changing contacts ({e}); the changes wait");
-                why = e.to_string();
+            // A sign-in the server no longer takes: the owner is to sign in again.
+            Err(e) if e.is_refused_sign_in() => {
+                log::info!("contacts: the sign-in was refused; the changes wait");
+                got.sign_in_refused = true;
             }
+            // (Said as the job's error: the next job waits out the back-off.)
+            Err(e) => got.errors.push(format!("Contact changes wait: no token for changing them ({e})")),
         }
     }
-    if !ask.upload.ops.is_empty() {
-        let uploaded = match &write {
-            Some(token) => graph::push_contacts(token, &ask.upload),
-            // Not sent: each waits, as for a server that couldn't be reached.
-            None => ContactsUploaded {
-                outcomes: ask
-                    .upload
-                    .ops
-                    .iter()
-                    .map(|op| ContactOutcome { op: op.clone(), result: ContactResult::Failed, error: why.clone(), ..Default::default() })
-                    .collect(),
-                ..Default::default()
-            },
-        };
+    // Without that token nothing goes up and nothing is answered: not one of them may have
+    // reached the server, and each waits as it was.
+    if let Some(token) = write.as_deref().filter(|_| !ask.upload.ops.is_empty()) {
+        let uploaded = graph::push_contacts(token, &ask.upload);
         let done = uploaded.outcomes.iter().filter(|o| o.result == ContactResult::Done).count();
         log::info!("contacts: {} of {} changes answered, {done} taken by the server", uploaded.outcomes.len(), ask.upload.ops.len());
         got.token_refused = uploaded.token_refused;
@@ -224,7 +219,7 @@ fn contacts_part(
         };
         let read = graph::read_contacts(token, &known, &mailboxes);
         got.token_refused |= read.token_refused;
-        got.errors = read.errors;
+        got.errors.extend(read.errors);
         got.downloads = read.downloads;
     }
     got

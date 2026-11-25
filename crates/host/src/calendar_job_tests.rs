@@ -201,7 +201,8 @@ fn a_contact_change_rides_the_job_and_the_folders_are_read_after_it() {
     s.run("sync.applyContacts", &json!({"download": main})).unwrap();
     s.run("people.new", &json!({"first": "Dee", "email": "dee@example.org"})).unwrap();
     assert_eq!(s.mailbox.contact_changes.len(), 1);
-    let plan = plan(&mut s, a);
+    // (Not the wide stretch: only the change going up has the folders read.)
+    let plan = CalendarPlan { directory: false, ..plan(&mut s, a) };
     let asked = calendar_request(&s, &plan, auth()).unwrap().contacts.unwrap();
     assert_eq!(asked.upload.ops.len(), 1);
     assert!(asked.read, "the folders are read after what went up");

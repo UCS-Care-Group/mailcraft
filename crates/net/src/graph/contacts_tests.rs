@@ -684,3 +684,23 @@ fn address_names_that_arent_all_entries_are_an_answer_that_couldnt_be_read() {
     assert!(!done.outcomes[0].error.is_empty());
     assert_eq!(server.asked(), 1, "no PATCH after it");
 }
+
+#[test]
+fn a_main_folder_list_that_never_ends_is_not_taken_for_an_empty_folder() {
+    let port = Arc::new(std::sync::atomic::AtomicU16::new(0));
+    let known = port.clone();
+    let server = FakeHttp::start(move |n, request| {
+        let line = request.lines().next().unwrap_or("");
+        if line.contains("/me/contacts?") {
+            let base = format!("http://127.0.0.1:{}", known.load(std::sync::atomic::Ordering::Relaxed));
+            let more = format!("{base}/v1.0/me/contacts?$top=1&$skiptoken={n}");
+            json_answer("200 OK", &json!({"value": [], "@odata.nextLink": more}).to_string())
+        } else {
+            json_answer("200 OK", r#"{"value": []}"#)
+        }
+    });
+    port.store(server.port, std::sync::atomic::Ordering::Relaxed);
+    let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    assert!(read.downloads.iter().all(|d| d.folder.is_some()), "{:?}", read.downloads);
+    assert!(!read.errors.is_empty());
+}

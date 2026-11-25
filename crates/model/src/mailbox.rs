@@ -3807,13 +3807,19 @@ impl Mailbox {
         // deletion without the server's name for it or its copy.
         use crate::contact_sync::ContactChangeKind;
         let before = self.contact_changes.len();
+        // (A new contact gone here may wait only once sent: it is the record that it isn't wanted.)
+        let owner: HashMap<Id, Id> = self.contact_folders.iter().map(|f| (f.id, f.account)).collect();
+        let contacts = &self.contacts;
+        // (A new or changed contact that is here is in the note's folder; a deleted one isn't.)
         self.contact_changes.retain(|c| {
+            let contact = contacts.get(&c.contact);
+            let here = contact.is_some_and(|x| x.folder == c.folder);
             let whole = match c.kind {
-                ContactChangeKind::Create => true,
-                ContactChangeKind::Change => !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
-                ContactChangeKind::Delete => !c.remote.is_empty() && c.base.is_some(),
+                ContactChangeKind::Create => c.remote.is_empty() && contact.map_or(c.sent && c.contact != 0, |_| here),
+                ContactChangeKind::Change => here && !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
+                ContactChangeKind::Delete => !here && !c.remote.is_empty() && c.base.is_some(),
             };
-            whole && accounts.contains(&c.account) && folders.contains(&c.folder)
+            whole && accounts.contains(&c.account) && owner.get(&c.folder) == Some(&c.account)
         });
         if self.contact_changes.len() != before {
             fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
@@ -5040,7 +5046,14 @@ impl Mailbox {
         let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
         // A change for a contact that is gone (a deletion) under a key out of range: a key of its
         // own, as the contact would have had.
-        for change in self.contact_changes.iter_mut().filter(|c| c.contact > MAX_ID) {
+        // (Only one whose contact is gone and may wait so: a deletion, or a new contact that was
+        // sent; the others were moved with their contact above, or are dropped below.)
+        let contacts = &self.contacts;
+        let gone = |c: &crate::contact_sync::ContactChange| {
+            use crate::contact_sync::ContactChangeKind::{Create, Delete};
+            c.contact > MAX_ID && !contacts.contains_key(&c.contact) && (c.kind == Delete || (c.kind == Create && c.sent))
+        };
+        for change in self.contact_changes.iter_mut().filter(|c| gone(c)) {
             change.contact = *next;
             *next += 1;
         }

@@ -34,20 +34,17 @@ fn without_the_permission_nothing_goes_up_every_change_waits_and_the_owner_is_to
     let got = contacts_part(&ask(&["sales@example.org"]), "access", &refuse, None);
     assert_eq!(asked.get(), Some(true), "the shared mailboxes' permission is asked for with it");
     assert!(got.consent_needed && got.downloads.is_empty() && got.tokens.is_none());
-    let uploaded = got.uploaded.unwrap();
-    assert_eq!(uploaded.outcomes.len(), 1);
-    assert_eq!(uploaded.outcomes[0].result, ContactResult::Failed);
-    assert!(!uploaded.token_refused);
+    // Nothing answered: not one may have reached the server (a new one isn't taken for sent).
+    assert!(got.uploaded.is_none() && !got.token_refused && !got.sign_in_refused);
 }
 
 #[test]
 fn a_renewal_that_fails_otherwise_holds_the_changes_without_asking_the_owner() {
     let busy = |_: bool| -> Result<GraphTokens, NetError> { Err(NetError::Config("no sign-in to renew".into())) };
     let got = contacts_part(&ask(&[]), "access", &busy, None);
-    assert!(!got.consent_needed);
-    let outcome = &got.uploaded.unwrap().outcomes[0];
-    assert_eq!(outcome.result, ContactResult::Failed);
-    assert!(!outcome.error.is_empty());
+    assert!(!got.consent_needed && !got.sign_in_refused && got.uploaded.is_none());
+    // Said as the job's error, so that the next job waits out the back-off.
+    assert_eq!(got.errors.len(), 1);
 }
 
 #[test]
