@@ -697,7 +697,10 @@ impl Run<'_> {
                     continue;
                 }
                 let etag = usable(entry.etag.as_deref());
-                if changed(known, &entry.href, &etag) {
+                // (One the server couldn't describe now is a change all the same: the page is
+                // taken in only once it has been read.)
+                let undescribed = !(200..300).contains(&entry.status);
+                if undescribed || changed(known, &entry.href, &etag) {
                     wanted.push((entry.href.clone(), etag));
                 }
             }
@@ -838,8 +841,12 @@ impl Run<'_> {
 /// cut short is asked for again from its start, and reading again what it named without an ETag
 /// would take the same documents at every run and never get past them. (A server that keeps to
 /// RFC 4791 gives every calendar resource an ETag; one that doesn't has a change seen within a day.)
+///
+/// Only what is here *without* an ETag holds back one that came without: what is here under an
+/// ETag and now comes without one (its properties failed, the server stopped giving them) can't be
+/// said to be the same, and is read.
 fn changed(known: &HashMap<&str, &str>, href: &str, etag: &str) -> bool {
-    if etag.is_empty() { !known.contains_key(href) } else { known.get(href) != Some(&etag) }
+    if etag.is_empty() { known.get(href).is_none_or(|have| !have.is_empty()) } else { known.get(href) != Some(&etag) }
 }
 
 /// An ETag as the server wrote it, or none when it wrote none that can be compared.

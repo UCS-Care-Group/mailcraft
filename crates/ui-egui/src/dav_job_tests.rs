@@ -340,3 +340,24 @@ fn r_a_job_whose_thread_died_is_trouble_and_waits_its_back_off() {
     a.dav_tick();
     assert!(a.dav.trouble.contains_key(&id), "not tried again every minute");
 }
+
+#[test]
+fn no_job_starts_while_the_credential_store_is_still_being_read() {
+    // The first job of a session came before the store's answer, ended in `NeedsPassword` and
+    // told the owner so, for a password that was remembered all along (#209).
+    let (mut a, id) = app(false);
+    a.ui.remember_sign_in = true;
+    let jobs = failing_job(&mut a, mailcraft_model::DavProblem::None);
+    let (send, receive) = std::sync::mpsc::channel();
+    a.secret_read = Some((a.session.openings(), receive));
+    a.dav_tick();
+    assert!(jobs.lock().unwrap().is_empty(), "it waits for the answer");
+    let key = MailApp::secret_key("password", a.session.mailbox.account(id).unwrap());
+    let answers = vec![(key, Some("mail".to_string()))];
+    send.send(crate::secret_read::SecretRead { answers, moved: Vec::new(), migrated: false, trouble: None }).unwrap();
+    a.poll_secret_read();
+    a.dav_tick();
+    let jobs = jobs.lock().unwrap();
+    assert_eq!(jobs.len(), 1);
+    assert_eq!(jobs[0].get(HOME).map(String::as_str), Some("mail"), "with the remembered password");
+}

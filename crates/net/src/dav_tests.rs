@@ -1098,3 +1098,49 @@ fn r_a_member_that_can_never_be_had_is_said_without_its_document() {
     assert_eq!(work.changes.len(), 1);
     assert!(work.changes[0].raw.is_none() && work.changes[0].etag == "\"1\"", "so that it is not asked for at every run");
 }
+
+#[test]
+fn r_a_change_the_server_could_not_describe_or_gave_no_etag_for_holds_the_token_until_it_is_read() {
+    // A change page names a.ics with a failed status and b.ics, here under an ETag, without one:
+    // neither can be passed over as unchanged.
+    let page = format!(
+        "<d:response><d:href>/cal/work/a.ics</d:href><d:status>HTTP/1.1 503 Service Unavailable</d:status></d:response>{}<d:sync-token>t2</d:sync-token>",
+        bare("/cal/work/b.ics")
+    );
+    let ask = || {
+        let mut ask = collection_ask();
+        ask.collections[0].sync_token = "t1".into();
+        ask.collections[0].known = vec![
+            DavKnown { href: format!("{ORIGIN}/cal/work/a.ics"), etag: String::new() },
+            DavKnown { href: format!("{ORIGIN}/cal/work/b.ics"), etag: "\"1\"".into() },
+        ];
+        ask
+    };
+    // The server can't give a.ics now: the token stays, so the next run asks again.
+    let busy = page.clone();
+    let x = Scripted::new(move |request| match kind(request) {
+        "sync" => multistatus(&busy),
+        "state" => multistatus(""),
+        "multiget" => multistatus(&member("/cal/work/b.ics", "\"2\"", Some(DOC))),
+        // (Not a 503: that is a busy server, and ends the run.)
+        _ => HttpResponse::new(500, Vec::new()),
+    });
+    let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(!work.complete && work.sync_token == "t1", "{work:?}");
+    assert!(work.changes.iter().any(|c| c.href.ends_with("b.ics")), "b.ics is read: {work:?}");
+    // Once it can, both are read and the token moves past them.
+    let x = Scripted::new(move |request| match kind(request) {
+        "sync" => multistatus(&page),
+        _ => multistatus(
+            &asked(&String::from_utf8_lossy(request.body()))
+                .iter()
+                .map(|n| member(&format!("/cal/work/{n}"), "\"2\"", Some(DOC)))
+                .collect::<String>(),
+        ),
+    });
+    let out = run(&ask(), &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default());
+    let work = &out.collections[0];
+    assert!(work.complete && work.sync_token == "t2", "{work:?}");
+    assert_eq!(names(work), vec!["a.ics".to_string(), "b.ics".to_string()], "{work:?}");
+}

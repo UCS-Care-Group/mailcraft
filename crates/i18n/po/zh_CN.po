@@ -17298,6 +17298,12 @@ msgstr "日历“{name}”是网络上某个日历的副本：在此只能读取
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "日历\"{name}\"位于日历服务器上：此版本可以读取它，但还不能向其发送更改。"
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "日历“{name}”仅显示所有者的忙闲状态；此账户无法更改该日历。"
 

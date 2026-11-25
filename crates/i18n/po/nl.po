@@ -16738,6 +16738,12 @@ msgstr "De agenda '{name}' is een kopie van een agenda op het web: hij kan hier 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "De agenda \"{name}\" staat op een agendaserver: deze versie leest hem, maar kan er nog geen wijzigingen naar sturen."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 

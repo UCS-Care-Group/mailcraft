@@ -17306,6 +17306,12 @@ msgstr "El calendario «{name}» es una copia de uno de la web: aquí solo se pu
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "El calendario \"{name}\" está en un servidor de calendario: esta versión lo lee, pero aún no puede enviarle cambios."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "El calendario \"{name}\" solo muestra cuándo está ocupado su propietario: esta cuenta no puede modificarlo."
 

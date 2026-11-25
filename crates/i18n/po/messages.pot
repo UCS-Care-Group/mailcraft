@@ -14354,6 +14354,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr ""
 

@@ -3246,8 +3246,9 @@ msgstr "Změněno: uloží se, když zvolíte jiný podpis nebo opustíte tuto s
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Changes to calendars and contacts on a server are not sent yet in this version."
-msgstr ""
+msgstr "Změny kalendářů a kontaktů na serveru se v této verzi zatím neodesílají."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17326,6 +17327,12 @@ msgstr "Kalendář „{name}“ je kopie kalendáře na webu: zde ho lze jen č�
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "Kalendář \"{name}\" je na kalendářovém serveru: tato verze ho čte, ale zatím do něj nemůže odesílat změny."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "Kalendář „{name}“ ukazuje jen, kdy je vlastník zaneprázdněn: tento účet ho nemůže měnit."
 
@@ -17463,13 +17470,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
+#, fuzzy
 msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
-msgstr ""
+msgstr "Kalendářový server účtu {account} má certifikát, kterému se nedůvěřuje, proto mu nebylo nic odesláno."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
+#, fuzzy
 msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
-msgstr ""
+msgstr "Kalendářový server účtu {account} odmítl přihlášení. MailCraft to zkusí znovu později nebo po změně hesla."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23085,8 +23094,9 @@ msgstr "žádný účet nemá server kalendářů a kontaktů"
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "no account has a calendar server"
-msgstr ""
+msgstr "žádný účet nemá kalendářový server"
 
 #. what a command says
 #: crates/engine/src/cmd/view.rs
@@ -25112,8 +25122,9 @@ msgstr "tento účet nemá vlastní server kalendářů a kontaktů: účet Micr
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "this account has no calendar server"
-msgstr ""
+msgstr "tento účet nemá kalendářový server"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25267,8 +25278,9 @@ msgstr "tato zpráva není stažená: otevřete ji, až budete online, a pak ji 
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "this read was made under the calendar server's earlier settings"
-msgstr ""
+msgstr "toto čtení proběhlo s dřívějším nastavením kalendářového serveru"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

@@ -17299,6 +17299,12 @@ msgstr "A(z) „{name}” naptár egy weben lévő naptár másolata: itt csak o
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "A(z) \"{name}\" naptár egy naptárkiszolgálón van: ez a verzió olvassa, de még nem tud módosításokat küldeni rá."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "A(z) „{name}” naptár csak a tulajdonos foglaltságát mutatja. Ebből a fiókból nem szerkeszthető."
 

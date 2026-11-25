@@ -3240,8 +3240,9 @@ msgstr "შეცვლილია: შეინახება, როცა �
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "Changes to calendars and contacts on a server are not sent yet in this version."
-msgstr ""
+msgstr "სერვერზე არსებული კალენდრებისა და კონტაქტების ცვლილებები ამ ვერსიაში ჯერ არ იგზავნება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17236,6 +17237,12 @@ msgstr "კალენდარი „{name}“ ინტერნეტში 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
+msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgstr "კალენდარი \"{name}\" კალენდრის სერვერზეა: ეს ვერსია მას კითხულობს, მაგრამ ცვლილებების გაგზავნა ჯერ არ შეუძლია."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
 msgstr "კალენდარი „{name}“ მხოლოდ იმას აჩვენებს, როდის არის მფლობელი დაკავებული: ამ ანგარიშს მისი შეცვლა არ შეუძლია."
 
@@ -17373,13 +17380,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
+#, fuzzy
 msgid "The calendar server of {account} has a certificate that isn't trusted, so nothing was sent to it."
-msgstr ""
+msgstr "{account}-ის კალენდრის სერვერს აქვს სერტიფიკატი, რომელსაც არ ენდობიან, ამიტომ მას არაფერი გაეგზავნა."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
+#, fuzzy
 msgid "The calendar server of {account} wouldn't sign in. MailCraft will try again later, or when the password changes."
-msgstr ""
+msgstr "{account}-ის კალენდრის სერვერმა შესვლა არ დაუშვა. MailCraft მოგვიანებით ან პაროლის შეცვლისას კვლავ სცდის."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22951,8 +22960,9 @@ msgstr "არცერთ ანგარიშს არ აქვს კა�
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "no account has a calendar server"
-msgstr ""
+msgstr "არცერთ ანგარიშს არ აქვს კალენდრის სერვერი"
 
 #. what a command says
 #: crates/engine/src/cmd/view.rs
@@ -24976,8 +24986,9 @@ msgstr "ამ ანგარიშს კალენდრისა და �
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "this account has no calendar server"
-msgstr ""
+msgstr "ამ ანგარიშს არ აქვს კალენდრის სერვერი"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25128,8 +25139,9 @@ msgstr "ეს წერილი არ ჩამოტვირთულა: �
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
+#, fuzzy
 msgid "this read was made under the calendar server's earlier settings"
-msgstr ""
+msgstr "ეს წაკითხვა კალენდრის სერვერის წინა პარამეტრებით მოხდა"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar/selection.rs

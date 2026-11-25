@@ -278,9 +278,20 @@ fn a_calendar_of_the_mailbox_stays_where_new_events_go() {
 fn putting_the_server_away_or_changing_it_takes_what_it_gave() {
     let (mut s, id) = session();
     apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
-    let made = s.run("calendar.newEvent", &json!({"title": "Mine", "start": "2026-11-05T09:00", "end": "2026-11-05T10:00"}));
+    let calendar = s.mailbox.calendars.iter().find(|c| c.origin.account == id).unwrap().id;
+    let a = s.mailbox.events.values().find(|e| e.title == "A").unwrap().id;
+    // Nothing goes up in this version, and that is what the owner is told, not that the server
+    // refused them (its listing said the calendar may be written).
+    let said = "The calendar \"Work\" is on a calendar server: this version reads it but can't send changes to it yet.";
+    for (command, params) in [
+        ("calendar.new", json!({"title": "Mine", "start": "2026-11-05T09:00", "calendar": calendar})),
+        ("calendar.edit", json!({"id": a, "title": "Mine"})),
+        ("calendar.delete", json!({"id": a})),
+    ] {
+        assert_eq!(s.run(command, &params).unwrap_err().to_string(), said, "{command}");
+    }
     s.run("account.davSet", &json!({"id": id, "username": "grace"})).unwrap();
-    assert!(!titles(&s).contains(&"A".to_string()), "{made:?}");
+    assert!(!titles(&s).contains(&"A".to_string()));
     apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
     s.run("account.davOff", &json!({"id": id})).unwrap();
     assert!(titles(&s).is_empty());

@@ -148,6 +148,8 @@ impl MailApp {
             return;
         }
         let opening = self.session.openings();
+        // Another mailbox: everything held of the last one's jobs goes, on purpose (the job in
+        // flight, back-offs, refused-password marks, what was said): its accounts are not these.
         if self.dav.opening != opening {
             self.dav = DavSync { opening, ..Default::default() };
         }
@@ -174,7 +176,16 @@ impl MailApp {
             return;
         }
         let now = now_ms();
-        if now < self.dav.next || self.data_removed || self.unconfirmed || self.opening.is_some() || self.offline() || self.services.dav.is_none() {
+        // (While the credential store's read is out, a password it holds isn't here yet: a job
+        // now would end in `NeedsPassword` for nothing and tell the owner so. It waits.)
+        if now < self.dav.next
+            || self.secret_read.is_some()
+            || self.data_removed
+            || self.unconfirmed
+            || self.opening.is_some()
+            || self.offline()
+            || self.services.dav.is_none()
+        {
             return;
         }
         self.dav.next = now + EVERY;
