@@ -262,3 +262,10 @@ path = "fuzz_targets/header_block.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "sieve_check"
+path = "fuzz_targets/sieve_check.rs"
+test = false
+doc = false
+bench = false

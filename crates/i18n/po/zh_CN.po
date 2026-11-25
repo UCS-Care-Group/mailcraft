@@ -148,6 +148,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "“{title}”已取消，因此无法添加到所选内容。"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "\"{value}\" isn't a relation (gt, ge, lt, le, eq or ne)."
+msgstr "“{value}”不是关系运算（gt、ge、lt、le、eq 或 ne）。"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -447,6 +453,42 @@ msgstr "6 个月"
 msgid "60 Minutes"
 msgstr "60 分钟"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} can't go with :{other}."
+msgstr ":{tag} 不能与 :{other} 同用。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} is given twice."
+msgstr ":{tag} 出现了两次。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} must come before the other arguments."
+msgstr ":{tag} 必须位于其他参数之前。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a number after it."
+msgstr ":{tag} 后面需要一个数字。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string after it."
+msgstr ":{tag} 后面需要一个字符串。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string or a list after it."
+msgstr ":{tag} 后面需要一个字符串或列表。"
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -518,6 +560,24 @@ msgstr "写为 U+2192 或 2192 的代码点，或 # 后面的十进制数。"
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "使用工作或学校账户，通过同事的地址打开其日历。仅保存在此计算机上"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ) was expected here."
+msgstr "此处应为逗号或 )。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ] was expected here."
+msgstr "此处应为逗号或 ]。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A command was expected here."
+msgstr "此处应为命令。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -609,6 +669,12 @@ msgstr "显示为 {named} 的链接指向 {host}。"
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "链接的文本主要由不可见字符组成，实际指向 {host}。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A list holds only strings."
+msgstr "列表只能包含字符串。"
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -680,6 +746,12 @@ msgstr "无法从这里将跳过部分日期的重复会议放到服务器日历
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "一封请求退订的邮件将通过发件箱从 {from} 发送到 {to}。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A name must follow the colon."
+msgstr "冒号后面必须跟名称。"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -790,6 +862,12 @@ msgid "A secure connection to the server couldn't be set up. Type the server's a
 msgstr "无法建立与服务器的安全连接。在服务器设置中键入服务器的地址。"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A semicolon is missing here."
+msgstr "此处缺少分号。"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
@@ -830,6 +908,12 @@ msgstr "共享邮箱，使用 {account} 的登录信息读取"
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "一段附有该页面链接的简短说明,可粘贴到邮件或聊天中。MailCraft 本身不会发送任何内容。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A test was expected here."
+msgstr "此处应为测试。"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9182,6 +9266,12 @@ msgstr "MailCraft 无法将读取失败的已保存邮箱另行存放，因此�
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
 msgstr "MailCraft 暂不删除 JMAP 账户的文件夹：下次发送/接收时它们会重新出现"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "MailCraft doesn't know the extension {ext}; what it adds isn't checked."
+msgstr "MailCraft 不认识扩展 {ext}；它添加的内容不会被检查。"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -10136,6 +10226,18 @@ msgstr "目前无法在服务器上请求更多结果"
 msgid "More than one person matches \"{name}\". Choose one:"
 msgstr "有多个人与“{name}”匹配。请选择一个："
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} arguments or tests."
+msgstr "参数或测试超过 {n} 个。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} commands."
+msgstr "命令超过 {n} 条。"
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -10558,6 +10660,12 @@ msgstr "需要启用“检查新版本”。"
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "需要 Google 登录"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Nested more than {n} levels deep."
+msgstr "嵌套超过 {n} 层。"
 
 #. name
 #: crates/ui-egui/src/theme/blue.rs
@@ -11265,6 +11373,12 @@ msgstr "没有到期提醒。"
 #, fuzzy
 msgid "No reply yet"
 msgstr "尚无回复"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "No require here: MailCraft writes it at the top of its script."
+msgstr "此处不需要 require：MailCraft 会把它写在脚本开头。"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12093,6 +12207,12 @@ msgstr "线上会议"
 #, fuzzy
 msgid "Only a Microsoft account signs in on the phone for now."
 msgstr "目前手机上只能使用 Microsoft 账户登录。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Only a comment may follow text: on its line."
+msgstr "text: 所在行后面只能跟注释。"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -18821,6 +18941,18 @@ msgstr "同一页面还会请求更改您的联系人，这样您在此创建、
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
 msgstr "同一页面还会请求读取您有权访问的共享邮箱并从中发送邮件，以及读取与您共享的日历，这样 MailCraft 就不必再次询问。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script has too many parts to check."
+msgstr "脚本部分过多，无法检查。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script is larger than {mb} MB."
+msgstr "脚本大于 {mb} MB。"
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -18958,6 +19090,12 @@ msgstr "服务器未接受对 {name}{why} 的更改：它已恢复为服务器�
 #, fuzzy
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
 msgstr "服务器未接受你的登录。请在账户设置中检查该账户的密码。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The server doesn't have the extension {ext}."
+msgstr "服务器没有扩展 {ext}。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19840,6 +19978,18 @@ msgstr "服务器上保存的日历中带有此类别的日程过多，无法同
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "MailCraft 不支持此证书的密钥类型；此处仅导入 P-256 或 P-384 曲线上的 ECDSA 密钥。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This character has no meaning here."
+msgstr "此字符在这里没有意义。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This comment has no */ to end it."
+msgstr "此注释没有结束的 */。"
+
 #. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -20396,6 +20546,12 @@ msgid "This moves {n} appointment, the earliest with a time of day to {when} and
 msgid_plural "This moves {n} appointments, the earliest with a time of day to {when} and the others by as much, in {to}."
 msgstr[0] "此操作将移动 {n} 项约会：有具体时间的最早一项移到 {when}，其余的移动相同的时长，位于 {to}。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This number is too large."
+msgstr "此数字过大。"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -20522,6 +20678,12 @@ msgstr "此共享邮箱所属的账户已不存在：请移除共享邮箱后重
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "此签名含有图片或自定义版式。请在电脑上修改。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This string has no closing quote."
+msgstr "此字符串缺少结束引号。"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -20540,6 +20702,12 @@ msgstr "MailCraft 在此系统上找不到可存放带私钥的 S/MIME 证书的
 msgid "This task could not be read."
 msgstr "无法读取此任务。"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This text: has no line with a lone dot to end it."
+msgstr "此 text: 没有以单独一个点结束的行。"
+
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
@@ -20553,10 +20721,22 @@ msgid "This was copied from another mailbox than the one open now"
 msgstr "这是从另一个邮箱复制的，而不是当前打开的邮箱"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This { has no } to close it."
+msgstr "此 { 没有对应的 } 来闭合。"
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."
 msgstr "此{what}由 {who} 的服务器保存。在此所做的更改尚不能发送回服务器，因此不能在此更改或删除。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This } has no { before it."
+msgstr "此 } 之前没有 { 。"
 
 #. name
 #: crates/time/src/lib.rs
@@ -21075,6 +21255,24 @@ msgstr "撤销 {what}"
 #, fuzzy
 msgid "Unfolded"
 msgstr "已展开"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown command {name}."
+msgstr "未知命令 {name}。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown comparator \"{name}\"."
+msgstr "未知比较器“{name}”。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown test {name}."
+msgstr "未知测试 {name}。"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -24350,6 +24548,12 @@ msgstr "收件人地址包含 {words}"
 msgid "replies can go to at most {n} addresses"
 msgstr "回复最多可发送到 {n} 个地址"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "require goes before every other command."
+msgstr "require 必须位于所有其他命令之前。"
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -26861,6 +27065,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} 已拒绝本次会议。"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has no :{tag}."
+msgstr "{name} 没有 :{tag}。"
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
@@ -26897,10 +27107,22 @@ msgid "{name} has tentatively accepted this meeting."
 msgstr "{name} 已暂时接受本次会议。"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has too many arguments."
+msgstr "{name} 的参数过多。"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "{name} is a JMAP account, and this version doesn't send and receive with one yet"
 msgstr "{name} 是 JMAP 账户，此版本尚不能使用它收发邮件"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a command; a test belongs here."
+msgstr "{name} 是命令；此处应为测试。"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
@@ -26919,6 +27141,12 @@ msgstr "{name} 已在 {folder} 中。"
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "已附加 {name}：无法将其插入文本（{why}）"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} 是测试；此处应为命令。"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -26943,6 +27171,11 @@ msgstr "{name} 大于 {mb} MB"
 #, fuzzy
 msgid "{name} is still being sent to its server: try again shortly."
 msgstr "{name} 仍在发送到其服务器：请稍后再试。"
+
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is missing an argument."
+msgstr "{name} 缺少一个参数。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -27028,6 +27261,54 @@ msgstr "{name} 未通过 Microsoft Graph 保持同步"
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} 不在发送/接收队列中"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a block in braces."
+msgstr "{name} 需要一个花括号中的块。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a list of tests in brackets."
+msgstr "{name} 需要一个括号中的测试列表。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a number here."
+msgstr "{name} 此处需要一个数字。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string here."
+msgstr "{name} 此处需要一个字符串。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string or a list here."
+msgstr "{name} 此处需要一个字符串或列表。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a test."
+msgstr "{name} 需要一个测试。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs one of {tags}."
+msgstr "{name} 需要 {tags} 之一。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs require \"{ext}\"."
+msgstr "{name} 需要 require \"{ext}\"。"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -27070,6 +27351,24 @@ msgstr "{name} 与您共享了日历。该日历已出现在您的日历列表�
 msgid "{name} stays at the top of its account's folders"
 msgstr "{name} 保持在账户文件夹的顶部"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no block; end it with a semicolon."
+msgstr "{name} 不接受块；请用分号结束。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no test."
+msgstr "{name} 不接受测试。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes one test, not a list."
+msgstr "{name} 只接受一个测试，而不是列表。"
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -27093,6 +27392,12 @@ msgstr "未附加 {name}：此应用无权读取该文件。"
 #, fuzzy
 msgid "{name} was not attached: the files on a message can be 50 MB together."
 msgstr "未附加 {name}：一封邮件的文件总共最多 50 MB。"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} without an if before it."
+msgstr "{name} 前面没有 if。"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs

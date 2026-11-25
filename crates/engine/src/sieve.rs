@@ -144,51 +144,91 @@ pub struct Lexed {
 /// [`tokens`] with where each is, and the comments between them (counted with the tokens towards
 /// [`MAX_TOKENS`]).
 pub fn lex(script: &str) -> Option<Lexed> {
+    lex_or_why(script).ok()
+}
+
+/// Why a script couldn't be read into tokens ([`lex_or_why`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LexFault {
+    /// Larger than [`MAX_SCRIPT`].
+    TooLarge,
+    /// More than [`MAX_TOKENS`] tokens and comments.
+    TooMany,
+    /// A `/*` with no `*/`.
+    Comment,
+    /// A `"` with no closing one.
+    String,
+    /// A `text:` block with no line that is a lone `.`.
+    Text,
+    /// Something other than spaces and a comment after `text:` on its line.
+    TextStart,
+    /// A `:` that no name follows.
+    Tag,
+    /// A number larger than 2⁶⁴ − 1 (with its K, M or G).
+    Number,
+    /// A character that begins no token.
+    Char,
+}
+
+/// Where a script stopped being Sieve, and why: `at` is the bytes of what is wrong (the opening
+/// `"`, `/*` or `text:` of what isn't closed), on character boundaries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LexError {
+    pub at: Range<usize>,
+    pub fault: LexFault,
+}
+
+/// [`lex`], saying where and why a script that isn't Sieve stops being it.
+pub fn lex_or_why(script: &str) -> Result<Lexed, LexError> {
     if script.len() > MAX_SCRIPT {
-        return None;
+        return Err(LexError { at: 0..0, fault: LexFault::TooLarge });
     }
     let mut out = Lexed::default();
     let mut rest = script;
     let at = |rest: &str| script.len().saturating_sub(rest.len());
     loop {
-        if out.toks.len().saturating_add(out.comments.len()) > MAX_TOKENS {
-            return None;
-        }
         rest = rest.trim_start_matches([' ', '\t', '\r', '\n']);
-        let Some(c) = rest.chars().next() else { return Some(out) };
         let start = at(rest);
+        if out.toks.len().saturating_add(out.comments.len()) > MAX_TOKENS {
+            return Err(LexError { at: start..start, fault: LexFault::TooMany });
+        }
+        let Some(c) = rest.chars().next() else { return Ok(out) };
+        let one = start..start.saturating_add(c.len_utf8());
+        let fail = |fault: LexFault, len: usize| LexError { at: start..start.saturating_add(len), fault };
+        let char_fault = LexError { at: one.clone(), fault: LexFault::Char };
         match c {
             '#' => {
                 let line = rest.find('\n').unwrap_or(rest.len());
-                let line = if rest.get(..line)?.ends_with('\r') { line.saturating_sub(1) } else { line };
-                rest = rest.get(line..)?;
+                let line = if rest.get(..line).is_some_and(|l| l.ends_with('\r')) { line.saturating_sub(1) } else { line };
+                rest = rest.get(line..).ok_or(char_fault)?;
                 out.comments.push(Comment { at: start..at(rest), bracketed: false });
                 continue;
             }
             '/' if rest.starts_with("/*") => {
-                let end = rest.get(2..)?.find("*/")?;
-                rest = rest.get(end.checked_add(4)?..)?;
+                let end = rest.get(2..).and_then(|r| r.find("*/")).ok_or(fail(LexFault::Comment, 2))?;
+                rest = end.checked_add(4).and_then(|e| rest.get(e..)).ok_or(fail(LexFault::Comment, 2))?;
                 out.comments.push(Comment { at: start..at(rest), bracketed: true });
                 continue;
             }
             '[' | ']' | '(' | ')' | '{' | '}' | ',' | ';' => {
-                rest = rest.get(1..)?;
+                rest = rest.get(1..).ok_or(char_fault)?;
                 out.toks.push((Tok::Punct(c), start..at(rest)));
             }
             '"' => {
-                let (value, after) = quoted_value(rest.get(1..)?)?;
+                let (value, after) = rest.get(1..).and_then(quoted_value).ok_or(fail(LexFault::String, 1))?;
                 rest = after;
                 out.toks.push((Tok::Str(value), start..at(rest)));
             }
             ':' => {
-                let word = identifier(rest.get(1..)?)?;
-                rest = rest.get(word.len().checked_add(1)?..)?;
+                let word = rest.get(1..).and_then(identifier).ok_or(fail(LexFault::Tag, 1))?;
+                rest = word.len().checked_add(1).and_then(|e| rest.get(e..)).ok_or(fail(LexFault::Tag, 1))?;
                 out.toks.push((Tok::Tag(word.to_ascii_lowercase()), start..at(rest)));
             }
             '0'..='9' => {
                 let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
-                let mut n: u64 = rest.get(..digits)?.parse().ok()?;
-                rest = rest.get(digits..)?;
+                let number = fail(LexFault::Number, digits);
+                let mut n: u64 = rest.get(..digits).and_then(|d| d.parse().ok()).ok_or(number.clone())?;
+                rest = rest.get(digits..).ok_or(number.clone())?;
                 let scale = match rest.chars().next() {
                     Some('K' | 'k') => 1 << 10,
                     Some('M' | 'm') => 1 << 20,
@@ -196,16 +236,16 @@ pub fn lex(script: &str) -> Option<Lexed> {
                     _ => 1,
                 };
                 if scale > 1 {
-                    n = n.checked_mul(scale)?;
-                    rest = rest.get(1..)?;
+                    n = n.checked_mul(scale).ok_or(fail(LexFault::Number, digits.saturating_add(1)))?;
+                    rest = rest.get(1..).ok_or(number)?;
                 }
                 out.toks.push((Tok::Num(n), start..at(rest)));
             }
             _ => {
-                let word = identifier(rest)?;
-                rest = rest.get(word.len()..)?;
+                let word = identifier(rest).ok_or(char_fault)?;
+                rest = rest.get(word.len()..).ok_or(fail(LexFault::Char, word.len()))?;
                 if word.eq_ignore_ascii_case("text") && rest.starts_with(':') {
-                    let (value, after) = text_block(rest.get(1..)?)?;
+                    let (value, after) = text_block(rest.get(1..).unwrap_or_default()).map_err(|fault| fail(fault, 5))?;
                     rest = after;
                     out.toks.push((Tok::Str(value), start..at(rest)));
                 } else {
@@ -244,21 +284,22 @@ fn quoted_value(s: &str) -> Option<(String, &str)> {
 
 /// A `text:` block from just after its colon: the lines up to the one that is a lone `.`, with a
 /// line's leading dot of two taken out (RFC 5228 §2.4.2), and what follows it.
-fn text_block(s: &str) -> Option<(String, &str)> {
+fn text_block(s: &str) -> Result<(String, &str), LexFault> {
     // Spaces, and a comment, may follow `text:` on its line.
-    let line_end = s.find('\n')?;
-    let first = s.get(..line_end)?.trim_matches([' ', '\t', '\r']);
+    let line_end = s.find('\n').ok_or(LexFault::Text)?;
+    let first = s.get(..line_end).unwrap_or_default().trim_matches([' ', '\t', '\r']);
     if !(first.is_empty() || first.starts_with('#')) {
-        return None;
+        return Err(LexFault::TextStart);
     }
-    let mut rest = s.get(line_end.checked_add(1)?..)?;
+    let mut rest = line_end.checked_add(1).and_then(|e| s.get(e..)).ok_or(LexFault::Text)?;
     let mut value = String::new();
     loop {
-        let end = rest.find('\n')?;
-        let line = rest.get(..end)?.strip_suffix('\r').unwrap_or(rest.get(..end)?);
-        rest = rest.get(end.checked_add(1)?..)?;
+        let end = rest.find('\n').ok_or(LexFault::Text)?;
+        let whole = rest.get(..end).ok_or(LexFault::Text)?;
+        let line = whole.strip_suffix('\r').unwrap_or(whole);
+        rest = end.checked_add(1).and_then(|e| rest.get(e..)).ok_or(LexFault::Text)?;
         if line == "." {
-            return Some((value, rest));
+            return Ok((value, rest));
         }
         value.push_str(line.strip_prefix('.').filter(|_| line.starts_with("..")).unwrap_or(line));
         value.push('\n');

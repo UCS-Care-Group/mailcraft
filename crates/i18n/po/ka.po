@@ -148,6 +148,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "„{title}“ გაუქმებულია, ამიტომ მონიშნულებს ვერ დაემატება."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "\"{value}\" isn't a relation (gt, ge, lt, le, eq or ne)."
+msgstr "„{value}“ მიმართება არ არის (gt, ge, lt, le, eq ან ne)."
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -445,6 +451,42 @@ msgstr "6 თვე"
 msgid "60 Minutes"
 msgstr "60 წუთი"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} can't go with :{other}."
+msgstr ":{tag} ვერ იქნება :{other}-თან ერთად."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} is given twice."
+msgstr ":{tag} ორჯერაა მითითებული."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} must come before the other arguments."
+msgstr ":{tag} სხვა არგუმენტებამდე უნდა იყოს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a number after it."
+msgstr ":{tag}-ს რიცხვი უნდა მოსდევდეს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string after it."
+msgstr ":{tag}-ს სტრიქონი უნდა მოსდევდეს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string or a list after it."
+msgstr ":{tag}-ს სტრიქონი ან სია უნდა მოსდევდეს."
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -516,6 +558,24 @@ msgstr "კოდური წერტილი U+2192 ან 2192 სახი
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "კოლეგის კალენდარი, მისი მისამართით, თქვენი სამსახურის ან სასწავლებლის ანგარიშით. მხოლოდ ამ კომპიუტერზე ინახება"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ) was expected here."
+msgstr "აქ მოსალოდნელი იყო მძიმე ან )."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ] was expected here."
+msgstr "აქ მოსალოდნელი იყო მძიმე ან ]."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A command was expected here."
+msgstr "აქ მოსალოდნელი იყო ბრძანება."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -607,6 +667,12 @@ msgstr "ბმული ტექსტით {named} მიდის მის�
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "ბმული, რომლის ტექსტიც ძირითადად უხილავი სიმბოლოებისგან შედგება, მიდის მისამართზე {host}."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A list holds only strings."
+msgstr "სია მხოლოდ სტრიქონებს შეიცავს."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -678,6 +744,12 @@ msgstr "განმეორებადი შეხვედრა გამ�
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "გამოწერის გაუქმების მოთხოვნა გაიგზავნება მისამართიდან {from} მისამართზე {to}, თქვენი „გასაგზავნების“ გავლით."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A name must follow the colon."
+msgstr "ორწერტილს სახელი უნდა მოსდევდეს."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -787,6 +859,12 @@ msgid "A secure connection to the server couldn't be set up. Type the server's a
 msgstr "სერვერთან დაცული კავშირი ვერ დამყარდა. აკრიფეთ სერვერის მისამართი სერვერის პარამეტრებში."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A semicolon is missing here."
+msgstr "აქ წერტილმძიმე აკლია."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
@@ -826,6 +904,12 @@ msgstr "საერთო საფოსტო ყუთი, რომელ�
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A test was expected here."
+msgstr "აქ მოსალოდნელი იყო ტესტი."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9165,6 +9249,12 @@ msgstr "MailCraft-მა გვერდზე ვერ გადადო შ�
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
 msgstr "MailCraft JMAP ანგარიშის საქაღალდეებს ჯერ არ შლის: შემდეგი გაგზავნა/მიღება მათ დააბრუნებდა"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "MailCraft doesn't know the extension {ext}; what it adds isn't checked."
+msgstr "MailCraft-მა არ იცის გაფართოება {ext}; რასაც ის ამატებს, არ მოწმდება."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -10118,6 +10208,18 @@ msgstr "სერვერზე მეტი შედეგის მოთხ
 msgid "More than one person matches \"{name}\". Choose one:"
 msgstr "სახელს „{name}“ ერთზე მეტი ადამიანი შეესაბამება. აირჩიეთ ერთი:"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} arguments or tests."
+msgstr "{n}-ზე მეტი არგუმენტი ან ტესტი."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} commands."
+msgstr "{n}-ზე მეტი ბრძანება."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -10538,6 +10640,12 @@ msgstr "საჭიროებს პარამეტრს „ახალ�
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "საჭიროა Google-ით შესვლა"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Nested more than {n} levels deep."
+msgstr "ჩადგმულია {n} დონეზე ღრმად."
 
 #. name
 #: crates/ui-egui/src/theme/blue.rs
@@ -11243,6 +11351,12 @@ msgstr "ვადამოსული შეხსენებები არ 
 #, fuzzy
 msgid "No reply yet"
 msgstr "პასუხი ჯერ არ არის"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "No require here: MailCraft writes it at the top of its script."
+msgstr "აქ require არ საჭიროა: MailCraft მას თავისი სკრიპტის თავში წერს."
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12069,6 +12183,12 @@ msgstr "ონლაინ შეხვედრა"
 #, fuzzy
 msgid "Only a Microsoft account signs in on the phone for now."
 msgstr "ტელეფონზე ჯერჯერობით მხოლოდ Microsoft-ის ანგარიშით შესვლაა შესაძლებელი."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Only a comment may follow text: on its line."
+msgstr "text:-ის შემდეგ მის ხაზზე მხოლოდ კომენტარი შეიძლება იყოს."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -18761,6 +18881,18 @@ msgstr "იგივე გვერდი ითხოვს თქვენი
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script has too many parts to check."
+msgstr "სკრიპტს შესამოწმებლად ზედმეტად ბევრი ნაწილი აქვს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script is larger than {mb} MB."
+msgstr "სკრიპტი {mb} მბ-ზე დიდია."
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -18897,6 +19029,12 @@ msgstr "სერვერმა არ მიიღო ცვლილება
 #, fuzzy
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
 msgstr "სერვერმა თქვენი შესვლა არ მიიღო. შეამოწმეთ ანგარიშის პაროლი ანგარიშის პარამეტრებში."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The server doesn't have the extension {ext}."
+msgstr "სერვერს არ აქვს გაფართოება {ext}."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19782,6 +19920,18 @@ msgstr "ეს კატეგორია სერვერზე შენა
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "ამ სერტიფიკატის გასაღები ისეთი ტიპისაა, რომელსაც MailCraft არ იყენებს: აქ შემოიტანება მხოლოდ ECDSA P-256 ან P-384-ზე."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This character has no meaning here."
+msgstr "ამ სიმბოლოს აქ მნიშვნელობა არ აქვს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This comment has no */ to end it."
+msgstr "ამ კომენტარს დამხურავი */ არ აქვს."
+
 #. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -20348,6 +20498,12 @@ msgid_plural "This moves {n} appointments, the earliest with a time of day to {w
 msgstr[0] "ეს ჩანაწერებს ({n}) გადაიტანს, ყველაზე ადრეულს დროით: {when}, დანარჩენებს იმდენივეთი, {to}."
 msgstr[1] "ეს ჩანაწერებს ({n}) გადაიტანს, ყველაზე ადრეულს დროით: {when}, დანარჩენებს იმდენივეთი, {to}."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This number is too large."
+msgstr "ეს რიცხვი ზედმეტად დიდია."
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -20474,6 +20630,12 @@ msgstr "ამ საერთო საფოსტო ყუთის ან�
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "ამ ხელმოწერას სურათი ან საკუთარი განლაგება აქვს. შეცვალეთ ის კომპიუტერზე."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This string has no closing quote."
+msgstr "ამ სტრიქონს დამხურავი ბრჭყალი არ აქვს."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -20492,6 +20654,12 @@ msgstr "ამ სისტემაში MailCraft-მა არ იცის 
 msgid "This task could not be read."
 msgstr "ამ დავალების წაკითხვა ვერ მოხერხდა."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This text: has no line with a lone dot to end it."
+msgstr "ამ text:-ს არ აქვს ხაზი მხოლოდ წერტილით, რომელიც მას დაასრულებს."
+
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
@@ -20505,10 +20673,22 @@ msgid "This was copied from another mailbox than the one open now"
 msgstr "ეს დაკოპირდა სხვა საფოსტო ყუთიდან, ვიდრე ახლა ღიაა"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This { has no } to close it."
+msgstr "ამ { -ს არ აქვს დამხურავი }."
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."
 msgstr "ეს {what} ანგარიშის {who} სერვერზე ინახება. აქ შეტანილი ცვლილებები ჯერ უკან არ იგზავნება, ამიტომ მისი აქ შეცვლა ან წაშლა შეუძლებელია."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This } has no { before it."
+msgstr "ამ } -ის წინ { არ არის."
 
 #. name
 #: crates/time/src/lib.rs
@@ -21023,6 +21203,24 @@ msgstr "დაბრუნება: {what}"
 #, fuzzy
 msgid "Unfolded"
 msgstr "გაშლილია"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown command {name}."
+msgstr "უცნობი ბრძანება {name}."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown comparator \"{name}\"."
+msgstr "უცნობი შემდარებელი „{name}“."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown test {name}."
+msgstr "უცნობი ტესტი {name}."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -24295,6 +24493,12 @@ msgstr "ადრესატის მისამართი შეიცა�
 msgid "replies can go to at most {n} addresses"
 msgstr "პასუხი მაქსიმუმ {n} მისამართზე შეიძლება გაიგზავნოს"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "require goes before every other command."
+msgstr "require ყველა სხვა ბრძანებამდე უნდა იყოს."
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -26802,6 +27006,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} არ დაეთანხმა ამ შეხვედრას."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has no :{tag}."
+msgstr "{name}-ს არ აქვს :{tag}."
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
@@ -26838,10 +27048,22 @@ msgid "{name} has tentatively accepted this meeting."
 msgstr "{name} პირობითად დაეთანხმა ამ შეხვედრას."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has too many arguments."
+msgstr "{name}-ს ზედმეტად ბევრი არგუმენტი აქვს."
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "{name} is a JMAP account, and this version doesn't send and receive with one yet"
 msgstr "{name} JMAP ანგარიშია და ეს ვერსია მასთან ჯერ ვერ აგზავნის და იღებს"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a command; a test belongs here."
+msgstr "{name} ბრძანებაა; აქ ტესტი უნდა იყოს."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
@@ -26860,6 +27082,12 @@ msgstr "{name} უკვე არის {folder}-ში."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "{name} მიმაგრდა: ტექსტში ჩასმა შეუძლებელია ({why})"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} ტესტია; აქ ბრძანება უნდა იყოს."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -26884,6 +27112,11 @@ msgstr "{name} {mb} მბ-ზე დიდია"
 #, fuzzy
 msgid "{name} is still being sent to its server: try again shortly."
 msgstr "{name} ჯერ კიდევ იგზავნება თავის სერვერზე: სცადეთ ცოტა ხანში."
+
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is missing an argument."
+msgstr "{name}-ს ერთი არგუმენტი აკლია."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -26969,6 +27202,54 @@ msgstr "{name} Microsoft Graph-ით არ სინქრონიზდე�
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} „გაგზავნა/მიღებაში“ თავის რიგს არ ელოდება"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a block in braces."
+msgstr "{name}-ს ფიგურულ ფრჩხილებში ბლოკი სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a list of tests in brackets."
+msgstr "{name}-ს ფრჩხილებში ტესტების სია სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a number here."
+msgstr "{name}-ს აქ რიცხვი სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string here."
+msgstr "{name}-ს აქ სტრიქონი სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string or a list here."
+msgstr "{name}-ს აქ სტრიქონი ან სია სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a test."
+msgstr "{name}-ს ტესტი სჭირდება."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs one of {tags}."
+msgstr "{name}-ს სჭირდება ერთ-ერთი: {tags}."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs require \"{ext}\"."
+msgstr "{name}-ს სჭირდება require „{ext}“."
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -27011,6 +27292,24 @@ msgstr "{name} გიზიარებთ კალენდარს. ის �
 msgid "{name} stays at the top of its account's folders"
 msgstr "{name} ანგარიშის საქაღალდეების თავში რჩება"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no block; end it with a semicolon."
+msgstr "{name} ბლოკს არ იღებს; დაასრულეთ წერტილმძიმით."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no test."
+msgstr "{name} ტესტს არ იღებს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes one test, not a list."
+msgstr "{name} ერთ ტესტს იღებს და არა სიას."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -27034,6 +27333,12 @@ msgstr "{name} არ მიმაგრდა: ეს არ არის ფ�
 #, fuzzy
 msgid "{name} was not attached: the files on a message can be 50 MB together."
 msgstr "{name} არ მიმაგრდა: წერილზე მიმაგრებული ფაილები ჯამში 50 მბ-ს არ უნდა აღემატებოდეს."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} without an if before it."
+msgstr "{name} წინ if-ის გარეშე."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs

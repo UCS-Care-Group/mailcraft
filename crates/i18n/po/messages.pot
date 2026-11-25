@@ -124,6 +124,11 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "\"{value}\" isn't a relation (gt, ge, lt, le, eq or ne)."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
 msgstr ""
@@ -373,6 +378,36 @@ msgstr ""
 msgid "60 Minutes"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} can't go with :{other}."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} is given twice."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} must come before the other arguments."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} needs a number after it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} needs a string after it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid ":{tag} needs a string or a list after it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "@{login}, testing since {since}"
@@ -431,6 +466,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A comma or ) was expected here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A comma or ] was expected here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A command was expected here."
 msgstr ""
 
 #. interface
@@ -508,6 +558,11 @@ msgstr ""
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A list holds only strings."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "A made-up domain."
@@ -566,6 +621,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A name must follow the colon."
 msgstr ""
 
 #. interface
@@ -659,6 +719,11 @@ msgid "A secure connection to the server couldn't be set up. Type the server's a
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A semicolon is missing here."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "A series and one of its days are both named; nothing was changed."
 msgstr ""
@@ -691,6 +756,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "A test was expected here."
 msgstr ""
 
 #. interface
@@ -7631,6 +7701,11 @@ msgstr ""
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "MailCraft doesn't know the extension {ext}; what it adds isn't checked."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
@@ -8423,6 +8498,16 @@ msgstr ""
 msgid "More than one person matches \"{name}\". Choose one:"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "More than {n} arguments or tests."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "More than {n} commands."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
@@ -8772,6 +8857,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/gmail_move.rs
 msgid "Needs Google sign-in"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "Nested more than {n} levels deep."
 msgstr ""
 
 #. name
@@ -9353,6 +9443,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
 msgid "No reply yet"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "No require here: MailCraft writes it at the top of its script."
 msgstr ""
 
 #. interface, name
@@ -10043,6 +10138,11 @@ msgstr ""
 #. what a command says
 #: crates/mobile/src/sync_api.rs
 msgid "Only a Microsoft account signs in on the phone for now."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "Only a comment may follow text: on its line."
 msgstr ""
 
 #. interface
@@ -15626,6 +15726,16 @@ msgstr ""
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "The script has too many parts to check."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "The script is larger than {mb} MB."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The search for your Exchange server asks to start again with an address in another domain, {host}."
@@ -15739,6 +15849,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "The server doesn't have the extension {ext}."
 msgstr ""
 
 #. interface
@@ -16483,6 +16598,16 @@ msgstr ""
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This character has no meaning here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This comment has no */ to end it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/people_view.rs
 msgid "This change is on this computer and goes to the server at the next Send/Receive."
@@ -16958,6 +17083,11 @@ msgid_plural "This moves {n} appointments, the earliest with a time of day to {w
 msgstr[0] ""
 msgstr[1] ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This number is too large."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "This paste needs an answer from the owner first, and this command never asks: nothing was pasted"
@@ -17063,6 +17193,11 @@ msgstr ""
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This string has no closing quote."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 msgid "This sync needs about {needed}. This phone has {free} free, and MailCraft keeps some room for the phone to go on working. Sync anyway?"
@@ -17078,6 +17213,11 @@ msgstr ""
 msgid "This task could not be read."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This text: has no line with a lone dot to end it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/address_book.rs
 msgid "This version of MailCraft can't search an address list"
@@ -17089,8 +17229,18 @@ msgid "This was copied from another mailbox than the one open now"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This { has no } to close it."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "This } has no { before it."
 msgstr ""
 
 #. name
@@ -17508,6 +17658,20 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 msgid "Unfolded"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "Unknown command {name}."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "Unknown comparator \"{name}\"."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "Unknown test {name}."
 msgstr ""
 
 #. interface
@@ -20243,6 +20407,11 @@ msgstr ""
 msgid "replies can go to at most {n} addresses"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "require goes before every other command."
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "safe"
@@ -22342,6 +22511,11 @@ msgid "{name} has declined this meeting."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} has no :{tag}."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "{name} has no Exchange server address that can be used"
 msgstr ""
@@ -22372,8 +22546,18 @@ msgid "{name} has tentatively accepted this meeting."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} has too many arguments."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "{name} is a JMAP account, and this version doesn't send and receive with one yet"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} is a command; a test belongs here."
 msgstr ""
 
 #. what a command says
@@ -22389,6 +22573,10 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "{name} is attached: it can't go in the text ({why})"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} is a test; a command belongs here."
 msgstr ""
 
 #. interface
@@ -22409,6 +22597,9 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/contacts_move.rs
 msgid "{name} is still being sent to its server: try again shortly."
+
+#: crates/engine/src/sieve_check.rs
+msgid "{name} is missing an argument."
 msgstr ""
 
 #. interface
@@ -22481,6 +22672,46 @@ msgstr ""
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a block in braces."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a list of tests in brackets."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a number here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a string here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a string or a list here."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs a test."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs one of {tags}."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} needs require \"{ext}\"."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "{name} organizes \"{title}\"."
@@ -22516,6 +22747,21 @@ msgstr ""
 msgid "{name} stays at the top of its account's folders"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} takes no block; end it with a semicolon."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} takes no test."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} takes one test, not a list."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "{name} tentatively accepted this meeting."
@@ -22534,6 +22780,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
 msgid "{name} was not attached: the files on a message can be 50 MB together."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} without an if before it."
 msgstr ""
 
 #. interface

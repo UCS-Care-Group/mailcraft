@@ -148,6 +148,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "„{title}” jest odwołane, więc nie można go dodać do zaznaczenia."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "\"{value}\" isn't a relation (gt, ge, lt, le, eq or ne)."
+msgstr "„{value}” nie jest relacją (gt, ge, lt, le, eq lub ne)."
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -447,6 +453,42 @@ msgstr "6 miesięcy"
 msgid "60 Minutes"
 msgstr "60 minut"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} can't go with :{other}."
+msgstr ":{tag} nie może występować z :{other}."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} is given twice."
+msgstr ":{tag} podano dwa razy."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} must come before the other arguments."
+msgstr ":{tag} musi stać przed pozostałymi argumentami."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a number after it."
+msgstr "Po :{tag} musi być liczba."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string after it."
+msgstr "Po :{tag} musi być ciąg znaków."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid ":{tag} needs a string or a list after it."
+msgstr "Po :{tag} musi być ciąg znaków lub lista."
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -518,6 +560,24 @@ msgstr "Punkt kodowy zapisany jako U+2192 lub 2192 albo liczba dziesiętna po zn
 #, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
 msgstr "Kalendarz współpracownika, według jego adresu, z użyciem konta służbowego lub szkolnego. Przechowywany tylko na tym komputerze"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ) was expected here."
+msgstr "Oczekiwano tu przecinka lub )."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A comma or ] was expected here."
+msgstr "Oczekiwano tu przecinka lub ]."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A command was expected here."
+msgstr "Oczekiwano tu polecenia."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -609,6 +669,12 @@ msgstr "Link z napisem {named} prowadzi do {host}."
 msgid "A link whose text is mostly characters that aren't shown goes to {host}."
 msgstr "Link, którego tekst składa się głównie z niewyświetlanych znaków, prowadzi do {host}."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A list holds only strings."
+msgstr "Lista zawiera tylko ciągi znaków."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -680,6 +746,12 @@ msgstr "Spotkania cyklicznego z pominiętymi dniami nie można stąd umieścić 
 #, fuzzy
 msgid "A message asking to unsubscribe goes from {from} to {to}, through your Outbox."
 msgstr "Wiadomość z prośbą o wypisanie zostanie wysłana z {from} do {to} przez Twoją Skrzynkę nadawczą."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A name must follow the colon."
+msgstr "Po dwukropku musi być nazwa."
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -790,6 +862,12 @@ msgid "A secure connection to the server couldn't be set up. Type the server's a
 msgstr "Nie udało się nawiązać bezpiecznego połączenia z serwerem. Wpisz adres serwera w Ustawieniach serwera."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A semicolon is missing here."
+msgstr "Brakuje tu średnika."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
@@ -830,6 +908,12 @@ msgstr "Udostępniona skrzynka pocztowa, odczytywana z użyciem logowania konta 
 #, fuzzy
 msgid "A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."
 msgstr "Krótka notatka z łączem do tej strony, do wklejenia w wiadomości e-mail lub czacie. MailCraft sam niczego nie wysyła."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "A test was expected here."
+msgstr "Oczekiwano tu testu."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9221,6 +9305,12 @@ msgstr "MailCraft nie mógł odłożyć zapisanej skrzynki pocztowej, której ni
 msgid "MailCraft doesn't delete a JMAP account's folders yet: the next Send/Receive would bring them back"
 msgstr "MailCraft nie usuwa jeszcze folderów konta JMAP: następne Wyślij/Odbierz przywróciłoby je"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "MailCraft doesn't know the extension {ext}; what it adds isn't checked."
+msgstr "MailCraft nie zna rozszerzenia {ext}; to, co dodaje, nie jest sprawdzane."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -10179,6 +10269,18 @@ msgstr "Na razie nie można poprosić o więcej wyników z serwera"
 msgid "More than one person matches \"{name}\". Choose one:"
 msgstr "Do „{name}” pasuje więcej niż jedna osoba. Wybierz jedną:"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} arguments or tests."
+msgstr "Ponad {n} argumentów lub testów."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "More than {n} commands."
+msgstr "Ponad {n} poleceń."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -10603,6 +10705,12 @@ msgstr "Wymaga włączenia opcji Sprawdzaj dostępność nowych wersji."
 #, fuzzy
 msgid "Needs Google sign-in"
 msgstr "Wymaga logowania Google"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Nested more than {n} levels deep."
+msgstr "Zagnieżdżenie głębsze niż {n} poziomów."
 
 #. name
 #: crates/ui-egui/src/theme/blue.rs
@@ -11312,6 +11420,12 @@ msgstr "Brak przypomnień do wyświetlenia."
 #, fuzzy
 msgid "No reply yet"
 msgstr "Brak odpowiedzi"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "No require here: MailCraft writes it at the top of its script."
+msgstr "Bez require tutaj: MailCraft wpisuje je na początku swojego skryptu."
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12140,6 +12254,12 @@ msgstr "Spotkanie online"
 #, fuzzy
 msgid "Only a Microsoft account signs in on the phone for now."
 msgstr "Na telefonie na razie można zalogować się tylko kontem Microsoft."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Only a comment may follow text: on its line."
+msgstr "Po text: w tym samym wierszu może być tylko komentarz."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -18888,6 +19008,18 @@ msgstr "Ta sama strona prosi też o zgodę na zmianę Twoich kontaktów, aby kon
 msgid "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
 msgstr "Ta sama strona prosi o czytanie i wysyłanie ze skrzynek udostępnionych, do których masz dostęp, oraz o czytanie udostępnionych Ci kalendarzy, aby MailCraft nie musiał pytać ponownie."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script has too many parts to check."
+msgstr "Skrypt ma zbyt wiele części, by go sprawdzić."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The script is larger than {mb} MB."
+msgstr "Skrypt jest większy niż {mb} MB."
+
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
@@ -19025,6 +19157,12 @@ msgstr "Serwer nie przyjął zmiany kontaktu {name}{why}: jest znowu taki, jak n
 #, fuzzy
 msgid "The server didn't take your sign-in. Check the account's password in Account Settings."
 msgstr "Serwer nie przyjął Twojego logowania. Sprawdź hasło konta w Ustawieniach konta."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "The server doesn't have the extension {ext}."
+msgstr "Serwer nie ma rozszerzenia {ext}."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -19919,6 +20057,18 @@ msgstr "Ta kategoria jest przypisana do większej liczby wydarzeń w kalendarzac
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "Klucz tego certyfikatu jest rodzaju, którego MailCraft nie używa: importowany jest tutaj tylko ECDSA na P-256 lub P-384."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This character has no meaning here."
+msgstr "Ten znak nic tu nie znaczy."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This comment has no */ to end it."
+msgstr "Ten komentarz nie ma zamykającego */."
+
 #. interface
 #: crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -20495,6 +20645,12 @@ msgstr[0] "To przenosi {n} termin, najwcześniejszy z godziną na {when}, a pozo
 msgstr[1] "To przenosi {n} terminy, najwcześniejszy z godziną na {when}, a pozostałe o tyle samo, w {to}."
 msgstr[2] "To przenosi {n} terminów, najwcześniejszy z godziną na {when}, a pozostałe o tyle samo, w {to}."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This number is too large."
+msgstr "Ta liczba jest za duża."
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -20621,6 +20777,12 @@ msgstr "Konto tej udostępnionej skrzynki pocztowej już nie istnieje: usuń udo
 msgid "This signature has a picture or its own layout. Change it on the computer."
 msgstr "Ten podpis zawiera obraz lub własny układ. Zmień go na komputerze."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This string has no closing quote."
+msgstr "Ten ciąg znaków nie ma zamykającego cudzysłowu."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 #, fuzzy
@@ -20639,6 +20801,12 @@ msgstr "Ten system nie ma miejsca znanego programowi MailCraft dla certyfikatów
 msgid "This task could not be read."
 msgstr "Nie udało się odczytać tego zadania."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This text: has no line with a lone dot to end it."
+msgstr "Ten text: nie ma wiersza z samą kropką, który go kończy."
+
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
@@ -20652,10 +20820,22 @@ msgid "This was copied from another mailbox than the one open now"
 msgstr "To zostało skopiowane z innej skrzynki pocztowej niż ta, która jest teraz otwarta"
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This { has no } to close it."
+msgstr "Ten { nie ma zamykającego }."
+
+#. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."
 msgstr "Ten element ({what}) przechowuje serwer {who}. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu zmieniać ani usuwać."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "This } has no { before it."
+msgstr "Przed tym } nie ma {."
 
 #. name
 #: crates/time/src/lib.rs
@@ -21174,6 +21354,24 @@ msgstr "Cofnij: {what}"
 #, fuzzy
 msgid "Unfolded"
 msgstr "Rozwinięte"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown command {name}."
+msgstr "Nieznane polecenie {name}."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown comparator \"{name}\"."
+msgstr "Nieznany komparator „{name}”."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "Unknown test {name}."
+msgstr "Nieznany test {name}."
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -24463,6 +24661,12 @@ msgstr "adres odbiorcy zawiera {words}"
 msgid "replies can go to at most {n} addresses"
 msgstr "odpowiedzi mogą trafiać najwyżej na {n} adresów"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "require goes before every other command."
+msgstr "require musi stać przed wszystkimi innymi poleceniami."
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -26980,6 +27184,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} odrzucił(a) to spotkanie."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has no :{tag}."
+msgstr "{name} nie ma :{tag}."
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "{name} has no Exchange server address that can be used"
@@ -27016,10 +27226,22 @@ msgid "{name} has tentatively accepted this meeting."
 msgstr "{name} wstępnie zaakceptował(a) to spotkanie."
 
 #. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} has too many arguments."
+msgstr "{name} ma za dużo argumentów."
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "{name} is a JMAP account, and this version doesn't send and receive with one yet"
 msgstr "{name} to konto JMAP, a ta wersja nie wysyła jeszcze i nie odbiera poczty za jego pomocą"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a command; a test belongs here."
+msgstr "{name} to polecenie; tu powinien być test."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_mail.rs
@@ -27038,6 +27260,12 @@ msgstr "{name} jest już w {folder}."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "Załączono {name}: nie można go wstawić do tekstu ({why})"
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} to test; tu powinno być polecenie."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27062,6 +27290,11 @@ msgstr "{name} jest większy niż {mb} MB"
 #, fuzzy
 msgid "{name} is still being sent to its server: try again shortly."
 msgstr "{name} jest wciąż wysyłany na swój serwer: spróbuj ponownie za chwilę."
+
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is missing an argument."
+msgstr "{name} brakuje argumentu."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -27147,6 +27380,54 @@ msgstr "{name} nie jest synchronizowany przez Microsoft Graph"
 msgid "{name} isn't waiting its turn in a Send/Receive"
 msgstr "{name} nie czeka na swoją kolej w Wyślij/Odbierz"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a block in braces."
+msgstr "{name} wymaga bloku w nawiasach klamrowych."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a list of tests in brackets."
+msgstr "{name} wymaga listy testów w nawiasach."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a number here."
+msgstr "{name} wymaga tu liczby."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string here."
+msgstr "{name} wymaga tu ciągu znaków."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a string or a list here."
+msgstr "{name} wymaga tu ciągu znaków lub listy."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs a test."
+msgstr "{name} wymaga testu."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs one of {tags}."
+msgstr "{name} wymaga jednego z {tags}."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} needs require \"{ext}\"."
+msgstr "{name} wymaga require „{ext}”."
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -27189,6 +27470,24 @@ msgstr "{name} udostępnił(a) Ci kalendarz. Znajduje się on na Twojej liście 
 msgid "{name} stays at the top of its account's folders"
 msgstr "{name} zostaje na górze folderów konta"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no block; end it with a semicolon."
+msgstr "{name} nie przyjmuje bloku; zakończ je średnikiem."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes no test."
+msgstr "{name} nie przyjmuje testu."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} takes one test, not a list."
+msgstr "{name} przyjmuje jeden test, nie listę."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -27212,6 +27511,12 @@ msgstr "Nie załączono {name}: ta aplikacja nie może odczytać tego pliku."
 #, fuzzy
 msgid "{name} was not attached: the files on a message can be 50 MB together."
 msgstr "Nie załączono {name}: pliki wiadomości mogą mieć łącznie 50 MB."
+
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} without an if before it."
+msgstr "{name} bez poprzedzającego if."
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
