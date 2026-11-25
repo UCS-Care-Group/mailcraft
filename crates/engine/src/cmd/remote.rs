@@ -899,19 +899,46 @@ pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> 
     }
 }
 
+/// Whether new events may go into `calendar`, a calendar of an account's CalDAV server (#209
+/// D6): the server said the owner may write to it and that it holds events. What it has already
+/// stays read-only here (it is never changed from here yet).
+pub(crate) fn dav_addable(mailbox: &Mailbox, calendar: Id) -> bool {
+    let Some(c) = mailbox.calendar(calendar) else { return false };
+    let Some(server) = mailbox.account(c.origin.account).and_then(|a| a.dav.as_ref()) else { return false };
+    !c.origin.id.is_empty()
+        && server.collections.iter().any(|k| {
+            k.href == c.origin.id
+                && !k.contacts
+                && !k.read_only
+                && (k.components.is_empty() || k.components.iter().any(|x| x.eq_ignore_ascii_case("VEVENT")))
+        })
+}
+
+/// [`writable`] for an event about to be made in `calendar`: also a CalDAV calendar new events
+/// may go into ([`dav_addable`]).
+pub(crate) fn writable_for_new(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> {
+    if dav_addable(mailbox, calendar) { Ok(()) } else { writable(mailbox, calendar) }
+}
+
 /// An event was made in (or put into) a calendar that a server keeps: it is that server's from
 /// now on, and the server is to be told. Nothing to do for a calendar of the mailbox's own;
 /// refused for one the account may only read.
 pub(crate) fn note_created(s: &mut Session, id: Id) -> Result<(), CmdError> {
     let mailbox = &s.mailbox;
     let Some(event) = mailbox.event(id) else { return Ok(()) };
-    writable(mailbox, event.calendar)?;
+    writable_for_new(mailbox, event.calendar)?;
+    let dav = dav_addable(mailbox, event.calendar);
     let account = mailbox.calendar(event.calendar).and_then(|calendar| keeper(mailbox, &calendar.origin)).map(|account| account.id);
     let Some(account) = account else { return Ok(()) };
     room_for_change(mailbox)?;
     let token = new_token(id, s.rev() ^ s.now().unsigned_abs().rotate_left(32));
     let mailbox = &mut s.mailbox;
-    mailbox.event_mut(id)?.origin = Origin { account, ..Default::default() };
+    let made = mailbox.event_mut(id)?;
+    made.origin = Origin { account, ..Default::default() };
+    // (A calendar server names the event by its UID, and the resource by the token.)
+    if dav && made.uid.is_empty() {
+        made.uid = token.clone();
+    }
     mailbox.event_changes.retain(|change| !(change.kind == EventChangeKind::Create && change.event == id));
     mailbox.event_changes.push(EventChange { account, kind: EventChangeKind::Create, event: id, token, ..Default::default() });
     Ok(())
@@ -1231,7 +1258,7 @@ fn says_nothing(mailbox: &Mailbox, change: &EventChange) -> bool {
 /// Take an event that can't be on a server out of the server's calendar and keep it in one of
 /// the mailbox's own (made when there is none): what the owner wrote is never thrown away.
 /// Whether it is kept so.
-fn keep_on_this_computer(mailbox: &mut Mailbox, id: Id) -> bool {
+pub(super) fn keep_on_this_computer(mailbox: &mut Mailbox, id: Id) -> bool {
     if mailbox.event(id).is_none() {
         return false;
     }
@@ -1381,6 +1408,8 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         .event_changes
         .iter()
         .filter(|change| change.account == account && change.retry_at <= now && holds(mailbox, change, &here) && !lacks_rights(mailbox, change))
+        // (One made in a calendar server's calendar goes there, not to Microsoft: `sync.davRequest`.)
+        .filter(|change| mailbox.event(change.event).is_none_or(|e| !dav_addable(mailbox, e.calendar)))
     {
         if ops.len() >= MAX_EVENT_OPS {
             break;

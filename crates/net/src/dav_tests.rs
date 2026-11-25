@@ -1238,3 +1238,55 @@ fn r6_the_generation_asked_under_comes_back_with_the_download() {
     let x = Scripted::new(|_| multistatus(""));
     assert_eq!(run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default()).generation, 3);
 }
+
+/// An event made here (#209 D6), to be put as `name` in `collection`.
+fn create(event: u64, collection: String, name: &str) -> mailcraft_model::DavCreate {
+    mailcraft_model::DavCreate { event, collection, name: name.into(), body: event_doc(name) }
+}
+
+fn event_doc(uid: &str) -> String {
+    event(uid, "20261202T090000Z")
+}
+
+#[test]
+fn a_new_event_is_put_before_the_read_and_comes_down_in_the_same_run() {
+    let s = server();
+    let work = s.collection_url("work");
+    let mut asked = ask(&s, true, Vec::new());
+    asked.creates = vec![create(41, work.clone(), "new-1")];
+    let out = read(&s, &asked);
+    assert_eq!(out.created.len(), 1);
+    let made = &out.created[0];
+    assert_eq!((made.event, made.outcome), (41, mailcraft_model::DavPut::Created));
+    assert_eq!(made.href, format!("{work}new-1.ics"));
+    assert_eq!(Some(made.etag.as_str()), s.etag_of("work", "new-1.ics").as_deref());
+    assert!(s.body_of("work", "new-1.ics").is_some_and(|b| b.contains("UID:new-1")));
+    // The read that followed brought it.
+    let read = out.collections.iter().find(|r| r.href == work).expect("the calendar was read");
+    assert!(names(read).contains(&"new-1.ics".to_string()), "{:?}", names(read));
+}
+
+#[test]
+fn a_name_the_server_has_already_is_never_overwritten_and_a_read_only_calendar_refuses() {
+    let s = server();
+    let (work, shared) = (s.collection_url("work"), s.collection_url("shared"));
+    s.put_directly("work", "taken.ics", &event("someone-else", "20261203T090000Z")).unwrap();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.creates = vec![create(1, work.clone(), "taken"), create(2, shared, "nope")];
+    let out = read(&s, &asked);
+    let outcome = |id: u64| out.created.iter().find(|c| c.event == id).map(|c| c.outcome);
+    assert_eq!(outcome(1), Some(mailcraft_model::DavPut::Exists));
+    assert_eq!(outcome(2), Some(mailcraft_model::DavPut::Refused));
+    assert!(s.body_of("work", "taken.ics").is_some_and(|b| b.contains("UID:someone-else")), "what was there stays");
+    assert_eq!(s.count("shared"), 0);
+}
+
+#[test]
+fn a_new_event_for_an_address_off_the_homes_is_never_sent() {
+    let s = server();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.creates = vec![create(5, "https://elsewhere.example.net/cal/".into(), "x")];
+    let out = read(&s, &asked);
+    assert_eq!(out.created.first().map(|c| c.outcome), Some(mailcraft_model::DavPut::NotNow));
+    assert!(s.seen().iter().all(|r| r.method != "PUT"));
+}

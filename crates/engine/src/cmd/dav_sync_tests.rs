@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Calendars down from a calendar server (#209 D5): what is asked, what is taken in, and what is
-//! never believed.
+//! never believed. And new events up to it (D6, at the end).
 
 use mailcraft_model::{DavChange, DavDownload, DavListing, DavProblem, DavRead, DavReadState, Id, Rights};
 use mailcraft_time::Date;
@@ -282,14 +282,11 @@ fn putting_the_server_away_or_changing_it_takes_what_it_gave() {
     apply(&mut s, id, Some(listing()), vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A"))], true, true, "")]);
     let calendar = s.mailbox.calendars.iter().find(|c| c.origin.account == id).unwrap().id;
     let a = s.mailbox.events.values().find(|e| e.title == "A").unwrap().id;
-    // Nothing goes up in this version, and that is what the owner is told, not that the server
-    // refused them (its listing said the calendar may be written).
+    // A new one goes up (D6); a change of one the server has doesn't yet, and that is what the
+    // owner is told, not that the server refused it (its listing said the calendar may be written).
+    s.run("calendar.new", &json!({"title": "Mine", "start": "2026-11-05T09:00", "calendar": calendar})).unwrap();
     let said = "The calendar \"Work\" is on a calendar server: this version reads it but can't send changes to it yet.";
-    for (command, params) in [
-        ("calendar.new", json!({"title": "Mine", "start": "2026-11-05T09:00", "calendar": calendar})),
-        ("calendar.edit", json!({"id": a, "title": "Mine"})),
-        ("calendar.delete", json!({"id": a})),
-    ] {
+    for (command, params) in [("calendar.edit", json!({"id": a, "title": "Mine"})), ("calendar.delete", json!({"id": a}))] {
         assert_eq!(s.run(command, &params).unwrap_err().to_string(), said, "{command}");
     }
     s.run("account.davSet", &json!({"id": id, "username": "grace"})).unwrap();
@@ -998,4 +995,96 @@ fn r7_a_whole_listing_that_empties_a_collection_keeps_no_token_so_the_next_run_l
     // Said again at the next run: now nothing is held, and they are kept.
     apply(&mut s, id, None, vec![empty]);
     assert_eq!(state(&s), ("tok-2".to_string(), "ctag-2".to_string()));
+}
+
+// ----- New events up to the server (#209 D6) -----
+
+/// The session with its calendar listed, writable, and an appointment made in it: the session,
+/// the account, the calendar and the event.
+fn made() -> (Session, Id, Id, Id) {
+    let (mut s, id) = session();
+    apply(&mut s, id, Some(listing()), vec![read(vec![], true, true, "t1")]);
+    let cal = s.mailbox.calendars.iter().find(|c| c.origin.id == COLLECTION).unwrap().id;
+    let r = s.run("calendar.new", &json!({"title": "Zahnarzt", "start": "2026-11-20T10:00", "end": "2026-11-20T11:00", "calendar": cal})).unwrap();
+    let event = r["id"].as_u64().unwrap();
+    (s, id, cal, event)
+}
+
+fn creates(s: &mut Session, id: Id) -> Vec<mailcraft_model::DavCreate> {
+    serde_json::from_value::<mailcraft_model::DavAsk>(s.run("sync.davRequest", &json!({"account": id})).unwrap()["ask"].clone()).unwrap().creates
+}
+
+fn answered(s: &mut Session, id: Id, created: Vec<mailcraft_model::DavCreated>) -> Value {
+    let server = server_of(s, id);
+    let download = DavDownload { account: id, email: "ada@example.org".into(), server, created, ..Default::default() };
+    s.run("sync.applyDav", &json!({"result": download})).unwrap()
+}
+
+fn answer(event: Id, name: &str, outcome: mailcraft_model::DavPut) -> mailcraft_model::DavCreated {
+    mailcraft_model::DavCreated { event, href: format!("{COLLECTION}{name}.ics"), etag: "\"e1\"".into(), outcome }
+}
+
+#[test]
+fn an_appointment_made_in_a_writable_server_calendar_goes_up_and_becomes_the_servers() {
+    let (mut s, id, cal, event) = made();
+    assert_eq!(s.mailbox.event(event).unwrap().calendar, cal);
+    let up = creates(&mut s, id);
+    assert_eq!(up.len(), 1);
+    assert_eq!((up[0].event, up[0].collection.as_str()), (event, COLLECTION));
+    assert!(up[0].body.contains("SUMMARY:Zahnarzt") && up[0].body.contains(&format!("UID:{}", up[0].name)), "{}", up[0].body);
+    // Not now: it waits, and is asked again.
+    answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::NotNow)]);
+    assert_eq!(creates(&mut s, id).len(), 1);
+    // Made: the server's from now on, under its address and ETag, and nothing waits.
+    let r = answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
+    assert_eq!(r["sent"], 1);
+    let e = s.mailbox.event(event).unwrap();
+    assert_eq!((e.origin.id.as_str(), e.origin.change_key.as_str()), (format!("{COLLECTION}{}.ics", up[0].name).as_str(), "\"e1\""));
+    assert!(creates(&mut s, id).is_empty());
+    // What the server has stays read-only here: it isn't changed from here yet.
+    assert!(s.run("calendar.edit", &json!({"id": event, "title": "Anders"})).is_err());
+}
+
+#[test]
+fn a_refused_appointment_is_kept_on_this_computer_and_an_answer_for_elsewhere_is_not_taken() {
+    let (mut s, id, cal, event) = made();
+    let name = creates(&mut s, id)[0].name.clone();
+    // An address outside its calendar proves nothing.
+    let mut off = answer(event, &name, mailcraft_model::DavPut::Created);
+    off.href = "https://dav.example.org/cal/ada/other/x.ics".into();
+    answered(&mut s, id, vec![off]);
+    assert!(s.mailbox.event(event).unwrap().origin.id.is_empty());
+    let r = answered(&mut s, id, vec![answer(event, &name, mailcraft_model::DavPut::Refused)]);
+    assert_eq!(r["refused"], json!(["Zahnarzt"]));
+    let e = s.mailbox.event(event).unwrap();
+    assert_ne!(e.calendar, cal, "kept in a calendar on this computer");
+    assert_eq!(e.origin.account, 0);
+    assert!(creates(&mut s, id).is_empty());
+}
+
+#[test]
+fn meetings_and_changes_to_the_servers_events_stay_refused() {
+    let (mut s, id, cal, _) = made();
+    let meeting = s.run(
+        "calendar.new",
+        &json!({"title": "Treffen", "start": "2026-11-21T10:00", "end": "2026-11-21T11:00", "calendar": cal, "attendees": "bo@example.org", "send": true}),
+    );
+    assert!(meeting.is_err());
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 22, "Vom Server"))], false, true, "t2")]);
+    let theirs = s.mailbox.events.values().find(|e| e.title == "Vom Server").unwrap().id;
+    assert!(s.run("calendar.edit", &json!({"id": theirs, "title": "Anders"})).is_err());
+    // A read-only calendar of the server takes nothing new either.
+    let mut ro = listing();
+    ro.calendars[0].read_only = true;
+    apply(&mut s, id, Some(ro), vec![]);
+    assert!(s.run("calendar.new", &json!({"title": "Nein", "start": "2026-11-23T10:00", "end": "2026-11-23T11:00", "calendar": cal})).is_err());
+}
+
+#[test]
+fn an_unsent_appointment_stays_the_owners_when_the_server_is_put_away() {
+    let (mut s, id, _, event) = made();
+    s.run("account.davOff", &json!({"id": id})).unwrap();
+    let e = s.mailbox.event(event).expect("still here");
+    assert_eq!(e.origin.account, 0);
+    assert!(!s.mailbox.event_changes.iter().any(|c| c.event == event));
 }

@@ -89,6 +89,57 @@ pub struct DavAsk {
     /// The account's settings were put away or changed this many times this session: handed
     /// back in the download, so that one read before an off and on again is not taken in.
     pub generation: u64,
+    /// Events made here that the server is to be given, before anything is read (D6): each is
+    /// put with `If-None-Match: *`, so that one the server has already is never overwritten.
+    pub creates: Vec<DavCreate>,
+}
+
+/// One event made here, for its calendar server: the document to put as `name` (`<name>.ics`)
+/// in `collection`. Its `Debug` shows neither address nor document.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavCreate {
+    pub event: Id,
+    pub collection: String,
+    pub name: String,
+    pub body: String,
+}
+
+impl std::fmt::Debug for DavCreate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavCreate").field("event", &self.event).finish()
+    }
+}
+
+/// What a server made of a [`DavCreate`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavPut {
+    /// It took the document (201, 204).
+    Created,
+    /// It has one under that name already (412): a put of this event that went before.
+    Exists,
+    /// It won't take it (403, 409, 413, 507 and the like): asking again won't help.
+    Refused,
+    /// Not now (no answer, a server error, the run's limits): it is asked again.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavCreate`]: where the resource is and its ETag (empty: none given).
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavCreated {
+    pub event: Id,
+    pub href: String,
+    pub etag: String,
+    pub outcome: DavPut,
+}
+
+impl std::fmt::Debug for DavCreated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavCreated").field("event", &self.event).field("outcome", &self.outcome).finish()
+    }
 }
 
 impl std::fmt::Debug for DavAsk {
@@ -238,6 +289,8 @@ pub struct DavDownload {
     /// Addresses of the server's that were left unread: off its origin, or not inside the
     /// collection they were named under.
     pub skipped: u32,
+    /// What became of the events the request gave to be made there ([`DavAsk::creates`]).
+    pub created: Vec<DavCreated>,
 }
 
 impl std::fmt::Debug for DavDownload {

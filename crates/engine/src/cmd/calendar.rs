@@ -508,7 +508,14 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
             "{who} invited to this meeting, and {TELLS_INVITE} Nothing was made. Say \"send\": true to invite them, or \"send\": false to keep the meeting on this computer and invite nobody."
         )));
     }
-    if served(s, e.calendar) {
+    if remote::dav_addable(&s.mailbox, e.calendar) {
+        // A calendar server may send invitations by itself: a meeting isn't made there from here.
+        if !e.attendees.is_empty() || e.online.is_some() {
+            return Err(fail(
+                "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer.",
+            ));
+        }
+    } else if served(s, e.calendar) {
         fits_server(s, &e)?;
         // The account whose calendar it is organizes it.
         let owner = s.mailbox.calendar(e.calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address());
