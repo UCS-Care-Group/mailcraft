@@ -8242,6 +8242,12 @@ msgstr "A jegyzetek és naplóbejegyzések megőrzése"
 msgid "Keep this one"
 msgstr "Tartsd meg ezt."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "A személy tárolási helye"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8320,6 +8326,18 @@ msgstr "Helye: {path}. A módosításokat a MailCraft automatikusan menti."
 msgid "Kept in: {folder}"
 msgstr "Helye: {folder}"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "Tárolás helye: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "Tárolás helye: {place} (csak olvasható)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8331,12 +8349,6 @@ msgstr "Csak ezen a számítógépen tárolva"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Csak ezen a számítógépen maradt: meghívók és ismétlődő események még nem kerülnek a szerverre"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "Csak ezen a telefonon marad meg: nem kerül a fiókjába."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11220,8 +11232,8 @@ msgstr "Még nincs beolvasva."
 msgid "Not saved"
 msgstr "Nem mentve"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Not sent yet"
 msgstr "Még nincs elküldve"
@@ -19844,7 +19856,7 @@ msgid "This person could not be read."
 msgstr "Ezt a névjegyet nem sikerült beolvasni."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "Ez a telefon"
@@ -27449,6 +27461,10 @@ msgstr "−Sorok"
 #, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Csak olvasható"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "Csak ezen a telefonon marad meg: nem kerül a fiókjába."
 
 #, fuzzy
 #~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."

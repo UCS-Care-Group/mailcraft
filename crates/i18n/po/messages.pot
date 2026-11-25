@@ -6846,6 +6846,11 @@ msgstr ""
 msgid "Keep this one"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+msgid "Keep this person in"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Keep this rule on an account's server: choose which. It then runs there whether MailCraft is open or not, for that account's mail"
@@ -6911,6 +6916,16 @@ msgstr ""
 msgid "Kept in: {folder}"
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+msgid "Kept in: {place}"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+msgid "Kept in: {place} (read only)"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Kept on this computer only"
@@ -6919,11 +6934,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
-msgstr ""
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-msgid "Kept on this phone only: it is not sent to your account."
 msgstr ""
 
 #. interface
@@ -9313,8 +9323,8 @@ msgstr ""
 msgid "Not saved"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt crates/ui-egui/src/people_view.rs
 msgid "Not sent yet"
 msgstr ""
 
@@ -16479,7 +16489,7 @@ msgid "This person could not be read."
 msgstr ""
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 msgid "This phone"
 msgstr ""
 

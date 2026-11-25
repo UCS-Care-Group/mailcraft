@@ -48,6 +48,12 @@ internal data class PersonCard(
     val emails: List<ContactLine>,
     val phones: List<ContactLine>,
     val addresses: List<ContactLine>,
+    /** The contacts folder it is kept in, as the core names it; empty for this phone. */
+    val keptIn: String = "",
+    /** The account may only read that folder. */
+    val readOnly: Boolean = false,
+    /** A change to the person waits to go to the account's server. */
+    val notSent: Boolean = false,
 ) {
     /** The job and the company on one line, as far as the card says them. */
     val subtitle: String get() = listOf(title, department, company).filter { it.isNotBlank() }.joinToString(" · ")
@@ -84,6 +90,9 @@ internal fun personCard(detail: PersonDetail): PersonCard = PersonCard(
     emails = detail.emails.map(::line),
     phones = detail.phones.map(::line),
     addresses = detail.addresses.map(::line),
+    keptIn = detail.folderName,
+    readOnly = detail.readOnly,
+    notSent = detail.notSent,
 )
 
 internal fun peopleList(window: PeopleWindow): PeopleList =

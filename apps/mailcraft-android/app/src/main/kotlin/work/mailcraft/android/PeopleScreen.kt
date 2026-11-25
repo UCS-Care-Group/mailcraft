@@ -56,6 +56,8 @@ internal class PeopleData(
     val editor: PersonDraft? = null,
     /** A new person on its way to the core. */
     val busy: Boolean = false,
+    /** Where a new person can go; null until the core has said. */
+    val places: PersonPlaces? = null,
 )
 
 /** What the People tab asks of the app. */
@@ -202,7 +204,7 @@ private fun PersonPane(texts: Texts, data: PeopleData, actions: PeopleActions, s
         }
         val editor = data.editor
         if (editor != null) {
-            PersonEditor(texts, editor, data.busy, actions.form)
+            PersonEditor(texts, editor, data.places, data.busy, actions.form)
             return@Column
         }
         when (val person = data.person) {
@@ -230,6 +232,7 @@ private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
                 modifier = Modifier.padding(horizontal = Gutter),
             )
         }
+        KeptIn(texts, card, Gutter)
         LinesSection(texts.t("Email"), card.emails, texts.t("Write"), actions.onMail) { mailtoLink(it) != null }
         LinesSection(texts.t("Phone"), card.phones, texts.t("Call"), actions.onCall) { dialLink(it) != null }
         LinesSection(texts.t("Address"), card.addresses, null, {}) { false }

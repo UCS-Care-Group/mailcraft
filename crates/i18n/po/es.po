@@ -8247,6 +8247,12 @@ msgstr "Conservar las notas y las entradas del diario"
 msgid "Keep this one"
 msgstr "Conservar este"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "Guardar esta persona en"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8325,6 +8331,18 @@ msgstr "Se guarda en {path} a medida que trabaja."
 msgid "Kept in: {folder}"
 msgstr "Guardado en: {folder}"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "Guardado en: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "Guardado en: {place} (solo lectura)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8336,12 +8354,6 @@ msgstr "Guardada solo en este equipo"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Solo se guarda en este equipo: las invitaciones y los eventos periódicos aún no se envían al servidor"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "Se guarda solo en este teléfono: no se envía a tu cuenta."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11228,8 +11240,8 @@ msgstr "Aún no se ha leído."
 msgid "Not saved"
 msgstr "Sin guardar"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt crates/ui-egui/src/people_view.rs
 #, fuzzy
 msgid "Not sent yet"
 msgstr "Aún no enviado"
@@ -19850,7 +19862,7 @@ msgid "This person could not be read."
 msgstr "No se pudo leer esta persona."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "Este teléfono"
@@ -27450,6 +27462,10 @@ msgstr "−Líneas"
 #, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Solo lectura"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "Se guarda solo en este teléfono: no se envía a tu cuenta."
 
 #, fuzzy
 #~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."

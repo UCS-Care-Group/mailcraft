@@ -3473,24 +3473,19 @@ mod contact {
         });
     }
 
-    /// The contacts folder a new contact goes in: those of each account it can go in, then On
-    /// this computer. Unpicked, it shows where `people.new` puts it by itself.
     /// Where a new contact goes, `picked` or by itself: the folder (0: On this computer; `None`:
     /// the account's main folder, made when the contact is) and its account (0: none).
     pub(super) fn destination(s: &Session, picked: Option<Id>) -> (Option<Id>, Id) {
-        use mailcraft_engine::cmd::contacts_remote::{NewHome, home, new_contact_default};
-        let mailbox = &s.mailbox;
-        let account_of = |f: Id| home(mailbox, f).map_or(0, |f| f.account);
-        match picked.map(NewHome::Folder).unwrap_or_else(|| new_contact_default(s)) {
-            NewHome::Folder(f) => (Some(f), account_of(f)),
-            NewHome::Main(account) => match mailbox.main_contact_folder(account) {
-                Some(main) if mailbox.contact_folder(main).is_some_and(|f| f.writable) => (Some(main), account),
-                Some(_) => (Some(0), 0),
-                None => (None, account),
-            },
+        use mailcraft_engine::cmd::contacts_remote::{default_contact_folder, home};
+        let account_of = |f: Id| home(&s.mailbox, f).map_or(0, |f| f.account);
+        match picked.map(Ok).unwrap_or_else(|| default_contact_folder(s)) {
+            Ok(f) => (Some(f), account_of(f)),
+            Err(account) => (None, account),
         }
     }
 
+    /// The contacts folder a new contact goes in: those of each account it can go in, then On
+    /// this computer. Unpicked, it shows where `people.new` puts it by itself.
     fn folder_combo(ui: &mut Ui, app: &MailApp, folder: &mut Option<Id>) {
         let mailbox = &app.session.mailbox;
         let name = |f: Id| crate::people_view::folder_name(mailbox, f);

@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::{shown_folder, sorted};
 use crate::Session;
-use crate::cmd::contacts_remote::{NewHome, new_contact_default};
+use crate::cmd::contacts_remote::default_contact_folder;
 use crate::cmd::remote::apply_contacts;
 
 const NOW: i64 = 1_790_000_000;
@@ -77,16 +77,16 @@ fn a_contact_picked_elsewhere_moves_the_list_off_the_folder() {
 
 #[test]
 fn a_new_contact_goes_in_the_folder_shown_unless_it_can_only_be_read() {
-    let (mut s, account, [main, friends, shared]) = session();
+    let (mut s, _, [main, friends, shared]) = session();
     // One account: its main folder.
-    assert_eq!(new_contact_default(&s), NewHome::Main(account));
+    assert_eq!(default_contact_folder(&s), Ok(main));
     run(&mut s, "view.peopleFolder", json!({"value": friends}));
-    assert_eq!(new_contact_default(&s), NewHome::Folder(friends));
+    assert_eq!(default_contact_folder(&s), Ok(friends));
     let made = run(&mut s, "people.new", json!({"first": "Nia"}));
     assert_eq!(made["folder"], json!(friends));
     // A folder that can only be read: as if none were shown.
     run(&mut s, "view.peopleFolder", json!({"value": shared}));
-    assert_eq!(new_contact_default(&s), NewHome::Main(account));
+    assert_eq!(default_contact_folder(&s), Ok(main));
     assert_eq!(run(&mut s, "people.new", json!({"first": "Ola"}))["folder"], json!(main));
 }
 
