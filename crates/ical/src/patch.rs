@@ -75,6 +75,12 @@ fn is_event(path: &[String]) -> bool {
     path.len() == 2 && path.first().is_some_and(|c| c == "VCALENDAR") && path.get(1).is_some_and(|c| c == "VEVENT")
 }
 
+/// Whether a group is a line of one of the event's alarms, or begins or ends one.
+fn in_alarm(g: &Group<'_>, path: &[String]) -> bool {
+    path.get(2).is_some_and(|c| c == "VALARM")
+        || (is_event(path) && matches!(g.name.as_str(), "BEGIN" | "END") && value(g).eq_ignore_ascii_case("VALARM"))
+}
+
 fn events(groups: &[Group<'_>]) -> usize {
     groups.iter().filter(|g| g.name == "BEGIN" && value(g).eq_ignore_ascii_case("VEVENT")).count()
 }
@@ -108,17 +114,21 @@ fn zones(groups: &[Group<'_>], paths: &[Vec<String>]) -> Vec<(String, std::ops::
 
 /// `raw` (the server's document of one event) with the event's [`REPLACED`] properties taken from
 /// `fresh` (a document [`crate::write_in`] made of the event as it is now), its `SEQUENCE` one
-/// higher, and the zones `fresh` names that `raw` lacks added; everything else as it came. `None`
-/// when either is not a whole calendar of exactly one event (a series with changed occurrences is
-/// not changed this way).
-pub fn patch_event(raw: &str, fresh: &str) -> Option<String> {
+/// higher, and the zones `fresh` names that `raw` lacks added; everything else as it came. `also`
+/// names more of the event's properties to take from `fresh` (what else changed: `CATEGORIES`,
+/// `RRULE`…); `VALARM` takes its alarms, the old ones all dropped. `None` when either is not a
+/// whole calendar of exactly one event (a series with changed occurrences is not changed this way).
+pub fn patch_event(raw: &str, fresh: &str, also: &[&str]) -> Option<String> {
     let (old, new) = (groups(raw)?, groups(fresh)?);
     let (old_paths, new_paths) = (paths(&old)?, paths(&new)?);
     if events(&old) != 1 || events(&new) != 1 {
         return None;
     }
-    let taken: Vec<&Group<'_>> =
-        new.iter().zip(&new_paths).filter(|(g, p)| is_event(p) && REPLACED.contains(&g.name.as_str())).map(|(g, _)| g).collect();
+    let alarms = also.contains(&"VALARM");
+    let wanted = |g: &Group<'_>, p: &[String]| {
+        (alarms && in_alarm(g, p)) || (is_event(p) && (REPLACED.contains(&g.name.as_str()) || also.contains(&g.name.as_str())))
+    };
+    let taken: Vec<&Group<'_>> = new.iter().zip(&new_paths).filter(|(g, p)| wanted(g, p)).map(|(g, _)| g).collect();
     let have: Vec<String> = zones(&old, &old_paths).into_iter().map(|(tzid, _)| tzid).collect();
     let missing: Vec<std::ops::Range<usize>> =
         zones(&new, &new_paths).into_iter().filter(|(tzid, _)| !tzid.is_empty() && !have.contains(tzid)).map(|(_, r)| r).collect();
@@ -150,7 +160,7 @@ pub fn patch_event(raw: &str, fresh: &str) -> Option<String> {
             }
             push(&format!("SEQUENCE:{sequence}"));
         }
-        let replaced = is_event(path) && (REPLACED.contains(&g.name.as_str()) || g.name == "SEQUENCE");
+        let replaced = wanted(g, path) || (is_event(path) && g.name == "SEQUENCE");
         if !replaced {
             for line in &g.lines {
                 push(line);

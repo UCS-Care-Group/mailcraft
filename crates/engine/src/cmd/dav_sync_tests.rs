@@ -1069,8 +1069,8 @@ fn meetings_and_changes_to_the_servers_events_stay_refused() {
     assert!(meeting.is_err());
     apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"1\"", &event("a", 22, "Vom Server"))], false, true, "t2")]);
     let theirs = s.mailbox.events.values().find(|e| e.title == "Vom Server").unwrap().id;
-    // (Its reminder, which isn't written to the server from here, stays refused.)
-    assert!(s.run("calendar.reminder", &json!({"id": theirs, "minutes": 30})).is_err());
+    // (How it shows, which isn't written to the server from here, stays refused.)
+    assert!(s.run("calendar.showAs", &json!({"id": theirs, "value": "free"})).is_err());
     // A read-only calendar of the server takes nothing new either.
     let mut ro = listing();
     ro.calendars[0].read_only = true;
@@ -1149,6 +1149,8 @@ fn one_day_of_a_series_or_a_meeting_on_the_server_is_not_deleted_from_here() {
     let serie = s.mailbox.events.values().find(|e| e.title == "Serie").unwrap().id;
     assert!(s.run("calendar.delete", &json!({"id": serie, "occurrence": "2026-11-24"})).is_err());
     assert!(deletes(&mut s, id).is_empty());
+    // Nor is the series changed from here yet.
+    assert!(s.run("calendar.edit", &json!({"id": serie, "title": "Anders"})).is_err());
 }
 
 /// A server event with what MailCraft doesn't read, in a writable calendar, read in with a
@@ -1212,13 +1214,20 @@ fn a_change_the_server_refused_is_put_back_and_one_changed_there_waits_for_the_r
 }
 
 #[test]
-fn only_title_time_place_and_description_of_a_servers_event_change_from_here() {
-    let (mut s, _, e, dir) = theirs_kept("only");
+fn what_mailcraft_knows_of_a_servers_event_changes_from_here_and_the_rest_is_refused() {
+    let (mut s, id, e, dir) = theirs_kept("only");
     let before = s.mailbox.event(e).unwrap().clone();
-    assert!(s.run("calendar.reminder", &json!({"id": e, "minutes": 30})).is_err());
     assert!(s.run("calendar.showAs", &json!({"id": e, "value": "free"})).is_err());
     assert_eq!(s.mailbox.event(e).unwrap(), &before, "a refused change leaves it as it was");
     assert!(s.run("calendar.move", &json!({"id": e, "start": "2026-11-22T14:00"})).is_ok(), "its time may move");
+    s.run("calendar.reminder", &json!({"id": e, "minutes": 30})).unwrap();
+    s.run("calendar.edit", &json!({"id": e, "categories": ["Arbeit"], "private": true})).unwrap();
+    let up = updates(&mut s, id);
+    let body = &up[0].body;
+    for now in ["TRIGGER:-PT30M", "CATEGORIES:Arbeit", "CLASS:PRIVATE", "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC"] {
+        assert!(body.contains(now), "{now}:\n{body}");
+    }
+    assert!(!body.contains("TRIGGER:-PT15M") && body.matches("BEGIN:VALARM").count() == 1, "the new reminder instead of the old:\n{body}");
     let _ = std::fs::remove_dir_all(dir);
 }
 

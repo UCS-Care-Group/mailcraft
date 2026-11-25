@@ -14,7 +14,7 @@ const FRESH: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//MailCraft//Mail
 
 #[test]
 fn only_what_changed_is_replaced_and_everything_else_stays_as_it_came() {
-    let out = patch_event(RAW, FRESH).unwrap();
+    let out = patch_event(RAW, FRESH, &[]).unwrap();
     for kept in [
         "X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC",
         "ATTACH;FMTTYPE=application/pdf:https://example.org/a-very-long-address-that-is-folded-over\r\n -two-lines.pdf",
@@ -42,22 +42,44 @@ fn only_what_changed_is_replaced_and_everything_else_stays_as_it_came() {
 }
 
 #[test]
+fn what_else_changed_is_taken_too_and_new_alarms_replace_the_old() {
+    let fresh = FRESH.replace(
+        "END:VEVENT",
+        "CATEGORIES:Arbeit\r\nCLASS:PRIVATE\r\nRRULE:FREQ=WEEKLY\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Reminder\r\nTRIGGER:-PT30M\r\nEND:VALARM\r\nEND:VEVENT",
+    );
+    let raw = RAW.replace("SEQUENCE:3", "SEQUENCE:3\r\nCATEGORIES:Alt\r\nRRULE:FREQ=DAILY");
+    let out = patch_event(&raw, &fresh, &["CATEGORIES", "CLASS", "RRULE", "VALARM"]).unwrap();
+    for (now, gone) in [("CATEGORIES:Arbeit", "CATEGORIES:Alt"), ("RRULE:FREQ=WEEKLY", "RRULE:FREQ=DAILY"), ("TRIGGER:-PT30M", "TRIGGER:-PT15M")] {
+        assert!(out.contains(now) && !out.contains(gone), "{now} instead of {gone}:\n{out}");
+    }
+    assert!(out.contains("CLASS:PRIVATE"));
+    assert_eq!(out.matches("BEGIN:VALARM").count(), 1);
+    assert_eq!(out.matches("END:VALARM").count(), 1);
+    // Not named: what the server has stays.
+    let out = patch_event(&raw, &fresh, &[]).unwrap();
+    assert!(out.contains("CATEGORIES:Alt") && out.contains("TRIGGER:-PT15M") && !out.contains("CLASS:"));
+    // Taken away: the alarm is gone.
+    let out = patch_event(&raw, FRESH, &["VALARM"]).unwrap();
+    assert!(!out.contains("VALARM"), "{out}");
+}
+
+#[test]
 fn a_document_of_more_than_one_event_or_out_of_order_is_not_changed() {
     let two = RAW.replace(
         "END:VEVENT\r\nEND:VCALENDAR",
         "END:VEVENT\r\nBEGIN:VEVENT\r\nUID:abc-1\r\nRECURRENCE-ID:20261208T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR",
     );
-    assert!(patch_event(&two, FRESH).is_none());
-    assert!(patch_event("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nEND:VCALENDAR\r\n", FRESH).is_none());
-    assert!(patch_event(" folded first\r\n", FRESH).is_none());
-    assert!(patch_event(RAW, "").is_none());
+    assert!(patch_event(&two, FRESH, &[]).is_none());
+    assert!(patch_event("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nEND:VCALENDAR\r\n", FRESH, &[]).is_none());
+    assert!(patch_event(" folded first\r\n", FRESH, &[]).is_none());
+    assert!(patch_event(RAW, "", &[]).is_none());
 }
 
 proptest! {
     #[test]
     fn any_text_never_panics(raw in ".{0,400}", fresh in ".{0,400}") {
-        let _ = patch_event(&raw, &fresh);
-        let _ = patch_event(&raw, FRESH);
-        let _ = patch_event(RAW, &fresh);
+        let _ = patch_event(&raw, &fresh, &[]);
+        let _ = patch_event(&raw, FRESH, &[]);
+        let _ = patch_event(RAW, &fresh, &[]);
     }
 }

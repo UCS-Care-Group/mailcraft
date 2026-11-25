@@ -922,10 +922,10 @@ pub(crate) fn dav_addable(mailbox: &Mailbox, calendar: Id) -> bool {
         })
 }
 
-/// Whether a calendar server's event may become `after` from here (#209 D6): only its title,
-/// time, place and description, written into the document the server sent, which keeps
-/// everything else as it was; not a series, nor a meeting (the server could send updates by
-/// itself), nor a move to another calendar.
+/// Whether a calendar server's event may become `after` from here (#209 D6): what MailCraft
+/// knows of it (title, time, place, description, reminder, categories, private), written into the
+/// document the server sent, which keeps everything else as it was; not a series, nor a meeting
+/// (the server could send updates by itself), nor a move to another calendar.
 pub(crate) fn dav_changeable(before: &Event, after: &Event) -> Result<(), CmdError> {
     if before.recurrence.is_some() || !before.origin.series.is_empty() || !before.attendees.is_empty() || before.origin.guest {
         return Err(fail("A series or a meeting on a calendar server can't be changed from here yet: change it on the server."));
@@ -935,9 +935,10 @@ pub(crate) fn dav_changeable(before: &Event, after: &Event) -> Result<(), CmdErr
     (same.start, same.end, same.all_day) = (before.start, before.end, before.all_day);
     (same.start_zone, same.end_zone) = (before.start_zone.clone(), before.end_zone.clone());
     (same.start_repeated, same.end_repeated) = (before.start_repeated, before.end_repeated);
+    (same.reminder_minutes, same.categories, same.private) = (before.reminder_minutes, before.categories.clone(), before.private);
     if same != *before {
         return Err(fail(
-            "On a calendar server only an appointment's title, time, location and description can be changed from here yet: change the rest on the server.",
+            "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server.",
         ));
     }
     Ok(())

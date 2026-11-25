@@ -197,8 +197,25 @@ fn updates(s: &Session, account: Id, collections: &[DavAskCollection]) -> Vec<Da
         let Some(raw) = crate::dav_raw::read(file, account, &change.remote) else { continue };
         let opts = mailcraft_ical::WriteOptions { method: String::new(), now };
         let fresh = mailcraft_ical::write_in(&[event], &[], &opts, Some(s.zone()));
-        let Some(body) = mailcraft_ical::patch_event(&raw, &fresh) else { continue };
+        let base = change.base.as_deref().unwrap_or(event);
+        let Some(body) = mailcraft_ical::patch_event(&raw, &fresh, &also_changed(base, event)) else { continue };
         out.push(DavUpdate { collection: collection.href.clone(), href: change.remote.clone(), etag, body });
+    }
+    out
+}
+
+/// The properties of the event, besides those always written anew, that differ from what its
+/// server has (`base`): only those are taken from MailCraft's document of it.
+fn also_changed(base: &Event, now: &Event) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    if base.categories != now.categories {
+        out.push("CATEGORIES");
+    }
+    if base.private != now.private {
+        out.push("CLASS");
+    }
+    if base.reminder_minutes != now.reminder_minutes {
+        out.push("VALARM");
     }
     out
 }
