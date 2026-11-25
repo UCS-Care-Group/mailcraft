@@ -17453,6 +17453,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "Le test de connexion vérifie seulement que ce serveur répond. S'il demande tout de même une connexion, le premier message envoyé vous le dira."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "Les modifications de contacts envoyées n'ont pas pu être notées : {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18172,6 +18178,12 @@ msgstr "Les règles du serveur n'ont pas pu être reprises : {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Les règles envoyées n'ont pas pu être enregistrées : {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "La même page demande aussi à modifier vos contacts, pour que les contacts que vous créez, modifiez ou supprimez ici aillent aussi sur son serveur."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20811,6 +20823,12 @@ msgstr "En attente de l’enregistrement Google de MailCraft"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "L'attente de l'approbation s'est arrêtée de façon inattendue"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "En attente de votre autorisation pour modifier les contacts de ce compte sur son serveur : Fichier › Informations › Redemander"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

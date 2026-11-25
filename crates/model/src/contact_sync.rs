@@ -21,7 +21,7 @@ use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::remote::{RemoteContact, key, line, mailbox};
-use crate::{Account, Contact, Id, MAX_NAME};
+use crate::{Account, Contact, Id, Labeled, MAX_NAME, PostalAddress};
 
 /// Most contacts folders kept of one account.
 pub const MAX_CONTACT_FOLDERS: usize = 250;
@@ -478,4 +478,110 @@ fn is_false(b: &bool) -> bool {
 
 fn is_no_status(s: &u16) -> bool {
     *s == 0
+}
+
+/// Where Microsoft Graph keeps a contact's lists (#1917): three e-mail addresses; one mobile, two
+/// home and two business numbers; one business, one home and one other postal address; one web
+/// page. Each is the position of the entry in the contact's own list (empty ones have none). What
+/// has no place there isn't sent, and stays on this computer ([`keep_graph_overflow`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GraphPlaces {
+    pub emails: Vec<usize>,
+    pub mobile: Option<usize>,
+    pub home_phones: Vec<usize>,
+    pub business_phones: Vec<usize>,
+    pub business_address: Option<usize>,
+    pub home_address: Option<usize>,
+    pub other_address: Option<usize>,
+    pub website: Option<usize>,
+}
+
+/// Graph's places for `emails`, `phones`, `addresses` and `websites`, in their order: the first
+/// three addresses; the first mobile (or cell) number, the first two home ones, the first two of
+/// the rest that aren't mobile; the first work (or business) address, the first home one, and the
+/// first of the others; the first web page.
+pub fn graph_places(emails: &[Labeled], phones: &[Labeled], addresses: &[PostalAddress], websites: &[String]) -> GraphPlaces {
+    let is = |label: &str, kinds: &[&str]| kinds.iter().any(|kind| label.trim().eq_ignore_ascii_case(kind));
+    let filled = |list: &[Labeled]| {
+        list.iter().enumerate().filter(|(_, e)| !e.value.trim().is_empty()).map(|(at, e)| (at, e.label.clone())).collect::<Vec<_>>()
+    };
+    let phones = filled(phones);
+    let mobile = phones.iter().find(|(_, label)| is(label, &["mobile", "cell"])).map(|(at, _)| *at);
+    let home_phones = phones.iter().filter(|(_, label)| is(label, &["home"])).take(2).map(|(at, _)| *at).collect();
+    let business_phones = phones.iter().filter(|(_, label)| !is(label, &["home", "mobile", "cell"])).take(2).map(|(at, _)| *at).collect();
+    let business_address = addresses.iter().position(|a| is(&a.label, &["work", "business"]));
+    let home_address = addresses.iter().position(|a| is(&a.label, &["home"]));
+    let other_address = (0..addresses.len()).find(|at| Some(*at) != business_address && Some(*at) != home_address);
+    GraphPlaces {
+        emails: filled(emails).into_iter().take(3).map(|(at, _)| at).collect(),
+        mobile,
+        home_phones,
+        business_phones,
+        business_address,
+        home_address,
+        other_address,
+        website: websites.iter().position(|w| !w.trim().is_empty()),
+    }
+}
+
+/// `fresh`, a contact as Graph just sent it, given back what `old` (the same contact here) has that
+/// Graph has no place for ([`graph_places`]), after the server's own: so a fourth e-mail address,
+/// another mobile number or a second web page kept here isn't lost to a server that can't hold
+/// it. (Those the server has already are not doubled.)
+///
+/// Returns the server's copy to compare it with: `fresh` as Graph sent it, with those of the
+/// kept entries that still have no place. One that has a place now (the server let one go) is
+/// then a change to send, so that the server holds it from now on and it isn't taken for one the
+/// server deleted on the next read.
+pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) -> Contact {
+    let server = fresh.clone();
+    let places = graph_places(&old.emails, &old.phones, &old.addresses, &old.websites);
+    let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
+    for (at, email) in old.emails.iter().enumerate() {
+        if !email.value.trim().is_empty() && !places.emails.contains(&at) && !fresh.emails.iter().any(|e| same(&e.value, &email.value)) {
+            fresh.emails.push(email.clone());
+        }
+    }
+    let placed_phone =
+        |places: &GraphPlaces, at: usize| places.mobile == Some(at) || places.home_phones.contains(&at) || places.business_phones.contains(&at);
+    for (at, phone) in old.phones.iter().enumerate() {
+        if !phone.value.trim().is_empty() && !placed_phone(&places, at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
+            fresh.phones.push(phone.clone());
+        }
+    }
+    let placed_address = |places: &GraphPlaces, at: usize| [places.business_address, places.home_address, places.other_address].contains(&Some(at));
+    for (at, address) in old.addresses.iter().enumerate() {
+        if !placed_address(&places, at) && !fresh.addresses.contains(address) {
+            fresh.addresses.push(address.clone());
+        }
+    }
+    for (at, site) in old.websites.iter().enumerate() {
+        if !site.trim().is_empty() && places.website != Some(at) && !fresh.websites.iter().any(|w| same(w, site)) {
+            fresh.websites.push(site.clone());
+        }
+    }
+    // The server's copy: what it sent, and what was kept that has no place even now.
+    let now = graph_places(&fresh.emails, &fresh.phones, &fresh.addresses, &fresh.websites);
+    let mut base = server;
+    for at in base.emails.len()..fresh.emails.len() {
+        if let Some(e) = fresh.emails.get(at).filter(|_| !now.emails.contains(&at)) {
+            base.emails.push(e.clone());
+        }
+    }
+    for at in base.phones.len()..fresh.phones.len() {
+        if let Some(p) = fresh.phones.get(at).filter(|_| !placed_phone(&now, at)) {
+            base.phones.push(p.clone());
+        }
+    }
+    for at in base.addresses.len()..fresh.addresses.len() {
+        if let Some(a) = fresh.addresses.get(at).filter(|_| !placed_address(&now, at)) {
+            base.addresses.push(a.clone());
+        }
+    }
+    for at in base.websites.len()..fresh.websites.len() {
+        if let Some(w) = fresh.websites.get(at).filter(|_| now.website != Some(at)) {
+            base.websites.push(w.clone());
+        }
+    }
+    base
 }

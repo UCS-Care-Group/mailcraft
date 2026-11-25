@@ -17583,6 +17583,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "Testul conexiunii verifică doar dacă acest server răspunde. Dacă totuși cere autentificare, primul mesaj pe care îl trimiteți vă va spune."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "Modificările de contacte trimise nu au putut fi notate: {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18304,6 +18310,12 @@ msgstr "Regulile de pe server nu au putut fi preluate: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Regulile trimise nu au putut fi înregistrate: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "Aceeași pagină cere și permisiunea de a vă modifica persoanele de contact, ca persoanele de contact create, modificate sau șterse aici să ajungă și pe serverul său."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20973,6 +20985,12 @@ msgstr "Se așteaptă înregistrarea Google a MailCraft"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Așteptarea aprobării s-a oprit neașteptat"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Se așteaptă permisiunea dvs. de a modifica persoanele de contact ale acestui cont pe serverul său: Fișier › Informații › Întrebați din nou"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

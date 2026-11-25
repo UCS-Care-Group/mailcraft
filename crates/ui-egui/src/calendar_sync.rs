@@ -258,6 +258,11 @@ impl MailApp {
         if result.shared_calendars_consent_needed {
             self.shared_calendars_consent(account);
         }
+        // Contact changes that the sign-in doesn't let go up wait, and say why; the owner is asked
+        // the one question (#1917), unless a dialog is up or it went unanswered already.
+        if result.contacts_consent_needed && self.dialog.is_none() && self.signing_in.is_none() {
+            self.ask_sync(account);
+        }
         self.say_calendar_taken(account, taken, &mut errors);
         self.note_problems_from("calendar", account, &errors, None, false);
     }

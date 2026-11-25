@@ -17529,6 +17529,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "A kapcsolatteszt csak azt ellenőrzi, hogy a szerver válaszol-e. Ha mégis bejelentkezést kér, az első elküldött levélnél kiderül."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "Az elküldött névjegyváltozásokat nem sikerült feljegyezni: {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18249,6 +18255,12 @@ msgstr "A szerver szabályait nem lehetett elfogadni: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "A küldött szabályokat nem lehetett megjegyezni: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "Ugyanez az oldal engedélyt kér a névjegyei módosítására is, hogy az itt létrehozott, módosított vagy törölt névjegyek a kiszolgálójára is eljussanak."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20896,6 +20908,12 @@ msgstr "MailCraft Google-regisztrációjára várva"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Várva a jóváhagyás váratlanul leállt"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Várakozás az engedélyére a fiók névjegyeinek módosításához a kiszolgálóján: Fájl › Információ › Újbóli engedélykérés"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
