@@ -226,8 +226,14 @@ fn a_flag_goes_over_the_mapi_tag_and_the_read_mark_goes_up_on_exchange_2010() {
     assert!(matches!(result.messages[0].outcome, MessageOutcome::Done { .. }), "{:?}", result.messages[0].outcome);
     assert!(standin.state().item(&id).unwrap().read);
     let state = standin.state();
-    assert!(state.requests.iter().filter(|r| r.operation == "UpdateItem").all(|r| !r.body.contains("item:Flag")), "the flag family this schema lacks is never named");
-    assert!(state.requests.iter().filter(|r| r.operation == "UpdateItem").any(|r| r.body.contains("PropertyTag=\"0x1090\"")), "the flag goes over the tag instead");
+    assert!(
+        state.requests.iter().filter(|r| r.operation == "UpdateItem").all(|r| !r.body.contains("item:Flag")),
+        "the flag family this schema lacks is never named"
+    );
+    assert!(
+        state.requests.iter().filter(|r| r.operation == "UpdateItem").any(|r| r.body.contains("PropertyTag=\"0x1090\"")),
+        "the flag goes over the tag instead"
+    );
     // A server answering in the newer version whose schema fault has another cause: the flag isn't
     // dropped for it (nor for the changes after), and the change is refused as it was.
     let standin = exchange2010();

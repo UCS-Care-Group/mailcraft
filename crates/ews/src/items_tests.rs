@@ -148,6 +148,29 @@ fn the_flag_status_tag_reads_the_flag_kerio_keeps() {
     }
 }
 
+/// The answered and forwarded marks ride the icon number (`PR_ICON_ID`): 102 is a reply
+/// sent, 104 a forward ([MS-OXOCORG], the icons Outlook draws); any other icon says no
+/// mark, and a server that doesn't answer the tag says it too, as the field has always
+/// answered false on EWS (#1784, the marks: measured on Kerio 2026-11-24, a web-mail
+/// `\Answered` came back 102 and `\Forwarded` 104 — the same door Outlook's arrow rides).
+#[test]
+fn the_icon_tag_brings_the_answered_and_forwarded_marks() {
+    for (tag, value, answered, forwarded) in [
+        ("0x1081", "102", true, false),
+        ("1081", "102", true, false),
+        ("4225", "104", false, true),
+        ("0x1081", "103", false, false),
+        ("0x1081", "twelve", false, false),
+    ] {
+        let xml = format!(
+            "<t:Create><t:Message><t:ItemId Id=\"I1\" ChangeKey=\"C\"/><t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"{tag}\" PropertyType=\"Integer\"/><t:Value>{value}</t:Value></t:ExtendedProperty></t:Message></t:Create>"
+        );
+        let got = page(&xml, 10).unwrap();
+        let m = &got.messages[0].server;
+        assert_eq!((m.answered, m.forwarded), (answered, forwarded), "tag {tag}={value}");
+    }
+}
+
 /// Every shape of the list asks over the `IdOnly` base with its properties named: the `Default`
 /// base is what makes Kerio answer a listing with whole messages (measured 2026-11-24: 7 KB
 /// against 287 MB over one mailbox), and a property named the wrong way is answered with a
@@ -185,6 +208,7 @@ fn every_shape_asks_the_light_base_with_its_properties_named() {
                 body.contains("PropertyTag=\"0x1090\"") == extended,
                 "and the MAPI flag tag rides with it: on Kerio it is the only flag there is"
             );
+            assert!(body.contains("PropertyTag=\"0x1081\"") == extended, "and the icon tag with them: it carries the answered and forwarded marks");
             assert!(!body.contains("\"0E67\""), "and never the bare tag Kerio drops the connection for");
         }
     }

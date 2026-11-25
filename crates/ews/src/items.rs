@@ -190,7 +190,8 @@ impl SyncFolderItems {
         if self.extended {
             extra = extra
                 .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x0E67").attr("PropertyType", "Boolean"))
-                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer"));
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer"))
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1081").attr("PropertyType", "Integer"));
         }
         let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
@@ -270,27 +271,54 @@ fn time(node: &Node, name: &str) -> i64 {
     node.child_in(TYPES, name).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0)).unwrap_or(0)
 }
 
-/// The item's read state as an extended property: `PR_IS_READ` (0x0E67). Servers quote the
-/// tag both ways the schema allows — hex, with or without the `0x` and in either case, and
-/// plain decimal 3687 — so both do. None: the answer didn't name it, or didn't answer it in
-/// words; a value that means neither yes nor no is no answer (#1784).
-fn extended_read(item: &Node) -> Option<bool> {
+/// An item's answer to one extended-property tag: the `Value` text, when the answer names it.
+/// Servers quote the tag every way the schema allows — hex with or without the `0x` and in
+/// either case, and plain decimal — so all do. The decimal is written out because a
+/// prefix-less hex spelling reads back as whatever base it matches, so the two spellings of
+/// one tag must never collide with another tag's two spellings; a tag added here must keep
+/// that true (0x0E67/3687, 0x1081/4225, 0x1090/4240 are clean apart).
+fn extended_value<'a>(item: &'a Node, decimal: &str, hex: u32) -> Option<&'a str> {
     item.children
         .iter()
         .filter(|p| p.is(TYPES, "ExtendedProperty"))
         .find(|p| {
             p.child_in(TYPES, "ExtendedFieldURI").and_then(|u| u.attribute("PropertyTag")).is_some_and(|tag| {
-                tag == "3687" || u32::from_str_radix(tag.trim().trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(0x0E67)
+                let tag = tag.trim();
+                tag == decimal || u32::from_str_radix(tag.trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(hex)
             })
         })
         .and_then(|p| p.child_in(TYPES, "Value"))
-        .and_then(|v| match v.text.trim() {
-            "1" => Some(true),
-            "0" => Some(false),
-            t if t.eq_ignore_ascii_case("true") => Some(true),
-            t if t.eq_ignore_ascii_case("false") => Some(false),
-            _ => None,
-        })
+        .map(|v| v.text.trim())
+}
+
+/// The item's read state as an extended property: `PR_IS_READ` (0x0E67). None: the answer
+/// didn't name it, or didn't answer it in words; a value that means neither yes nor no is no
+/// answer (#1784).
+fn extended_read(item: &Node) -> Option<bool> {
+    extended_value(item, "3687", 0x0E67).and_then(|t| match t {
+        "1" => Some(true),
+        "0" => Some(false),
+        t if t.eq_ignore_ascii_case("true") => Some(true),
+        t if t.eq_ignore_ascii_case("false") => Some(false),
+        _ => None,
+    })
+}
+
+/// The answered and forwarded marks as `PR_ICON_ID` (0x1081): the icon a MAPI client draws,
+/// which numbers what the message has had done to it — 102 is a reply sent, 104 a forward
+/// ([MS-OXOCORG]'s icon table, the icons Outlook itself picks). A server that computes the
+/// icon from its real marks answers it lean: measured on Kerio 2026-11-24, a web-mail or
+/// IMAP `\Answered` came back 102 and `\Forwarded` 104, which is how Outlook shows a replied
+/// arrow there — the same door, read. One icon says one thing: a message both answered and
+/// forwarded shows the one the server's table ranks first, and the other mark waits for a
+/// server that names them apart.
+fn extended_marks(item: &Node) -> (bool, bool) {
+    match extended_value(item, "4225", 0x1081).and_then(|v| v.parse::<i64>().ok()) {
+        Some(102) => (true, false),
+        Some(104) => (false, true),
+        Some(_) => (false, false),
+        None => (false, false),
+    }
 }
 
 fn flag(node: &Node, name: &str) -> bool {
@@ -307,23 +335,12 @@ fn flag(node: &Node, name: &str) -> bool {
 /// and follows what the web mail and IMAP's `\Flagged` set — its own web mail's flag
 /// coming back as 2, a completed follow-up as 1).
 fn extended_flag(item: &Node) -> Option<FlagStatus> {
-    item.children
-        .iter()
-        .filter(|p| p.is(TYPES, "ExtendedProperty"))
-        .find(|p| {
-            p.child_in(TYPES, "ExtendedFieldURI").and_then(|u| u.attribute("PropertyTag")).is_some_and(|tag| {
-                let tag = tag.trim();
-                tag == "4240" || u32::from_str_radix(tag.trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(0x1090)
-            })
-        })
-        .and_then(|p| p.child_in(TYPES, "Value"))
-        .and_then(|v| v.text.trim().parse::<i64>().ok())
-        .and_then(|value| match value {
-            0 => Some(FlagStatus::None),
-            1 => Some(FlagStatus::Complete),
-            2 => Some(FlagStatus::Flagged),
-            _ => None,
-        })
+    extended_value(item, "4240", 0x1090).and_then(|t| t.parse::<i64>().ok()).and_then(|value| match value {
+        0 => Some(FlagStatus::None),
+        1 => Some(FlagStatus::Complete),
+        2 => Some(FlagStatus::Flagged),
+        _ => None,
+    })
 }
 
 /// A `Mailbox` element as an address. An address in the server's own directory (routing type
@@ -385,11 +402,14 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
     let native_read = item.child_in(TYPES, "IsRead").map(|n| n.text.trim().eq_ignore_ascii_case("true"));
     let ext_read = extended_read(item);
+    let (answered, forwarded) = extended_marks(item);
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
             read: native_read.or(ext_read).unwrap_or(false),
             read_said: native_read.is_some() || ext_read.is_some(),
+            answered,
+            forwarded,
             flag: status,
             flag_said: flag_node.is_some() || ext_flag.is_some(),
             categories,
