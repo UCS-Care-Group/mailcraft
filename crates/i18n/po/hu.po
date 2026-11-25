@@ -25794,6 +25794,12 @@ msgstr "{contributors} közreműködők · {commits} elkötelezi magát"
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr "{counted} · Felfüggesztve a következő Küldés/visszafogadásig"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr "{count} névjegy küldése a kiszolgálóikra még folyamatban van, köztük {names}: próbálja újra hamarosan."
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -27407,7 +27413,7 @@ msgid "{people} and {nameless}"
 msgstr "{people} és {nameless}"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 #, fuzzy
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"

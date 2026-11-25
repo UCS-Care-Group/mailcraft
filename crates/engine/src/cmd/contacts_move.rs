@@ -27,7 +27,7 @@ use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::{Contact, Id, Mailbox, Origin};
 use serde_json::{Value, json};
 
-use super::contacts_remote::{home, note_contact, server_copy};
+use super::contacts_remote::{called, home, note_contact, server_copy};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session};
 
@@ -35,6 +35,8 @@ use crate::{CmdError, CmdResult, CommandSpec, Session};
 pub const MAX_MOVE: usize = 1_000;
 /// Of each contact, the addresses the duplicate check looks at.
 const ADDRESSES_EACH: usize = 50;
+/// Most contacts named when some can't move yet.
+pub const NAMED: usize = 5;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("people.moveToFolder", "Move to Contacts Folder", "Home › Actions", move_to_folder)
@@ -66,7 +68,7 @@ fn target(mailbox: &Mailbox, v: &Value) -> Result<Id, CmdError> {
 
 /// The contacts named by `ids` (each once, in order), else the selected one; every one there and
 /// none in a folder that may only be read. Those that can't move yet ([`waits`]) are left out, as
-/// (id, name); when that is all of them, the move is refused.
+/// (id, name as [`called`] gives it); when that is all of them, the move is refused.
 fn sources(s: &Session, v: &Value, to: Id) -> Result<(Vec<Id>, Vec<(Id, String)>), CmdError> {
     let wrong = || bad(format!("`ids` is a list of 1 to {MAX_MOVE} contact ids"));
     let named: Vec<Id> = match v.get("ids") {
@@ -84,55 +86,52 @@ fn sources(s: &Session, v: &Value, to: Id) -> Result<(Vec<Id>, Vec<(Id, String)>
             return Err(failed!("The contacts folder \"{name}\" can only be read: its contacts can't be moved out of it.", name = f.name));
         }
         if waits(&s.mailbox, id, to) {
-            skipped.push((id, c.name()));
+            skipped.push((id, called(Some(c))));
         } else {
             out.push(id);
         }
     }
-    match skipped.as_slice() {
-        [(_, name)] if out.is_empty() => Err(failed!("{name} is still being sent to its server: try again shortly.", name)),
-        [_, _, ..] if out.is_empty() => Err(failed!(
-            "{names} are still being sent to their servers: try again shortly.",
-            names = skipped.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>().join(", ")
-        )),
-        _ => Ok((out, skipped)),
+    if !out.is_empty() || skipped.is_empty() {
+        return Ok((out, skipped));
     }
+    let names = skipped.iter().take(NAMED).map(|(_, n)| n.as_str()).collect::<Vec<_>>().join(", ");
+    Err(match skipped.len() {
+        1 => failed!("{name} is still being sent to its server: try again shortly.", name = names),
+        n if n <= NAMED => failed!("{names} are still being sent to their servers: try again shortly.", names),
+        count => failed!("{count} contacts are still being sent to their servers, among them {names}: try again shortly.", count, names),
+    })
 }
 
 /// Whether contact `id` can't go into folder `to` yet: it is still to be made on a server, or on
 /// its way there unanswered (the sync thread may have sent it). Into a server's folder that could
 /// leave it in neither place, or link one server's answer to another's folder: it moves once the
-/// server has answered. Onto this computer it moves at once, under a new id ([`move_one`]).
+/// server has answered. Onto this computer it moves at once, under a new id ([`move_one`]), unless
+/// an answer said it was tried (`sent`): then it waits for the answer or download that settles it,
+/// as a record kept for a contact that is gone could be taken for another one made there later.
 fn waits(mailbox: &Mailbox, id: Id, to: Id) -> bool {
-    to != 0 && mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create)
+    mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create && (to != 0 || n.sent))
 }
 
 /// Move contact `id` into folder `to` (see the module): the id it has there; `None` when it is
 /// there already.
-fn move_one(mailbox: &mut Mailbox, id: Id, to: Id, now: mailcraft_time::Timestamp) -> Result<Option<Id>, CmdError> {
+fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdError> {
     let c = mailbox.contact(id).cloned().ok_or_else(|| failed!("no contact with id {id}", id))?;
     if place(mailbox, &c) == to {
         return Ok(None);
     }
     let account = home(mailbox, to).map_or(0, |f| f.account);
     let server = server_copy(mailbox, id);
-    match mailbox.contact_changes.iter_mut().find(|n| n.contact == id && n.kind == ContactChangeKind::Create) {
-        // Still to be made on a server (it moves only onto this computer: [`waits`]), and maybe on
-        // its way there: it leaves its id behind, as one sent and no longer wanted. An answer that
-        // it was made, or a download that shows it, has the server delete it (a list read later
-        // that doesn't show it drops it); never is it taken for where this one goes next.
-        Some(n) => {
-            (n.sent, n.tried) = (true, n.tried.max(now));
-            n.base.get_or_insert_with(|| Box::new(c.clone()));
-        }
-        None if server.is_none() => {
-            // No server has it: it only changes folder (a new one there is noted to be made).
-            let c = mailbox.contact_mut(id)?;
-            (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);
-            note_contact(mailbox, id, None)?;
-            return Ok(Some(id));
-        }
-        None => {}
+    // One still to be made on a server, never tried ([`waits`]), may be on its way there: it
+    // leaves its id behind and its note goes, so that a late answer that it was made is about that
+    // id alone and has the server delete it again
+    // ([`super::contacts_remote::apply_contact_outcomes`]), never taken for where this one goes.
+    let creating = mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create);
+    if server.is_none() && !creating {
+        // No server has it: it only changes folder (a new one there is noted to be made).
+        let c = mailbox.contact_mut(id)?;
+        (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);
+        note_contact(mailbox, id, None)?;
+        return Ok(Some(id));
     }
     // A new contact in the target; this one goes from its server, once that one is made.
     let moved = Contact { id: 0, folder: to, origin: Origin { account, ..Default::default() }, moved_from: if to == 0 { 0 } else { id }, ..c };
@@ -146,10 +145,9 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id, now: mailcraft_time::Timestam
 fn move_to_folder(s: &mut Session, v: &Value) -> CmdResult {
     let to = target(&s.mailbox, v)?;
     let (ids, skipped) = sources(s, v, to)?;
-    let now = s.now();
     let mut moved = Vec::new();
     for id in ids {
-        let Some(now) = move_one(&mut s.mailbox, id, to, now)? else { continue };
+        let Some(now) = move_one(&mut s.mailbox, id, to)? else { continue };
         moved.push(json!({"from": id, "id": now}));
         if s.sel.contact == Some(id) {
             s.sel.contact = Some(now);

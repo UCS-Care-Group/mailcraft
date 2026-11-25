@@ -25888,6 +25888,12 @@ msgstr "Współtwórcy: {contributors} · zatwierdzenia: {commits}"
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr "{counted} · Wstrzymano do następnego Wyślij/Odbierz"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr "{count} kontaktów jest wciąż wysyłanych na swoje serwery, w tym {names}: spróbuj ponownie za chwilę."
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -27626,7 +27632,7 @@ msgid "{people} and {nameless}"
 msgstr "{people} i {nameless}"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 #, fuzzy
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"

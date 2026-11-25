@@ -502,35 +502,45 @@ fn one_still_being_made_moves_onto_this_computer_and_a_late_done_deletes_it_ther
     assert!(r.s.mailbox.contact_changes.is_empty());
 }
 
+/// A delta read of Ada's folder, `days` after NOW, that brings `contacts` (not a whole list).
+fn delta(r: &Rig, days: i64, contacts: Vec<RemoteContact>) -> ContactsDownload {
+    ContactsDownload { complete: false, read_at: NOW + days * 86_400, ..download(r.ada, ADA, contacts) }
+}
+
+/// Independent review of #1951 (P1): a move onto this computer leaves no record behind that could
+/// be taken for a contact made on the server later, nor keep the account's contacts due.
 #[test]
-fn moved_onto_this_computer_while_being_sent_a_late_failure_and_a_download_that_shows_it_delete_it_there() {
+fn moved_onto_this_computer_before_it_went_up_leaves_nothing_behind() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "email": "gus@example.org", "folder": ada_main}))["id"].as_u64().unwrap();
+    r.mv(&[gus], 0);
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
+    assert!(!crate::cmd::contacts_remote::contacts_due(&r.s.mailbox, r.ada, r.s.now()), "polling back to its own pace");
+    // Weeks later the same Gus is added on a phone: the next delta takes him in, and deletes nothing.
+    let phone = RemoteContact { emails: vec![Labeled::new("work", "gus@example.org")], ..person("c-gus-phone", "Gus") };
+    let later = delta(&r, 21, vec![phone]);
+    run(&mut r.s, "sync.applyContacts", json!({"download": later}));
+    assert_eq!(r.places("Gus"), vec![0, ada_main]);
+    assert!(r.due(r.ada).is_empty());
+}
+
+#[test]
+fn moved_onto_this_computer_while_being_sent_a_late_failure_leaves_nothing_behind() {
     let mut r = Rig::new();
     let ada_main = r.main(r.ada);
     let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "email": "gus@example.org", "folder": ada_main}))["id"].as_u64().unwrap();
     let op = r.upload(r.ada).ops.remove(0);
     r.mv(&[gus], 0);
-    // It may have been made all the same; it isn't sent again.
+    // lean: a copy the server made despite the failure comes down as a second Gus (never lost).
     r.answer(r.ada, &op, ContactResult::Failed, "");
-    assert!(r.due(r.ada).is_empty());
-    // A download shows it there: it is deleted there, not taken in.
-    let made = RemoteContact { id: "c-gus".into(), change_key: "ck-gus".into(), ..op.values.clone() };
-    run(&mut r.s, "sync.applyContacts", json!({"download": download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), made])}));
-    assert_eq!(r.places("Gus"), vec![0]);
-    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-gus".to_string())]);
-}
-
-#[test]
-fn moved_onto_this_computer_before_it_was_sent_its_record_goes_with_a_later_list() {
-    let mut r = Rig::new();
-    let ada_main = r.main(r.ada);
-    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
-    r.mv(&[gus], 0);
-    assert!(r.due(r.ada).is_empty());
-    let mut list = download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy")]);
-    list.read_at = NOW + 1;
-    run(&mut r.s, "sync.applyContacts", json!({"download": list}));
     assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
-    assert_eq!(r.places("Gus"), vec![0]);
+    assert!(!crate::cmd::contacts_remote::contacts_due(&r.s.mailbox, r.ada, r.s.now()));
+    let phone = RemoteContact { emails: vec![Labeled::new("work", "gus@example.org")], ..person("c-gus-phone", "Gus") };
+    let later = delta(&r, 21, vec![phone]);
+    run(&mut r.s, "sync.applyContacts", json!({"download": later}));
+    assert_eq!(r.places("Gus"), vec![0, ada_main]);
+    assert!(r.due(r.ada).is_empty());
 }
 
 #[test]
@@ -580,19 +590,34 @@ fn a_move_still_being_made_goes_onto_this_computer_and_both_servers_copies_go() 
 }
 
 #[test]
-fn one_that_may_be_on_its_server_unheard_moves_onto_this_computer_and_goes_there_once_seen() {
+fn one_that_may_be_on_its_server_unheard_isnt_moved_onto_this_computer() {
     let mut r = Rig::new();
     let ada_main = r.main(r.ada);
     let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
     let op = r.upload(r.ada).ops.remove(0);
     // Failed: it may have been made, and only a later answer or a download will say.
     r.answer(r.ada, &op, ContactResult::Failed, "");
-    r.mv(&[gus], 0);
-    assert!(r.due(r.ada).is_empty(), "not sent again");
-    let made = RemoteContact { id: "c-gus".into(), change_key: "ck-gus".into(), ..op.values.clone() };
-    run(&mut r.s, "sync.applyContacts", json!({"download": download(r.ada, ADA, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), made])}));
-    assert_eq!(r.places("Gus"), vec![0]);
-    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-gus".to_string())]);
+    let before = r.s.mailbox.clone();
+    let e = r.s.run("people.moveToFolder", &json!({"ids": [gus], "folder": 0})).unwrap_err();
+    assert!(e.to_string().contains("still being sent"), "{e}");
+    assert!(r.s.mailbox == before);
+}
+
+#[test]
+fn the_names_of_those_that_wait_are_cleaned_and_capped() {
+    let mut r = Rig::new();
+    let (ada_main, eve_main) = (r.main(r.ada), r.main(r.eve));
+    let long = format!("Gus\u{7}{}", "x".repeat(500));
+    let ids: Vec<Id> = (0..8)
+        .map(|n| {
+            run(&mut r.s, "people.new", json!({"first": if n == 0 { long.clone() } else { format!("P{n}") }, "folder": ada_main}))["id"]
+                .as_u64()
+                .unwrap()
+        })
+        .collect();
+    let e = r.s.run("people.moveToFolder", &json!({"ids": ids, "folder": eve_main})).unwrap_err().to_string();
+    assert!(e.starts_with("8 contacts are still being sent") && e.contains("P4") && !e.contains("P5"), "{e}");
+    assert!(!e.contains('\u{7}') && e.chars().count() < 300, "{e}");
 }
 
 #[test]
@@ -602,7 +627,7 @@ fn a_selection_with_one_still_being_made_moves_the_others_and_names_it() {
     let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
     let said = r.mv(&[bo, gus], eve_main);
     assert_eq!(said["moved"].as_array().unwrap().len(), 1, "{said}");
-    assert_eq!(said["skipped"], json!([{"contact": gus, "name": "Gus"}]));
+    assert_eq!(said["skipped"], json!([{"contact": gus, "name": "\"Gus\""}]));
     assert_eq!((r.places("Bo"), r.places("Gus")), (vec![eve_main], vec![ada_main]));
 }
 

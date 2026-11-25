@@ -21433,6 +21433,11 @@ msgstr ""
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "{count} messages weren't searched in full: only their beginning is here until they download."
@@ -22819,7 +22824,7 @@ msgid "{people} and {nameless}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"
 msgstr[0] ""
