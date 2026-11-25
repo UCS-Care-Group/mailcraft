@@ -342,8 +342,21 @@ pub(crate) mod kit {
         let (now, before) = if at == pass { (now, before) } else { (0.0, now) };
         let now = now.max(need);
         ui.data_mut(|d| d.insert_temp(key, (pass, now, before)));
-        if now > before {
-            ui.ctx().request_repaint();
+        // The pass's widest is known only once it ends: then ask for one more pass if it differs from the
+        // pass before's, so the column settles after growing and after shrinking (another language).
+        let hooked = key.with("end of pass");
+        if !ui.data(|d| d.get_temp::<bool>(hooked).unwrap_or(false)) {
+            ui.data_mut(|d| d.insert_temp(hooked, true));
+            ui.ctx().on_end_pass(
+                "form label column",
+                std::sync::Arc::new(move |ui: &mut Ui| {
+                    let ctx = ui.ctx().clone();
+                    let (at, now, before) = ctx.data(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+                    if at == ctx.cumulative_pass_nr() && now != before {
+                        ctx.request_repaint();
+                    }
+                }),
+            );
         }
         now.max(before).max(LABEL_W).min((ui.available_width() * 0.4).max(LABEL_W))
     }
