@@ -1032,11 +1032,12 @@ fn an_appointment_made_in_a_writable_server_calendar_goes_up_and_becomes_the_ser
     // Not now: it waits, and is asked again.
     answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::NotNow)]);
     assert_eq!(creates(&mut s, id).len(), 1);
-    // Made: the server's from now on, under its address and ETag, and nothing waits.
+    // Made: the server's from now on, under its address, and nothing waits. (Without an ETag:
+    // the next read brings the server's document, which a change is written into.)
     let r = answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
     assert_eq!(r["sent"], 1);
     let e = s.mailbox.event(event).unwrap();
-    assert_eq!((e.origin.id.as_str(), e.origin.change_key.as_str()), (format!("{COLLECTION}{}.ics", up[0].name).as_str(), "\"e1\""));
+    assert_eq!((e.origin.id.as_str(), e.origin.change_key.as_str()), (format!("{COLLECTION}{}.ics", up[0].name).as_str(), ""));
     assert!(creates(&mut s, id).is_empty());
     // What the server has can have its title changed from here now (D6, the next step's tests).
     assert!(s.run("calendar.edit", &json!({"id": event, "title": "Anders"})).is_ok());
@@ -1190,11 +1191,87 @@ fn a_changed_title_and_place_go_up_in_the_servers_own_document_and_nothing_else_
         assert!(body.contains(kept), "{kept} kept:\n{body}");
     }
     assert!(body.contains("SUMMARY:Geändert") && body.contains("LOCATION:Raum 2") && !body.contains("SUMMARY:Vom Server"));
-    // Taken: nothing waits, and the event keeps the ETag it was read with (the next read brings the server's).
+    // Taken: nothing waits, and the ETag it was read with is the server's no longer: the next
+    // read brings the document with the new one.
     update_answer(&mut s, id, mailcraft_model::DavPutOver::Done);
     assert!(updates(&mut s, id).is_empty());
-    assert_eq!(s.mailbox.event(e).unwrap().origin.change_key, "\"7\"");
+    assert_eq!(s.mailbox.event(e).unwrap().origin.change_key, "");
+    // Changed again before that read: it waits for it, and goes with the ETag it brings, since
+    // the server has what the change was made on.
+    s.run("calendar.edit", &json!({"id": e, "title": "Noch einmal"})).unwrap();
+    assert!(updates(&mut s, id).is_empty(), "no ETag to put it over yet");
+    let theirs = body.clone();
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"8\"", &theirs)], false, true, "t2")]);
+    let up = updates(&mut s, id);
+    assert_eq!(up.len(), 1);
+    assert_eq!(up[0].etag, "\"8\"");
+    assert!(up[0].body.contains("SUMMARY:Noch einmal") && up[0].body.contains("X-APPLE-TRAVEL-ADVISORY-BEHAVIOR:AUTOMATIC"), "{}", up[0].body);
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_appointment_made_here_can_be_changed_once_the_server_has_it() {
+    let dir = std::env::temp_dir().join(format!("mc-dav-made-edit-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (mut s, id, _, event) = made();
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    let up = creates(&mut s, id);
+    answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
+    // Changed before the server's document was read: it waits for it.
+    s.run("calendar.edit", &json!({"id": event, "title": "Zahnarzt, verschoben"})).unwrap();
+    assert!(updates(&mut s, id).is_empty());
+    // The read brings what was put (the server has what the change was made on): it goes up.
+    let name = format!("{}.ics", up[0].name);
+    apply(&mut s, id, None, vec![read(vec![change(&name, "\"e2\"", &up[0].body)], false, true, "t2")]);
+    let changes = updates(&mut s, id);
+    assert_eq!(changes.len(), 1, "the change isn't stuck");
+    assert_eq!((changes[0].href.as_str(), changes[0].etag.as_str()), (format!("{COLLECTION}{name}").as_str(), "\"e2\""));
+    assert!(
+        changes[0].body.contains("SUMMARY:Zahnarzt\\, verschoben") || changes[0].body.contains("SUMMARY:Zahnarzt, verschoben"),
+        "{}",
+        changes[0].body
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_change_the_server_had_changed_meanwhile_is_not_put_over_it() {
+    let (mut s, id, e, dir) = theirs_kept("theirs-moved");
+    s.run("calendar.edit", &json!({"id": e, "title": "Meins"})).unwrap();
+    // The server's has changed since (another title): the change keeps the old ETag, so the
+    // server answers 412 rather than having its change overwritten.
+    let other = event("a", 22, "Am Telefon geändert");
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"9\"", &other)], false, true, "t2")]);
+    let up = updates(&mut s, id);
+    assert_eq!(up[0].etag, "\"7\"");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn what_the_server_kept_of_a_change_or_a_deletion_is_read_whole_again_even_when_the_same_run_read_more() {
+    use mailcraft_model::{DavGone, DavPutOver};
+    for kept in ["change", "deletion"] {
+        let (mut s, id, e, dir) = theirs_kept(&format!("reread-{kept}"));
+        if kept == "change" {
+            s.run("calendar.edit", &json!({"id": e, "title": "Meins"})).unwrap();
+        } else {
+            s.run("calendar.delete", &json!({"id": e})).unwrap();
+        }
+        let href = format!("{COLLECTION}a.ics");
+        let mut download = DavDownload { account: id, email: "ada@example.org".into(), server: server_of(&s, id), ..Default::default() };
+        if kept == "change" {
+            download.updated = vec![mailcraft_model::DavUpdated { href, outcome: DavPutOver::Conflict }];
+        } else {
+            download.deleted = vec![mailcraft_model::DavDeleted { href, outcome: DavGone::Refused }];
+        }
+        // The same run read another of the calendar's events, and the server gave a new token.
+        download.collections = vec![read(vec![change("b.ics", "\"1\"", &event("b", 23, "B"))], false, true, "t2")];
+        s.run("sync.applyDav", &json!({"result": download})).unwrap();
+        let c = &s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0];
+        assert!(c.sync_token.is_empty() && c.ctag.is_empty(), "{kept}: read whole at the next run");
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
 
 #[test]
@@ -1253,4 +1330,78 @@ fn a_batch_deletes_a_calendar_servers_events_as_one_delete_does_and_refuses_a_me
     assert!(titles(&s).is_empty());
     let deletes = s.mailbox.event_changes.iter().filter(|c| c.kind == EventChangeKind::Delete && c.account == id).count();
     assert_eq!(deletes, 2);
+}
+
+#[test]
+fn a_change_made_while_the_appointment_was_on_its_way_up_goes_up_after_it() {
+    let dir = std::env::temp_dir().join(format!("mc-dav-while-out-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (mut s, id, _, event) = made();
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    // Made, and on its way; changed meanwhile.
+    let up = creates(&mut s, id);
+    s.run("calendar.edit", &json!({"id": event, "title": "Unterwegs geändert"})).unwrap();
+    answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
+    assert_eq!(s.mailbox.event(event).unwrap().title, "Unterwegs geändert", "the change here stays");
+    // The server has what was sent: the change goes over it once the read gives its ETag.
+    let name = format!("{}.ics", up[0].name);
+    apply(&mut s, id, None, vec![read(vec![change(&name, "\"e2\"", &up[0].body)], false, true, "t2")]);
+    assert_eq!(s.mailbox.event(event).unwrap().title, "Unterwegs geändert", "not overwritten by the server's older version");
+    let changes = updates(&mut s, id);
+    assert_eq!(changes.len(), 1);
+    assert!(changes[0].body.contains("SUMMARY:Unterwegs geändert") && changes[0].etag == "\"e2\"", "{changes:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_change_made_while_the_last_one_was_on_its_way_goes_up_after_it() {
+    let (mut s, id, e, dir) = theirs_kept("while-out");
+    s.run("calendar.edit", &json!({"id": e, "title": "Erste"})).unwrap();
+    let sent = updates(&mut s, id);
+    s.run("calendar.edit", &json!({"id": e, "title": "Zweite"})).unwrap();
+    update_answer(&mut s, id, mailcraft_model::DavPutOver::Done);
+    // The second waits, over what the server took.
+    apply(&mut s, id, None, vec![read(vec![change("a.ics", "\"8\"", &sent[0].body)], false, true, "t2")]);
+    assert_eq!(s.mailbox.event(e).unwrap().title, "Zweite");
+    let up = updates(&mut s, id);
+    assert_eq!(up.len(), 1);
+    assert!(up[0].body.contains("SUMMARY:Zweite") && up[0].etag == "\"8\"", "{up:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_appointment_deleted_before_the_server_document_was_read_is_deleted_there_once_it_is() {
+    let (mut s, id, _, event) = made();
+    let up = creates(&mut s, id);
+    answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
+    s.run("calendar.delete", &json!({"id": event})).unwrap();
+    assert!(deletes(&mut s, id).is_empty(), "no ETag to delete it over yet");
+    // The read brings what was put: the deletion goes with its ETag, and it doesn't come back.
+    let name = format!("{}.ics", up[0].name);
+    apply(&mut s, id, None, vec![read(vec![change(&name, "\"e2\"", &up[0].body)], false, true, "t2")]);
+    assert!(titles(&s).is_empty());
+    let gone = deletes(&mut s, id);
+    assert_eq!((gone.len(), gone.first().map(|d| d.etag.as_str())), (1, Some("\"e2\"")));
+}
+
+#[test]
+fn what_waits_without_an_etag_for_a_document_the_server_changed_is_given_up_and_the_servers_is_shown() {
+    for what in ["change", "deletion"] {
+        let (mut s, id, _, event) = made();
+        let up = creates(&mut s, id);
+        answered(&mut s, id, vec![answer(event, &up[0].name, mailcraft_model::DavPut::Created)]);
+        if what == "change" {
+            s.run("calendar.edit", &json!({"id": event, "title": "Meins"})).unwrap();
+        } else {
+            s.run("calendar.delete", &json!({"id": event})).unwrap();
+        }
+        // The server wrote it otherwise (another title) before the first read.
+        let name = format!("{}.ics", up[0].name);
+        let theirs = up[0].body.replace("SUMMARY:Zahnarzt", "SUMMARY:Am Telefon");
+        let said = apply(&mut s, id, None, vec![read(vec![change(&name, "\"e2\"", &theirs)], false, true, "t2")]);
+        assert!(s.mailbox.event_changes.iter().all(|c| c.account != id), "{what}: nothing waits");
+        assert_eq!(titles(&s), vec!["Am Telefon"], "{what}: the server's is shown");
+        assert!(said.to_string().contains("Zahnarzt") || said.to_string().contains("Meins"), "{what}: the owner is told: {said}");
+    }
 }

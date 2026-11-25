@@ -117,7 +117,7 @@ fn available(s: &Session) -> Option<&'static str> {
 /// on, under the resource's address and ETag, and the read that follows brings its document; one
 /// the calendar has under that address already (a redo) goes. Refused: it is kept in a calendar
 /// on this computer, never lost. Not now: it waits for the next run. Whether anything changed.
-fn take_created(s: &mut Session, account: Id, created: &[DavCreated], took: &mut Took) -> bool {
+fn take_created(s: &mut Session, account: Id, created: &[DavCreated], offset_at: &dyn Fn(i64) -> i32, took: &mut Took) -> bool {
     let mut changed = false;
     for answer in created.iter().take(MAX_EVENT_OPS) {
         let waits = s.mailbox.event_changes.iter().any(|c| c.account == account && c.kind == EventChangeKind::Create && c.event == answer.event);
@@ -137,8 +137,12 @@ fn take_created(s: &mut Session, account: Id, created: &[DavCreated], took: &mut
                 if twin {
                     let _ = s.mailbox.remove_event(id);
                 } else if let Ok(e) = s.mailbox.event_mut(id) {
-                    let etag = if answer.outcome == DavPut::Created && answer.etag.len() <= MAX_KEY { answer.etag.clone() } else { String::new() };
-                    e.origin = Origin { account, id: answer.href.clone(), change_key: etag, ..Default::default() };
+                    // (Without its ETag, so that the next read brings the server's document, which
+                    // a change made here is written into.)
+                    e.origin = Origin { account, id: answer.href.clone(), ..Default::default() };
+                    let origin = e.origin.clone();
+                    // Changed while it was on its way: that change goes up too, over what was sent.
+                    changed_while_out(s, account, id, origin, offset_at);
                 }
                 took.sent += 1;
                 changed = true;
@@ -225,7 +229,7 @@ fn also_changed(base: &Event, now: &Event) -> Vec<&'static str> {
 /// the document as the server keeps it now. Changed there since: given up, the owner is told,
 /// and the next read brings the server's version the same way. Refused: the server keeps what
 /// it had, which is the event as it was before the change: put back here, and the owner is told.
-fn take_updated(s: &mut Session, account: Id, updated: &[DavUpdated], took: &mut Took) -> bool {
+fn take_updated(s: &mut Session, account: Id, updated: &[DavUpdated], offset_at: &dyn Fn(i64) -> i32, took: &mut Took) -> bool {
     let mut changed = false;
     for answer in updated.iter().take(MAX_EVENT_OPS) {
         let at = s.mailbox.event_changes.iter().position(|c| c.account == account && c.kind == EventChangeKind::Update && c.remote == answer.href);
@@ -236,6 +240,9 @@ fn take_updated(s: &mut Session, account: Id, updated: &[DavUpdated], took: &mut
         let change = s.mailbox.event_changes.remove(at);
         if answer.outcome != DavPutOver::Done {
             took.kept.push(change.base.as_ref().map(|b| b.title.clone()).unwrap_or_default());
+            // (Read whole again, so that the event is as the server has it: a token would only
+            // bring what changed since, and the change there may be older.)
+            took.reread.push(answer.href.clone());
         }
         if answer.outcome == DavPutOver::Refused
             && let Some(base) = change.base
@@ -246,9 +253,100 @@ fn take_updated(s: &mut Session, account: Id, updated: &[DavUpdated], took: &mut
             *e = *base;
             e.id = id;
         }
+        // (Its ETag is the server's no longer: the next read brings the document with the new one.)
+        if let Ok(e) = s.mailbox.event_mut(change.event)
+            && e.origin.id == answer.href
+        {
+            e.origin.change_key.clear();
+            let origin = e.origin.clone();
+            if answer.outcome == DavPutOver::Done {
+                changed_while_out(s, account, change.event, origin, offset_at);
+            }
+        }
+        s.dav_sent.remove(&change.event);
         changed = true;
     }
     changed
+}
+
+/// The server took the event `id` as it was sent ([`Session::dav_sent`]): when it was changed here
+/// since, that change waits to go up over what the server has now (`origin`, without an ETag until
+/// the next read gives one: [`adopt_etag`]).
+fn changed_while_out(s: &mut Session, account: Id, id: Id, origin: Origin, offset_at: &dyn Fn(i64) -> i32) {
+    let Some(mut sent) = s.dav_sent.remove(&id) else { return };
+    let Some(now) = s.mailbox.event(id) else { return };
+    if super::remote::changed_fields(&sent, now, offset_at).is_empty() {
+        return;
+    }
+    sent.origin = origin;
+    let remote = sent.origin.id.clone();
+    s.mailbox.event_changes.retain(|c| !(c.account == account && c.kind == EventChangeKind::Update && c.event == id));
+    s.mailbox.event_changes.push(mailcraft_model::remote::EventChange {
+        account,
+        kind: EventChangeKind::Update,
+        event: id,
+        remote,
+        base: Some(Box::new(sent)),
+        ..Default::default()
+    });
+}
+
+/// A change made here waits for the event `id`, and the server's version `theirs` came. It is what
+/// the change was made on: the change goes up with the ETag it came with (one made before the
+/// server's document was first read, or after a change of the same event was taken, had none, or
+/// the old one). Not, and the change had no ETag to go with: it is given up and the owner told,
+/// and `true` says the server's version is taken in. One that has an ETag keeps it, and its server
+/// says whether it changed (412).
+fn settle_update(s: &mut Session, account: Id, id: Id, theirs: &Event, offset_at: &dyn Fn(i64) -> i32, took: &mut Took) -> bool {
+    let waiting = |c: &mailcraft_model::remote::EventChange| c.account == account && c.kind == EventChangeKind::Update && c.event == id;
+    let Some(at) = s.mailbox.event_changes.iter().position(waiting) else { return false };
+    let Some(base) = s.mailbox.event_changes.get_mut(at).and_then(|c| c.base.as_deref_mut()) else { return false };
+    if base.origin.change_key == theirs.origin.change_key {
+        return false;
+    }
+    if super::remote::changed_fields(base, theirs, offset_at).is_empty() {
+        base.origin.change_key = theirs.origin.change_key.clone();
+        return false;
+    }
+    if !base.origin.change_key.is_empty() {
+        return false;
+    }
+    let title = base.title.clone();
+    s.mailbox.event_changes.remove(at);
+    took.kept.push(title);
+    true
+}
+
+/// [`settle_update`] for a deletion that waits for the resource `change` brings: what the server
+/// has is what it was made on, so it goes with the ETag that came; not, and it had none to go
+/// with, it is given up (`true`: the event comes back as the server has it) and the owner told.
+fn settle_delete(
+    s: &mut Session,
+    account: Id,
+    change: &DavChange,
+    fresh: &[(String, Event)],
+    offset_at: &dyn Fn(i64) -> i32,
+    took: &mut Took,
+) -> bool {
+    if change.gone {
+        return false;
+    }
+    let waiting = |c: &mailcraft_model::remote::EventChange| {
+        c.account == account && c.kind == EventChangeKind::Delete && resource_of(&c.remote) == change.href.as_str()
+    };
+    let Some(at) = s.mailbox.event_changes.iter().position(waiting) else { return false };
+    let Some(c) = s.mailbox.event_changes.get_mut(at) else { return false };
+    let remote = c.remote.clone();
+    let Some(base) = c.base.as_deref_mut().filter(|b| b.origin.change_key.is_empty()) else { return false };
+    let same = fresh.iter().find(|(key, _)| *key == remote).is_some_and(|(_, e)| super::remote::changed_fields(base, e, offset_at).is_empty());
+    if same && !change.etag.is_empty() {
+        base.origin.change_key = change.etag.clone();
+        return false;
+    }
+    let title = base.title.clone();
+    s.mailbox.event_changes.remove(at);
+    took.kept.push(title);
+    true
 }
 
 /// What the server made of the deletions the request gave it. Deleted (or gone already): nothing
@@ -269,16 +367,7 @@ fn take_deleted(s: &mut Session, account: Id, deleted: &[DavDeleted], took: &mut
                 let change = s.mailbox.event_changes.remove(at);
                 took.kept.push(change.base.map(|b| b.title).unwrap_or_default());
                 // (Read whole again: a token would only bring what changed since.)
-                if let Some(state) = s
-                    .mailbox
-                    .account_mut(account)
-                    .ok()
-                    .and_then(|a| a.dav.as_mut())
-                    .and_then(|d| d.collections.iter_mut().find(|c| within(&c.href, &answer.href)))
-                {
-                    state.sync_token.clear();
-                    state.ctag.clear();
-                }
+                took.reread.push(answer.href.clone());
                 changed = true;
             }
             DavGone::NotNow => {}
@@ -465,6 +554,17 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     let creates = creates(s, account.id, &collections);
     let deletes = deletes(s, account.id, &collections);
     let updates = updates(s, account.id, &collections);
+    // What each event is as it goes, for its answer to be taken against.
+    s.dav_sent.retain(|_, e| e.origin.account != account.id);
+    let changed = |href: &str| {
+        s.mailbox.event_changes.iter().find(|c| c.account == account.id && c.kind == EventChangeKind::Update && c.remote == href).map(|c| c.event)
+    };
+    let going: Vec<Id> = creates.iter().map(|c| c.event).chain(updates.iter().filter_map(|u| changed(&u.href))).collect();
+    for id in going {
+        if let Some(e) = s.mailbox.event(id).cloned() {
+            s.dav_sent.insert(id, e);
+        }
+    }
     let ask = DavAsk {
         account: account.id,
         email: account.email.trim().to_string(),
@@ -504,6 +604,9 @@ struct Took {
     refused: Vec<String>,
     /// The titles of events deleted here that the server kept (changed there, or refused).
     kept: Vec<String>,
+    /// Resources whose collection is to be read whole at the next run: what the server kept of a
+    /// change or a deletion made here. Done once the run's reads are taken in, which move the token.
+    reread: Vec<String>,
 }
 
 /// Whether `href` is a resource inside `collection` on the same origin: the collection's address
@@ -594,9 +697,9 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
             s.dav_listed.insert(account, now);
         }
     }
-    changed |= take_created(s, account, &download.created, &mut took);
+    changed |= take_created(s, account, &download.created, &offset_at, &mut took);
     changed |= take_deleted(s, account, &download.deleted, &mut took);
-    changed |= take_updated(s, account, &download.updated, &mut took);
+    changed |= take_updated(s, account, &download.updated, &offset_at, &mut took);
     // (Counted once: each read adds to it. What waits to be sent is looked at once, too.)
     let mut room = s
         .mailbox
@@ -651,6 +754,15 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
                 (c.sync_token, c.ctag) = (token, new_ctag);
                 changed = true;
             }
+        }
+    }
+    for href in std::mem::take(&mut took.reread) {
+        if let Some(state) =
+            s.mailbox.account_mut(account).ok().and_then(|a| a.dav.as_mut()).and_then(|d| d.collections.iter_mut().find(|c| within(&c.href, &href)))
+        {
+            state.sync_token.clear();
+            state.ctag.clear();
+            changed = true;
         }
     }
     if changed || took.added + took.updated + took.removed + took.calendars > 0 {
@@ -881,10 +993,6 @@ fn take_read(
             took.skipped += 1;
             continue;
         }
-        if deleting.contains(change.href.as_str()) {
-            named.insert(change.href.as_str());
-            continue;
-        }
         named.insert(change.href.as_str());
         // What it brings, and whether that is all of it (when not, nothing of it is removed).
         let mut fresh: Vec<(String, Event)> = Vec::new();
@@ -905,6 +1013,10 @@ fn take_read(
             // no word that what was here of it went.)
             let written = raw.lines().filter(|l| l.trim().eq_ignore_ascii_case("BEGIN:VEVENT")).count();
             whole = parsed <= MAX_PER_RESOURCE && fresh.len() == parsed && parsed >= written;
+        }
+        // (Unless the deletion is given up now: then it comes back as the server has it.)
+        if deleting.contains(change.href.as_str()) && !settle_delete(s, account, change, &fresh, offset_at, took) {
+            continue;
         }
         let old: Vec<(String, Id)> =
             of_resource.get(change.href.as_str()).into_iter().flatten().filter_map(|k| here.get(k).map(|i| (k.clone(), *i))).collect();
@@ -938,7 +1050,7 @@ fn take_read(
             tidy(&mut event);
             let size = text_size(&event);
             match here.get(&key).copied() {
-                Some(id) if pending.contains(&id) => {}
+                Some(id) if pending.contains(&id) && !settle_update(s, account, id, &event, offset_at, took) => {}
                 Some(id) => {
                     event.id = id;
                     let old = s.mailbox.event(id).map_or(0, text_size);

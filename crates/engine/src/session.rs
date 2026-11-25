@@ -1379,6 +1379,10 @@ pub struct Session {
     /// asked for before (`DavAsk::generation`) is not taken in, even when the settings are the
     /// same again. Never saved, and never cleared: it only goes up.
     pub dav_generation: std::collections::HashMap<Id, u64>,
+    /// Each event a calendar server was last asked to make or change, as it was sent (#209 D6):
+    /// one changed again while the request was out goes up again once the answer comes. Never
+    /// saved: a request out when the program ends brings no answer.
+    pub dav_sent: std::collections::HashMap<Id, mailcraft_model::Event>,
     /// The width and theme each message was last read at in each place (the reading pane, a window
     /// of its own), whether its text part was shown instead of its HTML, and when it was last said
     /// ([`Session::read_at`]): a reply or forward quotes it as it was read where it was asked for,
@@ -1558,6 +1562,7 @@ impl Session {
             dav_asked: Default::default(),
             dav_seen: Default::default(),
             dav_generation: Default::default(),
+            dav_sent: Default::default(),
             read_at: HashMap::new(),
             read_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
@@ -3513,6 +3518,7 @@ impl Session {
         self.dav_listed.clear();
         self.dav_asked.clear();
         self.dav_seen.clear();
+        self.dav_sent.clear();
         // The background fetch's waits and offline flag were the old mailbox's.
         self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
