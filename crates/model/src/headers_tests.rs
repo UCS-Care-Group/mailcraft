@@ -316,8 +316,12 @@ const READS_ITS_OWN: &[(&str, &str)] = &[
 ];
 
 /// Lookups that are an HTTP request's or answer's, not a message's (a file, and what the line says).
-const NOT_A_MESSAGE: &[(&str, &str)] =
-    &[("ews/src/autodiscover.rs", "response.header("), ("apps/mailcraft/src/graph_folders_flow.rs", "asked.header(")];
+const NOT_A_MESSAGE: &[(&str, &str)] = &[
+    ("ews/src/autodiscover.rs", "response.header("),
+    // A calendar server's answer (#209): HTTP's `Location` and `ETag`.
+    ("net/src/dav.rs", "response.header("),
+    ("apps/mailcraft/src/graph_folders_flow.rs", "asked.header("),
+];
 
 #[test]
 fn every_name_the_program_reads_stays_on_the_message() {

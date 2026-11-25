@@ -1250,6 +1250,11 @@ pub struct GraphMailRequest {
     /// with the same filter. `None`, a computer's: everything.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub since: Option<Timestamp>,
+    /// A category renamed here, for the mail on the server that isn't kept here (#851): after the
+    /// rest of the run, the server is asked for the messages that carry the old name and each is
+    /// given the new one ([`crate::Mailbox::mail_rename`]). Never for a shared mailbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rename: Option<crate::remote::CategoryRename>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1431,6 +1436,15 @@ pub struct GraphMessage {
     /// here (#611).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<bool>,
+    /// Some of its recipients (To, Cc) were left out as it was listed, past what is kept of one or
+    /// as an address that can't be kept, or the end of its subject: a rule can't tell from it what
+    /// they said until it is fetched ([`crate::Message::headers_cut`], #566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub cut: bool,
+    /// Some of its categories were left out as it was listed, past what is kept of one: a rule
+    /// can't tell from it what they said, fetched or not ([`crate::Message::categories_cut`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so
@@ -1629,10 +1643,31 @@ pub struct GraphMailResult {
     /// end of the account's part of the run, and never says the mailbox was read whole.
     #[serde(skip_serializing_if = "is_false")]
     pub inbox_pass: bool,
+    /// The last piece of the Inbox pass: the pass is a download of its own for what the account
+    /// had before its new mail (#566), so that the next check of the Inbox, or the run after it,
+    /// starts from what the account has then. (A check that gave way to a run the owner asked for
+    /// never brings it: the window then ends the check by itself.)
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_pass_end: bool,
     /// What the server said of the conversations of the messages the run asked about
     /// ([`GraphMailRequest::threads`], #795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<ThreadOf>,
+    /// What the server made of the run's rename of a category ([`GraphMailRequest::rename`], #851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renamed: Option<crate::remote::CategoryRenamed>,
+    /// How far the rename has got, on a piece of a run: how many of the messages found with the
+    /// old name were answered for, of how many this run found (#851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renaming: Option<RenameProgress>,
+}
+
+/// How far a run's rename of a category has got ([`GraphMailResult::renaming`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RenameProgress {
+    pub done: u32,
+    pub total: u32,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1672,10 +1707,14 @@ impl GraphMailResult {
             self.listing = piece.listing;
         }
         self.threads.extend(piece.threads);
+        if piece.renamed.is_some() {
+            self.renamed = piece.renamed;
+        }
         self.errors.extend(piece.errors);
         self.busy_for = piece.busy_for.or(self.busy_for);
         self.pages.extend(piece.pages);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
+        self.inbox_pass_end = piece.inbox_pass_end;
         self.refused = piece.refused.or(self.refused);
         self.timings.absorb(&piece.timings);
         if piece.progress.is_some() {

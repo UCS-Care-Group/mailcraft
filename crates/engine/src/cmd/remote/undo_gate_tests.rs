@@ -6,7 +6,9 @@
 //! ([`Session::undo_deletes`]). Over a matrix of steps, downloads before and after, a subscribed
 //! calendar or none, and the zone: as it was, the mailbox's stamp moved, the computer carried to
 //! another zone and settled, or not settled yet (the gate is asked before `Session::run` settles
-//! it), and carried back to the step's zone unsettled.
+//! it), and carried back to the step's zone unsettled. Of the subscribed calendars' events, which an
+//! undo or redo always keeps, it says exactly what happens, both ways: none is said to go, a
+//! calendar subscribed after the step included.
 
 use std::collections::BTreeMap;
 
@@ -121,6 +123,8 @@ struct World {
     account: Id,
     second: Option<Id>,
     sub: Option<Id>,
+    /// A calendar subscribed after the step ([`Since`]): the step's mailbox has none such.
+    late: Option<Id>,
 }
 
 fn world(old_sub: bool) -> World {
@@ -136,7 +140,7 @@ fn world(old_sub: bool) -> World {
         id
     });
     s.forget_history();
-    World { s, account, second: None, sub }
+    World { s, account, second: None, sub, late: None }
 }
 
 fn local_event(s: &Session) -> Id {
@@ -226,6 +230,37 @@ fn zone(w: &mut World, moved: Moved) {
             s.clock.zone = london;
             s.settle_zone();
             s.clock.zone = new_york;
+        }
+    }
+}
+
+/// What is done to the subscriptions between the step and the undo. Subscribing and unsubscribing
+/// are no steps of the history (`calendar.subscribe` and `calendar.unsubscribe` are pure), so a
+/// calendar subscribed then is one the step's mailbox has not, and the undo keeps it all the same.
+#[derive(Clone, Copy, Debug)]
+enum Since {
+    Nothing,
+    /// Another calendar subscribed, and its file come down.
+    SubscribedAnother,
+    /// The old calendar unsubscribed, and its address subscribed to again, its file come down.
+    Resubscribed,
+}
+
+fn since(w: &mut World, since: Since) {
+    let s = &mut w.s;
+    match since {
+        Since::Nothing => {}
+        Since::SubscribedAnother => {
+            let id = run(s, "calendar.subscribe", json!({"address": "webcal://cal.example.org/cup/basic.ics"}))["id"].as_u64().unwrap();
+            came(s, id, &ics(&[("c-1", "Cup one", "20261017T100000Z")]), "\"c\"");
+            w.late = Some(id);
+        }
+        Since::Resubscribed => {
+            let old = w.sub.unwrap();
+            run(s, "calendar.unsubscribe", json!({"id": old}));
+            let id = run(s, "calendar.subscribe", json!({"address": ADDRESS}))["id"].as_u64().unwrap();
+            came(s, id, &ics(&[("u-1", "Match one", "20261015T100000Z")]), "\"r\"");
+            (w.sub, w.late) = (Some(id), Some(id));
         }
     }
 }
@@ -320,4 +355,125 @@ fn the_undo_gate_never_says_less_than_the_undo_does() {
     assert!(tally.pending >= 1_000 && tally.pending_removed >= 1_000, "pending {}, removed then {}", tally.pending, tally.pending_removed);
     let shown: Vec<&String> = under.iter().take(20).collect();
     assert!(under.is_empty(), "{} under-reports, first: {shown:#?}", under.len());
+}
+
+/// What the gate says of the subscribed calendars' events against what the command does with
+/// them, both ways: each is said to go exactly when it goes, and as `subscribed_stay` keeps every
+/// one as it is now, whatever the step, the downloads and the zone (CodeRabbit on #1710), none is.
+/// How many it compared, and how many of those are in the calendar subscribed after the step.
+fn check_subscribed(w: &mut World, redo: bool, label: &str, wrong: &mut Vec<String>) -> (u32, u32) {
+    let late = w.late;
+    let s = &mut w.s;
+    if (redo && !s.can_redo()) || (!redo && !s.can_undo()) {
+        return (0, 0);
+    }
+    let subscribed = |s: &Session, calendar: Id| s.mailbox.calendar(calendar).is_some_and(|c| c.is_subscribed());
+    let before: BTreeMap<Id, (String, Id)> =
+        s.mailbox.events.values().filter(|e| subscribed(s, e.calendar)).map(|e| (e.id, (e.uid.clone(), e.calendar))).collect();
+    let said: BTreeMap<Id, bool> = before.keys().map(|id| (*id, s.undo_removes(redo, *id))).collect();
+    run(s, if redo { "edit.redo" } else { "edit.undo" }, json!({}));
+    let (mut seen, mut of_late) = (0, 0);
+    for (id, (uid, calendar)) in &before {
+        seen += 1;
+        of_late += u32::from(late == Some(*calendar));
+        let gone = s.mailbox.event(*id).map(|e| e.uid.as_str()) != Some(uid.as_str());
+        if said[id] != gone {
+            wrong.push(format!("undo_removes {label}: subscribed event {id} ({uid}) said gone={}, gone={gone}", said[id]));
+        }
+    }
+    (seen, of_late)
+}
+
+#[test]
+fn a_subscribed_event_a_refresh_brought_is_said_to_stay_through_an_undo_after_a_zone_move() {
+    // The step, then the calendar's refresh brings "Match two", then the computer is carried to
+    // London: the undo (and the redo after it) keeps "Match two", as every subscribed event,
+    // so the gate must not say it goes.
+    for z1 in [Moved::Unsettled, Moved::Settled] {
+        let mut w = world(true);
+        step(&mut w, Step::NewLocal);
+        after(&mut w, Down::Add, 0);
+        let sub = w.sub.unwrap();
+        let two = w.s.mailbox.events.values().find(|e| e.calendar == sub && e.title == "Match two").map(|e| e.id).unwrap();
+        zone(&mut w, z1);
+        assert!(!w.s.undo_removes(false, two), "{z1:?}: Match two said to go with the undo");
+        run(&mut w.s, "edit.undo", json!({}));
+        assert!(w.s.mailbox.event(two).is_some_and(|e| e.title == "Match two"), "{z1:?}: the undo took Match two away");
+        w.s.clock.zone = Zone::named("Asia/Tokyo");
+        assert!(!w.s.undo_removes(true, two), "{z1:?}: Match two said to go with the redo");
+        run(&mut w.s, "edit.redo", json!({}));
+        assert!(w.s.mailbox.event(two).is_some_and(|e| e.title == "Match two"), "{z1:?}: the redo took Match two away");
+    }
+}
+
+#[test]
+fn a_calendar_subscribed_after_the_step_keeps_its_events_through_the_undo_and_is_said_to() {
+    // The step, then a calendar subscribed (no step of its own) and its file come down: the step's
+    // mailbox has no such calendar, yet the undo and the redo keep its events as every subscribed
+    // calendar's, with the zone moved since or not at all.
+    for z1 in [Moved::Not, Moved::Stamp, Moved::Unsettled, Moved::Settled, Moved::BackUnsettled] {
+        let mut w = world(false);
+        step(&mut w, Step::NewLocal);
+        let sub = run(&mut w.s, "calendar.subscribe", json!({"address": ADDRESS}))["id"].as_u64().unwrap();
+        came(&mut w.s, sub, &ics(&[("u-1", "Match one", "20261015T100000Z")]), "\"1\"");
+        let one = w.s.mailbox.events.values().find(|e| e.calendar == sub).map(|e| e.id).unwrap();
+        zone(&mut w, z1);
+        assert!(!w.s.undo_removes(false, one), "{z1:?}: Match one said to go with the undo");
+        run(&mut w.s, "edit.undo", json!({}));
+        assert!(!w.s.mailbox.events.values().any(|e| e.title == "Lunch here"), "{z1:?}: the undo left the step's appointment");
+        assert!(w.s.mailbox.event(one).is_some_and(|e| e.uid == "u-1"), "{z1:?}: the undo took Match one away");
+        w.s.clock.zone = Zone::named("Asia/Tokyo");
+        assert!(!w.s.undo_removes(true, one), "{z1:?}: Match one said to go with the redo");
+        run(&mut w.s, "edit.redo", json!({}));
+        assert!(w.s.mailbox.events.values().any(|e| e.title == "Lunch here"), "{z1:?}: the redo left out the step's appointment");
+        assert!(w.s.mailbox.event(one).is_some_and(|e| e.uid == "u-1"), "{z1:?}: the redo took Match one away");
+    }
+}
+
+#[test]
+fn the_undo_gate_says_exactly_what_happens_to_the_subscribed_calendars_events() {
+    // (Subscribing and unsubscribing are no steps of the history: they come between the step and
+    // the undo, `Since`.)
+    let steps = [Step::EditServed, Step::NewLocal, Step::DeleteLocal, Step::DeleteServed, Step::AddAccount, Step::Unrelated];
+    let sinces = [Since::Nothing, Since::SubscribedAnother, Since::Resubscribed];
+    let downs = [Down::None, Down::Add, Down::Change, Down::Delete, Down::AddAndChange];
+    let moves = [Moved::Not, Moved::Stamp, Moved::Unsettled, Moved::Settled, Moved::BackUnsettled];
+    let (mut wrong, mut seen, mut moved, mut late) = (Vec::new(), 0u32, 0u32, 0u32);
+    for st in steps {
+        for sc in sinces {
+            for d1 in downs {
+                for z1 in moves {
+                    for z2 in [Moved::Not, Moved::Unsettled] {
+                        let mut w = world(true);
+                        step(&mut w, st);
+                        since(&mut w, sc);
+                        after(&mut w, d1, 0);
+                        zone(&mut w, z1);
+                        let label = format!("{st:?} {sc:?} {d1:?} {z1:?}");
+                        let (n, n_late) = check_subscribed(&mut w, false, &format!("undo {label}"), &mut wrong);
+                        // The undo is the same for both `z2`: counted once, and said once below.
+                        if z2 == Moved::Not {
+                            (seen, late) = (seen + n, late + n_late);
+                            if z1 != Moved::Not {
+                                moved += n;
+                            }
+                        }
+                        after(&mut w, d1, 1);
+                        if z2 == Moved::Unsettled {
+                            w.s.clock.zone = Zone::named("Asia/Tokyo");
+                        }
+                        let (n, n_late) = check_subscribed(&mut w, true, &format!("redo {label} then {z2:?}"), &mut wrong);
+                        (seen, late) = (seen + n, late + n_late);
+                    }
+                }
+            }
+        }
+    }
+    // The matrix reaches what it is for, each check counted once: subscribed events, with the zone
+    // moved among them, and in a calendar subscribed after the step.
+    assert!(seen >= 2_500 && moved >= 700 && late >= 1_000, "seen {seen}, moved {moved}, late {late}");
+    wrong.sort();
+    wrong.dedup();
+    let shown: Vec<&String> = wrong.iter().take(20).collect();
+    assert!(wrong.is_empty(), "{} wrong, first: {shown:#?}", wrong.len());
 }

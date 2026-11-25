@@ -34,6 +34,7 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Outlook does | MailCraft |
 |---|---|
 | Click selects an item; click an empty slot selects the slot; drag selects a range of slots | Done (a range is within one day in the time grid; across days in Month and the all-day row) |
+| Ctrl+click adds an item to the selection or takes it out; Shift+click takes the range; Ctrl+A takes everything shown | Done: an ordinary click replaces the selection with one item; Ctrl+click (Command+click on a Mac) toggles one in or out; Shift+click takes the visible items from the one selected before it, in time order, and leaves the clicked item as the focus whichever way the range runs; Ctrl+A takes every distinct item the range in view shows in the calendars shown, up to 200, and says when there are more. A calendar that only shows busy times has no appointment to select, and a cancelled item is left out |
 | Typing with a slot selected starts the item right there; Enter saves, Escape drops it | Done (a click elsewhere saves what was typed, as Outlook does) |
 | Double-click an empty slot opens a new appointment for that time; double-click an item opens it | Done, each in a window of its own |
 | Drag an item to another time or day; the grid scrolls at its edges | Done (snaps to the time scale, ghost), and the server is told at once |
@@ -41,6 +42,7 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Ctrl+drag copies; right-button drag asks Move or Copy | Done (a copy is a plain appointment: attendees and recurrence are not copied) |
 | Drag in Month view, and all-day items between days; into and out of the all-day row | Done (a repeating item is not turned all-day or timed by dragging) |
 | Arrow keys move the slot selection, Shift+arrows extend it, Tab goes from item to item, Enter opens, Delete deletes | Done; also Home/End, Page Up/Down, Alt+Up/Down to move the item, Ctrl+C/X/V (a cut item stays in place until it is pasted) |
+| Copy, cut, paste or delete several items at once | Done: Copy and Cut take the whole selected set (Ctrl+C and Ctrl+X, Copy and Cut on an item's menu, and the Clipboard group on Home); Paste at a picked time puts it there (Ctrl+V, or Paste in that group) — the earliest timed item at that time, the others by their own time-of-day, whole-day items by their own days. A cut leaves the items where they are until it is pasted, and the paste then moves them: an ordinary appointment moved in its own calendar is the same record, with the id, UID, title, notes, location, reminder, categories, importance, show as, privacy and the people it had, and its length and place relative to the others. A day of a series is changed as that day: the series keeps its own identity and that day becomes a changed day of it — a record of its own, which the account's server names — never a cancellation of the series and a new one. One Undo puts the whole set back, as for any change the server has not been told. A copy is a plain appointment for each item, as any copy is. A set that cannot be done whole — a changed or missing item, a calendar that cannot be written, or a copy of an item with files attached, which only the server keeps (as Copy Event refuses one; a cut moves the item itself, files and all) — is refused whole, changes nothing, and keeps a cut on the clipboard; an appointment window with unsaved changes is asked about in the window, and a route that cannot ask refuses instead. A cut that would write to people asks once for the whole set when a person runs it, and a cancelled question leaves the cut as it was; each appointment the account's server keeps is then queued as a change of its own. Delete takes the whole set as well: each item one whole event or one day of a series, a whole series only when the batch says so, with the mail to everybody affected asked about once: the question lists each item that writes to people under the account whose server sends the mail, with its day and time (and a cut's new time) and who it goes to (every item is listed; the first twelve that write name up to six people each, the rest say how many), and counts somebody invited without an address as somebody. Copy, Cut and Paste also run from Command Search |
 | Hovering shows subject, time, location, organizer | Done (and that it is of high or low importance, or held online) |
 | Right-click: Open, Private, Show As, Categorize, Meeting responses, Delete (and Move/Copy to another calendar) | Done: Open, Delete, Show As, Private, Importance (High / Normal / Low), Categorize, Accept / Tentative / Decline, Propose New Time, Forward (and Forward This Occurrence), Join (an online meeting that has a link), Save as iCalendar, Move to Calendar, and a drop in another calendar's block moves the item there (Ctrl: a copy). Between two calendars of the same Microsoft 365 account an appointment moves; the service has no way of moving an event, so it is made in the other calendar first and taken out of the first one only once the copy has been seen there in what the service sends back (one step to undo here; a refusal of either half, or a copy that turns out not to be there, puts it back and says so). Refused, each with its reason: a meeting (everyone invited would get a cancellation and a new invitation), a series and one occurrence of one, an item with files attached (only the server keeps them; a copy of one, too, is refused rather than made without them), and taking an item out of its account. What MailCraft doesn't keep of an item (formatting in its text) is not carried over |
 | A recurring item asks "just this one" or "the entire series" when opened, moved, resized or deleted | Done, for series on this computer and on the server (an occurrence dragged to another day of a series that keeps its weekdays moves alone, without the question) |
@@ -141,6 +143,11 @@ server; what has met the real Microsoft 365 service is only what the owner has u
   unsent meeting.
 - Cut leaves the item where it is until it is pasted (deleting it first would cancel a meeting on
   the server).
+- Selecting several items works in the time grid, the all-day row and Month's bars; a drag still
+  moves the one item under the pointer, and a selected set is not dragged as a set.
+- The calendar's clipboard is its own. The system's clipboard carries a short text that says what
+  was copied or cut — a title, or how many and the first title — and not the items themselves, so
+  pasting into another program, or from one, is not offered.
 - A repeating item cannot be changed between timed and all-day by dragging.
 - Send in a new meeting's window sends at once, as in Outlook; Send Update and the keys for
   sending ask first, where Outlook does not.
@@ -231,11 +238,29 @@ carried to Berlin and to Kiritimati and home: not one write reaches the server. 
 which names beyond the documented ones the real service takes, and what it gives back as an
 item's original zone when another program made the item.
 
+The calendar's selected set, Select All and Copy, Cut and Paste are written in the window and the
+engine, and the window's and engine's own automated regression tests cover the main paths: Copy
+and Cut of a set of two items, with one Undo for the set; a cut left where it is and moved only by
+the paste, each pasted item keeping its id, UID and other fields, its length and its spacing; a Cut
+refused to an agent, and any parameter refused without disturbing a copy already on the clipboard;
+a paste that would write to people, or that meets an appointment window with unsaved changes,
+refused before anything moves on a route that cannot ask; the owner's Paste asking, with a
+cancelled question keeping the cut; a cut meeting an account's server approved once and queued as
+that meeting; the Clipboard group's three commands and command search; and Paste's readiness.
+
+The automated checks also exercise selection modifiers and Select All in egui, the selection
+cap, stale clipboard items, recurring-occurrence moves and selected-set Delete. These engine
+and egui fixtures do not establish how the real system delivers keyboard focus or pointer
+modifiers, how the rendered pixels look, browser interactions or behaviour with live accounts.
+Manual and native acceptance remain unperformed; this is not whole-platform acceptance.
+
 ## Revision history
 
 | Date | Change |
 |---|---|
+| 2026-11-18 | #1674: the row on changes reaching the server: an undo puts back only the events it changed, and what a download brought for the others meanwhile stays, with three exceptions named: a move to another time zone (subscribed calendars' events stay but show at the wrong time, out by the difference between the zones, until a refresh brings the calendar's file again), an event the change only forwarded, and a calendar a download listed or removed since |
 | 2026-11-18 | #1664: a copy of an item with files attached is refused, as a move of one is, rather than made without its files |
+| 2026-11-16 | #1663: selecting several items in the time grid, the all-day row and Month, and copying, cutting, pasting or deleting the set — with Ctrl+C/X/V, the item's menu, the Home tab's Clipboard group and Command Search; what the question about mail names (each item under the account that sends it, with its time and its people); what a move of ordinary appointments keeps, that a day of a series is changed as that day, that a copy of an item with files attached is refused for the set as for one item, and the limits of what is exercised |
 | 2026-11-16 | #1130: an item without a zone of its own goes to Microsoft 365 by the clock of the calendar's zone, not in UTC; one in the hour the clocks show twice goes in UTC |
 | 2026-11-15 | #209 D1: Internet Calendars (subscribed calendars): the row after Free/busy of other people |
 | 2026-11-04 | #755: an answered meeting request goes from the Inbox to Deleted Items by default in a new install (`calendar.deleteAnsweredRequests`), off for the command line and headless MCP; only from an Inbox of the owner's own accounts |

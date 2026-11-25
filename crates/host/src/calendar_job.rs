@@ -19,7 +19,7 @@ use mailcraft_engine::Session;
 use mailcraft_engine::sync_driver::{CalendarCame, CalendarPlan, CalendarTaken};
 use mailcraft_model::{Account, Id, OAuth};
 
-use crate::graph::{GraphRequest, GraphResult};
+use crate::graph::{ContactsAsk, GraphRequest, GraphResult};
 use crate::job_sign_in::{ForeignSignIn, foreign_sign_in};
 
 /// The sign-in a calendar job goes with, as the front end found it.
@@ -66,6 +66,28 @@ pub fn calendar_request(session: &Session, plan: &CalendarPlan, auth: CalendarAu
         mail_pieces: None,
         cancel: Default::default(),
         signer: Some(signer),
+        contacts: contacts_ask(session, plan),
+    })
+}
+
+/// What the calendar job `plan` does with its account's contacts (#1917): what waits to go up,
+/// and with the wide stretch the folders to bring down. `None` for an account whose contacts
+/// Microsoft doesn't keep, and when there is neither.
+fn contacts_ask(session: &Session, plan: &CalendarPlan) -> Option<ContactsAsk> {
+    let account = session.mailbox.account(plan.account).filter(|a| a.keeps_contacts() && !a.is_shared())?.id;
+    let upload = mailcraft_engine::cmd::contacts_remote::contact_upload(session, account).ok()?;
+    if upload.ops.is_empty() && !plan.directory {
+        return None;
+    }
+    let mailbox = &session.mailbox;
+    // (After changes went up, the folders are read too: a new contact the server made without
+    // saying its id is known by the read.)
+    let read = plan.directory || !upload.ops.is_empty();
+    Some(ContactsAsk {
+        upload,
+        read,
+        folders: mailbox.contact_folders.iter().filter(|f| f.account == account).cloned().collect(),
+        mailboxes: mailbox.shared_mailboxes(account).iter().map(|a| a.email.trim().to_string()).filter(|a| !a.is_empty()).collect(),
     })
 }
 
@@ -211,6 +233,9 @@ pub fn came(result: &GraphResult, job_errors: bool) -> CalendarCame<'_> {
         extras_missing: result.extras_missing,
         hours: result.mailbox_hours.as_ref(),
         contacts: result.contacts.as_ref(),
+        more_contacts: &result.more_contacts,
+        contacts_uploaded: result.contacts_uploaded.as_ref(),
+        contacts_consent_needed: result.contacts_consent_needed,
         job_errors,
         consent_needed: result.consent_needed,
         token_refused: result.token_refused,

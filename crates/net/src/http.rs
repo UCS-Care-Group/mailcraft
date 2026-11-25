@@ -201,8 +201,8 @@ const MAX_REASON: usize = 1_024;
 /// Most compliance classes kept of one answer's `DAV` headers, and the longest one (a class is a
 /// token or a `<URL>`; a longer one is dropped, never cut); and the longest `ETag`. The cap is on
 /// the classes, not on the header: Nextcloud sends one header of some forty classes.
-// Must match `mailcraft_dav::status::MAX_DAV_CLASSES` (64); D4 adds the cross-crate test.
-const MAX_DAV: usize = 64;
+// Must match `mailcraft_dav::status::MAX_DAV_CLASSES` (64): `dav_tests::the_class_cap_is_the_same_on_both_sides` holds the two together.
+pub(crate) const MAX_DAV: usize = 64;
 const MAX_DAV_VALUE: usize = 96;
 const MAX_ETAG: usize = 1_024;
 

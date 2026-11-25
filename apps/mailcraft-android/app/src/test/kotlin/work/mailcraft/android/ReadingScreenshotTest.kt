@@ -35,8 +35,8 @@ internal object ReadingShots {
 
     /** The pane with its dates in UTC and US English, whatever machine records or checks the shot. */
     @Composable
-    fun Pane(ui: ReadingUi) = ShellShots.Fixed {
-        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
+    fun Pane(ui: ReadingUi, tools: ReadingTools = ReadingTools.None) = ShellShots.Fixed {
+        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None, tools = tools)
     }
 }
 
@@ -229,3 +229,45 @@ private fun ShellData.withRows() = copy(
         rows = ShellShots.rows.mapIndexed { i, r -> r.copy(address = if (i % 2 == 0) "ada@example.org" else "bo@example.org") },
     ),
 )
+
+/** The message actions over the body, the open and shut header, and the light page in the dark theme. */
+class ReadingToolsScreenshotTest {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = Tall,
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+        maxPercentDifference = TOLERANCE,
+    )
+
+    private fun tools(prefs: ReadingPrefs) = ReadingTools(
+        MailListContext(EnglishTexts, ShellShots.NOW, SwipeConfig(), emptyList(), ShellShots.categories),
+        { _, _ -> },
+        {},
+        prefs,
+        {},
+    )
+
+    private fun shoot(name: String, entry: Corpus.Entry, prefs: ReadingPrefs, dark: Boolean = true) {
+        for ((suffix, scale) in listOf("100" to 1f, "200" to 2f)) {
+            paparazzi.unsafeUpdateConfig(
+                Tall.copy(nightMode = if (dark) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = scale),
+            )
+            paparazzi.snapshot("reading_tools_${name}_$suffix") { ReadingShots.Pane(ReadingShots.ui(entry), tools(prefs)) }
+        }
+    }
+
+    @Test
+    fun shutHeaderLight() = shoot("shut_light", Corpus.plain, ReadingPrefs(), dark = false)
+
+    @Test
+    fun openHeaderLight() = shoot("open_light", Corpus.plain, ReadingPrefs(headerOpen = true), dark = false)
+
+    @Test
+    fun lightPageInDark() = shoot("light_page_dark", Corpus.newsletter, ReadingPrefs())
+
+    @Test
+    fun darkPageInDark() = shoot("dark_page_dark", Corpus.newsletter, ReadingPrefs(lightMessages = false))
+
+    @Test
+    fun openHeaderDark() = shoot("open_dark", Corpus.reply, ReadingPrefs(headerOpen = true))
+}

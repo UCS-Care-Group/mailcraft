@@ -159,15 +159,16 @@ impl Session {
     /// the first it can ([`Session::rules_started`]).
     pub fn rules_due(&mut self, facts: &RulesFacts, refresh: impl Fn(Id) -> Option<String>, now: f64) -> Vec<RulesPlan> {
         let mut due = Vec::new();
-        // One thing at a time: the calendar's job, the to-dos', the automatic replies', a
-        // Send/Receive and a sign-in go first (the jobs renew the same sign-in).
-        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks(Start::Rules) {
+        // One thing at a time: the calendar's job, the to-dos', the automatic replies' and a
+        // Send/Receive go first (the jobs renew the same sign-in), and an account's sign-in goes
+        // before its own rules.
+        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks_every(Start::Rules) {
             return due;
         }
         // Working offline: the books go on, nothing is started.
         let offline = self.prefs.offline;
         for account in rules_remote::rule_accounts(&self.mailbox) {
-            if self.rules_signed_out(account, refresh(account).as_deref()) {
+            if facts.busy.blocks(Start::Rules, account) || self.rules_signed_out(account, refresh(account).as_deref()) {
                 continue;
             }
             if matches!(self.driver.rules.perm.get(&account), Some(Permission::SignInOver(_))) {

@@ -5,11 +5,14 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Stroke, Visuals};
-use mailcraft_model::rich::Font;
+use mailcraft_model::rich::Built;
 
 mod accent;
 mod blue;
-pub use accent::{Accent, AccentInk, lenient_bool};
+mod classic;
+pub use accent::{
+    Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
+};
 pub use blue::DarkStyle;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
@@ -19,11 +22,14 @@ pub const APP_INK: Color32 = Color32::from_rgb(0x08, 0x62, 0x88);
 
 /// The interface theme setting (File › Options › General): `System`, which follows the OS (or
 /// browser) light/dark appearance live and is what a new installation starts with, or a fixed
-/// light or dark palette.
+/// light or dark palette. `ClassicLight` is a light palette of its own (#1203): a flat white page
+/// with square corners, capital tabs, File and the status bar in the accent, a bar on the selected
+/// message, and the ribbon and message list closer together (`theme/classic.rs`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(from = "String", into = "String")]
 pub enum Appearance {
     Light,
+    ClassicLight,
     Dark,
     #[default]
     System,
@@ -31,12 +37,13 @@ pub enum Appearance {
 
 impl Appearance {
     /// In menu order.
-    pub const ALL: [Appearance; 3] = [Appearance::System, Appearance::Light, Appearance::Dark];
+    pub const ALL: [Appearance; 4] = [Appearance::System, Appearance::Light, Appearance::ClassicLight, Appearance::Dark];
 
     /// The value used in `ui.json` and by the `ui.theme` command.
     pub fn code(self) -> &'static str {
         match self {
             Appearance::Light => "light",
+            Appearance::ClassicLight => "classicLight",
             Appearance::Dark => "dark",
             Appearance::System => "system",
         }
@@ -50,6 +57,7 @@ impl Appearance {
     pub fn label(self) -> &'static str {
         match self {
             Appearance::Light => "Light",
+            Appearance::ClassicLight => "Classic Light",
             Appearance::Dark => "Dark",
             Appearance::System => "Use system setting",
         }
@@ -63,7 +71,7 @@ impl Appearance {
     /// rebuild the font atlas they share every frame, which garbles the text of both.
     pub fn preference(self, system: Option<egui::Theme>) -> egui::ThemePreference {
         match self {
-            Appearance::Light => egui::ThemePreference::Light,
+            Appearance::Light | Appearance::ClassicLight => egui::ThemePreference::Light,
             Appearance::Dark => egui::ThemePreference::Dark,
             Appearance::System => match system {
                 Some(egui::Theme::Dark) => egui::ThemePreference::Dark,
@@ -230,7 +238,8 @@ pub struct Tokens {
     pub surface_sunken: Color32,
     /// The ring round a control that has the keyboard's focus in a box that has no stroke of its own.
     pub focus_ring: Color32,
-    /// The line under a row of the message list.
+    /// The line under a row of the message list: plainly seen on a bright screen (#1657), and in
+    /// High Contrast 3:1 on the list.
     pub rule: Color32,
     /// The groove a progress bar runs in.
     pub track: Color32,
@@ -267,6 +276,23 @@ pub struct Tokens {
     pub ink_on_light: Color32,
     /// How much an avatar's colour is dimmed.
     pub avatar_shade: f32,
+    /// The ribbon and the message list stand closer together (Classic Light, #1203): the ribbon's
+    /// row is shorter and its buttons narrower, and the list's rows shorter, on top of the
+    /// owner's own Tighter Spacing.
+    pub dense: bool,
+    /// How round the corners of the ribbon's sheet and of a control are.
+    pub sheet_radius: u8,
+    pub control_radius: u8,
+    /// The status bar is filled with the accent, its words and icons in the accent's ink
+    /// ([`Tokens::on_band`]), as the desktop mail programs of the early 2010s had it (#1203).
+    pub status_band: bool,
+    /// The ribbon's tabs are named in capitals (#1203).
+    pub tab_caps: bool,
+    /// The File tab is a button filled with the accent, apart from the other tabs (#1203).
+    pub file_tab_fill: bool,
+    /// A selected row of the message list is marked by a bar in the accent down its left edge
+    /// instead of an outline round it (#1203).
+    pub row_bar: bool,
 }
 
 impl Tokens {
@@ -344,7 +370,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0xE6, 0xE9, 0xEF),
+            rule: c(0xC6, 0xCD, 0xD8),
             border_faint: c(0xEC, 0xEF, 0xF4),
             track: c(0xD6, 0xDC, 0xE6),
             lane: window,
@@ -367,6 +393,13 @@ impl Tokens {
             ink_on_dark: surface,
             ink_on_light: text,
             avatar_shade: 1.0,
+            dense: false,
+            sheet_radius: 8,
+            control_radius: 6,
+            status_band: false,
+            tab_caps: false,
+            file_tab_fill: false,
+            row_bar: false,
         }
     }
     /// The dark palette: neutral greys, window to folder pane to list to ribbon, as in the other
@@ -444,7 +477,7 @@ impl Tokens {
             hover_nav: panel.lerp_to_gamma(hover, 0.7),
             surface_sunken: surface.linear_multiply(0.55),
             focus_ring: accent.linear_multiply(0.5),
-            rule: c(0x2E, 0x2E, 0x32),
+            rule: c(0x46, 0x46, 0x4D),
             border_faint: c(0x2A, 0x2A, 0x2D),
             track: c(0x3E, 0x3E, 0x43),
             lane: panel,
@@ -467,6 +500,13 @@ impl Tokens {
             ink_on_dark: text,
             ink_on_light: surface,
             avatar_shade: 0.9,
+            dense: false,
+            sheet_radius: 8,
+            control_radius: 6,
+            status_band: false,
+            tab_caps: false,
+            file_tab_fill: false,
+            row_bar: false,
         }
     }
     /// The tokens in force: the palette last installed in `ctx` ([`apply`]), its dark half or its
@@ -477,6 +517,60 @@ impl Tokens {
         palette.tokens(dark)
     }
 
+    /// The tokens for what is drawn on a band filled with `fill` (the status bar, with
+    /// [`Tokens::status_band`]): the words, icons and lines in the ink that reads on it, the
+    /// pointer's shade a step away from that ink (so the words keep their contrast on it), and the
+    /// window's own colours `fill`.
+    pub fn on_band(&self, fill: Color32) -> Tokens {
+        let ink = if fill == self.accent { self.on_accent } else { self.text };
+        let step = |k: f32| fill.lerp_to_gamma(ink, k);
+        let shade = |k: f32| fill.lerp_to_gamma(Tokens::away_from(ink), k);
+        Tokens {
+            title_bar: fill,
+            tab_strip: fill,
+            status_bar: fill,
+            text: ink,
+            text_dim: ink,
+            group_label: ink,
+            icon: ink,
+            accent: ink,
+            accent_text: ink,
+            selection_edge: ink,
+            focus_ring: ink,
+            hover: shade(0.16),
+            hover_subtle: shade(0.1),
+            pressed: shade(0.26),
+            accent_soft: step(0.24),
+            accent_soft_text: ink,
+            red: ink,
+            checked: step(0.24),
+            border: step(0.4),
+            border_faint: step(0.3),
+            track: step(0.3),
+            ..*self
+        }
+    }
+
+    /// Black for a light ink, white for a dark one: where a fill goes to stay readable under it.
+    pub fn away_from(ink: Color32) -> Color32 {
+        let (r, g, b) = (u32::from(ink.r()), u32::from(ink.g()), u32::from(ink.b()));
+        if r * 299 + g * 587 + b * 114 >= 128_000 { Color32::BLACK } else { Color32::WHITE }
+    }
+
+    /// Run `draw` with `tokens` in force ([`Tokens::get`] gives them), then put back what was.
+    pub fn scoped<R>(ctx: &egui::Context, tokens: Tokens, draw: impl FnOnce() -> R) -> R {
+        let before = ctx.data(|d| d.get_temp::<Palette>(Palette::slot()));
+        ctx.data_mut(|d| d.insert_temp(Palette::slot(), Palette { light: tokens, dark: tokens }));
+        let drawn = draw();
+        ctx.data_mut(|d| match before {
+            Some(palette) => {
+                d.insert_temp(Palette::slot(), palette);
+            }
+            None => d.remove::<Palette>(Palette::slot()),
+        });
+        drawn
+    }
+
     /// A chip's fill, from a colour of the mailbox (a category's, a calendar's).
     pub fn data_fill(&self, rgb: Color32) -> Color32 {
         rgb.linear_multiply(self.data_tint)
@@ -485,6 +579,32 @@ impl Tokens {
     /// The edge of a chip.
     pub fn data_edge(&self, rgb: Color32) -> Color32 {
         rgb.linear_multiply(0.8)
+    }
+
+    /// The faint band every other row of the message list wears with View › Shade Alternate Rows
+    /// (#1657): the list's own colour a little towards its text, a little more in High Contrast.
+    /// A custom accent is fitted against it ([`accent::custom_ink`]).
+    pub fn row_shade(&self) -> Color32 {
+        self.surface.lerp_to_gamma(self.text, if self.high_contrast { 0.07 } else { 0.04 })
+    }
+
+    /// How a message-list row is laid, from the bottom up (#1657): its shaded band, a flag's tint,
+    /// a selection's fill (letting a little of a flag's tint through) or else the pointer's shade.
+    /// `selected` is whether the list has the focus, for a selected row. The list paints these
+    /// and its coloured text is fitted to what they make ([`RowLayers::under`]), so the two can't
+    /// part, as long as every layer it paints covers all of the row's text.
+    pub fn list_row_layers(&self, shaded: bool, flagged: bool, selected: Option<bool>, hovered: bool) -> RowLayers {
+        let selection = selected.map(|focus| {
+            let fill = if focus { self.selection } else { self.selection_unfocused };
+            if flagged { fill.gamma_multiply(LIST_FLAGGED_SELECTION) } else { fill }
+        });
+        RowLayers {
+            base: self.surface,
+            band: shaded.then(|| self.row_shade()),
+            flag: flagged.then_some(self.flagged_row),
+            selection,
+            hover: (selected.is_none() && hovered).then_some(self.hover_subtle),
+        }
     }
 
     /// The strength with which a mailbox colour tints an event block over `surface`.
@@ -519,9 +639,13 @@ impl Palette {
         Palette { light: Tokens::light(), dark: Tokens::dark() }
     }
 
-    /// The built-in look in `accent`, with high contrast on or off, its dark half in `style`.
-    pub fn for_choice(accent: Accent, high_contrast: bool, style: DarkStyle) -> Palette {
-        Palette { light: Tokens::build(false, accent, high_contrast), dark: Tokens::build_dark(style, accent, high_contrast) }
+    /// The built-in look in `accent` — with `custom` as the colour when it is a custom one — with
+    /// high contrast on or off, its dark half in `style`.
+    pub fn for_choice(accent: Accent, custom: Option<Color32>, high_contrast: bool, style: DarkStyle) -> Palette {
+        Palette {
+            light: Tokens::build_choice(false, accent, custom, high_contrast),
+            dark: Tokens::build_dark_choice(style, accent, custom, high_contrast),
+        }
     }
 
     fn slot() -> egui::Id {
@@ -538,15 +662,21 @@ impl Palette {
 pub struct ThemeChoice {
     pub appearance: Appearance,
     pub accent: Accent,
+    /// The colour of a custom accent; None until the owner picks one (the default is used then).
+    pub custom: Option<Color32>,
     pub high_contrast: bool,
     /// The greys of the dark theme (#1384).
     pub dark_style: DarkStyle,
 }
 
 impl ThemeChoice {
-    /// The palette this choice shows.
+    /// The palette this choice shows: Classic Light has a light half of its own (#1203).
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.high_contrast, self.dark_style)
+        let palette = Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style);
+        match self.appearance {
+            Appearance::ClassicLight => Palette { light: Tokens::build_classic(self.accent, self.custom, self.high_contrast), ..palette },
+            Appearance::Light | Appearance::Dark | Appearance::System => palette,
+        }
     }
 }
 
@@ -682,47 +812,40 @@ pub struct SystemFont {
     fallbacks: Vec<Arc<FontData>>,
     /// The system's colour emoji face ([`EMOJI_FACES`]), when there is one.
     emoji: Option<Arc<FontData>>,
-    /// The installed face of each font a message can be written in (#582), by font and whether
-    /// it is the bold face; read at start, a few hundred kilobytes each.
-    document: Vec<(Font, bool, Arc<FontData>)>,
+    /// The installed face of each of the six families the composer offers first (#582), by family
+    /// and whether it is the bold face; read at start, a few hundred kilobytes each.
+    document: Vec<(Built, bool, Arc<FontData>)>,
 }
 
-/// The file names (lower case) the face of `font` may have on this system, best first: the
+/// The file names (lower case) the face of `built` may have on this system, best first: the
 /// vendor's own on Windows and macOS, then the open metric-compatible faces on Linux and FreeBSD.
 /// `System` is the window's own font and has none.
-pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
-    match (font, bold) {
-        (Font::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
-        (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
-        (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
-        (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
-        (Font::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
-        (Font::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
-        (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
-        (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
-        (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
-        (Font::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
-        (Font::System, _) => &[],
+pub fn face_files(built: Built, bold: bool) -> &'static [&'static str] {
+    match (built, bold) {
+        (Built::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
+        (Built::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
+        (Built::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
+        (Built::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Built::CourierNew, false) => &["cour.ttf", "courier new.ttf", "liberationmono-regular.ttf", "cousine-regular.ttf"],
+        (Built::CourierNew, true) => &["courbd.ttf", "courier new bold.ttf", "liberationmono-bold.ttf", "cousine-bold.ttf"],
+        (Built::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
+        (Built::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
+        (Built::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
+        (Built::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
+        (Built::System, _) => &[],
     }
 }
 
-/// The first of the face names of `font` that `has` says is there.
-pub fn first_face(font: Font, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
-    face_files(font, bold).iter().copied().find(|name| has(name))
+/// The first of the face names of `built` that `has` says is there.
+pub fn first_face(built: Built, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
+    face_files(built, bold).iter().copied().find(|name| has(name))
 }
 
-/// The family a message's text in `font` is registered under, when [`SystemFont`] found its face.
-pub fn document_family(font: Font, bold: bool) -> FontFamily {
-    let name = format!("font-{}{}", font.label().to_lowercase(), if bold { "-bold" } else { "" });
+/// The family text in one of the six families is registered under, when [`SystemFont`] found its
+/// face. Any other family is registered by [`crate::fonts`] under a family of its own.
+pub fn document_family(built: Built, bold: bool) -> FontFamily {
+    let name = format!("font-{}{}", built.label().to_lowercase(), if bold { "-bold" } else { "" });
     FontFamily::Name(name.into())
-}
-
-/// How text in a message's own `font` is drawn: its family where `has` says one was registered,
-/// else `None` and the caller draws it in the window's font. `System` is the window's font.
-pub fn document_font(font: Option<Font>, bold: bool, size: f32, has: impl Fn(&FontFamily) -> bool) -> Option<FontId> {
-    let font = font.filter(|f| *f != Font::System)?;
-    let family = document_family(font, bold);
-    has(&family).then(|| FontId::new(size, family))
 }
 
 impl SystemFont {
@@ -822,23 +945,23 @@ impl SystemFont {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_document_faces(mut self, dirs: &[std::path::PathBuf]) -> Self {
         let mut names: Vec<&[&str]> = Vec::new();
-        for font in Font::ALL {
-            names.push(face_files(font, false));
-            names.push(face_files(font, true));
+        for built in Built::ALL {
+            names.push(face_files(built, false));
+            names.push(face_files(built, true));
         }
         let found = find_font_files(dirs, &names);
-        for font in Font::ALL {
+        for built in Built::ALL {
             for bold in [false, true] {
-                let path = first_face(font, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
+                let path = first_face(built, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
                 let Some(bytes) = path.and_then(|p| read_font(p, SYSTEM_FONT_CAP)) else { continue };
-                self.document.push((font, bold, Arc::new(FontData::from_owned(bytes))));
+                self.document.push((built, bold, Arc::new(FontData::from_owned(bytes))));
             }
         }
         self
     }
 
-    /// Which of a message's fonts have an installed face (regular, bold).
-    pub fn document_faces(&self) -> Vec<(Font, bool)> {
+    /// Which of the six families have an installed face (regular, bold).
+    pub fn document_faces(&self) -> Vec<(Built, bool)> {
         self.document.iter().map(|(f, b, _)| (*f, *b)).collect()
     }
 
@@ -1177,7 +1300,7 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     // A message's fonts (#582): the installed face under a family of its own, then the window's
     // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
     // bold: the emphasis is what is sent, and egui can't embolden a face itself.
-    for font in Font::ALL {
+    for font in Built::ALL {
         let face = |bold: bool| system.document.iter().find(|(f, b, _)| *f == font && *b == bold).map(|(_, _, data)| data);
         let Some(regular_face) = face(false) else { continue };
         for bold_face in [false, true] {
@@ -1359,8 +1482,9 @@ fn visuals(t: &Tokens) -> Visuals {
     v.extreme_bg_color = t.input;
     v.faint_bg_color = t.panel;
     v.window_stroke = Stroke::new(1.0, t.border_strong);
+    let control = CornerRadius::same(t.control_radius);
     v.window_corner_radius = CornerRadius::same(8);
-    v.menu_corner_radius = CornerRadius::same(6);
+    v.menu_corner_radius = control;
     v.selection.bg_fill = t.text_selection;
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
@@ -1370,20 +1494,20 @@ fn visuals(t: &Tokens) -> Visuals {
     v.widgets.inactive.weak_bg_fill = t.input;
     v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.input_border);
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.inactive.corner_radius = CornerRadius::same(6);
+    v.widgets.inactive.corner_radius = control;
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.text_dim);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.hovered.corner_radius = CornerRadius::same(6);
+    v.widgets.hovered.corner_radius = control;
     v.widgets.active.bg_fill = t.pressed;
     v.widgets.active.weak_bg_fill = t.pressed;
     v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.active.bg_stroke = Stroke::new(1.0, t.text_dim);
-    v.widgets.active.corner_radius = CornerRadius::same(6);
+    v.widgets.active.corner_radius = control;
     v.widgets.open.bg_fill = t.hover;
     v.widgets.open.weak_bg_fill = t.hover;
-    v.widgets.open.corner_radius = CornerRadius::same(6);
+    v.widgets.open.corner_radius = control;
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: t.shadow_popup };
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: t.shadow_window };
     v
@@ -1413,6 +1537,39 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
     let (r, g, b) = PALETTE.get(hash as usize % PALETTE.len()).copied().unwrap_or((0x0B, 0x7F, 0xAB));
     let c = Color32::from_rgb(r, g, b);
     c.linear_multiply(t.avatar_shade)
+}
+
+/// How much of a selected row's fill is laid over a flag's tint, so the tint shows through.
+pub const LIST_FLAGGED_SELECTION: f32 = 0.72;
+
+/// The layers of a message-list row, from the bottom up ([`Tokens::list_row_layers`]): each one
+/// that is there is painted in this order, and the row's coloured text is fitted to [`Self::under`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowLayers {
+    /// The list's own colour, under everything.
+    pub base: Color32,
+    /// The band of a shaded row (View › Shade Alternate Rows).
+    pub band: Option<Color32>,
+    /// A flagged or overdue message's tint.
+    pub flag: Option<Color32>,
+    /// A selected row's fill.
+    pub selection: Option<Color32>,
+    /// The pointer's shade, on a row that is not selected.
+    pub hover: Option<Color32>,
+}
+
+impl RowLayers {
+    /// What the row's text sits on: every layer laid over the one before, as egui blends them.
+    pub fn under(&self) -> Color32 {
+        [self.band, self.flag, self.selection, self.hover].into_iter().flatten().fold(self.base, |under, layer| over(layer, under))
+    }
+}
+
+/// `src` (premultiplied, as egui's colours are) painted over `dst`, blended as the painter does.
+fn over(src: Color32, dst: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(src.a()) / 255.0;
+    let ch = |s: u8, d: u8| (f32::from(s) + f32::from(d) * keep).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(ch(src.r(), dst.r()), ch(src.g(), dst.g()), ch(src.b(), dst.b()))
 }
 
 #[cfg(test)]
@@ -1621,12 +1778,18 @@ mod tests {
         (a.max(b) + 0.05) / (a.min(b) + 0.05)
     }
 
-    /// Text can be read on every background it is drawn on, in both palettes; and the window's
+    /// Text can be read on every background it is drawn on, in every palette; and the window's
     /// own colour is one colour wherever it shows.
     #[test]
     fn text_stays_readable_on_every_background() {
-        for t in [Tokens::light(), Tokens::dark()] {
-            let theme = if t.dark { "dark" } else { "light" };
+        for t in [Tokens::light(), Tokens::dark(), Tokens::classic_light()] {
+            let theme = if t.dark {
+                "dark"
+            } else if t.dense {
+                "classic light"
+            } else {
+                "light"
+            };
             let backgrounds = [
                 ("title_bar", t.title_bar),
                 ("ribbon", t.ribbon),
@@ -1760,6 +1923,7 @@ mod tests {
     fn saved_settings_read_leniently() {
         use super::{Appearance, InterfaceSize};
         assert_eq!(serde_json::from_str::<Appearance>("\"DARK\"").unwrap(), Appearance::Dark);
+        assert_eq!(serde_json::from_str::<Appearance>("\"classiclight\"").unwrap(), Appearance::ClassicLight);
         // An unknown value falls back to following the system, like a new installation.
         assert_eq!(serde_json::from_str::<Appearance>("\"sepia\"").unwrap(), Appearance::System);
         assert_eq!(serde_json::from_str::<InterfaceSize>("125").unwrap().percent(), 125);

@@ -31,6 +31,8 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod dav_raw;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
@@ -49,6 +51,8 @@ pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+#[cfg(test)]
+mod opening_kind_tests;
 #[cfg(test)]
 mod opening_tests;
 #[cfg(test)]
@@ -72,6 +76,9 @@ pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
+pub mod unified;
+#[cfg(test)]
+mod unified_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
 
@@ -84,8 +91,9 @@ pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane, Part,
-    PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, MAX_SELECTED_EVENTS, Missing,
+    Module, Pane, Part, PeopleSort, Prefs, Quote, ReadIn, Scope, SelectedEvent, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter,
+    TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps
@@ -430,6 +438,8 @@ mod category_rows_tests;
 mod composing_tests;
 #[cfg(test)]
 mod counts_tests;
+#[cfg(test)]
+mod draft_in_thread_tests;
 #[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]

@@ -313,3 +313,77 @@ fn a_copy_doesnt_go_into_a_microsoft_accounts_outbox() {
     s.run("mail.move", &json!({"ids": [m], "folder": outbox})).unwrap();
     assert!(graph_sends(&s, ms).is_empty());
 }
+
+/// An IMAP account's draft to `to`, saved and closed, then moved into the Outbox: the session,
+/// the account and the draft. Lin at Harbor Works is a contact.
+fn draft_in_outbox(to: &str) -> (Session, Id, Id) {
+    let (mut s, a, _) = imap();
+    s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();
+    s.run("mail.new", &json!({"account": a, "to": to, "subject": "Plans"})).unwrap();
+    s.run("compose.saveDraft", &json!({})).unwrap();
+    s.run("compose.close", &json!({})).unwrap();
+    let drafts = s.mailbox.folder_of_kind(a, FolderKind::Drafts).unwrap();
+    let id = s.mailbox.messages_in(drafts).find(|m| m.subject == "Plans").unwrap().id;
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": outbox})).unwrap();
+    (s, a, id)
+}
+
+/// #1747: a draft moved into the Outbox isn't let go by Send Again, which asks nothing of its
+/// recipients; it says to send it with Send, which does.
+#[test]
+fn send_again_leaves_a_draft_moved_into_the_outbox_to_send() {
+    let (mut s, a, id) = draft_in_outbox("lin.zhao@harborwork.example");
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.draft);
+    assert_eq!(m.held, mailcraft_model::DRAFT_MOVED_INTO_OUTBOX, "it says how it is sent");
+    let e = s.run("mail.sendAgain", &json!({"id": id})).unwrap_err().to_string();
+    assert!(e.contains("draft: open it and send it"), "{e}");
+    assert!(to_send(&s, a).is_empty(), "nothing goes");
+    // Opened and sent, Send asks about the lookalike address.
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    let e = s.run("compose.send", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("lookalikeRecipient lin.zhao@harborwork.example"), "{e}");
+}
+
+/// Moved out of the Outbox again, a draft is no longer held for having been put there.
+#[test]
+fn a_draft_moved_out_of_the_outbox_again_is_no_longer_held() {
+    let (mut s, a, id) = draft_in_outbox("lin.zhao@harborworks.example");
+    let drafts = s.mailbox.folder_of_kind(a, FolderKind::Drafts).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": drafts})).unwrap();
+    assert!(s.mailbox.message(id).unwrap().held.is_empty());
+}
+
+/// #1748: a draft that went from the Outbox (one moved in and let go with Send Again, before
+/// #1747) is filed in Sent Items as a sent message: no draft, and Resend takes it.
+#[test]
+fn a_draft_that_went_from_the_outbox_is_filed_as_sent() {
+    let (mut s, a, _) = imap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    let sent_items = s.mailbox.folder_of_kind(a, FolderKind::Sent).unwrap();
+    let draft = Message {
+        account: a,
+        folder: outbox,
+        subject: "Plans".into(),
+        from: Address::new("Ada", "ada@mail.example"),
+        to: vec![Address::new("Lin", "lin.zhao@harborworks.example")],
+        date: 100,
+        read: true,
+        draft: true,
+        // The pointer to the server's copy of the draft, which the filed message must not keep.
+        server_draft: Some(mailcraft_model::sync::ServerDraft { marker: "m".into(), ..Default::default() }),
+        body: Body { text: "See you there.".into(), html: None },
+        ..Default::default()
+    };
+    let id = s.mailbox.add_message(draft).unwrap();
+    assert!(s.mailbox.message(id).unwrap().server_draft.is_some(), "a draft the server has a copy of");
+    assert_eq!(to_send(&s, a), vec![id], "it goes with the next run");
+    sent_and_filed(&mut s, a, &[id]);
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.folder, sent_items);
+    assert!(!m.draft && m.server_draft.is_none(), "a sent message, not a draft");
+    let e = s.run("mail.editDraft", &json!({"id": id})).unwrap_err().to_string();
+    assert!(e.contains("draft"), "Open Draft has no draft to open: {e}");
+    s.run("mail.resend", &json!({"id": id})).unwrap();
+}

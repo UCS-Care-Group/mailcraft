@@ -66,6 +66,7 @@ fn grouping_hash(m: &Message) -> u64 {
     let mut h = DefaultHasher::new();
     let server = m.server.as_ref().map(|s| (s.thread.as_str(), s.thread_asked));
     (m.account, &m.subject, &m.message_id, &m.in_reply_to, &m.references, server).hash(&mut h);
+    m.answers.as_ref().map(|a| (a.forward, &a.message_id)).hash(&mut h);
     h.finish()
 }
 
@@ -79,6 +80,7 @@ pub(crate) fn same_grouping(a: &Message, b: &Message) -> bool {
         && a.message_id == b.message_id
         && a.in_reply_to == b.in_reply_to
         && a.references == b.references
+        && a.answers.as_ref().map(|x| (x.forward, &x.message_id)) == b.answers.as_ref().map(|x| (x.forward, &x.message_id))
         && server(a) == server(b)
 }
 

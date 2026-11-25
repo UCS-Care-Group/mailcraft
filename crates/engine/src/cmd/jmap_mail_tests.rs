@@ -809,3 +809,75 @@ fn the_host_side_of_a_jmap_run_is_never_an_agents() {
     assert!(!s.enabled("sync.jmapRequest") && !s.enabled("sync.jmapFetchRequest"));
     assert_eq!(s.run("sync.jmapRequest", &json!({})).unwrap_err().to_string(), "not available: no account is kept in step over JMAP");
 }
+
+/// A recipient a JMAP account's listing leaves out, as an address that can't be kept, and a
+/// subject longer than is kept make the message one whose listing was cut (#566): a rule can't
+/// tell from it what they said until it is fetched.
+#[test]
+fn a_window_that_leaves_a_recipient_or_the_end_of_a_subject_out_says_the_message_was_cut() {
+    let (mut s, account) = session();
+    let plain = GraphMessage { cc: vec![Address::new("", "bo@example.net")], ..email("E1", "Plain cc", 1_000) };
+    let quoted = GraphMessage { cc: vec![Address::new("", "\"x,y\"@example.net")], ..email("E2", "Quoted cc", 1_000) };
+    let long = email("E3", &format!("{} confidential", "a".repeat(1_000)), 1_000);
+    // (A blank at the cut with more after it is a longer subject; blanks alone after 998 characters are not.)
+    let blank_at_the_cut = email("E4", &format!("{} confidential", "a".repeat(998)), 1_000);
+    let blanks_after = email("E5", &format!("{}   ", "a".repeat(998)), 1_000);
+    run(&mut s, account, vec![window("M1", vec![plain, quoted, long, blank_at_the_cut, blanks_after], true)], true);
+    let cut = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.cc.len()));
+    assert_eq!((cut("E1"), cut("E2")), (Some((false, 1)), Some((true, 0))));
+    let subject = |id: &str| here(&s, account, id).map(|m| (m.headers_cut, m.subject.chars().count()));
+    assert_eq!([subject("E3"), subject("E4"), subject("E5")], [Some((true, 998)), Some((true, 998)), Some((false, 998))]);
+}
+
+/// Run Rules Now on a JMAP server's mail whose listing cut the end of its subject, as the JMAP reader
+/// says it did (#566): a rule with an exception for a word in the subject can't tell before the
+/// download, and leaves the mail alone.
+#[test]
+fn run_rules_now_doesnt_act_on_jmap_mail_past_an_exception_its_listing_cut() {
+    let (mut s, account) = session();
+    let as_read = GraphMessage { subject: "a".repeat(998), cut: true, ..email("E1", "", 1_000) };
+    run(&mut s, account, vec![window("M1", vec![as_read], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let rule = json!({"name": "Zoe away", "account": account, "server": false, "conditions": [{"type": "fromContains", "value": "zoe"}],
+        "exceptions": [{"type": "subjectContains", "value": "confidential"}], "actions": [{"type": "moveTo", "value": projects}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let m = here(&s, account, "E1").unwrap();
+    assert_eq!(
+        (m.unfetched, m.folder, m.flag),
+        (true, inbox, FlagStatus::None),
+        "acted on past an exception for the end of the subject the listing cut"
+    );
+}
+
+/// Run Rules Now with a rule that copies and flags a JMAP account's mail (#566): a message not
+/// downloaded yet isn't copied, in its account or onto this computer, where the copy would never
+/// be whole (its server isn't asked to make it), as one out of a Microsoft or an Exchange server
+/// account isn't; the rest of the rule acts on it. One downloaded is copied.
+#[test]
+fn run_rules_now_doesnt_copy_jmap_mail_not_downloaded_yet() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "news", 1_000), email("E2", "news", 1_100)], true)], true);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let local = s.mailbox.local_account();
+    let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let mime = b"From: Zoe Park <zoe@example.org>\r\nSubject: news\r\nMessage-ID: <E2@example.org>\r\n\r\nAll of it.\r\n".to_vec();
+    apply_jmap_fetch(
+        &mut s,
+        GraphFetchResult { account, email: ME.into(), fetched: vec![GraphFetched { id: "E2".into(), mime }], ..Default::default() },
+    )
+    .unwrap();
+    // (And a copy of the one not downloaded, as `mail.copy` makes it: no server id, and it never
+    // fills in either.)
+    s.mailbox.copy_message(here(&s, account, "E1").unwrap().id, inbox).unwrap();
+    let rule = json!({"name": "Keep", "account": account, "conditions": [{"type": "subjectContains", "value": "news"}],
+        "actions": [{"type": "copyTo", "value": projects}, {"type": "copyTo", "value": elsewhere}, {"type": "flag"}]});
+    s.run("rules.add", &rule).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    let e1 = here(&s, account, "E1").unwrap();
+    assert_eq!((e1.unfetched, e1.folder, e1.flag), (true, inbox, FlagStatus::Flagged), "the rest of the rule acts");
+    let copies = |folder: Id| {
+        s.mailbox.messages_in(folder).filter(|m| m.server.is_none()).map(|m| (m.unfetched, m.body.text.contains("All of it."))).collect::<Vec<_>>()
+    };
+    assert_eq!((copies(projects), copies(elsewhere)), (vec![(false, true)], vec![(false, true)]), "only the downloaded one is copied");
+}
