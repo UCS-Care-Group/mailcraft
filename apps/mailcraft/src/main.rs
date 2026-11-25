@@ -39,6 +39,9 @@ mod clipboard_mime;
 #[cfg(test)]
 mod control_challenge_flow;
 mod control_server;
+mod dav_find;
+#[cfg(test)]
+mod dav_find_flow;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_icons;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
@@ -1098,6 +1101,7 @@ fn services(
     let unsubscribe_ctx = ctx.clone();
     let subscription_ctx = ctx.clone();
     let dav_ctx = ctx.clone();
+    let dav_find_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
     let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
@@ -1321,6 +1325,9 @@ fn services(
                 mailcraft_ui_egui::DavDone { download }
             })
         })),
+        // Find in File › Info › Calendars and Contacts: the search, on the owner's click, asking
+        // the window before the password may go to a host that isn't the owner's (#209).
+        dav_find: Some(Box::new(move |job| dav_find::run(job, &dav_find_ctx))),
         // A sender's picture for the message list, once the owner turned that on: from
         // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
         sender_images: Some(Box::new(move |address, wanted| {

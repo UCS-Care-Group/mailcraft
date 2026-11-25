@@ -5,16 +5,24 @@
 //!
 //! The dialog collects what `account.davSet` takes and runs it; Stop using these servers runs
 //! `account.davOff`. Saving sends nothing: the DAV job reads the servers by itself, at its next
-//! run. A password typed here is never a command's parameter. It is held in memory for the origin
+//! run. Find is the only thing here that sends: the host searches from the typed addresses, or
+//! from the account's domain (`dav_find.rs`), asks before the password may go to a host that
+//! isn't the owner's, and fills in the homes it found; the owner then saves them. A password typed here is never a command's parameter. It is held in memory for the origin
 //! the field names ([`MailApp::hold_dav_password`]), and for no other: calendars and contacts on
 //! one server (Infomaniak's) share it, and contacts on another server ask for their own in File ›
 //! Info (`dav_password_ask.rs`). It is remembered only once that server took it, as the owner
 //! allows (`dav_secret_read.rs`).
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+
 use egui::Ui;
 use mailcraft_engine::cmd::dav_account::may_have;
-use mailcraft_model::{Account, DavProblem, Id, origin_of};
+use mailcraft_model::{Account, DavFindFailure, DavFindQuestion, DavFound, DavProblem, Id, origin_of};
 use serde_json::json;
+
+use crate::dav_find::{DavFindEvent, DavFindJob};
 
 use crate::MailApp;
 use crate::dialogs::{buttons, window};
@@ -33,6 +41,27 @@ pub struct DavSettings {
     /// The owner clicked the eye: the password is shown until the next click or the dialog's end.
     shown: bool,
     pub(crate) error: String,
+    /// The search under way, when the owner pressed Find.
+    pub(crate) finding: Option<Finding>,
+    /// How the last search ended.
+    pub(crate) found: Option<Result<DavFound, DavFindFailure>>,
+}
+
+/// A search under way: what the host tells, where the owner's answers go, and the question open.
+pub(crate) struct Finding {
+    events: Receiver<DavFindEvent>,
+    answers: Sender<bool>,
+    cancel: Arc<AtomicBool>,
+    pub(crate) question: Option<(String, DavFindQuestion)>,
+}
+
+/// A dialog that goes away stops its search.
+impl Drop for DavSettings {
+    fn drop(&mut self) {
+        if let Some(finding) = &self.finding {
+            finding.cancel.store(true, Ordering::Relaxed);
+        }
+    }
 }
 
 /// What became of the dialog this frame.
@@ -69,7 +98,80 @@ impl DavSettings {
             password: String::new(),
             shown: false,
             error: String::new(),
+            finding: None,
+            found: None,
         })
+    }
+
+    /// The password Find signs in with: the one typed when the servers have their own, else the
+    /// account's mail password as the window has it. `None` when there is none yet.
+    pub(crate) fn find_password(&self, app: &MailApp) -> Option<String> {
+        if self.separate {
+            return (!self.password.is_empty()).then(|| self.password.clone());
+        }
+        app.passwords.get(&self.account).cloned().or_else(|| app.remembered("password", self.account)).filter(|p| !p.is_empty())
+    }
+
+    /// Start the search: from the typed addresses, else from the account's domain. Nothing is
+    /// sent before this. False when the host can't search or there is no password.
+    pub(crate) fn find(&mut self, app: &MailApp) -> bool {
+        let (Some(search), Some(password)) = (app.services.dav_find.as_ref(), self.find_password(app)) else { return false };
+        let Some(a) = app.session.mailbox.account(self.account) else { return false };
+        let (answers, asked) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let job = DavFindJob {
+            email: a.email.trim().to_string(),
+            mail_host: a.incoming.as_ref().map(|s| s.host.trim().to_string()).unwrap_or_default(),
+            username: self.username.trim().to_string(),
+            password,
+            calendars: self.calendars.trim().to_string(),
+            contacts: self.contacts.trim().to_string(),
+            cancel: cancel.clone(),
+            answers: asked,
+        };
+        self.error.clear();
+        self.found = None;
+        self.finding = Some(Finding { events: search(job), answers, cancel, question: None });
+        true
+    }
+
+    /// Take in what the host told since the last frame.
+    pub(crate) fn poll(&mut self) {
+        let Some(finding) = self.finding.as_mut() else { return };
+        loop {
+            match finding.events.try_recv() {
+                Ok(DavFindEvent::Question { host, why }) => finding.question = Some((host, why)),
+                Ok(DavFindEvent::Finished(end)) => {
+                    if let Ok(found) = &end {
+                        if let Some(home) = found.calendar_homes.first() {
+                            self.calendars = home.clone();
+                        }
+                        if let Some(home) = found.contact_homes.first() {
+                            self.contacts = home.clone();
+                        }
+                    }
+                    self.found = Some(end);
+                    self.finding = None;
+                    return;
+                }
+                Err(TryRecvError::Empty) => return,
+                // (The host stopped without an end: said as nothing found.)
+                Err(TryRecvError::Disconnected) => {
+                    self.found = Some(Err(DavFindFailure::Unreachable));
+                    self.finding = None;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// The owner's answer to the open question.
+    pub(crate) fn answer(&mut self, yes: bool) {
+        if let Some(finding) = self.finding.as_mut()
+            && finding.question.take().is_some()
+        {
+            let _ = finding.answers.send(yes);
+        }
     }
 
     /// The origin the password field is for: the calendars', else the contacts'.
@@ -145,7 +247,9 @@ pub fn show(ctx: &egui::Context, d: &mut DavSettings, app: &mut MailApp, t: &Tok
     let who = account.email.trim().to_string();
     let set_up = account.dav.is_some();
     let remember = app.ui.remember_sign_in;
-    let (mut submit, mut close, mut stop) = (false, false, false);
+    d.poll();
+    let can_find = app.services.dav_find.is_some() && d.finding.is_none() && d.find_password(app).is_some();
+    let (mut submit, mut close, mut stop, mut find, mut answer) = (false, false, false, false, None);
     let open = window(ctx, tl!("Calendars and Contacts"), 480.0, |ui| {
         ui.label(crate::i18n::fmt(tl!("Where the calendars and contacts of {account} are kept"), &[("account", &who)]));
         ui.label(tl!("Calendars"));
@@ -179,6 +283,61 @@ pub fn show(ctx: &egui::Context, d: &mut DavSettings, app: &mut MailApp, t: &Tok
         } else {
             hint(ui, t, tl!("The account's mail password is used, and only for these addresses."));
         }
+        if app.services.dav_find.is_some() {
+            ui.horizontal(|ui| {
+                let tip = if d.find_password(app).is_none() { tl!("Give the password first.") } else { tl!("Look for the servers now.") };
+                find = ui.add_enabled(can_find, egui::Button::new(tl!("Find"))).on_hover_text(tip).clicked();
+                if d.finding.is_some() {
+                    ui.spinner();
+                    ui.label(tl!("Searching…"));
+                }
+            });
+            hint(
+                ui,
+                t,
+                tl!(
+                    "Find asks the typed addresses, or else public name servers and the usual places for your address's domain. The password goes only to a server of yours that asks for it, or one you agree to."
+                ),
+            );
+        }
+        if let Some((host, why)) = d.finding.as_ref().and_then(|f| f.question.clone()) {
+            ui.label(crate::i18n::fmt(crate::dav_find::question(why), &[("host", &crate::forms::kit::shown(&host, 80))]));
+            ui.horizontal(|ui| {
+                if ui.button(tl!("Send It There")).clicked() {
+                    answer = Some(true);
+                }
+                if ui.button(tl!("Don't Send")).clicked() {
+                    answer = Some(false);
+                }
+            });
+        }
+        match &d.found {
+            Some(Ok(found)) => {
+                let line = crate::i18n::fmt(
+                    tl!("Found {calendars} and {books}. Save keeps them."),
+                    &[
+                        ("calendars", &tln!(found.calendars, "{n} calendar", "{n} calendars")),
+                        ("books", &tln!(found.address_books, "{n} address book", "{n} address books")),
+                    ],
+                );
+                hint(ui, t, &line);
+                if found.passed_over > 0 {
+                    hint(
+                        ui,
+                        t,
+                        &tln!(
+                            found.passed_over,
+                            "{n} other item isn't read (a task list, a plain file)",
+                            "{n} other items aren't read (task lists, plain files)"
+                        ),
+                    );
+                }
+            }
+            Some(Err(failure)) => {
+                ui.label(egui::RichText::new(crate::dav_find::said(*failure)).color(t.red));
+            }
+            None => {}
+        }
         if let Some(line) = status(app, &account) {
             hint(ui, t, &line);
         }
@@ -199,6 +358,12 @@ pub fn show(ctx: &egui::Context, d: &mut DavSettings, app: &mut MailApp, t: &Tok
     });
     if !open || close {
         return Outcome::Close;
+    }
+    if let Some(yes) = answer {
+        d.answer(yes);
+    }
+    if find {
+        d.find(app);
     }
     if stop {
         return match app.execute("account.davOff", json!({"id": d.account})) {

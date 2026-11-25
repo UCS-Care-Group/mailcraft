@@ -98,6 +98,7 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+pub mod dav_find;
 mod dav_job;
 #[cfg(test)]
 mod dav_job_tests;
@@ -591,6 +592,11 @@ pub struct Services {
     /// challenge, over TLS, to the pinned certificate when one is set. Absent in the browser and
     /// the tests.
     pub dav: Option<Box<dyn Fn(DavJob) -> Receiver<DavDone>>>,
+    /// Desktop: search for an account's calendar and contacts servers (#209, D7,
+    /// `mailcraft_net::dav_find`), on a thread of its own, once the owner pressed Find in File ›
+    /// Info › Calendars and Contacts. It asks before the password may go to a host that isn't the
+    /// owner's ([`dav_find::DavFindEvent::Question`]). Absent in the browser and the tests.
+    pub dav_find: Option<Box<dyn Fn(dav_find::DavFindJob) -> Receiver<dav_find::DavFindEvent>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.

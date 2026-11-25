@@ -757,6 +757,11 @@ msgid "A save of the mailbox is still running: try again in a moment"
 msgstr "საფოსტო ყუთის შენახვა ჯერ კიდევ მიმდინარეობს: სცადეთ ცოტა ხანში"
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "A secure connection to the server couldn't be set up. Check the address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
@@ -773,6 +778,11 @@ msgstr "მითითებულია როგორც სერია, �
 #, fuzzy
 msgid "A series that the account's server keeps can't be moved to another calendar from here: the server has no way of moving one, and days of it that were changed on their own could be lost in making it again."
 msgstr "სერია, რომელსაც ანგარიშის სერვერი ინახავს, აქედან სხვა კალენდარში ვერ გადავა: სერვერს მისი გადატანა არ შეუძლია, ხელახლა შექმნისას კი ცალკე შეცვლილი დღეები შეიძლება დაიკარგოს."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "A server asked for a password without saying it keeps calendars or contacts, so none was sent. Type the server's address."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -5009,7 +5019,7 @@ msgid "Don't Save"
 msgstr "არ შეინახოს"
 
 #. interface
-#: crates/ui-egui/src/agent_gate.rs
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Don't Send"
 msgstr "არ გაიგზავნოს"
@@ -6006,7 +6016,7 @@ msgid "Filter Tasks"
 msgstr "დავალებების ფილტრი"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dav_settings.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Find"
 msgstr "ძებნა"
@@ -6040,6 +6050,11 @@ msgstr "დროის ძებნა"
 #, fuzzy
 msgid "Find a font"
 msgstr "Find a font"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Find asks the typed addresses, or else public name servers and the usual places for your address's domain. The password goes only to a server of yours that asks for it, or one you agree to."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -6469,6 +6484,11 @@ msgstr "ნაპოვნია თქვენი დომენის DNS-�
 msgid "Found in {path}. Nothing is imported until you press Import."
 msgstr "ნაპოვნია აქ: {path}. სანამ „იმპორტს“ არ დააჭერთ, არაფერი შემოიტანება."
 
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Found {calendars} and {books}. Save keeps them."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -6682,6 +6702,11 @@ msgstr "GitHub-ის გვერდი გახსნილია: შეა�
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Give it a title first"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Give the password first."
 msgstr ""
 
 #. interface
@@ -8683,6 +8708,11 @@ msgstr "ნახეთ სერტიფიკატი, რომელსა
 #, fuzzy
 msgid "Look for This Meeting on the Calendar"
 msgstr "ამ შეხვედრის კალენდარში მოძებნა"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Look for the servers now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -10748,6 +10778,11 @@ msgid "No appointment matches."
 msgstr "შესაბამისი ჩანაწერი არ არის."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "No calendar or contacts server was found for this address. Type the server's address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No categories yet"
@@ -11014,6 +11049,11 @@ msgstr "წესები ჯერ არ არის. წესი შემ
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "დამახსოვრებული გამგზავნები არ არის. წერილის ზემოთ ღილაკი „სურათების ყოველთვის ჩამოტვირთვა გამგზავნისგან“ აქ მის გამგზავნს ან გამგზავნის დომენს ამატებს."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "No server answered at the usual places for this address. Check the connection, or type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14749,7 +14789,7 @@ msgid "Searching the server…"
 msgstr "სერვერზე ძიება…"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Searching…"
 msgstr "ძიება…"
@@ -14915,6 +14955,11 @@ msgstr "მაინც გაგზავნა"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "გაუქმების გაგზავნა"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Send It There"
+msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
@@ -18497,6 +18542,21 @@ msgid "The search for your Exchange server was sent on to {host}, which isn't in
 msgstr "თქვენი Exchange სერვერის ძიება გადამისამართდა სერვერზე {host}, რომელიც თქვენი მისამართის დომენში არ არის."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search found {host} in your mail domain. It isn't your mail server, and may be a web site rather than a calendar server. Send your password there?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search was sent to {host}, which isn't one of your servers. Send your password there?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search went on too long without an end. Type the server's address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The selected message, as .eml"
@@ -18589,6 +18649,11 @@ msgstr "სერვერზე ძიება ვერ მოხერხდ
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "სერვერმა მომხმარებლის სახელი და პაროლი არ მიიღო. შეამოწმეთ ისინი ან შეიყვანეთ მომხმარებლის სახელი სერვერის პარამეტრებში (DOMAIN\\user ან you@example.org)."
 
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server didn't accept the user name and password. Nothing else was tried."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/contacts_remote.rs
 #, fuzzy
@@ -18612,6 +18677,11 @@ msgstr "სერვერმა საქაღალდიდან „{name}�
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "სერვერმა არ თქვა, როდის არიან სხვები დაკავებული"
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server didn't say where your calendars or contacts are. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -18680,6 +18750,11 @@ msgstr[0] "{account}-ის სერვერი მოწვეულ პი�
 msgstr[1] "{account}-ის სერვერი მოწვეულ პირებს ({n}) ატყობინებს, რომ იცოდნენ, რომ გაუქმდა."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server or the organisation wouldn't give its calendars or contacts. Ask your administrator."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
@@ -18710,6 +18785,11 @@ msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "სერვერმა ანგარიშით {name} შესვლა უარყო: ხელახლა შედით"
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server wants a way of signing in that MailCraft can't do yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dav_settings.rs
 msgid "The server wouldn't sign in."
 msgstr ""
@@ -18725,6 +18805,11 @@ msgstr "სერვერის მისამართი უნდა იწ
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "სერვერის მისამართის ან მომხმარებლის სახელის გამოყენება შეუძლებელია. შეამოწმეთ ისინი სერვერის პარამეტრებში."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server's answer couldn't be read, or led somewhere that isn't followed. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19202,6 +19287,11 @@ msgid "These servers have a password of their own"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "These settings can't be used as they are: check the addresses (https://) and the user name."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
@@ -19675,6 +19765,16 @@ msgstr "ამ მოწვევას თქვენს კალენდა
 #, fuzzy
 msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
 msgstr "ამ მოწვევას თქვენს კალენდარში არსებული შეხვედრის ID აქვს, მაგრამ სხვა ორგანიზატორს ასახელებს, ამიტომ იმ შეხვედრას ვერ შეცვლის."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "This is a Google address: calendars and contacts from Google aren't read this way. Nothing was sent."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "This is a Microsoft address: its calendars and contacts come with the Microsoft account. Nothing was sent."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -21681,6 +21781,11 @@ msgstr ""
 #, fuzzy
 msgid "You declined this meeting."
 msgstr "თქვენ ეს შეხვედრა უარყავით."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "You didn't agree to send the password to the server the search led to. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -26433,6 +26538,13 @@ msgstr[0] "ხელმოწერა აქვს {n} ანგარიშს
 msgstr[1] "ხელმოწერა აქვს {n} ანგარიშს"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} address book"
+msgid_plural "{n} address books"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "{n} appointment"
@@ -26479,6 +26591,13 @@ msgid "{n} byte"
 msgid_plural "{n} bytes"
 msgstr[0] "{n} ბაიტი"
 msgstr[1] "{n} ბაიტი"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} calendar"
+msgid_plural "{n} calendars"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -27180,6 +27299,13 @@ msgid "{n} open task"
 msgid_plural "{n} open tasks"
 msgstr[0] "ღია დავალება: {n}"
 msgstr[1] "ღია დავალება: {n}"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} other item isn't read (a task list, a plain file)"
+msgid_plural "{n} other items aren't read (task lists, plain files)"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs

@@ -757,6 +757,11 @@ msgid "A save of the mailbox is still running: try again in a moment"
 msgstr "Het opslaan van het postvak is nog bezig: probeer het zo meteen opnieuw"
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "A secure connection to the server couldn't be set up. Check the address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "A secure connection to the server couldn't be set up. Type the server's address in Server settings."
@@ -773,6 +778,11 @@ msgstr "Een reeks en een van haar dagen worden allebei genoemd; er is niets gewi
 #, fuzzy
 msgid "A series that the account's server keeps can't be moved to another calendar from here: the server has no way of moving one, and days of it that were changed on their own could be lost in making it again."
 msgstr "Een reeks die de server van het account bewaart, kan vanaf hier niet naar een andere agenda worden verplaatst: de server kan een reeks niet verplaatsen, en dagen die afzonderlijk zijn gewijzigd, kunnen verloren gaan bij het opnieuw maken."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "A server asked for a password without saying it keeps calendars or contacts, so none was sent. Type the server's address."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -4850,7 +4860,7 @@ msgid "Don't Save"
 msgstr "Niet opslaan"
 
 #. interface
-#: crates/ui-egui/src/agent_gate.rs
+#: crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Don't Send"
 msgstr "Niet verzenden"
@@ -5800,7 +5810,7 @@ msgid "Filter Tasks"
 msgstr "Taken filteren"
 
 #. command label, interface, ribbon, ribbon location
-#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/dav_settings.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Find"
 msgstr "Zoeken"
 
@@ -5831,6 +5841,11 @@ msgstr "Een tijd zoeken"
 #, fuzzy
 msgid "Find a font"
 msgstr "Find a font"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Find asks the typed addresses, or else public name servers and the usual places for your address's domain. The password goes only to a server of yours that asks for it, or one you agree to."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/spelling.rs
@@ -6233,6 +6248,11 @@ msgstr "Gevonden in het DNS van uw domein. Uw aanmelding gaat pas naar een serve
 msgid "Found in {path}. Nothing is imported until you press Import."
 msgstr "Gevonden in {path}. Er wordt niets geïmporteerd totdat u op Importeren drukt."
 
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Found {calendars} and {books}. Save keeps them."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -6440,6 +6460,11 @@ msgstr "De pagina van GitHub is open: controleer die en dien hem daarna in. Mail
 #, fuzzy
 msgid "Give it a title first"
 msgstr "Geef het eerst een titel"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Give the password first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
@@ -8394,6 +8419,11 @@ msgstr "Bekijk het certificaat dat de server nu toont. Er wordt niet aangemeld z
 #: crates/ui-egui/src/lib.rs
 msgid "Look for This Meeting on the Calendar"
 msgstr "Deze vergadering in de agenda zoeken"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Look for the servers now."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -10395,6 +10425,11 @@ msgid "No appointment matches."
 msgstr "Geen afspraak komt overeen."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "No calendar or contacts server was found for this address. Type the server's address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "No categories yet"
@@ -10662,6 +10697,11 @@ msgstr "Nog geen regels. Een regel bergt e-mail op, markeert die of verwijdert d
 #, fuzzy
 msgid "No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here."
 msgstr "Er zijn geen afzenders onthouden. „Altijd afbeeldingen downloaden van” boven een bericht voegt hier de afzender of het domein van de afzender toe."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "No server answered at the usual places for this address. Check the connection, or type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -14304,7 +14344,7 @@ msgid "Searching the server…"
 msgstr "Bezig met zoeken op de server…"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Searching…"
 msgstr "Zoeken…"
@@ -14459,6 +14499,11 @@ msgstr "Toch verzenden"
 #, fuzzy
 msgid "Send Cancellation"
 msgstr "Annulering verzenden"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Send It There"
+msgstr ""
 
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
@@ -18000,6 +18045,21 @@ msgid "The search for your Exchange server was sent on to {host}, which isn't in
 msgstr "Het zoeken naar uw Exchange-server is doorgestuurd naar {host}, dat niet in het eigen domein van uw adres ligt."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search found {host} in your mail domain. It isn't your mail server, and may be a web site rather than a calendar server. Send your password there?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search was sent to {host}, which isn't one of your servers. Send your password there?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The search went on too long without an end. Type the server's address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The selected message, as .eml"
@@ -18093,6 +18153,11 @@ msgstr "De server kon niet worden doorzocht. Probeer het over een paar minuten o
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
 msgstr "De server heeft de gebruikersnaam en het wachtwoord niet geaccepteerd. Controleer ze, of typ uw gebruikersnaam bij Serverinstellingen (DOMAIN\\user of naam@example.org)."
 
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server didn't accept the user name and password. Nothing else was tried."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/contacts_remote.rs
 #, fuzzy
@@ -18116,6 +18181,11 @@ msgstr "De server heeft {count} berichten uit \"{name}\" niet gegeven"
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server didn't say where your calendars or contacts are. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -18184,6 +18254,11 @@ msgstr[0] "De server van {account} licht de {n} uitgenodigde persoon in, zodat d
 msgstr[1] "De server van {account} licht de {n} uitgenodigde personen in, zodat ze weten dat het geannuleerd is."
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server or the organisation wouldn't give its calendars or contacts. Ask your administrator."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
@@ -18214,6 +18289,11 @@ msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "De server heeft de aanmelding voor {name} geweigerd: meld u opnieuw aan"
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server wants a way of signing in that MailCraft can't do yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dav_settings.rs
 msgid "The server wouldn't sign in."
 msgstr ""
@@ -18229,6 +18309,11 @@ msgstr "Het adres van de server moet beginnen met https:// en de server noemen (
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
 msgstr "Het adres van de server of de gebruikersnaam kan niet worden gebruikt. Controleer ze bij Serverinstellingen."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "The server's answer couldn't be read, or led somewhere that isn't followed. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18704,6 +18789,11 @@ msgid "These servers have a password of their own"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "These settings can't be used as they are: check the addresses (https://) and the user name."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
@@ -19175,6 +19265,16 @@ msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar komt
 #, fuzzy
 msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
 msgstr "Deze uitnodiging heeft de id van een vergadering in uw agenda, maar noemt een andere organisator, en kan die vergadering dus niet wijzigen."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "This is a Google address: calendars and contacts from Google aren't read this way. Nothing was sent."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "This is a Microsoft address: its calendars and contacts come with the Microsoft account. Nothing was sent."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -21144,6 +21244,11 @@ msgstr "U bent teruggekeerd van de pagina van Microsoft zonder aan te melden: u 
 #, fuzzy
 msgid "You declined this meeting."
 msgstr "U hebt deze vergadering geweigerd."
+
+#. interface
+#: crates/ui-egui/src/dav_find.rs
+msgid "You didn't agree to send the password to the server the search led to. Type the server's address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -25893,6 +25998,13 @@ msgstr[0] "{n} account heeft er een"
 msgstr[1] "{n} accounts hebben er een"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} address book"
+msgid_plural "{n} address books"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "{n} appointment"
@@ -25939,6 +26051,13 @@ msgid "{n} byte"
 msgid_plural "{n} bytes"
 msgstr[0] "{n} byte"
 msgstr[1] "{n} bytes"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} calendar"
+msgid_plural "{n} calendars"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -26641,6 +26760,13 @@ msgid "{n} open task"
 msgid_plural "{n} open tasks"
 msgstr[0] "{n} openstaande taak"
 msgstr[1] "{n} openstaande taken"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} other item isn't read (a task list, a plain file)"
+msgid_plural "{n} other items aren't read (task lists, plain files)"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
