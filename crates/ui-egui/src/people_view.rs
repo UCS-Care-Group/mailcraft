@@ -961,10 +961,18 @@ fn card_kept_in(app: &MailApp, ui: &mut Ui, c: &Contact) {
         field(ui, "account", &line, "", false);
     }
     if let Some(change) = app.session.mailbox.contact_changes.iter().find(|change| change.contact == c.id) {
-        // What the server last said, when it said no for now (it is tried again).
-        let why = one_line(&change.error, 120);
-        field(ui, "sync", tl!("Not sent yet"), &why, false)
+        field(ui, "sync", tl!("Not sent yet"), "", false)
             .on_hover_text(tl!("This change is on this computer and goes to the server at the next Send/Receive."));
+        // What the server last said, when it said no for now (it is tried again): a line of its
+        // own, wrapped, so a long one never hides "Not sent yet".
+        let why = one_line(&change.error, 300);
+        if !why.is_empty() {
+            let t = Tokens::get(ui.ctx());
+            ui.horizontal(|ui| {
+                ui.add_space(30.0);
+                ui.add(egui::Label::new(RichText::new(why).font(regular(11.5)).color(t.text_dim)).wrap());
+            });
+        }
     }
 }
 

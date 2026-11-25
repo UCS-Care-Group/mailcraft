@@ -3475,25 +3475,32 @@ mod contact {
 
     /// The contacts folder a new contact goes in: those of each account it can go in, then On
     /// this computer. Unpicked, it shows where `people.new` puts it by itself.
+    /// Where a new contact goes, `picked` or by itself: the folder (0: On this computer; `None`:
+    /// the account's main folder, made when the contact is) and its account (0: none).
+    pub(super) fn destination(s: &Session, picked: Option<Id>) -> (Option<Id>, Id) {
+        use mailcraft_engine::cmd::contacts_remote::{NewHome, home, new_contact_default};
+        let mailbox = &s.mailbox;
+        let account_of = |f: Id| home(mailbox, f).map_or(0, |f| f.account);
+        match picked.map(NewHome::Folder).unwrap_or_else(|| new_contact_default(s)) {
+            NewHome::Folder(f) => (Some(f), account_of(f)),
+            NewHome::Main(account) => match mailbox.main_contact_folder(account) {
+                Some(main) if mailbox.contact_folder(main).is_some_and(|f| f.writable) => (Some(main), account),
+                Some(_) => (Some(0), 0),
+                None => (None, account),
+            },
+        }
+    }
+
     fn folder_combo(ui: &mut Ui, app: &MailApp, folder: &mut Option<Id>) {
-        use mailcraft_engine::cmd::contacts_remote::{NewHome, new_contact_default};
         let mailbox = &app.session.mailbox;
         let name = |f: Id| crate::people_view::folder_name(mailbox, f);
         let writable = |f: &Id| mailbox.contact_folder(*f).is_some_and(|f| f.writable);
-        // (`None`: an account's main folder, made when the contact is.)
-        let (current, shown) = match folder.map(NewHome::Folder).unwrap_or_else(|| new_contact_default(&app.session)) {
-            NewHome::Folder(f) => (Some(f), name(f)),
-            NewHome::Main(account) => match mailbox.main_contact_folder(account) {
-                Some(main) if writable(&main) => (Some(main), name(main)),
-                Some(_) => (Some(0), name(0)),
-                None => (
-                    None,
-                    crate::i18n::fmt(
-                        tl!("{folder} ({owner})"),
-                        &[("folder", tl!("Contacts")), ("owner", &crate::widgets::place_name(mailbox, account))],
-                    ),
-                ),
-            },
+        let (current, account) = destination(&app.session, *folder);
+        let shown = match current {
+            Some(f) => name(f),
+            None => {
+                crate::i18n::fmt(tl!("{folder} ({owner})"), &[("folder", tl!("Contacts")), ("owner", &crate::widgets::place_name(mailbox, account))])
+            }
         };
         let choices: Vec<Id> = mailcraft_engine::cmd::people::contact_accounts(mailbox)
             .into_iter()
@@ -3749,7 +3756,11 @@ mod contact {
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            // A new contact takes the categories of the account it goes to.
+            let account = match self.id {
+                Some(id) => app.session.mailbox.contact(id).map_or(0, |c| c.origin.account),
+                None => destination(&app.session, self.folder).1,
+            };
             let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
                 // Where a new contact goes, where there is more than one place (#1917).

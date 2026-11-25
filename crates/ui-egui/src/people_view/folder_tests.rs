@@ -155,3 +155,20 @@ fn changes_the_server_puts_off_are_in_the_progress_list() {
     assert_eq!(line, "1 change to contacts isn't on the server yet: it is tried again later (The server is busy)");
     assert!(crate::sync_panel::rows(w.state()).iter().any(|r| r.account == ada && r.problems.contains(&line)));
 }
+
+/// What the server said when it put a change off is a line of its own on the card, so a long
+/// one never takes the room of "Not sent yet".
+#[test]
+fn a_long_reason_from_the_server_is_a_line_of_its_own() {
+    let mut w = testing::window("view.people");
+    let ada = add(&mut w, "ada@example.org");
+    let mo = put(&mut w, ada, None, "Mo Main");
+    run(&mut w, "people.edit", json!({"id": mo, "title": "Lead"}));
+    let long = "The server is busy ".repeat(12).trim().to_string();
+    let result = json!({"account": ada, "email": "ada@example.org", "outcomes": [
+        {"op": {"kind": "change", "contact": mo}, "result": "failed", "status": 503, "error": long}]});
+    run(&mut w, "sync.applyContactChanges", json!({"result": result}));
+    run(&mut w, "people.select", json!({"id": mo}));
+    assert!(mailcraft_engine::cmd::contacts_remote::not_sent(&w.state().session.mailbox, mo));
+    assert!(w.query_by_label(&long).is_some(), "the reason is a label of its own");
+}
