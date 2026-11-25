@@ -722,3 +722,69 @@ fn what_graph_has_no_place_for_survives_a_round_trip() {
     run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![kept(), person("c-cy", "Cy")])}));
     assert_eq!(values(&s.mailbox.contact(bo).unwrap().emails), values(&here.emails));
 }
+
+/// Review of #1937: when the server lets one of its three addresses go, the one kept only here
+/// takes its place and goes up, so the next read doesn't take it for one the server deleted.
+#[test]
+fn a_place_graph_lets_go_is_taken_by_what_was_kept_here_and_it_goes_up() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    let address = |n: &str| Labeled::new("", format!("{n}@example.org"));
+    let emails: Vec<_> = ["a", "b", "c", "d"].iter().map(|n| json!({"label": "", "value": format!("{n}@example.org")})).collect();
+    run(&mut s, "people.edit", json!({"id": bo, "emails": emails}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    let server = |list: &[&str], key: &str| RemoteContact {
+        change_key: key.into(),
+        emails: list.iter().map(|n| address(n)).collect(),
+        ..person("c-bo", "Bo")
+    };
+    let read = |s: &mut Session, list: &[&str], key: &str| {
+        run(s, "sync.applyContacts", json!({"download": download(account, vec![server(list, key), person("c-cy", "Cy")])}));
+        s.mailbox.contact(bo).unwrap().emails.iter().map(|e| e.value.clone()).collect::<Vec<_>>()
+    };
+    assert_eq!(read(&mut s, &["a", "b", "c"], "k2"), ["a@example.org", "b@example.org", "c@example.org", "d@example.org"]);
+    assert!(upload(&mut s, account).ops.is_empty());
+    // b deleted in Outlook: d has a place now. It stays, b doesn't come back, and d goes up.
+    assert_eq!(read(&mut s, &["a", "c"], "k3"), ["a@example.org", "c@example.org", "d@example.org"]);
+    assert_eq!(read(&mut s, &["a", "c"], "k3"), ["a@example.org", "c@example.org", "d@example.org"], "read again before it went");
+    let op = upload(&mut s, account).ops.remove(0);
+    assert_eq!(op.fields.iter().copied().collect::<Vec<_>>(), [ContactField::Emails]);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    assert_eq!(read(&mut s, &["a", "c", "d"], "k4"), ["a@example.org", "c@example.org", "d@example.org"]);
+    assert!(upload(&mut s, account).ops.is_empty());
+}
+
+/// Review of #1937: what the owner changed after a change went up to a shared folder that then
+/// refused it stays noted (held while the folder can only be read), and isn't lost to a read.
+#[test]
+fn a_newer_edit_outlives_a_shared_folders_refusal() {
+    let (mut s, account) = session();
+    let shared = RemoteContactFolder {
+        id: "f-leads".into(),
+        name: "Leads".into(),
+        owner: FolderOwner::Mailbox("sales@example.org".into()),
+        writable: true,
+        ..Default::default()
+    };
+    let leads = |s: &mut Session| {
+        run(
+            s,
+            "sync.applyContacts",
+            json!({"download": ContactsDownload { folder: Some(shared.clone()), ..download(account, vec![person("c-di", "Di")]) }}),
+        )
+    };
+    leads(&mut s);
+    let di = called(&s, "Di");
+    run(&mut s, "people.edit", json!({"id": di, "last": "Ray"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    run(&mut s, "people.edit", json!({"id": di, "notes": "Met in May"}));
+    answer(&mut s, account, &op, ContactResult::Denied, "");
+    let c = s.mailbox.contact(di).unwrap();
+    assert_eq!((c.last.as_str(), c.notes.as_str()), ("", "Met in May"));
+    assert_eq!(notes(&s), [(di, ContactChangeKind::Change, vec![ContactField::Notes])]);
+    assert!(upload(&mut s, account).ops.is_empty(), "held while the folder can only be read");
+    s.mailbox.contact_folders.iter_mut().filter(|f| f.remote == "f-leads").for_each(|f| f.writable = false);
+    leads(&mut s);
+    assert_eq!(s.mailbox.contact(di).unwrap().notes, "Met in May");
+}

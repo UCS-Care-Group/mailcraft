@@ -142,16 +142,18 @@ pub(super) fn read_contacts_at(base: &str, token: &str, known: &[ContactFolder],
                 log::info!("contacts: a shared mailbox's contacts folders can't be listed with this sign-in");
                 continue;
             }
-            Err(e) => {
-                out.errors.push(format!("Couldn't list the contacts folders: {e}"));
-                continue;
-            }
+            // (The main folder is read all the same: it doesn't need the list.)
+            Err(e) => out.errors.push(format!("Couldn't list the contacts folders: {e}")),
         }
         for folder in folders.into_iter().take(room) {
             room = room.saturating_sub(1);
             let delta = saved(&folder.id).map_or("", |f| f.delta.as_str());
+            // (When the reading started, before anything is asked: a new contact answered before
+            // it and not in it wasn't made.)
+            let read_at = mailcraft_time::now();
             match read_folder(&graph, &prefix, &folder.id, delta) {
                 Ok(mut download) => {
+                    download.read_at = read_at;
                     // (The account's own main folder is the one a download names by nothing.)
                     if !(owner.is_own() && folder.id.is_empty()) {
                         download.folder = Some(folder);
@@ -214,8 +216,9 @@ fn read_folder(graph: &Graph<'_>, prefix: &str, remote: &str, delta: &str) -> Re
     let id = if remote.is_empty() {
         match main_folder_id(graph, prefix)? {
             Some(id) => id,
-            // No contacts in it, so no way to name it: it is empty, and that is all of it.
-            None => return Ok(ContactsDownload { complete: true, ..Default::default() }),
+            // No contacts in it, so no way to name it. Not taken as all of it (nothing here is
+            // removed for it): an answer that lists nothing isn't proof enough.
+            None => return Ok(ContactsDownload::default()),
         }
     } else {
         remote.to_string()
@@ -342,7 +345,8 @@ fn delta_round(graph: &Graph<'_>, first: Url, whole: bool) -> Result<ContactsDow
     }
     download.contacts = kept.into_iter().flatten().collect();
     // (A round cut short keeps no position: the next one starts again.)
-    if capped || next.is_some() || download.delta.is_empty() {
+    // (Nor does a whole read that couldn't read every entry: the next starts whole again.)
+    if capped || next.is_some() || download.delta.is_empty() || (whole && unread > 0) {
         download.delta.clear();
         download.complete = false;
     } else {
@@ -410,7 +414,13 @@ fn push_one(graph: &Graph<'_>, token: &str, op: &ContactOp) -> Option<ContactOut
             let names = if op.fields.contains(&ContactField::Emails) {
                 match email_names(graph, &item) {
                     Ok(names) => names,
-                    Err((status, wait)) => return answered(op, (status, wait.as_deref()), &[], "", token),
+                    Err((status, wait, why)) => {
+                        let mut outcome = answered(op, (status, wait.as_deref()), &[], "", token)?;
+                        if !why.is_empty() {
+                            outcome.error = why;
+                        }
+                        return Some(outcome);
+                    }
                 }
             } else {
                 HashMap::new()
@@ -465,14 +475,18 @@ fn answered(op: &ContactOp, (status, retry_after): (u16, Option<&str>), body: &[
 /// case; the status (and what it said to wait) when it couldn't be read. An answer that doesn't
 /// list them is one that couldn't be read (status 0: tried again later), so that nothing goes up
 /// that would rename them.
-fn email_names(graph: &Graph<'_>, item: &str) -> Result<HashMap<String, String>, (u16, Option<String>)> {
+fn email_names(graph: &Graph<'_>, item: &str) -> Result<HashMap<String, String>, (u16, Option<String>, String)> {
     let url = graph.url(&format!("{item}?{}", http::form(&[("$select", "emailAddresses")])));
-    let reply = graph.ask(&url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE).map_err(|e| (if e.is_refused_sign_in() { 401u16 } else { 0 }, None))?;
+    let reply = graph
+        .ask(&url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE)
+        .map_err(|e| (if e.is_refused_sign_in() { 401u16 } else { 0 }, None, e.to_string()))?;
     if reply.status != 200 {
-        return Err((reply.status, reply.retry_after));
+        return Err((reply.status, reply.retry_after, String::new()));
     }
     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-    let Some(list) = json.get("emailAddresses").and_then(Value::as_array) else { return Err((0, None)) };
+    let Some(list) = json.get("emailAddresses").and_then(Value::as_array).filter(|l| l.iter().take(MAX_ENTRIES).all(Value::is_object)) else {
+        return Err((0, None, "Microsoft Graph's answer didn't list the addresses".into()));
+    };
     Ok(list
         .iter()
         .take(MAX_ENTRIES)

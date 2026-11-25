@@ -271,7 +271,11 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
                     || s.mailbox.contact_folders.iter().any(|f| f.account == account && !f.owner.is_own());
                 let resource = mailcraft_net::oauth::Resource::GraphMail;
                 match mailcraft_net::oauth::refresh_graph_contacts(&oauth, &signed.refresh, shared, resource) {
-                    Ok(renewed) => contacts_token = Some(renewed.tokens.access),
+                    Ok(renewed) => {
+                        // (A sign-in just now that may change them: what was held for it goes.)
+                        mailcraft_engine::cmd::contacts_remote::retry_contact_changes(s, account);
+                        contacts_token = Some(renewed.tokens.access);
+                    }
                     Err(e) => {
                         contacts_consent = e.is_consent_needed();
                         eprintln!("sync: contact changes wait: no token for changing contacts ({e})");
@@ -314,12 +318,26 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
 fn sync_contacts(s: &mut Session, account: mailcraft_model::Id, write: Option<&str>, read: &str) -> Result<bool, Failure> {
     let mut waiting = false;
     if let Some(token) = write {
-        let upload: mailcraft_model::contact_sync::ContactsUpload =
-            serde_json::from_value(s.run("sync.contactChanges", &json!({"account": account}))?).map_err(|e| format!("sync: {e}"))?;
-        if !upload.ops.is_empty() {
+        // Batch after batch while they go through (a queue is at most so many batches).
+        let most = mailcraft_model::contact_sync::MAX_CONTACT_CHANGES / mailcraft_model::contact_sync::MAX_CONTACT_OPS + 1;
+        for _ in 0..most {
+            let upload: mailcraft_model::contact_sync::ContactsUpload =
+                serde_json::from_value(s.run("sync.contactChanges", &json!({"account": account}))?).map_err(|e| format!("sync: {e}"))?;
+            if upload.ops.is_empty() {
+                break;
+            }
             let uploaded = mailcraft_net::graph::push_contacts(token, &upload);
             let applied = s.run("sync.applyContactChanges", &json!({"result": uploaded}))?;
-            waiting = applied["failed"].as_u64().is_some_and(|n| n > 0) || uploaded.token_refused;
+            for line in applied["messages"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                eprintln!("sync: {line}");
+            }
+            let count = |name: &str| applied[name].as_u64().unwrap_or(0);
+            // Refused for good, or not taken: said, and the run ends with errors.
+            waiting |= count("refused") + count("denied") > 0;
+            if count("failed") > 0 || uploaded.token_refused {
+                waiting = true;
+                break;
+            }
         }
     } else {
         waiting = s.mailbox.contact_changes.iter().any(|c| c.account == account);

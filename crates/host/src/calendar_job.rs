@@ -174,10 +174,18 @@ impl CalendarJobs {
             return false;
         }
         let Some(mut request) = calendar_request(session, plan, auth) else { return false };
+        // (What is handed out is marked as sent: put back as it was when no job takes it.)
+        let queue = session.mailbox.contact_changes.clone();
         request.contacts = contacts_ask(session, plan);
         // (Checked again here when the answer comes: the run checks it before anything goes up.)
-        let Some(signer) = request.signer.clone() else { return false };
-        let Some(rx) = launch(request) else { return false };
+        let Some(signer) = request.signer.clone() else {
+            session.mailbox.contact_changes = queue;
+            return false;
+        };
+        let Some(rx) = launch(request) else {
+            session.mailbox.contact_changes = queue;
+            return false;
+        };
         session.calendar_started(plan, now);
         self.running =
             Some(Running { account: plan.account, signer, carried: plan.changes.is_some(), started: now, opening: session.openings(), rx });

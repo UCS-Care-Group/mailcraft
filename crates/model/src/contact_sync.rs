@@ -524,7 +524,13 @@ pub fn graph_places(emails: &[Labeled], phones: &[Labeled], addresses: &[PostalA
 /// Graph has no place for ([`graph_places`]), after the server's own: so a fourth e-mail address,
 /// another mobile number or a second web page kept here isn't lost to a server that can't hold
 /// it. (Those the server has already are not doubled.)
-pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) {
+///
+/// Returns the server's copy to compare it with: `fresh` as Graph sent it, with those of the
+/// kept entries that still have no place. One that has a place now (the server let one go) is
+/// then a change to send, so that the server holds it from now on and it isn't taken for one the
+/// server deleted on the next read.
+pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) -> Contact {
+    let server = fresh.clone();
     let places = graph_places(&old.emails, &old.phones, &old.addresses, &old.websites);
     let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
     for (at, email) in old.emails.iter().enumerate() {
@@ -532,15 +538,16 @@ pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) {
             fresh.emails.push(email.clone());
         }
     }
-    let placed_phone = |at: usize| places.mobile == Some(at) || places.home_phones.contains(&at) || places.business_phones.contains(&at);
+    let placed_phone =
+        |places: &GraphPlaces, at: usize| places.mobile == Some(at) || places.home_phones.contains(&at) || places.business_phones.contains(&at);
     for (at, phone) in old.phones.iter().enumerate() {
-        if !phone.value.trim().is_empty() && !placed_phone(at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
+        if !phone.value.trim().is_empty() && !placed_phone(&places, at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
             fresh.phones.push(phone.clone());
         }
     }
-    let placed_address = |at: usize| [places.business_address, places.home_address, places.other_address].contains(&Some(at));
+    let placed_address = |places: &GraphPlaces, at: usize| [places.business_address, places.home_address, places.other_address].contains(&Some(at));
     for (at, address) in old.addresses.iter().enumerate() {
-        if !placed_address(at) && !fresh.addresses.contains(address) {
+        if !placed_address(&places, at) && !fresh.addresses.contains(address) {
             fresh.addresses.push(address.clone());
         }
     }
@@ -549,4 +556,28 @@ pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) {
             fresh.websites.push(site.clone());
         }
     }
+    // The server's copy: what it sent, and what was kept that has no place even now.
+    let now = graph_places(&fresh.emails, &fresh.phones, &fresh.addresses, &fresh.websites);
+    let mut base = server;
+    for at in base.emails.len()..fresh.emails.len() {
+        if let Some(e) = fresh.emails.get(at).filter(|_| !now.emails.contains(&at)) {
+            base.emails.push(e.clone());
+        }
+    }
+    for at in base.phones.len()..fresh.phones.len() {
+        if let Some(p) = fresh.phones.get(at).filter(|_| !placed_phone(&now, at)) {
+            base.phones.push(p.clone());
+        }
+    }
+    for at in base.addresses.len()..fresh.addresses.len() {
+        if let Some(a) = fresh.addresses.get(at).filter(|_| !placed_address(&now, at)) {
+            base.addresses.push(a.clone());
+        }
+    }
+    for at in base.websites.len()..fresh.websites.len() {
+        if let Some(w) = fresh.websites.get(at).filter(|_| now.website != Some(at)) {
+            base.websites.push(w.clone());
+        }
+    }
+    base
 }

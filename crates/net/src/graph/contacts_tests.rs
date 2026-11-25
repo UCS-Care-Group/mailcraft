@@ -46,6 +46,8 @@ struct State {
     /// The status the next change is answered with, when it isn't to be done.
     next_status: Option<u16>,
     made: u64,
+    /// The list of the main folder's children fails.
+    fail_listing: bool,
 }
 
 impl State {
@@ -110,6 +112,7 @@ fn answer(state: &mut State, request: &str, base: &str) -> Vec<u8> {
     let folder_of = |id: &str| if id == MAIN { main.clone() } else { id.to_string() };
     let body = request.split_once("\r\n\r\n").map_or("", |(_, b)| b);
     match (method, rest) {
+        ("GET", ["contactFolders"]) if state.fail_listing => error("500 Internal Server Error", "Busy"),
         ("GET", ["contactFolders"]) => {
             let list =
                 state.folders.iter().filter(|f| f.0 == mailbox && f.3.is_empty()).map(|f| json!({"id": f.1, "displayName": f.2})).collect::<Vec<_>>();
@@ -240,10 +243,13 @@ fn kept_from(read: &super::ContactsRead) -> Vec<ContactFolder> {
 
 #[test]
 fn every_folder_is_read_whole_the_first_time_parents_first() {
+    let before = mailcraft_time::now();
     let server = stand_in(mailbox());
     let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
     assert!(read.errors.is_empty() && !read.token_refused, "{:?}", read.errors);
     assert_eq!(read.downloads.len(), 3);
+    // Each says when its reading started.
+    assert!(read.downloads.iter().all(|d| d.read_at >= before && d.read_at <= mailcraft_time::now()));
     let main = &read.downloads[0];
     assert!(main.folder.is_none() && main.complete && !main.delta.is_empty());
     let mut names: Vec<&str> = main.contacts.iter().map(|c| c.display_name.as_str()).collect();
@@ -618,4 +624,51 @@ fn reading_the_address_names_first_keeps_the_wait_asked_and_never_sends_on_a_bad
         assert_eq!(done.outcomes[0].retry_after, wait);
         assert_eq!(server.asked(), 1, "no PATCH after it");
     }
+}
+
+#[test]
+fn a_list_of_folders_that_fails_still_reads_the_main_folder() {
+    let state = mailbox();
+    state.lock().unwrap().fail_listing = true;
+    let server = stand_in(state);
+    let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    assert!(!read.errors.is_empty());
+    assert!(read.downloads.iter().any(|d| d.folder.is_none() && d.contacts.len() == 2 && d.complete), "{:?}", read.downloads);
+}
+
+#[test]
+fn an_empty_main_folder_is_never_taken_for_all_of_it() {
+    let state = mailbox();
+    state.lock().unwrap().contacts.retain(|c| c.folder != format!("me:{MAIN}"));
+    let server = stand_in(state);
+    let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    let main = read.downloads.iter().find(|d| d.folder.is_none()).unwrap();
+    assert!(main.contacts.is_empty() && !main.complete && main.delta.is_empty());
+}
+
+#[test]
+fn a_whole_read_that_couldnt_read_an_entry_keeps_no_position() {
+    let state = mailbox();
+    state.lock().unwrap().add("me", "team=", "odd=", json!({"id": "odd=", "displayName": 7}));
+    state.lock().unwrap().contacts.last_mut().unwrap().body = json!("not a contact");
+    let server = stand_in(state);
+    let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    let team = read.downloads.iter().find(|d| d.folder.as_ref().is_some_and(|f| f.id == "team=")).unwrap();
+    assert!(!team.complete && team.delta.is_empty(), "{team:?}");
+    assert_eq!(team.contacts.len(), 1);
+}
+
+#[test]
+fn address_names_that_arent_all_entries_are_an_answer_that_couldnt_be_read() {
+    let server = FakeHttp::answering(json_answer("200 OK", "{\"emailAddresses\": [{\"address\": \"bo@example.org\", \"name\": \"Bo\"}, null]}"));
+    let change = op(
+        ContactChangeKind::Change,
+        "bo=",
+        &[ContactField::Emails],
+        RemoteContact { emails: vec![Labeled::new("", "bo@example.org")], ..Default::default() },
+    );
+    let done = push_contacts_at(&server.url(""), TOKEN, &upload(vec![change]));
+    assert_eq!(done.outcomes[0].result, ContactResult::Failed);
+    assert!(!done.outcomes[0].error.is_empty());
+    assert_eq!(server.asked(), 1, "no PATCH after it");
 }

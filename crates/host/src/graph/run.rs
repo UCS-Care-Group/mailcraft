@@ -155,7 +155,7 @@ struct ContactsGot {
     /// The tokens got for changing contacts: their refresh token is the account's newest.
     tokens: Option<Tokens>,
     errors: Vec<String>,
-    /// Graph stopped taking the run's own token while the folders were read.
+    /// Graph stopped taking a token: the run's own, or the one for changing contacts.
     token_refused: bool,
 }
 
@@ -212,6 +212,7 @@ fn contacts_part(
         };
         let done = uploaded.outcomes.iter().filter(|o| o.result == ContactResult::Done).count();
         log::info!("contacts: {} of {} changes answered, {done} taken by the server", uploaded.outcomes.len(), ask.upload.ops.len());
+        got.token_refused = uploaded.token_refused;
         got.uploaded = Some(uploaded);
     }
     if ask.read {
@@ -222,7 +223,7 @@ fn contacts_part(
             None => (access, ask.folders.iter().filter(|f| f.owner.is_own()).cloned().collect(), Vec::new()),
         };
         let read = graph::read_contacts(token, &known, &mailboxes);
-        got.token_refused = read.token_refused && write.is_none();
+        got.token_refused |= read.token_refused;
         got.errors = read.errors;
         got.downloads = read.downloads;
     }

@@ -384,12 +384,16 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                 let had = waiting.and_then(|c| c.base.as_deref()).map_or(&old.categories, |base| &base.categories).clone();
                 keep_local(&mut fresh, &old, false);
                 // What Graph has no place for (a fourth address, another mobile number) stays here.
-                if graph {
-                    mailcraft_model::contact_sync::keep_graph_overflow(&mut fresh, &old);
-                }
+                // (The server's copy then has those that still have no place there: one that has
+                // a place now is a change to send.)
+                let mut server = graph.then(|| mailcraft_model::contact_sync::keep_graph_overflow(&mut fresh, &old));
                 if remote.categories.is_none() {
-                    fresh.categories = had;
+                    fresh.categories.clone_from(&had);
+                    if let Some(server) = server.as_mut() {
+                        server.categories = had;
+                    }
                 }
+                let server = server.unwrap_or_else(|| fresh.clone());
                 let new = match &mine {
                     Some(fields) => ContactField::merged(&old, &fresh, fields),
                     None => fresh.clone(),
@@ -400,10 +404,13 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
                     *c = new;
                     merged.updated += 1;
                 }
-                if mine.is_some() {
+                if mine.is_none() && server != fresh {
+                    // (No room for it: it stays here, and is sent with the next change.)
+                    let _ = note_contact(mailbox, old.id, Some(server));
+                } else if mine.is_some() {
                     let before = mailbox.contact_changes.iter().find(|c| c.contact == old.id).cloned();
                     // (The note is there already: there is room for it.)
-                    let _ = note_contact(mailbox, old.id, Some(fresh));
+                    let _ = note_contact(mailbox, old.id, Some(server));
                     // The same note against the same copy of the server's: it waits out what its
                     // last try earned.
                     if let Some(before) = before
@@ -419,10 +426,11 @@ pub fn merge_contacts(mailbox: &mut Mailbox, download: &ContactsDownload) -> Res
             }
             None => match twin(mailbox, account, folder, &fresh) {
                 Some(twin) => {
-                    if graph && let Some(here) = mailbox.contact(twin) {
-                        mailcraft_model::contact_sync::keep_graph_overflow(&mut fresh, &here.clone());
-                    }
-                    let _ = note_contact(mailbox, twin, Some(fresh));
+                    let server = match mailbox.contact(twin).cloned() {
+                        Some(here) if graph => mailcraft_model::contact_sync::keep_graph_overflow(&mut fresh, &here),
+                        _ => fresh,
+                    };
+                    let _ = note_contact(mailbox, twin, Some(server));
                     merged.updated += 1;
                 }
                 None => {
@@ -677,11 +685,13 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                 }
             }
             // Somebody else's folder that refuses a change: it can only be read, from now on (C5).
+            // (Given up first, while it may still be noted: what the owner changed since stays
+            // noted, and is held while the folder can only be read.)
             ContactResult::Denied if theirs.is_some() => {
+                give_up(mailbox, at, &outcome, &mut applied);
                 if let Some(f) = mailbox.contact_folders.iter_mut().find(|f| Some(f.id) == theirs) {
                     f.writable = false;
                 }
-                give_up(mailbox, at, &outcome, &mut applied);
             }
             ContactResult::Denied if !denied_before => {
                 if let Some(change) = at.and_then(|at| mailbox.contact_changes.get_mut(at)) {
