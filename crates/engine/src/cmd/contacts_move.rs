@@ -13,7 +13,8 @@
 //! **One contact or two.** The queue has one note a contact. A contact a server has leaves a new
 //! contact in the target, linked to it by [`Contact::moved_from`], and itself goes, as a deletion.
 //! One no server has heard of just changes folder. One still to be made on a server (or on its way
-//! there, unanswered) isn't moved until the server answers.
+//! there, unanswered) isn't moved into another server's folder until the server answers ([`waits`]);
+//! one of a selection that waits so is left out and named, and the others move.
 //!
 //! A move is one command, so one undo step, worked out as any other step's
 //! ([`super::contacts_remote::after_undo`]): undone after it went up, each server is told the
@@ -26,7 +27,7 @@ use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::{Contact, Id, Mailbox, Origin};
 use serde_json::{Value, json};
 
-use super::contacts_remote::{home, note_contact, server_copy};
+use super::contacts_remote::{called, home, note_contact, server_copy};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session};
 
@@ -34,10 +35,12 @@ use crate::{CmdError, CmdResult, CommandSpec, Session};
 pub const MAX_MOVE: usize = 1_000;
 /// Of each contact, the addresses the duplicate check looks at.
 const ADDRESSES_EACH: usize = 50;
+/// Most contacts named when some can't move yet.
+pub const NAMED: usize = 5;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("people.moveToFolder", "Move to Contacts Folder", "Home › Actions", move_to_folder)
-        .params(r#"{"ids"?: [number] (1 to 1000 contacts; default: the selected one), "folder": number (a contacts folder's id, as people.get gives it, or 0 for On this computer)} — each contact goes into that folder: made on its server, and deleted from the server it leaves only once the new one is made there (until then it is in both places, never in neither); onto this computer at once, the server deleting its copy. A folder that may only be read, either way, refuses the whole move with the reason. Moves without asking about a contact the folder has already. Answers {"moved": [{"from": id, "id": id now}], "folder"}"#)
+        .params(r#"{"ids"?: [number] (1 to 1000 contacts; default: the selected one), "folder": number (a contacts folder's id, as people.get gives it, or 0 for On this computer)} — each contact goes into that folder: made on its server, and deleted from the server it leaves only once the new one is made there (until then it is in both places, never in neither); onto this computer at once, the server deleting its copy. A folder that may only be read, either way, refuses the whole move with the reason. Moves without asking about a contact the folder has already. A contact still being sent to its server isn't moved into a server's folder yet: it is left out and named, and when that is every one the move is refused. Answers {"moved": [{"from": id, "id": id now}], "folder", "skipped": [{"contact": id, "name"}]}"#)
         .selection(needs_contact)]
 }
 
@@ -64,8 +67,9 @@ fn target(mailbox: &Mailbox, v: &Value) -> Result<Id, CmdError> {
 }
 
 /// The contacts named by `ids` (each once, in order), else the selected one; every one there and
-/// none in a folder that may only be read.
-fn sources(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+/// none in a folder that may only be read. Those that can't move yet ([`waits`]) are left out, as
+/// (id, name as [`called`] gives it); when that is all of them, the move is refused.
+fn sources(s: &Session, v: &Value, to: Id) -> Result<(Vec<Id>, Vec<(Id, String)>), CmdError> {
     let wrong = || bad(format!("`ids` is a list of 1 to {MAX_MOVE} contact ids"));
     let named: Vec<Id> = match v.get("ids") {
         None => vec![s.sel.contact.ok_or_else(|| fail("select a contact first"))?],
@@ -75,21 +79,37 @@ fn sources(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
         }
     };
     let mut seen = HashSet::new();
-    let mut out = Vec::new();
+    let (mut out, mut skipped) = (Vec::new(), Vec::new());
     for id in named.into_iter().filter(|id| seen.insert(*id)) {
         let c = s.mailbox.contact(id).ok_or_else(|| failed!("no contact with id {id}", id))?;
         if let Some(f) = home(&s.mailbox, c.folder).filter(|f| !f.writable) {
             return Err(failed!("The contacts folder \"{name}\" can only be read: its contacts can't be moved out of it.", name = f.name));
         }
-        // Still to be made on a server, or on its way there unanswered (the sync thread may have
-        // sent it): moving it now could leave it in neither place, or link one server's answer to
-        // another's folder. It moves once the server has answered.
-        if s.mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create) {
-            return Err(failed!("{name} is still being sent to its server: try again shortly.", name = c.name()));
+        if waits(&s.mailbox, id, to) {
+            skipped.push((id, called(Some(c))));
+        } else {
+            out.push(id);
         }
-        out.push(id);
     }
-    Ok(out)
+    if !out.is_empty() || skipped.is_empty() {
+        return Ok((out, skipped));
+    }
+    let names = skipped.iter().take(NAMED).map(|(_, n)| n.as_str()).collect::<Vec<_>>().join(", ");
+    Err(match skipped.len() {
+        1 => failed!("{name} is still being sent to its server: try again shortly.", name = names),
+        n if n <= NAMED => failed!("{names} are still being sent to their servers: try again shortly.", names),
+        count => failed!("{count} contacts are still being sent to their servers, among them {names}: try again shortly.", count, names),
+    })
+}
+
+/// Whether contact `id` can't go into folder `to` yet: it is still to be made on a server, or on
+/// its way there unanswered (the sync thread may have sent it). Into a server's folder that could
+/// leave it in neither place, or link one server's answer to another's folder: it moves once the
+/// server has answered. Onto this computer it moves at once, under a new id ([`move_one`]), unless
+/// an answer said it was tried (`sent`): then it waits for the answer or download that settles it,
+/// as a record kept for a contact that is gone could be taken for another one made there later.
+fn waits(mailbox: &Mailbox, id: Id, to: Id) -> bool {
+    mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create && (to != 0 || n.sent))
 }
 
 /// Move contact `id` into folder `to` (see the module): the id it has there; `None` when it is
@@ -101,8 +121,12 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdErro
     }
     let account = home(mailbox, to).map_or(0, |f| f.account);
     let server = server_copy(mailbox, id);
-    // (One still to be made on a server is refused first: [`sources`].)
-    if server.is_none() {
+    // One still to be made on a server, never tried ([`waits`]), may be on its way there: it
+    // leaves its id behind and its note goes, so that a late answer that it was made is about that
+    // id alone and has the server delete it again
+    // ([`super::contacts_remote::apply_contact_outcomes`]), never taken for where this one goes.
+    let creating = mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create);
+    if server.is_none() && !creating {
         // No server has it: it only changes folder (a new one there is noted to be made).
         let c = mailbox.contact_mut(id)?;
         (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);
@@ -120,7 +144,7 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdErro
 
 fn move_to_folder(s: &mut Session, v: &Value) -> CmdResult {
     let to = target(&s.mailbox, v)?;
-    let ids = sources(s, v)?;
+    let (ids, skipped) = sources(s, v, to)?;
     let mut moved = Vec::new();
     for id in ids {
         let Some(now) = move_one(&mut s.mailbox, id, to)? else { continue };
@@ -129,7 +153,8 @@ fn move_to_folder(s: &mut Session, v: &Value) -> CmdResult {
             s.sel.contact = Some(now);
         }
     }
-    Ok(json!({"moved": moved, "folder": to}))
+    let skipped: Vec<Value> = skipped.into_iter().map(|(id, name)| json!({"contact": id, "name": name})).collect();
+    Ok(json!({"moved": moved, "folder": to, "skipped": skipped}))
 }
 
 /// The contacts whose deletion from a server waits for a move: those a contact still to be made

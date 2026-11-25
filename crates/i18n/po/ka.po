@@ -25749,6 +25749,12 @@ msgstr "მონაწილე: {contributors} · კომიტი: {commits
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr "{counted} · შეჩერებულია მომდევნო „გაგზავნა/მიღებამდე“"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr "{count} კონტაქტი ჯერ კიდევ იგზავნება მათ სერვერებზე, მათ შორის {names}: სცადეთ ცოტა ხანში."
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -25952,6 +25958,12 @@ msgstr "{m} წთ {s} წმ"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} და კიდევ {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{names} are still being sent to their servers: try again shortly."
+msgstr "{names} ჯერ კიდევ იგზავნება მათ სერვერებზე: სცადეთ ცოტა ხანში."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26456,6 +26468,14 @@ msgid "{n} contact isn't undone: too many changes are waiting to be sent to its 
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} კონტაქტი არ გაუქმდა: მის სერვერზე გასაგზავნად ძალიან ბევრი ცვლილება ელოდება."
 msgstr[1] "{n} კონტაქტი არ გაუქმდა: მათ სერვერებზე გასაგზავნად ძალიან ბევრი ცვლილება ელოდება."
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+#, fuzzy
+msgid "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly."
+msgid_plural "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+msgstr[0] "{n} კონტაქტი არ გადატანილა, რადგან ჯერ კიდევ იგზავნება თავის სერვერზე: {names}. სცადეთ ცოტა ხანში."
+msgstr[1] "{n} კონტაქტი არ გადატანილა, რადგან ჯერ კიდევ იგზავნება თავიანთ სერვერებზე: {names}. სცადეთ ცოტა ხანში."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27360,7 +27380,7 @@ msgid "{people} and {nameless}"
 msgstr "{people} და {nameless}"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 #, fuzzy
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"

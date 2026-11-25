@@ -21465,6 +21465,11 @@ msgstr ""
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "{count} messages weren't searched in full: only their beginning is here until they download."
@@ -21633,6 +21638,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 msgid "{names} and {n} more"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{names} are still being sent to their servers: try again shortly."
 msgstr ""
 
 #. interface
@@ -22059,6 +22069,13 @@ msgstr[1] ""
 #: crates/engine/src/session.rs
 msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+msgid "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly."
+msgid_plural "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -22851,7 +22868,7 @@ msgid "{people} and {nameless}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"
 msgstr[0] ""

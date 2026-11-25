@@ -25927,6 +25927,12 @@ msgstr "Współtwórcy: {contributors} · zatwierdzenia: {commits}"
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr "{counted} · Wstrzymano do następnego Wyślij/Odbierz"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr "{count} kontaktów jest wciąż wysyłanych na swoje serwery, w tym {names}: spróbuj ponownie za chwilę."
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -26130,6 +26136,12 @@ msgstr "{m} min {s} s"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} i {n} więcej"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{names} are still being sent to their servers: try again shortly."
+msgstr "{names} są wciąż wysyłane na swoje serwery: spróbuj ponownie za chwilę."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26655,6 +26667,15 @@ msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sen
 msgstr[0] "{n} kontakt nie zostaje cofnięty: zbyt wiele zmian czeka na wysłanie na jego serwer."
 msgstr[1] "{n} kontakty nie zostają cofnięte: zbyt wiele zmian czeka na wysłanie na ich serwery."
 msgstr[2] "{n} kontaktów nie zostaje cofniętych: zbyt wiele zmian czeka na wysłanie na ich serwery."
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+#, fuzzy
+msgid "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly."
+msgid_plural "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+msgstr[0] "{n} kontakt nie został przeniesiony, ponieważ jest wciąż wysyłany na swój serwer: {names}. Spróbuj ponownie za chwilę."
+msgstr[1] "{n} kontakty nie zostały przeniesione, ponieważ są wciąż wysyłane na swoje serwery: {names}. Spróbuj ponownie za chwilę."
+msgstr[2] "{n} kontaktów nie zostało przeniesionych, ponieważ są wciąż wysyłane na swoje serwery: {names}. Spróbuj ponownie za chwilę."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27665,7 +27686,7 @@ msgid "{people} and {nameless}"
 msgstr "{people} i {nameless}"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 #, fuzzy
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"

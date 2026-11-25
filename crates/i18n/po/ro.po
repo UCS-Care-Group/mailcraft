@@ -25920,6 +25920,12 @@ msgstr "{contributors} contribuitori · {commits} commituri"
 msgid "{counted} · Paused until the next Send/Receive"
 msgstr "{counted} · Întrerupt până la următoarea Trimitere/primire"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{count} contacts are still being sent to their servers, among them {names}: try again shortly."
+msgstr "{count} contacte sunt încă în curs de trimitere către serverele lor, printre care {names}: încercați din nou în curând."
+
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
@@ -26123,6 +26129,12 @@ msgstr "{m} min {s} s"
 #, fuzzy
 msgid "{names} and {n} more"
 msgstr "{names} și încă {n}"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{names} are still being sent to their servers: try again shortly."
+msgstr "{names} sunt încă în curs de trimitere către serverele lor: încercați din nou în curând."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -26648,6 +26660,15 @@ msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sen
 msgstr[0] "{n} contact nu este anulat: prea multe modificări așteaptă să fie trimise la serverul său."
 msgstr[1] "{n} contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
 msgstr[2] "{n} de contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
+
+#. interface
+#: crates/ui-egui/src/move_contacts.rs
+#, fuzzy
+msgid "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly."
+msgid_plural "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+msgstr[0] "{n} contact nu a fost mutat, deoarece este încă în curs de trimitere către serverul său: {names}. Încercați din nou în curând."
+msgstr[1] "{n} contacte nu au fost mutate, deoarece sunt încă în curs de trimitere către serverele lor: {names}. Încercați din nou în curând."
+msgstr[2] "{n} de contacte nu au fost mutate, deoarece sunt încă în curs de trimitere către serverele lor: {names}. Încercați din nou în curând."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27658,7 +27679,7 @@ msgid "{people} and {nameless}"
 msgstr "{people} și {nameless}"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/move_contacts.rs
 #, fuzzy
 msgid "{people} and {n} more"
 msgid_plural "{people} and {n} more"
