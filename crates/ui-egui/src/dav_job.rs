@@ -93,6 +93,8 @@ pub(crate) struct DavSync {
     /// their settings then: said once while runs keep finding it so, again after a run that
     /// didn't or once the settings were put away or changed.
     full_said: HashMap<Id, u64>,
+    /// The reads of the store for the passwords the jobs need (`dav_secret_read.rs`).
+    pub(crate) secrets: crate::dav_secret_read::DavSecretRead,
 }
 
 impl DavSync {
@@ -190,6 +192,10 @@ impl MailApp {
             || self.offline()
             || self.services.dav.is_none()
         {
+            return;
+        }
+        // (A password of their own that the store may have is read first, off the window's thread.)
+        if self.dav_secrets_first() {
             return;
         }
         self.dav.next = now + EVERY;
