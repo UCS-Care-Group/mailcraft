@@ -3342,6 +3342,10 @@ impl MailApp {
         if self.services.secrets.is_none() {
             return;
         }
+        // (A read of the store under way brought these from before the forget: not taken in.)
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(keys.iter().cloned());
+        }
         let room = QUEUED.saturating_sub(self.dav_forget_queue.len());
         self.dav_forget_queue.extend(keys.into_iter().take(room));
         self.dispatch_dav_forgetting();

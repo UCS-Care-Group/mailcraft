@@ -294,6 +294,19 @@ impl MailApp {
             // Not held, not sent again (at every back-off: a lockout) until the owner gives
             // another, or for hours (a password changed on the server, a mistaken refusal).
             self.dav_passwords.retain(|(held, _), _| *held != account);
+            // A remembered one that was refused isn't offered again this session either: File ›
+            // Info asks for another. (The store keeps it until a new one is taken in its place.)
+            if let Some(a) = self.session.mailbox.account(account).cloned() {
+                for (origin, (password, mail)) in &sent {
+                    let Some(key) = Self::dav_secret_key(&a, origin) else { continue };
+                    if !*mail
+                        && let Some(kept) = self.secret_cache.remove(&key)
+                        && kept != *password
+                    {
+                        self.secret_cache.insert(key, kept);
+                    }
+                }
+            }
             let mark = self.dav.mark(&sent_under, &sent);
             self.dav.refused.insert(account, (mark, now));
         }

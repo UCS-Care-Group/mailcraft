@@ -38,6 +38,16 @@ pub(crate) struct DavSecretRead {
     asked: HashSet<String>,
     /// The read under way: what it brings, name by name.
     reading: Option<Receiver<Brought>>,
+    /// The names a forget started for while the read was under way: what it brings for them is
+    /// from before, and isn't taken in.
+    pub(crate) forgotten: HashSet<String>,
+}
+
+impl DavSecretRead {
+    /// Whether a read of the store is under way.
+    pub(crate) fn is_reading(&self) -> bool {
+        self.reading.is_some()
+    }
 }
 
 impl MailApp {
@@ -107,12 +117,13 @@ impl MailApp {
         }
     }
 
-    /// Take in what the store gave, for the names the settings still give and no forget is
-    /// pending for.
+    /// Take in what the store gave, for the names the settings still give, no forget is pending
+    /// for, and none started for since the read did.
     fn take_in_dav_secrets(&mut self, answers: Vec<(String, Option<String>)>) {
         let now: HashSet<String> = self.session.mailbox.accounts.iter().flat_map(Self::dav_secret_keys).collect();
+        let forgotten = std::mem::take(&mut self.dav.secrets.forgotten);
         for (key, secret) in answers {
-            if !now.contains(&key) || self.dav_forget_pending(&key) {
+            if !now.contains(&key) || self.dav_forget_pending(&key) || forgotten.contains(&key) {
                 continue;
             }
             if let Some(secret) = secret {

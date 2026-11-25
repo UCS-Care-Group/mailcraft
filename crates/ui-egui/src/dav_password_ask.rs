@@ -23,6 +23,8 @@ pub struct DavPasswordAsk {
     account: Id,
     /// The origins that want a password, each with what is typed and whether its eye is open.
     pub(crate) fields: Vec<(String, String, bool)>,
+    /// Some passwords waited: the old one under the same name is still being removed.
+    pub(crate) waiting: bool,
 }
 
 /// What became of the dialog this frame.
@@ -57,21 +59,32 @@ impl DavPasswordAsk {
         if origins.is_empty() {
             return None;
         }
-        Some(Self { account, fields: origins.into_iter().map(|origin| (origin, String::new(), false)).collect() })
+        Some(Self { account, fields: origins.into_iter().map(|origin| (origin, String::new(), false)).collect(), waiting: false })
     }
 
-    /// Hold what was typed, and have the account's servers tried with it now.
-    pub(crate) fn give(&self, app: &mut MailApp) {
+    /// Hold what was typed, and have the account's servers tried with it now. A field that
+    /// couldn't be held (the old password under its name is still being removed) keeps what was
+    /// typed, and the others are emptied. Whether every one was held.
+    pub(crate) fn give(&mut self, app: &mut MailApp) -> bool {
         let mut given = false;
-        for (origin, password, _) in &self.fields {
-            if !password.is_empty() {
-                given |= app.hold_dav_password(self.account, origin, password);
+        let mut all = true;
+        for (origin, password, _) in &mut self.fields {
+            if password.is_empty() {
+                continue;
+            }
+            if app.hold_dav_password(self.account, origin, password) {
+                given = true;
+                password.clear();
+            } else {
+                all = false;
             }
         }
         if given {
             app.dav.trouble.remove(&self.account);
             app.dav.next = 0.0;
         }
+        self.waiting = !all;
+        all
     }
 }
 
@@ -99,12 +112,16 @@ pub fn show(ctx: &egui::Context, d: &mut DavPasswordAsk, app: &mut MailApp, t: &
             tl!("MailCraft keeps it in memory until you close the app. It is never written to disk.")
         };
         ui.label(egui::RichText::new(said).color(t.text_dim).size(11.0));
+        if d.waiting {
+            ui.label(
+                egui::RichText::new(tl!("MailCraft is still removing the old password for this server. Try OK again in a moment.")).color(t.red),
+            );
+        }
         let ready = d.fields.iter().any(|(_, password, _)| !password.is_empty());
         (ok, cancel) = buttons(ui, tl!("OK"), ready);
         ok |= enter && ready;
     });
-    if ok {
-        d.give(app);
+    if ok && d.give(app) {
         return Outcome::Close;
     }
     if !open || cancel {

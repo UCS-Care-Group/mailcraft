@@ -9044,6 +9044,11 @@ msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
 msgstr "MailCraft este open source, sub licențele MIT și Apache 2.0."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."

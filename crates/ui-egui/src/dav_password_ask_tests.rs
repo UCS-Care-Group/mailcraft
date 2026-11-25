@@ -60,9 +60,31 @@ fn what_is_typed_is_held_for_its_origin_and_tried_at_once() {
         *password = if origin == CAL { "cal".into() } else { String::new() };
     }
     a.dav.next = f64::MAX;
-    ask.give(&mut a);
+    assert!(ask.give(&mut a));
     assert_eq!(a.dav_password(id, CAL).as_deref(), Some("cal"));
     assert_eq!(a.dav_password(id, CARD), None, "an empty field gives nothing");
     assert_eq!(a.dav.next, 0.0, "the next job may start now");
     assert_eq!(a.dav_origins_wanting_password(id), vec![CARD.to_string()]);
+}
+
+#[test]
+fn a_password_that_has_to_wait_for_a_forget_keeps_what_was_typed_and_the_dialog_says_so() {
+    let (mut a, id) = app(true, CARD);
+    let mut ask = DavPasswordAsk::open(&a, id).unwrap();
+    for (origin, password, _) in &mut ask.fields {
+        *password = if origin == CAL { "cal".into() } else { "card".into() };
+    }
+    // The old password under the contacts' name is still being removed.
+    let card = MailApp::dav_secret_key(a.session.mailbox.account(id).unwrap(), CARD).unwrap();
+    a.dav_forget_queue.push(card);
+    assert!(!ask.give(&mut a), "the dialog stays open");
+    assert!(ask.waiting);
+    assert_eq!(a.dav_password(id, CAL).as_deref(), Some("cal"));
+    let left: Vec<(&str, &str)> = ask.fields.iter().map(|(o, p, _)| (o.as_str(), p.as_str())).collect();
+    assert!(left.contains(&(CAL, "")), "a held one is emptied");
+    assert!(left.contains(&(CARD, "card")), "the one that waits is kept");
+    // Once the forget is done, OK holds it.
+    a.dav_forget_queue.clear();
+    assert!(ask.give(&mut a));
+    assert_eq!(a.dav_password(id, CARD).as_deref(), Some("card"));
 }

@@ -234,3 +234,40 @@ fn a_password_is_not_written_while_a_forget_is_pending_for_its_name() {
     a.remember_dav_password(id, HOME, "typed");
     assert_eq!(store.held.lock().unwrap().get(&k).map(String::as_str), Some("typed"));
 }
+
+#[test]
+fn a_remembered_password_the_server_refused_is_asked_for_again() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, sent) = signing_in(&store, true, false);
+    store.set(&key(&a, id), "old").unwrap();
+    until_a_job(&mut a, &sent);
+    assert_eq!(sent.lock().unwrap()[0].get(HOME).map(String::as_str), Some("old"), "it was tried");
+    assert_eq!(a.dav_password(id, HOME), None, "not offered again");
+    assert_eq!(a.dav_origins_wanting_password(id), vec![HOME.to_string()], "File › Info asks for another");
+    // A password typed after it is not touched by the refusal of the remembered one.
+    assert!(a.hold_dav_password(id, HOME, "new"));
+    assert_eq!(a.dav_password(id, HOME).as_deref(), Some("new"));
+}
+
+#[test]
+fn a_read_that_was_under_way_when_its_name_was_forgotten_brings_nothing_back() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, _) = app(&store, true);
+    let k = key(&a, id);
+    store.set(&k, "old").unwrap();
+    assert!(a.dav_secrets_first(), "the read starts");
+    // Meanwhile the servers change and change back: the old name is forgotten and given again.
+    a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
+    a.execute("account.davSet", json!({"id": id, "username": ""})).unwrap();
+    assert_eq!(key(&a, id), k);
+    for _ in 0..2_000 {
+        a.poll_dav_forgetting();
+        if !a.dav_forget_pending(&k) && !a.dav.secrets.is_reading() {
+            break;
+        }
+        let _ = a.dav_secrets_first();
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let _ = a.dav_secrets_first();
+    assert_eq!(a.dav_password(id, HOME), None, "what the read brought from before the forget isn't taken in");
+}
