@@ -3280,6 +3280,12 @@ msgstr "Automatikus válasz módosítása"
 msgid "Change Recurring Item"
 msgstr "A visszatérő elem módosítása"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "Szabály módosítása"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3317,6 +3323,12 @@ msgid "Change email address"
 msgstr "e-mail cím módosítása"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "Szabály módosítása"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3339,6 +3351,12 @@ msgstr "A fiók nevének, kiszolgálóinak és bejelentkezési adatainak módos�
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "A fiók nevének, bejelentkezési módjának és a kapcsolat nélkül elérhető levelek beállításainak módosítása"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "A szabály módosítása"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8929,6 +8947,12 @@ msgstr "Készült egy másik program vagy a weben, alkatrészek MailCraft nem mu
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "Más programban készült: a MailCraft soha nem módosítja ezt a szabályt"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Másik programban készült: a MailCraft megjeleníti ezeket a szabályokat, de soha nem módosítja őket"
 
@@ -9105,6 +9129,12 @@ msgstr "A MailCraft nem tudja beolvasni a szkript szabályait."
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "A MailCraft még nem tud bejelentkezni erre a szerverre (a Kerberos-t akarja). Kérdezze meg a rendszergazdát, hogy képes-e felhasználónevet és jelszót felvenni egy titkosított kapcsolaton keresztül."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "A MailCraft még nem tudja módosítani a Microsoft-fiók kiszolgálóján tárolt szabályt: módosítsa a webes Outlookban, vagy törölje és hozza létre újra"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20457,8 +20487,20 @@ msgstr "Ez a jelentés túl hosszú ahhoz, hogy elküldjük: lerövidítse az Ö
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "Ez a szabály itt nem módosítható."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Ez a szabály nem tartható a szerveren: {why}. Ezen a számítógépen fut, amíg MailCraft nyitva van."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "Ennek a szabálynak van olyan része, amelyet a szabályszerkesztő nem tud megjeleníteni: a módosításhoz törölje és hozza létre újra"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22741,6 +22783,12 @@ msgstr "szabály nem helyezhet át és nem másolhat levelet a Postázandó üze
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "a minden fiókra érvényes szabály ezen a számítógépen van tárolva: a Tárolás a kiszolgálón egy fiók kiszolgálójára küldi"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "A szabály a saját postafiókra vonatkozik, nem pedig a megosztott postafiókra."
 
@@ -22749,6 +22797,12 @@ msgstr "A szabály a saját postafiókra vonatkozik, nem pedig a megosztott post
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "a fiók szabálya nem helyezhető át másik fiók kiszolgálójára"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "a szabály a fiókjánál marad: törölje, és hozzon létre egyet a másik fiókhoz"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23482,6 +23536,12 @@ msgstr "nincsenek feltételei, és a szerveren minden üzenetre hatna"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "olyan részei vannak, amelyeket a MailCraft nem tud megjeleníteni, és itt módosítva elvesznének"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "kétféle feltétel van, és a szerver mindkettő helyett mindkettőt elvenné."
 
@@ -23520,6 +23580,12 @@ msgstr "éppen a szerverre íródik"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "sérült, vagy nagyobb, mint amit kimutathatunk"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "a saját, más programban készült Sieve-szkriptjében van a kiszolgálón: a MailCraft soha nem módosítja"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25388,7 +25454,7 @@ msgstr "a szerver nem fogadta el a bejelentkezését."
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "A szerver nem engedi, hogy a mellette lévő szabályt elmozdítsák."
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

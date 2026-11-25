@@ -11,7 +11,7 @@
 | File | 21 | 0 | 24 |
 | Quick Access | 3 | 0 | 3 |
 | Search | 12 | 0 | 13 |
-| Home | 55 | 0 | 62 |
+| Home | 56 | 0 | 63 |
 | Send / Receive | 4 | 0 | 6 |
 | Folder | 11 | 0 | 16 |
 | View | 13 | 0 | 20 |

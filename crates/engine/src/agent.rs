@@ -587,6 +587,7 @@ const SETTINGS: &[&str] = &[
     "sync.waitBeforeSending",
     "calendar.deleteAnsweredRequests",
     "rules.add",
+    "rules.edit",
     "rules.remove",
     "rules.enable",
     "rules.list",
@@ -1043,7 +1044,8 @@ const GIVES_CATEGORIES: [&str; 6] = ["tasks.new", "tasks.edit", "calendar.new", 
 /// The commands that make, switch on or run rules, which may give mail a category (#661).
 /// The calls that make, switch on or off, delete, move, keep elsewhere or run a rule: each changes
 /// which rules run on mail, and so what they give it.
-const RUNS_RULES: [&str; 7] = ["rules.add", "rules.fromMessage", "rules.enable", "rules.run", "rules.remove", "rules.move", "rules.keepOnServer"];
+const RUNS_RULES: [&str; 8] =
+    ["rules.add", "rules.edit", "rules.fromMessage", "rules.enable", "rules.run", "rules.remove", "rules.move", "rules.keepOnServer"];
 
 /// The account a list kept in step with Outlook is, for the items of `account`, when MailCraft may
 /// change it there.
@@ -1226,6 +1228,13 @@ fn rules_make_in_outlook(s: &Session, id: &str, params: &Value) -> Vec<(String, 
         "rules.fromMessage" => {
             if let Ok((r, _)) = crate::cmd::rules::rule_from_message(s, params) {
                 rule_makes_in_outlook(mb, &r, one_account(&r), Counted::WithOthers, &mut out);
+            }
+        }
+        // As the rule will be; one switched off gives nothing, and the others may give more.
+        "rules.edit" => {
+            if let Ok((_, r, _)) = crate::cmd::rules::rule_edited(s, params) {
+                let counted = if r.enabled { Counted::WithOthers } else { Counted::Others };
+                rule_makes_in_outlook(mb, &r, one_account(&r), counted, &mut out);
             }
         }
         "rules.enable" => {
@@ -1882,6 +1891,8 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
     match id {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),
+        // As the rule will be: one switched on there that deletes mail.
+        "rules.edit" => crate::cmd::rules::rule_edited(s, params).is_ok_and(|(_, r, _)| r.enabled && there(&r) && deletes(&r)),
         "rules.keepOnServer" => crate::cmd::rules::keeping_on_server(s, params).is_ok_and(|(_, r, _)| !there(&r) && deletes(&r)),
         // Moving a server rule that deletes mail changes where it runs among the others there.
         "rules.move" => named().is_some_and(|r| there(r) && deletes(r)),
@@ -1949,6 +1960,10 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
         // account's.
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| onto(&r) || beside(r.account, 0, true)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| onto(&r) || beside(r.account, 0, true)),
+        // As the rule will be: it may file other mail, and stop the rules after it for other mail.
+        "rules.edit" => {
+            crate::cmd::rules::rule_edited(s, params).is_ok_and(|(_, r, _)| (r.enabled && onto(&r)) || beside(r.account, r.id, r.enabled))
+        }
         // Read as the commands read them: what they refuse does nothing, and needs no question.
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             named().is_some_and(|r| {
@@ -3330,6 +3345,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             text
         }
+        "rules.edit" => edit_text(s, params),
         "rules.move" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
@@ -3755,6 +3771,33 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
     }
     let then = then.join(", ");
     if except.is_empty() { format!("when {when}: {then}") } else { format!("when {when}, except if {except}: {then}") }
+}
+
+/// The question about `rules.edit`: the rule as it was and as it will be, and where it will be kept.
+fn edit_text(s: &Session, params: &Value) -> String {
+    let Ok((_, after, _)) = crate::cmd::rules::rule_edited(s, params) else {
+        return "change a rule that can't be changed as asked".to_string();
+    };
+    let Some(before) = s.mailbox.rules.iter().find(|r| r.id == after.id) else {
+        return "change a rule that isn't there".to_string();
+    };
+    // Where it will be: on its server (a Sieve script there), or on this computer.
+    let kept = match s.mailbox.account(after.account) {
+        Some(a) if after.keep == mailcraft_model::Keep::Server => {
+            format!(", kept on the server of {} where it runs whether MailCraft is open or not", quoted(&plain(&a.email)))
+        }
+        _ if before.keep == mailcraft_model::Keep::Server => ", kept on this computer from now on".to_string(),
+        _ => whose(s, after.account),
+    };
+    let renamed = if before.name == after.name { String::new() } else { format!(", naming it {}", quoted(&after.name)) };
+    let off = if after.enabled { "" } else { " (switched off)" };
+    format!(
+        "change the rule {}{kept}{off}{renamed}, from {} to {}{}",
+        quoted(&before.name),
+        rule_words(s, before),
+        rule_words(s, &after),
+        beside_said(s, after.account, after.id, after.enabled)
+    )
 }
 
 fn rule_text(s: &Session, params: &Value) -> String {

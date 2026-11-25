@@ -242,6 +242,33 @@ fn a_rule_kept_on_the_server_goes_into_mailcrafts_script_after_the_replies() {
 }
 
 #[test]
+fn a_rule_changed_is_written_again_in_its_place_and_one_sieve_cant_say_leaves_the_script() {
+    let fake = Fake::sieve(world());
+    let (mut app, account) = window(&fake);
+    read(&mut app, account);
+    let rule = lists_rule(&mut app, account);
+    let lists = app.session.mailbox.rules.iter().find(|r| r.id == rule).and_then(|r| r.actions.first().cloned());
+    let Some(mailcraft_model::Action::MoveTo(lists)) = lists else { panic!("the rule moves mail") };
+    app.poll_sieve();
+    // Change Rule: other words, the same folder; the script on the server has them under its id.
+    let changed = json!({"id": rule, "name": "Digests", "account": account, "conditions": [{"type": "subjectContains", "value": "digest"}],
+        "actions": [{"type": "moveTo", "value": lists}]});
+    assert_eq!(app.execute("rules.edit", changed).unwrap()["keep"], "server");
+    app.poll_sieve();
+    let text = fake.world().script(SCRIPT_NAME).unwrap().to_string();
+    assert!(text.contains(&format!("# rule {rule}\r\nif header :contains \"subject\" [\"digest\"]")), "{text}");
+    assert!(!text.contains("\"list\""), "{text}");
+    assert!(app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().on_server());
+    // A part Sieve can't say: it runs here, and leaves the script.
+    let here = json!({"id": rule, "name": "Digests", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": lists}]});
+    assert_eq!(app.execute("rules.edit", here).unwrap()["keep"], "here");
+    app.poll_sieve();
+    let after = fake.world().script(SCRIPT_NAME).unwrap().to_string();
+    assert!(!after.contains("# rule"), "{after}");
+    assert!(!app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().on_server());
+}
+
+#[test]
 fn rules_run_here_while_the_owners_own_script_runs_on_the_server() {
     let fake = Fake::sieve(SieveWorld { scripts: vec![("roundcube".into(), "keep;".into())], active: Some("roundcube".into()), ..world() });
     let (mut app, account) = window(&fake);

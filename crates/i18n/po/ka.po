@@ -3270,6 +3270,12 @@ msgstr "ავტომატური პასუხების შეცვ�
 msgid "Change Recurring Item"
 msgstr "განმეორებადი ელემენტის შეცვლა"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "წესის შეცვლა"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3307,6 +3313,12 @@ msgid "Change email address"
 msgstr "ელფოსტის მისამართის შეცვლა"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "წესის შეცვლა"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3329,6 +3341,12 @@ msgstr "ამ ანგარიშის სახელის, სერვ�
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "ამ ანგარიშის სახელის, შესვლისა და ოფლაინ შესანახი ფოსტის შეცვლა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "ამ წესის შეცვლა"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8910,6 +8928,12 @@ msgstr "შექმნილია სხვა პროგრამაში 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "შექმნილია სხვა პროგრამაში: MailCraft ამ წესს არასდროს ცვლის"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "შექმნილია სხვა პროგრამაში: MailCraft ამ წესებს აჩვენებს და არასოდეს ცვლის"
 
@@ -9086,6 +9110,12 @@ msgstr "MailCraft ამ სკრიპტის წესებს ვერ �
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft ამ სერვერზე ამ გზით შესვლას ჯერ ვერ ახერხებს (ის Kerberos-ს ითხოვს). ჰკითხეთ ადმინისტრატორს, შეუძლია თუ არა მომხმარებლის სახელისა და პაროლის მიღება დაშიფრული კავშირით."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "MailCraft-ს ჯერ არ შეუძლია Microsoft-ის ანგარიშის სერვერზე შენახული წესის შეცვლა: შეცვალეთ ის Outlook-ში ვებზე, ან წაშალეთ და თავიდან შექმენით"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20387,8 +20417,20 @@ msgstr "ეს მოხსენება გასაგზავნად ზ
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "ამ წესის აქ შეცვლა შეუძლებელია."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "ამ წესის სერვერზე შენახვა შეუძლებელია: {why}. ის ამ კომპიუტერზე სრულდება, სანამ MailCraft გახსნილია."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "ამ წესს აქვს ნაწილი, რომელსაც წესების კონსტრუქტორი ვერ აჩვენებს: შესაცვლელად წაშალეთ და თავიდან შექმენით"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22665,6 +22707,12 @@ msgstr "წესს არ შეუძლია ფოსტის გად�
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "ყველა ანგარიშის წესი ინახება ამ კომპიუტერზე: „სერვერზე შენახვა“ მას ერთი ანგარიშის სერვერზე აგზავნის"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "წესი ანგარიშის საკუთარი ფოსტისთვისაა და არა საერთო საფოსტო ყუთისთვის"
 
@@ -22673,6 +22721,12 @@ msgstr "წესი ანგარიშის საკუთარი ფო
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "ერთი ანგარიშის წესი სხვა ანგარიშის სერვერზე ვერ გადავა"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "წესი თავის ანგარიშთან რჩება: წაშალეთ და შექმენით ახალი მეორე ანგარიშისთვის"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23406,6 +23460,12 @@ msgstr "მას პირობები არ აქვს და სერ�
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "მას აქვს ნაწილები, რომლებსაც MailCraft ვერ აჩვენებს და რომლებიც აქ შეცვლისას დაიკარგებოდა"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "ერთი სახის ორი პირობა აქვს და სერვერი ორივეს ნაცვლად რომელიმე ერთს მიიღებდა"
 
@@ -23444,6 +23504,12 @@ msgstr "ახლა სერვერზე იწერება"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "დაზიანებულია ან საჩვენებლად ზედმეტად დიდია"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "ის თქვენს საკუთარ Sieve სკრიპტშია სერვერზე, შექმნილი სხვა პროგრამაში: MailCraft მას არასდროს ცვლის"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25310,7 +25376,7 @@ msgstr "სერვერმა თქვენი შესვლა არ �
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "სერვერი არ იძლევა მის გვერდით მდგომი წესის გადაადგილების ნებას"
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

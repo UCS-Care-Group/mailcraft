@@ -4502,7 +4502,7 @@ mod task_place_tests;
 pub(crate) mod rules {
     use egui::{Align2, Rect, Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
-    use mailcraft_engine::cmd::rules::{NotOnServer, by_address, server_cannot, server_cannot_draft};
+    use mailcraft_engine::cmd::rules::{NotEditable, NotOnServer, by_address, cannot_edit, server_cannot, server_cannot_draft};
     use mailcraft_model::time::Date;
     use mailcraft_model::{Action, Condition, FlagDue, FolderKind, Id, Importance, Keep, MAX_WORD, MAX_WORDS_EACH, Mailbox, Rule, Sensitivity};
     use serde_json::{Value, json};
@@ -4772,6 +4772,52 @@ pub(crate) mod rules {
             (!ok).then_some(tl!("Each condition and exception needs something to look for."))
         }
 
+        /// The conditions the builder shows `c` as, when changing a rule: one, or for categories an
+        /// exception looks for, one for each (any one holding is enough, as for exceptions; the
+        /// command makes them one again). `None` when the builder can't show it whole: several
+        /// categories that must all be there, or several words of which one has a semicolon,
+        /// which sets words apart in the builder.
+        pub(crate) fn of(c: &Condition, exception: bool) -> Option<Vec<Cond>> {
+            let with = |kind: When| Cond { kind, ..Default::default() };
+            let words = |kind: When, w: &[String]| -> Option<Vec<Cond>> {
+                match w {
+                    [one] if one.contains(';') => Some(vec![Cond { text: one.clone(), whole: Some(one.clone()), ..with(kind) }]),
+                    _ if w.iter().any(|t| t.contains(';')) => None,
+                    _ => Some(vec![Cond { text: w.join("; "), ..with(kind) }]),
+                }
+            };
+            Some(match c {
+                Condition::From(w) => return words(When::Person, w),
+                Condition::FromContains(w) => return words(When::From, w),
+                Condition::SentTo(w) => return words(When::SentTo, w),
+                Condition::ToContains(w) => return words(When::To, w),
+                Condition::SubjectContains(w) => return words(When::Subject, w),
+                Condition::BodyContains(w) => return words(When::Body, w),
+                Condition::SubjectOrBodyContains(w) => return words(When::SubjectOrBody, w),
+                Condition::SentOnlyToMe => vec![with(When::SentOnlyToMe)],
+                Condition::ToMe => vec![with(When::ToMe)],
+                Condition::CcMe => vec![with(When::CcMe)],
+                Condition::ToOrCcMe => vec![with(When::ToOrCcMe)],
+                Condition::NotToMe => vec![with(When::NotToMe)],
+                Condition::HasAttachment => vec![with(When::Attachment)],
+                Condition::Importance(i) => vec![Cond { importance: *i, ..with(When::Importance) }],
+                Condition::Sensitivity(v) => vec![Cond { sensitivity: *v, ..with(When::Sensitivity) }],
+                Condition::SizeBetween { min, max } => vec![Cond { min: min.to_string(), max: max.to_string(), ..with(When::Size) }],
+                Condition::MeetingRequest => vec![with(When::Meeting)],
+                Condition::AutomaticReply => vec![with(When::AutomaticReply)],
+                Condition::Flagged => vec![with(When::Flagged)],
+                Condition::ReceivedBetween { from, to } => {
+                    vec![Cond { from: from.map(Date::iso).unwrap_or_default(), to: to.map(Date::iso).unwrap_or_default(), ..with(When::Received) }]
+                }
+                Condition::Category(names) => match names.as_slice() {
+                    [] => return None,
+                    [one] => vec![Cond { category: one.clone(), ..with(When::Category) }],
+                    many if exception => many.iter().map(|n| Cond { category: n.clone(), ..with(When::Category) }).collect(),
+                    _ => return None,
+                },
+            })
+        }
+
         /// It as `rules.add` takes it.
         fn param(&self) -> Value {
             let kind = self.kind.code();
@@ -4847,6 +4893,23 @@ pub(crate) mod rules {
     }
 
     impl Act {
+        /// The builder's action for `a`, when changing a rule; what it doesn't do starts as
+        /// `fresh`.
+        fn of(a: &Action, fresh: Act) -> Act {
+            match a {
+                Action::MoveTo(folder) => Act { kind: Do::Move, folder: *folder, ..fresh },
+                Action::CopyTo(folder) => Act { kind: Do::Copy, folder: *folder, ..fresh },
+                Action::Categorize(name) => Act { kind: Do::Categorize, category: name.clone(), ..fresh },
+                Action::ClearCategories => Act { kind: Do::ClearCategories, ..fresh },
+                Action::Flag => Act { kind: Do::Flag, due: None, ..fresh },
+                Action::FlagFor(due) => Act { kind: Do::Flag, due: Some(*due), ..fresh },
+                Action::ClearFlag => Act { kind: Do::ClearFlag, ..fresh },
+                Action::MarkRead => Act { kind: Do::MarkRead, ..fresh },
+                Action::SetImportance(i) => Act { kind: Do::SetImportance, importance: *i, ..fresh },
+                Action::Delete => Act { kind: Do::Delete, ..fresh },
+            }
+        }
+
         /// It as `rules.add` takes it.
         fn param(&self) -> Value {
             match self.kind {
@@ -5232,8 +5295,22 @@ pub(crate) mod rules {
         ui.label(egui::RichText::new(title).font(semibold(12.0)).color(t.text_dim)).on_hover_text(tip);
     }
 
+    /// Why the builder can't change `r` (Change Rule), in words, or `None` when it can: what the
+    /// command refuses, and a rule with a part the builder can't show whole ([`Cond::of`]).
+    pub(crate) fn not_changeable(mb: &Mailbox, r: &Rule) -> Option<&'static str> {
+        if let Some(why) = cannot_edit(mb, r) {
+            return Some(match why {
+                NotEditable::Elsewhere => tl!("Made in another program: MailCraft never changes this rule"),
+                other => tl!(other.said()),
+            });
+        }
+        let shown = r.conditions.iter().all(|c| Cond::of(c, false).is_some()) && r.exceptions.iter().all(|c| Cond::of(c, true).is_some());
+        (!shown).then_some(tl!("This rule has a part the rule builder can't show: delete it and create it again to change it"))
+    }
+
     /// One rule of a list: switched on or off, its name, what it does and where it is kept; to the
-    /// right, a place up or down, keeping it on the server, deleting it.
+    /// right, changing it, a place up or down, keeping it on the server, deleting it. A double
+    /// click on it changes it too, as in Outlook's list.
     #[allow(clippy::too_many_arguments)]
     fn rule_row(
         ui: &mut Ui,
@@ -5244,6 +5321,7 @@ pub(crate) mod rules {
         account: Id,
         servers: &[(Id, String)],
         run: &mut Option<(&'static str, Value)>,
+        change: &mut Option<Id>,
     ) {
         let t = crate::theme::Tokens::get(ui.ctx());
         let mb = &app.session.mailbox;
@@ -5260,10 +5338,12 @@ pub(crate) mod rules {
             if ui.add_enabled(!fixed, egui::Checkbox::without_text(&mut on)).on_hover_text(tip).on_disabled_hover_text(tip).changed() {
                 *run = Some(("rules.enable", json!({"id": r.id, "value": on})));
             }
-            // Four buttons to the right, the same in every row, so that they stand in a column.
-            let buttons = 4.0 * BUTTON + 4.0 * ui.spacing().item_spacing.x;
+            // Five buttons to the right, the same in every row, so that they stand in a column.
+            let buttons = 5.0 * BUTTON + 5.0 * ui.spacing().item_spacing.x;
             let width = (ui.available_width() - buttons).max(40.0);
-            let (rect, resp) = ui.allocate_exact_size(vec2(width, 54.0), Sense::hover());
+            // (Clicked, not focused: Tab goes from the switch to the buttons.)
+            let (rect, resp) = ui.allocate_exact_size(vec2(width, 54.0), Sense::CLICK);
+            let not_changeable = not_changeable(mb, r);
             let words = if r.known() {
                 shown(&describe(mb, r), 600)
             } else {
@@ -5275,7 +5355,16 @@ pub(crate) mod rules {
             let held = r.changed_here() && app.rules_held(r.account);
             let mark_colour = if r.waiting() || !r.refused.is_empty() || held { t.orange } else { t.text_dim };
             paint_clipped(ui.painter(), pos2(rect.min.x, rect.min.y + 43.0), width, mark, regular(11.0), mark_colour);
-            resp.on_hover_text(format!("{words}\n{mark}"));
+            if resp.on_hover_text(format!("{words}\n{mark}")).double_clicked() && not_changeable.is_none() {
+                *change = Some(r.id);
+            }
+            let tip = not_changeable.unwrap_or(tl!("Change this rule"));
+            let pencil = icon_button(ui, "edit", tip, 14.0, not_changeable.is_none());
+            // (Named, for a screen reader and the tests: the icon alone says nothing.)
+            pencil.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, not_changeable.is_none(), tl!("Change this rule")));
+            if pencil.clicked() && not_changeable.is_none() {
+                *change = Some(r.id);
+            }
             let place = |direction: &str| json!({"id": r.id, "direction": direction, "account": account});
             if icon_button(ui, "moveUp", tl!("Move this rule up: it runs earlier"), 14.0, up && !fixed).clicked() && up && !fixed {
                 *run = Some(("rules.move", place("up")));
@@ -5359,12 +5448,16 @@ pub(crate) mod rules {
         ran: Option<u64>,
         error: String,
         focus: bool,
+        /// The builder changes this rule (Change Rule) rather than making one: its id and its
+        /// account (0 for a rule for every account's mail, which stays one).
+        editing: Option<(Id, Id)>,
     }
 
     impl RulesForm {
         /// The dialog, with the builder unfolded when there are no rules yet. With a `folder`, as
         /// Always Move Messages From This Sender opens it, the builder is unfolded and filled in to
-        /// move the mail of the selected message's sender (or message `id`'s) there.
+        /// move the mail of the selected message's sender (or message `id`'s) there. With `edit`,
+        /// it is open on that rule to change it (Change Rule), when it can be.
         pub fn new(s: &Session, params: &Value) -> RulesForm {
             let first_category = s.mailbox.every_category().into_iter().next().map(|c| c.name).unwrap_or_default();
             let mut f = RulesForm { open: s.mailbox.rules.is_empty(), first_category, focus: true, ..Default::default() };
@@ -5372,6 +5465,12 @@ pub(crate) mod rules {
             f.reset();
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
                 f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
+            } else if let Some(rule) = params.get("edit").and_then(Value::as_u64) {
+                // Opened on Change Rule for that rule, on its account's list.
+                if let Some(account) = s.mailbox.rules.iter().find(|r| r.id == rule).map(|r| r.account).filter(|a| *a != 0) {
+                    f.choose(&s.mailbox, account);
+                }
+                f.edit(&s.mailbox, rule);
             }
             f
         }
@@ -5439,8 +5538,41 @@ pub(crate) mod rules {
             }
         }
 
-        /// Start the builder over: one empty condition, one action.
+        /// Open the builder on rule `id` to change it, filled in as it is (Change Rule). `false`,
+        /// and nothing changes, when it can't be changed ([`not_changeable`]) or isn't there.
+        pub(crate) fn edit(&mut self, mb: &Mailbox, id: Id) -> bool {
+            let Some(r) = mb.rules.iter().find(|r| r.id == id).filter(|r| not_changeable(mb, r).is_none()) else { return false };
+            let (Some(conds), Some(unless)) = (
+                r.conditions.iter().map(|c| Cond::of(c, false)).collect::<Option<Vec<_>>>(),
+                r.exceptions.iter().map(|c| Cond::of(c, true)).collect::<Option<Vec<_>>>(),
+            ) else {
+                return false;
+            };
+            self.reset();
+            self.name.clone_from(&r.name);
+            self.conds = conds.into_iter().flatten().collect();
+            self.unless = unless.into_iter().flatten().collect();
+            let fresh = self.fresh_action();
+            self.acts = r.actions.iter().map(|a| Act::of(a, fresh.clone())).collect();
+            self.stop = r.stop;
+            self.alert = r.alert;
+            // Where it is wanted: on the server, or there once it can be when it is here only
+            // because the server couldn't keep it (as `rules.edit` reads it); else here.
+            let forced = r.keep == Keep::Here
+                && r.account != 0
+                && (!r.refused.is_empty()
+                    || server_cannot(mb, r, r.account).is_some_and(|n| !matches!(n, NotOnServer::NoServer | NotOnServer::NotInStep)));
+            self.server = r.keep == Keep::Server || forced;
+            self.editing = Some((r.id, r.account));
+            self.open = true;
+            self.focus = true;
+            self.error.clear();
+            true
+        }
+
+        /// Start the builder over: one empty condition, one action, a new rule.
         fn reset(&mut self) {
+            self.editing = None;
             self.name.clear();
             self.stop = false;
             self.alert = false;
@@ -5457,7 +5589,7 @@ pub(crate) mod rules {
             Act { kind: Do::Move, folder: self.first_folder, category: self.first_category.clone(), importance: Importance::High, due: None }
         }
 
-        /// The command Add runs, with its params.
+        /// The command Add (or, changing a rule, Save) runs, with its params.
         pub fn command(&self) -> (&'static str, Value) {
             let conditions: Vec<Value> = self.conds.iter().map(Cond::param).collect();
             let actions: Vec<Value> = self.acts.iter().map(Act::param).collect();
@@ -5467,6 +5599,15 @@ pub(crate) mod rules {
             }
             if self.alert {
                 params["alert"] = json!(true);
+            }
+            if let Some((id, account)) = self.editing {
+                params["id"] = json!(id);
+                // (A rule for every account stays one, kept here.)
+                if account != 0 {
+                    params["account"] = json!(account);
+                    params["server"] = json!(self.server);
+                }
+                return ("rules.edit", params);
             }
             if self.account != 0 {
                 params["account"] = json!(self.account);
@@ -5561,13 +5702,15 @@ pub(crate) mod rules {
             // Whether the rule being made could be kept on the server, and why not (an account on
             // this computer alone has none).
             let place = mb
-                .account(account)
+                .account(self.editing.map_or(account, |(_, a)| a))
                 .filter(|a| self.open && a.kind != mailcraft_model::AccountKind::Local)
                 .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
             let mut run: Option<(&'static str, Value)> = None;
             let mut replace_sieve = false;
             let mut chosen = None;
             let mut add = false;
+            let mut change = None;
+            let mut cancel = false;
             body(ui, |ui| {
                 // Whose rules: Outlook's "Apply changes to this folder".
                 if accounts.len() > 1 {
@@ -5599,7 +5742,7 @@ pub(crate) mod rules {
                         // A rule waiting to go stands after those the server has, and moves among them once it is there.
                         let up = i > 0 && there.get(i - 1).is_some_and(|p| p.on_server() == r.on_server());
                         let down = there.get(i + 1).is_some_and(|n| n.on_server() == r.on_server());
-                        rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run);
+                        rule_row(ui, app, r, mark_of(r.id), (up, down), account, &servers, &mut run, &mut change);
                     }
                     if there.is_empty() {
                         ui.label(egui::RichText::new(tl!("None yet.")).color(t.text_dim).size(11.5));
@@ -5629,7 +5772,7 @@ pub(crate) mod rules {
                             tl!("On the server, made in another program: MailCraft never changes it").to_string()
                         };
                         for r in &e.rules {
-                            rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run);
+                            rule_row(ui, app, r, &mark, (false, false), account, &servers, &mut run, &mut change);
                         }
                         if e.unreadable {
                             ui.label(egui::RichText::new(tl!("MailCraft can't read the rules of this script.")).color(t.text_dim).size(11.5));
@@ -5644,7 +5787,7 @@ pub(crate) mod rules {
                     heading(ui, t, tl!("On this computer"), tl!("Run by MailCraft as mail arrives, while it is open"));
                 }
                 for (i, r) in here.iter().enumerate() {
-                    rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run);
+                    rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change);
                 }
                 if there.is_empty() && here.is_empty() {
                     ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
@@ -5677,19 +5820,32 @@ pub(crate) mod rules {
                     t.icon,
                     t.accent,
                 );
-                ui.painter().text(pos2(head.min.x + 24.0, head.center().y), Align2::LEFT_CENTER, tl!("New rule"), semibold(12.5), t.text);
+                let title = if self.editing.is_some() { tl!("Change rule") } else { tl!("New rule") };
+                ui.painter().text(pos2(head.min.x + 24.0, head.center().y), Align2::LEFT_CENTER, title, semibold(12.5), t.text);
                 if head_resp.clicked() {
                     self.open = !self.open;
                     self.focus = self.open;
                 }
                 if self.open {
-                    add = self.builder(ui, &mut pass, &categories, place.as_ref(), held);
+                    (add, cancel) = self.builder(ui, &mut pass, &categories, place.as_ref(), held);
                 }
             });
             if let Some(id) = chosen {
+                // A rule being changed is another account's: the builder starts over.
+                if self.editing.is_some() {
+                    self.reset();
+                }
                 self.choose(&app.session.mailbox, id);
                 self.ran = None;
                 self.error.clear();
+            }
+            if cancel {
+                self.reset();
+            }
+            if let Some(id) = change
+                && !self.edit(&app.session.mailbox, id)
+            {
+                self.error = tl!("This rule can't be changed here.").to_string();
             }
             if add {
                 run = Some(self.command());
@@ -5703,7 +5859,11 @@ pub(crate) mod rules {
                         self.error.clear();
                         // The count is of the last run; it goes when the rules change.
                         self.ran = v.get("matched").and_then(Value::as_u64).filter(|_| command == "rules.run");
-                        if add {
+                        if add && command == "rules.edit" {
+                            // Saved: the builder folds away, ready for a new rule.
+                            self.reset();
+                            self.open = false;
+                        } else if add {
                             // Then the new rule alone over the mail already in the folder, as the
                             // menu that opened it says and Outlook offers.
                             let made = v.get("id").and_then(Value::as_u64);
@@ -5718,12 +5878,19 @@ pub(crate) mod rules {
                     }
                     Err(e) => self.error = app.refusal_said(&e),
                 }
+                // The rule being changed was deleted: nothing is left to change.
+                if let Some((editing, _)) = self.editing
+                    && !app.session.mailbox.rules.iter().any(|r| r.id == editing)
+                {
+                    self.reset();
+                }
             }
             error(ui, &self.error);
             close_button(ui)
         }
 
-        /// The New rule builder. Returns `true` when Add was asked for and can run.
+        /// The builder, of a new rule or of one being changed. Returns whether Add (or Save) was
+        /// asked for and can run, and whether Cancel was pressed.
         fn builder(
             &mut self,
             ui: &mut Ui,
@@ -5731,7 +5898,7 @@ pub(crate) mod rules {
             categories: &[String],
             place: Option<&(String, Option<NotOnServer>)>,
             held: bool,
-        ) -> bool {
+        ) -> (bool, bool) {
             let t = pass.t;
             // A rule kept on the server looks at addresses alone, as the server does; one kept here
             // at names too.
@@ -5898,8 +6065,13 @@ pub(crate) mod rules {
                     ui.checkbox(&mut self.then_run, label);
                 });
             }
+            let mut cancel = false;
             row(ui, "", |ui| {
-                add = ui.add_enabled(ready, egui::Button::new(tl!("Add Rule")).min_size(vec2(84.0, 24.0))).clicked();
+                let label = if self.editing.is_some() { tl!("Save") } else { tl!("Add Rule") };
+                add = ui.add_enabled(ready, egui::Button::new(label).min_size(vec2(84.0, 24.0))).clicked();
+                if self.editing.is_some() {
+                    cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(84.0, 24.0))).clicked();
+                }
             });
             // Under the button, wrapped within the dialog: what the rule still needs can be long.
             if let Some(why) = lacks {
@@ -5907,10 +6079,12 @@ pub(crate) mod rules {
                     ui.label(egui::RichText::new(why).color(t.text_dim).size(11.5));
                 });
             }
-            ready && (add || pass.submit)
+            (ready && !cancel && (add || pass.submit), cancel)
         }
     }
 
+    #[cfg(test)]
+    mod edit_tests;
     #[cfg(test)]
     mod keep_tests;
 

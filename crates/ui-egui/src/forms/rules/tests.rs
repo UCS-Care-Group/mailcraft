@@ -214,3 +214,84 @@ fn an_always_move_name_follows_the_folder_when_rules_for_is_switched() {
         assert_eq!(f.name, if own { "Alice's mail" } else { "Alice to Archive" });
     }
 }
+
+/// Change Rule: the builder opens filled in with every kind of part as the rule has it, and Save
+/// sends `rules.edit` with the same rule, which the command keeps as it was (#9999).
+#[test]
+fn a_rule_opens_in_the_builder_as_it_is_and_saves_unchanged() {
+    let mut s = session();
+    let account = s.mailbox.rules[0].account;
+    let receipts = folder_id(&s, "Receipts");
+    let archive = folder_id(&s, "Archive");
+    let made = s
+        .run(
+            "rules.add",
+            &json!({"name": "Every part", "account": account, "server": false, "stop": true, "alert": true,
+            "conditions": [
+                {"type": "from", "value": ["a@example.org", "b@example.org"]}, {"type": "fromContains", "value": "semi;colon"},
+                {"type": "sentTo", "value": "c@example.org"}, {"type": "toContains", "value": ["x", "y"]},
+                {"type": "subjectContains", "value": "s"}, {"type": "bodyContains", "value": "b"}, {"type": "subjectOrBodyContains", "value": "e"},
+                {"type": "sentOnlyToMe"}, {"type": "toMe"}, {"type": "toOrCcMe"}, {"type": "notToMe"},
+                {"type": "hasAttachment"}, {"type": "importance", "value": "low"}, {"type": "sensitivity", "value": "private"},
+                {"type": "sizeBetween", "value": {"min": 10, "max": 20}}, {"type": "meetingRequest"}, {"type": "automaticReply"},
+                {"type": "category", "value": "Red category"}, {"type": "flagged"}, {"type": "receivedBetween", "value": {"from": "2026-01-02"}},
+            ],
+            "exceptions": [{"type": "category", "value": ["Red category", "Green category"]}, {"type": "subjectContains", "value": "no"}],
+            "actions": [
+                {"type": "moveTo", "value": receipts}, {"type": "copyTo", "value": archive}, {"type": "categorize", "value": "Green category"},
+                {"type": "clearCategories"}, {"type": "flagFor", "value": "tomorrow"}, {"type": "flag"}, {"type": "clearFlag"}, {"type": "markRead"},
+                {"type": "setImportance", "value": "high"}, {"type": "delete"},
+            ]}),
+        )
+        .unwrap();
+    let id = made["id"].as_u64().unwrap();
+    s.run("rules.enable", &json!({"id": id, "value": false})).unwrap();
+    let before = s.mailbox.rules.clone();
+    let mut f = RulesForm::new(&s, &json!({}));
+    assert!(f.edit(&s.mailbox, id));
+    assert!(f.open && f.lacks().is_none() && !f.server);
+    assert_eq!(f.conds.len(), 20);
+    // The two categories an exception looks for are two exceptions, either holding.
+    assert_eq!(f.unless.len(), 3);
+    assert_eq!((f.conds[1].kind, f.conds[1].whole.as_deref()), (When::From, Some("semi;colon")));
+    let (command, params) = f.command();
+    assert_eq!((command, params["id"].as_u64(), params["server"].as_bool()), ("rules.edit", Some(id), Some(false)));
+    s.run(command, &params).unwrap();
+    assert_eq!(s.mailbox.rules, before, "saved as it was, switched off still");
+    // Changed in the builder: the name and a condition; the rule keeps its id and place.
+    f.name = "Fewer parts".into();
+    f.conds.truncate(1);
+    f.unless.clear();
+    s.run("rules.edit", &f.command().1).unwrap();
+    let at = s.mailbox.rules.iter().position(|r| r.id == id).unwrap();
+    assert_eq!(at, before.iter().position(|r| r.id == id).unwrap());
+    let r = &s.mailbox.rules[at];
+    assert_eq!((r.name.as_str(), r.conditions.len(), r.exceptions.len(), r.enabled), ("Fewer parts", 1, 0, false));
+    // Starting over makes a new rule again.
+    f.reset();
+    assert_eq!(f.command().0, "rules.add");
+}
+
+/// What the builder can't show whole, and what the command refuses, isn't opened to be changed.
+#[test]
+fn a_rule_the_builder_cant_show_or_the_command_refuses_isnt_opened() {
+    let mut s = session();
+    let id = s.mailbox.rules[0].id;
+    let mut f = RulesForm::new(&s, &json!({}));
+    let mut all = s.mailbox.rules[0].clone();
+    all.conditions = vec![Condition::Category(vec!["Red category".into(), "Green category".into()])];
+    s.mailbox.rules[0] = all.clone();
+    assert!(not_changeable(&s.mailbox, &all).is_some());
+    assert!(!f.edit(&s.mailbox, id) && f.editing.is_none());
+    all.conditions = vec![Condition::SubjectContains(vec!["a;b".into(), "c".into()])];
+    s.mailbox.rules[0] = all.clone();
+    assert!(!f.edit(&s.mailbox, id));
+    all.conditions = vec![Condition::SubjectContains(vec!["a".into()])];
+    all.server = Some(mailcraft_model::ServerRule { id: "r".into(), read_only: true, ..Default::default() });
+    s.mailbox.rules[0] = all.clone();
+    assert_eq!(not_changeable(&s.mailbox, &all), Some("the server doesn't let this rule be changed"));
+    assert!(!f.edit(&s.mailbox, id) && !f.edit(&s.mailbox, 424242));
+    all.server = None;
+    s.mailbox.rules[0] = all;
+    assert!(f.edit(&s.mailbox, id));
+}

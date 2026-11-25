@@ -3286,6 +3286,12 @@ msgstr "Zmień odpowiedzi automatyczne"
 msgid "Change Recurring Item"
 msgstr "Zmień element cykliczny"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "Zmień regułę"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3323,6 +3329,12 @@ msgid "Change email address"
 msgstr "Zmień adres e-mail"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "Zmień regułę"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3345,6 +3357,12 @@ msgstr "Zmień nazwę konta, serwery i logowanie"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "Zmień nazwę konta, logowanie i pocztę przechowywaną offline"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "Zmień tę regułę"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8966,6 +8984,12 @@ msgstr "Utworzona w innym programie lub w sieci, z elementami, których MailCraf
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "Utworzona w innym programie: MailCraft nigdy nie zmienia tej reguły"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Utworzone w innym programie: MailCraft pokazuje te reguły i nigdy ich nie zmienia"
 
@@ -9142,6 +9166,12 @@ msgstr "MailCraft nie potrafi odczytać reguł tego skryptu."
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft nie potrafi jeszcze zalogować się do tego serwera w ten sposób (wymaga Kerberos). Zapytaj administratora, czy serwer może przyjmować nazwę użytkownika i hasło przez połączenie szyfrowane."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "MailCraft nie może jeszcze zmienić reguły przechowywanej na serwerze konta Microsoft: zmień ją w Outlooku w sieci Web albo usuń ją i utwórz ponownie"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20534,8 +20564,20 @@ msgstr "To zgłoszenie jest zbyt długie, aby je wysłać: skróć to, co napisa
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "Tej reguły nie można tu zmienić."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Tej reguły nie można przechowywać na serwerze: {why}. Działa ona na tym komputerze, gdy MailCraft jest otwarty."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "Ta reguła ma część, której kreator reguł nie potrafi pokazać: usuń ją i utwórz ponownie, aby ją zmienić"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22830,6 +22872,12 @@ msgstr "reguła nie może przenieść ani skopiować poczty do Skrzynki nadawcze
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "reguła dla wszystkich kont jest przechowywana na tym komputerze: Przechowuj na serwerze wysyła ją na serwer jednego konta"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "reguła dotyczy własnej poczty konta, a nie udostępnionej skrzynki pocztowej"
 
@@ -22838,6 +22886,12 @@ msgstr "reguła dotyczy własnej poczty konta, a nie udostępnionej skrzynki poc
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "reguła jednego konta nie może trafić na serwer innego konta"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "reguła pozostaje przy swoim koncie: usuń ją i utwórz nową dla drugiego konta"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23574,6 +23628,12 @@ msgstr "nie ma warunków, a na serwerze działałaby na każdą wiadomość"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "ma części, których MailCraft nie potrafi pokazać i które zmiana tutaj by utraciła"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "ma dwa warunki tego samego rodzaju, a serwer przyjąłby tylko jeden z nich, a nie oba"
 
@@ -23612,6 +23672,12 @@ msgstr "trwa zapisywanie na serwerze"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "jest uszkodzony lub większy, niż można wyświetlić"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "znajduje się w Twoim własnym skrypcie Sieve na serwerze, utworzonym w innym programie: MailCraft nigdy jej nie zmienia"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25480,7 +25546,7 @@ msgstr "serwer nie przyjął Twojego logowania."
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "serwer nie pozwala przenieść sąsiedniej reguły"
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

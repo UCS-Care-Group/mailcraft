@@ -3085,6 +3085,14 @@ fn hostile_params_never_panic() {
     junk.push(json!({"compose": [1], "id": 1}));
     junk.push(json!({"compose": 1, "subject": "\r\nBcc: x@example.org", "discard": true}));
     junk.push(json!({"compose": 2, "text": "x".repeat(10_000), "from": 18446744073709551615u64}));
+    // Change Rule (#9999): the sample's rule, changed with parts that make no sense, to another
+    // account, or onto a server it can't be on.
+    let rule = s.mailbox.rules.first().map_or(0, |r| r.id);
+    junk.push(json!({"id": rule, "name": "\u{0}", "conditions": [{"type": "sizeBetween", "value": {"min": 1e300, "max": -1}}], "exceptions": [[[]]],
+        "actions": [{"type": "moveTo", "value": 18446744073709551615u64}], "server": "x", "account": 0}));
+    junk.push(json!({"id": rule, "name": "x".repeat(100_000), "conditions": [{"type": "fromContains", "value": ["\r\n", ""]}], "actions": [{"type": "delete"}],
+        "server": true, "account": 18446744073709551615u64}));
+    junk.push(json!({"id": rule, "name": "R", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "flag"}], "server": true}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

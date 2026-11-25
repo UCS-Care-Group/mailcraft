@@ -241,8 +241,8 @@ fn a_held_key_deletes_one_rule() {
                 app,
             );
         h.run_steps(6);
-        // The dialog's ×, then the first rule's switch, up, down and Delete.
-        for _ in 0..5 {
+        // The dialog's ×, then the first rule's switch, Change, up, down and Delete.
+        for _ in 0..6 {
             h.key_press(egui::Key::Tab);
             h.run_steps(2);
         }
@@ -284,8 +284,8 @@ fn a_held_key_moves_one_rule_one_place() {
                 app,
             );
         h.run_steps(6);
-        // The dialog's ×, then the first rule's switch, up and down.
-        for _ in 0..4 {
+        // The dialog's ×, then the first rule's switch, Change, up and down.
+        for _ in 0..5 {
             h.key_press(egui::Key::Tab);
             h.run_steps(2);
         }

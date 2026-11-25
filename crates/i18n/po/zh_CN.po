@@ -3278,6 +3278,12 @@ msgstr "更改自动回复"
 msgid "Change Recurring Item"
 msgstr "更改重复项目"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "更改规则"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3315,6 +3321,12 @@ msgid "Change email address"
 msgstr "更改电子邮件地址"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "更改规则"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3337,6 +3349,12 @@ msgstr "更改此账户的名称、服务器和登录信息"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "更改此账户的名称、登录信息和要脱机保留的邮件"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "更改此规则"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8927,6 +8945,12 @@ msgstr "在其他程序或网页中创建，其中部分内容 MailCraft 无法�
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "在其他程序中创建：MailCraft 从不更改此规则"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "在其他程序中创建：MailCraft 显示这些规则，但从不更改它们"
 
@@ -9103,6 +9127,12 @@ msgstr "MailCraft 无法读取此脚本的规则。"
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft 暂时无法以此方式登录该服务器（服务器要求使用 Kerberos）。请询问管理员是否可以通过加密连接使用用户名和密码。"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "MailCraft 尚不能更改保存在 Microsoft 帐户服务器上的规则：请在网页版 Outlook 中更改，或删除后重新创建"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20435,8 +20465,20 @@ msgstr "报告太长，无法发送。请缩短内容，或取消勾选“包含
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "无法在此处更改此规则。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "此规则无法保存在服务器上：{why}。它只会在 MailCraft 打开时在本机运行。"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "此规则包含规则生成器无法显示的部分：要更改它，请删除后重新创建"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22723,6 +22765,12 @@ msgstr "规则无法将邮件移至或复制到发件箱：这会发送邮件"
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "适用于所有帐户的规则保存在此计算机上：“保存在服务器上”会将其发送到某个帐户的服务器"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "规则适用于账户自己的邮件，不适用于共享邮箱的邮件"
 
@@ -22731,6 +22779,12 @@ msgstr "规则适用于账户自己的邮件，不适用于共享邮箱的邮件
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "一个账户的规则不能放到另一个账户的服务器上"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "规则属于其帐户：请删除它，并为另一个帐户新建一条"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23461,6 +23515,12 @@ msgstr "它没有条件，在服务器上会作用于每封邮件"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "它包含 MailCraft 无法显示的部分，在此更改会丢失这些部分"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "它包含两个同类条件，而服务器只会满足其中任意一个，不会同时要求两者"
 
@@ -23499,6 +23559,12 @@ msgstr "正在写入服务器"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "图片已损坏或超过可显示的大小"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "它位于您自己在服务器上的 Sieve 脚本中，由其他程序创建：MailCraft 从不更改它"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25367,7 +25433,7 @@ msgstr "服务器未接受你的登录。"
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "服务器不允许移动它旁边的规则"
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

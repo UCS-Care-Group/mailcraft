@@ -3277,6 +3277,12 @@ msgstr "Modifica risposte automatiche"
 msgid "Change Recurring Item"
 msgstr "Modifica elemento ricorrente"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "Modifica regola"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3313,6 +3319,12 @@ msgid "Change email address"
 msgstr "Modifica l’indirizzo e-mail"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "Modifica regola"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3335,6 +3347,12 @@ msgstr "Modifica nome, server e accesso di questo account"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "Modifica nome, accesso e posta da conservare offline di questo account"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "Modifica questa regola"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8929,6 +8947,12 @@ msgstr "Creata in un altro programma o sul web, con parti che MailCraft non può
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "Creata in un altro programma: MailCraft non modifica mai questa regola"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Create in un altro programma: MailCraft mostra queste regole e non le modifica mai"
 
@@ -9105,6 +9129,12 @@ msgstr "MailCraft non riesce a leggere le regole di questo script."
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft non può ancora accedere a questo server in questo modo (richiede Kerberos). Chiedi all'amministratore se può accettare nome utente e password su una connessione cifrata."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "MailCraft non può ancora modificare una regola conservata sul server di un account Microsoft: modificala in Outlook sul web, oppure eliminala e ricreala"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20440,8 +20470,20 @@ msgstr "Questa segnalazione è troppo lunga per essere inviata: accorcia ciò ch
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "Questa regola non può essere modificata qui."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Questa regola non può essere conservata sul server: {why}. Viene eseguita su questo computer, mentre MailCraft è aperto."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "Questa regola ha una parte che il generatore di regole non può mostrare: eliminala e ricreala per modificarla"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22722,6 +22764,12 @@ msgstr "una regola non può spostare né copiare la posta in Posta in uscita: la
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "una regola per tutti gli account è conservata su questo computer: Conserva sul server la invia al server di un account"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "una regola vale per la posta propria di un account, non per quella di una cassetta postale condivisa"
 
@@ -22730,6 +22778,12 @@ msgstr "una regola vale per la posta propria di un account, non per quella di un
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "la regola di un account non può andare sul server di un altro account"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "una regola resta con il suo account: eliminala e creane una per l'altro account"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23462,6 +23516,12 @@ msgstr "non ha condizioni e sul server agirebbe su ogni messaggio"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "ha parti che MailCraft non può mostrare, che andrebbero perse modificandola qui"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "ha due condizioni dello stesso tipo, e il server accetterebbe l'una o l'altra invece di entrambe"
 
@@ -23500,6 +23560,12 @@ msgstr "è in corso di scrittura sul server"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "è danneggiata, o troppo grande per essere mostrata"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "si trova nel tuo script Sieve sul server, creato in un altro programma: MailCraft non la modifica mai"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25368,7 +25434,7 @@ msgstr "il server non ha accettato il tuo accesso."
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "il server non consente di spostare la regola accanto"
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

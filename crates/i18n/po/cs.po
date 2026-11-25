@@ -3277,6 +3277,12 @@ msgstr "Změnit automatické odpovědi"
 msgid "Change Recurring Item"
 msgstr "Změnit opakovanou položku"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Change Rule"
+msgstr "Změnit pravidlo"
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 #, fuzzy
@@ -3314,6 +3320,12 @@ msgid "Change email address"
 msgstr "Změnit e-mailovou adresu"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change rule"
+msgstr "Změnit pravidlo"
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 #, fuzzy
 msgid "Change the colour"
@@ -3336,6 +3348,12 @@ msgstr "Změnit název tohoto účtu, servery a přihlášení"
 #, fuzzy
 msgid "Change this account's name, sign-in and mail to keep offline"
 msgstr "Změnit název tohoto účtu, přihlášení a poštu uchovávanou offline"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule"
+msgstr "Změnit toto pravidlo"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -8951,6 +8969,12 @@ msgstr "Vytvořeno v jiném programu nebo na webu, s částmi, které MailCraft 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr "Vytvořeno v jiném programu: MailCraft toto pravidlo nikdy nemění"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Vytvořeno v jiném programu: MailCraft tato pravidla zobrazuje a nikdy je nemění"
 
@@ -9127,6 +9151,12 @@ msgstr "MailCraft neumí přečíst pravidla tohoto skriptu."
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
 msgstr "MailCraft se k tomuto serveru zatím takto přihlásit neumí (vyžaduje Kerberos). Zeptejte se správce, zda server přijme uživatelské jméno a heslo přes šifrované připojení."
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
+msgstr "MailCraft zatím neumí změnit pravidlo uložené na serveru účtu Microsoft: změňte ho v Outlooku na webu, nebo ho odstraňte a vytvořte znovu"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20506,8 +20536,20 @@ msgstr "Toto hlášení je příliš dlouhé na odeslání: zkraťte, co jste na
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "This rule can't be changed here."
+msgstr "Toto pravidlo tu nelze změnit."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Toto pravidlo nelze uchovávat na serveru: {why}. Běží v tomto počítači, když je MailCraft otevřený."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr "Toto pravidlo má část, kterou průvodce pravidly neumí zobrazit: chcete-li ho změnit, odstraňte ho a vytvořte znovu"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22799,6 +22841,12 @@ msgstr "pravidlo nemůže přesunout ani zkopírovat poštu do složky Pošta k 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr "pravidlo pro všechny účty je uloženo v tomto počítači: Uchovat na serveru ho pošle na server jednoho účtu"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr "pravidlo je pro vlastní poštu účtu, ne pro sdílenou poštovní schránku"
 
@@ -22807,6 +22855,12 @@ msgstr "pravidlo je pro vlastní poštu účtu, ne pro sdílenou poštovní schr
 #, fuzzy
 msgid "a rule of one account can't go to another account's server"
 msgstr "pravidlo jednoho účtu nemůže jít na server jiného účtu"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule stays with its account: delete it and create one for the other account"
+msgstr "pravidlo zůstává u svého účtu: odstraňte ho a vytvořte nové pro druhý účet"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -23542,6 +23596,12 @@ msgstr "nemá žádné podmínky a na serveru by působila na každou zprávu"
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr "má části, které MailCraft neumí zobrazit a které by se změnou zde ztratily"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr "má dvě podmínky jednoho druhu a server by přijal kteroukoli z nich, ne obě"
 
@@ -23580,6 +23640,12 @@ msgstr "právě se zapisuje na server"
 #, fuzzy
 msgid "it is damaged, or larger than can be shown"
 msgstr "je poškozený nebo větší, než lze zobrazit"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
+msgstr "je ve vašem vlastním skriptu Sieve na serveru, vytvořeném v jiném programu: MailCraft ho nikdy nemění"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs crates/ui-egui/src/reading/remote.rs
@@ -25448,7 +25514,7 @@ msgstr "server nepřijal vaše přihlášení."
 msgid "the server doesn't let the rule next to it be moved"
 msgstr "server nedovoluje přesunout sousední pravidlo"
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server doesn't let this rule be changed"

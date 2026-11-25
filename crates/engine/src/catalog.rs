@@ -82,6 +82,7 @@ Home|Action Shortcuts|Manage Action Shortcuts|quickSteps.manage
 Home|Move|Move|mail.move
 Home|Move|Copy to Folder|mail.copy
 Home|Move|Create Rule|rules.add
+Home|Move|Change Rule|rules.edit
 Home|Move|Always Move Messages From|rules.fromMessage
 Home|Move|Manage Rules|rules.list
 Home|Move|Delete Rule|rules.remove

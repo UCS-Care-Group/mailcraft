@@ -2727,6 +2727,11 @@ msgstr ""
 msgid "Change Recurring Item"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+msgid "Change Rule"
+msgstr ""
+
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 msgid "Change Send Time"
@@ -2758,6 +2763,11 @@ msgid "Change email address"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change rule"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/widgets.rs
 msgid "Change the colour"
 msgstr ""
@@ -2775,6 +2785,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Change this rule"
 msgstr ""
 
 #. interface
@@ -7418,6 +7433,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "Made in another program: MailCraft never changes this rule"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr ""
 
@@ -7564,6 +7584,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
 msgstr ""
 
 #. android
@@ -16990,7 +17015,17 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "This rule can't be changed here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
 msgstr ""
 
 #. what a command says
@@ -18880,12 +18915,22 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
+msgid "a rule for every account is kept on this computer: Keep on Server sends it to one account's server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
 msgid "a rule is for an account's own mail, not a shared mailbox's"
 msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule of one account can't go to another account's server"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr ""
 
 #. what a command says
@@ -19500,6 +19545,11 @@ msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
+msgid "it has parts MailCraft can't show, which changing it here would lose"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
 msgid "it has two conditions of one kind, and the server would take either of them rather than both"
 msgstr ""
 
@@ -19531,6 +19581,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "it is damaged, or larger than can be shown"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it is in your own Sieve script on the server, made in another program: MailCraft never changes it"
 msgstr ""
 
 #. interface
@@ -21092,7 +21147,7 @@ msgstr ""
 msgid "the server doesn't let the rule next to it be moved"
 msgstr ""
 
-#. what a command says
+#. name, what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "the server doesn't let this rule be changed"
 msgstr ""
