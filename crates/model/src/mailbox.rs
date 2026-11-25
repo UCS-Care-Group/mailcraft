@@ -16,6 +16,8 @@ mod bulk;
 mod followup;
 #[path = "mailbox_snooze.rs"]
 mod snooze;
+#[path = "category_sweep.rs"]
+mod sweep;
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -148,6 +150,46 @@ pub struct Folder {
     /// It is never made on the server: one that complete listing doesn't have goes.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub awaiting_listing: bool,
+    /// Its place among the folders that share its parent, where the owner put it (#1514): kept
+    /// on this computer alone, never sent to a server. `None` until the owner first moves it or
+    /// one beside it, and in a file from before there was an order; such a folder comes after
+    /// those with a place, by name ([`sort_as_listed`]).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place: Option<u32>,
+    /// Its place among the Favorites kept in MailCraft (#1514), as [`Folder::place`] is among its
+    /// siblings. `None` until the owner first moves a favourite, and once it stops being one.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub favorite_place: Option<u32>,
+    /// Its [`Folder::place`] before a move to another parent cleared it, until the server has
+    /// taken the move or refused it (#1514): a refused move puts it back where it was. A
+    /// file from before has none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub place_before_move: Option<u32>,
+}
+
+const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
+
+/// The rank of the folders that lead an account's top level in the folder pane, in the order
+/// they lead it: Inbox, Drafts, Sent Items and Deleted Items, which stay there (#1514); every
+/// other folder ranks after them.
+pub fn lead_rank(kind: FolderKind) -> usize {
+    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
+}
+
+/// Whether a folder keeps its place at the head of its account's list whatever the owner does
+/// (#1514): one of [`lead_rank`]'s at the top level.
+pub fn leads(f: &Folder) -> bool {
+    f.parent.is_none() && lead_rank(f.kind) < LEAD.len()
+}
+
+/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
+/// the folder pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead;
+/// every other folder, Archive, Junk Email and Outbox among them, follows in the order the owner
+/// put them in ([`Folder::place`], #1514), and those without a place after them by name without
+/// regard to case. Subfolders are so too, with nothing leading.
+pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
+    // The id last: two folders of one name keep their places from frame to frame.
+    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.place.unwrap_or(u32::MAX), f.name.to_lowercase(), f.id));
 }
 
 /// Whether a list of category names has `name`.
@@ -284,6 +326,18 @@ fn is_false(b: &bool) -> bool {
 }
 
 impl Folder {
+    /// Put the folder under `parent`. Moved to another parent it goes last there: its place among
+    /// the old siblings means nothing among the new ones (#1514).
+    pub fn set_parent(&mut self, parent: Option<Id>) {
+        if self.parent != parent {
+            if self.place.is_some() {
+                self.place_before_move = self.place;
+            }
+            self.place = None;
+        }
+        self.parent = parent;
+    }
+
     /// It is one of its server's own folders ([`ServerFolder::well_known`]), which can't be
     /// renamed, moved or deleted. Only known once a listing has said so (#756): until the first
     /// run after the update, a folder of that kind is still taken for one the owner made.
@@ -810,6 +864,15 @@ impl Account {
         self.keeps_tasks()
     }
 
+    /// Whether its contacts are kept through Microsoft Graph, which has only so many places for
+    /// a contact's addresses and numbers (#1917): it keeps contacts and signs in with Microsoft.
+    /// Never a JMAP or Exchange server account, whatever else comes to keep contacts.
+    pub fn contacts_in_graph(&self) -> bool {
+        self.keeps_contacts()
+            && !matches!(self.kind, AccountKind::Jmap | AccountKind::Exchange)
+            && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
@@ -1193,6 +1256,19 @@ pub struct Mailbox {
     pub messages: Messages,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
+    /// The contacts folders of the accounts whose servers keep contacts (#1917), at most
+    /// [`crate::contact_sync::MAX_CONTACT_FOLDERS`] an account. A contact's
+    /// [`Contact::folder`] names one, or is 0 (On this computer).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_folders: Vec<crate::contact_sync::ContactFolder>,
+    /// Changes made here to contacts of folders a server keeps that the server is yet to be
+    /// told, oldest first, one a contact at most ([`crate::contact_sync::ContactChange`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_changes: Vec<crate::contact_sync::ContactChange>,
+    /// The contacts folder the owner last put a new contact in (0: On this computer); `None`
+    /// until they have.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contact_place: Option<Id>,
     pub calendars: Vec<Calendar>,
     #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
@@ -1303,6 +1379,12 @@ pub struct Mailbox {
     /// there all the same.
     #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_renames")]
     pub category_renames: BTreeMap<Id, BTreeMap<String, String>>,
+    /// The renames of each Microsoft account's categories that items on its server still wait
+    /// for (#851): mail and events that aren't kept on this computer, asked for there and given
+    /// the new name, before the old one is deleted from the server's list. In the file, so that
+    /// it goes on after MailCraft was closed.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_sweeps")]
+    pub category_sweeps: BTreeMap<Id, Vec<crate::remote::CategorySweep>>,
     /// The next id to be given when the first of [`Mailbox::account_categories`] was made: an
     /// account with a lower id was here while one list served them all, so
     /// [`Mailbox::categories`] may hold its server's names. One added since has none there.
@@ -1353,6 +1435,9 @@ impl Default for Mailbox {
             folders: Vec::new(),
             messages: Messages::new(),
             contacts: BTreeMap::new(),
+            contact_folders: Vec::new(),
+            contact_changes: Vec::new(),
+            contact_place: None,
             calendars: Vec::new(),
             events: BTreeMap::new(),
             tasks: BTreeMap::new(),
@@ -1380,6 +1465,7 @@ impl Default for Mailbox {
             category_writes: std::collections::BTreeSet::new(),
             categories_found: BTreeMap::new(),
             category_renames: BTreeMap::new(),
+            category_sweeps: BTreeMap::new(),
             category_stamp: 0,
             own_lists_began: 0,
             zone: String::new(),
@@ -1425,6 +1511,16 @@ pub const FOLDERS_NOT_DELETED_YET: &str = "MailCraft doesn't delete a JMAP accou
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607, #1074).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
+/// What a draft moved into an Outbox says instead ([`MOVED_INTO_OUTBOX`]): Send Again doesn't send
+/// a draft, for nobody has said its recipients are right; Send does, with its questions (#1747).
+pub const DRAFT_MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Open the draft and send it";
+
+/// Whether `held` says only that the message was moved into an Outbox ([`MOVED_INTO_OUTBOX`],
+/// [`DRAFT_MOVED_INTO_OUTBOX`]).
+pub fn held_for_moving_in(held: &str) -> bool {
+    held == MOVED_INTO_OUTBOX || held == DRAFT_MOVED_INTO_OUTBOX
+}
+
 /// Only what is queued with Send leaves through an IMAP account's Outbox (#607), and a message moved
 /// into a JMAP account's is held the same way (#1074, [`Mailbox::holds_what_is_moved_in`]): a message moved
 /// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
@@ -1438,9 +1534,9 @@ fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
     m.sent_here = false;
     if into_outbox {
         if m.held.is_empty() {
-            m.held = MOVED_INTO_OUTBOX.to_string();
+            m.held = if m.draft { DRAFT_MOVED_INTO_OUTBOX } else { MOVED_INTO_OUTBOX }.to_string();
         }
-    } else if m.held == MOVED_INTO_OUTBOX {
+    } else if held_for_moving_in(&m.held) {
         m.held.clear();
     }
 }
@@ -1569,6 +1665,15 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
         self.rule_gone.retain(|gone| !going.contains(&gone.account));
+        // Its contacts folders and what waited for them; a contact still in one is kept on this
+        // computer.
+        self.contact_changes.retain(|change| !going.contains(&change.account));
+        let folders: HashSet<Id> = self.contact_folders.iter().filter(|f| going.contains(&f.account)).map(|f| f.id).collect();
+        self.contact_folders.retain(|f| !going.contains(&f.account));
+        for c in self.contacts.values_mut().filter(|c| folders.contains(&c.folder)) {
+            let c = Arc::make_mut(c);
+            (c.folder, c.origin) = (0, crate::Origin::default());
+        }
         // Its rules go with it, as Outlook keeps an account's rules in its mailbox (#566): one
         // left behind would act on the mail of accounts it was never made for. Those for every
         // account stay.
@@ -1581,6 +1686,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| !going.contains(account));
         self.category_writes.retain(|account| !going.contains(account));
         self.category_renames.retain(|account, _| !going.contains(account));
+        self.category_sweeps.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -1864,13 +1970,64 @@ impl Mailbox {
         self.default_account().and_then(|a| self.folder_of_kind(a.id, FolderKind::Inbox)).or_else(|| self.folders.first().map(|f| f.id))
     }
 
-    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, standard
-    /// folders first in their usual order, then the others by name.
+    /// Top-level folders of an account (`parent` `None`) or a folder's subfolders, as the
+    /// folder pane lists them ([`sort_as_listed`], #1514): at the top level only Inbox, Drafts,
+    /// Sent Items and Deleted Items lead, in that order; every other folder follows in the
+    /// owner's places, those without one by name.
     pub fn children(&self, account: Id, parent: Option<Id>) -> Vec<&Folder> {
         let mut v: Vec<&Folder> = self.folders.iter().filter(|f| f.account == account && f.parent == parent).collect();
-        let rank = |f: &Folder| FolderKind::STANDARD.iter().position(|k| *k == f.kind).unwrap_or(usize::MAX);
-        v.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        sort_as_listed(&mut v, parent.is_none());
         v
+    }
+
+    /// The folders that [`Mailbox::reorder_folder`] moves `id` among (#1514), it among them, as
+    /// the folder pane lists them: those that share its parent but the ones that lead
+    /// ([`leads`]). Empty for a folder that leads, or isn't here.
+    pub fn reorder_siblings(&self, id: Id) -> Vec<Id> {
+        let Some(f) = self.folder(id).filter(|f| !leads(f)) else { return Vec::new() };
+        let mut siblings: Vec<&Folder> = self.folders.iter().filter(|g| g.account == f.account && g.parent == f.parent && !leads(g)).collect();
+        sort_as_listed(&mut siblings, f.parent.is_none());
+        siblings.into_iter().map(|g| g.id).collect()
+    }
+
+    /// Put the folder `id` in another place among the folders that share its parent (#1514), as
+    /// dragging it there does: right before `before`, one of them, or last without one. Inbox,
+    /// Drafts, Sent Items and Deleted Items lead an account's top level and stay there
+    /// ([`leads`]): they aren't moved, nor named as `before`. Only [`Folder::place`] changes, of
+    /// each of the siblings, and nothing is sent to a server. Whether anything moved.
+    pub fn reorder_folder(&mut self, id: Id, before: Option<Id>) -> Result<bool, ModelError> {
+        let f = self.folder(id).ok_or(not_found("folder", id))?;
+        if leads(f) {
+            return Err(invalid(format!("{} stays at the top of its account's folders", f.name)));
+        }
+        let (account, parent) = (f.account, f.parent);
+        if let Some(before) = before {
+            if before == id {
+                return Err(invalid("a folder can't be put before itself"));
+            }
+            let b = self.folder(before).ok_or(not_found("folder", before))?;
+            if b.account != account || b.parent != parent {
+                return Err(invalid("a folder is put among the folders beside it: name one with the same parent"));
+            }
+            if leads(b) {
+                return Err(invalid(format!("{} stays at the top of its account's folders", b.name)));
+            }
+        }
+        let was = self.reorder_siblings(id);
+        let mut order: Vec<Id> = was.iter().copied().filter(|f| *f != id).collect();
+        let at = before.and_then(|b| order.iter().position(|f| *f == b)).unwrap_or(order.len());
+        order.insert(at, id);
+        if order == was {
+            return Ok(false);
+        }
+        let place: HashMap<Id, u32> = order.iter().enumerate().map(|(n, id)| (*id, u32::try_from(n).unwrap_or(u32::MAX))).collect();
+        for f in self.folders.iter_mut() {
+            if let Some(n) = place.get(&f.id) {
+                f.place = Some(*n);
+                f.place_before_move = None;
+            }
+        }
+        Ok(true)
     }
 
     /// The folder is an Outbox or lies under one: mail put there is sent by the next Send/Receive.
@@ -1973,7 +2130,7 @@ impl Mailbox {
         self.folders.retain(|f| !gone.contains(&f.id));
         for f in &mut self.folders {
             if f.parent.is_some_and(|p| gone.contains(&p)) {
-                f.parent = None;
+                f.set_parent(None);
             }
         }
         self.messages.retain(|_, m| !gone.contains(&m.folder));
@@ -2086,7 +2243,8 @@ impl Mailbox {
         if self.name_taken(f.account, parent, &f.name, Some(id)) {
             return Err(invalid(format!("a folder named \"{}\" already exists there", f.name)));
         }
-        self.folder_mut(id)?.parent = parent;
+        let f = self.folder_mut(id)?;
+        f.set_parent(parent);
         Ok(())
     }
 
@@ -2122,9 +2280,10 @@ impl Mailbox {
                     name = format!("{} ({n})", f.name);
                 }
                 let folder = self.folder_mut(id)?;
-                folder.parent = Some(d);
+                folder.set_parent(Some(d));
                 folder.name = name;
                 folder.favorite = false;
+                folder.favorite_place = None;
                 Ok(false)
             }
             _ => {
@@ -2451,6 +2610,11 @@ impl Mailbox {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
         }
+        if self.message(id).is_some_and(|m| m.rules_waiting.is_some()) {
+            // Moved before it is here whole, by anybody and back again too: the rules that couldn't
+            // tell of it as it arrived let it alone (#566).
+            self.message_mut(id)?.rules_waiting = None;
+        }
         let into_outbox = self.holds_what_is_moved_in(folder);
         if self.move_between_accounts(id, folder, account, &remote, fresh)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
@@ -2668,7 +2832,7 @@ impl Mailbox {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
-        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && m.held != MOVED_INTO_OUTBOX) {
+        } else if m.draft || m.server_draft.is_some() || (!m.held.is_empty() && !held_for_moving_in(&m.held)) {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
         } else {
             None
@@ -2896,12 +3060,12 @@ impl Mailbox {
 
     /// [`Mailbox::copy_message`]. A copy of a message a Microsoft account's server has, into
     /// another folder of that account, waits in the queue for the server to make it
-    /// ([`Queued::CopyMessage`]), with a marker that `nonce` (the time, say) helps make one that
+    /// ([`Queued::CopyMessage`]), with a marker that `stamp` (the time, say) helps make one that
     /// is used once. A copy into a Microsoft account from elsewhere ([`Mailbox::placed_into`])
     /// waits to be made on that account's server from the whole message
     /// ([`Queued::PlaceMessage`]). Copying a message that isn't fetched yet out of a Microsoft
     /// account is refused: its copy would never be whole.
-    pub fn copy_message_marked(&mut self, id: Id, folder: Id, nonce: u64) -> Result<Id, ModelError> {
+    pub fn copy_message_marked(&mut self, id: Id, folder: Id, stamp: u64) -> Result<Id, ModelError> {
         let to_account = self.folder(folder).ok_or(not_found("folder", folder))?.account;
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
@@ -2923,7 +3087,10 @@ impl Mailbox {
             let source = m.server.as_ref().map(|s| s.id.clone()).unwrap_or_default();
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
-            (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
+            (copy.server, copy.moving_out, copy.returned, copy.rule_alert) = (None, None, 0, false);
+            copy.rules_waiting = None;
+            // (Made on the other server from what is here: nothing of it waits to be fetched again.)
+            copy.stale = false;
             (copy.snooze, copy.follow_up) = (None, None);
             copy.placed.clear();
             copy.left_gmail_inbox();
@@ -2953,6 +3120,13 @@ impl Mailbox {
         // (Put back after a refused copy is said of the message, not of a copy of it, and so is
         // the copy on a server it waits for.)
         copy.returned = 0;
+        // A rule's alert is for the message as it arrived, not for a copy of it, and so are the
+        // rules waiting for it to be here whole.
+        copy.rule_alert = false;
+        copy.rules_waiting = None;
+        // A copy has no server's version of its own to wait for: the rules read it as it is here
+        // (#566).
+        copy.stale = false;
         copy.placed.clear();
         copy.left_gmail_inbox();
         hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
@@ -2961,7 +3135,7 @@ impl Mailbox {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();
             // Of the source's id: copies of different messages never share a marker.
             let source = crate::sync::fingerprint(server.id.as_bytes());
-            let marker = format!("mailcraft-{nonce:x}-{new:x}-{source:016x}");
+            let marker = format!("mailcraft-{stamp:x}-{new:x}-{source:016x}");
             self.queued.push(Queued::CopyMessage { account: from_account, id: server.id, to, copy: new, marker });
         }
         Ok(new)
@@ -3151,35 +3325,98 @@ impl Mailbox {
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
     /// kept on its account's server does, there and here, as the server does
-    /// ([`crate::Condition::matches_as`]). One kept on this computer reads names too.
+    /// ([`crate::Matching::addresses_only`]). One kept on this computer reads names too.
     pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
         rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
+    }
+
+    /// Whether the rules for the mail of `then`'s account read `then` and `now` (the same message,
+    /// at two times) alike, by the clock of `zone` (#566): each condition and exception of each
+    /// holds, and can be told, of both or of neither, and the categories, flag and importance
+    /// that their actions change are the same ([`crate::Marks`]), so that the rules do the same to
+    /// both. What only a server says of a message (what it last said, a read mark) is no part of
+    /// that.
+    pub fn rules_read_alike(&self, then: &Message, now: &Message, zone: crate::time::Zone) -> bool {
+        if then.account != now.account || crate::Marks::of(then) != crate::Marks::of(now) {
+            return false;
+        }
+        self.rules_in_order(then.account).into_iter().filter_map(|i| self.rules.get(i)).all(|r| {
+            let how = self.rule_matching(r, then.account, zone);
+            r.conditions
+                .iter()
+                .chain(&r.exceptions)
+                .all(|c| c.matches_in(then, &how) == c.matches_in(now, &how) && c.unread_in(then) == c.unread_in(now))
+        })
+    }
+
+    /// How `rule` is matched against a message of `account`, by the clock of `zone`: "me" is that
+    /// account's address (for a rule for every account, the account the message is in).
+    pub fn rule_matching(&self, rule: &Rule, account: Id, zone: crate::time::Zone) -> crate::Matching<'_> {
+        let me = self.account(account).map_or("", |a| a.email.as_str());
+        crate::Matching { addresses_only: self.rule_reads_addresses(rule), me, zone }
+    }
+
+    /// Whether the rules act on the mail of `account` at all: not on a shared mailbox's, whose
+    /// rules are its own, whichever way they are run (#566).
+    pub fn rules_reach(&self, account: Id) -> bool {
+        !self.account(account).is_some_and(|a| a.is_shared())
     }
 
     /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
     /// run: those for its server first (the server runs them before anything here does), then
     /// those of this computer.
     pub fn rules_in_order(&self, account: Id) -> Vec<usize> {
+        if !self.rules_reach(account) {
+            return Vec::new();
+        }
         let server = |r: &Rule| r.account == account && r.keep == crate::Keep::Server;
         let first = self.rules.iter().enumerate().filter(|(_, r)| server(r)).map(|(i, _)| i);
         let then = self.rules.iter().enumerate().filter(|(_, r)| !server(r) && r.is_for(account)).map(|(i, _)| i);
         first.chain(then).collect()
     }
 
-    /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
-    ///
-    /// A rule its account's server has doesn't act: the server ran it before the mail came here.
-    /// It is still matched, so that one that stops later rules stops those of this computer too.
-    pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
-        self.run_rules(id, false)
+    /// Run the enabled rules on a message (new mail), by `clock`. Returns the names of the rules
+    /// that ran. One that shows a desktop alert marks the message for it ([`Message::rule_alert`]).
+    pub fn apply_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Arriving, clock)
+    }
+
+    /// [`Mailbox::apply_rules`] for mail its server had before it was read here: an account's
+    /// first download, a mailbox the server numbered anew, older mail a raised limit brings down.
+    /// It is filed as new mail is, but none of it is copied and no alert is shown for it (#566).
+    pub fn apply_rules_found(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Found, clock)
+    }
+
+    /// [`Mailbox::apply_rules_found`] for the mail of a mailbox its server numbered anew, which
+    /// was here as other mail before: the rules copied it as it first arrived, and a copy now would
+    /// be a second one (#566).
+    pub fn apply_rules_renumbered(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, Ruling::Renumbered, clock)
     }
 
     /// [`Mailbox::apply_rules`], or with `now` every rule acts (Run Rules Now, which runs the rules
-    /// the server has here too, as Outlook does).
-    pub fn run_rules(&mut self, id: Id, now: bool) -> Vec<String> {
+    /// the server has here too, as Outlook does), and none shows an alert: the mail isn't
+    /// arriving.
+    pub fn run_rules(&mut self, id: Id, now: bool, clock: &crate::RuleClock) -> Vec<String> {
+        self.rules_on(id, if now { Ruling::Now } else { Ruling::Arriving }, clock)
+    }
+
+    fn rules_on(&mut self, id: Id, ruling: Ruling, clock: &crate::RuleClock) -> Vec<String> {
+        let now = ruling == Ruling::Now;
         let mut ran = Vec::new();
-        let Some(account) = self.message(id).map(|m| m.account) else { return ran };
+        let Some((account, listed)) = self.message(id).map(|m| (m.account, m.unfetched)) else { return ran };
         let order: Vec<Rule> = self.rules_in_order(account).into_iter().filter_map(|i| self.rules.get(i).cloned()).collect();
+        let mut alert = false;
+        // A rule that can't tell yet, which may apply after all (and stop the rest), or one that
+        // waits to copy it out of its account: the rules after it run as they would if it didn't
+        // apply, but copy or move nothing into another account, where it would be past that rule's
+        // reach (#566).
+        let mut unsure = false;
+        // New mail its server listed before it is fetched: what couldn't be told waits for it
+        // to be here whole (#566).
+        let waits = ruling == Ruling::Arriving && listed;
+        let mut waiting = Vec::new();
         for mut rule in order {
             let Some(m) = self.message(id) else { break };
             // New mail: a rule its server has ran there as the server last had it, which is what
@@ -3187,62 +3424,265 @@ impl Mailbox {
             if let Some(server) = rule.server.as_ref().filter(|s| !now && !s.id.is_empty()) {
                 rule.enabled = server.synced_enabled;
             }
-            if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+            let how = self.rule_matching(&rule, account, clock.zone);
+            if !rule.matches_in(m, &how) {
+                let undecided = rule.undecided_in(m, &how);
+                unsure |= undecided;
+                if waits && undecided {
+                    waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
+                }
                 continue;
             }
             if now || !rule.on_server() {
-                self.act(id, &rule.actions);
-                ran.push(rule.name.clone());
+                // One that copies mail out of its account waits whole for the message: a copy in
+                // another mailbox is made of the whole message, which isn't here yet. It copies once
+                // the message is here, as Outlook's rule on the computer copies new mail into another
+                // account's folder (#566).
+                let other = |f: &Id| self.folder(*f).is_some_and(|f| f.account != account);
+                let copies_out = waits && rule.actions.iter().any(|a| matches!(a, Action::CopyTo(f) if other(f)));
+                // One that moves it out of its account while a rule before it can't tell yet
+                // waits too: in another account, on another server, it would be past that rule's
+                // reach, which may have stopped the rest.
+                let moves_out = waits && unsure && rule.actions.iter().any(|a| matches!(a, Action::MoveTo(f) if other(f)));
+                if copies_out || moves_out {
+                    waiting.push(crate::RuleWaiting { rule: rule.id, delete_only: false });
+                    unsure |= copies_out;
+                } else {
+                    alert |= rule.alert && ruling == Ruling::Arriving;
+                    // (Copied as it first arrived, or there before: years of an Inbox aren't
+                    // copied, onto another server least of all.) Nor copied or moved out of its
+                    // account past a rule before that couldn't tell, with nothing to wait for.
+                    let found = matches!(ruling, Ruling::Renumbered | Ruling::Found);
+                    let skip = |a: &Action| match a {
+                        Action::CopyTo(f) => found || (unsure && other(f)),
+                        Action::MoveTo(f) => unsure && other(f),
+                        _ => false,
+                    };
+                    let actions: std::borrow::Cow<[Action]> = if rule.actions.iter().any(skip) {
+                        rule.actions.iter().filter(|a| !skip(a)).cloned().collect()
+                    } else {
+                        std::borrow::Cow::Borrowed(&rule.actions)
+                    };
+                    if self.act(id, &actions, clock) {
+                        ran.push(rule.name.clone());
+                    }
+                }
             }
             if rule.stop {
                 break;
             }
+        }
+        // Moved out of the account, it didn't arrive where it is now.
+        let binned = !waiting.is_empty() && self.in_deleted_items(id);
+        // (Taken to change only when there is something to put on it: a message the rules left
+        // alone stays the one it was, and isn't copied.)
+        if (alert || !waiting.is_empty())
+            && let Ok(m) = self.message_mut(id)
+            && m.account == account
+        {
+            m.rule_alert |= alert;
+            if !waiting.is_empty() && m.unfetched {
+                let marked = Some(crate::Marks::of(m));
+                m.rules_waiting = Some(Box::new(crate::RulesWaiting { folder: m.folder, rules: waiting, marked, binned }));
+            }
+        }
+        ran
+    }
+
+    /// Once a message is here whole, the rules that couldn't tell of it as it arrived have their
+    /// say ([`Message::rules_waiting`], #566), in the order they ran then, and only where they
+    /// left it: one moved since (by the owner, say), even back, is let alone, as a move takes
+    /// what waits for it away ([`Mailbox::move_message`]). A rule that acted then isn't run
+    /// again; one that copies or moves it into another account and waited acts now, unless a rule
+    /// before it applies after all and stops the rules after it. Returns the names of the rules
+    /// that acted. One that shows a desktop alert marks the message for it
+    /// ([`Message::rule_alert`]), as it would have as the message arrived. Mail in Deleted Items
+    /// only since (its folder deleted meanwhile, which keeps the folder's id) is let alone too
+    /// ([`crate::RulesWaiting::binned`]).
+    pub fn run_waiting_rules(&mut self, id: Id, clock: &crate::RuleClock) -> Vec<String> {
+        let mut ran = Vec::new();
+        if !self.message(id).is_some_and(|m| m.rules_waiting.is_some() && !m.partly_here()) {
+            return ran;
+        }
+        let deleted = self.in_deleted_items(id);
+        let Ok(m) = self.message_mut(id) else { return ran };
+        let Some(waiting) = m.rules_waiting.take() else { return ran };
+        let account = m.account;
+        // (Once its categories, flag or importance were changed meanwhile, which the rules that
+        // acted then may have read, nothing goes onto another account's server, by a copy or a
+        // move.)
+        let changed = waiting.marked.as_ref().is_some_and(|then| *then != crate::Marks::of(m));
+        if m.folder != waiting.folder || (deleted && !waiting.binned) || !self.rules_reach(account) {
+            return ran;
+        }
+        // A rule that still can't tell, now the message is here (a header past what is kept):
+        // nothing after it goes into another account either, where it would be past that rule's
+        // reach, as at Run Rules Now ([`Mailbox::rules_on`]).
+        let mut cant_tell = false;
+        let mut alert = false;
+        for wait in waiting.rules.iter().take(MAX_RULES) {
+            let Some(m) = self.message(id).filter(|m| m.account == account) else { break };
+            let Some(mut rule) = self.rules.iter().find(|r| r.id == wait.rule && r.is_for(account)).cloned() else { continue };
+            if let Some(server) = rule.server.as_ref().filter(|s| !s.id.is_empty()) {
+                rule.enabled = server.synced_enabled;
+            }
+            let how = self.rule_matching(&rule, account, clock.zone);
+            if !rule.matches_in(m, &how) {
+                cant_tell |= rule.undecided_in(m, &how);
+                continue;
+            }
+            // (One that acted as the message arrived but for a delete that waited on its own, which
+            // an earlier build of #566 kept in the file, isn't run again.)
+            if !rule.on_server() && !wait.delete_only {
+                alert |= rule.alert;
+                // (Into another account past a rule that can't tell; onto another account's server
+                // once the marks changed: this computer has none.)
+                let out = |a: &Action| {
+                    let into = |f: &Id| self.folder(*f).filter(|f| f.account != account).and_then(|f| self.account(f.account));
+                    matches!(a, Action::CopyTo(f) | Action::MoveTo(f) if into(f).is_some_and(|to| cant_tell || to.kind != AccountKind::Local))
+                };
+                let actions: std::borrow::Cow<[Action]> = if changed || cant_tell {
+                    rule.actions.iter().filter(|a| !out(a)).cloned().collect()
+                } else {
+                    std::borrow::Cow::Borrowed(&rule.actions)
+                };
+                if self.act(id, &actions, clock) {
+                    ran.push(rule.name.clone());
+                }
+            }
+            if rule.stop {
+                break;
+            }
+        }
+        // Moved out of the account, it didn't arrive where it is now.
+        if let Ok(m) = self.message_mut(id)
+            && m.account == account
+        {
+            m.rule_alert |= alert;
         }
         ran
     }
 
     /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
     /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
-    pub fn run_rule(&mut self, id: Id, rule: Id) -> bool {
+    pub fn run_rule(&mut self, id: Id, rule: Id, clock: &crate::RuleClock) -> bool {
         let Some(m) = self.message(id) else { return false };
-        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(m.account)).cloned() else { return false };
-        if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+        let account = m.account;
+        if !self.rules_reach(account) {
             return false;
         }
-        self.act(id, &rule.actions);
-        true
+        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(account)).cloned() else { return false };
+        if !rule.matches_in(m, &self.rule_matching(&rule, account, clock.zone)) {
+            return false;
+        }
+        self.act(id, &rule.actions, clock)
     }
 
-    /// Do what a rule says to a message.
-    fn act(&mut self, id: Id, actions: &[Action]) {
-        for action in actions {
+    /// Whether message `id` lies in its account's Deleted Items, or a folder under it: looked for
+    /// up from its folder, as [`Mailbox::in_junk`] does, so that Run Rules Now over many messages
+    /// doesn't walk every folder under Deleted Items for each.
+    fn in_deleted_items(&self, id: Id) -> bool {
+        let Some(m) = self.message(id) else { return false };
+        let Some(deleted) = self.folder_of_kind(m.account, FolderKind::Deleted) else { return false };
+        let mut cur = Some(m.folder);
+        let mut steps = 0;
+        while let Some(f) = cur.and_then(|c| self.folder(c)) {
+            if f.id == deleted {
+                return true;
+            }
+            cur = f.parent;
+            steps += 1;
+            if steps > MAX_DEPTH {
+                break;
+            }
+        }
+        false
+    }
+
+    /// Do what a rule says to a message: change it first, then copy it, then move it
+    /// ([`Action::stage`]). Whether the rule did anything: not when what it does was refused (a
+    /// folder gone) or changes nothing (a mark the message has already, a move into the folder it
+    /// is in, a delete of mail in Deleted Items), so that Run Rules Now doesn't count it.
+    fn act(&mut self, id: Id, actions: &[Action], clock: &crate::RuleClock) -> bool {
+        let mut ordered: Vec<&Action> = actions.iter().collect();
+        ordered.sort_by_key(|a| a.stage());
+        let mut did = false;
+        // The categories it was given, for the list of the account it ends up in: a move into
+        // another account's folder comes after them ([`Action::stage`]), and so does a copy, for
+        // the list of the account the copy is in.
+        let mut categorized: Vec<String> = Vec::new();
+        let mut copied_into: Vec<Id> = Vec::new();
+        for action in ordered {
+            if self.message(id).is_none() {
+                break;
+            }
             match action {
+                // A rule pointing at a folder that is gone does nothing, and none puts mail into a
+                // send queue (the next Send/Receive would send it).
                 Action::MoveTo(folder) => {
-                    // A rule pointing at a folder that is gone does nothing, and none puts
-                    // mail into a send queue (the next Send/Receive would send it).
-                    if !self.is_send_queue(*folder) {
-                        let _ = self.move_message(id, *folder);
-                    }
+                    let moves = self.message(id).is_some_and(|m| m.folder != *folder);
+                    did |= moves && !self.is_send_queue(*folder) && self.move_message(id, *folder).is_ok();
                 }
+                Action::CopyTo(folder) => {
+                    let at = u64::try_from(clock.now).unwrap_or_default();
+                    // Nor copies a JMAP account's message not downloaded yet (a copy made here of
+                    // one too, which has no server id): its server isn't asked to make the copy,
+                    // which would never be whole, as one out of a Microsoft or an Exchange server
+                    // account isn't made (#566).
+                    let jmap = |m: &Message| self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap);
+                    let never_whole = self.message(id).is_some_and(|m| m.unfetched && jmap(m));
+                    let copy = if self.is_send_queue(*folder) || never_whole { None } else { self.copy_message_marked(id, *folder, at).ok() };
+                    if let Some(account) = copy.and_then(|c| self.message(c)).map(|m| m.account)
+                        && !copied_into.contains(&account)
+                    {
+                        copied_into.push(account);
+                    }
+                    did |= copy.is_some();
+                }
+                // To Deleted Items, as Outlook's "delete it" does, and never for good: mail in
+                // Deleted Items already (Run Rules Now over it), or in an account with none, stays
+                // where it is (#566).
                 Action::Delete => {
-                    let _ = self.delete_message(id);
+                    let Some(account) = self.message(id).map(|m| m.account) else { break };
+                    did |= match self.folder_of_kind(account, FolderKind::Deleted) {
+                        Some(d) if !self.in_deleted_items(id) => self.move_message(id, d).is_ok(),
+                        _ => false,
+                    };
                 }
                 change => {
                     let Ok(m) = self.message_mut(id) else { break };
+                    // Only what it changes counts: a mark it has already is no change.
+                    let was = (m.read, m.flag, m.flag_due, m.importance, m.categories.len());
                     match change {
                         Action::Categorize(c) if !m.has_category(c) => {
                             m.categories.push(c.clone());
-                            let account = m.account;
-                            self.adopt_category(account, c);
+                            categorized.push(c.clone());
                         }
                         Action::Flag => m.flag = crate::FlagStatus::Flagged,
+                        Action::FlagFor(when) => {
+                            m.flag = crate::FlagStatus::Flagged;
+                            m.flag_due = when.due(clock).or(m.flag_due);
+                        }
+                        Action::ClearFlag => {
+                            m.flag = crate::FlagStatus::None;
+                            m.flag_due = None;
+                        }
+                        Action::ClearCategories => m.categories.clear(),
                         Action::MarkRead => m.read = true,
                         Action::SetImportance(i) => m.importance = *i,
                         _ => {}
                     }
+                    did |= was != (m.read, m.flag, m.flag_due, m.importance, m.categories.len());
                 }
             }
         }
+        let kept = self.message(id).map(|m| m.account);
+        for account in kept.into_iter().chain(copied_into) {
+            for c in &categorized {
+                self.adopt_category(account, c);
+            }
+        }
+        did
     }
 
     // ---- contacts, events, tasks ----
@@ -3267,6 +3707,138 @@ impl Mailbox {
 
     pub fn remove_contact(&mut self, id: Id) -> Result<(), ModelError> {
         self.contacts.remove(&id).map(|_| ()).ok_or(not_found("contact", id))
+    }
+
+    pub fn contact_folder(&self, id: Id) -> Option<&crate::contact_sync::ContactFolder> {
+        if id == 0 {
+            return None;
+        }
+        self.contact_folders.iter().find(|f| f.id == id)
+    }
+
+    /// The account's own main contacts folder, when there is one.
+    pub fn main_contact_folder(&self, account: Id) -> Option<Id> {
+        self.contact_folders.iter().find(|f| f.account == account && f.owner.is_own() && f.is_main()).map(|f| f.id)
+    }
+
+    /// The folder of `account` that is `remote` of `owner` on its server, when there is one.
+    pub fn contact_folder_named(&self, account: Id, owner: &crate::contact_sync::FolderOwner, remote: &str) -> Option<Id> {
+        self.contact_folders.iter().find(|f| f.account == account && f.owner == *owner && f.remote == remote).map(|f| f.id)
+    }
+
+    /// Add a contacts folder (given an id of its own); `None` when the account has
+    /// [`crate::contact_sync::MAX_CONTACT_FOLDERS`] already, or no such account is here.
+    pub fn add_contact_folder(&mut self, mut folder: crate::contact_sync::ContactFolder) -> Option<Id> {
+        let count = self.contact_folders.iter().filter(|f| f.account == folder.account).count();
+        if count >= crate::contact_sync::MAX_CONTACT_FOLDERS || self.account(folder.account).is_none() {
+            return None;
+        }
+        folder.id = self.alloc_id();
+        let id = folder.id;
+        self.contact_folders.push(folder);
+        Some(id)
+    }
+
+    /// The account's own main contacts folder, made when it has none yet.
+    pub fn ensure_main_contact_folder(&mut self, account: Id) -> Option<Id> {
+        self.main_contact_folder(account).or_else(|| self.add_contact_folder(crate::contact_sync::ContactFolder::main(account)))
+    }
+
+    /// Contacts folders and their changes as a file may have them, put right (#1917): a file
+    /// from before folders were kept has its accounts' contacts in each account's main folder;
+    /// folders of accounts that are gone, or beyond the cap, go (their contacts are kept on
+    /// this computer); changes beyond the cap go, said.
+    fn repair_contact_folders(&mut self) -> Vec<String> {
+        use crate::contact_sync::{MAX_CONTACT_CHANGES, MAX_CONTACT_FOLDERS};
+        let mut fixed = Vec::new();
+        let accounts: HashSet<Id> = self.accounts.iter().map(|a| a.id).collect();
+        let mut per: HashMap<Id, usize> = HashMap::new();
+        let mut seen: HashSet<Id> = HashSet::new();
+        let before = std::mem::take(&mut self.contact_folders);
+        let mut changed = false;
+        // (Only the folders that can be kept count towards an account's cap; each is cut to size
+        // as one from a server is.)
+        for f in before {
+            let id = f.id;
+            let tidy = (id != 0 && id <= MAX_ID && accounts.contains(&f.account) && !seen.contains(&id)).then(|| f.clone().tidied()).flatten();
+            match tidy {
+                Some(tidy) if per.get(&f.account).is_none_or(|n| *n < MAX_CONTACT_FOLDERS) => {
+                    *per.entry(f.account).or_default() += 1;
+                    seen.insert(id);
+                    changed |= tidy != f;
+                    self.contact_folders.push(tidy);
+                }
+                _ => changed = true,
+            }
+        }
+        if changed {
+            fixed.push("contacts folders tidied".to_string());
+        }
+        let folders: HashSet<Id> = self.contact_folders.iter().map(|f| f.id).collect();
+        let lost: Vec<Id> = self.contacts.values().filter(|c| c.folder != 0 && !folders.contains(&c.folder)).map(|c| c.id).collect();
+        let homeless: Vec<(Id, Id)> = self
+            .contacts
+            .values()
+            .filter(|c| c.folder == 0 && c.origin.is_remote() && accounts.contains(&c.origin.account))
+            .map(|c| (c.id, c.origin.account))
+            .collect();
+        for id in &lost {
+            if let Ok(c) = self.contact_mut(*id) {
+                (c.folder, c.origin) = (0, crate::Origin::default());
+            }
+        }
+        let mut moved = 0usize;
+        for (id, account) in homeless {
+            let Some(folder) = self.ensure_main_contact_folder(account) else { continue };
+            if let Ok(c) = self.contact_mut(id) {
+                c.folder = folder;
+                moved += 1;
+            }
+        }
+        if moved > 0 {
+            fixed.push(format!("{moved} contact(s) put in their account's contacts folder"));
+        }
+        if !lost.is_empty() {
+            fixed.push(format!("{} contact(s) of a contacts folder that is gone kept on this computer", lost.len()));
+        }
+        // On this computer: no account's server keeps it, whatever the file said.
+        let mut freed = 0usize;
+        for c in self.contacts.values_mut() {
+            if c.folder == 0 && c.origin.is_remote() && !accounts.contains(&c.origin.account) {
+                Arc::make_mut(c).origin = crate::Origin::default();
+                freed += 1;
+            }
+        }
+        if freed > 0 {
+            fixed.push(format!("{freed} contact(s) of an account that is gone kept on this computer"));
+        }
+        // A change that couldn't be sent or put back: of no account or folder here, or a change or
+        // deletion without the server's name for it or its copy. (Dropped before the cap, so it
+        // takes no room from one that can be sent.)
+        use crate::contact_sync::ContactChangeKind;
+        let before = self.contact_changes.len();
+        // (A new contact gone here may wait only once sent: it is the record that it isn't wanted.)
+        let owner: HashMap<Id, Id> = self.contact_folders.iter().map(|f| (f.id, f.account)).collect();
+        let contacts = &self.contacts;
+        // (A new or changed contact that is here is in the note's folder; a deleted one isn't.)
+        self.contact_changes.retain(|c| {
+            let contact = contacts.get(&c.contact);
+            let here = contact.is_some_and(|x| x.folder == c.folder);
+            let whole = match c.kind {
+                ContactChangeKind::Create => c.remote.is_empty() && contact.map_or(c.sent && c.contact != 0, |_| here),
+                ContactChangeKind::Change => here && !c.remote.is_empty() && c.base.is_some() && !c.fields.is_empty(),
+                ContactChangeKind::Delete => !here && !c.remote.is_empty() && c.base.is_some(),
+            };
+            whole && accounts.contains(&c.account) && owner.get(&c.folder) == Some(&c.account)
+        });
+        if self.contact_changes.len() != before {
+            fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
+        }
+        if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        fixed
     }
 
     /// The contact with this address, if any.
@@ -3486,13 +4058,19 @@ impl Mailbox {
         Ok(())
     }
 
-    /// Rename a category on the list `account`'s items use, and on the items that use that list
-    /// (but a shared mailbox's and other people's calendars', [`Mailbox::each_category_list`]).
-    /// On a list kept in step with a server, the new name goes there and the old one is deleted
-    /// there (a server can't rename one); one kept on this computer alone stays so.
+    /// Rename a category on the list `account`'s items use, on the items that use that list (but
+    /// a shared mailbox's and other people's calendars', [`Mailbox::each_category_list`]), and in
+    /// the rules for them ([`Mailbox::rules_renaming`]). On a list kept in step with a server, the
+    /// new name goes there and the old one is deleted there (a server can't rename one); one kept
+    /// on this computer alone stays so. Refused, changing nothing, when an exception would then
+    /// name more categories than a rule looks for, when a rule for every account's mail names it
+    /// while another list has a category of its own by the new name, and while a rule naming it
+    /// waits for its server's answer.
     pub fn rename_category(&mut self, account: Id, from: &str, to: &str) -> Result<(), ModelError> {
         let to = clean_name(to).ok_or_else(|| invalid("a category needs a name"))?;
         let from = from.trim();
+        // Taken by another category in any script's case, as the rules tell names apart: else a rule
+        // that follows the rename would take that category's mail too (#566).
         if !same_category(from, &to) && self.category_of(account, &to).is_some() {
             return Err(invalid(format!("a category named \"{to}\" already exists")));
         }
@@ -3503,6 +4081,71 @@ impl Mailbox {
             return Ok(());
         }
         self.refuse_read_only(account)?;
+        // The rules for the mail that uses this list follow it (#566): else an exception for the
+        // category stops leaving that mail alone.
+        let mut renamed: Vec<(usize, Rule)> = Vec::new();
+        // A rule for every account's mail reads the other lists' mail too: where one of them has a
+        // category of its own by the new name, the rule would take that one, or put it on mail.
+        let list = self.category_list_owner(account);
+        // A rule for that mail naming it that was sent to its server with no answer yet is left as
+        // sent, as the server may have it; turned down there, it would be this computer's with
+        // the old name alone. The rename waits for the answer (#566).
+        let same = crate::sync::same_category(from, &to);
+        let uses = |r: &Rule| r.account == 0 || self.category_list_owner(r.account) == list;
+        if let Some(r) = self.rules.iter().find(|r| !same && r.unanswered && uses(r) && r.names_category(from, true)) {
+            return Err(invalid(format!(
+                "the rule \"{}\" names this category and was sent to its server with no answer yet: rename it after the next Send/Receive",
+                r.name
+            )));
+        }
+        // The other lists that have a category of the new name of their own.
+        let taken: Vec<Option<Id>> = std::iter::once((None, &self.categories))
+            .chain(self.account_categories.iter().map(|(a, l)| (Some(*a), l)))
+            .filter(|(owner, l)| !same && *owner != list && l.iter().any(|c| crate::sync::same_category(&c.name, &to)))
+            .map(|(owner, _)| owner)
+            .collect();
+        for (i, whole) in self.rules_renaming(account, from) {
+            let Some(mut rule) = self.rules.get(i).cloned() else { continue };
+            if !taken.is_empty() && rule.account == 0 {
+                return Err(invalid(format!(
+                    "the rule \"{}\" is for every account's mail, and other accounts have a category \"{to}\" of their own, which the rule would then take or put on their mail: choose another name",
+                    rule.name
+                )));
+            }
+            // A rule's category goes on the list of the account it moves or copies the mail into,
+            // where one of that name of its own would be put on it instead.
+            let puts = rule.actions.iter().any(|a| matches!(a, Action::Categorize(c) if crate::sync::same_category(c, from)));
+            let into = |a: &Action| match a {
+                Action::MoveTo(f) | Action::CopyTo(f) => {
+                    self.folder(*f).map(|f| self.category_list_owner(f.account)).filter(|owner| taken.contains(owner))
+                }
+                _ => None,
+            };
+            if puts && rule.actions.iter().any(|a| into(a).is_some()) {
+                return Err(invalid(format!(
+                    "the rule \"{}\" puts this category on mail it moves or copies into another account, which has a category \"{to}\" of its own: choose another name",
+                    rule.name
+                )));
+            }
+            rule.rename_category(from, &to, whole);
+            let overfull = |c: &crate::Condition| matches!(c, crate::Condition::Category(names) if names.len() > crate::MAX_WORDS_EACH);
+            if rule.conditions.iter().chain(&rule.exceptions).any(overfull) {
+                return Err(invalid(format!(
+                    "the rule \"{}\" would look for more than {} categories in a condition or an exception, which names this one by its old name too",
+                    rule.name,
+                    crate::MAX_WORDS_EACH
+                )));
+            }
+            renamed.push((i, rule));
+        }
+        // Mail whose rules wait for it with its marks as they were then: a rename is the owner's,
+        // not a change the rules that acted may have read, so it keeps what waits (#566).
+        let unchanged: Vec<Id> = self
+            .messages
+            .values()
+            .filter(|m| m.rules_waiting.as_ref().and_then(|w| w.marked.as_ref()).is_some_and(|then| *then == crate::Marks::of(m)))
+            .map(|m| m.id)
+            .collect();
         // A rename there: the old name, as the server has it, waits on the new one.
         if let Some(owner) = self.synced_list_owner(account).filter(|owner| !self.category_is_local(*owner, from))
             && !same_category(from, &to)
@@ -3510,6 +4153,13 @@ impl Mailbox {
             let known =
                 self.synced_categories.get(&owner).and_then(|synced| synced.iter().find(|c| same_category(&c.name, from))).map(|c| c.name.clone());
             let earlier = self.category_renames.get_mut(&owner).and_then(|renames| renames.remove(&category_key(from)));
+            // What only the server has of it takes the new name there too (#851): what carries
+            // the name the server knows, and what an earlier rename was giving this one.
+            let given = self.category_sweeps.get(&owner).is_some_and(|sweeps| sweeps.iter().any(|s| same_category(&s.to, from)));
+            if known.is_some() || given {
+                let there = known.clone().unwrap_or_else(|| from.to_string());
+                self.note_category_sweep(owner, &there, &to);
+            }
             match earlier.or(known) {
                 Some(old) => {
                     self.category_renames.entry(owner).or_default().insert(category_key(&to), old);
@@ -3534,7 +4184,43 @@ impl Mailbox {
                 *c = to.clone();
             }
         });
+        for id in unchanged {
+            if let Ok(m) = self.message_mut(id) {
+                let now = crate::Marks::of(m);
+                if let Some(waiting) = m.rules_waiting.as_mut() {
+                    waiting.marked = Some(now);
+                }
+            }
+        }
+        for (i, rule) in renamed {
+            if let Some(r) = self.rules.get_mut(i) {
+                *r = rule;
+            }
+        }
         Ok(())
+    }
+
+    /// The rules (their places in [`Mailbox::rules`]) that a rename of the category `from` on the
+    /// list `account`'s items use rewrites, and whether wholly ([`Rule::rename_category`]): those
+    /// for the mail that uses that list that name it ([`Rule::names_category`]), and the
+    /// conditions and exceptions of a rule for every account's mail, which is mail on that list
+    /// too (#566); its Categorize only on the list IMAP accounts and this computer share, and only
+    /// while no Microsoft account's own list has the category, whose mail it would otherwise put
+    /// a name on that that list and the rules for that mail don't know. Not one its account's
+    /// server has, which is the server's, read from it again, and keeps the name the server gave
+    /// it, nor one sent to be made there that no answer has come for, which the server may have
+    /// as it was sent.
+    pub fn rules_renaming(&self, account: Id, from: &str) -> Vec<(usize, bool)> {
+        let list = self.category_list_owner(account);
+        let elsewhere = self.account_categories.values().flatten().any(|c| crate::sync::same_category(&c.name, from.trim()));
+        let mut renaming = Vec::new();
+        for (i, r) in self.rules.iter().enumerate().filter(|(_, r)| r.server.is_none() && !r.unanswered) {
+            let whole = self.category_list_owner(r.account) == list && !(r.account == 0 && elsewhere);
+            if (whole || r.account == 0) && r.names_category(from.trim(), whole) {
+                renaming.push((i, whole));
+            }
+        }
+        renaming
     }
 
     /// Remove a category from the list `account`'s items use, and from the items that use it
@@ -3708,7 +4394,8 @@ impl Mailbox {
             // The items that carried it take their new names there first, as Outlook moves them.
             let names: Vec<&str> = deletes.iter().map(|d| d.name.as_str()).collect();
             let carried = self.carried_there(owner, &names);
-            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name))));
+            // So does what only the server has of it, which is asked for there (#851).
+            changes.extend(deletes.into_iter().filter(|d| !carried.contains(&category_key(&d.name)) && !self.sweep_holds(owner, &d.name)));
         }
         changes.extend(creates);
         changes.extend(colors);
@@ -3921,6 +4608,7 @@ impl Mailbox {
         self.set_synced(owner, synced);
         self.tidy_local(owner);
         self.tidy_renames(owner);
+        self.tidy_sweeps(owner);
         (said, news)
     }
 
@@ -3966,6 +4654,7 @@ impl Mailbox {
         self.category_writes.remove(&owner);
         self.categories_found.remove(&owner);
         self.category_renames.remove(&owner);
+        self.category_sweeps.remove(&owner);
         let names: Vec<String> = self.categories_of(owner).iter().map(|c| c.name.clone()).collect();
         if names.is_empty() {
             self.local_categories.remove(&owner);
@@ -4120,6 +4809,7 @@ impl Mailbox {
         self.local_categories.retain(|account, _| own.contains(account));
         self.category_writes.retain(|account| keep.contains(account));
         self.category_renames.retain(|account, _| keep.contains(account));
+        self.category_sweeps.retain(|account, _| keep.contains(account));
         let unsettled: Vec<Id> = self.server_categories.keys().copied().filter(|id| !self.synced_categories.contains_key(id)).collect();
         for owner in unsettled {
             let names = self.server_categories.get(&owner).cloned().unwrap_or_default();
@@ -4320,21 +5010,25 @@ impl Mailbox {
             .chain(self.accounts.iter().map(|a| a.id))
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
+            .chain(self.contact_folders.iter().map(|f| f.id))
+            // (A change waiting for a contact that is gone keeps its key: it is never given out again.)
+            .chain(self.contact_changes.iter().map(|c| c.contact))
             .chain(self.rules.iter().map(|r| r.id))
             .filter(sane)
             .max()
             .unwrap_or(0);
         self.next_id = if sane(&self.next_id) { self.next_id.max(top + 1) } else { top + 1 };
         /// Give items whose key is out of range a new one.
+        /// (All taken out before any is put back, so a new key never lands on one still to move.)
         fn rehome<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, next: &mut Id) -> usize {
             let big: Vec<Id> = map.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-            for k in &big {
-                if let Some(v) = map.remove(k) {
-                    map.insert(*next, v);
-                    *next += 1;
-                }
+            let taken: Vec<Arc<T>> = big.iter().filter_map(|k| map.remove(k)).collect();
+            let n = taken.len();
+            for v in taken {
+                map.insert(*next, v);
+                *next += 1;
             }
-            big.len()
+            n
         }
         /// Map keys are the ids.
         fn rekey<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, id: impl Fn(&mut T) -> &mut Id) -> usize {
@@ -4350,13 +5044,35 @@ impl Mailbox {
         let next = &mut self.next_id;
         // (The messages as the others, in their own map: only what is changed is written.)
         let big: Vec<Id> = self.messages.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-        for k in &big {
-            if let Some(v) = self.messages.remove(k) {
-                self.messages.insert(*next, v);
-                *next += 1;
+        let taken: Vec<_> = big.iter().filter_map(|k| self.messages.remove(k)).collect();
+        for v in taken {
+            self.messages.insert(*next, v);
+            *next += 1;
+        }
+        // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
+        // in order from `next`).
+        let first = *next;
+        let moved: HashMap<Id, Id> =
+            self.contacts.range(MAX_ID + 1..).map(|(k, _)| *k).enumerate().map(|(n, k)| (k, first.saturating_add(n as Id))).collect();
+        for change in self.contact_changes.iter_mut() {
+            if let Some(new) = moved.get(&change.contact) {
+                change.contact = *new;
             }
         }
         let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
+        // A change for a contact that is gone (a deletion) under a key out of range: a key of its
+        // own, as the contact would have had.
+        // (Only one whose contact is gone and may wait so: a deletion, or a new contact that was
+        // sent; the others were moved with their contact above, or are dropped below.)
+        let contacts = &self.contacts;
+        let gone = |c: &crate::contact_sync::ContactChange| {
+            use crate::contact_sync::ContactChangeKind::{Create, Delete};
+            c.contact > MAX_ID && !contacts.contains_key(&c.contact) && (c.kind == Delete || (c.kind == Create && c.sent))
+        };
+        for change in self.contact_changes.iter_mut().filter(|c| gone(c)) {
+            change.contact = *next;
+            *next += 1;
+        }
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {
             if let Some(m) = self.messages.get_mut(k) {
@@ -4452,6 +5168,9 @@ impl Mailbox {
                     if let Some(renames) = self.category_renames.remove(&old) {
                         self.category_renames.insert(a.id, renames);
                     }
+                    if let Some(sweeps) = self.category_sweeps.remove(&old) {
+                        self.category_sweeps.insert(a.id, sweeps);
+                    }
                 }
                 seen.insert(a.id);
                 fixed.push("an account id corrected".into());
@@ -4533,7 +5252,7 @@ impl Mailbox {
                 cur = grandparent;
             };
             if !ok {
-                f.parent = None;
+                f.set_parent(None);
                 fixed.push(format!("folder \"{}\" moved to the top level", f.name));
             }
             // A nested or duplicate standard folder is an ordinary one.
@@ -4695,6 +5414,8 @@ impl Mailbox {
             fixed.push(format!("{called_off} snooze(s) of mail that left the Snoozed folder dropped"));
         }
         self.next_id = self.next_id.max(1);
+        // (After the ids are put right: a folder it makes takes a new one.)
+        fixed.extend(self.repair_contact_folders());
         fixed
     }
 
@@ -4749,4 +5470,17 @@ impl Mailbox {
         self.pending = kept;
         (before - self.pending.len()) + mended
     }
+}
+
+/// How the rules run on a message ([`Mailbox::rules_on`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Ruling {
+    /// New mail, as it arrives.
+    Arriving,
+    /// Mail its server had before it was read here ([`Mailbox::apply_rules_found`]).
+    Found,
+    /// Mail of a mailbox its server numbered anew ([`Mailbox::apply_rules_renumbered`]).
+    Renumbered,
+    /// Run Rules Now.
+    Now,
 }

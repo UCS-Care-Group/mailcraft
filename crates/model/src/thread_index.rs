@@ -10,6 +10,8 @@
 //!   `References`, or both name the same message there (a parent that isn't here still links
 //!   its children), as RFC 5256's REFERENCES does, without its step that joins threads by
 //!   subject;
+//! - or, for a reply kept as a draft, by the message it answers ([`Message::answers`]), which
+//!   keeps the link when a server's copy of the draft has no headers (#1922);
 //! - or by the conversation id their server gave them ([`crate::sync::ServerMessage::thread`]:
 //!   Graph's `conversationId`, EWS's `ConversationId`, JMAP's `threadId`).
 //!
@@ -79,6 +81,9 @@ fn links(m: &Message) -> impl Iterator<Item = &str> {
     std::iter::once(m.message_id.as_str())
         .chain(std::iter::once(m.in_reply_to.as_str()))
         .chain(refs.iter().map(String::as_str))
+        // A reply not sent yet knows its original, though a server's copy of the draft may have lost
+        // the headers that say so (#1922).
+        .chain(m.answers.iter().filter(|a| !a.forward).map(|a| a.message_id.as_str()))
         .map(|id| id.trim().trim_start_matches('<').trim_end_matches('>'))
         .filter(|id| !id.is_empty() && id.len() <= MAX_LINK_ID)
 }

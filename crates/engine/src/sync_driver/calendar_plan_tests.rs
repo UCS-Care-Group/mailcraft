@@ -172,3 +172,32 @@ fn the_host_switch_stops_the_calendar_jobs_that_start_by_themselves() {
     let look = s.calendar_due(&facts(Busy::default()), 0.0);
     assert!(look.plans.is_empty() && !look.may_ask);
 }
+
+#[test]
+fn contacts_that_came_go_in_folder_by_folder_and_a_sign_in_without_the_permission_holds_the_changes() {
+    use mailcraft_model::contact_sync::{FolderOwner, RemoteContactFolder};
+    use mailcraft_model::remote::{ContactsDownload, RemoteContact};
+    let (mut s, a) = microsoft_session();
+    let person = |id: &str, name: &str| RemoteContact { id: id.into(), change_key: "ck".into(), first: name.into(), ..Default::default() };
+    let main =
+        ContactsDownload { account: a, email: "ada@example.org".into(), complete: true, contacts: vec![person("c-bo", "Bo")], ..Default::default() };
+    let team = RemoteContactFolder { id: "f-team".into(), name: "Team".into(), owner: FolderOwner::Own, writable: true, ..Default::default() };
+    let more = [ContactsDownload { folder: Some(team), contacts: vec![person("c-cy", "Cy")], ..main.clone() }];
+    s.driver.calendar.directory = true;
+    let out = s.calendar_answered(a, false, 1.0, 2.0, &CalendarCame { contacts: Some(&main), more_contacts: &more, ..Default::default() });
+    assert!(out.errors.is_empty(), "{:?}", out.errors);
+    assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-team" && f.account == a));
+    let bo = s.mailbox.contacts.values().find(|c| c.first == "Bo").map(|c| c.id).unwrap();
+    assert!(s.mailbox.contacts.values().any(|c| c.first == "Cy"));
+    // A change waits; it is due, so a job is.
+    s.run("people.edit", &json!({"id": bo, "last": "Marsh"})).unwrap();
+    assert!(crate::cmd::contacts_remote::contacts_due(&s.mailbox, a, s.now()));
+    // The sign-in doesn't cover changing contacts: it stays, says why, and isn't due again soon.
+    s.calendar_answered(a, false, 1.0, 3.0, &CalendarCame { contacts_consent_needed: true, ..Default::default() });
+    let held = s.mailbox.contact_changes.first().unwrap();
+    assert!(held.error.contains("permission") && held.next_try > s.now(), "{held:?}");
+    assert!(!crate::cmd::contacts_remote::contacts_due(&s.mailbox, a, s.now()));
+    // The owner says yes: at once again.
+    crate::cmd::contacts_remote::retry_contact_changes(&mut s, a);
+    assert!(crate::cmd::contacts_remote::contacts_due(&s.mailbox, a, s.now()));
+}

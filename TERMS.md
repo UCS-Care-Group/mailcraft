@@ -36,4 +36,4 @@ of companies, used here only to say what MailCraft works with.
 
 ## Contact
 
-<https://github.com/UCS-Care-Group/mailcraft/issues>
+<https://github.com/UCSLabs/mailcraft/issues>

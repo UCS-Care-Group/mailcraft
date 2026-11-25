@@ -963,6 +963,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line_c(&[(4.5, 17.5), (4.5, 13.0)], a);
             pen.head(4.5, 13.0, 270.0, 2.5, a);
         }
+        // Shade Alternate Rows (#1657): a list of four rows, the second and the fourth banded.
+        "shadeRows" => {
+            pen.rect(2.5, 2.5, 17.5, 17.5, c);
+            pen.frect(3.5, 6.5, 16.5, 10.0, a);
+            pen.frect(3.5, 13.5, 16.5, 16.5, a);
+        }
         // Zoom: a glass with a plus in it.
         "zoom" => {
             pen.circle(8.5, 8.5, 5.5, c);
@@ -1432,6 +1438,7 @@ pub const NAMES: &[&str] = &[
     "list",
     "changeView",
     "density",
+    "shadeRows",
     "zoom",
     "recentSearches",
     "reset",
