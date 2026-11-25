@@ -9,6 +9,7 @@ use mailcraft_model::rich::Built;
 
 mod accent;
 mod blue;
+mod classic;
 pub use accent::{
     Accent, AccentInk, DEFAULT_CUSTOM_COLOR, black_or_white_on, color_option, hex_string, lenient_bool, parse_color_value, parse_hex_color,
 };
@@ -21,11 +22,14 @@ pub const APP_INK: Color32 = Color32::from_rgb(0x08, 0x62, 0x88);
 
 /// The interface theme setting (File › Options › General): `System`, which follows the OS (or
 /// browser) light/dark appearance live and is what a new installation starts with, or a fixed
-/// light or dark palette.
+/// light or dark palette. `ClassicLight` is a light palette of its own (#1203): a flat white page
+/// with square corners, capital tabs, File and the status bar in the accent, a bar on the selected
+/// message, and the ribbon and message list closer together (`theme/classic.rs`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(from = "String", into = "String")]
 pub enum Appearance {
     Light,
+    ClassicLight,
     Dark,
     #[default]
     System,
@@ -33,12 +37,13 @@ pub enum Appearance {
 
 impl Appearance {
     /// In menu order.
-    pub const ALL: [Appearance; 3] = [Appearance::System, Appearance::Light, Appearance::Dark];
+    pub const ALL: [Appearance; 4] = [Appearance::System, Appearance::Light, Appearance::ClassicLight, Appearance::Dark];
 
     /// The value used in `ui.json` and by the `ui.theme` command.
     pub fn code(self) -> &'static str {
         match self {
             Appearance::Light => "light",
+            Appearance::ClassicLight => "classicLight",
             Appearance::Dark => "dark",
             Appearance::System => "system",
         }
@@ -52,6 +57,7 @@ impl Appearance {
     pub fn label(self) -> &'static str {
         match self {
             Appearance::Light => "Light",
+            Appearance::ClassicLight => "Classic Light",
             Appearance::Dark => "Dark",
             Appearance::System => "Use system setting",
         }
@@ -65,7 +71,7 @@ impl Appearance {
     /// rebuild the font atlas they share every frame, which garbles the text of both.
     pub fn preference(self, system: Option<egui::Theme>) -> egui::ThemePreference {
         match self {
-            Appearance::Light => egui::ThemePreference::Light,
+            Appearance::Light | Appearance::ClassicLight => egui::ThemePreference::Light,
             Appearance::Dark => egui::ThemePreference::Dark,
             Appearance::System => match system {
                 Some(egui::Theme::Dark) => egui::ThemePreference::Dark,
@@ -270,6 +276,23 @@ pub struct Tokens {
     pub ink_on_light: Color32,
     /// How much an avatar's colour is dimmed.
     pub avatar_shade: f32,
+    /// The ribbon and the message list stand closer together (Classic Light, #1203): the ribbon's
+    /// row is shorter and its buttons narrower, and the list's rows shorter, on top of the
+    /// owner's own Tighter Spacing.
+    pub dense: bool,
+    /// How round the corners of the ribbon's sheet and of a control are.
+    pub sheet_radius: u8,
+    pub control_radius: u8,
+    /// The status bar is filled with the accent, its words and icons in the accent's ink
+    /// ([`Tokens::on_band`]), as the desktop mail programs of the early 2010s had it (#1203).
+    pub status_band: bool,
+    /// The ribbon's tabs are named in capitals (#1203).
+    pub tab_caps: bool,
+    /// The File tab is a button filled with the accent, apart from the other tabs (#1203).
+    pub file_tab_fill: bool,
+    /// A selected row of the message list is marked by a bar in the accent down its left edge
+    /// instead of an outline round it (#1203).
+    pub row_bar: bool,
 }
 
 impl Tokens {
@@ -370,6 +393,13 @@ impl Tokens {
             ink_on_dark: surface,
             ink_on_light: text,
             avatar_shade: 1.0,
+            dense: false,
+            sheet_radius: 8,
+            control_radius: 6,
+            status_band: false,
+            tab_caps: false,
+            file_tab_fill: false,
+            row_bar: false,
         }
     }
     /// The dark palette: neutral greys, window to folder pane to list to ribbon, as in the other
@@ -470,6 +500,13 @@ impl Tokens {
             ink_on_dark: text,
             ink_on_light: surface,
             avatar_shade: 0.9,
+            dense: false,
+            sheet_radius: 8,
+            control_radius: 6,
+            status_band: false,
+            tab_caps: false,
+            file_tab_fill: false,
+            row_bar: false,
         }
     }
     /// The tokens in force: the palette last installed in `ctx` ([`apply`]), its dark half or its
@@ -478,6 +515,60 @@ impl Tokens {
         let dark = ctx.global_style().visuals.dark_mode;
         let palette = ctx.data(|d| d.get_temp::<Palette>(Palette::slot())).unwrap_or_else(Palette::builtin);
         palette.tokens(dark)
+    }
+
+    /// The tokens for what is drawn on a band filled with `fill` (the status bar, with
+    /// [`Tokens::status_band`]): the words, icons and lines in the ink that reads on it, the
+    /// pointer's shade a step away from that ink (so the words keep their contrast on it), and the
+    /// window's own colours `fill`.
+    pub fn on_band(&self, fill: Color32) -> Tokens {
+        let ink = if fill == self.accent { self.on_accent } else { self.text };
+        let step = |k: f32| fill.lerp_to_gamma(ink, k);
+        let shade = |k: f32| fill.lerp_to_gamma(Tokens::away_from(ink), k);
+        Tokens {
+            title_bar: fill,
+            tab_strip: fill,
+            status_bar: fill,
+            text: ink,
+            text_dim: ink,
+            group_label: ink,
+            icon: ink,
+            accent: ink,
+            accent_text: ink,
+            selection_edge: ink,
+            focus_ring: ink,
+            hover: shade(0.16),
+            hover_subtle: shade(0.1),
+            pressed: shade(0.26),
+            accent_soft: step(0.24),
+            accent_soft_text: ink,
+            red: ink,
+            checked: step(0.24),
+            border: step(0.4),
+            border_faint: step(0.3),
+            track: step(0.3),
+            ..*self
+        }
+    }
+
+    /// Black for a light ink, white for a dark one: where a fill goes to stay readable under it.
+    pub fn away_from(ink: Color32) -> Color32 {
+        let (r, g, b) = (u32::from(ink.r()), u32::from(ink.g()), u32::from(ink.b()));
+        if r * 299 + g * 587 + b * 114 >= 128_000 { Color32::BLACK } else { Color32::WHITE }
+    }
+
+    /// Run `draw` with `tokens` in force ([`Tokens::get`] gives them), then put back what was.
+    pub fn scoped<R>(ctx: &egui::Context, tokens: Tokens, draw: impl FnOnce() -> R) -> R {
+        let before = ctx.data(|d| d.get_temp::<Palette>(Palette::slot()));
+        ctx.data_mut(|d| d.insert_temp(Palette::slot(), Palette { light: tokens, dark: tokens }));
+        let drawn = draw();
+        ctx.data_mut(|d| match before {
+            Some(palette) => {
+                d.insert_temp(Palette::slot(), palette);
+            }
+            None => d.remove::<Palette>(Palette::slot()),
+        });
+        drawn
     }
 
     /// A chip's fill, from a colour of the mailbox (a category's, a calendar's).
@@ -579,9 +670,13 @@ pub struct ThemeChoice {
 }
 
 impl ThemeChoice {
-    /// The palette this choice shows.
+    /// The palette this choice shows: Classic Light has a light half of its own (#1203).
     pub fn palette(&self) -> Palette {
-        Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style)
+        let palette = Palette::for_choice(self.accent, self.custom, self.high_contrast, self.dark_style);
+        match self.appearance {
+            Appearance::ClassicLight => Palette { light: Tokens::build_classic(self.accent, self.custom, self.high_contrast), ..palette },
+            Appearance::Light | Appearance::Dark | Appearance::System => palette,
+        }
     }
 }
 
@@ -1387,8 +1482,9 @@ fn visuals(t: &Tokens) -> Visuals {
     v.extreme_bg_color = t.input;
     v.faint_bg_color = t.panel;
     v.window_stroke = Stroke::new(1.0, t.border_strong);
+    let control = CornerRadius::same(t.control_radius);
     v.window_corner_radius = CornerRadius::same(8);
-    v.menu_corner_radius = CornerRadius::same(6);
+    v.menu_corner_radius = control;
     v.selection.bg_fill = t.text_selection;
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
@@ -1398,20 +1494,20 @@ fn visuals(t: &Tokens) -> Visuals {
     v.widgets.inactive.weak_bg_fill = t.input;
     v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.input_border);
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.inactive.corner_radius = CornerRadius::same(6);
+    v.widgets.inactive.corner_radius = control;
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.text_dim);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.hovered.corner_radius = CornerRadius::same(6);
+    v.widgets.hovered.corner_radius = control;
     v.widgets.active.bg_fill = t.pressed;
     v.widgets.active.weak_bg_fill = t.pressed;
     v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.active.bg_stroke = Stroke::new(1.0, t.text_dim);
-    v.widgets.active.corner_radius = CornerRadius::same(6);
+    v.widgets.active.corner_radius = control;
     v.widgets.open.bg_fill = t.hover;
     v.widgets.open.weak_bg_fill = t.hover;
-    v.widgets.open.corner_radius = CornerRadius::same(6);
+    v.widgets.open.corner_radius = control;
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: t.shadow_popup };
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: t.shadow_window };
     v
@@ -1682,12 +1778,18 @@ mod tests {
         (a.max(b) + 0.05) / (a.min(b) + 0.05)
     }
 
-    /// Text can be read on every background it is drawn on, in both palettes; and the window's
+    /// Text can be read on every background it is drawn on, in every palette; and the window's
     /// own colour is one colour wherever it shows.
     #[test]
     fn text_stays_readable_on_every_background() {
-        for t in [Tokens::light(), Tokens::dark()] {
-            let theme = if t.dark { "dark" } else { "light" };
+        for t in [Tokens::light(), Tokens::dark(), Tokens::classic_light()] {
+            let theme = if t.dark {
+                "dark"
+            } else if t.dense {
+                "classic light"
+            } else {
+                "light"
+            };
             let backgrounds = [
                 ("title_bar", t.title_bar),
                 ("ribbon", t.ribbon),
@@ -1821,6 +1923,7 @@ mod tests {
     fn saved_settings_read_leniently() {
         use super::{Appearance, InterfaceSize};
         assert_eq!(serde_json::from_str::<Appearance>("\"DARK\"").unwrap(), Appearance::Dark);
+        assert_eq!(serde_json::from_str::<Appearance>("\"classiclight\"").unwrap(), Appearance::ClassicLight);
         // An unknown value falls back to following the system, like a new installation.
         assert_eq!(serde_json::from_str::<Appearance>("\"sepia\"").unwrap(), Appearance::System);
         assert_eq!(serde_json::from_str::<InterfaceSize>("125").unwrap().percent(), 125);

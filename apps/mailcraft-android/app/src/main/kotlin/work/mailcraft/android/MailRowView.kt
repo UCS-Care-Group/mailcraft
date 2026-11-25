@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -35,9 +37,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -45,7 +49,8 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
 private val Gutter = 16.dp
-private val RowGap = 2.dp
+private val RowGap = 0.dp
+private val MinRow = 48.dp
 private val SmallIcon = 16.dp
 private val SwipeIcon = 24.dp
 private val Gap8 = Arrangement.spacedBy(space = 8.dp)
@@ -177,27 +182,30 @@ internal fun MailRowContent(
                     true
                 }
             }
-            .padding(horizontal = Gutter, vertical = 8.dp),
+            .heightIn(min = MinRow)
+            .padding(start = Gutter, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Gap8,
     ) {
         if (avatar != null) SenderAvatar(row, avatar)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(RowGap)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap8) {
-                Line(row.sender, weight, Modifier.weight(1f))
+                Line(row.sender, weight, Modifier.weight(1f), MaterialTheme.typography.bodyMedium)
                 if (row.members > 1) Text("${row.members}", style = MaterialTheme.typography.labelMedium)
                 val whenText = formatWhen(row.whenSeconds, LocalMessageZone.current, LocalMessageLocale.current)
                 Text(whenText, style = MaterialTheme.typography.labelSmall)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
-                Line(row.subject, weight, Modifier.weight(1f))
+                Line(row.subject, weight, Modifier.weight(1f), MaterialTheme.typography.bodyMedium)
                 if (row.hasAttachments) MarkIcon(ListIcons.Attachment)
                 if (row.flagged) MarkIcon(ListIcons.Flag, MaterialTheme.colorScheme.error)
             }
             Text(
                 row.preview,
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (row.categories.isNotEmpty()) {
                 Text(
@@ -209,12 +217,24 @@ internal fun MailRowContent(
                 )
             }
         }
+        // The visible way to the row's actions (the long press and the screen reader's "More actions" stay).
+        MoreButton(actions.onMenu)
+    }
+}
+
+/** The row's more button; the screen reader reaches the same sheet by the row's "More actions". */
+@Composable
+private fun MoreButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.clearAndSetSemantics {}) {
+        Icon(AppIcons.More, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun Line(text: String, weight: FontWeight, modifier: Modifier) {
-    Text(text, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+private fun Line(text: String, weight: FontWeight, modifier: Modifier, style: TextStyle) {
+    Text(
+        text, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier, style = style,
+    )
 }
 
 @Composable

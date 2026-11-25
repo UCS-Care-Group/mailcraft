@@ -239,6 +239,7 @@ fn mail_run(
         mail_pieces: None,
         cancel: Default::default(),
         signer: Some(signer),
+        contacts: None,
     };
     graph_sending_with(request, "UTC", &|_, _, _| signed_in_as(who), &|_, _| signed_in_as(who))
 }
@@ -385,6 +386,7 @@ fn a_mail_run_whose_sign_in_turns_out_somebody_elses_part_way_keeps_what_went_wi
         mail_pieces: None,
         cancel: Default::default(),
         signer: Some(ada()),
+        contacts: None,
     };
     // The message goes; part-way through the walk, the Inbox's read is told the token is no
     // longer good.

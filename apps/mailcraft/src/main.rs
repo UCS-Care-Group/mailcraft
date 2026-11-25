@@ -1097,6 +1097,7 @@ fn services(
     let pictures_ctx = ctx.clone();
     let unsubscribe_ctx = ctx.clone();
     let subscription_ctx = ctx.clone();
+    let dav_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
     let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
@@ -1305,6 +1306,19 @@ fn services(
             background(&subscription_ctx, "subscribed calendar", move || mailcraft_ui_egui::SubscriptionDone {
                 calendar: job.calendar,
                 outcome: mailcraft_net::subscription::look(&job.address, &job.etag, &job.last_modified),
+            })
+        })),
+        // An account's calendars from its CalDAV server (#209, behind `MAILCRAFT_DAV=1`): the host
+        // sends a password only in answer to that origin's own challenge, over TLS, to the one
+        // certificate the owner trusted when there is one. Nothing here is logged but counts.
+        dav: Some(Box::new(move |job: mailcraft_ui_egui::DavJob| {
+            background(&dav_ctx, "calendar server", move || {
+                let passwords = job.passwords;
+                let (download, certificate) = mailcraft_net::dav::look(&job.ask, &|origin: &str| passwords.get(origin).cloned());
+                if certificate.is_some() {
+                    log::warn!("a calendar server's certificate isn't one the system or the owner trusts");
+                }
+                mailcraft_ui_egui::DavDone { download }
             })
         })),
         // A sender's picture for the message list, once the owner turned that on: from
