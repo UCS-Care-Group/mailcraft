@@ -48,10 +48,8 @@ pub enum Trouble {
 pub struct AutoRepliesDriver {
     /// When each account's replies were last asked for, and how many reads in a row failed.
     checked: HashMap<Id, (f64, u32)>,
-    /// The change of each account waiting for the job under way to end, or for the account's
-    /// sign-in (#1557): a newer change of the same account takes the place of the one before, and
-    /// never another account's.
-    pub waiting: HashMap<Id, AutoReplies>,
+    /// A change waiting for the job under way to end.
+    pub waiting: Option<(Id, AutoReplies)>,
     /// A change waiting for the owner's permission to change the settings: it goes once the
     /// permission is had, and is dropped when it isn't.
     pub held: HashMap<Id, AutoReplies>,
@@ -210,7 +208,7 @@ impl AutoRepliesDriver {
     pub fn allowed(&mut self, account: Id) -> bool {
         self.perm.remove(&account);
         let Some(change) = self.held.remove(&account) else { return false };
-        self.waiting.insert(account, change);
+        self.waiting = Some((account, change));
         true
     }
 
@@ -230,7 +228,9 @@ impl AutoRepliesDriver {
     /// Account removal: nothing of these accounts is kept.
     pub fn forget_accounts(&mut self, gone: &std::collections::HashSet<Id>) {
         self.checked.retain(|account, _| !gone.contains(account));
-        self.waiting.retain(|account, _| !gone.contains(account));
+        if self.waiting.as_ref().is_some_and(|(account, _)| gone.contains(account)) {
+            self.waiting = None;
+        }
         self.held.retain(|account, _| !gone.contains(account));
         self.trouble.retain(|account, _| !gone.contains(account));
         self.perm.retain(|account, _| !gone.contains(account));
@@ -267,7 +267,7 @@ impl Session {
             }
             Some(Permission::Needed | Permission::Declined | Permission::Refused(_)) => Change::MustAsk,
             _ => {
-                driver.waiting.insert(account, change);
+                driver.waiting = Some((account, change));
                 Change::Queued
             }
         }
@@ -280,22 +280,16 @@ impl Session {
         let mut look = RepliesLook::default();
         if self.prefs.offline {
             let driver = &mut self.driver.auto_replies;
-            look.dropped = !driver.waiting.is_empty() || !driver.held.is_empty();
-            driver.waiting.clear();
+            look.dropped = driver.waiting.take().is_some() | !driver.held.is_empty();
             driver.held.clear();
             return look;
         }
-        // One thing at a time: a Send/Receive, the calendar's, the tasks' and the rules' jobs go
-        // first, and an account's sign-in goes before its own replies.
-        if facts.running || !facts.reachable || facts.busy.blocks_every(Start::AutoReplies) {
+        // One thing at a time: a Send/Receive, a sign-in, the calendar's, the tasks' and the
+        // rules' jobs go first.
+        if facts.running || !facts.reachable || facts.busy.blocks(Start::AutoReplies) {
             return look;
         }
-        // A change that waits goes next, by itself (the lowest account first), unless its account
-        // is signing in: then it waits for that, and the other accounts' changes go, and their
-        // replies are read, meanwhile.
-        let waiting = &mut self.driver.auto_replies.waiting;
-        let next = waiting.keys().copied().filter(|account| !facts.busy.blocks(Start::AutoReplies, *account)).min();
-        if let Some((account, change)) = next.and_then(|account| waiting.remove_entry(&account)) {
+        if let Some((account, change)) = self.driver.auto_replies.waiting.take() {
             look.plans.push(RepliesPlan { account, change: Some(change) });
             return look;
         }
@@ -303,7 +297,7 @@ impl Session {
             return look;
         }
         for account in crate::cmd::auto_replies::reply_accounts(&self.mailbox) {
-            if facts.busy.blocks(Start::AutoReplies, account) || self.auto_replies_blocked(account, refresh(account).as_deref()) {
+            if self.auto_replies_blocked(account, refresh(account).as_deref()) {
                 continue;
             }
             let driver = &mut self.driver.auto_replies;

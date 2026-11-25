@@ -978,7 +978,7 @@ pub(crate) mod kit {
             let sheet = Rect::from_min_max(pos2(strip.min.x + SIDE, strip.min.y + OVER), pos2(strip.max.x - SIDE, strip.min.y + OVER + BAND_H));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
             let line = t.ribbon_edge;
-            ui.painter().rect(sheet, t.sheet_radius, t.ribbon, line, egui::StrokeKind::Inside);
+            ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
             let edge = (BAND_H - BUTTON_H) / 2.0;
             let area = Rect::from_min_max(pos2(sheet.min.x + SIDE, sheet.min.y + edge), pos2(sheet.max.x - SIDE, sheet.max.y - edge));
             let names: Vec<f32> = items
