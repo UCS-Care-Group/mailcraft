@@ -5,8 +5,8 @@
 //!
 //! The search is `mailcraft_net::dav_find`'s: it decides where the password may go. This only
 //! carries its question to the window (`DavFindEvent::Question`), waits for the owner's answer,
-//! and tells the window how it ended. A window that closed (the dialog went away) stops it at the
-//! next question, and nothing more is told. Nothing here is logged.
+//! and tells the window how it ended. A window that closed (the dialog went away) stops it before
+//! its next request or question, and nothing more is told. Nothing here is logged.
 
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
@@ -17,7 +17,8 @@ use mailcraft_net::dav_find::DavFindAsk;
 use mailcraft_ui_egui::dav_find::{DavFindEvent, DavFindJob};
 
 /// The search itself: the real one, or a test's.
-pub(crate) type Search<'a> = &'a dyn Fn(&DavFindAsk<'_>, &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>) -> Result<DavFound, DavFindFailure>;
+pub(crate) type Search<'a> =
+    &'a dyn Fn(&DavFindAsk<'_>, &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>, &dyn Fn() -> bool) -> Result<DavFound, DavFindFailure>;
 
 /// Waits for the owner's answer; `None` when the owner gave up.
 fn answer(job: &DavFindJob) -> Option<bool> {
@@ -41,14 +42,20 @@ pub(crate) fn find_with(search: Search<'_>, job: &DavFindJob, emit: &mut dyn FnM
         password: &job.password,
         calendars: &job.calendars,
         contacts: &job.contacts,
+        trusted: &job.trusted,
     };
-    let end = search(&ask, &mut |host, why| {
-        if job.cancel.load(Ordering::Relaxed) {
-            return None;
-        }
-        emit(DavFindEvent::Question { host: host.to_owned(), why });
-        answer(job)
-    });
+    let stopped = || job.cancel.load(Ordering::Relaxed);
+    let end = search(
+        &ask,
+        &mut |host, why| {
+            if stopped() {
+                return None;
+            }
+            emit(DavFindEvent::Question { host: host.to_owned(), why });
+            answer(job)
+        },
+        &stopped,
+    );
     if !job.cancel.load(Ordering::Relaxed) {
         emit(DavFindEvent::Finished(end));
     }
@@ -59,7 +66,7 @@ pub(crate) fn run(job: DavFindJob, wake: &egui::Context) -> Receiver<DavFindEven
     let (tx, rx) = channel();
     let wake = wake.clone();
     let spawned = std::thread::Builder::new().name("calendar server search".into()).spawn(move || {
-        find_with(&|ask, question| mailcraft_net::dav_find::find(ask, question), &job, &mut |event| {
+        find_with(&|ask, question, stopped| mailcraft_net::dav_find::find(ask, question, stopped), &job, &mut |event| {
             // Nobody is listening any more (the dialog closed): stop.
             if tx.send(event).is_err() {
                 job.cancel.store(true, Ordering::Relaxed);

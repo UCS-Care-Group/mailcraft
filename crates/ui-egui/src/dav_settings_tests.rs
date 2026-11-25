@@ -258,3 +258,46 @@ fn a_dialog_that_goes_away_stops_its_search() {
     drop(d);
     assert!(cancel.load(std::sync::atomic::Ordering::Relaxed));
 }
+
+#[test]
+fn an_untouched_field_keeps_every_home_and_the_server_stays_the_same() {
+    let (mut a, id) = app();
+    let cal = [format!("{CAL}/calendars/ada/"), format!("{CAL}/calendars/team/")];
+    a.execute("account.davSet", json!({"id": id, "calendarHomes": cal})).unwrap();
+    let mut d = DavSettings::open(&a, id).unwrap();
+    assert_eq!(d.calendars, cal[0]);
+    d.username = "ada-dav".into();
+    let generation = a.session.mailbox.account(id).unwrap().dav.clone().unwrap().calendar_homes;
+    assert!(d.save(&mut a));
+    assert_eq!(a.session.mailbox.account(id).unwrap().dav.clone().unwrap().calendar_homes, generation);
+    // A field the owner changed stands for what it says.
+    let mut d = DavSettings::open(&a, id).unwrap();
+    d.calendars = format!("{CAL}/calendars/other/");
+    assert!(d.save(&mut a));
+    assert_eq!(a.session.mailbox.account(id).unwrap().dav.clone().unwrap().calendar_homes, vec![format!("{CAL}/calendars/other/")]);
+}
+
+#[test]
+fn every_home_find_found_is_kept() {
+    let (mut a, id, shared) = finding();
+    let mut d = DavSettings::open(&a, id).unwrap();
+    d.separate = true;
+    d.password = "own".into();
+    assert!(d.find(&a));
+    let homes = vec![format!("{CAL}/calendars/ada/"), format!("{CAL}/calendars/team/")];
+    let found = mailcraft_model::DavFound { calendar_homes: homes.clone(), calendars: 3, ..Default::default() };
+    shared.lock().unwrap().tell[0].send(crate::dav_find::DavFindEvent::Finished(Ok(found))).unwrap();
+    d.poll();
+    assert!(d.save(&mut a));
+    assert_eq!(a.session.mailbox.account(id).unwrap().dav.clone().unwrap().calendar_homes, homes);
+}
+
+#[test]
+fn a_missing_password_is_asked_for_once_not_twice() {
+    let (mut a, id) = app();
+    a.execute("account.davSet", json!({"id": id, "calendarHomes": [format!("{CAL}/calendars/ada/")], "separatePassword": true})).unwrap();
+    a.dav.shown.insert(id, DavProblem::NeedsPassword);
+    assert_eq!(status(&a, a.session.mailbox.account(id).unwrap()), None, "File › Info's own line asks for it");
+    assert!(a.hold_dav_password(id, CAL, "own"));
+    assert!(status(&a, a.session.mailbox.account(id).unwrap()).is_some());
+}

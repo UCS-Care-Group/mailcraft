@@ -31,6 +31,9 @@ pub struct DavFindJob {
     pub calendars: String,
     /// The contacts' address the owner typed; empty to search.
     pub contacts: String,
+    /// The SHA-256 fingerprint of the one certificate the owner trusts for these servers besides
+    /// the system's; empty for none.
+    pub trusted: String,
     /// Set when the owner gives up (the dialog closed): the host stops at the next safe place.
     pub cancel: Arc<AtomicBool>,
     /// The owner's answers to the host's questions ([`DavFindEvent::Question`]): yes or no.

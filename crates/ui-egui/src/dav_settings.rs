@@ -33,6 +33,10 @@ pub struct DavSettings {
     pub(crate) account: Id,
     pub(crate) calendars: String,
     pub(crate) contacts: String,
+    /// The whole lists of homes the two fields stand for (what is kept, or what Find found): the
+    /// field shows the first, and an untouched field keeps them all.
+    pub(crate) calendar_homes: Vec<String>,
+    pub(crate) contact_homes: Vec<String>,
     pub(crate) username: String,
     /// The servers want a password of their own (not the account's mail password).
     pub(crate) separate: bool,
@@ -93,6 +97,8 @@ impl DavSettings {
             account,
             calendars: first(server.map(|s| &s.calendar_homes)),
             contacts: first(server.map(|s| &s.contact_homes)),
+            calendar_homes: server.map(|s| s.calendar_homes.clone()).unwrap_or_default(),
+            contact_homes: server.map(|s| s.contact_homes.clone()).unwrap_or_default(),
             username: server.map(|s| s.username.clone()).unwrap_or_default(),
             separate: server.is_some_and(|s| s.separate_password),
             password: String::new(),
@@ -126,6 +132,7 @@ impl DavSettings {
             password,
             calendars: self.calendars.trim().to_string(),
             contacts: self.contacts.trim().to_string(),
+            trusted: a.dav.as_ref().map(|s| s.trusted.clone()).unwrap_or_default(),
             cancel: cancel.clone(),
             answers: asked,
         };
@@ -145,9 +152,11 @@ impl DavSettings {
                     if let Ok(found) = &end {
                         if let Some(home) = found.calendar_homes.first() {
                             self.calendars = home.clone();
+                            self.calendar_homes = found.calendar_homes.clone();
                         }
                         if let Some(home) = found.contact_homes.first() {
                             self.contacts = home.clone();
+                            self.contact_homes = found.contact_homes.clone();
                         }
                     }
                     self.found = Some(end);
@@ -188,11 +197,16 @@ impl DavSettings {
     /// Keep the settings, and hold the password typed for its origin. False, with the reason in
     /// [`DavSettings::error`], when the command refused them.
     pub(crate) fn save(&mut self, app: &mut MailApp) -> bool {
-        let homes = |s: &str| if s.trim().is_empty() { vec![] } else { vec![s.trim().to_string()] };
+        // (A field as it was stands for its whole list; one the owner changed, for what it says.)
+        let homes = |field: &str, list: &[String]| match field.trim() {
+            "" => vec![],
+            typed if list.first().is_some_and(|first| first == typed) => list.to_vec(),
+            typed => vec![typed.to_string()],
+        };
         let params = json!({
             "id": self.account,
-            "calendarHomes": homes(&self.calendars),
-            "contactHomes": homes(&self.contacts),
+            "calendarHomes": homes(&self.calendars, &self.calendar_homes),
+            "contactHomes": homes(&self.contacts, &self.contact_homes),
             "username": self.username.trim(),
             "separatePassword": self.separate,
         });
@@ -222,6 +236,8 @@ fn hint(ui: &mut Ui, t: &Tokens, text: &str) {
 pub(crate) fn status(app: &MailApp, a: &Account) -> Option<String> {
     let server = a.dav.as_ref()?;
     let said = match app.dav_trouble(a.id) {
+        // (File › Info's own line asks for a password nothing here has.)
+        Some(DavProblem::NeedsPassword) if !app.dav_origins_wanting_password(a.id).is_empty() => return None,
         Some(DavProblem::NeedsPassword | DavProblem::WrongPassword | DavProblem::UnsupportedSignIn) => tl!("The server wouldn't sign in."),
         Some(DavProblem::Certificate) => tl!("The server's certificate isn't trusted, so nothing was sent to it."),
         Some(DavProblem::Unreachable | DavProblem::Busy) => tl!("The server couldn't be reached. MailCraft tries again later."),

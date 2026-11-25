@@ -38,6 +38,8 @@ pub struct DavFindAsk<'a> {
     pub calendars: &'a str,
     /// The contacts' address the owner typed; empty to search.
     pub contacts: &'a str,
+    /// The one certificate trusted besides the system's (a SHA-256 fingerprint); empty for none.
+    pub trusted: &'a str,
 }
 
 /// The window's kind for a way the search failed.
@@ -68,12 +70,14 @@ fn look_up(name: &SrvName, srv: &mut dyn FnMut(DavService, &str) -> Option<DavRe
 }
 
 /// The search, start to end, through `exchange` and `srv`; `question` asks the owner about a host
-/// (`None` when the owner gave up: the search ends, declined).
+/// (`None` when the owner gave up: the search ends, declined), and `stopped` is asked before every
+/// round (true: the owner gave up, and nothing more is sent).
 pub fn find_with(
     ask: &DavFindAsk<'_>,
     exchange: &dyn HttpExchange,
     srv: &mut dyn FnMut(DavService, &str) -> Option<DavRecords>,
     question: &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>,
+    stopped: &dyn Fn() -> bool,
 ) -> Result<DavFound, DavFindFailure> {
     let user = if ask.username.trim().is_empty() { ask.email.trim() } else { ask.username.trim() };
     let secret = Secret::basic(user, ask.password).map_err(|_| DavFindFailure::BadSettings)?;
@@ -88,6 +92,9 @@ pub fn find_with(
     }
     let mut outcome = Outcome::Failed(Failure::TooManyRedirects);
     for _ in 0..ROUNDS {
+        if stopped() {
+            return Err(DavFindFailure::Declined);
+        }
         match search.step() {
             Step::Request(request) => {
                 let result = exchange.exchange(&request);
@@ -135,12 +142,16 @@ pub fn find_with(
     }
 }
 
-/// The search over the real network: the system's certificates only (a server the system doesn't
-/// trust is a [`DavFindFailure::SecureConnection`]), the domain's SRV and TXT records over
+/// The search over the real network: the system's certificates and the one the owner trusts for
+/// these servers (any other is a [`DavFindFailure::SecureConnection`]), the domain's SRV and TXT records over
 /// DNS-over-HTTPS. Blocks: the host runs it on a thread of its own.
-pub fn find(ask: &DavFindAsk<'_>, question: &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>) -> Result<DavFound, DavFindFailure> {
-    let wire = Wire::new("");
-    let found = find_with(ask, &wire, &mut |service, domain| lookup_dav(service, domain).ok(), question);
+pub fn find(
+    ask: &DavFindAsk<'_>,
+    question: &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>,
+    stopped: &dyn Fn() -> bool,
+) -> Result<DavFound, DavFindFailure> {
+    let wire = Wire::new(ask.trusted);
+    let found = find_with(ask, &wire, &mut |service, domain| lookup_dav(service, domain).ok(), question, stopped);
     log::info!("calendar server search: {:?}", found.as_ref().map(|f| (f.calendars, f.address_books)));
     found
 }

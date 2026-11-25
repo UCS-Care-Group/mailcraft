@@ -25,6 +25,7 @@ fn job() -> (DavFindJob, Sender<bool>) {
         password: "test-only-not-a-secret".into(),
         calendars: String::new(),
         contacts: String::new(),
+        trusted: String::new(),
         cancel: Arc::new(AtomicBool::new(false)),
         answers,
     };
@@ -32,7 +33,11 @@ fn job() -> (DavFindJob, Sender<bool>) {
 }
 
 /// A search that asks once about `dav.example.net` and finds a calendar there on a yes.
-fn asking(ask: &DavFindAsk<'_>, question: &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>) -> Result<DavFound, DavFindFailure> {
+fn asking(
+    ask: &DavFindAsk<'_>,
+    question: &mut dyn FnMut(&str, DavFindQuestion) -> Option<bool>,
+    _stopped: &dyn Fn() -> bool,
+) -> Result<DavFound, DavFindFailure> {
     assert_eq!(ask.email, "ada@example.org");
     match question("dav.example.net", DavFindQuestion::Elsewhere) {
         Some(true) => Ok(DavFound { calendar_homes: vec!["https://dav.example.net/cal/ada/".into()], calendars: 1, ..Default::default() }),
@@ -87,6 +92,6 @@ fn a_window_that_went_away_while_the_question_is_open_ends_the_search_quietly() 
 fn a_search_without_questions_tells_its_end_once() {
     let (job, _answers) = job();
     let mut told = Vec::new();
-    find_with(&|_, _| Err(DavFindFailure::NotFound), &job, &mut |event| told.push(event));
+    find_with(&|_, _, _| Err(DavFindFailure::NotFound), &job, &mut |event| told.push(event));
     assert_eq!(told, vec![DavFindEvent::Finished(Err(DavFindFailure::NotFound))]);
 }
