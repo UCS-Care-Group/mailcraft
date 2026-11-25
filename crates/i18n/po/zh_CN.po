@@ -25999,6 +25999,12 @@ msgstr "{name} 正在发送/接收。请使用“停止”。"
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} 大于 {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} 仍在发送到其服务器：请稍后再试。"
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

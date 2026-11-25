@@ -26022,6 +26022,12 @@ msgstr "Küldés és fogadás folyamatban ennél a fióknál: {name}. A megszak�
 msgid "{name} is larger than {mb} MB"
 msgstr "A {name} nagyobb, mint a {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} küldése a kiszolgálójára még folyamatban van: próbálja újra hamarosan."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

@@ -24550,6 +24550,12 @@ msgstr "{name} wird gerade gesendet und empfangen. Verwenden Sie „Anhalten“.
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} ist größer als {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} wird noch an seinen Server gesendet: Versuchen Sie es gleich noch einmal."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

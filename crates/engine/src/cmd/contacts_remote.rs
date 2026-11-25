@@ -231,10 +231,11 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             for field in ContactField::ALL.into_iter().filter(|f| !fields.contains(f)) {
                 field.copy(cur, c);
             }
-            // Only a move changes a contact's folder (a download never does): one the step moved
-            // goes back where it was (no server had it: [`super::contacts_move`]).
-            if c.folder == cur.folder {
-                (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+            // One the step moved goes back where it was (no server had it:
+            // [`super::contacts_move`]). Any other stays where it is now, also when a refusal or
+            // a move back put it elsewhere since, outside any step.
+            if !touched.moved_contact(*id) {
+                (c.origin, c.folder, c.moved_from) = (cur.origin.clone(), cur.folder, cur.moved_from);
             }
         }
         // In a folder that may only be read now, with nothing waiting for it (which would be
@@ -252,6 +253,16 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             // it already), rather than undone here and not there.
             keep(mailbox, *id);
             no_room += 1;
+        }
+    }
+    // A contact a move took away, back and to be made on its server again: the one the move made,
+    // taken away now, is deleted from its server only once that is done, as the move held its own
+    // deletion (#1144).
+    for id in touched.changed_contacts() {
+        let Some(from) = now.contact(*id).filter(|_| mailbox.contact(*id).is_none()).map(|c| c.moved_from).filter(|f| *f != 0) else { continue };
+        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create);
+        if creating && let Ok(c) = mailbox.contact_mut(from) {
+            c.moved_from = *id;
         }
     }
     (no_room, read_only_kept)
@@ -865,7 +876,7 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
                 return;
             }
             if let Ok(c) = mailbox.contact_mut(change.contact) {
-                (c.folder, c.origin) = (0, Origin::default());
+                (c.folder, c.origin, c.moved_from) = (0, Origin::default(), 0);
             }
             applied.say(said!("{name} couldn't be added to {folder}{why}: it is kept on this computer.", name, folder, why).to_string());
         }

@@ -25399,6 +25399,12 @@ msgstr "{name} wordt nu verzonden en ontvangen. Gebruik Stoppen."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} is groter dan {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} wordt nog naar de server verzonden: probeer het zo opnieuw."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

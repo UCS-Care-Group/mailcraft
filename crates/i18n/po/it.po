@@ -26001,6 +26001,12 @@ msgstr "{name} è in fase di invio e ricezione. Usare Interrompi."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} è più grande di {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} è ancora in fase di invio al suo server: riprova tra poco."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

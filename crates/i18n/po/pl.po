@@ -26116,6 +26116,12 @@ msgstr "Trwa wysyłanie i odbieranie dla: {name}. Użyj Zatrzymaj."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} jest większy niż {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} jest wciąż wysyłany na swój serwer: spróbuj ponownie za chwilę."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

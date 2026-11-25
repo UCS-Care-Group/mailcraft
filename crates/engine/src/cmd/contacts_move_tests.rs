@@ -295,6 +295,10 @@ fn undo_after_both_went_up_sends_the_opposite_of_each() {
     run(&mut r.s, "edit.undo", json!({}));
     assert_eq!(r.places("Bo"), vec![ada_main]);
     assert_eq!(r.due(r.ada), [(ContactChangeKind::Create, String::new())]);
+    // Eve's copy goes once Ada's server has made Bo again.
+    assert!(r.due(r.eve).is_empty());
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Done, "c-bo-2");
     assert_eq!(r.due(r.eve), [(ContactChangeKind::Delete, "e-bo".to_string())]);
 }
 
@@ -376,4 +380,102 @@ fn the_dialogs_duplicate_check_finds_the_same_address_in_the_target() {
     assert_eq!(super::already_in(&r.s.mailbox, &[bo], r.team()), None);
     r.mv(&[bo], eve_main);
     assert_eq!(r.places("Bo"), vec![eve_main]);
+}
+
+#[test]
+fn a_contact_still_being_made_on_a_server_isnt_moved_again() {
+    let mut r = Rig::new();
+    let (bo, team, ada_main, eve_main) = (r.called("Bo"), r.team(), r.main(r.ada), r.main(r.eve));
+    // Moved once: the new one waits to be made on Eve's server, Ada's copy held for it.
+    let moved = r.mv(&[bo], eve_main)["moved"][0]["id"].as_u64().unwrap();
+    let before = r.s.mailbox.clone();
+    let e = r.s.run("people.moveToFolder", &json!({"ids": [moved], "folder": team})).unwrap_err();
+    assert!(e.to_string().contains("still being sent"), "{e}");
+    assert!(r.s.mailbox == before, "nothing changed");
+    // A new contact whose Create may be in the sync thread's batch already, not answered yet.
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let _in_flight = r.upload(r.ada);
+    assert!(r.s.run("people.moveToFolder", &json!({"ids": [gus], "folder": eve_main})).is_err());
+    assert_eq!(r.places("Gus"), vec![ada_main]);
+    // Once made, it moves.
+    let op = r.upload(r.eve).ops.remove(0);
+    r.answer(r.eve, &op, ContactResult::Done, "e-bo");
+    assert!(r.s.run("people.moveToFolder", &json!({"ids": [moved], "folder": team})).is_ok());
+}
+
+#[test]
+fn undoing_a_later_edit_after_a_refused_create_doesnt_send_it_again() {
+    let mut r = Rig::new();
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": 0}))["id"].as_u64().unwrap();
+    let ada_main = r.main(r.ada);
+    r.mv(&[gus], ada_main);
+    run(&mut r.s, "people.edit", json!({"id": gus, "company": "Example Ltd"}));
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Refused, "");
+    let kept = r.folder_of("Gus");
+    run(&mut r.s, "edit.undo", json!({}));
+    assert_eq!(r.folder_of("Gus"), kept, "the undone edit leaves the folder the refusal gave it");
+    assert!(r.due(r.ada).is_empty(), "the refused Create isn't sent again");
+}
+
+#[test]
+fn undoing_a_later_edit_after_a_move_went_back_tells_only_the_server_that_has_it() {
+    let mut r = Rig::new();
+    let bo = r.called("Bo");
+    let (ada_main, eve_main) = (r.main(r.ada), r.main(r.eve));
+    let moved = r.mv(&[bo], eve_main)["moved"][0]["id"].as_u64().unwrap();
+    run(&mut r.s, "people.edit", json!({"id": moved, "company": "Example Ltd"}));
+    let op = r.upload(r.eve).ops.remove(0);
+    r.answer(r.eve, &op, ContactResult::Refused, "");
+    assert_eq!(r.places("Bo"), vec![ada_main]);
+    run(&mut r.s, "edit.undo", json!({}));
+    assert_eq!(r.places("Bo"), vec![ada_main]);
+    let c = r.s.mailbox.contact(moved).unwrap();
+    assert_eq!((c.origin.account, c.origin.id.as_str(), c.company.as_str()), (r.ada, "c-bo", ""));
+    assert!(r.due(r.eve).is_empty(), "Eve's server is never sent Ada's id");
+}
+
+#[test]
+fn undo_after_both_went_up_holds_the_delete_for_the_create_again() {
+    let mut r = Rig::new();
+    let bo = r.called("Bo");
+    let eve_main = r.main(r.eve);
+    r.mv(&[bo], eve_main);
+    let op = r.upload(r.eve).ops.remove(0);
+    r.answer(r.eve, &op, ContactResult::Done, "e-bo");
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Done, "");
+    run(&mut r.s, "edit.undo", json!({}));
+    assert!(r.due(r.eve).is_empty(), "Eve's copy waits for Ada's server to make Bo again");
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Refused, "");
+    // Refused: Bo stays in Eve's folder, never in neither.
+    assert_eq!(r.places("Bo"), vec![eve_main]);
+    assert!(r.due(r.eve).is_empty());
+}
+
+#[test]
+fn repair_drops_a_moves_delete_with_its_create_and_a_link_to_nothing() {
+    let mut r = Rig::new();
+    let (bo, cy, eve_main) = (r.called("Bo"), r.called("Cy"), r.main(r.eve));
+    run(&mut r.s, "people.edit", json!({"id": cy, "last": "Lee"}));
+    let moved = r.mv(&[bo], eve_main)["moved"][0]["id"].as_u64().unwrap();
+    let mut m = r.s.mailbox.clone();
+    // Cy names a contact with no deletion waiting: the link goes.
+    m.contact_mut(cy).unwrap().moved_from = 999;
+    // The Create is cut by the cap (it is last): its held Delete goes with it, never sent alone.
+    let take = |m: &mut mailcraft_model::Mailbox, id: Id| {
+        let at = m.contact_changes.iter().position(|n| n.contact == id).unwrap();
+        m.contact_changes.remove(at)
+    };
+    let (delete, create, change) = (take(&mut m, bo), take(&mut m, moved), take(&mut m, cy));
+    m.contact_changes = vec![delete; 1];
+    while m.contact_changes.len() < mailcraft_model::contact_sync::MAX_CONTACT_CHANGES {
+        m.contact_changes.push(change.clone());
+    }
+    m.contact_changes.push(create);
+    m.repair();
+    assert_eq!(m.contact(cy).unwrap().moved_from, 0);
+    assert!(!m.contact_changes.iter().any(|n| n.contact == moved), "the Create was cut");
+    assert!(!m.contact_changes.iter().any(|n| n.contact == bo), "so its Delete is dropped too");
 }

@@ -10,9 +10,10 @@
 //! won't make the new one, the contact goes back where it was ([`moved_back`]). Onto this computer
 //! there is nothing to wait for: the server is told to delete its copy.
 //!
-//! **One contact or two.** The queue has one note a contact. A contact a server has (or may have:
-//! it was sent) leaves a new contact in the target, linked to it by [`Contact::moved_from`], and
-//! itself goes, as a deletion. One no server has heard of just changes folder.
+//! **One contact or two.** The queue has one note a contact. A contact a server has leaves a new
+//! contact in the target, linked to it by [`Contact::moved_from`], and itself goes, as a deletion.
+//! One no server has heard of just changes folder. One still to be made on a server (or on its way
+//! there, unanswered) isn't moved until the server answers.
 //!
 //! A move is one command, so one undo step, worked out as any other step's
 //! ([`super::contacts_remote::after_undo`]): undone after it went up, each server is told the
@@ -80,6 +81,12 @@ fn sources(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
         if let Some(f) = home(&s.mailbox, c.folder).filter(|f| !f.writable) {
             return Err(failed!("The contacts folder \"{name}\" can only be read: its contacts can't be moved out of it.", name = f.name));
         }
+        // Still to be made on a server, or on its way there unanswered (the sync thread may have
+        // sent it): moving it now could leave it in neither place, or link one server's answer to
+        // another's folder. It moves once the server has answered.
+        if s.mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create) {
+            return Err(failed!("{name} is still being sent to its server: try again shortly.", name = c.name()));
+        }
         out.push(id);
     }
     Ok(out)
@@ -94,8 +101,8 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdErro
     }
     let account = home(mailbox, to).map_or(0, |f| f.account);
     let server = server_copy(mailbox, id);
-    let sent = mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create && n.sent);
-    if server.is_none() && !sent {
+    // (One still to be made on a server is refused first: [`sources`].)
+    if server.is_none() {
         // No server has it: it only changes folder (a new one there is noted to be made).
         let c = mailbox.contact_mut(id)?;
         (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);

@@ -3826,8 +3826,28 @@ impl Mailbox {
             fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
         }
         if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            // A move's deletion waits for its new contact to be made (#1144): one whose Create is
+            // cut goes with it, never sent alone.
+            let contacts = &self.contacts;
+            let held: HashSet<Id> = self.contact_changes[MAX_CONTACT_CHANGES..]
+                .iter()
+                .filter(|c| c.kind == ContactChangeKind::Create)
+                .filter_map(|c| contacts.get(&c.contact))
+                .map(|c| c.moved_from)
+                .filter(|f| *f != 0)
+                .collect();
             self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            self.contact_changes.retain(|c| !(c.kind == ContactChangeKind::Delete && held.contains(&c.contact)));
             fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        // A move's link to the contact it came from means something only while that one's
+        // deletion waits (#1144).
+        let deleting: HashSet<Id> =
+            self.contact_changes.iter().filter(|c| c.kind == ContactChangeKind::Delete && c.base.is_some()).map(|c| c.contact).collect();
+        for c in self.contacts.values_mut() {
+            if c.moved_from != 0 && !deleting.contains(&c.moved_from) {
+                Arc::make_mut(c).moved_from = 0;
+            }
         }
         fixed
     }

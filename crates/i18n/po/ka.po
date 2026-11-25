@@ -25939,6 +25939,12 @@ msgstr "ანგარიშის {name} გაგზავნა/მიღე
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} {mb} მბ-ზე დიდია"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} ჯერ კიდევ იგზავნება თავის სერვერზე: სცადეთ ცოტა ხანში."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

@@ -21623,6 +21623,11 @@ msgstr ""
 msgid "{name} is larger than {mb} MB"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."

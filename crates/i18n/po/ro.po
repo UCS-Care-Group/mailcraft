@@ -26109,6 +26109,12 @@ msgstr "{name} este acum în curs de trimitere și primire. Folosiți Oprire."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} este mai mare de {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} încă se trimite către serverul său: încercați din nou în curând."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

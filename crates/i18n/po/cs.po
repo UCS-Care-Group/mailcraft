@@ -26084,6 +26084,12 @@ msgstr "{name} právě odesílá a přijímá. Použijte Zastavit."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} je větší než {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} se stále odesílá na svůj server: zkuste to za chvíli znovu."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

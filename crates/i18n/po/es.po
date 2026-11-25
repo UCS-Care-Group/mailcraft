@@ -26026,6 +26026,12 @@ msgstr "{name} se está enviando y recibiendo ahora. Use Detener."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} ocupa más de {mb} MB"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} todavía se está enviando a su servidor: inténtelo de nuevo en un momento."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy

@@ -25929,6 +25929,12 @@ msgstr "{name} est en cours d'envoi et de réception. Utilisez Arrêter."
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} dépasse {mb} Mo"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} est encore en cours d’envoi vers son serveur : réessayez dans un instant."
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
