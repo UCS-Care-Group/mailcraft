@@ -528,6 +528,45 @@ fn a_get_that_lists_a_card_twice_and_leaves_one_out_is_no_complete_read() {
 }
 
 #[test]
+fn a_whole_read_whose_last_page_crosses_the_cap_is_not_complete() {
+    let total = mailcraft_model::remote::MAX_CONTACTS + 3;
+    let fake = Fake::new(move |req, _| {
+        if req.method() == Method::Get {
+            return json_reply(
+                200,
+                &json!({
+                    "capabilities": {CORE: {"maxCallsInRequest": 16, "maxObjectsInGet": 7, "maxObjectsInSet": 50}, MAIL: {}, CONTACTS: {}},
+                    "accounts": {"A1": {"name": ME, "isPersonal": true, "accountCapabilities": {MAIL: {}, CONTACTS: {}}}},
+                    "primaryAccounts": {MAIL: "A1", CONTACTS: "A1"},
+                    "apiUrl": "https://jmap.example.org/jmap/api",
+                    "downloadUrl": "/jmap/download/{accountId}/{blobId}/{name}?type={type}",
+                    "uploadUrl": "/jmap/upload/{accountId}/",
+                    "state": "1",
+                }),
+            );
+        }
+        api_reply(req, move |name, args| match name {
+            "AddressBook/get" => super::changes_tests::Answer::Is(json!({"list": [{"id": "AB1", "name": "Mine", "isDefault": true}]})),
+            "ContactCard/query" => {
+                let at = args.get("position").and_then(Value::as_u64).unwrap_or(0) as usize;
+                let ids: Vec<String> = (at..(at + 7).min(total)).map(|n| format!("C{n}")).collect();
+                super::changes_tests::Answer::Is(json!({"queryState": "q", "ids": ids, "total": total}))
+            }
+            "ContactCard/get" => {
+                let ids: Vec<Value> = args.get("ids").and_then(Value::as_array).cloned().unwrap_or_default();
+                let list: Vec<Value> = ids.iter().map(|id| json!({"id": id, "addressBookIds": {"AB1": true}, "name": {"full": id}})).collect();
+                super::changes_tests::Answer::Is(json!({"state": "s1", "list": list, "notFound": []}))
+            }
+            _ => super::changes_tests::reading(name, args),
+        })
+    });
+    let request = JmapMailRequest { contacts: Some(JmapContactsRequest::default()), ..asks(super::changes_tests::FAKE_SESSION) };
+    let got = downloads(&run_fake(&fake, &request));
+    assert_eq!(got.len(), 1);
+    assert!(!got[0].complete && got[0].delta.is_empty(), "complete {} delta {:?}", got[0].complete, got[0].delta);
+}
+
+#[test]
 fn two_shared_accounts_under_one_name_are_one_place() {
     let fake = Fake::new(|req, _| {
         if req.method() == Method::Get {

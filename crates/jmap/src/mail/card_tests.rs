@@ -275,6 +275,17 @@ fn notes_past_those_read_stay_through_an_edit_and_a_clear() {
     values.notes.clear();
     let p = patch(&server, &values, &[ContactField::Notes].into());
     assert_eq!(p["notes"], json!({"n64": {"note": "note 64"}}));
+
+    // Many more than are read: the edited text is under a key the next read shows.
+    let mut server = ada();
+    let notes: serde_json::Map<String, Value> = (0..129).map(|n| (format!("n{n:03}"), json!({"note": format!("note {n}")}))).collect();
+    server["notes"] = Value::Object(notes);
+    let mut values = read(&server).unwrap();
+    values.notes = "edited".into();
+    let p = patch(&server, &values, &[ContactField::Notes].into());
+    server["notes"] = p["notes"].clone();
+    assert!(read(&server).unwrap().notes.contains("edited"));
+    assert!(server["notes"].as_object().unwrap().contains_key("n128"));
 }
 
 #[test]

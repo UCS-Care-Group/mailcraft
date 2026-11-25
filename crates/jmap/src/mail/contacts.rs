@@ -711,7 +711,8 @@ impl<H: HttpExchange> Run<'_, H> {
                 break;
             }
             if total.is_some_and(|t| position >= t) {
-                complete = true;
+                // (Past the cap, the last page was cut: not all of it.)
+                complete = position <= MAX_CONTACTS;
                 break;
             }
         }

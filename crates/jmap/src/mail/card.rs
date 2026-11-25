@@ -630,7 +630,8 @@ pub(super) fn patch(server: &Value, values: &RemoteContact, fields: &std::collec
                 map.insert(key.clone(), Value::Object(entry));
             }
             (note, _) => {
-                let key = fresh_key(&all, "n");
+                // (Under the first key read, so that the next read shows it.)
+                let key = shown.first().cloned().unwrap_or_else(|| fresh_key(&all, "n"));
                 map.insert(key, json!({"note": note}));
             }
         }
