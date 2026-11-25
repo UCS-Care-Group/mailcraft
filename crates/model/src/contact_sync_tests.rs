@@ -420,3 +420,61 @@ proptest! {
         prop_assert_eq!(ContactField::merged(&base, &theirs, &ContactField::changed(&base, &base)), theirs.clone());
     }
 }
+
+/// #1917: what a server has no place for is said for a folder of an account whose server limits
+/// places (Microsoft's), by position in the contact's own lists; never On this computer, nor for
+/// a server that keeps every entry.
+#[test]
+fn local_only_names_what_the_server_has_no_place_for() {
+    use crate::contact_sync::{LocalOnly, local_only};
+    use crate::{AccountKind, OAuth, OAuthProvider, PostalAddress};
+    let mut mb = Mailbox::default();
+    let oauth = OAuth { provider: OAuthProvider::Microsoft, ..Default::default() };
+    let ms = mb.add_account(Account { email: "ada@example.org".into(), kind: AccountKind::Microsoft, oauth: Some(oauth), ..Default::default() });
+    let imap = mb.add_account(Account { email: "bo@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let ms_folder = mb.ensure_main_contact_folder(ms).unwrap();
+    let imap_folder = mb.ensure_main_contact_folder(imap).unwrap();
+    let address = |label: &str, city: &str| PostalAddress { label: label.into(), city: city.into(), ..Default::default() };
+    let many = Contact {
+        // An empty one between is neither placed nor marked.
+        emails: ["a", "", "b", "c", "d", "e"]
+            .iter()
+            .map(|n| Labeled::new("work", if n.is_empty() { String::new() } else { format!("{n}@example.org") }))
+            .collect(),
+        phones: vec![Labeled::new("mobile", "+44 7700 900001"), Labeled::new("mobile", "+44 7700 900002"), Labeled::new("home", "+44 20 7946 0001")],
+        addresses: vec![address("home", "Leeds"), address("home", "York"), address("work", "Hull"), address("other", "Bath")],
+        websites: vec!["https://a.example".into(), "https://b.example".into()],
+        ..ada()
+    };
+    let at = |folder| Contact { folder, ..many.clone() };
+    let expected = LocalOnly { emails: vec![4, 5], phones: vec![1], addresses: vec![3], websites: vec![1] };
+    assert_eq!(local_only(&mb, &at(ms_folder)), expected);
+    assert!(local_only(&mb, &at(0)).is_empty(), "On this computer: nothing is marked");
+    assert!(local_only(&mb, &at(imap_folder)).is_empty(), "a server with no limit: nothing is marked");
+    assert!(local_only(&mb, &Contact { folder: ms_folder, ..ada() }).is_empty(), "what fits isn't marked");
+}
+
+/// #1917: only a Microsoft (Graph) account's folders are marked: an account of another kind that
+/// keeps contacts (an Exchange server's, a JMAP server's) has no such limits.
+#[test]
+fn an_account_that_keeps_contacts_but_not_through_graph_is_never_marked() {
+    use crate::contact_sync::local_only;
+    use crate::{AccountKind, OAuth, OAuthProvider};
+    let mut mb = Mailbox::default();
+    let microsoft = || Some(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
+    let exchange = mb.add_account(Account { email: "ex@example.org".into(), kind: AccountKind::Exchange, oauth: microsoft(), ..Default::default() });
+    let jmap = mb.add_account(Account { email: "jm@example.org".into(), kind: AccountKind::Jmap, oauth: microsoft(), ..Default::default() });
+    // One that keeps contacts without Graph: its kind decides, not that it keeps contacts.
+    assert!(mb.account(exchange).unwrap().keeps_contacts());
+    for account in [exchange, jmap] {
+        assert!(!mb.account(account).unwrap().contacts_in_graph());
+        let folder = mb.ensure_main_contact_folder(account).unwrap();
+        let many = Contact {
+            folder,
+            emails: (1..=5).map(|n| Labeled::new("work", format!("a{n}@example.org"))).collect(),
+            websites: vec!["https://a.example".into(), "https://b.example".into()],
+            ..ada()
+        };
+        assert!(local_only(&mb, &many).is_empty(), "account {account}");
+    }
+}

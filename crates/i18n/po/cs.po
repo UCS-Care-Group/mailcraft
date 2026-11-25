@@ -3552,6 +3552,12 @@ msgid "City"
 msgstr "Město"
 
 #. name
+#: crates/ui-egui/src/theme.rs
+#, fuzzy
+msgid "Classic Light"
+msgstr "Klasický světlý"
+
+#. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Classic Ribbon"
@@ -9648,6 +9654,48 @@ msgstr "Microsoft to pro tento druh účtu nenabízí."
 msgid "Microsoft has no mailbox at this address"
 msgstr "Microsoft nemá na této adrese žádnou poštovní schránku"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
+msgstr "Microsoft uchovává u kontaktu jednu domácí, jednu pracovní a jednu jinou adresu; označené zůstanou v tomto telefonu."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
+msgstr "Microsoft uchovává u kontaktu jednu domácí, jednu pracovní a jednu jinou adresu; tato zůstane v tomto počítači."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
+msgstr "Microsoft uchovává u kontaktu jedno mobilní, dvě domácí a dvě pracovní čísla; označená zůstanou v tomto telefonu."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."
+msgstr "Microsoft uchovává u kontaktu jedno mobilní, dvě domácí a dvě pracovní čísla; toto zůstane v tomto počítači."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one web page for a contact; this one stays on this computer."
+msgstr "Microsoft uchovává u kontaktu jednu webovou stránku; tato zůstane v tomto počítači."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
+msgstr "Microsoft uchovává u kontaktu tři e-mailové adresy; označené zůstanou v tomto telefonu."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; this one stays on this computer."
+msgstr "Microsoft uchovává u kontaktu tři e-mailové adresy; tato zůstane v tomto počítači."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -11605,6 +11653,12 @@ msgid "On this computer for now"
 msgstr "Zatím v tomto počítači"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "On this computer only"
+msgstr "Jen v tomto počítači"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer, for the mail of every account"
@@ -11621,6 +11675,12 @@ msgstr "V tomto počítači. Zatím nemají vlastní zobrazení."
 #, fuzzy
 msgid "On this device only: no mail server"
 msgstr "Jen v tomto zařízení: bez poštovního serveru"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "On this phone only"
+msgstr "Jen v tomto telefonu"
 
 #. interface
 #: crates/ui-egui/src/updates.rs

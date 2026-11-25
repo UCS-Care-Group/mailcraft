@@ -3545,6 +3545,12 @@ msgid "City"
 msgstr "ქალაქი"
 
 #. name
+#: crates/ui-egui/src/theme.rs
+#, fuzzy
+msgid "Classic Light"
+msgstr "კლასიკური ღია"
+
+#. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Classic Ribbon"
@@ -9603,6 +9609,48 @@ msgstr "Microsoft ამას ამ ტიპის ანგარიში�
 msgid "Microsoft has no mailbox at this address"
 msgstr "Microsoft-ს ამ მისამართზე საფოსტო ყუთი არ აქვს"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
+msgstr "Microsoft კონტაქტისთვის ინახავს ერთ სახლის, ერთ სამსახურის და ერთ სხვა მისამართს; მონიშნულები ამ ტელეფონზე რჩება."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
+msgstr "Microsoft კონტაქტისთვის ინახავს ერთ სახლის, ერთ სამსახურის და ერთ სხვა მისამართს; ეს ამ კომპიუტერზე რჩება."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
+msgstr "Microsoft კონტაქტისთვის ინახავს ერთ მობილურს, ორ სახლის და ორ სამსახურის ნომერს; მონიშნულები ამ ტელეფონზე რჩება."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."
+msgstr "Microsoft კონტაქტისთვის ინახავს ერთ მობილურს, ორ სახლის და ორ სამსახურის ნომერს; ეს ამ კომპიუტერზე რჩება."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one web page for a contact; this one stays on this computer."
+msgstr "Microsoft კონტაქტისთვის ერთ ვებგვერდს ინახავს; ეს ამ კომპიუტერზე რჩება."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
+msgstr "Microsoft კონტაქტისთვის სამ ელფოსტის მისამართს ინახავს; მონიშნულები ამ ტელეფონზე რჩება."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; this one stays on this computer."
+msgstr "Microsoft კონტაქტისთვის სამ ელფოსტის მისამართს ინახავს; ეს ამ კომპიუტერზე რჩება."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -11554,6 +11602,12 @@ msgid "On this computer for now"
 msgstr "ჯერჯერობით ამ კომპიუტერზე"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "On this computer only"
+msgstr "მხოლოდ ამ კომპიუტერზე"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer, for the mail of every account"
@@ -11570,6 +11624,12 @@ msgstr "ამ კომპიუტერზე. მათ საკუთა�
 #, fuzzy
 msgid "On this device only: no mail server"
 msgstr "მხოლოდ ამ მოწყობილობაზე: საფოსტო სერვერის გარეშე"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "On this phone only"
+msgstr "მხოლოდ ამ ტელეფონზე"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
