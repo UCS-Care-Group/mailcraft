@@ -102,10 +102,10 @@ fn sources(s: &Session, v: &Value, to: Id) -> Result<(Vec<Id>, Vec<(Id, String)>
 /// Whether contact `id` can't go into folder `to` yet: it is still to be made on a server, or on
 /// its way there unanswered (the sync thread may have sent it). Into a server's folder that could
 /// leave it in neither place, or link one server's answer to another's folder: it moves once the
-/// server has answered. Onto this computer it moves at once (its note goes, and a late answer that
-/// it was made has the server delete it again: [`super::contacts_remote::apply_contact_outcomes`]),
-/// unless an answer said it may be there already, unnamed: with its note gone, nothing would
-/// delete it there.
+/// server has answered. Onto this computer it moves at once, under a new id (its note goes, and a
+/// late answer that it was made has the server delete it again:
+/// [`super::contacts_remote::apply_contact_outcomes`]), unless an answer said it may be there
+/// already, unnamed: with its note gone, nothing would delete it there.
 fn waits(mailbox: &Mailbox, id: Id, to: Id) -> bool {
     mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create && (to != 0 || n.sent))
 }
@@ -119,8 +119,11 @@ fn move_one(mailbox: &mut Mailbox, id: Id, to: Id) -> Result<Option<Id>, CmdErro
     }
     let account = home(mailbox, to).map_or(0, |f| f.account);
     let server = server_copy(mailbox, id);
-    // (One still to be made on a server moves only onto this computer: [`waits`].)
-    if server.is_none() {
+    // One still to be made on a server (it moves only onto this computer: [`waits`]) may be on its
+    // way there: it leaves its id behind, so that a late answer is about it alone (the server is
+    // then told to delete it), never about where this one goes next.
+    let creating = mailbox.contact_changes.iter().any(|n| n.contact == id && n.kind == ContactChangeKind::Create);
+    if server.is_none() && !creating {
         // No server has it: it only changes folder (a new one there is noted to be made).
         let c = mailbox.contact_mut(id)?;
         (c.folder, c.origin, c.moved_from) = (to, Origin { account, ..Default::default() }, 0);

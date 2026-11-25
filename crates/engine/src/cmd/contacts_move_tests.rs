@@ -489,7 +489,8 @@ fn one_still_being_made_moves_onto_this_computer_and_a_late_done_deletes_it_ther
     let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
     // Its Create is on its way, unanswered.
     let op = r.upload(r.ada).ops.remove(0);
-    assert_eq!(r.mv(&[gus], 0)["moved"][0], json!({"from": gus, "id": gus}));
+    let here = r.mv(&[gus], 0)["moved"][0]["id"].as_u64().unwrap();
+    assert_ne!(here, gus, "a late answer is about the id it leaves behind");
     assert_eq!(r.places("Gus"), vec![0]);
     assert!(r.due(r.ada).is_empty(), "nothing to make there now");
     // The server made it after all: it is told to delete it, and Gus stays here.
@@ -499,6 +500,37 @@ fn one_still_being_made_moves_onto_this_computer_and_a_late_done_deletes_it_ther
     r.answer(r.ada, &op, ContactResult::Done, "");
     assert_eq!(r.places("Gus"), vec![0]);
     assert!(r.s.mailbox.contact_changes.is_empty());
+}
+
+#[test]
+fn moved_on_again_before_the_late_answer_it_is_made_where_it_went_and_deleted_where_it_was_sent() {
+    let mut r = Rig::new();
+    let (ada_main, team) = (r.main(r.ada), r.team());
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    let here = r.mv(&[gus], 0)["moved"][0]["id"].as_u64().unwrap();
+    r.mv(&[here], team);
+    r.answer(r.ada, &op, ContactResult::Done, "c-gus");
+    assert_eq!(r.places("Gus"), vec![team]);
+    let mut due = r.due(r.ada);
+    due.sort_unstable_by_key(|(_, remote)| remote.clone());
+    assert_eq!(due, [(ContactChangeKind::Create, String::new()), (ContactChangeKind::Delete, "c-gus".to_string())]);
+    let delete = r.s.mailbox.contact_changes.iter().find(|n| n.kind == ContactChangeKind::Delete).unwrap();
+    assert_eq!(delete.folder, ada_main, "deleted from the folder it was sent to");
+}
+
+#[test]
+fn undo_of_a_move_onto_this_computer_while_being_sent_takes_the_late_answer_as_it_was() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    r.mv(&[gus], 0);
+    run(&mut r.s, "edit.undo", json!({}));
+    assert_eq!(r.places("Gus"), vec![ada_main]);
+    r.answer(r.ada, &op, ContactResult::Done, "c-gus");
+    assert_eq!(r.s.mailbox.contact(gus).unwrap().origin.id, "c-gus");
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
 }
 
 #[test]
