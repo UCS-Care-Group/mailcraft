@@ -339,11 +339,17 @@ fn body_pattern_caps_text_to_max_length() {
     let m = Message { body: Body { text: short_body, html: None }, ..Default::default() };
     assert!(Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern should match within cap");
 
-    // Body with 15000 chars - "ZZZ" is at position 15000 which is beyond cap (10000 chars)
-    // The body doesn't contain "ZZZ" in the first 10000 chars, so it shouldn't match
+    // Body with 15000 chars but no "ZZZ" at all - shouldn't match because text is absent,
+    // not because it's beyond cap. The cap only truncates what's there.
     let long_body = "a".repeat(15000);
     let m = Message { body: Body { text: long_body, html: None }, ..Default::default() };
-    assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern beyond cap should not match");
+    assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern should not match when text is not present");
+
+    // Body with "ZZZ" at position 10500 (beyond the 10000 char cap)
+    // After capping, the body is "a".repeat(10000) with no "ZZZ" in it
+    let capped_long = "a".repeat(10500) + "ZZZ";
+    let m = Message { body: Body { text: capped_long, html: None }, ..Default::default() };
+    assert!(!Condition::BodyMatches(pattern.clone()).matches(&m), "Pattern beyond cap should not match after truncation");
 
     // Body with "ZZZ" at position 5000 within a 15000 char body (the first 10000 chars contain "ZZZ")
     let mixed_body = "a".repeat(5000) + "ZZZ" + &"b".repeat(9999);

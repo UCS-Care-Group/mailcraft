@@ -5032,7 +5032,7 @@ pub(crate) mod rules {
 
                 if c.op == Op::Matches {
                     // Regex patterns: must be valid regex and <=200 chars (validate raw text, not trimmed)
-                    // Use Pattern::new to avoid recompiling on every frame
+                    // Pattern::new compiles immediately; the cache is in Pattern's internal representation
                     mailcraft_model::Pattern::new(c.text.clone()).is_some()
                 } else {
                     // Plain text (Contains/StartsWith): non-empty and <=200 chars
@@ -5062,7 +5062,6 @@ pub(crate) mod rules {
             }
             let account = self.account;
             let mb = &app.session.mailbox;
-            let on_server = mb.keeps_rules(account);
             let rules: Vec<Rule> = mb.rules_in_order(account).into_iter().filter_map(|i| mb.rules.get(i).cloned()).collect();
             let (there, here): (Vec<Rule>, Vec<Rule>) = rules.into_iter().partition(|r| r.account == account && r.keep == Keep::Server);
             let servers = rule_accounts(mb).into_iter().filter(|(id, _)| mb.keeps_rules(*id)).collect::<Vec<_>>();
@@ -5096,7 +5095,9 @@ pub(crate) mod rules {
                     ui.add_space(4.0);
                 }
                 let mark_of = |id: Id| marks.iter().find(|(m, _)| *m == id).map(|(_, m)| m.as_str()).unwrap_or("");
-                if on_server {
+                // Show the section if the account keeps rules on its server, regardless of whether the
+                // form can create a new server rule (the folder might not exist yet).
+                if mb.keeps_rules(account) {
                     heading(ui, t, tl!("On the server"), tl!("Run by the server as mail arrives, whether MailCraft is open or not"));
                     for (i, r) in there.iter().enumerate() {
                         // A rule waiting to go stands after those the server has, and moves among them once it is there.
