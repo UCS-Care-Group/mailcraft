@@ -87,7 +87,7 @@ pub(crate) struct DavSync {
     /// The settings the job in flight was asked under ([`mailcraft_model::DavServer::identity`]).
     sent_under: String,
     /// The trouble each account was last told to the owner for, so that it is said once.
-    shown: HashMap<Id, DavProblem>,
+    pub(crate) shown: HashMap<Id, DavProblem>,
     /// Whether each account's servers have a password of their own, to see it change.
     separate: HashMap<Id, bool>,
     /// The accounts the owner was told are full ([`DavProblem::Full`]), with the generation of
@@ -96,6 +96,14 @@ pub(crate) struct DavSync {
     full_said: HashMap<Id, u64>,
     /// The reads of the store for the passwords the jobs need (`dav_secret_read.rs`).
     pub(crate) secrets: crate::dav_secret_read::DavSecretRead,
+}
+
+impl MailApp {
+    /// The trouble the account's last job came to, as it was told to the owner; `None` when its
+    /// last job went well or none has come to trouble.
+    pub(crate) fn dav_trouble(&self, account: Id) -> Option<DavProblem> {
+        self.dav.shown.get(&account).copied()
+    }
 }
 
 impl DavSync {

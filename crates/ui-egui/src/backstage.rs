@@ -265,6 +265,8 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // Its calendar servers want a password of their own that nothing here has (#209).
         crate::dav_password_ask::info_row(app, ui, t, a.id);
+        // Where its calendars and contacts are kept, on a calendar server (#209).
+        crate::dav_settings::info_row(app, ui, t, a);
         // Where keeping the to-dos, the rules, the automatic replies and the categories in step
         // with Outlook stands, in one line, with a way to turn it on (#661); what each stands at
         // is its tip.

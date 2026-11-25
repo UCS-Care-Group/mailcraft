@@ -37,8 +37,8 @@ pub(super) fn switched_on(s: &Session) -> Option<&'static str> {
 /// Whether an account of this kind may have calendar and contacts servers of its own: one that
 /// has mail servers or a server of its own (IMAP, JMAP, Exchange server), not a Microsoft account
 /// (Microsoft Graph keeps its calendars) nor one that only lives here, nor a shared mailbox
-/// (which follows its owner's).
-fn may_have(a: &Account) -> bool {
+/// (which follows its owner's). The window asks the same before it offers them.
+pub fn may_have(a: &Account) -> bool {
     !a.is_shared() && matches!(a.kind, AccountKind::Imap | AccountKind::Jmap | AccountKind::Exchange)
 }
 

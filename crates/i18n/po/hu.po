@@ -2859,6 +2859,26 @@ msgid "Calendar and contacts need your permission: File › Info › Connect cal
 msgstr "Naptár és kapcsolatok kell az engedély: Fájl › Info › Csatlakoztassa naptár és kapcsolatok"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Calendars"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Calendars and Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Calendars and contacts: not set up"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Calendars and contacts: {server}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Calendars on the web (an .ics address) kept up to date here, read-only. Calendar › Open Calendar › From Internet… subscribes to one."
@@ -3261,7 +3281,7 @@ msgid "Changes to calendars and contacts on a server are not sent yet in this ve
 msgstr "A kiszolgálón lévő naptárak és névjegyek módosításai ebben a verzióban még nem kerülnek elküldésre."
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/dav_settings.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Change…"
 msgstr "Változás…"
@@ -3914,7 +3934,7 @@ msgid "Contact Changes to Send"
 msgstr "Küldendő névjegymódosítások"
 
 #. interface
-#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Contacts"
 msgstr "Névjegyek"
@@ -6352,6 +6372,11 @@ msgstr "Felejtsd el a megbízható tanúsítványt"
 msgid "Forget the pictures that are kept; they are downloaded again when you ask."
 msgstr "Elfelejti a megőrzött képeket; kérésére újra letöltődnek."
 
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Forget these addresses and what was read from them. The calendars and contacts on the servers stay as they are."
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8469,6 +8494,11 @@ msgid "Leave it empty to look for the server from your address. It must begin wi
 msgstr "Hagyja üresen, ha az e-mail-cím alapján szeretné megkeresni a kiszolgálót. A megadott címnek https:// kezdetűnek kell lennie."
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Leave it empty to sign in with the account's address."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Leave it not verified"
@@ -9045,7 +9075,7 @@ msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove
 msgstr "MailCraft tartja a legtöbb {n} kulcsok importált itt, és ennyi: távolítsa el egyet nem használ, majd importálni ezt."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dav_settings.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft tartja emlékezetben, amíg nem zárja be az alkalmazást. Ez soha nem íródott lemezre."
@@ -11737,7 +11767,7 @@ msgid "Once it has worked, your system's credential store keeps it for next time
 msgstr "Ha már működött, a rendszer hiteles boltja legközelebb megtartja."
 
 #. interface
-#: crates/ui-egui/src/dav_password_ask.rs
+#: crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
 msgstr "Miután a kiszolgáló elfogadta, a MailCraft a rendszer hitelesítőadat-tárolójában őrzi, ahogy a Fájl › Beállítások engedi."
@@ -12557,7 +12587,7 @@ msgid "Password for {account}"
 msgstr "Jelszó {account} számára"
 
 #. interface
-#: crates/ui-egui/src/dav_password_ask.rs
+#: crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "Password for {server}"
 msgstr "{server} jelszava"
@@ -14296,7 +14326,7 @@ msgid "Saturday"
 msgstr "szombat"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_settings.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Save"
 msgstr "Mentés"
@@ -14531,6 +14561,11 @@ msgstr "Mentve."
 #, fuzzy
 msgid "Saving a copy of your mailbox before the switch…"
 msgstr "A postafiókod egy példányát mentettem el a csere előtt…"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Saving sends nothing. MailCraft reads the servers at its next run."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -15413,6 +15448,11 @@ msgstr "Kiszolgáló: {address}"
 #, fuzzy
 msgid "Set Sender Addresses"
 msgstr "Feladócímek beállítása"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Set Up…"
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -16566,6 +16606,11 @@ msgstr "Állítsa le a Küldés/fogadó; ami megérkezett, az marad"
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
 msgstr "Ha a szerver újra megmutatja, és ez a számítógép nem bízik benne, akkor kérjük."
 
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Stop using these servers"
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
@@ -17359,6 +17404,11 @@ msgid "The account {address} is opened through is gone."
 msgstr "A(z) {address} megnyitásához használt fiók már nincs meg."
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The account's mail password is used, and only for these addresses."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
@@ -17405,6 +17455,11 @@ msgstr "A fiók kiszolgálója még nem adott csatlakozási hivatkozást ehhez a
 #, fuzzy
 msgid "The account's server makes it when the meeting is sent; the link to join by comes back with it."
 msgstr "A fiók kiszolgálója a meghívó elküldésekor hozza létre az értekezletet, és visszaküldi a csatlakozási hivatkozást."
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The address doesn't lead to calendars or contacts. Check it in Change…."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -17758,6 +17813,11 @@ msgstr "A kapcsolat {id} kétszer van megnevezve."
 msgid "The contact's form was closed: open it again to add the key"
 msgstr "A kapcsolatfelvételi űrlapot lezárták: nyissa meg újra, hogy a kulcsot"
 
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The contacts are on another server: File › Info asks for its password."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -17965,6 +18025,11 @@ msgid "The greys the dark theme is drawn in: neutral, or tinted blue. The light 
 msgstr "A szürke a sötét téma rajzolva: semleges, vagy színezett kék. A fény téma marad, ahogy van."
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The https:// addresses your provider gives for calendars (CalDAV) and contacts (CardDAV). Either may be left empty."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "The import gave back something that isn't a key's name in the credential store."
@@ -18113,6 +18178,11 @@ msgstr "A {address} postafiókáját nem lehet elérni a Microsoft Graphon keres
 #, fuzzy
 msgid "The mailbox could not be read."
 msgstr "A postafiókát nem lehetett elolvasni."
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The mailbox holds as much from this server as it may."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -18553,6 +18623,11 @@ msgid "The series needs a day to end by"
 msgstr "A sorozathoz záró nap szükséges"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The server answered some requests with errors. MailCraft asks again later."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server answered without the address of Exchange Web Services. Ask your administrator for it and type it in Server settings."
@@ -18563,6 +18638,11 @@ msgstr "A kiszolgáló a Web Szolgáltatások cseréje nélkül válaszolt. Kér
 #, fuzzy
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
 msgstr "A kiszolgáló válaszolt, de nem úgy, mint egy Exchange szerver. Ellenőrizze a címét a kiszolgáló beállításaiban."
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The server couldn't be reached. MailCraft tries again later."
+msgstr ""
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
@@ -18697,6 +18777,11 @@ msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "A szerver lehalkította a {name} bejelentkezését: jelentkezzen be újra"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The server wouldn't sign in."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's address must begin with https:// and name the server (https://mail.example.org/EWS/Exchange.asmx)"
@@ -18737,6 +18822,11 @@ msgstr "A szerver tanúsítványa lejárt, így MailCraft nem fog csatlakozni ho
 #, fuzzy
 msgid "The server's certificate is for another server's name, so MailCraft won't connect to it. Check the address in Server settings."
 msgstr "A szerver tanúsítványa egy másik szerver nevére szól, így a MailCraft nem csatlakozik hozzá. Ellenőrizze a címet a szerver beállításaiban."
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "The server's certificate isn't trusted, so nothing was sent to it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19174,6 +19264,11 @@ msgstr "Ezek a kapcsolatok nem egyesíthetők itt: kevesebb mint kettő változh
 #, fuzzy
 msgid "These could not be removed. Remove them yourself:"
 msgstr "Ezeket nem lehetett eltávolítani."
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "These servers have a password of their own"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -20972,7 +21067,7 @@ msgid "Use {address}"
 msgstr "{address} használata"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/dav_settings.rs
 #, fuzzy
 msgid "User name"
 msgstr "Felhasználónév"
@@ -21358,6 +21453,11 @@ msgid "Where"
 msgstr "Ahol"
 
 #. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Where the calendars and contacts of {account} are kept"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Where the card says the key is: MailCraft doesn't fetch it."
@@ -21368,6 +21468,11 @@ msgstr "Ahol a kártya azt mondja, hogy a kulcs: MailCraft nem hozza el."
 #, fuzzy
 msgid "Where they differ, the kept contact has:"
 msgstr "Amennyiben ezek különböznek, a fenntartott kapcsolat:"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "Where this account's calendars and contacts are kept"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -26473,6 +26578,13 @@ msgid "{n} calendar item selected"
 msgid_plural "{n} calendar items selected"
 msgstr[0] "{n} naptárelem kijelölve"
 msgstr[1] "{n} naptárelem kijelölve"
+
+#. interface
+#: crates/ui-egui/src/dav_settings.rs
+msgid "{n} calendar or address book read"
+msgid_plural "{n} calendars and address books read"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says
 #: crates/engine/src/undo.rs
