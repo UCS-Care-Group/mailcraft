@@ -25186,3 +25186,1231 @@ msgstr "«{subject}» var for stor til å lastes ned: bare hodet er her, så den
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» ble ikke funnet på serveren, så den kan ikke videresendes som vedlegg"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "DOMAIN\\user or you@example.org; empty for your address"
+msgstr "DOMENE\\\\bruker eller du@example.org; tomt for din egen adresse"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out 1 message of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries it again"
+msgstr "Utelater 1 melding fra «{name}» som ikke kunne lastes ned i {tries} kjøringer; Prøv overhoppede meldinger igjen gjør et nytt forsøk"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Leaving out {count} messages of \"{name}\" that failed to download in {tries} runs; Retry Skipped Messages tries them again"
+msgstr "Utelater {count} meldinger fra «{name}» som ikke kunne lastes ned i {tries} kjøringer; Prøv overhoppede meldinger igjen gjør et nytt forsøk"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "MailCraft will make one appointment called \"MailCraft connection check\" in the calendar of {account}, a year from today. It reads it back, changes its time twice (the second time said in this computer's time zone), reads it back each time, and deletes it again. Nothing else in your calendar is read or changed, nobody is invited or written to, and no reminder is set. Afterwards you see what the server answered at each step, and whether what was sent is what the server has."
+msgstr "MailCraft lager én avtale som heter «MailCraft connection check» i kalenderen til {account}, ett år fra i dag. Den leses tilbake, tiden endres to ganger (den andre gangen oppgitt i denne datamaskinens tidssone), den leses tilbake hver gang, og den slettes igjen. Ingenting annet i kalenderen din leses eller endres, ingen inviteres eller får noe, og ingen påminnelse settes. Etterpå ser du hva serveren svarte ved hvert trinn, og om det som ble sendt, er det serveren har."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Makes one test appointment a year from today in your account's calendar, changes it and deletes it again, and shows what the server answered"
+msgstr "Lager én testavtale ett år fra i dag i kalenderen til kontoen din, endrer den og sletter den igjen, og viser hva serveren svarte"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Opened with {owner}'s sign-in. It needs Full Access to the mailbox, which your organisation's administrator gives. Microsoft asks you once to let MailCraft read and change shared mailboxes. What you change in it goes to it. Mail you write in it is from its address, and sending as it needs Send As or Send on Behalf permission: Microsoft asks you once more at your first send."
+msgstr "Åpnet med påloggingen til {owner}. Det krever full tilgang til postkassen, som administratoren i organisasjonen din gir. Microsoft spør deg én gang om å la MailCraft lese og endre delte postkasser. Det du endrer i den, går til den. E-post du skriver der, er fra adressen dens, og å sende som den krever rettigheten Send som eller Send på vegne av: Microsoft spør deg én gang til ved din første sending."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
+msgstr "Lest med påloggingen til {owner}, så lenge du beholder den: personen må ha delt kalenderen sin med deg. Den ligger bare på denne datamaskinen: den vises ikke i Outlook eller på de andre enhetene dine. Microsoft spør deg én gang om å la MailCraft lese andres kalendere."
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+#, fuzzy
+msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
+msgstr "Si hva som skal åpnes: `message` eller `event` med id-en, `compose` (en melding som skrives) med id-en, eller `new` («appointment» eller «meeting»)"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
+msgstr "Domenet {domain} oppgir en server for Exchange sitt automatiske oppsett (Autodiscover), så dette ser ut som en Exchange-serverkonto. Skriv passordet og trykk Koble til: MailCraft leter etter serveren og sjekker kontoen. Ingenting sendes før det."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "The domain {domain} names a server for automatic setup (Autodiscover). Exchange servers are found that way, and some hosting providers use it for their IMAP mail too. Which is yours? Only the DNS was asked to find it, never the server itself."
+msgstr "Domenet {domain} oppgir en server for automatisk oppsett (Autodiscover). Exchange-servere finnes slik, og noen webhoteller bruker det for IMAP-e-posten sin også. Hvilken er din? Bare DNS-en er spurt for å finne den, aldri serveren selv."
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr "Videresendingen av flere meldinger som ventet, ble avbrutt: en annen nedlasting tok plassen."
+
+#. what a command says
+#: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
+msgid "The merged contact would have more certificates and keys than a contact holds (at most {max}, the kept contact has {had}), so the contacts aren't merged."
+msgstr "Den sammenslåtte kontakten ville få flere sertifikater og nøkler enn en kontakt har plass til (høyst {max}, den beholdte kontakten har {had}), så kontaktene flettes ikke."
+
+#. what a command says
+#: crates/engine/src/cmd/people_merge.rs
+#, fuzzy
+msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
+msgstr "Feltet {field} i den sammenslåtte kontakten ville bli for stort ({now}, høyst {max}), så kontaktene flettes ikke. Velg {field} fra én av kontaktene, eller gjør dem kortere først."
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over 1 message of \"{name}\""
+msgstr "Serveren overleverte ikke 1 melding fra «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server didn't hand over {count} messages of \"{name}\""
+msgstr "Serveren overleverte ikke {count} meldinger fra «{name}»"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server has at least {total} folders: one run reads the first {max}, and leaves out the rest, from \"{first}\" on"
+msgstr "Serveren har minst {total} mapper: én kjøring leser de første {max}, og utelater resten, fra «{first}» og utover"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server has at least {total} folders: their list was too long to read whole, and the folders after them were left out"
+msgstr "Serveren har minst {total} mapper: listen var for lang til å leses i sin helhet, og mappene etter dem ble utelatt"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "The server has {total} folders: one run reads the first {max}, and leaves out the other {left}, from \"{first}\" on"
+msgstr "Serveren har {total} mapper: én kjøring leser de første {max}, og utelater de andre {left}, fra «{first}» og utover"
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "The test appointment (\"MailCraft connection check\", a year from today) could not be deleted: please delete it in the calendar. Nothing else was read or changed."
+msgstr "Testavtalen («MailCraft connection check», ett år fra i dag) kunne ikke slettes: slett den i kalenderen. Ingenting annet ble lest eller endret."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The {n} shared mailboxes opened through it are removed from this device too."
+msgstr "De {n} delte postkassene som åpnes gjennom den, fjernes fra denne enheten også."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)"
+msgstr "Favorittene til denne kontoen kommer fra Outlook og endres der (Fil › Innstillinger kan vise dem som ligger i MailCraft i stedet)"
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
+msgstr "Kalenderen til denne kontoen kan ikke spørres ennå: send/motta logger den inn først."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+msgstr "Serveren til denne kontoen holder denne kontakten. Endringer som gjøres her, er ikke sendt tilbake ennå, så den kan ikke redigeres eller slettes her. Favoritt og kategorier holdes på denne datamaskinen."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there."
+msgstr "Denne hendelsen holdes av serveren til {who}. Den kan flyttes til en annen kalender i den kontoen, ikke ut av den: å ta den ut ville slette den der."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This invitation has the ID of a meeting on your calendar but isn't from its organizer, so it can't change that meeting. To answer, open the meeting on your calendar and answer there."
+msgstr "Denne invitasjonen har ID-en til et møte i kalenderen din, men er ikke fra arrangøren, så den kan ikke endre det møtet. For å svare, åpne møtet i kalenderen din og svar der."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr "Denne invitasjonen har ID-en til et møte i kalenderen din, men navngir en annen arrangør, så den kan ikke endre det møtet."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_extra.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which a copy would be without: it can't be copied from here."
+msgstr "Dette elementet har filer vedlagt, som bare serveren holder og som en kopi ville mangle: det kan ikke kopieres herfra."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This item has files attached, which only the server keeps and which would be lost: it can't be moved to another calendar from here."
+msgstr "Dette elementet har filer vedlagt, som bare serveren holder og som ville gå tapt: det kan ikke flyttes til en annen kalender herfra."
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
+msgid "This makes, changes and deletes a test appointment in the account's real calendar. Say that this is meant with \"confirmed\": true."
+msgstr "Dette lager, endrer og sletter en testavtale i den virkelige kalenderen til kontoen. Si at dette er ment med «confirmed»: true."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
+msgid "This meeting is kept by the server of {who}, and somebody else organizes it. Whether it is held online is for its organizer to say."
+msgstr "Dette møtet holdes av serveren til {who}, og noen andre arrangerer det. Om det holdes på nettet, er opp til arrangøren."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "This meeting is kept by the server of {who}, and somebody else organizes it. {why}"
+msgstr "Dette møtet holdes av serveren til {who}, og noen andre arrangerer det. {why}"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "This meeting isn't on the account's calendar here yet: its server puts it there, and it hasn't come down. Answer it from the calendar once it shows."
+msgstr "Dette møtet er ikke i kalenderen til kontoen her ennå: serveren legger det der, og det er ikke kommet ned. Svar på det fra kalenderen når det vises."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "This meeting isn't on your calendar here yet. It can be answered as soon as it shows there."
+msgstr "Dette møtet er ikke i kalenderen din her ennå. Det kan besvares så snart det vises der."
+
+#. interface
+#: crates/ui-egui/src/reading/view.rs
+#, fuzzy
+msgid "This picture is on its way, or was left out: a message gets only so many."
+msgstr "Dette bildet er på vei, eller ble utelatt: en melding får bare så mange."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here."
+msgstr "Denne {what} holdes av serveren til {who}. Endringer som gjøres her, er ikke sendt tilbake ennå, så det kan ikke endres eller slettes her."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "To open an attachment, MailCraft first asks the desktop what kind of file it is, and neither gio (from GLib) nor kmimetypefinder (from KDE) is installed. Install one of them, or save the attachment with Save As."
+msgstr "For å åpne et vedlegg spør MailCraft først skrivebordet hva slags fil det er, og verken gio (fra GLib) eller kmimetypefinder (fra KDE) er installert. Installer en av dem, eller lagre vedlegget med Lagre som."
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Typing * or - and a space at the start of a line starts a bulleted list, 1. or 1) a numbered one. Undo puts what you typed back."
+msgstr "Å skrive * eller - og et mellomrom i starten av en linje starter en punktliste, 1. eller 1) en nummerliste. Angre setter tilbake det du skrev."
+
+#. interface
+#: crates/ui-egui/src/reading/unsubscribe.rs
+#, fuzzy
+msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
+msgstr "Melder av: {click} med ett klikk, {mail} på e-post, {pages} som gjøres på deres egen side, {left} utelatt."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+#, fuzzy
+msgid "What happened and what you expected come to {n} characters together: a report takes {max}."
+msgstr "Det som skjedde og det du forventet, blir til sammen {n} tegn: en rapport tar {max}."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "What {domain} publishes for mail programs names {hosts} as its mail server, which isn't in your address's own domain."
+msgstr "Det {domain} publiserer for e-postprogrammer, oppgir {hosts} som e-postserver, som ikke er i domenet til adressen din."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "Which keys your GnuPG trusts fully, last read: {when}. It is read again when MailCraft comes back to the front, and by Refresh."
+msgstr "Hvilke nøkler GnuPG-en din stoler fullt på, sist lest: {when}. Det leses igjen når MailCraft kommer til forgrunnen, og ved Oppdater."
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "Your domain's DNS points its autodiscover name at {host}, but doesn't name it in the record for Exchange's automatic setup. It may be a web host rather than your organisation's mail server."
+msgstr "DNS-en til domenet ditt peker autodiscover-navnet sitt på {host}, men navngir det ikke i oppføringen for Exchange sitt automatiske oppsett. Det kan være et webhotell snarere enn e-postserveren til organisasjonen din."
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Your organisation keeps this permission for its administrators to give. Once one of them has approved it, choose it again here. Until then the Favorites kept in MailCraft are shown."
+msgstr "Organisasjonen din holder denne tillatelsen for at administratorene skal gi den. Når en av dem har godkjent den, velg den igjen her. Til da vises favorittene som ligger i MailCraft."
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation's administrator has to approve MailCraft keeping this mailbox in step with Outlook once: File › Info"
+msgstr "Administratoren i organisasjonen din må godkjenne at MailCraft holder denne postkassen i takt med Outlook én gang: Fil › Info"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "Your organisation's administrator has to approve MailCraft reading shared mailboxes and calendars once: File › Info"
+msgstr "Administratoren i organisasjonen din må godkjenne at MailCraft leser delte postkasser og kalendere én gang: Fil › Info"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
+#, fuzzy
+msgid "Your organisation's rules (Conditional Access) don't allow MailCraft to sign you in on this phone. This is your organisation's policy, not a fault in MailCraft or in your phone. Ask the people who run your organisation's mail whether sign-in from this kind of app can be allowed."
+msgstr "Reglene til organisasjonen din (betinget tilgang) tillater ikke at MailCraft logger deg inn på denne telefonen. Dette er retningslinjen til organisasjonen din, ikke en feil i MailCraft eller i telefonen din. Spør dem som drifter e-posten til organisasjonen din om pålogging fra denne typen app kan tillates."
+
+#. interface
+#: crates/ui-egui/src/favorites_sync.rs
+#, fuzzy
+msgid "`answer.folders` is a list of {path, kind}"
+msgstr "`answer.folders` er en liste med {path, kind}"
+
+#. interface
+#: crates/ui-egui/src/security.rs
+#, fuzzy
+msgid "`format` is \"smime\" or \"openpgp\""
+msgstr "`format` er «smime» eller «openpgp»"
+
+#. interface
+#: crates/ui-egui/src/keep_offline.rs
+#, fuzzy
+msgid "`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"
+msgstr "`keepOffline` er 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y eller all"
+
+#. interface
+#: crates/ui-egui/src/updates.rs
+#, fuzzy
+msgid "`notice` is installsItself or didntStart"
+msgstr "`notice` er installsItself eller didntStart"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "a .pst file is being imported into this mailbox: wait for it to finish, then save to another place"
+msgstr "en .pst-fil importeres nå inn i denne postkassen: vent til den er ferdig, og lagre så til et annet sted"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+#, fuzzy
+msgid "a .pst file is imported into a calendar of your own on this computer only, never an account on a server or a subscribed calendar"
+msgstr "en .pst-fil importeres inn i en kalender du eier, bare på denne datamaskinen, aldri en konto på en server eller en abonnert kalender"
+
+#. what a command says
+#: crates/engine/src/import_pst.rs
+#, fuzzy
+msgid "a .pst file is imported into a folder on this computer only, never an account on a server or an Outbox"
+msgstr "en .pst-fil importeres inn i en mappe bare på denne datamaskinen, aldri en konto på en server eller en utboks"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
+msgstr "serveren og adressen til en JMAP-konto kan ikke endres når e-posten er her: fjern den og legg til den andre"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "a day of the series is needed to move one of its occurrences"
+msgstr "det trengs en dag i serien for å flytte en av forekomstene"
+
+#. what a command says
+#: crates/model/src/mailbox_followup.rs
+#, fuzzy
+msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
+msgstr "et utkast kan ikke ha en påminnelse: send det først, eller bruk Følg opp i selve meldingen"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "a favourite can't be put before itself"
+msgstr "en favoritt kan ikke settes foran seg selv"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a folder is put among the folders beside it: name one with the same parent"
+msgstr "en mappe settes blant mappene ved siden av seg: navngi en med samme overordnede"
+
+#. what a command says
+#: crates/model/src/rich.rs crates/model/src/rich/body.rs
+#, fuzzy
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr "en lenke går til en adresse som https://..., mailto:... eller ms-settings:..., aldri javascript:, vbscript:, data: eller file:"
+
+#. what a command says
+#: crates/engine/src/cmd/junk.rs
+#, fuzzy
+msgid "a list holds {n} entries at most"
+msgstr "en liste har høyst {n} oppføringer"
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "a message is saved in the background by the window's own timer alone"
+msgstr "en melding lagres i bakgrunnen av vinduets egen tidtaker alene"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/imap/mod.rs
+#, fuzzy
+msgid "a message that isn't on the server has no flags there"
+msgstr "en melding som ikke er på serveren, har ingen flagg der"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they are Microsoft 365's"
+msgstr "en personlig Microsoft-konto (Outlook.com) har ingen delte postkasser: de er Microsoft 365 sine"
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a picture in a message is at most {mb} MB"
+msgstr "et bilde i en melding er høyst {mb} MB"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction can't be sent to a draft or to mail you wrote"
+msgstr "en reaksjon kan ikke sendes til et utkast eller til e-post du har skrevet"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction is sent only from IMAP, JMAP and local accounts, not from a Microsoft or Exchange server account"
+msgstr "en reaksjon sendes bare fra IMAP-, JMAP- og lokale kontoer, ikke fra en Microsoft- eller Exchange-serverkonto"
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "a reaction isn't sent to automated mail (a no-reply address, a mailing list, bulk mail)"
+msgstr "en reaksjon sendes ikke til automatisert e-post (en no-reply-adresse, en e-postliste, masseutsendelse)"
+
+#. what a command says
+#: crates/engine/src/cmd/auto_replies.rs
+#, fuzzy
+msgid "a reply may be {most} characters long at most"
+msgstr "et svar kan være høyst {most} tegn langt"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule is for an account's own mail, not a shared mailbox's"
+msgstr "en regel gjelder en kontos egen e-post, ikke en delt postkasses"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule of one account can't go to another account's server"
+msgstr "en regel i én konto kan ikke gå til serveren til en annen konto"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
+msgstr "en regel som venter på å gå til serveren, går etter dem som er der; den kan flyttes når den er der"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "a sender address has no e-mail address"
+msgstr "en avsenderadresse har ingen e-postadresse"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
+msgstr "en delt postkasse spør før den sletter en samtale, slik kontoen den åpnes gjennom gjør: endre den kontoens"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox can't open another one: name the account it is opened through"
+msgstr "en delt postkasse kan ikke åpne en annen: navngi kontoen den åpnes gjennom"
+
+#. what a command says
+#: crates/model/src/mailbox_snooze.rs
+#, fuzzy
+msgid "a shared mailbox has no Snoozed folder"
+msgstr "en delt postkasse har ingen Utsatt-mappe"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
+msgstr "en delt postkasse holder like mye e-post frakoblet som kontoen den åpnes gjennom: endre den kontoens"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "a shared mailbox keeps as much mail offline as the account it is opened through: name that account"
+msgstr "en delt postkasse holder like mye e-post frakoblet som kontoen den åpnes gjennom: navngi den kontoen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "a shared mailbox stays under the account it is opened through: move that account"
+msgstr "en delt postkasse blir under kontoen den åpnes gjennom: flytt den kontoen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox's address can't be changed: remove it and add the other one"
+msgstr "adressen til en delt postkasse kan ikke endres: fjern den og legg til den andre"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a shared mailbox's rules are its own: this version doesn't make them"
+msgstr "reglene til en delt postkasse er dens egne: denne versjonen lager dem ikke"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: add its pictures with signature.picture.add"
+msgstr "en signatur er åpen: legg til bildene med signature.picture.add"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+#, fuzzy
+msgid "a signature is open: size its pictures with signature.picture.set"
+msgstr "en signatur er åpen: sett størrelsen på bildene med signature.picture.set"
+
+#. what a command says
+#: crates/model/src/signature.rs
+#, fuzzy
+msgid "a signature's pictures are PNG, JPEG or GIF (many mail programs can't show other kinds)"
+msgstr "bildene i en signatur er PNG, JPEG eller GIF (mange e-postprogrammer kan ikke vise andre slag)"
+
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "add an Exchange server account first: its organisation's address list is searched"
+msgstr "legg til en Exchange-serverkonto først: adresselisten til organisasjonen søkes i"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "serveren, adressen og brukernavnet til en Exchange-serverkonto kan ikke endres når e-posten er her: fjern den og legg til den andre"
+
+#. what a command says
+#: crates/model/src/signature.rs
+#, fuzzy
+msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
+msgstr "en HTML-signatur viser bilder bare fra nettadressen deres: fjern bildene i denne signaturen først"
+
+#. what a command says
+#: crates/model/src/signature.rs
+#, fuzzy
+msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
+msgstr "en HTML-signatur viser bilder fra nettadressen deres: bytt den til formatert tekst for å legge til ett"
+
+#. what a command says
+#: crates/engine/src/digital_signature.rs
+#, fuzzy
+msgid "an S/MIME certificate is trusted through its certification authority and isn't marked Verified"
+msgstr "et S/MIME-sertifikat er klarert gjennom sertifiseringsmyndigheten og er ikke merket som bekreftet"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
+msgstr "en konto blir en JMAP-konto, eller slutter å være det, bare ved å fjernes og legges til igjen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
+msgstr "en konto blir en Exchange-serverkonto, eller slutter å være det, bare ved å fjernes og legges til igjen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an account can't be put before itself"
+msgstr "en konto kan ikke settes foran seg selv"
+
+#. interface, what a command says
+#: crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup/senders.rs
+#, fuzzy
+msgid "an account has {max} sender addresses at most"
+msgstr "en konto har høyst {max} avsenderadresser"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "categorize it as {category}"
+msgstr "kategoriser det som {category}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "category is {words}"
+msgstr "kategorien er {words}"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "close a conversation first: each of the 1,000 open has a message selected"
+msgstr "lukk en samtale først: hver av de 1 000 åpne har en melding valgt"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "comes once Google has reviewed MailCraft"
+msgstr "kommer når Google har vurdert MailCraft"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to a folder that is gone"
+msgstr "kopier den til en mappe som er borte"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "copy it to {folder} - {who}"
+msgstr "kopier den til {folder} – {who}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "folder {p} is not that account's"
+msgstr "mappen {p} er ikke den kontoens"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "from contains {words}"
+msgstr "fra inneholder {words}"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "from {from} to {to}"
+msgstr "fra {from} til {to}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "from {words}"
+msgstr "fra {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "importance is {level}"
+msgstr "viktigheten er {level}"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two conditions of one kind, and the server would take either of them rather than both"
+msgstr "den har to betingelser av samme slag, og serveren ville tatt én av dem i stedet for begge"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two exceptions of one kind that look for different things, and the server takes one"
+msgstr "den har to unntak av samme slag som leter etter ulike ting, og serveren tar ett"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to a folder that is gone"
+msgstr "flytt den til en mappe som er borte"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "move it to {folder} - {who}"
+msgstr "flytt den til {folder} – {who}"
+
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "no account is kept in step over JMAP"
+msgstr "ingen konto holdes i takt over JMAP"
+
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "no account is kept in step through Microsoft Graph"
+msgstr "ingen konto holdes i takt gjennom Microsoft Graph"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no folder with id {p}"
+msgstr "ingen mappe med id {p}"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "no message with id {id} in {name}"
+msgstr "ingen melding med id {id} i {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "no {folder} folder"
+msgstr "ingen {folder}-mappe"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "only the Inbox of a Gmail account whose categories are shown, and sorted by Gmail, has Gmail's categories"
+msgstr "bare innboksen til en Gmail-konto hvis kategorier vises og er sortert av Gmail, har Gmails kategorier"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "replies can go to at most {n} addresses"
+msgstr "svar kan gå til høyst {n} adresser"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_switch.rs
+#, fuzzy
+msgid "save the mailbox to a file first: the switch keeps a copy of it beside that file"
+msgstr "lagre postkassen til en fil først: byttet beholder en kopi av den ved siden av den filen"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "sensitivity is {level}"
+msgstr "sensitiviteten er {level}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "set importance to {level}"
+msgstr "sett viktigheten til {level}"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "shared mailboxes open under an account that is kept in step through Microsoft Graph"
+msgstr "delte postkasser åpnes under en konto som holdes i takt gjennom Microsoft Graph"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "that is the account's own address: name the shared mailbox's"
+msgstr "det er den kontoens egen adresse: navngi den delte postkassens"
+
+#. interface
+#: crates/ui-egui/src
+#, fuzzy
+msgid "that mailbox is open in another MailCraft window; close it there first"
+msgstr "den postkassen er åpen i et annet MailCraft-vindu; lukk den der først"
+
+#. what a command says
+#: crates/engine/src/cmd/edit.rs
+#, fuzzy
+msgid "that step changes a message that is open for writing: close it first"
+msgstr "det trinnet endrer en melding som er åpen for skriving: lukk den først"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "the list shows every account's folder: open one account's folder, or name the folder"
+msgstr "listen viser mappene til alle kontoer: åpne mappene til én konto, eller navngi mappen"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the sender's address is longer than a rule looks for ({n} characters)"
+msgstr "avsenderens adresse er lengre enn en regel leter etter ({n} tegn)"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the series \"{title}\" doesn't happen on {date}"
+msgstr "serien «{title}» forekommer ikke {date}"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar/selection.rs
+#, fuzzy
+msgid "the series doesn't happen on {date}"
+msgstr "serien forekommer ikke {date}"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't keep the rules in that order: a rule it doesn't let be changed leaves no free place for them"
+msgstr "serveren kan ikke holde reglene i den rekkefølgen: en regel den ikke lar endre, gir ingen ledig plass til dem"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server doesn't let the rule next to it be moved"
+msgstr "serveren lar ikke regelen ved siden av flyttes"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/line.rs
+#, fuzzy
+msgid "the server sent a line longer than {kb} KB"
+msgstr "serveren sendte en linje lengre enn {kb} KB"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "this Send/Receive was for the server {name} named before"
+msgstr "denne sendingen/mottakelsen var for serveren {name} nevnte før"
+
+#. what a command says
+#: crates/engine/src/cmd/dav_account.rs
+#, fuzzy
+msgid "this account has no calendar and contacts server of its own: a Microsoft account keeps its calendars through Microsoft, and a shared mailbox follows its owner's"
+msgstr "denne kontoen har ingen egen kalender- og kontaktserver: en Microsoft-konto holder kalenderne sine gjennom Microsoft, og en delt postkasse følger eierens"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "this account has no {folder} folder"
+msgstr "denne kontoen har ingen {folder}-mappe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
+msgstr "denne kontoen sender ingen e-post, så en melding kan ikke vente på et tidspunkt: send den nå, eller lagre den som et utkast"
+
+#. what a command says
+#: crates/engine/src/cmd/file.rs
+#, fuzzy
+msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
+msgstr "denne postkassen er for stor ({mb} MB) til å lagres som én selvstendig fil: lagre den til en annen mappe i stedet, som holder innholdet i en mappe ved siden av filen"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+#, fuzzy
+msgid "was kept because the mailbox file beside it could not be removed: remove them together"
+msgstr "ble beholdt fordi postkassefilen ved siden av ikke kunne fjernes: fjern dem sammen"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
+msgstr "som sender e-posten sin: send denne meldingen fra en annen konto, eller lagre den som et utkast for å sende den fra den versjonen"
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft needs your permission first (File › Info › Ask again)."
+msgstr "MailCraft trenger tillatelse fra deg først (Fil › Info › Spør igjen)."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "MailCraft wasn't allowed to change them."
+msgstr "MailCraft fikk ikke endre dem."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "Microsoft no longer takes your sign-in."
+msgstr "Microsoft godtar ikke påloggingen din lenger."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgctxt "why automatic replies weren't changed"
+msgid "sign in again to let MailCraft read them (File › Info)."
+msgstr "logg inn på nytt for at MailCraft kan lese dem (Fil › Info)."
+
+#. what a command says
+#: crates/engine/src/cmd/react.rs
+#, fuzzy
+msgid "you already reacted to this message with {emoji}"
+msgstr "du har allerede reagert på denne meldingen med {emoji}"
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "{account} is switching to Microsoft Graph, but MailCraft can't reach its IMAP server to send what is waiting there first."
+msgstr "{account} bytter til Microsoft Graph, men MailCraft når ikke IMAP-serveren for å sende det som venter der først."
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "{account} now uses Microsoft Graph, and its mail is downloading again. A copy of your mailbox from before the switch is in {backup}."
+msgstr "{account} bruker nå Microsoft Graph, og e-posten lastes ned på nytt. En kopi av postkassen din fra før byttet ligger i {backup}."
+
+#. interface
+#: crates/ui-egui/src/graph_switch.rs
+#, fuzzy
+msgid "{account} stays on IMAP for now. To switch later, search the commands for \"Switch to Microsoft Graph\"."
+msgstr "{account} holder seg på IMAP foreløpig. For å bytte senere, søk i kommandoene etter «Bytt til Microsoft Graph»."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{address} and the mail kept for it on this device will be removed. Mail on the server is not touched."
+msgstr "{address} og e-posten som er lagret for den på denne enheten, blir fjernet. E-posten på serveren blir ikke rørt."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "{address} and the mail kept for it on this device will be removed. The shared mailbox on the server is not touched."
+msgstr "{address} og e-posten som er lagret for den på denne enheten, blir fjernet. Den delte postkassen på serveren blir ikke rørt."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "{address} is a shared mailbox that is open here: its calendars are listed with it."
+msgstr "{address} er en delt postkasse som er åpen her: kalenderne dens listes sammen med den."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} is no longer one of this account's sender addresses: choose another From"
+msgstr "{address} er ikke lenger en av avsenderadressene til denne kontoen: velg en annen Fra"
+
+#. what a command says
+#: crates/engine/src/cmd/junk.rs
+#, fuzzy
+msgid "{address} is one of your own addresses: your own mail isn't blocked"
+msgstr "{address} er en av dine egne adresser: din egen e-post blokkeres ikke"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{address} isn't one of this account's sender addresses (add it in Account Settings)"
+msgstr "{address} er ikke en av avsenderadressene til denne kontoen (legg den til i Kontoinnstillinger)"
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "{address}: {error}. It will try again at the next Send/Receive."
+msgstr "{address}: {error}. Det prøves igjen ved neste sending/mottakelse."
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
+msgid "{address}: {error}. See File › Info."
+msgstr "{address}: {error}. Se Fil › Info."
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{calendar} · This calendar can only be read"
+msgstr "{calendar} · Denne kalenderen kan bare leses"
+
+#. interface
+#: crates/ui-egui/src/credits.rs
+#, fuzzy
+msgid "{contributors} contributors · {commits} commits"
+msgstr "{contributors} bidragsytere · {commits} innsendinger"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+#, fuzzy
+msgid "{counted} · Paused until the next Send/Receive"
+msgstr "{counted} · Satt på pause til neste sending/mottakelse"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "{count} messages weren't searched in full: only their beginning is here until they download."
+msgstr "{count} meldinger ble ikke søkt i sin helhet: bare begynnelsen er her til de lastes ned."
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+#, fuzzy
+msgid "{folders} will be made under a new folder called {name} on this computer, with {messages}."
+msgstr "{folders} lages under en ny mappe som heter {name} på denne datamaskinen, med {messages}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "{folder} - {mailbox}"
+msgstr "{folder} – {mailbox}"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{from} – {to}, {year}"
+msgstr "{from} – {to}, {year}"
+
+#. interface
+#: crates/ui-egui/src/account_setup/exchange.rs
+#, fuzzy
+msgid "{host} is in your address's own domain, but it isn't the Autodiscover server your domain names. It may be a web site rather than your organisation's mail server."
+msgstr "{host} er i domenet til adressen din, men er ikke Autodiscover-serveren domenet ditt oppgir. Det kan være et nettsted snarere enn e-postserveren til organisasjonen din."
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+#, fuzzy
+msgid "{host} is set to use no encryption, which would show the password to anyone on the network; choose TLS or STARTTLS"
+msgstr "{host} er satt til å bruke ingen kryptering, noe som ville vist passordet til alle på nettverket; velg TLS eller STARTTLS"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "{host} is what Mozilla's ISP database lists for {domain}."
+msgstr "{host} er det ISP-databasen til Mozilla lister for {domain}."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "{host} is what {domain} publishes for mail programs (its autoconfig document)."
+msgstr "{host} er det {domain} publiserer for e-postprogrammer (autokonfigurasjonsdokumentet sitt)."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "{host} was found in the DNS records of {domain} (its SRV records)."
+msgstr "{host} ble funnet i DNS-oppføringene til {domain} (SRV-oppføringene)."
+
+#. interface
+#: crates/ui-egui/src/auto_replies.rs
+#, fuzzy
+msgid "{line} · MailCraft may change them"
+msgstr "{line} · MailCraft kan endre dem"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{line} · couldn't be read in the last run: {folders}"
+msgstr "{line} · kunne ikke leses i forrige kjøring: {folders}"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "{line} · the server's certificate needs your say"
+msgstr "{line} · sertifikatet til serveren trenger din avgjørelse"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "{month} {first} – {last}, {year}"
+msgstr "{month} {first} – {last}, {year}"
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} couldn't be read ({why})"
+msgstr "{name} kunne ikke leses ({why})"
+
+#. what a command says
+#: crates/engine/src/cmd/save_all.rs
+#, fuzzy
+msgid "{name} couldn't be saved: the folder has too many files of that name"
+msgstr "{name} kunne ikke lagres: mappen har for mange filer med det navnet"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "{name} has accepted this meeting."
+msgstr "{name} har godtatt dette møtet."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "{name} has declined this meeting."
+msgstr "{name} har avslått dette møtet."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{name} has no Exchange server address that can be used"
+msgstr "{name} har ingen Exchange-serveradresse som kan brukes"
+
+#. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "{name} has no JMAP server address that can be used"
+msgstr "{name} har ingen JMAP-serveradresse som kan brukes"
+
+#. what a command says
+#: crates/engine/src/io.rs
+#, fuzzy
+msgid "{name} has no events or tasks"
+msgstr "{name} har ingen hendelser eller oppgaver"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "{name} has tentatively accepted this meeting."
+msgstr "{name} har godtatt dette møtet foreløpig."
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "{name} is a JMAP account, and this version doesn't send and receive with one yet"
+msgstr "{name} er en JMAP-konto, og denne versjonen sender og mottar ikke med en ennå"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
+msgstr "{name} er en delt postkasse der kontoen er borte: fjern den og legg den til igjen"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{name} is being sent and received now. Use Stop."
+msgstr "{name} sendes og mottas nå. Bruk Stopp."
+
+#. interface, what a command says
+#: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is larger than {mb} MB"
+msgstr "{name} er større enn {mb} MB"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+#, fuzzy
+msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."
+msgstr "{name} er navnet til noen du kjenner, men denne meldingen kom fra {real}, som ikke er en av adressene deres."
+
+#. what a command says
+#: crates/engine/src/cmd/graph_switch.rs
+#, fuzzy
+msgid "{name} isn't a Microsoft account kept in step by IMAP"
+msgstr "{name} er ikke en Microsoft-konto som holdes i takt via IMAP"
+
+#. what a command says
+#: crates/engine/src/cmd/offline.rs
+#, fuzzy
+msgid "{name} isn't a Microsoft or Exchange server account"
+msgstr "{name} er ikke en Microsoft- eller Exchange-serverkonto"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
+msgid "{name} isn't a shared mailbox"
+msgstr "{name} er ikke en delt postkasse"
+
+#. what a command says
+#: crates/engine/src/cmd/shared.rs
+#, fuzzy
+msgid "{name} isn't a shared mailbox: remove it with account.remove"
+msgstr "{name} er ikke en delt postkasse: fjern den med account.remove"
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} isn't among the Favorites"
+msgstr "{name} er ikke blant favorittene"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{name} isn't an Exchange server account"
+msgstr "{name} er ikke en Exchange-serverkonto"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "{name} isn't an address a shared mailbox can be opened at"
+msgstr "{name} er ikke en adresse en delt postkasse kan åpnes på"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "{name} isn't connected to a mail server"
+msgstr "{name} er ikke koblet til en e-postserver"
+
+#. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "{name} isn't kept in step over JMAP"
+msgstr "{name} holdes ikke i takt over JMAP"
+
+#. what a command says
+#: crates/engine/src/cmd/graph_mail.rs
+#, fuzzy
+msgid "{name} isn't kept in step through Microsoft Graph"
+msgstr "{name} holdes ikke i takt gjennom Microsoft Graph"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{name} isn't waiting its turn in a Send/Receive"
+msgstr "{name} venter ikke på tur i en sending/mottakelse"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "{name} organizes this meeting; you are invited to it."
+msgstr "{name} arrangerer dette møtet; du er invitert til det."
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "{name} proposes another time for this meeting."
+msgstr "{name} foreslår en annen tid for dette møtet."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+#, fuzzy
+msgid "{name} proposes another time: {start} – {end}."
+msgstr "{name} foreslår en annen tid: {start} – {end}."
+
+#. interface
+#: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
+msgid "{name} shared a calendar with you."
+msgstr "{name} delte en kalender med deg."
+
+#. interface
+#: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
+msgid "{name} shared a calendar with you. It is in your calendar list."
+msgstr "{name} delte en kalender med deg. Den er i kalenderlisten din."
+
+#. what a command says
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "{name} stays at the top of its account's folders"
+msgstr "{name} blir øverst i mappene til kontoen sin"
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
+msgid "{name} tentatively accepted this meeting."
+msgstr "{name} godtok dette møtet foreløpig."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: it is not a file this app may read."
+msgstr "{name} ble ikke lagt ved: den er ikke en fil denne appen kan lese."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ShareLoad.kt
+#, fuzzy
+msgid "{name} was not attached: the files on a message can be 50 MB together."
+msgstr "{name} ble ikke lagt ved: filene i en melding kan være til sammen 50 MB."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "{name}, pending development"
+msgstr "{name}, venter på utvikling"
+
+#. what a command says
+#: crates/engine/src/io.rs
+#, fuzzy
+msgid "{name}: not a message file"
+msgstr "{name}: ikke en meldingsfil"
+
+#. what a command says
+#: crates/engine/src/io.rs
+#, fuzzy
+msgid "{name}: not a message, calendar or contact file MailCraft reads"
+msgstr "{name}: ikke en melding, kalender eller kontaktfil som MailCraft leser"
+
+#. what a command says
+#: crates/engine/src/composing.rs
+#, fuzzy
+msgid "{n} messages are being written already, the most there can be at once; send, save or close one first"
+msgstr "{n} meldinger skrives allerede, det er det meste som kan være samtidig; send, lagre eller lukk én først"
