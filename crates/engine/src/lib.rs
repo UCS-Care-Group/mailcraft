@@ -30,6 +30,9 @@ pub mod catalog;
 pub mod cmd;
 pub mod composing;
 mod conversations;
+pub mod correspondents;
+#[cfg(test)]
+mod correspondents_tests;
 pub mod counts;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod dav_raw;

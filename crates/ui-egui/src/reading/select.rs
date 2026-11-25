@@ -878,6 +878,7 @@ fn params(place: Place) -> Value {
         Place::Window(id) => json!({"window": id}),
         Place::Quote => json!({"quote": true}),
         Place::Preview => json!({"preview": true}),
+        Place::Chat(id) => json!({"chat": id}),
     }
 }
 
@@ -893,10 +894,16 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
 /// forgotten; where the pointer goes down says whom the keys are for; and the keys that are
 /// about a selection are acted on: Ctrl+C copies it, Escape lets go of it.
 pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_visible: bool) {
+    begin_in(app, ui, m, place, body_visible, None);
+}
+
+/// Like [`begin`], with an optional pointer-containment rectangle (`bounds`) when multiple messages
+/// share a scroll container (such as chat bubbles).
+pub(super) fn begin_in(app: &mut MailApp, ui: &Ui, m: &Message, place: Place, body_visible: bool, bounds: Option<Rect>) {
     let ctx = ui.ctx();
     let frame = super::images::frame(ctx);
     let viewport = ctx.viewport_id();
-    let inside = ui.rect_contains_pointer(ui.available_rect_before_wrap());
+    let inside = ui.rect_contains_pointer(bounds.unwrap_or_else(|| ui.available_rect_before_wrap()));
     let menus = egui::Popup::is_any_open(ctx);
     // Ctrl+A (Cmd+A on a Mac), by the modifiers the key's own event names.
     let select_all = |e: &egui::Event| matches!(e, egui::Event::Key { key: egui::Key::A, pressed: true, modifiers, .. } if modifiers.command && !modifiers.alt && !modifiers.shift);
@@ -1127,6 +1134,9 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 /// The place a command is about: the one it names, else the one the keys are for, else the
 /// reading pane.
 fn place_of(app: &MailApp, p: &Value) -> Result<Place, String> {
+    if let Some(id) = p.get("chat").and_then(Value::as_u64) {
+        return Ok(Place::Chat(id));
+    }
     match p.get("window") {
         None | Some(Value::Null) if p.get("pane").and_then(Value::as_bool) == Some(true) => Ok(Place::Pane),
         None | Some(Value::Null) => Ok(app.text_selection.focus.unwrap_or(Place::Pane)),
@@ -1263,6 +1273,7 @@ pub(crate) fn inspect(app: &MailApp, ctx: &egui::Context) -> Value {
             Place::Window(id) => json!(id),
             Place::Quote => json!("quote"),
             Place::Preview => json!("preview"),
+            Place::Chat(id) => json!(format!("chat:{id}")),
         };
         let zone = match state.selection.as_ref().map(|s| s.zone) {
             Some(Zone::Header) => "header",

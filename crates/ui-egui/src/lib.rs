@@ -80,6 +80,7 @@ pub mod calendar_view;
 pub mod category_sync;
 #[cfg(test)]
 mod category_sync_tests;
+pub mod chat_view;
 pub mod check_names;
 #[cfg(test)]
 mod check_names_tests;
@@ -93,6 +94,9 @@ mod close_to_tray_tests;
 pub mod compose;
 #[cfg(test)]
 mod confirm_ids_tests;
+pub mod contact_view;
+#[cfg(test)]
+mod contact_view_tests;
 pub mod control;
 pub mod credits;
 pub mod data_removal;
@@ -2001,6 +2005,8 @@ pub struct MailApp {
     pub(crate) resolving: Option<check_names::Resolving>,
     /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
     pub(crate) address_book: Option<address_book::AddressBook>,
+    /// Shared chat-style reading pane state (#1907).
+    pub(crate) chat_pane: chat_view::ChatPaneState,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -2192,6 +2198,7 @@ impl MailApp {
             free_busy: Default::default(),
             resolving: None,
             address_book: None,
+            chat_pane: Default::default(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2272,8 +2279,32 @@ impl MailApp {
         // Layout choices carry over; the folder, the day and the search start fresh.
         let saved = self.ui.view.clone();
         let v = &mut self.session.view;
-        (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
-            (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
+        (
+            v.sort,
+            v.sort_descending,
+            v.conversations,
+            v.contact_conversations,
+            v.contact_all_accounts,
+            v.reading_pane,
+            v.folder_pane,
+            v.calendar,
+            v.task_filter,
+        ) = (
+            saved.sort,
+            saved.sort_descending,
+            saved.conversations,
+            saved.contact_conversations,
+            saved.contact_all_accounts,
+            saved.reading_pane,
+            saved.folder_pane,
+            saved.calendar,
+            saved.task_filter,
+        );
+        if v.contact_conversations {
+            v.conversations = false;
+        }
+        v.selected_correspondent = None;
+        v.selected_correspondent_all_accounts = None;
         // How People and Tasks are arranged, likewise.
         v.people_sort = saved.people_sort;
         v.task_sort = saved.task_sort;

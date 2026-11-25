@@ -18,6 +18,9 @@ mod contact;
 pub mod contact_sync;
 #[cfg(test)]
 mod contact_sync_tests;
+pub mod correspondents;
+#[cfg(test)]
+mod correspondents_tests;
 pub mod dav;
 pub mod dav_down;
 mod dav_server;
@@ -77,6 +80,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use correspondents::{CorrespondentGroup, MAX_CORRESPONDENT_GROUPS, MAX_GROUP_ADDRESSES};
 pub use dav_down::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};

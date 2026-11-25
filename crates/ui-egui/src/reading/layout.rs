@@ -272,6 +272,8 @@ pub struct Laid {
     pub segs: Vec<u32>,
     /// The size of what is laid out so far. Wider than the width asked for when a data table needs it.
     pub size: Vec2,
+    /// Natural right edge of painted/selectable content before clamping up to `width`.
+    pub content_right: f32,
     pub done: bool,
     pub stats: Stats,
     width: f32,
@@ -364,7 +366,7 @@ impl Laid {
             cuts: &cuts,
             work: 0,
             stats: self.stats,
-            right: self.size.x,
+            right: self.content_right,
             // (A layout that was never made with `new` has no zoom: as it comes.)
             zoom: if self.zoom > 0.0 { self.zoom } else { 1.0 },
             fonts: Chooser::new(ctx),
@@ -382,6 +384,7 @@ impl Laid {
         self.stats = cx.stats;
         // The faces the message asked for and egui doesn't have yet are read.
         cx.fonts.finish(ctx);
+        self.content_right = cx.right;
         self.size = vec2(cx.right.max(self.width), flow.y);
         self.done = self.next >= blocks.len();
     }

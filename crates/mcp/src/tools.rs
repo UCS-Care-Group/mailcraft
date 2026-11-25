@@ -269,6 +269,8 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "from",
     "email",
     "address",
+    "addresses",
+    "key",
     "sender",
     "domain",
     "entry",

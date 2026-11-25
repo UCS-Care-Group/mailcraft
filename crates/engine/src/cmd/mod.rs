@@ -42,6 +42,7 @@ pub mod contacts_move;
 pub mod contacts_remote;
 #[cfg(test)]
 mod conversation_thread_tests;
+pub mod correspondents;
 pub mod dav_account;
 #[cfg(test)]
 mod dav_account_tests;
@@ -246,6 +247,7 @@ pub fn registry() -> Registry {
     v.extend(writing_tools::specs());
     v.extend(folder::specs());
     v.extend(view::specs());
+    v.extend(correspondents::specs());
     v.extend(calendar::specs());
     v.extend(calendar_extra::specs());
     v.extend(calendar_opened::specs());

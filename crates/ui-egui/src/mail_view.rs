@@ -121,9 +121,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // The reading pane's message being written (#286): one in a window of its own isn't here.
     let composing = crate::windows::compose_window::pane_compose(app).is_some_and(|c| app.session.compose_id() == Some(c));
     let pane = app.session.view.reading_pane;
+    let contact_mode = app.session.view.contact_conversations;
+    let draw_list = |app: &mut MailApp, ui: &mut Ui| {
+        if contact_mode {
+            crate::contact_view::show_list(app, ui);
+        } else {
+            list(app, ui);
+        }
+    };
     // The list takes the whole width when the reading pane is off, unless a message is being written.
     if pane == Pane::Off && !composing {
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| list(app, ui));
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| draw_list(app, ui));
         return;
     }
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
@@ -137,7 +145,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .size_range(120.0..=max)
             .resizable(true)
             .frame(frame)
-            .show(ui, |ui| list(app, ui));
+            .show(ui, |ui| draw_list(app, ui));
         app.hit.add("messageList", 0, shown.response.rect);
         // Only the owner's resize of the splitter changes the height kept, by a drag (its last frame
         // included) or through assistive technology: a window too short for it lays the list out
@@ -153,7 +161,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .size_range(240.0..=max)
             .resizable(true)
             .frame(frame)
-            .show(ui, |ui| list(app, ui));
+            .show(ui, |ui| draw_list(app, ui));
         app.ui.list_width = shown.response.rect.width();
     }
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
@@ -161,6 +169,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             // Each message being written has fields of its own (#286): two never share a caret.
             let compose = app.session.compose_id();
             ui.push_id(("compose", compose), |ui| crate::compose::show(app, ui));
+        } else if contact_mode {
+            crate::contact_view::show_reading(app, ui);
         } else {
             crate::reading::show(app, ui);
         }
@@ -337,6 +347,8 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
         crate::widgets::mi(ui, app, "Reverse Sort", "view.reverseSort", json!({}));
         let conv = app.session.view.conversations;
         crate::widgets::mi_check(ui, app, "Show as Conversations", conv, "view.conversations", json!({}));
+        let by_contact = app.session.view.contact_conversations;
+        crate::widgets::mi_check(ui, app, "Group by Address", by_contact, "view.contactConversations", json!({}));
         // The filters that have no tab of their own.
         ui.separator();
         for f in Filter::ALL {
