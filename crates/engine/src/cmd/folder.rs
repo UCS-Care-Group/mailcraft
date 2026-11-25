@@ -192,6 +192,8 @@ const FOLDER: &str = r#"{"id"?: number} (default: the folder in view). An `id` t
 pub const FROM_OUTLOOK: &str =
     "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)";
 
+/// (Not refused here while every account's folder of a kind is in view, #625: `folder.empty` that
+/// names its folder empties it then too, and one that names none is refused by [`target`].)
 fn can_empty(s: &Session) -> Option<&'static str> {
     if s.mailbox.count(s.view.folder) == 0 {
         return Some("the folder is already empty");
@@ -238,8 +240,16 @@ fn can_delete(s: &Session) -> Option<&'static str> {
     s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_NOT_DELETED_YET)
 }
 
+/// Why a folder command that names no folder does nothing while the list shows every account's
+/// folder of a kind (#625): which of them it would mean, nobody said.
+const UNIFIED: &str = "the list shows every account's folder: open one account's folder, or name the folder";
+
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let id = p::id_strict(v, "id")?.unwrap_or(s.view.folder);
+    let named = p::id_strict(v, "id")?;
+    if named.is_none() && crate::unified::of(s).is_some() {
+        return Err(fail(UNIFIED));
+    }
+    let id = named.unwrap_or(s.view.folder);
     s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
@@ -383,7 +393,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         }
         Some(_) => return Err(bad("`gmail` is primary, social, promotions, updates or forums")),
     };
-    if s.view.folder != id || s.view.module != Module::Mail || s.view.gmail != gmail {
+    // One account's folder: no longer every account's (#625).
+    let unified = s.view.unified.take().is_some();
+    if s.view.folder != id || s.view.module != Module::Mail || s.view.gmail != gmail || unified {
         s.view.folder = id;
         s.view.module = Module::Mail;
         s.view.gmail = gmail;
