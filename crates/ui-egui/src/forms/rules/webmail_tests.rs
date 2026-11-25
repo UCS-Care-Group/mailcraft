@@ -179,12 +179,19 @@ fn a_new_filter_is_added_and_one_changed_by_hand_stays_read_only() {
     let shown = h.state().session.sieve.get(&account).and_then(|k| k.elsewhere.clone()).unwrap();
     assert_eq!(shown.rules.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Spam", "ML-list", "Invoices"]);
 
-    // Changed by hand in the server's copy: that filter is shown, and can't be changed here.
+    // Changed by hand in the server's copy: that filter is shown, and isn't changed in the builder;
+    // its pencil opens its Sieve (#9999).
     own.lock().unwrap().0 = script().replace("fileinto \"Junk\";", "fileinto \"Junk\";\n    addflag \"\\\\Seen\";");
     h.state_mut().sieve_try_again(account);
     h.state_mut().poll_sieve();
     h.run_steps(3);
-    assert_eq!(pencils(&h), vec![false, true]);
+    assert_eq!(pencils(&h), vec![true, true]);
+    h.get_all_by_label("Change this rule").next().unwrap().click();
+    h.run_steps(3);
+    let filter = form(&mut h).sieve.as_ref().and_then(|e| e.own.as_ref()).and_then(|o| o.rule.as_ref()).map(|r| r.filter);
+    assert_eq!(filter, Some(true));
+    assert!(!form(&mut h).open);
+    assert!(h.query_by_label_contains("may put its version back").is_some());
     let tip = mailcraft_engine::sieve_rainloop::ReadOnly::Disagrees.said();
     assert!(mailcraft_engine::cmd::rules_webmail::read_only(&h.state().session, shown.rules[0].id).is_some_and(|w| w.said() == tip));
 }

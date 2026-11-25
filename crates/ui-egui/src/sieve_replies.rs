@@ -475,8 +475,9 @@ impl MailApp {
     /// After the engine ran `id`: a rule changed, so the script of each IMAP account whose server
     /// keeps rules is written again, once what the server has is known (#9999).
     pub(crate) fn sieve_after(&mut self, id: &str, r: Result<Value, String>) -> Result<Value, String> {
-        // The owner's own script, as the owner (or an agent the owner let) typed it (#9999).
-        if id == "sieve.putOwnScript" {
+        // The owner's own script, as the owner (or an agent the owner let) typed it, whole or one
+        // rule of it (#9999).
+        if id == "sieve.putOwnScript" || id == "sieve.putOwnBlock" {
             let answer = r?;
             let account = answer.get("account").and_then(Value::as_u64).unwrap_or_default();
             let sieve = answer.get("sieve").cloned().unwrap_or_default();

@@ -28,10 +28,19 @@
 //! (its line numbers are the script's own), and Save runs `sieve.putOwnScript`, which the host
 //! writes only while the server's script is the one read: else the editor says it changed there
 //! and offers Reload, and nothing is written. A note stays up while a webmail's marks are in it.
+//!
+//! **One rule as Sieve.** A rule of the owner's script opens on its own bytes alone ([`OwnRule`]):
+//! the comment lines right above it and its `if`/`elsif`/`else` chain, or in a webmail's filter its
+//! Sieve alone. It is checked as the script with it in place, its problems said at its own lines
+//! (those elsewhere in the script apart), Check sends that whole script to the server with its line
+//! numbers said as the rule's, and Save runs `sieve.putOwnBlock`, which the host writes as it
+//! writes the whole script. One of MailCraft's own rules that the rule builder can't show whole
+//! opens on the Sieve MailCraft writes for it, and Save makes it a Sieve rule (`rules.toSieve`).
 
 use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::{Align, Align2, FontId, Rect, Sense, Shape, Ui, pos2, vec2};
 use mailcraft_engine::cmd::rules_sieve::{ForCheck, ServerLine, editor_problems, for_server_check, server_lines};
+use mailcraft_engine::cmd::sieve_blocks;
 use mailcraft_engine::cmd::sieve_own::{self, Webmail};
 use mailcraft_engine::sieve::{MAX_SCRIPT, digest};
 use mailcraft_engine::sieve_check::Problem;
@@ -103,6 +112,20 @@ pub(crate) struct OwnScript {
     pub(crate) changed: bool,
     /// It is being read again (Reload).
     reloading: bool,
+    /// One rule of it, when that is what is edited, not the whole script.
+    pub(crate) rule: Option<OwnRule>,
+}
+
+/// One rule of the owner's own script, edited as its Sieve alone (#9999).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct OwnRule {
+    /// The rule, as the script was read.
+    pub(crate) id: Id,
+    pub(crate) name: String,
+    /// It is a filter of a webmail of the RainLoop kind: its settings stay as they are.
+    pub(crate) filter: bool,
+    /// Why the rule builder can't change it, when it can't.
+    pub(crate) no_form: Option<&'static str>,
 }
 
 /// A Sieve rule being written or changed.
@@ -131,6 +154,10 @@ pub struct SieveEditor {
     pub(crate) own: Option<OwnScript>,
     /// It was saved: the dialog closes the editor.
     pub(crate) closed: bool,
+    /// One of MailCraft's own rules (`id`), edited as Sieve: Save makes it a Sieve rule (#9999).
+    pub(crate) convert: bool,
+    /// The problems of the owner's script with a rule's text in place, elsewhere in the script.
+    outside: Vec<Problem>,
 }
 
 /// Whether Rules and Alerts offers Advanced… for `account`: its server keeps MailCraft's Sieve
@@ -170,6 +197,47 @@ impl SieveEditor {
         Some(SieveEditor { account, text: shown, focus: true, own: Some(own), ..Default::default() })
     }
 
+    /// A rule as Sieve (#9999): one of the owner's own script, on its bytes alone; or one of
+    /// MailCraft's own rules kept in its Sieve script, on the Sieve MailCraft writes for it. `None`
+    /// when it is neither, or has no Sieve.
+    pub(crate) fn as_sieve(app: &MailApp, id: Id) -> Option<SieveEditor> {
+        let s = &app.session;
+        if let Some(f) = sieve_blocks::find(s, id) {
+            if !sieve_blocks::text_offered(s, id) {
+                return None;
+            }
+            let text = sieve_blocks::block_text(&f);
+            let lf = text.matches('\n').count();
+            let crlf = if lf > 0 {
+                text.matches("\r\n").count() == lf && text.matches('\r').count() == lf
+            } else {
+                !text.contains('\r') && mailcraft_engine::sieve_rainloop::line_end(&f.script.text) == "\r\n"
+            };
+            let rule = OwnRule { id, name: f.rule.name.clone(), filter: f.span.filter, no_form: f.span.form.err().map(|w| w.said()) };
+            let own = OwnScript {
+                name: f.script.script.clone(),
+                digest: digest(&f.script.text),
+                read: text.to_string(),
+                crlf,
+                webmail: sieve_own::webmail(&f.script.text),
+                rule: Some(rule),
+                ..Default::default()
+            };
+            let shown = if crlf { text.replace("\r\n", "\n") } else { text.to_string() };
+            return Some(SieveEditor { account: f.account, text: shown, focus: true, own: Some(own), ..Default::default() });
+        }
+        let mb = &s.mailbox;
+        let r = mb.rules.iter().find(|r| r.id == id && convertible(mb, r))?;
+        let made = mailcraft_engine::cmd::sieve_rules::block(mb, r, r.account).ok()?;
+        let text = made.text.replace("\r\n", "\n");
+        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text, focus: true, convert: true, ..Default::default() })
+    }
+
+    /// Whether one rule of the owner's script is edited, not the whole.
+    fn one_rule(&self) -> Option<&OwnRule> {
+        self.own.as_ref().and_then(|o| o.rule.as_ref())
+    }
+
     /// The text as it would be written: with CRLF line breaks again where the script had them.
     pub(crate) fn written(&self) -> String {
         match &self.own {
@@ -185,7 +253,7 @@ impl SieveEditor {
 
     /// The problems that are mistakes (not warnings).
     fn errors(&self) -> usize {
-        self.problems.iter().filter(|p| !p.warning).count()
+        self.problems.iter().chain(&self.outside).filter(|p| !p.warning).count()
     }
 
     /// Whether the text is checked here as it is now.
@@ -227,7 +295,7 @@ impl SieveEditor {
             ctx.request_repaint_after(std::time::Duration::from_millis((QUIET_MS - quiet).clamp(1.0, QUIET_MS) as u64));
             return;
         }
-        self.check_here(&app.session.mailbox);
+        self.check_here(&app.session);
     }
 
     /// The owner's own script: what became of a save, and a reload once it is read.
@@ -256,7 +324,11 @@ impl SieveEditor {
                 ctx.request_repaint_after(std::time::Duration::from_millis(250));
                 return;
             }
-            match SieveEditor::own_script(app, account) {
+            let fresh = match own.rule.as_ref() {
+                Some(rule) => SieveEditor::as_sieve(app, rule.id).filter(|e| e.own.is_some()),
+                None => SieveEditor::own_script(app, account),
+            };
+            match fresh {
                 Some(fresh) => *self = fresh,
                 None => {
                     own.reloading = false;
@@ -276,7 +348,16 @@ impl SieveEditor {
 
     /// Check the text here now ([`editor_problems`], or for the owner's own script
     /// [`sieve_own::problems`]).
-    pub(crate) fn check_here(&mut self, mb: &Mailbox) {
+    pub(crate) fn check_here(&mut self, s: &mailcraft_engine::Session) {
+        let mb = &s.mailbox;
+        self.outside.clear();
+        if let Some(rule) = self.one_rule().map(|r| r.id) {
+            let found = sieve_blocks::block_problems(s, rule, &self.written());
+            self.problems = found.inside;
+            self.outside = found.outside;
+            self.checked = Some(self.text.clone());
+            return;
+        }
         self.problems = match mb.account(self.account) {
             Some(a) if self.own.is_some() && self.text.len() <= MAX_SCRIPT => sieve_own::problems(a, &self.text),
             Some(a) if self.text.len() <= MAX_SIEVE_RULE => editor_problems(a, &self.text),
@@ -289,7 +370,9 @@ impl SieveEditor {
     pub(crate) fn check_on_server(&mut self, app: &mut MailApp) {
         self.error.clear();
         // The owner's own script goes as it is: the server's line numbers are its own.
-        let made = if self.own.is_some() {
+        let made = if let Some(rule) = self.one_rule().map(|r| r.id) {
+            sieve_blocks::for_server_check(&app.session, rule, &self.written()).map_err(|e| app.refusal_said(&e.to_string()))
+        } else if self.own.is_some() {
             let script = self.written();
             let lines = script.matches('\n').count().saturating_add(1);
             Ok(ForCheck { script, first_line: 1, lines })
@@ -308,6 +391,12 @@ impl SieveEditor {
 
     /// The command Save runs, with its params.
     pub(crate) fn command(&self) -> (&'static str, Value) {
+        if let (Some(own), Some(rule)) = (&self.own, self.one_rule()) {
+            return ("sieve.putOwnBlock", json!({"id": rule.id, "text": self.written(), "digest": own.digest}));
+        }
+        if let (true, Some(id)) = (self.convert, self.id) {
+            return ("rules.toSieve", json!({"id": id, "name": self.name, "sieve": self.text}));
+        }
         if let Some(own) = &self.own {
             return ("sieve.putOwnScript", json!({"account": self.account, "text": self.written(), "digest": own.digest}));
         }
@@ -327,7 +416,7 @@ impl SieveEditor {
                 return Some(tl!("It changed on the server since you opened it: reload it first."));
             }
             if self.text.trim().is_empty() {
-                return Some(tl!("A Sieve script needs some Sieve."));
+                return Some(if own.rule.is_some() { tl!("A rule needs some Sieve.") } else { tl!("A Sieve script needs some Sieve.") });
             }
             if self.text.len() > MAX_SCRIPT {
                 return Some(tl!("A Sieve script is at most 1 MB."));
@@ -358,6 +447,7 @@ impl SieveEditor {
             ui.label(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim));
         };
         match &self.own {
+            Some(own) if own.rule.is_some() => self.rule_head(ui, &t),
             Some(own) => {
                 let title = crate::i18n::fmt(tl!("Your Sieve script \"{name}\""), &[("name", &shown(&own.name, 80))]);
                 ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
@@ -383,7 +473,13 @@ impl SieveEditor {
                 }
             }
             None => {
-                let title = if self.id.is_some() { tl!("Change Sieve rule") } else { tl!("New Sieve rule") };
+                let title = if self.convert {
+                    tl!("Edit rule as Sieve")
+                } else if self.id.is_some() {
+                    tl!("Change Sieve rule")
+                } else {
+                    tl!("New Sieve rule")
+                };
                 ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
                 dim(
                     ui,
@@ -391,6 +487,12 @@ impl SieveEditor {
                         "One block of Sieve (RFC 5228), run by the server in its place among your rules. MailCraft writes the require for it at the top of its script."
                     ),
                 );
+                if self.convert {
+                    let note = tl!(
+                        "This rule will be kept as Sieve text from now on: the rule builder no longer changes it. This is the Sieve MailCraft writes for it now."
+                    );
+                    ui.label(egui::RichText::new(note).font(regular(11.5)).color(t.orange));
+                }
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label(tl!("Name"));
@@ -412,6 +514,7 @@ impl SieveEditor {
             ui.label(egui::RichText::new(said).font(regular(11.0)).color(if used > cap { t.red } else { t.orange }));
         }
         self.problems_list(ui, &t);
+        self.outside_list(ui, &t);
         self.server_said(ui, &t);
         if self.own.as_ref().is_some_and(|o| o.changed) {
             ui.add_space(4.0);
@@ -429,7 +532,9 @@ impl SieveEditor {
             // (The owner's own script is saved through the server alone: Save waits as Check does.)
             let lacks = self.lacks().map(str::to_string).or_else(|| unavailable.clone().filter(|_| self.own.is_some()));
             let save = ui.add_enabled(lacks.is_none(), egui::Button::new(tl!("Save")));
-            let tip = if self.own.is_some() {
+            let tip = if self.one_rule().is_some() {
+                tl!("Write this text to the server in place of this rule; the rest of your script stays as it is")
+            } else if self.own.is_some() {
                 tl!("Write this text to the server in place of your script; it stays the one that runs")
             } else {
                 tl!("Keep this rule; it goes to the server with your other rules")
@@ -444,7 +549,7 @@ impl SieveEditor {
             }
             let busy = self.asking.is_some();
             let check = ui.add_enabled(unavailable.is_none() && !busy && !self.text.trim().is_empty(), egui::Button::new(tl!("Check")));
-            let tip = if self.own.is_some() {
+            let tip = if self.own.is_some() && self.one_rule().is_none() {
                 tl!("Ask the server whether it takes this script; nothing is changed there")
             } else {
                 tl!("Ask the server whether it takes this rule; nothing is changed there")
@@ -604,7 +709,7 @@ impl SieveEditor {
         let Some(said) = &self.server else { return };
         let stale = said.text != self.text;
         let dim = |c: egui::Color32| if stale { t.text_dim } else { c };
-        let whole = self.own.is_some();
+        let whole = self.own.is_some() && self.one_rule().is_none();
         let head = match &said.kind {
             Said::Fine if whole => tl!("The server takes this script.").to_string(),
             Said::Fine => tl!("The server takes this rule.").to_string(),
@@ -649,18 +754,90 @@ impl SieveEditor {
             }
         }
         if !whole && matches!(said.kind, Said::Warnings | Said::Errors) && said.lines.iter().any(|l| l.line.is_none()) {
-            ui.label(
-                egui::RichText::new(tl!(
-                    "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
-                ))
-                .font(regular(11.0))
-                .color(t.text_dim),
-            );
+            let note = if self.one_rule().is_some() {
+                tl!("The server checked the rule inside your whole script: its line numbers count from the top of that script.")
+            } else {
+                tl!("The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script.")
+            };
+            ui.label(egui::RichText::new(note).font(regular(11.0)).color(t.text_dim));
         }
         if goto.is_some() {
             self.goto = goto;
         }
     }
+}
+
+impl SieveEditor {
+    /// The head of the editor of one rule of the owner's script: which, what Save does, why the
+    /// rule builder can't change it, and a webmail that keeps its own copy.
+    fn rule_head(&self, ui: &mut Ui, t: &Tokens) {
+        let (Some(own), Some(rule)) = (&self.own, self.one_rule()) else { return };
+        let title = crate::i18n::fmt(
+            tl!("Rule \"{rule}\" of your Sieve script \"{name}\""),
+            &[("rule", &shown(&rule.name, 80)), ("name", &shown(&own.name, 80))],
+        );
+        ui.label(egui::RichText::new(title).font(crate::theme::semibold(12.5)).color(t.text));
+        let dim = |ui: &mut Ui, text: &str| {
+            ui.label(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim));
+        };
+        dim(
+            ui,
+            tl!(
+                "This rule's Sieve alone, as it is in your script. Save puts your text in its place and leaves the rest of the script as it is, only while the script on the server is still the one you opened."
+            ),
+        );
+        if let Some(why) = rule.no_form.filter(|_| !rule.filter) {
+            dim(ui, &crate::i18n::fmt(tl!("The rule builder can't change it: {why}."), &[("why", tl!(why))]));
+        }
+        let note = if rule.filter {
+            Some(tl!(
+                "Your webmail (RainLoop or SnappyMail) keeps its own copy of this filter's settings, which stay as they are. It may put its version back the next time filters are saved there, and MailCraft changes the filter only as Sieve from now on."
+            ))
+        } else if own.webmail.is_some() {
+            Some(tl!(
+                "This script was written by a webmail. It may overwrite or drop the changes you make here the next time its filters are saved there."
+            ))
+        } else {
+            None
+        };
+        if let Some(note) = note {
+            ui.label(egui::RichText::new(note).font(regular(11.5)).color(t.orange));
+        }
+    }
+
+    /// The mistakes the script would have elsewhere with this rule's text in place.
+    fn outside_list(&self, ui: &mut Ui, t: &Tokens) {
+        if !self.checked_now() {
+            return;
+        }
+        let lang = crate::i18n::current();
+        for p in self.outside.iter().filter(|p| !p.warning).take(MAX_LISTED) {
+            let said = crate::i18n::fmt(
+                tl!("Line {line} of your script, outside this rule: {what}"),
+                &[("line", &p.line.to_string()), ("what", &p.what().in_lang(lang))],
+            );
+            ui.label(egui::RichText::new(shown(&said, 300)).font(regular(11.5)).color(t.red));
+        }
+    }
+}
+
+/// Whether one of MailCraft's own rules can be edited as Sieve (#9999): kept in the Sieve script on
+/// its IMAP account's server, changeable, and said in Sieve.
+pub(crate) fn convertible(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
+    !r.is_sieve()
+        && r.keep == mailcraft_model::Keep::Server
+        && mb.account(r.account).is_some_and(mailcraft_model::Account::keeps_sieve)
+        && mailcraft_engine::cmd::rules::cannot_edit(mb, r).is_none()
+        && mailcraft_engine::cmd::sieve_rules::block(mb, r, r.account).is_ok()
+}
+
+/// Whether a rule can be edited as Sieve here: one of the owner's own script with some Sieve (not
+/// while a change of that script is saved), or one of MailCraft's own ([`convertible`]).
+pub(crate) fn text_offered(app: &MailApp, r: &mailcraft_model::Rule) -> bool {
+    if mailcraft_engine::cmd::sieve_elsewhere::is_elsewhere(r.id) {
+        return !app.sieve_own_busy(r.account) && sieve_blocks::text_offered(&app.session, r.id);
+    }
+    convertible(&app.session.mailbox, r)
 }
 
 /// The index in characters of `line`, `column` (both from 1) in `text`: the end of the line

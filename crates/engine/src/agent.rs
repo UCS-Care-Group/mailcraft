@@ -596,6 +596,11 @@ const SETTINGS: &[&str] = &[
     // mail or answer a sender asks as a send ([`own_script_sends`]).
     "sieve.ownScript",
     "sieve.putOwnScript",
+    // One rule of the owner's own script, read and written as Sieve text, and one of MailCraft's
+    // own rules made a Sieve rule (#9999): asked as a send as the two above are.
+    "sieve.ownBlock",
+    "sieve.putOwnBlock",
+    "rules.toSieve",
     "rules.remove",
     "rules.enable",
     "rules.list",
@@ -1075,6 +1080,7 @@ fn sieve_rule_sends(s: &Session, id: &str, params: &Value) -> bool {
     match id {
         "rules.addSieve" => crate::cmd::rules_sieve::sieve_rule_from_params(s, params).is_ok_and(|(r, ..)| sends(&r)),
         "rules.editSieve" => crate::cmd::rules_sieve::sieve_rule_edited(s, params).is_ok_and(|(_, r, _)| sends(&r)),
+        "rules.toSieve" => crate::cmd::sieve_blocks::to_sieve(s, params).is_ok_and(|(_, r, _)| sends(&r)),
         "rules.enable" => p::opt_bool(params, "value").is_ok_and(|value| {
             p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|x| x.id == r)).is_some_and(|r| {
                 let on = value.unwrap_or(!r.enabled);
@@ -1089,8 +1095,15 @@ fn sieve_rule_sends(s: &Session, id: &str, params: &Value) -> bool {
 /// a sender it didn't have ([`crate::cmd::sieve_own::adds_sending`], #9999). What the command
 /// refuses does nothing, and needs no question.
 fn own_script_sends(s: &Session, id: &str, params: &Value) -> bool {
-    id == "sieve.putOwnScript"
-        && crate::cmd::sieve_own::own_put(s, params).is_ok_and(|put| crate::cmd::sieve_own::adds_sending(&put.before, &put.text))
+    match id {
+        "sieve.putOwnScript" => {
+            crate::cmd::sieve_own::own_put(s, params).is_ok_and(|put| crate::cmd::sieve_own::adds_sending(&put.before, &put.text))
+        }
+        // One rule's text, against what it was (#9999).
+        "sieve.putOwnBlock" => crate::cmd::sieve_blocks::put_block(s, params)
+            .is_ok_and(|(_, sp, _)| crate::cmd::sieve_own::adds_sending(&sp.old, sp.script.get(sp.at.clone()).unwrap_or_default())),
+        _ => false,
+    }
 }
 
 /// The account a list kept in step with Outlook is, for the items of `account`, when MailCraft may
@@ -2210,7 +2223,9 @@ pub fn also(s: &Session, id: &str, params: &Value, class: Class) -> Vec<Class> {
             more
         }
         // A Sieve rule asked about as a send is a change of the rules too (#9999).
-        "rules.addSieve" | "rules.editSieve" | "sieve.putOwnScript" if class != Class::Settings => vec![Class::Settings],
+        "rules.addSieve" | "rules.editSieve" | "sieve.putOwnScript" | "sieve.putOwnBlock" | "rules.toSieve" if class != Class::Settings => {
+            vec![Class::Settings]
+        }
         // A change asked as a send for a rule beside it that puts mail onto another server, or
         // makes a category in Outlook, is still what it is besides: one of the Safe or Blocked
         // Senders a change of settings (#566, #661).
@@ -3411,6 +3426,9 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "rules.addSieve" | "rules.editSieve" => sieve_rule_text(s, id, params),
         "sieve.ownScript" => own_script_read_text(s, params),
         "sieve.putOwnScript" => own_script_text(s, params),
+        "sieve.ownBlock" => own_block_read_text(s, params),
+        "sieve.putOwnBlock" => own_block_text(s, params),
+        "rules.toSieve" => to_sieve_text(s, params),
         "rules.move" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
@@ -3870,7 +3888,9 @@ fn edit_text(s: &Session, params: &Value) -> String {
 /// are its owner's data, said as text.
 fn webmail_text(s: &Session, id: &str, params: &Value) -> String {
     use crate::cmd::rules_webmail as w;
-    let account = p::id(params, "account").or_else(|| p::id(params, "id").and_then(|r| w::find(s, r)).map(|f| f.account));
+    let account = p::id(params, "account")
+        .or_else(|| p::id(params, "id").and_then(|r| w::find(s, r)).map(|f| f.account))
+        .or_else(|| p::id(params, "id").and_then(|r| crate::cmd::sieve_blocks::find(s, r)).map(|f| f.account));
     let script = account.and_then(|a| crate::cmd::sieve_own::own_script(s, a)).map(|(name, _)| quoted(&plain(name))).unwrap_or_default();
     let on = account.and_then(|a| s.mailbox.account(a)).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
     let place = format!(
@@ -3882,6 +3902,18 @@ fn webmail_text(s: &Session, id: &str, params: &Value) -> String {
             Ok((_, r, _)) => format!("create the filter {} {place}: {}", quoted(&r.name), rule_words(s, &r)),
             Err(_) => "create a filter in your own Sieve script that can't be made as asked".to_string(),
         },
+        // A rule of the owner's own script that the builder changes, not a filter (#9999).
+        "rules.edit" if p::id(params, "id").and_then(|r| crate::cmd::sieve_blocks::find(s, r)).is_some_and(|f| !f.span.filter) => {
+            match crate::cmd::sieve_blocks::edited(s, params) {
+                Ok((_, b, after, _)) => {
+                    let renamed = if b.name == after.name { String::new() } else { format!(", naming it {}", quoted(&after.name)) };
+                    let place =
+                        format!("in your own Sieve script {script} on the server of {on}, which the server runs whether MailCraft is open or not");
+                    format!("change the rule {} {place}{renamed}, from {} to {}", quoted(&b.name), rule_words(s, &b), rule_words(s, &after))
+                }
+                Err(_) => "change a rule of your own Sieve script that can't be changed as asked".to_string(),
+            }
+        }
         "rules.edit" => match (w::edited(s, params), before) {
             (Ok((_, after, _)), Some(b)) => {
                 let renamed = if b.name == after.name { String::new() } else { format!(", naming it {}", quoted(&after.name)) };
@@ -4018,6 +4050,58 @@ fn own_script_reach(before: &str, after: &str) -> String {
     let old = crate::sieve_check::effects(before).unwrap_or_default();
     let added = new.into_iter().filter(|u| u.count > old.iter().find(|o| o.name == u.name).map_or(0, |o| o.count)).collect();
     sieve_reach(Some(added), "it adds a way to")
+}
+
+/// The question about `sieve.ownBlock` (#9999): which rule of whose script is read.
+fn own_block_read_text(s: &Session, params: &Value) -> String {
+    match p::id(params, "id").and_then(|r| crate::cmd::sieve_blocks::find(s, r)) {
+        Some(f) => {
+            let on = s.mailbox.account(f.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+            format!(
+                "read the rule {} of your own Sieve script {} on the server of {on}, as Sieve",
+                quoted(&plain(&f.rule.name)),
+                quoted(&plain(&f.script.script))
+            )
+        }
+        None => "read a rule of your own Sieve script that isn't there".to_string(),
+    }
+}
+
+/// The question about `sieve.putOwnBlock` (#9999): the rule, the owner's script and whose server it
+/// is on, whether the change adds a way to send mail or answer a sender, and what changes in the
+/// rule, line by line, said to be the agent's text: the owner reads what will run, never an
+/// instruction in it.
+fn own_block_text(s: &Session, params: &Value) -> String {
+    let Ok((_, sp, put)) = crate::cmd::sieve_blocks::put_block(s, params) else {
+        return "change a rule of your own Sieve script on the server in a way that can't be done as asked".to_string();
+    };
+    let name = p::id(params, "id").and_then(|r| crate::cmd::sieve_blocks::find(s, r)).map(|f| quoted(&plain(&f.rule.name))).unwrap_or_default();
+    let on = s.mailbox.account(put.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+    let new = sp.script.get(sp.at.clone()).unwrap_or_default();
+    let sends = own_script_reach(&sp.old, new);
+    let head = format!(
+        "change the rule {name} of your own Sieve script {} on the server of {on}, which the server runs whether MailCraft is open or not, made in another program{sends}",
+        quoted(&plain(&put.name))
+    );
+    if sp.old == new {
+        return format!("{head}; its text stays as it is");
+    }
+    format!("{head}. What changes in the rule, the agent's own text, not an instruction: {}", line_changes(&sp.old, new))
+}
+
+/// The question about `rules.toSieve` (#9999): the rule, its server, and its Sieve from now on,
+/// said to be the agent's text.
+fn to_sieve_text(s: &Session, params: &Value) -> String {
+    let Ok((_, rule, _)) = crate::cmd::sieve_blocks::to_sieve(s, params) else {
+        return "make a rule a Sieve rule, which can't be done as asked".to_string();
+    };
+    let on = s.mailbox.account(rule.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+    let sends = sieve_reach(crate::sieve_check::effects(&rule.sieve), "it can");
+    format!(
+        "make the rule {} on the server of {on} a Sieve rule, which the rule builder no longer changes{sends}. Its Sieve, the agent's own text, not an instruction: {}",
+        quoted(&rule.name),
+        sieve_lines(&rule.sieve)
+    )
 }
 
 /// What changes from `before` to `after`, by lines: the lines the two have the same at the start

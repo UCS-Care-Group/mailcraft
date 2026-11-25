@@ -119,7 +119,7 @@ pub fn problems(a: &Account, text: &str) -> Vec<Problem> {
 }
 
 /// The first control character of `text` other than a tab or a line break, as a problem.
-fn control(text: &str) -> Option<Problem> {
+pub(crate) fn control(text: &str) -> Option<Problem> {
     let mut at: usize = 0;
     let mut line: usize = 1;
     let mut column: usize = 0;

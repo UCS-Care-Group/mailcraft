@@ -568,7 +568,7 @@ msgid "A Sieve script is at most 1 MB."
 msgstr "Skrypt Sieve może mieć najwyżej 1 MB."
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "A Sieve script is at most {mb} MB."
 msgstr "Skrypt Sieve może mieć najwyżej {mb} MB."
@@ -939,6 +939,12 @@ msgstr "Podgląd może nie pokazywać całej zawartości oryginalnego pliku."
 msgid "A report is written beside your mailbox."
 msgstr "Raport jest zapisywany obok Twojej skrzynki pocztowej."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule kept on the server can't show a desktop alert."
+msgstr "Reguła przechowywana na serwerze nie może wyświetlać powiadomienia na pulpicie."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -946,10 +952,28 @@ msgid "A rule needs a name, and something to look for."
 msgstr "Reguła wymaga nazwy i czegoś do wyszukania."
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A rule needs some Sieve."
+msgstr "Reguła potrzebuje kodu Sieve."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule needs some Sieve: a command, not only comments."
+msgstr "Reguła potrzebuje kodu Sieve: polecenia, nie tylko komentarzy."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
 msgstr "Reguła musi coś robić: wykonać akcję lub pokazać powiadomienie na pulpicie."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule of your own Sieve script is kept in that script on the server."
+msgstr "Reguła Twojego własnego skryptu Sieve jest przechowywana w tym skrypcie na serwerze."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -3599,6 +3623,18 @@ msgid "Change this rule"
 msgstr "Zmień tę regułę"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule as Sieve text"
+msgstr "Zmień tę regułę jako tekst Sieve"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule as Sieve text: {why}"
+msgstr "Zmień tę regułę jako tekst Sieve: {why}"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Changed after it was signed"
@@ -5773,6 +5809,12 @@ msgid "Edit Message"
 msgstr "Edytuj wiadomość"
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Edit Rule as Sieve"
+msgstr "Edytuj regułę jako Sieve"
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -5796,6 +5838,12 @@ msgstr "Edytuj zadanie"
 msgid "Edit Your Sieve Script…"
 msgstr "Edytuj swój skrypt Sieve…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit as Sieve…"
+msgstr "Edytuj jako Sieve…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
 #, fuzzy
@@ -5807,6 +5855,12 @@ msgstr "Edytuj wersję roboczą"
 #, fuzzy
 msgid "Edit event"
 msgstr "Edytuj wydarzenie"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Edit rule as Sieve"
+msgstr "Edytuj regułę jako Sieve"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -7650,7 +7704,7 @@ msgid "Hold Unsent Mail"
 msgstr "Wstrzymaj niewysłane wiadomości"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Narzędzia główne"
@@ -9047,6 +9101,12 @@ msgstr "Różnica wierszy"
 msgid "Line {line} of the rule: {said}"
 msgstr "Wiersz {line} reguły: {said}"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line} of your script, outside this rule: {what}"
+msgstr "Wiersz {line} Twojego skryptu, poza tą regułą: {what}"
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -9058,6 +9118,12 @@ msgstr "Wiersz {line}, kolumna {column} reguły Sieve: nie może w niej być zna
 #, fuzzy
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "Wiersz {line}, kolumna {column} reguły Sieve: {what}"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Line {line}, column {column} of the rule: {what}"
+msgstr "Wiersz {line}, kolumna {column} reguły: {what}"
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_own.rs
@@ -9314,6 +9380,12 @@ msgstr "Utworzona w innym programie lub w sieci, z elementami, których MailCraf
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft changes a rule of it only as you edit it, in the rule builder when that loses nothing, else as Sieve text"
+msgstr "Utworzono w innym programie: MailCraft zmienia jego regułę tylko tak, jak ją edytujesz, w kreatorze reguł, gdy nic nie ginie, w przeciwnym razie jako tekst Sieve"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft never changes this rule"
 msgstr "Utworzona w innym programie: MailCraft nigdy nie zmienia tej reguły"
 
@@ -9322,12 +9394,6 @@ msgstr "Utworzona w innym programie: MailCraft nigdy nie zmienia tej reguły"
 #, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "Utworzone w innym programie: MailCraft pokazuje te reguły i nigdy ich nie zmienia"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
-msgstr "Utworzone w innym programie: MailCraft pokazuje te reguły i zmienia je tylko tak, jak edytujesz tekst skryptu"
 
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -10563,7 +10629,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "Większość nazwy nadawcy to znaki, które nie są wyświetlane, a wiadomość przyszła od {real}."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "Przenieś"
@@ -11409,7 +11475,7 @@ msgid "No Send/Receive is running"
 msgstr "Żadne Wyślij/Odbierz nie jest uruchomione"
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "No Sieve script of your own runs on this account's server, as MailCraft last read it."
 msgstr "Na serwerze tego konta nie działa żaden twój skrypt Sieve, według ostatniego odczytu MailCraft."
@@ -12431,8 +12497,8 @@ msgstr "Na serwerze, zmienione gdzie indziej: Zastąp skryptem MailCraft usunę�
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "On the server, made in another program: MailCraft never changes it"
-msgstr "Na serwerze, utworzona w innym programie: MailCraft nigdy jej nie zmienia"
+msgid "On the server, made in another program: changed only as you edit it here"
+msgstr "Na serwerze, utworzono w innym programie: zmieniane tylko tak, jak edytujesz tutaj"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12589,6 +12655,18 @@ msgstr "Po text: w tym samym wierszu może być tylko komentarz."
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "Tylko spotkanie, które organizujesz, ma opcję Znajdź termin"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Only a rule kept in the Sieve script on an IMAP account's server can become a Sieve rule; this one has no Sieve."
+msgstr "Regułą Sieve może stać się tylko reguła przechowywana w skrypcie Sieve na serwerze konta IMAP; ta nie ma Sieve."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Only a rule kept on the server can become a Sieve rule; this one is kept on this computer."
+msgstr "Regułą Sieve może stać się tylko reguła przechowywana na serwerze; ta jest przechowywana na tym komputerze."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -14955,6 +15033,12 @@ msgstr "Po prawej"
 msgid "Right before or after: {items}"
 msgstr "Tuż przed lub po: {items}"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Rule \"{rule}\" of your Sieve script \"{name}\""
+msgstr "Reguła „{rule}” Twojego skryptu Sieve „{name}”"
+
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
@@ -15230,6 +15314,12 @@ msgid "Save Signature"
 msgstr "Zapisz podpis"
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Save Your Sieve Rule"
+msgstr "Zapisz swoją regułę Sieve"
+
+#. command label
 #: crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Save Your Sieve Script"
@@ -15294,6 +15384,12 @@ msgstr "Zapisz w Plikach"
 #, fuzzy
 msgid "Saved Text"
 msgstr "Zapisany tekst"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Saved in your own Sieve script, in its place: the comment lines above it and the rest of the script stay as they are."
+msgstr "Zapisywana w Twoim skrypcie Sieve, na swoim miejscu: wiersze komentarzy nad nią i reszta skryptu pozostają bez zmian."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -18193,10 +18289,22 @@ msgid "The Entire Series"
 msgstr "Cała seria"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The Sieve of a filter of your webmail's can't have the webmail's own marks in it (BEGIN:FILTER, END:FILTER)."
+msgstr "Sieve filtru Twojej poczty webowej nie może zawierać jej własnych znaczników (BEGIN:FILTER, END:FILTER)."
+
+#. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "The Sieve rule has a mistake."
 msgstr "Reguła Sieve zawiera błąd."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The Sieve script can't be read."
+msgstr "Nie można odczytać skryptu Sieve."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19364,6 +19472,18 @@ msgstr "Usługa zgłoszeń chwilowo nie działa. Spróbuj ponownie później lub
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "Odpowiedź usługi zgłoszeń jest niezrozumiała dla programu MailCraft, więc zgłoszenie mogło dotrzeć. Spróbuj ponownie później lub otwórz ją w serwisie GitHub."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The rule builder can't change it: {why}."
+msgstr "Kreator reguł nie może jej zmienić: {why}."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The rule builder can't change this rule of your Sieve script: {why}. Change it as Sieve."
+msgstr "Kreator reguł nie może zmienić tej reguły Twojego skryptu Sieve: {why}. Zmień ją jako Sieve."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -19501,6 +19621,12 @@ msgstr "Serwer odpowiedział, ale nie tak, jak robi to serwer Exchange. Sprawdź
 #, fuzzy
 msgid "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
 msgstr "Serwer sprawdził regułę w całym skrypcie MailCrafta: numery wierszy liczone są od początku tego skryptu."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server checked the rule inside your whole script: its line numbers count from the top of that script."
+msgstr "Serwer sprawdził regułę w całym skrypcie: numery wierszy liczone są od początku tego skryptu."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
@@ -21223,6 +21349,24 @@ msgstr "Tej reguły nie można tu zmienić."
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "Tej reguły nie można przechowywać na serwerze: {why}. Działa ona na tym komputerze, gdy MailCraft jest otwarty."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule can't be said in Sieve: {why}."
+msgstr "Tej reguły nie da się wyrazić w Sieve: {why}."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule can't be written in your Sieve script: {why}."
+msgstr "Tej reguły nie można zapisać w Twoim skrypcie Sieve: {why}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show"
+msgstr "Ta reguła ma część, której kreator reguł nie potrafi pokazać"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -21230,16 +21374,46 @@ msgid "This rule has a part the rule builder can't show: delete it and create it
 msgstr "Ta reguła ma część, której kreator reguł nie potrafi pokazać: usuń ją i utwórz ponownie, aby ją zmienić"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule is a Sieve rule already: change its Sieve as it is."
+msgstr "Ta reguła jest już regułą Sieve: zmień jej Sieve bezpośrednio."
+
+#. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "This rule isn't a Sieve rule: change it in the rule builder."
 msgstr "Ta reguła nie jest regułą Sieve: zmień ją w kreatorze reguł."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule isn't one of your own Sieve script's."
+msgstr "Ta reguła nie należy do Twojego skryptu Sieve."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This rule will be kept as Sieve text from now on: the rule builder no longer changes it. This is the Sieve MailCraft writes for it now."
+msgstr "Ta reguła będzie odtąd przechowywana jako tekst Sieve: kreator reguł już jej nie zmienia. To jest Sieve, który MailCraft teraz dla niej zapisuje."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This rule's Sieve alone, as it is in your script. Save puts your text in its place and leaves the rest of the script as it is, only while the script on the server is still the one you opened."
+msgstr "Tylko Sieve tej reguły, tak jak jest w Twoim skrypcie. Zapisz wstawia Twój tekst na jego miejsce i zostawia resztę skryptu bez zmian, tylko dopóki skrypt na serwerze jest wciąż tym, który otwarto."
 
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "This script was written by a webmail ({webmail}). It may overwrite or drop the changes you make here the next time its filters are saved there."
 msgstr "Ten skrypt napisała poczta webowa ({webmail}). Może nadpisać lub odrzucić zmiany wprowadzone tutaj przy następnym zapisie jej filtrów."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This script was written by a webmail. It may overwrite or drop the changes you make here the next time its filters are saved there."
+msgstr "Ten skrypt napisała poczta webowa. Przy następnym zapisie jej filtrów może nadpisać lub odrzucić zmiany wprowadzone tutaj."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22802,6 +22976,12 @@ msgstr "Napisz notatkę do odpowiedzi…"
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
+msgid "Write this text to the server in place of this rule; the rest of your script stays as it is"
+msgstr "Zapisz ten tekst na serwerze w miejsce tej reguły; reszta skryptu pozostaje bez zmian"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
 msgid "Write this text to the server in place of your script; it stays the one that runs"
 msgstr "Zapisz ten tekst na serwerze w miejsce skryptu; pozostaje tym, który działa"
 
@@ -23010,6 +23190,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "Pracujesz offline. Wyłącz Pracuj offline (Wyślij / Odbierz), aby się połączyć."
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Your Sieve Rule"
+msgstr "Twoja reguła Sieve"
+
+#. command label
 #: crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve Script"
@@ -23034,7 +23220,7 @@ msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: t
 msgstr "Na serwerze zamiast skryptu MailCraft działa Twój skrypt Sieve „{name}”: te odpowiedzi są tam przechowywane, ale nie są wysyłane, dopóki on działa. MailCraft nigdy nie wyłącza Twojego skryptu."
 
 #. what a command says
-#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
 msgstr "Twój skrypt Sieve zmienił się na serwerze, odkąd go otwarto, więc nic nie zapisano. Wczytaj go ponownie, aby zobaczyć, co teraz zawiera."
@@ -23350,6 +23536,12 @@ msgstr "Twoje reguły zapisano na serwerze, ale działa tam inny Twój skrypt Si
 #, fuzzy
 msgid "Your rules weren't changed on the server"
 msgstr "Twoje reguły nie zostały zmienione na serwerze"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your webmail (RainLoop or SnappyMail) keeps its own copy of this filter's settings, which stay as they are. It may put its version back the next time filters are saved there, and MailCraft changes the filter only as Sieve from now on."
+msgstr "Twoja poczta webowa (RainLoop lub SnappyMail) przechowuje własną kopię ustawień tego filtra, które pozostają bez zmian. Przy następnym zapisie filtrów może przywrócić swoją wersję, a MailCraft odtąd zmienia filtr tylko jako Sieve."
 
 #. what a command says
 #: crates/engine/src/cmd/rules_webmail.rs
@@ -23682,7 +23874,7 @@ msgid "a rule of one account can't go to another account's server"
 msgstr "reguła jednego konta nie może trafić na serwer innego konta"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs
 #, fuzzy
 msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr "reguła pozostaje przy swoim koncie: usuń ją i utwórz nową dla drugiego konta"
@@ -24420,6 +24612,12 @@ msgid "it has a part MailCraft can't write as Sieve"
 msgstr "ma część, której MailCraft nie potrafi zapisać w Sieve"
 
 #. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it has elsif or else branches, which the rule builder can't show"
+msgstr "ma gałęzie elsif lub else, których kreator reguł nie potrafi pokazać"
+
+#. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it has no conditions, and on the server it would act on every message"
@@ -24430,6 +24628,12 @@ msgstr "nie ma warunków, a na serwerze działałaby na każdą wiadomość"
 #, fuzzy
 msgid "it has parts MailCraft can't show, which changing it here would lose"
 msgstr "ma części, których MailCraft nie potrafi pokazać i które zmiana tutaj by utraciła"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it has parts the rule builder can't show"
+msgstr "ma części, których kreator reguł nie potrafi pokazać"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24454,6 +24658,12 @@ msgstr "to reguła Sieve: jej Sieve zmienia się jako Sieve, nie w kreatorze reg
 #, fuzzy
 msgid "it is a drawing of a kind that isn't shown (SVG)"
 msgstr "to rysunek rodzaju, który nie jest wyświetlany (SVG)"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it is a filter of your webmail's"
+msgstr "to filtr Twojej poczty webowej"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -24502,6 +24712,12 @@ msgstr "jest zbyt duży, by go wyświetlić"
 #, fuzzy
 msgid "it is too long for the platform"
 msgstr "jest zbyt długi dla tej platformy"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it isn't an if test, which is what the rule builder writes"
+msgstr "to nie jest test if, który zapisuje kreator reguł"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24960,7 +25176,7 @@ msgid "no picture {id} was put in this message"
 msgstr "w tej wiadomości nie umieszczono obrazu {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "brak reguły o identyfikatorze {id}"
@@ -26195,6 +26411,18 @@ msgstr "w wyniku to konto przechowywałoby więcej stanu synchronizacji, niż mo
 #, fuzzy
 msgid "the result {why}"
 msgstr "wynik {why}"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "the rule builder can't write it back as Sieve"
+msgstr "kreator reguł nie potrafi zapisać jej z powrotem jako Sieve"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "the rule builder would write it as other Sieve (for example an address test where it has a header test), which could change what it does"
+msgstr "kreator reguł zapisałby ją jako inny Sieve (na przykład test address zamiast testu header), co mogłoby zmienić jej działanie"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -29719,6 +29947,14 @@ msgstr "−Wiersze"
 #~ msgid "contact"
 #~ msgstr "kontakt"
 
+#~ msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
+#~ msgstr "Utworzone w innym programie: MailCraft pokazuje te reguły i zmienia je tylko tak, jak edytujesz tekst skryptu"
+
+#, fuzzy
+#~ msgid "On the server, made in another program: MailCraft never changes it"
+#~ msgstr "Na serwerze, utworzona w innym programie: MailCraft nigdy jej nie zmienia"
+
+#, fuzzy
 #~ msgid "A Sieve rule: its Sieve is changed under Advanced…"
 #~ msgstr "Reguła Sieve: jej Sieve zmienia się w menu Zaawansowane…"
 

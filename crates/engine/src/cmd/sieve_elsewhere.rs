@@ -42,6 +42,8 @@ const MAX_COMMANDS: usize = 2_000;
 /// Strings kept from one list, and the longest string kept.
 const MAX_LIST: usize = 64;
 const MAX_STRING: usize = 1_024;
+/// The longest string compared whole ([`same_meaning`]).
+const MAX_EXACT: usize = 64 * 1024;
 /// Parts not known here kept for one rule.
 const MAX_UNKNOWN: usize = 20;
 /// The longest rule name kept from a comment, in characters.
@@ -67,6 +69,62 @@ pub struct Elsewhere {
     /// blocks, in order: those that can be changed here ([`crate::cmd::rules_webmail`]) and those
     /// that can't, with why.
     pub blocks: Vec<Block>,
+    /// Where the Sieve of each rule is in the text, and whether the rule builder can change it
+    /// without loss (#9999): what `sieve.ownBlock`, `sieve.putOwnBlock` and `rules.edit` change.
+    pub spans: Vec<Span>,
+}
+
+/// Where a rule of the owner's own script is in its text (#9999).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Span {
+    pub rule: Id,
+    /// What is edited as Sieve text: from the comment lines right above the rule's `if` (when
+    /// there are some) to the end of its `if`/`elsif`/`else` chain; in a webmail's filter, the
+    /// filter's Sieve alone, between its settings and its end.
+    pub text_at: Range<usize>,
+    /// The command itself (its `if` to its `}`), which the rule builder writes again, when it can
+    /// ([`Span::form`]).
+    pub command_at: Range<usize>,
+    /// The `# rule:[name]` comment its name was read from.
+    pub name_at: Option<Range<usize>>,
+    /// It is (in) a filter block of a webmail of the RainLoop kind: its settings are the webmail's.
+    pub filter: bool,
+    /// Whether the rule builder can change it without loss, or why not.
+    pub form: Result<(), NoForm>,
+}
+
+/// Why the rule builder can't change a rule of the owner's own script without loss (#9999): it
+/// is changed as Sieve text then.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoForm {
+    /// It isn't an `if` (an action for every message, or another command).
+    NotIf,
+    /// Its `if` has `elsif` or `else` branches.
+    Branches,
+    /// It has parts the rule builder doesn't know.
+    Unknown,
+    /// The rule builder can't write it as Sieve.
+    Shape,
+    /// The rule builder would write it as other Sieve (an address test for a header test, say).
+    Differs,
+    /// A filter of a webmail: its settings are changed as the webmail writes them, or not at all.
+    Filter,
+}
+
+impl NoForm {
+    /// Why, in words.
+    pub fn said(self) -> &'static str {
+        match self {
+            NoForm::NotIf => "it isn't an if test, which is what the rule builder writes",
+            NoForm::Branches => "it has elsif or else branches, which the rule builder can't show",
+            NoForm::Unknown => "it has parts the rule builder can't show",
+            NoForm::Shape => "the rule builder can't write it back as Sieve",
+            NoForm::Differs => {
+                "the rule builder would write it as other Sieve (for example an address test where it has a header test), which could change what it does"
+            }
+            NoForm::Filter => "it is a filter of your webmail's",
+        }
+    }
 }
 
 /// A filter block of a webmail's script, and the rule it is shown as.
@@ -129,6 +187,9 @@ struct Parser {
     spans: Vec<Range<usize>>,
     at: usize,
     commands: usize,
+    /// Nothing is cut: a string or a list past the caps fails the parse (for comparing what two
+    /// texts mean, #9999).
+    exact: bool,
 }
 
 impl Parser {
@@ -151,7 +212,14 @@ impl Parser {
         }
     }
 
-    fn cut(s: String) -> String {
+    fn cut(&self, s: String) -> Option<String> {
+        if self.exact {
+            return (s.len() <= MAX_EXACT).then_some(s);
+        }
+        Some(Self::cut_kept(s))
+    }
+
+    fn cut_kept(s: String) -> String {
         if s.len() <= MAX_STRING {
             return s;
         }
@@ -168,7 +236,7 @@ impl Parser {
             match self.peek() {
                 Some(Tok::Str(_)) => {
                     let Some(Tok::Str(s)) = self.next() else { return None };
-                    args.push(Arg::Str(Self::cut(s)));
+                    args.push(Arg::Str(self.cut(s)?));
                 }
                 Some(Tok::Num(_)) => {
                     let Some(Tok::Num(n)) = self.next() else { return None };
@@ -185,7 +253,9 @@ impl Parser {
                         match self.next()? {
                             Tok::Str(s) => {
                                 if list.len() < MAX_LIST {
-                                    list.push(Self::cut(s));
+                                    list.push(self.cut(s)?);
+                                } else if self.exact {
+                                    return None;
                                 }
                             }
                             _ => return None,
@@ -275,9 +345,18 @@ impl Parser {
 fn parse(text: &str) -> Option<(Vec<Command>, Vec<Comment>)> {
     let lexed = lex(text)?;
     let (toks, spans) = lexed.toks.into_iter().unzip();
-    let mut p = Parser { toks, spans, at: 0, commands: 0 };
+    let mut p = Parser { toks, spans, at: 0, commands: 0, exact: false };
     let commands = p.commands(0)?;
     (p.at >= p.toks.len()).then_some((commands, lexed.comments))
+}
+
+/// [`parse`], with nothing cut: `None` past a cap.
+fn parse_exact(text: &str) -> Option<Vec<Command>> {
+    let lexed = lex(text)?;
+    let (toks, spans) = lexed.toks.into_iter().unzip();
+    let mut p = Parser { toks, spans, at: 0, commands: 0, exact: true };
+    let commands = p.commands(0)?;
+    (p.at >= p.toks.len()).then_some(commands)
 }
 
 /// The name a `# rule:[name]` comment gives, cleaned: `None` when it isn't one, or nothing is left.
@@ -578,7 +657,25 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
             ..Default::default()
         });
     };
-    for c in &commands {
+    // Where each command's `if`/`elsif`/`else` chain begins and ends (indices of `commands`).
+    let mut chains: Vec<(usize, usize)> = (0..commands.len()).map(|i| (i, i)).collect();
+    let mut i = 0usize;
+    while i < commands.len() {
+        let mut j = i;
+        if commands.get(i).is_some_and(is_if) {
+            while commands.get(j.saturating_add(1)).is_some_and(|n| n.name == "elsif" || n.name == "else") {
+                j = j.saturating_add(1);
+            }
+        }
+        for k in i..=j {
+            if let Some(c) = chains.get_mut(k) {
+                *c = (i, j);
+            }
+        }
+        i = j.saturating_add(1);
+    }
+    let ends: Vec<usize> = commands.iter().map(|c| c.at.end).collect();
+    for (ci, c) in commands.iter().enumerate() {
         while out.rules.len() < MAX_RULES && off.last().is_some_and(|(at, _)| *at < c.at.start) {
             if let Some((at, name)) = off.pop() {
                 push_off(&mut out, &mut starts, at, name);
@@ -591,6 +688,7 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         before = c.at.end;
         // Its name: the filter block it is the first `if` of, or the `# rule:[…]` right before it.
         let mut name = None;
+        let mut name_at = None;
         if is_if(c) {
             if let Some(i) = regions.iter().position(|r| r.contains(&c.at.start))
                 && let Some(seen) = named_filter.get_mut(i)
@@ -600,11 +698,13 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
                 name = filters.get(i).and_then(|f| f.name.clone());
             }
             if name.is_none() {
-                name = comments
+                let found = comments
                     .iter()
                     .filter(|k| between.start <= k.at.start && k.at.end <= between.end)
-                    .filter_map(|k| rule_comment(text, k))
+                    .filter_map(|k| rule_comment(text, k).map(|n| (n, k.at.clone())))
                     .next_back();
+                name_at = found.as_ref().map(|(_, at)| at.clone());
+                name = found.map(|(n, _)| n);
             }
         }
         let mut rule = Rule { enabled: true, account, keep: Keep::Server, ..Default::default() };
@@ -640,6 +740,23 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         rule.name = name.unwrap_or_else(|| format!("{} {}", out.script, n.saturating_add(1)));
         rule.server = Some(ServerRule { id: format!("{SIEVE_ID}{}", out.script), read_only: true, unknown, ..Default::default() });
         starts.push(c.at.start);
+        let (first, last) = chains.get(ci).copied().unwrap_or((ci, ci));
+        let from = first.checked_sub(1).and_then(|p| ends.get(p)).copied().unwrap_or(0);
+        let chain_start = commands.get(first).map_or(c.at.start, |f| f.at.start);
+        let chain_end = commands.get(last).map_or(c.at.end, |l| l.at.end);
+        let region = regions.iter().find(|r| r.contains(&c.at.start));
+        let span = match region {
+            Some(r) => {
+                Span { rule: rule.id, text_at: inner(text, r), command_at: c.at.clone(), name_at: None, filter: true, form: Err(NoForm::Filter) }
+            }
+            None => {
+                let text_at = lead(text, &comments, from, chain_start)..chain_end;
+                let form = form_gate(mb, account, text, c, first == last, &rule);
+                let name_at = name_at.filter(|at| at.start >= text_at.start);
+                Span { rule: rule.id, text_at, command_at: c.at.clone(), name_at, filter: false, form }
+            }
+        };
+        out.spans.push(span);
         out.rules.push(rule);
     }
     while out.rules.len() < MAX_RULES {
@@ -648,6 +765,179 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
     }
     out.blocks = blocks(mb, account, text, &filters, &regions, &starts, &mut out.rules);
     out
+}
+
+/// A webmail filter's Sieve, `region` of `text`, without the blank lines around it: from the start
+/// of its first line with something on it to the end of its last.
+fn inner(text: &str, region: &Range<usize>) -> Range<usize> {
+    let Some(part) = text.get(region.clone()) else { return region.clone() };
+    let body = part.trim_start_matches([' ', '\t', '\r', '\n']);
+    let lead = part.len().saturating_sub(body.len());
+    // (From the line the first thing is on.)
+    let start = part.get(..lead).and_then(|w| w.rfind('\n')).map_or(region.start, |n| region.start.saturating_add(n).saturating_add(1));
+    let kept = part.trim_end_matches([' ', '\t', '\r', '\n']);
+    let tail = part.get(kept.len()..).unwrap_or_default();
+    // (Through the line break that ends the last line, when there is one.)
+    let end = match tail.find('\n') {
+        Some(n) => region.start.saturating_add(kept.len()).saturating_add(n).saturating_add(1),
+        None => region.end,
+    };
+    if start <= end { start..end } else { region.clone() }
+}
+
+/// Where a rule's text begins, for the command at `to`: at the first of the comments right above it
+/// (each on a line of its own, with no blank line between them and it) after `from` (the end of
+/// the command before), else at the command.
+fn lead(text: &str, comments: &[Comment], from: usize, to: usize) -> usize {
+    let mut start = to;
+    for k in comments.iter().rev().filter(|k| from <= k.at.start && k.at.end <= to) {
+        let between = text.get(k.at.end..start).unwrap_or("x");
+        if !between.chars().all(char::is_whitespace) || between.matches('\n').count() > 1 {
+            break;
+        }
+        let line = text.get(..k.at.start).and_then(|b| b.rfind('\n')).map_or(0, |n| n.saturating_add(1));
+        let before = text.get(line..k.at.start).unwrap_or("x");
+        if line < from || !before.chars().all(|c| c == ' ' || c == '\t') {
+            break;
+        }
+        start = k.at.start;
+    }
+    start
+}
+
+/// The indent of the second line of `text` (the first inside a block), or four spaces.
+pub(crate) fn indent_of(text: &str) -> String {
+    let second = text.split('\n').nth(1).unwrap_or_default();
+    let indent: String = second.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+    if indent.is_empty() { "    ".to_string() } else { indent }
+}
+
+/// Whether the rule builder can change the rule `rule`, read from the command `c` of `text`, without
+/// loss: an `if` alone (no `elsif` or `else`, `lone`), every part known, and the Sieve the builder
+/// would write for it the same tests, match types, comparators and actions as `c`'s.
+fn form_gate(mb: &Mailbox, account: Id, text: &str, c: &Command, lone: bool, rule: &Rule) -> Result<(), NoForm> {
+    if c.name != "if" {
+        return Err(NoForm::NotIf);
+    }
+    if !lone {
+        return Err(NoForm::Branches);
+    }
+    if !rule.known() || !rule.enabled {
+        return Err(NoForm::Unknown);
+    }
+    let source = text.get(c.at.clone()).ok_or(NoForm::Shape)?;
+    let nl = crate::sieve_rainloop::line_end(text);
+    let (again, _) = super::sieve_rules::rule_sieve(mb, rule, account, true, &indent_of(source), nl).map_err(|_| NoForm::Shape)?;
+    if same_meaning(source, &again) { Ok(()) } else { Err(NoForm::Differs) }
+}
+
+/// An argument as it is compared: one string is a list of one.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Norm {
+    List(Vec<String>),
+    Num(u64),
+    Tag(String),
+}
+
+/// A test or a command as it is compared ([`same_meaning`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NormNode {
+    name: String,
+    /// Its tags, each with the value it takes, in order (sorted when every one is known).
+    tags: Vec<(String, Option<Norm>)>,
+    positional: Vec<Norm>,
+    tests: Vec<NormNode>,
+    block: Option<Vec<NormNode>>,
+}
+
+/// The tags that take a value after them.
+const VALUED: [&str; 6] = ["comparator", "over", "under", "value", "count", "flags"];
+/// The tags whose order means nothing: these and [`VALUED`].
+const PLAIN: [&str; 13] = ["is", "contains", "matches", "regex", "all", "localpart", "domain", "user", "detail", "raw", "content", "text", "copy"];
+const MATCH: [&str; 6] = ["is", "contains", "matches", "regex", "value", "count"];
+const PART: [&str; 5] = ["all", "localpart", "domain", "user", "detail"];
+const TRANSFORM: [&str; 3] = ["raw", "content", "text"];
+
+fn norm_arg(a: &Arg) -> Norm {
+    match a {
+        Arg::Str(s) => Norm::List(vec![s.clone()]),
+        Arg::List(l) => Norm::List(l.clone()),
+        Arg::Num(n) => Norm::Num(*n),
+        Arg::Tag(t) => Norm::Tag(t.clone()),
+    }
+}
+
+/// `name`'s arguments as compared: tags with their values (the defaults of RFC 5228 §2.7, RFC 5173
+/// written out, `i;ascii-casemap` left out), and the rest in order; a test's header names in
+/// either case and order.
+fn norm_args(name: &str, args: &[Arg]) -> (Vec<(String, Option<Norm>)>, Vec<Norm>) {
+    let mut tags: Vec<(String, Option<Norm>)> = Vec::new();
+    let mut positional = Vec::new();
+    let mut it = args.iter().peekable();
+    while let Some(a) = it.next() {
+        match a {
+            Arg::Tag(t) if VALUED.contains(&t.as_str()) => tags.push((t.clone(), it.next().map(norm_arg))),
+            Arg::Tag(t) => tags.push((t.clone(), None)),
+            other => positional.push(norm_arg(other)),
+        }
+    }
+    let has = |tags: &[(String, Option<Norm>)], group: &[&str]| tags.iter().any(|(t, _)| group.contains(&t.as_str()));
+    if matches!(name, "header" | "address" | "envelope" | "body") && !has(&tags, &MATCH) {
+        tags.push(("is".into(), None));
+    }
+    if matches!(name, "address" | "envelope") && !has(&tags, &PART) {
+        tags.push(("all".into(), None));
+    }
+    if name == "body" && !has(&tags, &TRANSFORM) {
+        tags.push(("text".into(), None));
+    }
+    tags.retain(|(t, v)| !(t == "comparator" && *v == Some(Norm::List(vec!["i;ascii-casemap".into()]))));
+    if tags.iter().all(|(t, _)| VALUED.contains(&t.as_str()) || PLAIN.contains(&t.as_str())) {
+        tags.sort();
+    }
+    if matches!(name, "header" | "address" | "envelope")
+        && positional.len() == 2
+        && let Some(Norm::List(names)) = positional.first_mut()
+    {
+        for n in names.iter_mut() {
+            *n = n.trim().to_ascii_lowercase();
+        }
+        names.sort();
+        names.dedup();
+    }
+    (tags, positional)
+}
+
+fn norm_test(t: &Test) -> NormNode {
+    // (`allof` or `anyof` of one test is that test.)
+    if matches!(t.name.as_str(), "allof" | "anyof")
+        && let [one] = t.tests.as_slice()
+    {
+        return norm_test(one);
+    }
+    let (tags, positional) = norm_args(&t.name, &t.args);
+    NormNode { name: t.name.clone(), tags, positional, tests: t.tests.iter().map(norm_test).collect(), block: None }
+}
+
+fn norm_command(c: &Command) -> NormNode {
+    let (tags, positional) = norm_args(&c.name, &c.args);
+    NormNode {
+        name: c.name.clone(),
+        tags,
+        positional,
+        tests: c.tests.iter().map(norm_test).collect(),
+        block: c.block.as_ref().map(|b| b.iter().map(norm_command).collect()),
+    }
+}
+
+/// Whether two texts of Sieve are the same commands with the same tests, match types, comparators
+/// and actions, in the same order (#9999): what the rule builder may write in place of the other.
+/// Text that can't be read, or is past the caps, is never the same.
+pub fn same_meaning(a: &str, b: &str) -> bool {
+    match (parse_exact(a), parse_exact(b)) {
+        (Some(x), Some(y)) => x.len() == y.len() && x.iter().zip(&y).all(|(p, q)| norm_command(p) == norm_command(q)),
+        _ => false,
+    }
 }
 
 /// The filter blocks `filters` (their Sieve in `regions`) of the script `text`, and the rules

@@ -3122,6 +3122,17 @@ fn hostile_params_never_panic() {
     junk.push(json!({"account": imap, "text": "keep;\u{0}", "digest": own_digest}));
     junk.push(json!({"account": imap, "text": "keep;", "digest": "\u{0}".repeat(100_000)}));
     junk.push(json!({"account": imap, "text": ["keep;"], "digest": null}));
+    // One rule of it as Sieve (#9999): text that reaches out of its place, opens a comment, is too
+    // large, carries a NUL, names no rule, or another digest; and one of MailCraft's own rules
+    // made a Sieve rule with text that isn't Sieve.
+    let own_rule = s.sieve.get(&imap).and_then(|k| k.elsewhere.as_ref()).and_then(|e| e.rules.first()).map_or(0, |r| r.id);
+    junk.push(json!({"id": own_rule, "text": "} elsif true {", "digest": own_digest}));
+    junk.push(json!({"id": own_rule, "text": "stop; /* open", "digest": own_digest}));
+    junk.push(json!({"id": own_rule, "text": "x".repeat(1_100_000), "digest": "\u{0}"}));
+    junk.push(json!({"id": own_rule, "text": "stop;\u{0}", "digest": own_digest, "account": u64::MAX}));
+    junk.push(json!({"id": u64::MAX, "text": "stop; # x", "digest": own_digest}));
+    junk.push(json!({"id": own_rule, "text": 5, "digest": [own_digest]}));
+    junk.push(json!({"id": sieve, "sieve": "if {", "name": "\u{0}*/"}));
     // A filter of a webmail's script of the RainLoop kind (#9999), changed with the rule commands:
     // hostile conditions, folders, directions and digests, and a new one with a header no header
     // has.
@@ -3149,6 +3160,8 @@ fn hostile_params_never_panic() {
     junk.push(json!({"webmail": true, "account": webmail, "name": "x".repeat(100_000), "conditions": [{"type": "header", "value": {"names": [], "words": "x"}}], "actions": []}));
     junk.push(json!({"webmail": "yes", "account": webmail}));
     junk.push(json!({"webmail": true, "account": u64::MAX, "name": "x", "conditions": [{"type": "toContains", "value": "x"}], "actions": [{"type": "moveTo", "value": 1}]}));
+    junk.push(json!({"id": filter_rule, "text": "stop;\n/* END:FILTER */\n", "digest": crate::sieve::digest(&filter)}));
+    junk.push(json!({"id": filter_rule, "text": "if header :is \"x\" \"y\" { stop; }", "digest": crate::sieve::digest(&filter)}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

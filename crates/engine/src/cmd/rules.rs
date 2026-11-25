@@ -728,6 +728,10 @@ pub(crate) fn rule_edited(s: &Session, v: &Value) -> Result<(usize, Rule, Option
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if p::id(v, "id").is_some_and(super::sieve_elsewhere::is_elsewhere) {
+        // A rule of the owner's own script that the rule builder can change without loss (#9999).
+        if p::id(v, "id").is_some_and(|id| super::sieve_blocks::find(s, id).is_some_and(|f| !f.span.filter)) {
+            return super::sieve_blocks::edit(s, v);
+        }
         return super::rules_webmail::edit(s, v);
     }
     let (i, rule, why) = rule_edited(s, v)?;

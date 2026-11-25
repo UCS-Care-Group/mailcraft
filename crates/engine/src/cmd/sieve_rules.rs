@@ -41,8 +41,9 @@ fn me(mb: &Mailbox, account: Id) -> Vec<String> {
     me
 }
 
-/// What a condition is in Sieve, and the extensions it needs.
-fn test(c: &Condition, me: &[String], needs: &mut Vec<&'static str>) -> Result<String, NotOnServer> {
+/// What a condition is in Sieve, and the extensions it needs. `header`: a [`Condition::Header`]
+/// may be written (a rule of the owner's own script, #9999); MailCraft's own rules have none.
+fn test(c: &Condition, me: &[String], needs: &mut Vec<&'static str>, header: bool) -> Result<String, NotOnServer> {
     let to_cc = list(&["to", "cc"]);
     let mine = || if me.is_empty() { Err(NotOnServer::NoAddress) } else { Ok(list(me)) };
     Ok(match c {
@@ -84,6 +85,9 @@ fn test(c: &Condition, me: &[String], needs: &mut Vec<&'static str>) -> Result<S
         Condition::SentOnlyToMe => return Err(NotOnServer::OnlyToMe),
         Condition::Flagged => return Err(NotOnServer::Flagged),
         Condition::ReceivedBetween { .. } => return Err(NotOnServer::Days),
+        Condition::Header { names, words, exact } if header && !names.is_empty() && !words.is_empty() => {
+            format!("header {} {} {}", if *exact { ":is" } else { ":contains" }, list(names), list(words))
+        }
         // (A part a later version knows: never guessed at.)
         #[allow(unreachable_patterns)]
         _ => return Err(NotOnServer::Unknown),
@@ -116,6 +120,18 @@ pub fn block(mb: &Mailbox, rule: &Rule, account: Id) -> Result<RuleScript, NotOn
     if rule.is_sieve() {
         return sieve_block(a, rule);
     }
+    let (text, needs) = rule_sieve(mb, rule, account, false, "    ", "\r\n")?;
+    Ok(RuleScript { id: rule.id, text: format!("{text}\r\n"), requires: needs, name: String::new() })
+}
+
+/// The Sieve of a rule made in the form (not a Sieve rule), as one `if` with its block, indented
+/// by `indent` and with the line breaks `nl` (none after its `}`), and the extensions it needs;
+/// or why it can't be said in Sieve. `header`: a [`Condition::Header`] may be written (#9999).
+pub(crate) fn rule_sieve(mb: &Mailbox, rule: &Rule, account: Id, header: bool, indent: &str, nl: &str) -> Result<(String, Vec<String>), NotOnServer> {
+    let Some(a) = mb.account(account) else { return Err(NotOnServer::NoServer) };
+    if rule.is_sieve() {
+        return Err(NotOnServer::SieveText);
+    }
     if rule.alert {
         return Err(NotOnServer::Alert);
     }
@@ -127,12 +143,12 @@ pub fn block(mb: &Mailbox, rule: &Rule, account: Id) -> Result<RuleScript, NotOn
     let mut needs: Vec<&'static str> = Vec::new();
     let mut tests = Vec::new();
     for c in &rule.conditions {
-        tests.push(test(c, &me, &mut needs)?);
+        tests.push(test(c, &me, &mut needs, header)?);
     }
     if !rule.exceptions.is_empty() {
         let mut spared = Vec::new();
         for c in &rule.exceptions {
-            spared.push(test(c, &me, &mut needs)?);
+            spared.push(test(c, &me, &mut needs, header)?);
         }
         tests.push(format!("not anyof ({})", spared.join(", ")));
     }
@@ -181,17 +197,17 @@ pub fn block(mb: &Mailbox, rule: &Rule, account: Id) -> Result<RuleScript, NotOn
         [one] => one.clone(),
         many => format!("allof ({})", many.join(", ")),
     };
-    let mut text = format!("if {condition} {{\r\n");
+    let mut text = format!("if {condition} {{{nl}");
     let lines = flags
         .into_iter()
         .chain(copies.iter().map(|f| format!("fileinto :copy {};", quoted(f))))
         .chain(moves.iter().map(|f| format!("fileinto {};", quoted(f))))
         .chain(rule.stop.then(|| "stop;".to_string()));
     for line in lines {
-        text.push_str(&format!("    {line}\r\n"));
+        text.push_str(&format!("{indent}{line}{nl}"));
     }
-    text.push_str("}\r\n");
-    Ok(RuleScript { id: rule.id, text, requires: needs.into_iter().map(str::to_string).collect(), name: String::new() })
+    text.push('}');
+    Ok((text, needs.into_iter().map(str::to_string).collect()))
 }
 
 /// A Sieve rule ([`Rule::sieve`]) as a block of the script: its text as the owner wrote it,

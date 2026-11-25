@@ -566,7 +566,7 @@ msgid "A Sieve script is at most 1 MB."
 msgstr "Sieve სკრიპტი მაქსიმუმ 1 MB-ია."
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "A Sieve script is at most {mb} MB."
 msgstr "Sieve სკრიპტი მაქსიმუმ {mb} MB-ია."
@@ -936,6 +936,12 @@ msgstr ""
 msgid "A report is written beside your mailbox."
 msgstr "მოხსენება თქვენი საფოსტო ყუთის გვერდით იწერება."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule kept on the server can't show a desktop alert."
+msgstr "სერვერზე შენახულ წესს არ შეუძლია სამუშაო მაგიდის შეტყობინების ჩვენება."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -943,10 +949,28 @@ msgid "A rule needs a name, and something to look for."
 msgstr "წესს სჭირდება სახელი და საძიებელი რამ."
 
 #. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "A rule needs some Sieve."
+msgstr "წესს Sieve სჭირდება."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule needs some Sieve: a command, not only comments."
+msgstr "წესს Sieve სჭირდება: ბრძანება და არა მხოლოდ კომენტარები."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "A rule needs something to do: an action, or a desktop alert."
 msgstr "წესს სჭირდება, რომ რამე გააკეთოს: ქმედება ან სამუშაო მაგიდის შეტყობინება."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "A rule of your own Sieve script is kept in that script on the server."
+msgstr "თქვენი Sieve სკრიპტის წესი ამ სკრიპტში ინახება სერვერზე."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -3583,6 +3607,18 @@ msgid "Change this rule"
 msgstr "ამ წესის შეცვლა"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule as Sieve text"
+msgstr "ამ წესის შეცვლა Sieve ტექსტად"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Change this rule as Sieve text: {why}"
+msgstr "ამ წესის შეცვლა Sieve ტექსტად: {why}"
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Changed after it was signed"
@@ -5751,6 +5787,12 @@ msgid "Edit Message"
 msgstr "წერილის რედაქტირება"
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Edit Rule as Sieve"
+msgstr "წესის რედაქტირება Sieve-ად"
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Edit Signature"
@@ -5774,6 +5816,12 @@ msgstr "დავალების რედაქტირება"
 msgid "Edit Your Sieve Script…"
 msgstr "თქვენი Sieve სკრიპტის რედაქტირება…"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Edit as Sieve…"
+msgstr "Sieve-ად რედაქტირება…"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt
 #, fuzzy
@@ -5785,6 +5833,12 @@ msgstr "მონახაზის რედაქტირება"
 #, fuzzy
 msgid "Edit event"
 msgstr "ღონისძიების რედაქტირება"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Edit rule as Sieve"
+msgstr "წესის რედაქტირება Sieve-ად"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -7609,7 +7663,7 @@ msgid "Hold Unsent Mail"
 msgstr "გაუგზავნელი ფოსტის შეჩერება"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "მთავარი"
@@ -8994,6 +9048,12 @@ msgstr ""
 msgid "Line {line} of the rule: {said}"
 msgstr "წესის {line}-ე ხაზი: {said}"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Line {line} of your script, outside this rule: {what}"
+msgstr "თქვენი სკრიპტის სტრიქონი {line}, ამ წესის გარეთ: {what}"
+
 #. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
@@ -9005,6 +9065,12 @@ msgstr "Sieve-ის წესის {line}-ე სტრიქონი, {colum
 #, fuzzy
 msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr "Sieve-ის წესის {line}-ე სტრიქონი, {column}-ე სვეტი: {what}"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Line {line}, column {column} of the rule: {what}"
+msgstr "წესის სტრიქონი {line}, სვეტი {column}: {what}"
 
 #. what a command says
 #: crates/engine/src/cmd/sieve_own.rs
@@ -9258,6 +9324,12 @@ msgstr "შექმნილია სხვა პროგრამაში 
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "Made in another program: MailCraft changes a rule of it only as you edit it, in the rule builder when that loses nothing, else as Sieve text"
+msgstr "შექმნილია სხვა პროგრამაში: MailCraft მის წესს მხოლოდ თქვენი რედაქტირებით ცვლის, წესების რედაქტორში, როცა არაფერი იკარგება, სხვა შემთხვევაში Sieve ტექსტად"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Made in another program: MailCraft never changes this rule"
 msgstr "შექმნილია სხვა პროგრამაში: MailCraft ამ წესს არასდროს ცვლის"
 
@@ -9266,12 +9338,6 @@ msgstr "შექმნილია სხვა პროგრამაში:
 #, fuzzy
 msgid "Made in another program: MailCraft shows these rules and never changes them"
 msgstr "შექმნილია სხვა პროგრამაში: MailCraft ამ წესებს აჩვენებს და არასოდეს ცვლის"
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
-msgstr "შექმნილია სხვა პროგრამაში: MailCraft აჩვენებს ამ წესებს და ცვლის მათ მხოლოდ ისე, როგორც სკრიპტის ტექსტს არედაქტირებთ"
 
 #. android, command label, interface, name, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MainActivity.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -10502,7 +10568,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "გამგზავნის სახელის უმეტესი ნაწილი უხილავი სიმბოლოებია, წერილი კი მისამართიდან {real} მოვიდა."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "გადატანა"
@@ -11343,7 +11409,7 @@ msgid "No Send/Receive is running"
 msgstr "გაგზავნა/მიღება არ მიმდინარეობს"
 
 #. what a command says
-#: crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "No Sieve script of your own runs on this account's server, as MailCraft last read it."
 msgstr "ამ ანგარიშის სერვერზე თქვენი საკუთარი Sieve სკრიპტი არ მუშაობს, MailCraft-ის ბოლო წაკითხვის მიხედვით."
@@ -12360,8 +12426,8 @@ msgstr "სერვერზე, სხვაგან შეცვლილი
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "On the server, made in another program: MailCraft never changes it"
-msgstr "სერვერზე, სხვა პროგრამაში შექმნილი: MailCraft მას არასოდეს ცვლის"
+msgid "On the server, made in another program: changed only as you edit it here"
+msgstr "სერვერზე, შექმნილია სხვა პროგრამაში: იცვლება მხოლოდ აქ რედაქტირებისას"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12518,6 +12584,18 @@ msgstr "text:-ის შემდეგ მის ხაზზე მხოლ�
 #, fuzzy
 msgid "Only a meeting you organize has Find a Time"
 msgstr "„დროის ძებნა“ მხოლოდ თქვენ მიერ ორგანიზებულ შეხვედრას აქვს"
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Only a rule kept in the Sieve script on an IMAP account's server can become a Sieve rule; this one has no Sieve."
+msgstr "Sieve წესად შეიძლება იქცეს მხოლოდ IMAP ანგარიშის სერვერის Sieve სკრიპტში შენახული წესი; ამას Sieve არ აქვს."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Only a rule kept on the server can become a Sieve rule; this one is kept on this computer."
+msgstr "Sieve წესად შეიძლება იქცეს მხოლოდ სერვერზე შენახული წესი; ეს ამ კომპიუტერზე ინახება."
 
 #. what a command says
 #: crates/engine/src/cmd/unsubscribe.rs
@@ -14862,6 +14940,12 @@ msgstr "მარჯვნივ"
 msgid "Right before or after: {items}"
 msgstr "უშუალოდ ადრე ან შემდეგ: {items}"
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Rule \"{rule}\" of your Sieve script \"{name}\""
+msgstr "წესი „{rule}“ თქვენი Sieve სკრიპტიდან „{name}“"
+
 #. command label
 #: crates/engine/src/cmd/rules_remote.rs
 #, fuzzy
@@ -15132,6 +15216,12 @@ msgid "Save Signature"
 msgstr "ხელმოწერის შენახვა"
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Save Your Sieve Rule"
+msgstr "თქვენი Sieve წესის შენახვა"
+
+#. command label
 #: crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Save Your Sieve Script"
@@ -15195,6 +15285,12 @@ msgstr "„ფაილებში“ შენახვა"
 #, fuzzy
 msgid "Saved Text"
 msgstr "შენახული ტექსტი"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Saved in your own Sieve script, in its place: the comment lines above it and the rest of the script stay as they are."
+msgstr "ინახება თქვენს Sieve სკრიპტში, თავის ადგილას: ზემოთ მყოფი კომენტარები და სკრიპტის დანარჩენი ნაწილი უცვლელი რჩება."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -18073,10 +18169,22 @@ msgid "The Entire Series"
 msgstr "მთელი სერია"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The Sieve of a filter of your webmail's can't have the webmail's own marks in it (BEGIN:FILTER, END:FILTER)."
+msgstr "ვებფოსტის ფილტრის Sieve არ შეიძლება შეიცავდეს ვებფოსტის საკუთარ ნიშნებს (BEGIN:FILTER, END:FILTER)."
+
+#. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "The Sieve rule has a mistake."
 msgstr "Sieve-ის წესში შეცდომაა."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The Sieve script can't be read."
+msgstr "Sieve სკრიპტის წაკითხვა შეუძლებელია."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19238,6 +19346,18 @@ msgstr "მოხსენებების სერვისი ახლა 
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
 msgstr "მოხსენებების სერვისის პასუხი MailCraft-ისთვის გაუგებარია, ამიტომ მოხსენება შესაძლოა მივიდა. მოგვიანებით სცადეთ ან გახსენით GitHub-ზე."
 
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The rule builder can't change it: {why}."
+msgstr "წესების რედაქტორს მისი შეცვლა არ შეუძლია: {why}."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "The rule builder can't change this rule of your Sieve script: {why}. Change it as Sieve."
+msgstr "წესების რედაქტორს არ შეუძლია თქვენი Sieve სკრიპტის ამ წესის შეცვლა: {why}. შეცვალეთ Sieve-ად."
+
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -19373,6 +19493,12 @@ msgstr "სერვერმა უპასუხა, მაგრამ ა�
 #, fuzzy
 msgid "The server checked the rule inside MailCraft's whole script: its line numbers count from the top of that script."
 msgstr "სერვერმა წესი MailCraft-ის მთლიან სკრიპტში შეამოწმა: ხაზის ნომრები ამ სკრიპტის დასაწყისიდან ითვლება."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "The server checked the rule inside your whole script: its line numbers count from the top of that script."
+msgstr "სერვერმა წესი მთელ სკრიპტში შეამოწმა: სტრიქონები ითვლება ამ სკრიპტის დასაწყისიდან."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
@@ -21076,6 +21202,24 @@ msgstr "ამ წესის აქ შეცვლა შეუძლებ�
 msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr "ამ წესის სერვერზე შენახვა შეუძლებელია: {why}. ის ამ კომპიუტერზე სრულდება, სანამ MailCraft გახსნილია."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule can't be said in Sieve: {why}."
+msgstr "ეს წესი Sieve-ში ვერ გამოიხატება: {why}."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule can't be written in your Sieve script: {why}."
+msgstr "ამ წესის თქვენს Sieve სკრიპტში ჩაწერა შეუძლებელია: {why}."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule has a part the rule builder can't show"
+msgstr "ამ წესს აქვს ნაწილი, რომელსაც წესების რედაქტორი ვერ აჩვენებს"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -21083,16 +21227,46 @@ msgid "This rule has a part the rule builder can't show: delete it and create it
 msgstr "ამ წესს აქვს ნაწილი, რომელსაც წესების კონსტრუქტორი ვერ აჩვენებს: შესაცვლელად წაშალეთ და თავიდან შექმენით"
 
 #. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule is a Sieve rule already: change its Sieve as it is."
+msgstr "ეს წესი უკვე Sieve წესია: შეცვალეთ მისი Sieve პირდაპირ."
+
+#. what a command says
 #: crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "This rule isn't a Sieve rule: change it in the rule builder."
 msgstr "ეს წესი Sieve-ის წესი არ არის: შეცვალეთ ის წესების ოსტატში."
+
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "This rule isn't one of your own Sieve script's."
+msgstr "ეს წესი თქვენი Sieve სკრიპტის არ არის."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This rule will be kept as Sieve text from now on: the rule builder no longer changes it. This is the Sieve MailCraft writes for it now."
+msgstr "ეს წესი ამიერიდან Sieve ტექსტად შეინახება: წესების რედაქტორი მას აღარ ცვლის. ეს არის Sieve, რომელსაც MailCraft ახლა წერს მისთვის."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This rule's Sieve alone, as it is in your script. Save puts your text in its place and leaves the rest of the script as it is, only while the script on the server is still the one you opened."
+msgstr "მხოლოდ ამ წესის Sieve, როგორც თქვენს სკრიპტშია. შენახვა თქვენს ტექსტს მის ადგილას ჩასვამს და სკრიპტის დანარჩენს უცვლელად დატოვებს, მხოლოდ მაშინ, თუ სერვერზე ისევ ის სკრიპტია, რომელიც გახსენით."
 
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "This script was written by a webmail ({webmail}). It may overwrite or drop the changes you make here the next time its filters are saved there."
 msgstr "ეს სკრიპტი ვებფოსტამ დაწერა ({webmail}). მან შეიძლება გადაწეროს ან უგულებელყოს აქ შეტანილი ცვლილებები, როცა იქ მისი ფილტრები შემდეგ ჯერზე შეინახება."
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "This script was written by a webmail. It may overwrite or drop the changes you make here the next time its filters are saved there."
+msgstr "ეს სკრიპტი ვებფოსტამ დაწერა. მისი ფილტრების შემდეგი შენახვისას შეიძლება აქ შეტანილი ცვლილებები გადაეწეროს ან დაიკარგოს."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22645,6 +22819,12 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
+msgid "Write this text to the server in place of this rule; the rest of your script stays as it is"
+msgstr "ამ ტექსტის სერვერზე ჩაწერა ამ წესის ნაცვლად; სკრიპტის დანარჩენი უცვლელი რჩება"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
 msgid "Write this text to the server in place of your script; it stays the one that runs"
 msgstr "ამ ტექსტის ჩაწერა სერვერზე თქვენი სკრიპტის ნაცვლად; ის რჩება გაშვებულ სკრიპტად"
 
@@ -22851,6 +23031,12 @@ msgid "You're working offline. Turn off Work Offline (Send / Receive) to connect
 msgstr "ოფლაინ მუშაობთ. დასაკავშირებლად გამორთეთ „ოფლაინ მუშაობა“ (გაგზავნა / მიღება)."
 
 #. command label
+#: crates/engine/src/cmd/sieve_blocks.rs
+#, fuzzy
+msgid "Your Sieve Rule"
+msgstr "თქვენი Sieve წესი"
+
+#. command label
 #: crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve Script"
@@ -22875,7 +23061,7 @@ msgid "Your Sieve script \"{name}\" runs on the server instead of MailCraft's: t
 msgstr "სერვერზე MailCraft-ის ნაცვლად თქვენი Sieve-ის სკრიპტი „{name}“ მუშაობს: ეს პასუხები იქ ინახება, მაგრამ სანამ ის მუშაობს, არ იგზავნება. MailCraft თქვენს სკრიპტს არასოდეს გამორთავს."
 
 #. what a command says
-#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_own.rs
+#: crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs crates/engine/src/cmd/sieve_own.rs
 #, fuzzy
 msgid "Your Sieve script changed on the server since you opened it, so nothing was written. Reload it to see what it has now."
 msgstr "თქვენი Sieve სკრიპტი გახსნის შემდეგ სერვერზე შეიცვალა, ამიტომ არაფერი ჩაწერილა. თავიდან ჩატვირთეთ, რომ ნახოთ, რა არის მასში ახლა."
@@ -23189,6 +23375,12 @@ msgstr "თქვენი წესები სერვერზე შეი
 #, fuzzy
 msgid "Your rules weren't changed on the server"
 msgstr "თქვენი წესები სერვერზე არ შეცვლილა"
+
+#. interface
+#: crates/ui-egui/src/sieve_editor.rs
+#, fuzzy
+msgid "Your webmail (RainLoop or SnappyMail) keeps its own copy of this filter's settings, which stay as they are. It may put its version back the next time filters are saved there, and MailCraft changes the filter only as Sieve from now on."
+msgstr "თქვენი ვებფოსტა (RainLoop ან SnappyMail) ამ ფილტრის პარამეტრების საკუთარ ასლს ინახავს, რომლებიც უცვლელი რჩება. ფილტრების შემდეგი შენახვისას შეიძლება თავისი ვერსია დააბრუნოს, და MailCraft ამიერიდან ფილტრს მხოლოდ Sieve-ად ცვლის."
 
 #. what a command says
 #: crates/engine/src/cmd/rules_webmail.rs
@@ -23517,7 +23709,7 @@ msgid "a rule of one account can't go to another account's server"
 msgstr "ერთი ანგარიშის წესი სხვა ანგარიშის სერვერზე ვერ გადავა"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs
 #, fuzzy
 msgid "a rule stays with its account: delete it and create one for the other account"
 msgstr "წესი თავის ანგარიშთან რჩება: წაშალეთ და შექმენით ახალი მეორე ანგარიშისთვის"
@@ -24252,6 +24444,12 @@ msgid "it has a part MailCraft can't write as Sieve"
 msgstr "მას აქვს ნაწილი, რომლის Sieve-ად ჩაწერაც MailCraft-ს არ შეუძლია"
 
 #. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it has elsif or else branches, which the rule builder can't show"
+msgstr "მას აქვს elsif ან else განშტოებები, რომლებსაც წესების რედაქტორი ვერ აჩვენებს"
+
+#. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "it has no conditions, and on the server it would act on every message"
@@ -24262,6 +24460,12 @@ msgstr "მას პირობები არ აქვს და სერ�
 #, fuzzy
 msgid "it has parts MailCraft can't show, which changing it here would lose"
 msgstr "მას აქვს ნაწილები, რომლებსაც MailCraft ვერ აჩვენებს და რომლებიც აქ შეცვლისას დაიკარგებოდა"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it has parts the rule builder can't show"
+msgstr "მას აქვს ნაწილები, რომლებსაც წესების რედაქტორი ვერ აჩვენებს"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24286,6 +24490,12 @@ msgstr "ეს Sieve-ის წესია: მისი Sieve იცვლე�
 #, fuzzy
 msgid "it is a drawing of a kind that isn't shown (SVG)"
 msgstr "ეს ისეთი სახის ნახატია, რომელიც არ ჩანს (SVG)"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it is a filter of your webmail's"
+msgstr "ეს თქვენი ვებფოსტის ფილტრია"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -24334,6 +24544,12 @@ msgstr "საჩვენებლად ზედმეტად დიდი�
 #, fuzzy
 msgid "it is too long for the platform"
 msgstr "ის პლატფორმისთვის ზედმეტად გრძელია"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "it isn't an if test, which is what the rule builder writes"
+msgstr "ეს არ არის if შემოწმება, რასაც წესების რედაქტორი წერს"
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -24792,7 +25008,7 @@ msgid "no picture {id} was put in this message"
 msgstr "ამ შეტყობინებაში სურათი {id} არ ჩასმულა"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/rules_webmail.rs crates/engine/src/cmd/sieve_blocks.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "წესი id-ით {id} არ არსებობს"
@@ -26025,6 +26241,18 @@ msgstr "შედეგის გამო ეს ანგარიში ი�
 #, fuzzy
 msgid "the result {why}"
 msgstr "შედეგი {why}"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "the rule builder can't write it back as Sieve"
+msgstr "წესების რედაქტორს მისი Sieve-ად უკან ჩაწერა არ შეუძლია"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+#, fuzzy
+msgid "the rule builder would write it as other Sieve (for example an address test where it has a header test), which could change what it does"
+msgstr "წესების რედაქტორი მას სხვა Sieve-ად ჩაწერდა (მაგალითად address შემოწმებად header-ის ნაცვლად), რამაც შეიძლება შეცვალოს მისი მოქმედება"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -29409,6 +29637,14 @@ msgstr ""
 #~ msgid "contact"
 #~ msgstr "კონტაქტი"
 
+#~ msgid "Made in another program: MailCraft shows these rules, and changes them only as you edit the script's text"
+#~ msgstr "შექმნილია სხვა პროგრამაში: MailCraft აჩვენებს ამ წესებს და ცვლის მათ მხოლოდ ისე, როგორც სკრიპტის ტექსტს არედაქტირებთ"
+
+#, fuzzy
+#~ msgid "On the server, made in another program: MailCraft never changes it"
+#~ msgstr "სერვერზე, სხვა პროგრამაში შექმნილი: MailCraft მას არასოდეს ცვლის"
+
+#, fuzzy
 #~ msgid "A Sieve rule: its Sieve is changed under Advanced…"
 #~ msgstr "Sieve-ის წესი: მისი Sieve იცვლება „დამატებითი…“-ის ქვეშ"
 

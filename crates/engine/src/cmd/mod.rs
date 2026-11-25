@@ -195,6 +195,9 @@ pub mod senders;
 #[cfg(test)]
 mod senders_tests;
 pub mod shared;
+pub mod sieve_blocks;
+#[cfg(test)]
+mod sieve_blocks_tests;
 #[cfg(test)]
 mod sieve_effects_tests;
 pub mod sieve_elsewhere;
@@ -292,6 +295,7 @@ pub fn registry() -> Registry {
     v.extend(auto_replies::specs());
     v.extend(sieve_replies::specs());
     v.extend(sieve_own::specs());
+    v.extend(sieve_blocks::specs());
     v.extend(offline::specs());
     v.extend(device_limits::specs());
     v.extend(send_receive::specs());

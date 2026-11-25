@@ -229,6 +229,10 @@ const ROWS: &[(&str, &str, Setup)] = &[
     // (Nor a script of the owner's own on such a server: asked about, and refused as the command refuses it.)
     ("sieve.ownScript", r#"{"account": $account}"#, Setup::None),
     ("sieve.putOwnScript", r#"{"account": $account, "text": "keep;", "digest": "00"}"#, Setup::None),
+    // (Nor a rule of one, nor a rule kept in a Sieve script: asked about, and refused as the command refuses it.)
+    ("sieve.ownBlock", r#"{"id": $rule}"#, Setup::None),
+    ("sieve.putOwnBlock", r#"{"id": $rule, "text": "keep;", "digest": "00"}"#, Setup::None),
+    ("rules.toSieve", r#"{"id": $rule}"#, Setup::None),
     ("rules.remove", r#"{"id": $rule}"#, Setup::None),
     ("rules.enable", r#"{"id": $rule}"#, Setup::None),
     ("rules.list", "{}", Setup::None),

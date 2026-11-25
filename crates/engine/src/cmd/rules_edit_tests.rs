@@ -222,7 +222,7 @@ fn a_rule_a_microsoft_server_keeps_the_owners_own_script_and_read_only_rules_are
 }
 
 #[test]
-fn the_owners_own_sieve_scripts_rules_are_never_changed() {
+fn the_owners_own_sieve_scripts_rules_change_only_into_what_sieve_says() {
     let (mut s, account, _) = sieve_session();
     let theirs = "require \"fileinto\";\r\nif header :contains \"subject\" \"x\" { fileinto \"INBOX\"; }\r\n";
     let state = json!({"extensions": ALL, "scripts": [{"name": "roundcube", "active": true}], "script": null,
@@ -233,7 +233,8 @@ fn the_owners_own_sieve_scripts_rules_are_never_changed() {
         .run("rules.edit", &json!({"id": id, "name": "N", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]}))
         .unwrap_err()
         .to_string();
-    assert!(said.contains("\"roundcube\""), "{said}");
+    // (The builder may change it, #9999; an attachment isn't something its Sieve can look for.)
+    assert!(said.contains("can't be written in your Sieve script"), "{said}");
     let elsewhere = s.sieve.get(&account).and_then(|k| k.elsewhere.as_ref()).map(|e| e.rules[0].clone()).unwrap();
     assert_eq!(cannot_edit(&s.mailbox, &elsewhere), Some(NotEditable::Elsewhere));
 }

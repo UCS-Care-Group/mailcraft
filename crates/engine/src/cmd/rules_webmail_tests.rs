@@ -418,8 +418,11 @@ fn a_rule_of_a_script_not_the_webmails_stays_read_only() {
     let (mut s, account, junk, _) = session(roundcube);
     let r = rules(&s, account);
     assert!(r[0].read_only() && find(&s, r[0].id).is_none());
-    let refused = err(&mut s, "rules.edit", params(r[0].id, "x", json!({"type": "toContains", "value": "x"}), junk));
-    assert!(refused.contains("MailCraft shows it and never changes it"), "{refused}");
+    // Not as a filter: as a rule of the owner's own script, its command alone written again (#9999).
+    let changed = run(&mut s, "rules.edit", params(r[0].id, "x", json!({"type": "toContains", "value": "x"}), junk));
+    assert_eq!(changed.get("webmail"), None);
+    let text = changed["sieve"]["text"].as_str().unwrap();
+    assert!(text.starts_with("# rule:[Lists]\nrequire \"fileinto\";\n") && text.contains("address :all :contains"), "{text}");
     assert!(err(&mut s, "rules.enable", json!({"id": r[0].id})).contains("never changes it"));
     // No signature: no filter of the webmail's, even with its comments.
     let unsigned = script().replace("# RAINLOOP:SIEVE\n", "");
