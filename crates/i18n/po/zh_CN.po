@@ -1718,6 +1718,13 @@ msgid "An unsubscribe is already on its way."
 msgstr "退订请求已在处理中。"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "And {n} more change was put back."
+msgid_plural "And {n} more changes were put back."
+msgstr[0] "另有 {n} 项更改已恢复。"
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
@@ -26236,9 +26243,9 @@ msgstr[0] "保存要保留的联系人后，将删除其余 {n} 个联系人。�
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} 个联系人已恢复为仅保存在此计算机上：等待发送的更改过多。"
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} 个联系人未撤消：等待发送到其服务器的更改过多。"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27291,6 +27298,11 @@ msgstr "−行"
 #, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "只读"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} 个联系人已恢复为仅保存在此计算机上：等待发送的更改过多。"
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

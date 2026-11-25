@@ -115,9 +115,14 @@ impl ContactFolder {
     }
 
     /// Cut to size, as everything from outside is: `None` for one that can't be a folder (its
-    /// owner's address is none).
+    /// owner's address is none, or it has an id that can't be read, which must not be taken for
+    /// the main folder's none).
     pub fn tidied(mut self) -> Option<ContactFolder> {
+        let had = !self.remote.is_empty();
         self.remote = key(&self.remote);
+        if had && self.remote.is_empty() {
+            return None;
+        }
         self.name = line(&self.name, MAX_NAME);
         if self.name.is_empty() {
             self.name = MAIN_FOLDER_NAME.into();
@@ -299,6 +304,21 @@ pub struct ContactChange {
     /// Why it didn't go the last time, for the owner to read.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
+    /// Tried at least once (an answer said so, other than that the server took nothing): it may
+    /// have reached the server whatever that answer was. Only a new contact that was sent (`base`
+    /// then holds what was sent) is taken for one the server lists under a name not heard yet.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent: bool,
+    /// For a new contact: when the server said it made it but not what it calls it (Unix
+    /// seconds); 0 for not. Not sent again (that could make it twice) until a download shows it,
+    /// or a whole list of its folder read after that doesn't
+    /// ([`crate::remote::ContactsDownload::read_at`]).
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub unconfirmed: Timestamp,
+    /// For a new contact that was sent: when an answer last said it was tried (Unix seconds).
+    /// Only a list read after that can say the server doesn't have it.
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub tried: Timestamp,
 }
 
 /// How long a change waits after failing `attempts` times in a row (seconds): 30 s, doubling,

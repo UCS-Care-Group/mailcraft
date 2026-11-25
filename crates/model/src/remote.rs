@@ -480,6 +480,11 @@ pub struct ContactsDownload {
     /// ([`crate::contact_sync::ContactFolder::delta`]); empty leaves it as it is.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub delta: String,
+    /// When the host started reading it from the server (Unix seconds, this computer's clock);
+    /// 0 when not said. Only a list read after a new contact was answered can say the server
+    /// didn't make it ([`crate::contact_sync::ContactChange::unconfirmed`]).
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub read_at: Timestamp,
 }
 
 impl ContactsDownload {

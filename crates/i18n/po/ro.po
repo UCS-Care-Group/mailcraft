@@ -1718,6 +1718,15 @@ msgid "An unsubscribe is already on its way."
 msgstr "O dezabonare este deja în curs."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "And {n} more change was put back."
+msgid_plural "And {n} more changes were put back."
+msgstr[0] "Și încă {n} modificare a fost anulată."
+msgstr[1] "Și încă {n} modificări au fost anulate."
+msgstr[2] "Și încă {n} de modificări au fost anulate."
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
@@ -26382,11 +26391,11 @@ msgstr[2] "{n} de contacte se șterg după ce se salvează cel păstrat. Anulare
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} contact este pus înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
-msgstr[1] "{n} contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
-msgstr[2] "{n} de contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} contact nu este anulat: prea multe modificări așteaptă să fie trimise la serverul său."
+msgstr[1] "{n} contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
+msgstr[2] "{n} de contacte nu sunt anulate: prea multe modificări așteaptă să fie trimise la serverele lor."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27655,6 +27664,13 @@ msgstr "−Linii"
 #, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Doar citire"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} contact este pus înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+#~ msgstr[1] "{n} contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
+#~ msgstr[2] "{n} de contacte sunt puse înapoi doar pe acest computer: prea multe modificări așteaptă să fie trimise."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

@@ -1719,6 +1719,14 @@ msgid "An unsubscribe is already on its way."
 msgstr "Ya hay una baja en curso."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "And {n} more change was put back."
+msgid_plural "And {n} more changes were put back."
+msgstr[0] "Y {n} cambio más se deshizo."
+msgstr[1] "Y {n} cambios más se deshicieron."
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
 msgid "And {n} more link like it."
@@ -26281,10 +26289,10 @@ msgstr[1] "Se eliminan {n} contactos al guardar el conservado. Deshacer los recu
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} contacto vuelve a quedar solo en este equipo: hay demasiados cambios esperando a enviarse."
-msgstr[1] "{n} contactos vuelven a quedar solo en este equipo: hay demasiados cambios esperando a enviarse."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} contacto no se deshace: hay demasiados cambios esperando a enviarse a su servidor."
+msgstr[1] "{n} contactos no se deshacen: hay demasiados cambios esperando a enviarse a sus servidores."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27442,6 +27450,12 @@ msgstr "−Líneas"
 #, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Solo lectura"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} contacto vuelve a quedar solo en este equipo: hay demasiados cambios esperando a enviarse."
+#~ msgstr[1] "{n} contactos vuelven a quedar solo en este equipo: hay demasiados cambios esperando a enviarse."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

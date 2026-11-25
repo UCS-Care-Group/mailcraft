@@ -149,7 +149,7 @@ fn changes_the_server_puts_off_are_in_the_progress_list() {
     // Waiting its first try: nothing to say yet.
     assert_eq!(crate::sync_panel::contacts_waiting(w.state(), ada), None);
     let result = json!({"account": ada, "email": "ada@example.org", "outcomes": [
-        {"op": {"kind": "change", "contact": mo}, "result": "failed", "status": 503, "error": "The server is busy\r\n"}]});
+        {"op": {"kind": "change", "contact": mo, "remote": "Mo-Main"}, "result": "failed", "status": 503, "error": "The server is busy\r\n"}]});
     run(&mut w, "sync.applyContactChanges", json!({"result": result}));
     let line = crate::sync_panel::contacts_waiting(w.state(), ada).unwrap();
     assert_eq!(line, "1 change to contacts isn't on the server yet: it is tried again later (The server is busy)");
@@ -166,9 +166,21 @@ fn a_long_reason_from_the_server_is_a_line_of_its_own() {
     run(&mut w, "people.edit", json!({"id": mo, "title": "Lead"}));
     let long = "The server is busy ".repeat(12).trim().to_string();
     let result = json!({"account": ada, "email": "ada@example.org", "outcomes": [
-        {"op": {"kind": "change", "contact": mo}, "result": "failed", "status": 503, "error": long}]});
+        {"op": {"kind": "change", "contact": mo, "remote": "Mo-Main"}, "result": "failed", "status": 503, "error": long}]});
     run(&mut w, "sync.applyContactChanges", json!({"result": result}));
     run(&mut w, "people.select", json!({"id": mo}));
     assert!(mailcraft_engine::cmd::contacts_remote::not_sent(&w.state().session.mailbox, mo));
     assert!(w.query_by_label(&long).is_some(), "the reason is a label of its own");
+}
+
+/// Every change the server refused for good is said, not only the first: three by name, then
+/// how many more.
+#[test]
+fn every_refusal_from_the_server_is_said() {
+    let said = |messages: Vec<String>| crate::feedback("sync.applyContactChanges", &json!({"messages": messages}));
+    assert_eq!(said(vec![]), None);
+    assert_eq!(said(vec!["A.".into()]).as_deref(), Some("A."));
+    assert_eq!(said(vec!["A.".into(), "B.".into()]).as_deref(), Some("A. B."));
+    let five: Vec<String> = ["A.", "B.", "C.", "D.", "E."].iter().map(|s| s.to_string()).collect();
+    assert_eq!(said(five).as_deref(), Some("A. B. C. And 2 more changes were put back."));
 }
