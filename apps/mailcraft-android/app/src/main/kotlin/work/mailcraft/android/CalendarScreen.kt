@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -81,7 +82,10 @@ private val Gutter = 16.dp
 private val Small = 8.dp
 internal val Hairline = 1.dp
 internal val Bar = 4.dp
-internal val HourHeight = 64.dp
+/** One hour of the day and week views: short enough that 8:00 to 18:00 fits a phone screen. */
+internal val HourHeight = 44.dp
+/** No block is shorter than this, so a quarter-hour event can still be touched. */
+private val MinBlock = 24.dp
 private val HourGutter = 76.dp
 private val MonthCell = 64.dp
 private val Dot = 6.dp
@@ -333,7 +337,22 @@ private fun Agenda(
 }
 
 internal val CalendarFabRoom = 88.dp
-internal val ShortBlock = 40.dp
+internal val ShortBlock = 56.dp
+
+/** A block's smallest drawn height: a touch target, or a line of the owner's font size plus [inset] each side. */
+@Composable
+internal fun minBlockHeight(inset: Dp): Dp =
+    maxOf(MinBlock, lineHeight(MaterialTheme.typography.labelMedium) + inset * 2)
+
+/** The minutes the smallest block is worth at [HourHeight], never fewer than [MIN_BLOCK_MINUTES]. */
+@Composable
+internal fun minBlockMinutes(): Int =
+    maxOf(MIN_BLOCK_MINUTES, ceil(minBlockHeight(Bar).value / HourHeight.value * MINUTES_IN_HOUR).toInt())
+
+/** One line of [style] at the owner's font size. */
+@Composable
+internal fun lineHeight(style: androidx.compose.ui.text.TextStyle): Dp =
+    with(LocalDensity.current) { style.lineHeight.toDp() }
 
 @Composable
 private fun AgendaRow(texts: Texts, e: CalendarEvent, day: LocalDate, locale: Locale, actions: CalendarActions) {
@@ -419,7 +438,8 @@ private fun DayView(
     locale: Locale,
     actions: CalendarActions,
 ) {
-    val layout = remember(events, date, zone) { dayLayout(events, date, zone) }
+    val minMinutes = minBlockMinutes()
+    val layout = remember(events, date, zone, minMinutes) { dayLayout(events, date, zone, minMinutes) }
     val density = LocalDensity.current
     val startMinute = layout.placed.minOfOrNull { it.startMinute }?.minus(MINUTES_IN_HOUR) ?: DEFAULT_SCROLL_MINUTE
     val hours = startMinute.coerceAtLeast(0).toFloat() / MINUTES_IN_HOUR
@@ -524,7 +544,9 @@ internal fun EventBlock(
 ) {
     val columnWidth = width / p.columns
     val top = HourHeight * (p.startMinute.toFloat() / MINUTES_IN_HOUR)
-    val height = HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR)
+    // At least a touch target and one line of the owner's font size, so a short block's title still reads.
+    val height = (HourHeight * ((p.endMinute - p.startMinute).toFloat() / MINUTES_IN_HOUR))
+        .coerceAtLeast(minBlockHeight(inset))
     val speech = if (spoken == null) Modifier else Modifier.clearAndSetSemantics { contentDescription = spoken }
     Column(
         modifier = Modifier
@@ -547,8 +569,11 @@ private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale
     val line = timeLine(texts, e, date, locale)
     val time = if (e.cancelled) "$line, ${texts.t("Cancelled")}" else line
     val struck = if (e.cancelled) TextDecoration.LineThrough else null
-    if (height < ShortBlock) {
-        // A block too short for two lines keeps both in one.
+    val titleLine = lineHeight(MaterialTheme.typography.labelMedium)
+    val timeLineHeight = lineHeight(MaterialTheme.typography.labelSmall)
+    val room = height - Bar * 2
+    if (room < titleLine + timeLineHeight) {
+        // A block too short for both lines at this font size keeps them in one.
         Text(
             "$title, $time",
             textDecoration = struck,
@@ -563,7 +588,8 @@ private fun DayBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale
             textDecoration = struck,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            maxLines = 2,
+            // A second line of title only where the time line still fits below it.
+            maxLines = if (room >= titleLine * 2 + timeLineHeight) 2 else 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(time, style = MaterialTheme.typography.labelSmall, maxLines = 1)

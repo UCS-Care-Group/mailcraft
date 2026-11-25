@@ -69,7 +69,7 @@ WordCraft does.
 5. A maintainer checks the draft (files, names, checksums, notes) and publishes it by hand:
    Releases › the draft › Edit › Publish release, or `gh release edit v0.2.0 --draft=false`.
    Nothing is public until then.
-6. Announce it to the testers: a comment on [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)
+6. Announce it to the testers: a comment on [#11](https://github.com/UCSLabs/mailcraft/issues/11)
    headed `## MailCraft v<version> is out`, with the download link and the release's headlines
    (the tester welcome promises it): the notes' **in short** list. Add anyone who signed up since to #11's Testers table.
 
@@ -234,7 +234,7 @@ nothing; the `.msi`, installed by Windows Installer, isn't affected.
 
 Every file of a release also gets a build provenance attestation (`actions/attest-build-provenance`):
 a signed statement, kept by GitHub outside the release, of the workflow run and commit that made
-it. Check a download with `gh attestation verify <file> -R UCS-Care-Group/mailcraft`.
+it. Check a download with `gh attestation verify <file> -R UCSLabs/mailcraft`.
 
 What the build fetches is pinned: every action by full commit SHA (Dependabot moves them, a week
 after their release), the shared workflows of `storytold/craft-common-actions` by full commit SHA
@@ -259,7 +259,7 @@ no environment, is given no secrets and publishes nothing.
 
 Each release also carries `mailcraft-<version>.intoto.jsonl`: the build provenance GitHub attests
 (which workflow run, at which commit, made each file), as a file, so it can be checked without
-GitHub's command line (`gh attestation verify <file> -R UCS-Care-Group/mailcraft` does the same
+GitHub's command line (`gh attestation verify <file> -R UCSLabs/mailcraft` does the same
 online).
 ## The Android release
 

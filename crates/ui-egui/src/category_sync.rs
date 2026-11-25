@@ -152,12 +152,16 @@ impl MailApp {
         if !self.session.driver.auto_sync() || self.offline() || self.services.graph_categories.is_none() || self.category_sync.rx.is_some() {
             return false;
         }
-        // One thing at a time: the calendar's, the to-dos' and the rules' jobs, a Send/Receive and
-        // a sign-in go first.
-        if self.job_busy().blocks(Start::Categories) {
+        // One thing at a time: the calendar's, the to-dos' and the rules' jobs and a Send/Receive
+        // go first; a sign-in open in the browser holds only its own account's list (#1557).
+        let busy = self.job_busy();
+        if busy.blocks_every(Start::Categories) {
             return false;
         }
         for account in kept {
+            if busy.blocks(Start::Categories, account) {
+                continue;
+            }
             // Another address: what was learnt of the old one's sign-in and list is not this one's.
             let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_lowercase()).unwrap_or_default();
             if self.category_sync.addresses.get(&account).is_some_and(|was| *was != address) {

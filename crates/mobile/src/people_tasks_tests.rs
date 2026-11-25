@@ -167,3 +167,167 @@ fn long_notes_and_names_are_cut() {
     let short = exec(&core, "tasks.new", json!({"title": "T2", "notes": "n".repeat(8_000), "account": 0})).unwrap();
     assert!(!block_on(core.task(short["id"].as_u64().unwrap())).unwrap().notes_cut);
 }
+
+/// [`core_with_account`], with a shared mailbox's contacts folder the account may only read, and
+/// a person in it.
+fn core_with_read_only_folder() -> (Arc<Core>, u64) {
+    use mailcraft_model::Contact;
+    use mailcraft_model::contact_sync::{ContactFolder, FolderOwner};
+    let core = Core::start(FakePlatform::new(), || {
+        let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+        let _ = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}));
+        let account = s.mailbox.accounts.iter().find(|a| a.email == "ada@example.org").map(|a| a.id).unwrap();
+        let owner = FolderOwner::Mailbox("sales@example.org".into());
+        let folder = ContactFolder { account, remote: "sales".into(), name: "Sales".into(), owner, ..Default::default() };
+        let folder = s.mailbox.add_contact_folder(folder).unwrap();
+        let mut c = Contact { first: "Grace".into(), folder, ..Default::default() };
+        c.origin.account = account;
+        c.origin.id = "AAA".into();
+        s.mailbox.add_contact(c);
+        s
+    })
+    .unwrap();
+    let id = block_on(core.people("Grace".into(), 0, 5)).unwrap().people.first().map(|p| p.id).unwrap();
+    (core, id)
+}
+
+#[test]
+fn a_new_person_goes_to_the_accounts_contacts_folder_made_when_first_used_and_waits_to_go_up() {
+    let (core, account) = core_with_account();
+    // No contacts folder yet: its main one is offered, as the default, without an id.
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert_eq!(offered.default_index, Some(0));
+    let main = &offered.folders[0];
+    assert_eq!((main.id, main.account, main.name.as_str(), main.kind.as_str()), (None, account, "Contacts (ada@example.org)", "own"));
+
+    let made = exec(&core, "people.new", json!({"first": "Ada"})).unwrap();
+    let person = block_on(core.person(made["id"].as_u64().unwrap())).unwrap();
+    assert!(person.folder != 0 && person.not_sent && !person.read_only);
+    assert_eq!((person.folder_name.as_str(), person.folder_kind.as_str()), ("Contacts (ada@example.org)", "own"));
+    // Now made, it is offered by its id.
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert_eq!(offered.folders.iter().map(|f| f.id).collect::<Vec<_>>(), vec![Some(person.folder)]);
+    assert_eq!(offered.default_index, Some(0));
+
+    // This phone is named by 0, and nothing waits to go anywhere.
+    let here = exec(&core, "people.new", json!({"first": "Bea", "folder": 0})).unwrap();
+    let here = block_on(core.person(here["id"].as_u64().unwrap())).unwrap();
+    assert_eq!((here.folder, here.folder_name.as_str(), here.folder_kind.as_str(), here.not_sent), (0, "", "", false));
+}
+
+/// #1917: the card marks what the account's server has no place for; nothing is refused for it,
+/// and on this phone nothing is marked.
+#[test]
+fn what_the_server_has_no_place_for_is_marked_and_kept() {
+    let (core, _) = core_with_account();
+    let emails: Vec<_> = (1..=4).map(|n| json!({"label": "work", "value": format!("ada{n}@example.org")})).collect();
+    let marks = |id: &serde_json::Value| {
+        let person = block_on(core.person(id["id"].as_u64().unwrap())).unwrap();
+        person.emails.iter().map(|e| e.local_only).collect::<Vec<_>>()
+    };
+    let theirs = exec(&core, "people.new", json!({"first": "Ada", "emails": emails})).unwrap();
+    assert_eq!(marks(&theirs), [false, false, false, true]);
+    let here = exec(&core, "people.new", json!({"first": "Bea", "emails": emails, "folder": 0})).unwrap();
+    assert_eq!(marks(&here), [false; 4]);
+}
+
+#[test]
+fn a_read_only_folder_is_named_on_the_card_and_not_offered_for_a_new_person() {
+    let (core, grace) = core_with_read_only_folder();
+    let person = block_on(core.person(grace)).unwrap();
+    assert!(person.read_only && !person.not_sent);
+    assert_eq!((person.folder_name.as_str(), person.folder_kind.as_str()), ("Sales (sales@example.org)", "mailbox"));
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert!(offered.folders.iter().all(|f| f.id != Some(person.folder)));
+    assert!(exec(&core, "people.new", json!({"first": "X", "folder": person.folder})).is_err());
+}
+
+#[test]
+fn with_no_account_that_keeps_contacts_a_new_person_stays_on_this_phone() {
+    let core = sample_core();
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert!(offered.folders.is_empty() && offered.default_index.is_none());
+}
+
+/// Two accounts whose writable folders fill the picker, and a third with no folder yet, whose
+/// people the list shows: its main folder (not made yet) is the default.
+#[test]
+fn a_main_folder_not_made_yet_is_offered_without_going_past_the_most_listed() {
+    use mailcraft_model::AccountChoice;
+    use mailcraft_model::contact_sync::ContactFolder;
+    let core = Core::start(FakePlatform::new(), || {
+        let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+        for who in ["a", "b", "c"] {
+            let email = format!("{who}@example.org");
+            let _ = s.run("account.add", &json!({"email": email, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}));
+        }
+        let id = |s: &Session, email: &str| s.mailbox.accounts.iter().find(|a| a.email == email).map(|a| a.id).unwrap();
+        for email in ["a@example.org", "b@example.org"] {
+            let account = id(&s, email);
+            loop {
+                let remote = format!("f{}", s.mailbox.contact_folders.len());
+                let folder = ContactFolder { account, remote, name: "F".into(), writable: true, ..Default::default() };
+                if s.mailbox.add_contact_folder(folder).is_none() {
+                    break;
+                }
+            }
+        }
+        let c = id(&s, "c@example.org");
+        assert!(s.mailbox.main_contact_folder(c).is_none());
+        s.view.people_account = AccountChoice::Account(c);
+        s
+    })
+    .unwrap();
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert!(offered.folders.len() <= crate::text::MAX_LISTED, "{} listed", offered.folders.len());
+    let default = &offered.folders[offered.default_index.unwrap() as usize];
+    assert_eq!((default.id, default.name.as_str()), (None, "Contacts (c@example.org)"));
+}
+
+#[test]
+fn the_default_folder_is_offered_even_past_the_most_listed() {
+    use mailcraft_model::contact_sync::ContactFolder;
+    let core = Core::start(FakePlatform::new(), || {
+        let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+        for who in ["a", "b", "c"] {
+            let email = format!("{who}@example.org");
+            let _ = s.run("account.add", &json!({"email": email, "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"}));
+        }
+        let id = |s: &Session, email: &str| s.mailbox.accounts.iter().find(|a| a.email == email).map(|a| a.id).unwrap();
+        // The first two accounts fill the list; the third's folder is the one last used.
+        for email in ["a@example.org", "b@example.org"] {
+            let account = id(&s, email);
+            loop {
+                let remote = format!("f{}", s.mailbox.contact_folders.len());
+                let folder = ContactFolder { account, remote, name: "F".into(), writable: true, ..Default::default() };
+                if s.mailbox.add_contact_folder(folder).is_none() {
+                    break;
+                }
+            }
+        }
+        let last = s.mailbox.ensure_main_contact_folder(id(&s, "c@example.org")).unwrap();
+        s.mailbox.contact_place = Some(last);
+        s
+    })
+    .unwrap();
+    let offered = block_on(core.contact_folders()).unwrap();
+    assert!(offered.folders.len() <= crate::text::MAX_LISTED);
+    let at = offered.default_index.unwrap() as usize;
+    assert_eq!(offered.folders[at].name, "Contacts (c@example.org)");
+}
+
+/// Move to contacts folder (#1144): somebody there with the same address is found for the picker
+/// to ask about; the move itself doesn't ask.
+#[test]
+fn the_picker_hears_of_somebody_there_already_and_the_move_goes_ahead_anyway() {
+    let (core, _) = core_with_account();
+    let made = exec(&core, "people.new", json!({"first": "Ada", "email": "ada@example.org"})).unwrap();
+    let (ada, folder) = (made["id"].as_u64().unwrap(), made["folder"].as_u64().unwrap());
+    let here = exec(&core, "people.new", json!({"first": "Ada Home", "email": " ADA@example.org", "folder": 0})).unwrap()["id"].as_u64().unwrap();
+    let there = block_on(core.already_in(vec![here], folder)).unwrap().unwrap();
+    assert_eq!((there.id, there.name.as_str()), (ada, "Ada"));
+    assert_eq!(block_on(core.already_in(vec![here], 0)).unwrap(), None);
+    assert_eq!(block_on(core.already_in(vec![u64::MAX], folder)).unwrap(), None);
+    exec(&core, "people.moveToFolder", json!({"ids": [here], "folder": folder})).unwrap();
+    assert_eq!(block_on(core.person(here)).unwrap().folder, folder);
+}

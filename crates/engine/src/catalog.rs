@@ -316,6 +316,7 @@ People|Actions|Add to Favorites|people.favorite
 People|Actions|Forward Contact|people.forward
 People|Actions|Link Contacts|people.link
 People|Actions|Merge Duplicates|people.merge
+People|Actions|Move|people.moveToFolder
 People|Actions|Mail Merge|people.mailMerge
 People|Tags|Categorize|people.categorize
 People|Tags|Follow Up|people.followUp

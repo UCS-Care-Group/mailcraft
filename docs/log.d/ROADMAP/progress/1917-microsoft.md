@@ -1,0 +1,1 @@
+| 2026-11-25 | #1917 CS3, CS4: Microsoft contacts both ways: every contacts folder (subfolders, shared mailboxes') read by delta, contacts made, changed or deleted here sent to the server, with the owner's permission asked for through the one question |
