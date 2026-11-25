@@ -13084,7 +13084,7 @@ msgstr "他の人の公開鍵"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Purple"
-msgstr "パープル"
+msgstr "紫"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
