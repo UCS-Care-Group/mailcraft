@@ -86,5 +86,5 @@ This agreement is governed by the laws of England and Wales.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | 2026-10-19 | First version |
 | 1.1 | 2026-11-22 | Repository link only: the GitHub organisation was renamed from `UCS-Care-Group` to `UCSLabs`. Nothing else changed, and a signature under 1.0 remains valid. |
+| 1.0 | 2026-10-19 | First version |
