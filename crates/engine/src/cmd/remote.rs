@@ -1409,7 +1409,10 @@ pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> 
         .iter()
         .filter(|change| change.account == account && change.retry_at <= now && holds(mailbox, change, &here) && !lacks_rights(mailbox, change))
         // (One made in a calendar server's calendar goes there, not to Microsoft: `sync.davRequest`.)
-        .filter(|change| mailbox.event(change.event).is_none_or(|e| !dav_addable(mailbox, e.calendar)))
+        .filter(|change| {
+            let calendar = mailbox.event(change.event).map(|e| e.calendar).or_else(|| change.base.as_ref().map(|b| b.calendar));
+            calendar.is_none_or(|c| !dav_addable(mailbox, c))
+        })
     {
         if ops.len() >= MAX_EVENT_OPS {
             break;

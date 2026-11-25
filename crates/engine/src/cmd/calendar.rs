@@ -130,6 +130,23 @@ fn may_alter(s: &Session, e: &Event) -> Result<(), CmdError> {
     Ok(())
 }
 
+/// The event to delete when it is in a calendar of a calendar server that may be written to (#209
+/// D6): a whole event or series, not one day of it, and not a meeting (its server could send the
+/// cancellations by itself). `None` for any other event, which [`changing`] looks at.
+fn dav_deleting(s: &Session, v: &Value) -> Result<Option<Event>, CmdError> {
+    let id = target(s, v)?;
+    let Some(e) = s.mailbox.event(id).filter(|e| remote::dav_addable(&s.mailbox, e.calendar)).cloned() else { return Ok(None) };
+    if p::date(v, "occurrence")?.is_some() || !e.origin.series.is_empty() {
+        return Err(fail(
+            "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server.",
+        ));
+    }
+    if !e.attendees.is_empty() || e.origin.guest {
+        return Err(fail("A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."));
+    }
+    Ok(Some(e))
+}
+
 /// The change to an event that was `before` is made: its server is told, when it has one.
 fn changed(s: &mut Session, before: &Event) -> Result<(), CmdError> {
     let offset_at = remote::offset_of(s);
@@ -902,14 +919,17 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     if delete_form(&s.sel, v)? == DeleteForm::Batch {
         return selection::delete_selected(s, v);
     }
-    let before = changing(s, v)?;
+    let before = match dav_deleting(s, v)? {
+        Some(event) => event,
+        None => changing(s, v)?,
+    };
     let id = before.id;
     if p::date(v, "occurrence")?.is_some() && before.recurrence.is_none() {
         return Err(fail("that event doesn't repeat"));
     }
     let kept = kept_by(s, &before).is_some();
     if kept {
-        writable(s, before.calendar)?;
+        remote::writable_for_new(&s.mailbox, before.calendar)?;
     }
     // Somebody else's meeting can be declined rather than only taken out of the calendar.
     let decline = p::bool(v, "decline") == Some(true) && kept && before.origin.guest && !before.origin.id.is_empty();

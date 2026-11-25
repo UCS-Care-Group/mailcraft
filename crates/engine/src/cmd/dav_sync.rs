@@ -40,8 +40,8 @@ use mailcraft_model::dav_down::{MAX_ACCOUNT_RESOURCES, MAX_ACCOUNT_TEXT, MAX_CHA
 use mailcraft_model::remote::MAX_KEY;
 use mailcraft_model::remote::{EventChangeKind, MAX_EVENT_OPS};
 use mailcraft_model::{
-    Calendar, DavAsk, DavAskCollection, DavChange, DavCollectionState, DavCreate, DavCreated, DavDownload, DavKnown, DavListing, DavProblem, DavPut,
-    DavRead, DavReadState, DavServer, Event, Id, Origin, Rights, origin_of,
+    Calendar, DavAsk, DavAskCollection, DavChange, DavCollectionState, DavCreate, DavCreated, DavDelete, DavDeleted, DavDownload, DavGone, DavKnown,
+    DavListing, DavProblem, DavPut, DavRead, DavReadState, DavServer, Event, Id, Origin, Rights, origin_of,
 };
 use serde_json::{Value, json};
 
@@ -150,6 +150,62 @@ fn take_created(s: &mut Session, account: Id, created: &[DavCreated], took: &mut
                 changed = true;
             }
             DavPut::NotNow => {}
+        }
+    }
+    changed
+}
+
+/// The resources of events deleted here that their server is to delete (#209 D6): each only while
+/// it has the ETag it was last read with, [`MAX_EVENT_OPS`] at most. One kept without an ETag
+/// waits for a read that gives it one.
+fn deletes(s: &Session, account: Id, collections: &[DavAskCollection]) -> Vec<DavDelete> {
+    let now = s.now();
+    let mut out = Vec::new();
+    for change in s.mailbox.event_changes.iter().filter(|c| c.account == account && c.kind == EventChangeKind::Delete && c.retry_at <= now) {
+        if out.len() >= MAX_EVENT_OPS {
+            break;
+        }
+        let Some(base) = change.base.as_deref() else { continue };
+        let Some(collection) = collections.iter().find(|c| within(&c.href, &change.remote)) else { continue };
+        if base.origin.change_key.is_empty() || base.origin.id != change.remote {
+            continue;
+        }
+        out.push(DavDelete { collection: collection.href.clone(), href: change.remote.clone(), etag: base.origin.change_key.clone() });
+    }
+    out
+}
+
+/// What the server made of the deletions the request gave it. Deleted (or gone already): nothing
+/// more waits. Changed there since, or refused: the deletion is given up and the collection is
+/// read whole again, which brings the event back as the server has it; the owner is told. Not
+/// now: it waits for the next run.
+fn take_deleted(s: &mut Session, account: Id, deleted: &[DavDeleted], took: &mut Took) -> bool {
+    let mut changed = false;
+    for answer in deleted.iter().take(MAX_EVENT_OPS) {
+        let at = s.mailbox.event_changes.iter().position(|c| c.account == account && c.kind == EventChangeKind::Delete && c.remote == answer.href);
+        let Some(at) = at else { continue };
+        match answer.outcome {
+            DavGone::Deleted => {
+                s.mailbox.event_changes.remove(at);
+                changed = true;
+            }
+            DavGone::Changed | DavGone::Refused => {
+                let change = s.mailbox.event_changes.remove(at);
+                took.kept.push(change.base.map(|b| b.title).unwrap_or_default());
+                // (Read whole again: a token would only bring what changed since.)
+                if let Some(state) = s
+                    .mailbox
+                    .account_mut(account)
+                    .ok()
+                    .and_then(|a| a.dav.as_mut())
+                    .and_then(|d| d.collections.iter_mut().find(|c| within(&c.href, &answer.href)))
+                {
+                    state.sync_token.clear();
+                    state.ctag.clear();
+                }
+                changed = true;
+            }
+            DavGone::NotNow => {}
         }
     }
     changed
@@ -331,6 +387,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     let creates = creates(s, account.id, &collections);
+    let deletes = deletes(s, account.id, &collections);
     let ask = DavAsk {
         account: account.id,
         email: account.email.trim().to_string(),
@@ -343,6 +400,7 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         no_room: s.mailbox.calendars.len() >= MAX_CALENDARS,
         generation: s.dav_generation.get(&account.id).copied().unwrap_or(0),
         creates,
+        deletes,
     };
     // (After every other, even within one second.)
     let turn = now.max(s.dav_asked.values().copied().max().map_or(i64::MIN, |last| last.saturating_add(1)));
@@ -366,6 +424,8 @@ struct Took {
     sent: usize,
     /// The titles of those it wouldn't take, kept on this computer instead.
     refused: Vec<String>,
+    /// The titles of events deleted here that the server kept (changed there, or refused).
+    kept: Vec<String>,
 }
 
 /// Whether `href` is a resource inside `collection` on the same origin: the collection's address
@@ -405,7 +465,7 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let problem = if took.full && matches!(download.problem, DavProblem::None | DavProblem::Limits) { DavProblem::Full } else { download.problem };
     Ok(json!({
         "added": took.added, "updated": took.updated, "removed": took.removed, "calendars": took.calendars,
-        "sent": took.sent, "refused": took.refused,
+        "sent": took.sent, "refused": took.refused, "kept": took.kept,
         "skipped": took.skipped.saturating_add(download.skipped as usize),
         "problem": serde_json::to_value(problem).unwrap_or(Value::Null),
         "wait": download.wait.min(600),
@@ -457,6 +517,7 @@ fn take_in(s: &mut Session, download: &DavDownload) -> Result<Took, CmdError> {
         }
     }
     changed |= take_created(s, account, &download.created, &mut took);
+    changed |= take_deleted(s, account, &download.deleted, &mut took);
     // (Counted once: each read adds to it. What waits to be sent is looked at once, too.)
     let mut room = s
         .mailbox
@@ -728,9 +789,21 @@ fn take_read(
     let before = (took.added, took.updated, took.removed);
     let mut all = read.changes.len() <= MAX_CHANGES;
     let mut named: HashSet<&str> = HashSet::new();
+    // Resources deleted here whose deletion waits: not brought back while it does.
+    let deleting: HashSet<String> = s
+        .mailbox
+        .event_changes
+        .iter()
+        .filter(|c| c.account == account && c.kind == EventChangeKind::Delete)
+        .map(|c| resource_of(&c.remote).to_string())
+        .collect();
     for change in read.changes.iter().take(MAX_CHANGES) {
         if !within(collection, &change.href) {
             took.skipped += 1;
+            continue;
+        }
+        if deleting.contains(change.href.as_str()) {
+            named.insert(change.href.as_str());
             continue;
         }
         named.insert(change.href.as_str());

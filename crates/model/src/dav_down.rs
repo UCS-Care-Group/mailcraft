@@ -92,6 +92,54 @@ pub struct DavAsk {
     /// Events made here that the server is to be given, before anything is read (D6): each is
     /// put with `If-None-Match: *`, so that one the server has already is never overwritten.
     pub creates: Vec<DavCreate>,
+    /// Events deleted here that the server is to delete too, after the creates and before the
+    /// read: each only while it is as it was last read (`If-Match`).
+    pub deletes: Vec<DavDelete>,
+}
+
+/// A resource to delete from `collection`, only while it still has the ETag `etag`. Its `Debug`
+/// shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavDelete {
+    pub collection: String,
+    pub href: String,
+    pub etag: String,
+}
+
+impl std::fmt::Debug for DavDelete {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DavDelete")
+    }
+}
+
+/// What a server made of a [`DavDelete`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavGone {
+    /// Deleted (or it was gone already: 404, 410).
+    Deleted,
+    /// It changed there since it was read (412): it stays, and is read again.
+    Changed,
+    /// It won't delete it (403 and the like): it stays, and is read again.
+    Refused,
+    /// Not now: asked again at the next run.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavDelete`], by its address. Its `Debug` shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavDeleted {
+    pub href: String,
+    pub outcome: DavGone,
+}
+
+impl std::fmt::Debug for DavDeleted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavDeleted").field("outcome", &self.outcome).finish()
+    }
 }
 
 /// One event made here, for its calendar server: the document to put as `name` (`<name>.ics`)
@@ -291,6 +339,8 @@ pub struct DavDownload {
     pub skipped: u32,
     /// What became of the events the request gave to be made there ([`DavAsk::creates`]).
     pub created: Vec<DavCreated>,
+    /// What became of the resources the request gave to be deleted ([`DavAsk::deletes`]).
+    pub deleted: Vec<DavDeleted>,
 }
 
 impl std::fmt::Debug for DavDownload {

@@ -1290,3 +1290,27 @@ fn a_new_event_for_an_address_off_the_homes_is_never_sent() {
     assert_eq!(out.created.first().map(|c| c.outcome), Some(mailcraft_model::DavPut::NotNow));
     assert!(s.seen().iter().all(|r| r.method != "PUT"));
 }
+
+#[test]
+fn a_deleted_event_goes_only_while_the_server_has_it_as_it_was_read() {
+    let s = server();
+    s.put_directly("work", "a.ics", &event("a", "20261204T090000Z")).unwrap();
+    s.put_directly("work", "b.ics", &event("b", "20261205T090000Z")).unwrap();
+    let work = s.collection_url("work");
+    let etag_a = s.etag_of("work", "a.ics").unwrap();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.deletes = vec![
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}a.ics"), etag: etag_a },
+        // Changed there since it was read: its ETag is another now.
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}b.ics"), etag: "\"stale\"".into() },
+        // Gone already.
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}c.ics"), etag: "\"1\"".into() },
+    ];
+    let out = read(&s, &asked);
+    let outcome = |name: &str| out.deleted.iter().find(|d| d.href.ends_with(name)).map(|d| d.outcome);
+    assert_eq!(outcome("a.ics"), Some(mailcraft_model::DavGone::Deleted));
+    assert_eq!(outcome("b.ics"), Some(mailcraft_model::DavGone::Changed));
+    assert_eq!(outcome("c.ics"), Some(mailcraft_model::DavGone::Deleted));
+    assert!(s.body_of("work", "a.ics").is_none());
+    assert!(s.body_of("work", "b.ics").is_some(), "what changed there stays");
+}
