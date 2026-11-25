@@ -14,7 +14,8 @@
 //!   sent, as `send` tells (`Identity/get` and a `Mailbox/get` for the roles, once; then for each message
 //!   an upload and one request of `Email/import` and `EmailSubmission/set`).
 //!
-//! Then the reading, each step in one request:
+//! Then the reading, each step in one request (and after it, when the request asks, the contacts:
+//! [`contacts`], one piece of their own before the last):
 //!
 //! 1. `Mailbox/get`, always: the mailboxes (their roles say which is the Inbox, which a run that reads
 //!    only the Inbox and the mailboxes on screen needs as much as one that reads them all). It is the
@@ -86,9 +87,15 @@
 //! sizes; an answer is held to the size its request can need; an entry that cannot be read is passed over;
 //! nothing is indexed, unwrapped or recursed into.
 
+mod card;
+#[cfg(test)]
+mod card_tests;
 mod changes;
 #[cfg(test)]
 mod changes_tests;
+pub mod contacts;
+#[cfg(test)]
+mod contacts_tests;
 mod folders;
 mod message;
 mod send;
@@ -194,6 +201,28 @@ pub async fn sync_mail<H: HttpExchange>(
         }
         threads
     };
+    // Then the contacts (#1068, #1076), as long as the server answers. Trouble with them is a line, and a run
+    // with a line to say is not whole (what the mail windows left out is then not removed this time).
+    if let Some(asked) = request.contacts.as_ref().filter(|_| !out.stopped && !out.auth_refused && out.busy_for.is_none() && out.halted.is_none()) {
+        let done = run.contacts(asked, mailcraft_time::now()).await;
+        if done.sent.is_some() || !done.downloads.is_empty() || !done.listed.is_empty() {
+            emit(run.piece(JmapMailResult {
+                contacts_sent: done.sent,
+                contacts: done.downloads,
+                contact_listed: done.listed,
+                partial: true,
+                ..Default::default()
+            }));
+        }
+        out.contacts = done.trouble;
+        match done.stop {
+            Some(Stop::Cancelled) => out.stopped = true,
+            Some(Stop::Auth) => out.auth_refused = true,
+            Some(Stop::Busy(seconds, why)) => (out.busy_for, out.contacts) = (Some(seconds), Some(why)),
+            Some(Stop::Down(error) | Stop::Failed(error)) => out.contacts = Some(run.said(&error)),
+            None => {}
+        }
+    }
     log::debug!("jmap mail: the run is over (clean: {}, stopped: {}, busy: {})", out.clean(), out.stopped, out.busy_for.is_some());
     emit(run.piece(JmapMailResult {
         threads,
@@ -271,6 +300,8 @@ struct Outcome {
     busy_for: Option<u32>,
     auth_refused: bool,
     stopped: bool,
+    /// Why the contacts could not all be kept in step: a run with a line to say is not whole.
+    contacts: Option<String>,
 }
 
 impl Outcome {
@@ -288,6 +319,7 @@ impl Outcome {
             && self.busy_for.is_none()
             && !self.auth_refused
             && !self.stopped
+            && self.contacts.is_none()
     }
 
     fn lines(&self) -> Vec<String> {
@@ -313,6 +345,9 @@ impl Outcome {
         }
         if self.gave_up {
             lines.push(format!("The server failed {MAX_FAILURES} mailboxes in a row; the rest wait for the next run."));
+        }
+        if let Some(why) = &self.contacts {
+            lines.push(format!("Couldn't keep the contacts in step with the server: {why}"));
         }
         if self.left_out > 0 {
             lines.push(format!("{} not read: a run reads {MAX_MAILBOXES} at most.", plural(self.left_out, "mailbox was", "mailboxes were")));

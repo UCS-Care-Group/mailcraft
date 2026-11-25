@@ -72,9 +72,11 @@ use crate::{
 
 mod by_place;
 mod changing;
+mod contacts;
 mod sending;
 
 pub use by_place::Profile;
+pub use contacts::{Book, CONTACTS, Contacts};
 pub use sending::{Identity, Submission};
 
 /// The session's address, to connect to.
@@ -271,6 +273,8 @@ pub struct Data {
     /// Mailboxes (ids) whose counts `Mailbox/get` leaves out (`totalEmails`, `unreadEmails`): a store that could
     /// not read them.
     pub uncounted: BTreeSet<String>,
+    /// Contacts (RFC 9610): off until a test turns them on (`standin/contacts.rs`).
+    pub contacts: Contacts,
     next: u32,
     version: u32,
     /// For the answer being made: the `Retry-After` it carries, and what its calls were asked.
@@ -315,6 +319,7 @@ impl Data {
             forgetful: BTreeSet::new(),
             forgetful_headers: BTreeSet::new(),
             uncounted: BTreeSet::new(),
+            contacts: Contacts::default(),
             next: 0,
             version: 0,
             retry_after: None,
@@ -529,7 +534,7 @@ impl Data {
     }
 
     fn session(&self) -> Value {
-        let mut session = self.session_without_sending();
+        let mut session = self.with_contacts(self.session_without_sending());
         if self.submission {
             // Sending, for the session and for the account (RFC 8621 §1.3.2).
             for (at, says) in [
@@ -592,7 +597,10 @@ impl Data {
         let (Some(using), Some(calls)) = (using, request.get("methodCalls").and_then(Value::as_array)) else {
             return rejected("notRequest", "a request has `using` (a list of names) and `methodCalls`");
         };
-        if using.iter().any(|capability| !(matches!(*capability, CORE | MAIL) || (self.submission && *capability == SUBMISSION))) {
+        let known = |capability: &str| {
+            matches!(capability, CORE | MAIL) || (self.submission && capability == SUBMISSION) || (self.contacts.on && capability == CONTACTS)
+        };
+        if using.iter().any(|capability| !known(capability)) {
             return rejected("unknownCapability", "a capability this server doesn't have is in `using`");
         }
         if calls.len() > self.max_calls {
@@ -634,6 +642,9 @@ impl Data {
             "Mailbox/get" | "Email/query" | "Email/get" | "Email/set" | "Email/import" => using.contains(&MAIL),
             "Mailbox/set" => self.profile.fixed_mailboxes && using.contains(&MAIL),
             "Identity/get" | "EmailSubmission/set" => self.submission && using.contains(&SUBMISSION),
+            "AddressBook/get" | "ContactCard/get" | "ContactCard/changes" | "ContactCard/query" | "ContactCard/set" => {
+                self.contacts.on && using.contains(&CONTACTS)
+            }
             _ => false,
         };
         if !served {
@@ -648,7 +659,8 @@ impl Data {
             "Email/import" => self.email_import(&args),
             "Identity/get" => self.identity_get(&args),
             "EmailSubmission/set" => self.submission_set(&args),
-            _ => self.email_get(&args),
+            "Email/get" => self.email_get(&args),
+            _ => self.contacts_method(name, &args),
         }
     }
 

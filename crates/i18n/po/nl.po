@@ -25403,6 +25403,12 @@ msgstr "{name} is een gedeeld postvak waarvan het account is verdwenen: verwijde
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} wordt nu verzonden en ontvangen. Gebruik Stoppen."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} blijft op deze computer: {folder} staat niet meer op de server en de wijziging die hier is gemaakt kon niet worden verstuurd."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

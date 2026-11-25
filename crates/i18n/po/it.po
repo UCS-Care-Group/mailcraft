@@ -26005,6 +26005,12 @@ msgstr "{name} è una cassetta postale condivisa il cui account non c'è più: r
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} è in fase di invio e ricezione. Usare Interrompi."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} resta su questo computer: {folder} non è più sul server e la modifica fatta qui non è stata inviata."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

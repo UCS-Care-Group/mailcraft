@@ -34,6 +34,7 @@ use mailcraft_model::contact_sync::{
     MAX_CONTACT_CHANGES, MAX_CONTACT_OPS, RemoteContactFolder, delta, wait_after,
 };
 use mailcraft_model::remote::{ContactsDownload, MAX_CONTACTS, RemoteContact, clean_key};
+use mailcraft_model::sync::JmapContactPlace;
 use mailcraft_model::{AccountChoice, Contact, Id, Mailbox, Origin};
 use serde_json::{Value, json};
 
@@ -882,6 +883,50 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
             applied.say(said!("The server didn't delete {name}{why}: it is back.", name, why).to_string());
         }
     }
+}
+
+/// Most lines said for contacts kept on this computer as their folder goes.
+const MAX_KEPT_LINES: usize = 10;
+
+/// Drop the contacts folders of `account` whose address books a server listed in full no longer
+/// has (`listed`: each owner and the books it has, the default one as empty). A main folder stays.
+/// Their contacts go with them, except one with a change made here not yet sent, which is kept on
+/// this computer with a line saying so (never lost). Whether anything changed, and the lines.
+pub(crate) fn drop_gone_folders(mailbox: &mut Mailbox, account: Id, listed: &[JmapContactPlace]) -> (bool, Vec<String>) {
+    let gone: HashMap<Id, String> = mailbox
+        .contact_folders
+        .iter()
+        .filter(|f| f.account == account && !f.is_main() && listed.iter().any(|p| p.owner == f.owner && !p.books.contains(&f.remote)))
+        .map(|f| (f.id, f.name.clone()))
+        .collect();
+    if gone.is_empty() {
+        return (false, Vec::new());
+    }
+    let kept: HashSet<Id> =
+        mailbox.contact_changes.iter().filter(|c| gone.contains_key(&c.folder) && c.kind != ContactChangeKind::Delete).map(|c| c.contact).collect();
+    mailbox.contact_changes.retain(|c| !gone.contains_key(&c.folder));
+    mailbox.contact_folders.retain(|f| !gone.contains_key(&f.id));
+    let contacts: Vec<(Id, Id)> = mailbox.contacts.values().filter(|c| gone.contains_key(&c.folder)).map(|c| (c.id, c.folder)).collect();
+    let mut lines = Vec::new();
+    for (id, folder) in contacts {
+        if !kept.contains(&id) {
+            let _ = mailbox.remove_contact(id);
+            continue;
+        }
+        let name = called(mailbox.contact(id));
+        if let Ok(c) = mailbox.contact_mut(id) {
+            (c.folder, c.origin) = (0, Origin::default());
+        }
+        // lean: a line each, the first few; the rest are kept as quietly.
+        if lines.len() < MAX_KEPT_LINES {
+            let folder = gone.get(&folder).cloned().unwrap_or_default();
+            lines.push(
+                said!("{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up.", name, folder)
+                    .to_string(),
+            );
+        }
+    }
+    (true, lines)
 }
 
 fn contact_changes_command(s: &mut Session, v: &Value) -> CmdResult {

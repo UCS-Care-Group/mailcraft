@@ -26030,6 +26030,12 @@ msgstr "{name} es un buzón compartido cuya cuenta ya no existe: quítelo y vuel
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} se está enviando y recibiendo ahora. Use Detener."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} se conserva en este equipo: {folder} ya no está en el servidor y el cambio hecho aquí no se pudo enviar."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
