@@ -530,3 +530,92 @@ proptest! {
         let _ = push_contacts_at(&server.url(""), TOKEN, &upload(ops));
     }
 }
+
+#[test]
+fn what_goes_up_is_what_graph_has_places_for_in_order() {
+    let state = mailbox();
+    let server = stand_in(state.clone());
+    let values = RemoteContact {
+        emails: (1..=4).map(|n| Labeled::new("", format!("bo{n}@example.org"))).collect(),
+        phones: (1..=3).map(|n| Labeled::new("mobile", format!("+44 7700 90000{n}"))).collect(),
+        websites: vec!["https://one.example.org".into(), "https://two.example.org".into()],
+        ..Default::default()
+    };
+    let change = op(ContactChangeKind::Change, "bo=", &[ContactField::Emails, ContactField::Phones, ContactField::Websites], values);
+    let done = push_contacts_at(&server.url(""), TOKEN, &upload(vec![change]));
+    assert_eq!(done.outcomes[0].result, ContactResult::Done);
+    let s = state.lock().unwrap();
+    let bo = &s.contacts.iter().find(|c| c.id == "bo=").unwrap().body;
+    let addresses: Vec<&str> = bo["emailAddresses"].as_array().unwrap().iter().map(|e| e["address"].as_str().unwrap()).collect();
+    assert_eq!(addresses, ["bo1@example.org", "bo2@example.org", "bo3@example.org"]);
+    // The other mobile numbers have no place: they aren't put in as business numbers.
+    assert_eq!((&bo["mobilePhone"], &bo["businessPhones"], &bo["homePhones"]), (&json!("+44 7700 900001"), &json!([]), &json!([])));
+    assert_eq!(bo["businessHomePage"], json!("https://one.example.org"));
+}
+
+#[test]
+fn an_entry_that_comes_again_in_a_round_is_as_the_last_says_a_deletion_too() {
+    let state = mailbox();
+    for n in 0..3 {
+        let id = format!("p{n}=");
+        state.lock().unwrap().add("me", "team=", &id, person(&id, &format!("P{n}"), &format!("p{n}@example.org")));
+    }
+    let server = stand_in(state.clone());
+    let first = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    // Changed, then deleted, in the same round (on two pages); and another changed twice.
+    {
+        let mut s = state.lock().unwrap();
+        for id in ["p0=", "p1=", "cy="] {
+            s.count += 1;
+            let count = s.count;
+            let c = s.contacts.iter_mut().find(|c| c.id == id).unwrap();
+            (c.body["displayName"], c.changed) = (json!(format!("{id} again")), count);
+        }
+        // The same contact listed again later in the round, deleted.
+        let mut copy = s.contacts.iter().find(|c| c.id == "p0=").unwrap().clone();
+        s.count += 1;
+        (copy.gone, copy.changed) = (true, s.count);
+        s.contacts.push(copy);
+    }
+    let second = read_contacts_at(&server.url(""), TOKEN, &kept_from(&first), &[]);
+    let team = &second.downloads[1];
+    assert_eq!(team.gone, ["p0="], "{team:?}");
+    assert!(team.contacts.iter().all(|c| c.id != "p0="), "{team:?}");
+    assert!(!team.delta.is_empty());
+}
+
+#[test]
+fn a_main_folder_whose_contacts_name_no_folder_is_not_taken_for_an_empty_one() {
+    let server = FakeHttp::start(|_, request| {
+        let line = request.lines().next().unwrap_or("");
+        if line.contains("/me/contacts?") {
+            json_answer("200 OK", "{\"value\": [{\"parentFolderId\": \"\"}]}")
+        } else {
+            json_answer("200 OK", "{\"value\": []}")
+        }
+    });
+    let read = read_contacts_at(&server.url(""), TOKEN, &[], &[]);
+    assert!(read.downloads.iter().all(|d| d.folder.is_some() || !d.complete), "{:?}", read.downloads);
+    assert!(!read.errors.is_empty());
+}
+
+#[test]
+fn reading_the_address_names_first_keeps_the_wait_asked_and_never_sends_on_a_bad_answer() {
+    for (reply, wait) in [
+        (b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 120\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(), Some(120)),
+        (json_answer("200 OK", "{\"emailAddresses\": \"nope\"}"), None),
+        (json_answer("200 OK", "not json"), None),
+    ] {
+        let server = FakeHttp::answering(reply);
+        let change = op(
+            ContactChangeKind::Change,
+            "bo=",
+            &[ContactField::Emails],
+            RemoteContact { emails: vec![Labeled::new("", "bo@example.org")], ..Default::default() },
+        );
+        let done = push_contacts_at(&server.url(""), TOKEN, &upload(vec![change]));
+        assert_eq!(done.outcomes[0].result, ContactResult::Failed);
+        assert_eq!(done.outcomes[0].retry_after, wait);
+        assert_eq!(server.asked(), 1, "no PATCH after it");
+    }
+}

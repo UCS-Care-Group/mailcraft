@@ -21,7 +21,7 @@ use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::remote::{RemoteContact, key, line, mailbox};
-use crate::{Account, Contact, Id, MAX_NAME};
+use crate::{Account, Contact, Id, Labeled, MAX_NAME, PostalAddress};
 
 /// Most contacts folders kept of one account.
 pub const MAX_CONTACT_FOLDERS: usize = 250;
@@ -299,6 +299,15 @@ pub struct ContactChange {
     /// Why it didn't go the last time, for the owner to read.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
+    /// Handed to a host to send at least once: it may have reached the server even when no answer
+    /// came back. Only a new contact that was sent is taken for one the server lists under a name
+    /// not heard yet.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent: bool,
+    /// For a new contact: the server said it made it but not what it calls it. Not sent again (that
+    /// could make it twice) until a download shows it, or a whole list of its folder doesn't.
+    #[serde(skip_serializing_if = "is_false")]
+    pub unconfirmed: bool,
 }
 
 /// How long a change waits after failing `attempts` times in a row (seconds): 30 s, doubling,
@@ -458,4 +467,79 @@ fn is_false(b: &bool) -> bool {
 
 fn is_no_status(s: &u16) -> bool {
     *s == 0
+}
+
+/// Where Microsoft Graph keeps a contact's lists (#1917): three e-mail addresses; one mobile, two
+/// home and two business numbers; one business, one home and one other postal address; one web
+/// page. Each is the position of the entry in the contact's own list (empty ones have none). What
+/// has no place there isn't sent, and stays on this computer ([`keep_graph_overflow`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GraphPlaces {
+    pub emails: Vec<usize>,
+    pub mobile: Option<usize>,
+    pub home_phones: Vec<usize>,
+    pub business_phones: Vec<usize>,
+    pub business_address: Option<usize>,
+    pub home_address: Option<usize>,
+    pub other_address: Option<usize>,
+    pub website: Option<usize>,
+}
+
+/// Graph's places for `emails`, `phones`, `addresses` and `websites`, in their order: the first
+/// three addresses; the first mobile (or cell) number, the first two home ones, the first two of
+/// the rest that aren't mobile; the first work (or business) address, the first home one, and the
+/// first of the others; the first web page.
+pub fn graph_places(emails: &[Labeled], phones: &[Labeled], addresses: &[PostalAddress], websites: &[String]) -> GraphPlaces {
+    let is = |label: &str, kinds: &[&str]| kinds.iter().any(|kind| label.trim().eq_ignore_ascii_case(kind));
+    let filled = |list: &[Labeled]| {
+        list.iter().enumerate().filter(|(_, e)| !e.value.trim().is_empty()).map(|(at, e)| (at, e.label.clone())).collect::<Vec<_>>()
+    };
+    let phones = filled(phones);
+    let mobile = phones.iter().find(|(_, label)| is(label, &["mobile", "cell"])).map(|(at, _)| *at);
+    let home_phones = phones.iter().filter(|(_, label)| is(label, &["home"])).take(2).map(|(at, _)| *at).collect();
+    let business_phones = phones.iter().filter(|(_, label)| !is(label, &["home", "mobile", "cell"])).take(2).map(|(at, _)| *at).collect();
+    let business_address = addresses.iter().position(|a| is(&a.label, &["work", "business"]));
+    let home_address = addresses.iter().position(|a| is(&a.label, &["home"]));
+    let other_address = (0..addresses.len()).find(|at| Some(*at) != business_address && Some(*at) != home_address);
+    GraphPlaces {
+        emails: filled(emails).into_iter().take(3).map(|(at, _)| at).collect(),
+        mobile,
+        home_phones,
+        business_phones,
+        business_address,
+        home_address,
+        other_address,
+        website: websites.iter().position(|w| !w.trim().is_empty()),
+    }
+}
+
+/// `fresh`, a contact as Graph just sent it, given back what `old` (the same contact here) has that
+/// Graph has no place for ([`graph_places`]), after the server's own: so a fourth e-mail address,
+/// another mobile number or a second web page kept here isn't lost to a server that can't hold
+/// it. (Those the server has already are not doubled.)
+pub fn keep_graph_overflow(fresh: &mut Contact, old: &Contact) {
+    let places = graph_places(&old.emails, &old.phones, &old.addresses, &old.websites);
+    let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
+    for (at, email) in old.emails.iter().enumerate() {
+        if !email.value.trim().is_empty() && !places.emails.contains(&at) && !fresh.emails.iter().any(|e| same(&e.value, &email.value)) {
+            fresh.emails.push(email.clone());
+        }
+    }
+    let placed_phone = |at: usize| places.mobile == Some(at) || places.home_phones.contains(&at) || places.business_phones.contains(&at);
+    for (at, phone) in old.phones.iter().enumerate() {
+        if !phone.value.trim().is_empty() && !placed_phone(at) && !fresh.phones.iter().any(|p| same(&p.value, &phone.value)) {
+            fresh.phones.push(phone.clone());
+        }
+    }
+    let placed_address = |at: usize| [places.business_address, places.home_address, places.other_address].contains(&Some(at));
+    for (at, address) in old.addresses.iter().enumerate() {
+        if !placed_address(at) && !fresh.addresses.contains(address) {
+            fresh.addresses.push(address.clone());
+        }
+    }
+    for (at, site) in old.websites.iter().enumerate() {
+        if !site.trim().is_empty() && places.website != Some(at) && !fresh.websites.iter().any(|w| same(w, site)) {
+            fresh.websites.push(site.clone());
+        }
+    }
 }

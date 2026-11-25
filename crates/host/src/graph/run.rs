@@ -105,9 +105,9 @@ pub fn graph_in_contacts(
         if newest.is_empty() { Err(mailcraft_net::NetError::Config("no sign-in to renew".into())) } else { renew_contacts(&oauth, &newest, shared) }
     };
     let got = contacts_part(&ask, &access, &renew, signer.as_ref());
-    if let (Some(kept), Some(newer)) = (out.tokens.as_mut(), got.refresh.filter(|r| !r.is_empty())) {
-        kept.refresh = newer;
-    }
+    // The newest refresh token goes back to the window: on the run's own tokens, or (a run that
+    // used the token it was handed) with the contacts' token, which covers Graph as well.
+    keep_newest(&mut out.tokens, got.tokens);
     out.contacts_consent_needed = got.consent_needed;
     out.contacts_uploaded = got.uploaded.map(|u| u.for_account(&account));
     out.errors.extend(got.errors);
@@ -123,14 +123,37 @@ pub fn graph_in_contacts(
     out
 }
 
+/// `folders` as the read after an upload is to take them: somebody else's folder that refused a
+/// change just now (403) is one that can only be read, so the read doesn't say otherwise.
+fn refused_folders(
+    folders: &[mailcraft_model::contact_sync::ContactFolder],
+    uploaded: Option<&mailcraft_model::contact_sync::ContactsUploaded>,
+) -> Vec<mailcraft_model::contact_sync::ContactFolder> {
+    use mailcraft_model::contact_sync::{ContactFolder, ContactResult};
+    let denied = |f: &ContactFolder| {
+        uploaded.into_iter().flat_map(|u| &u.outcomes).any(|o| o.result == ContactResult::Denied && o.op.folder == f.remote && o.op.owner == f.owner)
+    };
+    folders.iter().map(|f| ContactFolder { writable: f.writable && (f.owner.is_own() || !denied(f)), ..f.clone() }).collect()
+}
+
+/// The run's `kept` tokens given the refresh token of `newer` (the contacts' own), or `newer`
+/// whole when the run has none.
+fn keep_newest(kept: &mut Option<Tokens>, newer: Option<Tokens>) {
+    match (kept.as_mut(), newer) {
+        (Some(kept), Some(newer)) if !newer.refresh.is_empty() => kept.refresh = newer.refresh,
+        (None, Some(newer)) => *kept = Some(newer),
+        _ => {}
+    }
+}
+
 /// What [`contacts_part`] came to.
 #[derive(Default)]
 struct ContactsGot {
     uploaded: Option<mailcraft_model::contact_sync::ContactsUploaded>,
     downloads: Vec<mailcraft_model::remote::ContactsDownload>,
     consent_needed: bool,
-    /// The refresh token of the token got for changing contacts: the account's newest.
-    refresh: Option<String>,
+    /// The tokens got for changing contacts: their refresh token is the account's newest.
+    tokens: Option<Tokens>,
     errors: Vec<String>,
     /// Graph stopped taking the run's own token while the folders were read.
     token_refused: bool,
@@ -160,8 +183,8 @@ fn contacts_part(
                 return got;
             }
             Ok(renewed) => {
-                got.refresh = Some(renewed.tokens.refresh.clone());
-                write = Some(renewed.tokens.access);
+                write = Some(renewed.tokens.access.clone());
+                got.tokens = Some(renewed.tokens);
             }
             Err(e) if e.is_consent_needed() => {
                 log::info!("contacts: the sign-in doesn't cover changing contacts; the changes wait for the owner's permission");
@@ -195,7 +218,7 @@ fn contacts_part(
         // (Without the token that covers them, the shared mailboxes' and other people's folders
         // aren't read.)
         let (token, known, mailboxes) = match &write {
-            Some(token) => (token.as_str(), ask.folders.clone(), ask.mailboxes.clone()),
+            Some(token) => (token.as_str(), refused_folders(&ask.folders, got.uploaded.as_ref()), ask.mailboxes.clone()),
             None => (access, ask.folders.iter().filter(|f| f.owner.is_own()).cloned().collect(), Vec::new()),
         };
         let read = graph::read_contacts(token, &known, &mailboxes);

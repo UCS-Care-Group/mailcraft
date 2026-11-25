@@ -421,3 +421,210 @@ fn a_shared_folder_that_refuses_a_change_can_only_be_read_until_a_new_sign_in() 
     crate::cmd::contacts_remote::retry_contact_changes(&mut s, account);
     assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-leads" && f.writable));
 }
+
+fn team(writable: bool, contacts: Vec<RemoteContact>, account: Id) -> ContactsDownload {
+    let folder = RemoteContactFolder {
+        id: "f-team".into(),
+        name: "Team".into(),
+        owner: FolderOwner::Mailbox("team@example.org".into()),
+        writable,
+        ..Default::default()
+    };
+    ContactsDownload { folder: Some(folder), ..download(account, contacts) }
+}
+
+/// Review of #1934: a change waiting when its folder becomes one that may only be read is kept,
+/// and held, not lost; it goes when the folder may be written again.
+#[test]
+fn a_change_waiting_when_its_folder_becomes_read_only_is_held_not_lost() {
+    let (mut s, account) = session();
+    run(&mut s, "sync.applyContacts", json!({"download": team(true, vec![person("c-di", "Di")], account)}));
+    let di = called(&s, "Di");
+    run(&mut s, "people.edit", json!({"id": di, "last": "Ray"}));
+    for _ in 0..2 {
+        run(&mut s, "sync.applyContacts", json!({"download": team(false, vec![person("c-di", "Di")], account)}));
+        assert_eq!(s.mailbox.contact(di).unwrap().last, "Ray");
+        assert_eq!(notes(&s), [(di, ContactChangeKind::Change, vec![ContactField::Last])]);
+        assert!(upload(&mut s, account).ops.is_empty(), "held while it may only be read");
+    }
+    run(&mut s, "sync.applyContacts", json!({"download": team(true, vec![person("c-di", "Di")], account)}));
+    assert_eq!(upload(&mut s, account).ops.len(), 1);
+}
+
+/// Review of #1934: an undo whose change has no room in the queue keeps what it brought back on
+/// this computer, out of reach of the next download.
+#[test]
+fn an_undo_with_no_room_to_tell_the_server_keeps_the_contact_on_this_computer() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    let filler = mailcraft_model::contact_sync::ContactChange { account, contact: 9_999_999, ..Default::default() };
+    s.mailbox.contact_changes = vec![filler; MAX_CONTACT_CHANGES];
+    run(&mut s, "edit.undo", json!({}));
+    let c = s.mailbox.contact(bo).unwrap();
+    assert!(c.origin.is_local() && c.folder == 0 && c.last.is_empty(), "{c:?}");
+    // The server's copy comes down beside it; nothing is lost.
+    let marsh = RemoteContact { last: "Marsh".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![marsh, person("c-cy", "Cy")])}));
+    assert!(s.mailbox.contact(bo).is_some_and(|c| c.last.is_empty()));
+    assert!(s.mailbox.contacts.values().any(|c| c.last == "Marsh" && c.origin.id == "c-bo"));
+}
+
+/// Review of #1934: a download that only renames its folder (or makes it) is a change.
+#[test]
+fn a_download_that_only_changes_its_folder_is_a_change() {
+    let (mut s, account) = session();
+    let made = super::merge_contacts(&mut s.mailbox, &team(true, vec![], account)).unwrap();
+    assert!(made.changed());
+    let mut renamed = team(true, vec![], account);
+    if let Some(f) = renamed.folder.as_mut() {
+        f.name = "Team A".into();
+    }
+    assert!(super::merge_contacts(&mut s.mailbox, &renamed).unwrap().changed());
+    assert!(!super::merge_contacts(&mut s.mailbox, &renamed).unwrap().changed());
+    // Made read-only (and its old name again): a change too.
+    assert!(super::merge_contacts(&mut s.mailbox, &team(false, vec![], account)).unwrap().changed());
+}
+
+/// Review of #1934: a download that leaves a failed change as it was doesn't cut its wait short.
+#[test]
+fn a_download_that_changes_nothing_keeps_a_failed_changes_wait() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Failed, "");
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")])}));
+    assert_eq!(s.mailbox.contact_changes[0].next_try, NOW + 30);
+    assert!(upload(&mut s, account).ops.is_empty());
+    // A new copy of the server's makes it due.
+    let newer = RemoteContact { company: "Example Ltd".into(), change_key: "ck-c-bo-2".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![newer, person("c-cy", "Cy")])}));
+    assert_eq!(upload(&mut s, account).ops.len(), 1);
+}
+
+/// Review of #1934: a new contact that hasn't been sent is never taken for one the server lists.
+#[test]
+fn a_new_contact_not_sent_yet_is_not_taken_for_one_the_server_lists() {
+    let (mut s, account) = session();
+    let dee = run(&mut s, "people.new", json!({"first": "Dee", "email": "dee@example.org"}))["id"].as_u64().unwrap();
+    let theirs = RemoteContact { emails: vec![Labeled::new("", "dee@example.org")], ..person("c-other", "Dee") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+    assert_eq!(notes(&s), [(dee, ContactChangeKind::Create, vec![])]);
+    assert!(s.mailbox.contact(dee).unwrap().origin.id.is_empty());
+    assert_eq!(s.mailbox.contacts.values().filter(|c| c.first == "Dee").count(), 2);
+}
+
+/// Review of #1934: more contacts than are taken in: where the list was read up to isn't kept.
+#[test]
+fn a_download_cut_short_keeps_where_its_list_was_read_up_to() {
+    let (mut s, account) = session();
+    run(&mut s, "sync.applyContacts", json!({"download": ContactsDownload { delta: "d-1".into(), ..team(true, vec![], account) }}));
+    let many: Vec<RemoteContact> = (0..=mailcraft_model::remote::MAX_CONTACTS).map(|n| person(&format!("c-{n}"), "P")).collect();
+    let cut = ContactsDownload { delta: "d-2".into(), complete: false, ..team(true, many, account) };
+    super::merge_contacts(&mut s.mailbox, &cut).unwrap();
+    assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-team" && f.delta == "d-1"));
+}
+
+/// Review of #1934: made, the server says, but not under what name: not sent again until a
+/// download shows it (then it is that one) or a whole list doesn't (then it goes again).
+#[test]
+fn a_new_contact_made_without_a_name_is_not_made_twice() {
+    let (mut s, account) = session();
+    let dee = run(&mut s, "people.new", json!({"first": "Dee", "email": "dee@example.org"}))["id"].as_u64().unwrap();
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    assert!(s.mailbox.contact_changes[0].unconfirmed && upload(&mut s, account).ops.is_empty());
+    // A whole list without it: it wasn't made after all.
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy")])}));
+    let op = upload(&mut s, account).ops.remove(0);
+    assert_eq!(op.contact, dee);
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    // A list that shows it: that is the one, even renamed here meanwhile.
+    run(&mut s, "people.edit", json!({"id": dee, "last": "Park"}));
+    let theirs = RemoteContact { id: "c-dee".into(), change_key: "ck-dee".into(), ..op.values.clone() };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![person("c-bo", "Bo"), person("c-cy", "Cy"), theirs])}));
+    assert_eq!(s.mailbox.contacts.values().filter(|c| c.first == "Dee").count(), 1);
+    assert_eq!(s.mailbox.contact(dee).unwrap().origin.id, "c-dee");
+    assert_eq!(notes(&s), [(dee, ContactChangeKind::Change, vec![ContactField::Last])]);
+}
+
+/// Review of #1934: a new contact undone while it was on its way, then made by the server: the
+/// server is told to delete it.
+#[test]
+fn a_new_contact_undone_on_its_way_is_deleted_there_once_made() {
+    let (mut s, account) = session();
+    let dee = run(&mut s, "people.new", json!({"first": "Dee"}))["id"].as_u64().unwrap();
+    let op = upload(&mut s, account).ops.remove(0);
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.contact(dee).is_none() && s.mailbox.contact_changes.is_empty());
+    answer(&mut s, account, &op, ContactResult::Done, "c-dee");
+    let gone = upload(&mut s, account).ops.remove(0);
+    assert_eq!((gone.kind, gone.remote.as_str()), (ContactChangeKind::Delete, "c-dee"));
+}
+
+/// Review of #1934: an answer older than a download doesn't put back an older key.
+#[test]
+fn a_late_answer_keeps_the_newer_key_of_a_download() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    let newer = RemoteContact { last: "Marsh".into(), change_key: "ck-c-bo-3".into(), ..person("c-bo", "Bo") };
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![newer, person("c-cy", "Cy")])}));
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    assert_eq!(s.mailbox.contact(bo).unwrap().origin.change_key, "ck-c-bo-3");
+    assert!(s.mailbox.contact_changes.is_empty());
+}
+
+/// Review of #1934: a refusal puts back only what was sent, and keeps what was changed since.
+#[test]
+fn a_refusal_puts_back_only_what_was_sent() {
+    let (mut s, account) = session();
+    let bo = called(&s, "Bo");
+    run(&mut s, "people.edit", json!({"id": bo, "last": "Marsh", "company": "Old Ltd"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    run(&mut s, "people.edit", json!({"id": bo, "notes": "Met in May", "company": "New Ltd"}));
+    answer(&mut s, account, &op, ContactResult::Refused, "");
+    let c = s.mailbox.contact(bo).unwrap();
+    assert_eq!((c.last.as_str(), c.company.as_str(), c.notes.as_str()), ("", "New Ltd", "Met in May"));
+    assert_eq!(notes(&s), [(bo, ContactChangeKind::Change, vec![ContactField::Company, ContactField::Notes])]);
+}
+
+/// #1917: Microsoft Graph keeps three e-mail addresses and one mobile number. A contact edited here
+/// with four and three keeps them all through a change that went up and a download of what the
+/// server kept, and the next round has nothing more to send.
+#[test]
+fn what_graph_has_no_place_for_survives_a_round_trip() {
+    let (mut s, account) = session();
+    assert!(s.mailbox.account(account).unwrap().keeps_contacts());
+    let bo = called(&s, "Bo");
+    let emails: Vec<_> = (1..=4).map(|n| json!({"label": "work", "value": format!("bo{n}@example.org")})).collect();
+    let phones: Vec<_> = (1..=3).map(|n| json!({"label": "mobile", "value": format!("+44 7700 90000{n}")})).collect();
+    run(&mut s, "people.edit", json!({"id": bo, "emails": emails, "phones": phones}));
+    let here = s.mailbox.contact(bo).unwrap().clone();
+    let op = upload(&mut s, account).ops.remove(0);
+    // What goes up is what fits, in order.
+    let places = mailcraft_model::contact_sync::graph_places(&op.values.emails, &op.values.phones, &op.values.addresses, &op.values.websites);
+    assert_eq!((places.emails, places.mobile, places.business_phones.len()), (vec![0, 1, 2], Some(0), 0));
+    answer(&mut s, account, &op, ContactResult::Done, "");
+    // The server's copy: the first three addresses and the first mobile number.
+    let kept = RemoteContact {
+        change_key: "ck-c-bo-2".into(),
+        emails: here.emails.iter().take(3).map(|e| Labeled::new("", e.value.clone())).collect(),
+        phones: vec![Labeled::new("mobile", here.phones[0].value.clone())],
+        ..person("c-bo", "Bo")
+    };
+    let kept = || kept.clone();
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![kept(), person("c-cy", "Cy")])}));
+    let c = s.mailbox.contact(bo).unwrap();
+    let values = |list: &[Labeled]| list.iter().map(|e| e.value.clone()).collect::<Vec<_>>();
+    assert_eq!(values(&c.emails), values(&here.emails));
+    assert_eq!(values(&c.phones), values(&here.phones));
+    assert!(upload(&mut s, account).ops.is_empty(), "nothing more to send: {:?}", s.mailbox.contact_changes);
+    // Read again: the overflow isn't doubled.
+    run(&mut s, "sync.applyContacts", json!({"download": download(account, vec![kept(), person("c-cy", "Cy")])}));
+    assert_eq!(values(&s.mailbox.contact(bo).unwrap().emails), values(&here.emails));
+}

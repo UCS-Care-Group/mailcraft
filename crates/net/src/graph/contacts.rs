@@ -45,8 +45,6 @@ pub const MAX_DEPTH: usize = 4;
 /// Longest id put into an address.
 const MAX_ID: usize = 1_024;
 /// How many of each Graph keeps of a contact: e-mail addresses, business and home numbers.
-const GRAPH_EMAILS: usize = 3;
-const GRAPH_PHONES: usize = 2;
 /// Entries asked for per page of a list of changes.
 const DELTA_PAGE: &str = "odata.maxpagesize=50";
 
@@ -247,14 +245,19 @@ fn followable(graph: &Graph<'_>, delta: &str) -> Option<Url> {
 /// What the main contacts folder at `prefix` is called by the server: the folder its first
 /// contact is in. `None` when it has none.
 fn main_folder_id(graph: &Graph<'_>, prefix: &str) -> Result<Option<String>, NetError> {
-    let mut id = None;
+    let (mut id, mut listed) = (None, false);
     let first = graph.url(&format!("{prefix}/contacts?{}", http::form(&[("$top", "1"), ("$select", "parentFolderId")])));
     graph.list(Doing::Contacts, first, &[], 1, &mut |entry| {
+        listed = true;
         let parent = text(entry, "parentFolderId");
         if valid_id(parent) {
             id = Some(parent.to_string());
         }
     })?;
+    // A contact listed without a folder that can be asked for: not an empty folder.
+    if listed && id.is_none() {
+        return Err(nonsense("Microsoft Graph didn't say which folder the contacts are in"));
+    }
     Ok(id)
 }
 
@@ -270,7 +273,10 @@ enum Round {
 fn delta_round(graph: &Graph<'_>, first: Url, whole: bool) -> Result<ContactsDownload, Round> {
     let started = Instant::now();
     let mut download = ContactsDownload::default();
-    let mut seen: HashSet<String> = HashSet::new();
+    // (An entry can come more than once in a round: the last says how it is, a deletion too.)
+    let mut kept: Vec<Option<RemoteContact>> = Vec::new();
+    let mut at: HashMap<String, usize> = HashMap::new();
+    let mut gone: HashSet<String> = HashSet::new();
     let (mut unread, mut capped) = (0usize, false);
     let mut next = Some(first);
     for _ in 0..MAX_PAGES {
@@ -294,20 +300,33 @@ fn delta_round(graph: &Graph<'_>, first: Url, whole: bool) -> Result<ContactsDow
         for entry in &page.entries {
             let id = text(entry, "id");
             if entry.get("@removed").is_some() {
-                if valid_id(id) && seen.insert(id.to_string()) {
-                    download.gone.push(id.to_string());
+                if valid_id(id) {
+                    if let Some(slot) = at.remove(id).and_then(|i| kept.get_mut(i)) {
+                        *slot = None;
+                    }
+                    if gone.insert(id.to_string()) {
+                        download.gone.push(id.to_string());
+                    }
                 }
                 continue;
             }
-            if download.contacts.len() >= MAX_FOLDER_CONTACTS {
+            let Some(contact) = contact_of(entry) else {
+                unread += 1;
+                continue;
+            };
+            if gone.remove(&contact.id) {
+                download.gone.retain(|g| *g != contact.id);
+            }
+            if let Some(slot) = at.get(&contact.id).and_then(|i| kept.get_mut(*i)) {
+                *slot = Some(contact);
+                continue;
+            }
+            if kept.len() >= MAX_FOLDER_CONTACTS {
                 capped = true;
                 break;
             }
-            match contact_of(entry) {
-                Some(contact) if seen.insert(contact.id.clone()) => download.contacts.push(contact),
-                Some(_) => {}
-                None => unread += 1,
-            }
+            at.insert(contact.id.clone(), kept.len());
+            kept.push(Some(contact));
         }
         if capped {
             break;
@@ -321,6 +340,7 @@ fn delta_round(graph: &Graph<'_>, first: Url, whole: bool) -> Result<ContactsDow
             (None, None) => {}
         }
     }
+    download.contacts = kept.into_iter().flatten().collect();
     // (A round cut short keeps no position: the next one starts again.)
     if capped || next.is_some() || download.delta.is_empty() {
         download.delta.clear();
@@ -390,7 +410,7 @@ fn push_one(graph: &Graph<'_>, token: &str, op: &ContactOp) -> Option<ContactOut
             let names = if op.fields.contains(&ContactField::Emails) {
                 match email_names(graph, &item) {
                     Ok(names) => names,
-                    Err(status) => return answered(op, (status, None), &[], "", token),
+                    Err((status, wait)) => return answered(op, (status, wait.as_deref()), &[], "", token),
                 }
             } else {
                 HashMap::new()
@@ -442,15 +462,17 @@ fn answered(op: &ContactOp, (status, retry_after): (u16, Option<&str>), body: &[
 }
 
 /// The names Graph has for the e-mail addresses of the contact at `item`, by address in lower
-/// case; the status (and what it said to wait) when it couldn't be read.
-fn email_names(graph: &Graph<'_>, item: &str) -> Result<HashMap<String, String>, u16> {
+/// case; the status (and what it said to wait) when it couldn't be read. An answer that doesn't
+/// list them is one that couldn't be read (status 0: tried again later), so that nothing goes up
+/// that would rename them.
+fn email_names(graph: &Graph<'_>, item: &str) -> Result<HashMap<String, String>, (u16, Option<String>)> {
     let url = graph.url(&format!("{item}?{}", http::form(&[("$select", "emailAddresses")])));
-    let reply = graph.ask(&url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE).map_err(|e| if e.is_refused_sign_in() { 401u16 } else { 0 })?;
+    let reply = graph.ask(&url, "GET", &[], None, ASK_TIMEOUT, MAX_PAGE).map_err(|e| (if e.is_refused_sign_in() { 401u16 } else { 0 }, None))?;
     if reply.status != 200 {
-        return Err(reply.status);
+        return Err((reply.status, reply.retry_after));
     }
     let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-    let list = json.get("emailAddresses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+    let Some(list) = json.get("emailAddresses").and_then(Value::as_array) else { return Err((0, None)) };
     Ok(list
         .iter()
         .take(MAX_ENTRIES)
@@ -467,7 +489,8 @@ fn contact_body(values: &RemoteContact, fields: &[ContactField], names: &HashMap
     let mut put = |name: &str, value: Value| {
         body.insert(name.to_string(), value);
     };
-    let labelled = |label: &str, kinds: &[&str]| kinds.iter().any(|kind| label.trim().eq_ignore_ascii_case(kind));
+    // (What has no place there isn't sent, and stays here: `keep_graph_overflow`.)
+    let places = mailcraft_model::contact_sync::graph_places(&values.emails, &values.phones, &values.addresses, &values.websites);
     let address = |a: Option<&mailcraft_model::PostalAddress>| {
         let a = a.cloned().unwrap_or_default();
         json!({"street": a.street, "city": a.city, "state": a.region, "postalCode": a.postal_code, "countryOrRegion": a.country})
@@ -484,11 +507,10 @@ fn contact_body(values: &RemoteContact, fields: &[ContactField], names: &HashMap
             ContactField::Department => put("department", json!(values.department)),
             ContactField::Emails => {
                 let own = if values.display_name.trim().is_empty() { None } else { Some(values.display_name.trim()) };
-                let list: Vec<Value> = values
+                let list: Vec<Value> = places
                     .emails
                     .iter()
-                    .filter(|e| !e.value.trim().is_empty())
-                    .take(GRAPH_EMAILS)
+                    .filter_map(|at| values.emails.get(*at))
                     .map(|e| {
                         let address = e.value.trim();
                         let name = names.get(&address.to_ascii_lowercase()).map(String::as_str).or(own).unwrap_or(address);
@@ -498,26 +520,18 @@ fn contact_body(values: &RemoteContact, fields: &[ContactField], names: &HashMap
                 put("emailAddresses", Value::Array(list));
             }
             ContactField::Phones => {
-                let phones: Vec<&mailcraft_model::Labeled> = values.phones.iter().filter(|p| !p.value.trim().is_empty()).collect();
-                let mobile = phones.iter().position(|p| labelled(&p.label, &["mobile", "cell"]));
-                let rest = phones.iter().enumerate().filter(|(at, _)| Some(*at) != mobile).map(|(_, p)| *p);
-                let (home, business): (Vec<_>, Vec<_>) = rest.partition(|p| labelled(&p.label, &["home"]));
-                let numbers =
-                    |list: Vec<&mailcraft_model::Labeled>| list.iter().take(GRAPH_PHONES).map(|p| json!(p.value.trim())).collect::<Vec<_>>();
-                put("mobilePhone", json!(mobile.and_then(|at| phones.get(at)).map_or("", |p| p.value.trim())));
-                put("homePhones", Value::Array(numbers(home)));
-                put("businessPhones", Value::Array(numbers(business)));
+                let number = |at: &usize| values.phones.get(*at).map(|p| json!(p.value.trim()));
+                put("mobilePhone", places.mobile.as_ref().and_then(number).unwrap_or(json!("")));
+                put("homePhones", Value::Array(places.home_phones.iter().filter_map(number).collect()));
+                put("businessPhones", Value::Array(places.business_phones.iter().filter_map(number).collect()));
             }
             ContactField::Addresses => {
-                let all = &values.addresses;
-                let work = all.iter().position(|a| labelled(&a.label, &["work", "business"]));
-                let home = all.iter().position(|a| labelled(&a.label, &["home"]));
-                let other = (0..all.len()).find(|at| Some(*at) != work && Some(*at) != home);
-                put("businessAddress", address(work.and_then(|at| all.get(at))));
-                put("homeAddress", address(home.and_then(|at| all.get(at))));
-                put("otherAddress", address(other.and_then(|at| all.get(at))));
+                let at = |place: Option<usize>| place.and_then(|at| values.addresses.get(at));
+                put("businessAddress", address(at(places.business_address)));
+                put("homeAddress", address(at(places.home_address)));
+                put("otherAddress", address(at(places.other_address)));
             }
-            ContactField::Websites => put("businessHomePage", json!(values.websites.iter().map(|w| w.trim()).find(|w| !w.is_empty()).unwrap_or(""))),
+            ContactField::Websites => put("businessHomePage", json!(places.website.and_then(|at| values.websites.get(at)).map_or("", |w| w.trim()))),
             // (Noon UTC: the same day wherever it is read.)
             ContactField::Birthday => put("birthday", values.birthday.map_or(Value::Null, |day| json!(format!("{}T12:00:00Z", day.iso())))),
             ContactField::Notes => put("personalNotes", json!(values.notes)),

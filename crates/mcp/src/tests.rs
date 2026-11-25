@@ -127,7 +127,7 @@ fn list_contacts_shows_every_account_whatever_the_window_shows() {
     let contact = json!({"id": "w1", "displayName": "In work"});
     let download = json!({"download": {"account": work, "email": "work@example.org", "complete": true, "contacts": [contact]}});
     session.run("sync.applyContacts", &download).unwrap();
-    session.run("people.new", &json!({"displayName": "On this computer"})).unwrap();
+    session.run("people.new", &json!({"displayName": "On this computer", "folder": 0})).unwrap();
     session.run("view.peopleAccount", &json!({"value": work})).unwrap();
     session.run("people.search", &json!({"query": "In work"})).unwrap();
     let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));
