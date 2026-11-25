@@ -339,6 +339,10 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
             Err(e) => refused.push(e.to_string()),
         }
     }
+    // The address books gone from the server: their folders go, what waited to go up stays here.
+    let (dropped, kept) = super::contacts_remote::drop_gone_folders(&mut s.mailbox, account, &result.contact_listed);
+    contacts_changed |= dropped;
+    refused.extend(kept);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         // A mailbox that turns up twice in a run is read in part: neither of its windows is taken

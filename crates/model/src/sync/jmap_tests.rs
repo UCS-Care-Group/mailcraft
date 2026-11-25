@@ -93,6 +93,7 @@ fn result() -> JmapMailResult {
         auth_refused: true,
         contacts_sent: Some(crate::contact_sync::ContactsUploaded { email: ME.into(), ..Default::default() }),
         contacts: vec![crate::remote::ContactsDownload { email: ME.into(), ..Default::default() }],
+        contact_listed: vec![JmapContactPlace { owner: FolderOwner::Own, state: String::new(), books: vec![String::new(), "AB2".into()] }],
     }
 }
 

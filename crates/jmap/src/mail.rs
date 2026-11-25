@@ -205,8 +205,14 @@ pub async fn sync_mail<H: HttpExchange>(
     // with a line to say is not whole (what the mail windows left out is then not removed this time).
     if let Some(asked) = request.contacts.as_ref().filter(|_| !out.stopped && !out.auth_refused && out.busy_for.is_none() && out.halted.is_none()) {
         let done = run.contacts(asked, mailcraft_time::now()).await;
-        if done.sent.is_some() || !done.downloads.is_empty() {
-            emit(run.piece(JmapMailResult { contacts_sent: done.sent, contacts: done.downloads, partial: true, ..Default::default() }));
+        if done.sent.is_some() || !done.downloads.is_empty() || !done.listed.is_empty() {
+            emit(run.piece(JmapMailResult {
+                contacts_sent: done.sent,
+                contacts: done.downloads,
+                contact_listed: done.listed,
+                partial: true,
+                ..Default::default()
+            }));
         }
         out.contacts = done.trouble;
         match done.stop {

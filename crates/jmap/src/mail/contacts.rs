@@ -18,7 +18,8 @@
 //!    a new contact is a whole card in its folder's address book; a change is a patch of only the
 //!    properties of the fields the owner changed, worked out from the card as the server has it now
 //!    (`ContactCard/get` first: a card it no longer has is gone), so nothing else of the card is
-//!    written over (ADR 0028); a deletion destroys the card. `ifInState` is not sent: a card's state is
+//!    written over (ADR 0028); a deletion takes the card out of its folder's address book, and
+//!    destroys it only when that was the last one it was in. `ifInState` is not sent: a card's state is
 //!    the whole account's, and a change elsewhere to another card must not refuse this one (changes
 //!    merge field by field, in the engine). What each became of: done; gone (`notFound`); denied
 //!    (`forbidden`); refused for good (`invalidProperties`, `overQuota`, `tooLarge` and anything else
@@ -110,6 +111,8 @@ impl Place {
 pub(super) struct Contacts {
     pub(super) sent: Option<ContactsUploaded>,
     pub(super) downloads: Vec<ContactsDownload>,
+    /// The owners whose address books were listed in full (the result's `contact_listed`).
+    pub(super) listed: Vec<JmapContactPlace>,
     /// Why some of it couldn't be done, for a line.
     pub(super) trouble: Option<String>,
     /// Why it ended early: a refused sign-in, a busy server, a stop.
@@ -184,8 +187,14 @@ impl<H: HttpExchange> Run<'_, H> {
         let mut books = 0usize;
         for (account, owner, read_only) in accounts {
             match self.books(&account, read_only).await {
-                Ok(mut list) => {
-                    list.truncate(MAX_CONTACT_FOLDERS.saturating_sub(books));
+                Ok((mut list, complete)) => {
+                    let room = MAX_CONTACT_FOLDERS.saturating_sub(books);
+                    // A list cut short here doesn't say which books are gone.
+                    if complete && list.len() <= room {
+                        let ids = list.iter().map(|b| if b.default { String::new() } else { b.id.clone() }).collect();
+                        out.listed.push(JmapContactPlace { owner: owner.clone(), state: String::new(), books: ids });
+                    }
+                    list.truncate(room);
                     books = books.saturating_add(list.len());
                     places.push(Place { account, owner, books: list });
                 }
@@ -249,12 +258,14 @@ impl<H: HttpExchange> Run<'_, H> {
     }
 
     /// `AddressBook/get` of `account`: the books the user may read, the default one first.
-    async fn books(&self, account: &str, read_only: bool) -> Result<Vec<Book>, Stop> {
+    /// Also whether the list is all of them: every entry read, none cut off.
+    async fn books(&self, account: &str, read_only: bool) -> Result<(Vec<Book>, bool), Stop> {
         let args = arguments(&get(account, None, &["id", "name", "isDefault", "myRights"]))?;
         let answer = self.contacts_call("AddressBook/get", args, BOOKS_BYTES).await?;
-        let mut books: Vec<Book> = answer
-            .get("list")
-            .and_then(Value::as_array)
+        let list = answer.get("list").and_then(Value::as_array);
+        let readable = |b: &Value| b.get("id").and_then(Value::as_str).is_some_and(|id| Id::new(id).is_ok());
+        let complete = list.is_some_and(|l| l.len() <= MAX_CONTACT_FOLDERS && l.iter().all(readable));
+        let mut books: Vec<Book> = list
             .into_iter()
             .flatten()
             .take(MAX_CONTACT_FOLDERS)
@@ -275,7 +286,7 @@ impl<H: HttpExchange> Run<'_, H> {
         for (at, book) in books.iter_mut().enumerate() {
             book.default = at == 0;
         }
-        Ok(books)
+        Ok((books, complete))
     }
 
     /// Send `ops` to the address books of `places` (see the module), noting what became of each in
@@ -302,9 +313,11 @@ impl<H: HttpExchange> Run<'_, H> {
                 // Its owner's address books couldn't be listed (or the share is gone): tried again later,
                 // never taken for gone.
                 (None, ..) => sent.outcomes.push(outcome(op, ContactResult::Failed, "the server didn't list the address books")),
-                // The address book is gone: a deletion is done; a change or a new contact can't be made.
+                // The address book is gone: a deletion is done. A change or a new contact is left
+                // unanswered, never refused (that would undo it here): once the books were listed in
+                // full, the engine keeps it on this computer as it drops the folder.
                 (_, _, ContactChangeKind::Delete) => sent.outcomes.push(outcome(op, ContactResult::Gone, "")),
-                _ => sent.outcomes.push(outcome(op, ContactResult::Refused, "the address book is no longer on the server")),
+                _ => {}
             }
         }
         for (at, list) in by_place {
@@ -335,11 +348,14 @@ impl<H: HttpExchange> Run<'_, H> {
 
     /// One `ContactCard/set` of `chunk` (each op with its address book) in `place`'s account.
     async fn send_chunk(&self, place: &Place, chunk: &[(&ContactOp, String)], sent: &mut ContactsUploaded) -> Result<(), Stop> {
-        // The cards as the server has them, for the changes' patches.
-        let changed: Vec<&str> = chunk.iter().filter(|(op, _)| op.kind == ContactChangeKind::Change).map(|(op, _)| op.remote.as_str()).collect();
+        // The cards as the server has them: for the changes' patches, and the address books a
+        // deleted one is in.
+        let mut wanted: Vec<&str> = chunk.iter().filter(|(op, _)| op.kind != ContactChangeKind::Create).map(|(op, _)| op.remote.as_str()).collect();
+        wanted.sort_unstable();
+        wanted.dedup();
         let mut cards: HashMap<String, Value> = HashMap::new();
-        if !changed.is_empty() {
-            let args = arguments(&get(&place.account, Some(&changed), &card::CARD_PROPERTIES))?;
+        if !wanted.is_empty() {
+            let args = arguments(&get(&place.account, Some(&wanted), &card::CARD_PROPERTIES))?;
             let answer = self.contacts_call("ContactCard/get", args, CARDS_BYTES).await?;
             for c in answer.get("list").and_then(Value::as_array).into_iter().flatten().take(PAGE) {
                 if let Some(id) = card::id_of(c) {
@@ -348,6 +364,8 @@ impl<H: HttpExchange> Run<'_, H> {
             }
         }
         let (mut create, mut update, mut destroy) = (Map::new(), Map::new(), Vec::new());
+        // The address books each deleted card is to be taken out of.
+        let mut out_of: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
         // What each op was asked as: its creation id, or the card's.
         let mut asked: Vec<(&ContactOp, String)> = Vec::new();
         for (n, (op, book)) in chunk.iter().enumerate() {
@@ -376,14 +394,36 @@ impl<H: HttpExchange> Run<'_, H> {
                         }
                     }
                 },
-                // lean: a card in several address books is destroyed in all of them; taking it out of one
-                // (`addressBookIds/<id>` to null) when it is in others is the upgrade.
-                ContactChangeKind::Delete => {
-                    destroy.push(Value::String(op.remote.clone()));
-                    asked.push((op, op.remote.clone()));
-                }
+                ContactChangeKind::Delete => match cards.get(&op.remote) {
+                    None => sent.outcomes.push(ContactOutcome { op: (*op).clone(), result: ContactResult::Gone, ..Default::default() }),
+                    Some(_) => {
+                        out_of.entry(op.remote.as_str()).or_default().insert(book.as_str());
+                        asked.push((op, op.remote.clone()));
+                    }
+                },
             }
         }
+        // A deletion takes the card out of its folder's address book only: it is destroyed when that
+        // leaves it in none, and otherwise patched out (`addressBookIds/<id>` to null). A move between
+        // books is the same rule.
+        for (remote, books) in &out_of {
+            let elsewhere = cards
+                .get(*remote)
+                .and_then(|c| c.get("addressBookIds"))
+                .and_then(Value::as_object)
+                .is_some_and(|m| m.iter().any(|(id, on)| *on == Value::Bool(true) && !books.contains(id.as_str())));
+            if elsewhere {
+                let patch = update.entry(remote.to_string()).or_insert_with(|| Value::Object(Map::new()));
+                if let Some(patch) = patch.as_object_mut() {
+                    patch.extend(books.iter().map(|b| (format!("addressBookIds/{b}"), Value::Null)));
+                }
+            } else {
+                // (A change to it in the same call is pointless: it is answered as gone.)
+                update.remove(*remote);
+                destroy.push(Value::String(remote.to_string()));
+            }
+        }
+        let patched: BTreeSet<String> = update.keys().cloned().collect();
         if asked.is_empty() {
             return Ok(());
         }
@@ -411,12 +451,15 @@ impl<H: HttpExchange> Run<'_, H> {
                     (None, Some(error)) => Some(refused(error)),
                     (None, None) => None,
                 },
-                ContactChangeKind::Change => {
+                ContactChangeKind::Change | ContactChangeKind::Delete if patched.contains(&key) => {
                     match (map("updated").is_some_and(|m| m.contains_key(&key)), map("notUpdated").and_then(|m| m.get(&key))) {
                         (true, _) => Some(done(key.clone())),
                         (false, Some(error)) => Some(refused(error)),
                         (false, None) => None,
                     }
+                }
+                ContactChangeKind::Change => {
+                    destroyed.contains(key.as_str()).then(|| ContactOutcome { op: op.clone(), result: ContactResult::Gone, ..Default::default() })
                 }
                 ContactChangeKind::Delete => match (destroyed.contains(key.as_str()), map("notDestroyed").and_then(|m| m.get(&key))) {
                     (true, _) => Some(done(key.clone())),

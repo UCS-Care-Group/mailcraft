@@ -329,10 +329,7 @@ fn a_busy_server_ends_the_contacts_and_the_changes_wait_out_its_time() {
     });
     let request = JmapMailRequest {
         session: super::changes_tests::FAKE_SESSION.into(),
-        contacts: Some(JmapContactsRequest {
-            ops: vec![op(ContactChangeKind::Delete, 1, "CC1", &[], RemoteContact::default())],
-            ..Default::default()
-        }),
+        contacts: Some(JmapContactsRequest { ops: vec![op(ContactChangeKind::Create, 1, "", &[], RemoteContact::default())], ..Default::default() }),
         ..asks(super::changes_tests::FAKE_SESSION)
     };
     let pieces = run_fake(&fake, &request);
@@ -356,7 +353,7 @@ fn a_refused_sign_in_ends_the_contacts_and_the_rest_waits() {
             _ => super::changes_tests::reading(name, args),
         })
     });
-    let ops = vec![op(ContactChangeKind::Delete, 1, "CC1", &[], RemoteContact::default())];
+    let ops = vec![op(ContactChangeKind::Create, 1, "", &[], RemoteContact::default())];
     let request = JmapMailRequest { contacts: Some(JmapContactsRequest { ops, ..Default::default() }), ..asks(super::changes_tests::FAKE_SESSION) };
     let pieces = run_fake(&fake, &request);
     let sent = pieces.iter().find_map(|p| p.contacts_sent.clone()).unwrap();

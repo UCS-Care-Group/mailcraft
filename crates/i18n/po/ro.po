@@ -26004,6 +26004,12 @@ msgstr "{name} este o cutie poștală partajată al cărei cont nu mai există: 
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} este acum în curs de trimitere și primire. Folosiți Oprire."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} rămâne pe acest computer: {folder} nu mai este pe server, iar modificarea făcută aici nu a putut fi trimisă."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

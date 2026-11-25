@@ -80,8 +80,10 @@ sync` refuses it.
   messaging addresses, a title in a name, an entry's preference) stays. A change made on both sides
   keeps yours for the fields you changed and the server's for the rest. A change the server refuses
   is put back to how the server has it and said once; one it can't take now (busy, failing) is tried
-  again later. Contact groups aren't read; a contact deleted here that is in several of the server's
-  address books is deleted from all of them; photos aren't read or sent.
+  again later. A contact deleted from one folder leaves only that address book: the server deletes
+  the card when it was in no other. An address book gone from the server takes its folder with it;
+  a contact in it with a change not yet sent stays, On this computer, and you are told. Contact
+  groups aren't read; photos aren't read or sent.
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the

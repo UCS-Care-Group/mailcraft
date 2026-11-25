@@ -313,6 +313,11 @@ pub struct JmapMailResult {
     /// The contacts read: one download for each address book the server lists.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub contacts: Vec<ContactsDownload>,
+    /// Each owner whose address books the server listed in full this run (no state): the books it
+    /// has, by id, the default one as empty. A contacts folder of that owner here whose book isn't
+    /// among them is gone from the server.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub contact_listed: Vec<JmapContactPlace>,
 }
 
 impl JmapMailResult {
@@ -344,6 +349,7 @@ impl JmapMailResult {
             self.contacts_sent = piece.contacts_sent;
         }
         self.contacts.extend(piece.contacts);
+        self.contact_listed.extend(piece.contact_listed);
     }
 }
 

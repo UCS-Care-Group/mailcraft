@@ -128,3 +128,83 @@ fn a_jmap_accounts_contacts_come_down_and_what_is_made_changed_and_deleted_here_
     assert!(rig.server.with(|d| d.contacts.get(&ed_remote).is_none()));
     assert!(rig.s.mailbox.contact_changes.is_empty(), "{:?}", rig.s.mailbox.contact_changes);
 }
+
+impl Rig {
+    /// A second book of the account's own, "Work": its id.
+    fn work_book(&self) -> String {
+        self.server.with(|d| d.contacts.book(ACCOUNT, "Work", false))
+    }
+
+    fn folder_named(&self, name: &str) -> Option<Id> {
+        self.s.mailbox.contact_folders.iter().find(|f| f.name == name).map(|f| f.id)
+    }
+}
+
+#[test]
+fn deleting_a_contact_from_one_book_takes_the_card_out_of_that_book_only() {
+    let mut rig = Rig::new();
+    let work = rig.work_book();
+    let personal = rig.server.with(|d| d.contacts.books.iter().find(|b| b.default && b.account == ACCOUNT).map(|b| b.id.clone())).unwrap();
+    let both = rig.server.with(|d| {
+        d.contacts.card(
+            ACCOUNT,
+            json!({"uid": "urn:uuid:fay", "addressBookIds": {personal.clone(): true, work.clone(): true}, "name": {"full": "Fay Both"}}),
+        )
+    });
+    rig.run();
+    let work_folder = rig.folder_named("Work").unwrap();
+    let copies: Vec<(Id, Id)> = rig.s.mailbox.contacts.values().filter(|c| c.name() == "Fay Both").map(|c| (c.id, c.folder)).collect();
+    assert_eq!(copies.len(), 2, "one in each folder: {copies:?}");
+    let (in_work, _) = copies.iter().copied().find(|(_, f)| *f == work_folder).unwrap();
+
+    // Deleted from Work: the card stays, in Personal alone.
+    rig.s.run("people.delete", &json!({"id": in_work})).unwrap();
+    rig.run();
+    let card = rig.server.with(|d| d.contacts.get(&both).cloned()).expect("not destroyed");
+    assert_eq!(card["addressBookIds"], json!({personal.clone(): true}));
+    assert_eq!(rig.server.with(|d| d.contacts.patches.last().cloned()), Some((both.clone(), json!({format!("addressBookIds/{work}"): null}))));
+    let left: Vec<Id> = rig.s.mailbox.contacts.values().filter(|c| c.name() == "Fay Both").map(|c| c.folder).collect();
+    assert_eq!(left.len(), 1);
+    assert_ne!(left[0], work_folder);
+    assert!(rig.s.mailbox.contact_changes.is_empty(), "{:?}", rig.s.mailbox.contact_changes);
+
+    // Deleted from its last book: destroyed.
+    let last = rig.contact("Fay Both").unwrap().id;
+    rig.s.run("people.delete", &json!({"id": last})).unwrap();
+    rig.run();
+    assert!(rig.server.with(|d| d.contacts.get(&both).is_none()));
+}
+
+#[test]
+fn a_book_gone_from_the_server_takes_its_folder_and_keeps_what_waited_to_go_up() {
+    let mut rig = Rig::new();
+    let work = rig.work_book();
+    let cy = rig
+        .server
+        .with(|d| d.contacts.card(ACCOUNT, json!({"uid": "urn:uuid:cy", "addressBookIds": {work.clone(): true}, "name": {"full": "Cy Work"}})));
+    let dee = rig
+        .server
+        .with(|d| d.contacts.card(ACCOUNT, json!({"uid": "urn:uuid:dee", "addressBookIds": {work.clone(): true}, "name": {"full": "Dee Work"}})));
+    rig.run();
+    let work_folder = rig.folder_named("Work").unwrap();
+    assert_eq!(rig.contact("Cy Work").map(|c| c.folder), Some(work_folder));
+
+    // Cy is changed here; the book goes on the server before that goes up.
+    let cy_here = rig.contact("Cy Work").unwrap().id;
+    rig.s.run("people.edit", &json!({"id": cy_here, "notes": "Kept."})).unwrap();
+    rig.server.with(|d| {
+        d.contacts.remove(&cy);
+        d.contacts.remove(&dee);
+        d.contacts.books.retain(|b| b.id != work);
+    });
+    let answers = rig.run();
+
+    assert_eq!(rig.folder_named("Work"), None, "the folder went");
+    assert!(rig.contact("Dee Work").is_none(), "its contacts went with it");
+    let kept = rig.contact("Cy Work").expect("the one with a change waiting is kept");
+    assert_eq!((kept.folder, kept.notes.as_str(), kept.origin.id.as_str()), (0, "Kept.", ""));
+    assert!(rig.s.mailbox.contact_changes.is_empty(), "{:?}", rig.s.mailbox.contact_changes);
+    assert!(json!(answers).to_string().contains("is kept on this computer"), "{answers:?}");
+    // The main folder and Bo stay.
+    assert!(rig.contact("Bo Park").is_some());
+}
