@@ -3754,8 +3754,8 @@ impl Session {
         if no_room > 0 {
             let line = self.interface_language.tn(
                 no_room as u64,
-                "{n} contact is put back on this computer only: too many changes are waiting to be sent.",
-                "{n} contacts are put back on this computer only: too many changes are waiting to be sent.",
+                "{n} contact isn't undone: too many changes are waiting to be sent to its server.",
+                "{n} contacts aren't undone: too many changes are waiting to be sent to their servers.",
             );
             self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &no_room.to_string())]));
         }

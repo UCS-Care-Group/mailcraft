@@ -3746,10 +3746,17 @@ impl Mailbox {
         let mut per: HashMap<Id, usize> = HashMap::new();
         let mut seen: HashSet<Id> = HashSet::new();
         let before = self.contact_folders.len();
+        // (Only the folders that can be kept count towards an account's cap.)
         self.contact_folders.retain(|f| {
+            if f.id == 0 || f.id > MAX_ID || !accounts.contains(&f.account) || seen.contains(&f.id) {
+                return false;
+            }
             let n = per.entry(f.account).or_default();
+            if *n >= MAX_CONTACT_FOLDERS {
+                return false;
+            }
             *n += 1;
-            f.id != 0 && f.id <= MAX_ID && accounts.contains(&f.account) && *n <= MAX_CONTACT_FOLDERS && seen.insert(f.id)
+            seen.insert(f.id)
         });
         if self.contact_folders.len() != before {
             fixed.push("contacts folders tidied".to_string());
@@ -4990,15 +4997,16 @@ impl Mailbox {
             .unwrap_or(0);
         self.next_id = if sane(&self.next_id) { self.next_id.max(top + 1) } else { top + 1 };
         /// Give items whose key is out of range a new one.
+        /// (All taken out before any is put back, so a new key never lands on one still to move.)
         fn rehome<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, next: &mut Id) -> usize {
             let big: Vec<Id> = map.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-            for k in &big {
-                if let Some(v) = map.remove(k) {
-                    map.insert(*next, v);
-                    *next += 1;
-                }
+            let taken: Vec<Arc<T>> = big.iter().filter_map(|k| map.remove(k)).collect();
+            let n = taken.len();
+            for v in taken {
+                map.insert(*next, v);
+                *next += 1;
             }
-            big.len()
+            n
         }
         /// Map keys are the ids.
         fn rekey<T: Clone>(map: &mut BTreeMap<Id, Arc<T>>, id: impl Fn(&mut T) -> &mut Id) -> usize {
@@ -5014,11 +5022,10 @@ impl Mailbox {
         let next = &mut self.next_id;
         // (The messages as the others, in their own map: only what is changed is written.)
         let big: Vec<Id> = self.messages.range(MAX_ID + 1..).map(|(k, _)| *k).collect();
-        for k in &big {
-            if let Some(v) = self.messages.remove(k) {
-                self.messages.insert(*next, v);
-                *next += 1;
-            }
+        let taken: Vec<_> = big.iter().filter_map(|k| self.messages.remove(k)).collect();
+        for v in taken {
+            self.messages.insert(*next, v);
+            *next += 1;
         }
         // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
         // in order from `next`).
@@ -5031,6 +5038,12 @@ impl Mailbox {
             }
         }
         let rehomed = big.len() + rehome(&mut self.contacts, next) + rehome(&mut self.events, next) + rehome(&mut self.tasks, next);
+        // A change for a contact that is gone (a deletion) under a key out of range: a key of its
+        // own, as the contact would have had.
+        for change in self.contact_changes.iter_mut().filter(|c| c.contact > MAX_ID) {
+            change.contact = *next;
+            *next += 1;
+        }
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {
             if let Some(m) = self.messages.get_mut(k) {

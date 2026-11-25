@@ -26305,11 +26305,11 @@ msgstr[2] "{n} kontaktů se odstraní, jakmile se ponechaný uloží. Zpět je v
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
-msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
-msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
-msgstr[0] "{n} kontakt je vrácen jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
-msgstr[1] "{n} kontakty jsou vráceny jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
-msgstr[2] "{n} kontaktů je vráceno jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
+msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
+msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
+msgstr[0] "{n} kontakt není vrácen zpět: na odeslání na jeho server čeká příliš mnoho změn."
+msgstr[1] "{n} kontakty nejsou vráceny zpět: na odeslání na jejich servery čeká příliš mnoho změn."
+msgstr[2] "{n} kontaktů není vráceno zpět: na odeslání na jejich servery čeká příliš mnoho změn."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27566,6 +27566,13 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
+#~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
+#~ msgstr[0] "{n} kontakt je vrácen jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
+#~ msgstr[1] "{n} kontakty jsou vráceny jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
+#~ msgstr[2] "{n} kontaktů je vráceno jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
