@@ -736,6 +736,8 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
             );
         });
         ui.separator();
+        let ids = if several { app.people_picked.clone() } else { vec![id] };
+        mi(ui, app, "Move to Contacts Folder…", "people.moveToFolder", json!({"ids": ids}));
         mi(ui, app, "Export…", "file.exportContacts", json!({"ids": [id]}));
         mi(ui, app, "Delete", "people.delete", json!({"id": id}));
     });
@@ -854,6 +856,9 @@ fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
         let tip = if c.favorite { tl!("Remove from Favorites") } else { tl!("Add to Favorites") };
         if widgets::icon_text_button(ui, if c.favorite { "starOn" } else { "star" }, tl!("Favorite"), true).on_hover_text(tip).clicked() {
             let _ = app.run("people.favorite", json!({"id": id}));
+        }
+        if widgets::icon_text_button(ui, "move", tl!("Move…"), true).on_hover_text(tl!("Move to Contacts Folder…")).clicked() {
+            let _ = app.run("people.moveToFolder", json!({"ids": [id]}));
         }
         if widgets::icon_text_button(ui, "delete", tl!("Delete"), true).clicked() {
             let _ = app.run("people.delete", json!({"id": id}));

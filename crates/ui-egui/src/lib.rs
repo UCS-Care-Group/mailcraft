@@ -190,6 +190,7 @@ mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
+mod move_contacts;
 mod move_items;
 #[cfg(test)]
 mod move_items_tests;

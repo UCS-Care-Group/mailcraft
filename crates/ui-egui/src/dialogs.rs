@@ -165,6 +165,9 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// Move to Contacts Folder… (#1144, [`crate::move_contacts`]): it only chooses the folder
+    /// (and asks about somebody there already), then runs `people.moveToFolder`.
+    MoveContacts(Box<crate::move_contacts::MoveContacts>),
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
@@ -315,6 +318,7 @@ impl Dialog {
             Dialog::ImportTree(_) => "importTree",
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::MoveContacts(_) => "moveContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
@@ -480,6 +484,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
+    }
+    if name == "moveContacts" {
+        return crate::move_contacts::MoveContacts::open(app, params).map(|d| Dialog::MoveContacts(Box::new(d)));
     }
     if name == "importPst" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -2086,6 +2093,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
         "people.merge" if !has("keep") => Some("mergeContacts"),
+        // Which contacts folder, and what to do about somebody there already (#1144).
+        "people.moveToFolder" if !has("folder") => Some("moveContacts"),
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
@@ -3103,6 +3112,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::MergeContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::MoveContacts(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Move to Contacts Folder"), crate::move_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
         Dialog::Symbol(dialog) => {

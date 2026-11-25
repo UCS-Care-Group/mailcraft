@@ -772,6 +772,8 @@ fn home_people(app: &MailApp) -> Tab {
                 // The contacts picked together, else every group that shares an address or a
                 // number (#506).
                 Item::big("mergeContacts", "Merge\nDuplicates", "people.merge", merge_params(app)).at(3, 4),
+                // Into another contacts folder or On this computer (#1144): the dialog asks which.
+                Item::big("move", "Move", "people.moveToFolder", move_params(app)).at(3, 4),
             ],
         ),
         g(
@@ -790,6 +792,12 @@ fn home_people(app: &MailApp) -> Tab {
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
 /// there are two or more.
 pub(crate) fn merge_params(app: &MailApp) -> Value {
+    if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
+}
+
+/// What Move to Contacts Folder… opens its dialog with: the contacts picked together, else the
+/// selected one.
+pub(crate) fn move_params(app: &MailApp) -> Value {
     if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
 }
 

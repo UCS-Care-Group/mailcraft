@@ -14,7 +14,7 @@ use mailcraft_model::contact_sync::{ContactFolder, FolderOwner, MAIN_FOLDER_NAME
 use mailcraft_model::{Id, Labeled, LocalTasks, Mailbox};
 
 use crate::queries::{account_kind, bad, task_record};
-use crate::records::{AccountRecord, ContactFolderRecord, ContactFolders, LabeledRecord, PersonDetail, TaskDetail, TaskSetup};
+use crate::records::{AccountRecord, AlreadyThere, ContactFolderRecord, ContactFolders, LabeledRecord, PersonDetail, TaskDetail, TaskSetup};
 use crate::text::{self, MAX_ADDRESS, MAX_LISTED, MAX_NAME, MAX_PEOPLE_IN_ITEM};
 use crate::{Core, CoreError};
 
@@ -144,6 +144,17 @@ impl Core {
     /// where `people.new` puts one when it isn't told (C8).
     pub async fn contact_folders(&self) -> Result<ContactFolders, CoreError> {
         self.call(|s| Ok(contact_folders(s))).await
+    }
+
+    /// Before Move to contacts folder (`people.moveToFolder`, #1144): somebody in `folder` (0:
+    /// this phone) with an e-mail address of one of the people `ids`, for the picker to ask
+    /// about; `None` when there is nobody. The move itself never asks.
+    pub async fn already_in(&self, ids: Vec<u64>, folder: u64) -> Result<Option<AlreadyThere>, CoreError> {
+        self.call(move |s| {
+            let there = mailcraft_engine::cmd::contacts_move::already_in(&s.mailbox, &ids, folder).and_then(|(_, there)| s.mailbox.contact(there));
+            Ok(there.map(|c| AlreadyThere { id: c.id, name: text::clip(&c.name(), MAX_NAME) }))
+        })
+        .await
     }
 
     /// One task with its notes and reminder, for the editor. No such task is a `BadRequest`.

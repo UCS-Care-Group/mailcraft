@@ -231,7 +231,11 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             for field in ContactField::ALL.into_iter().filter(|f| !fields.contains(f)) {
                 field.copy(cur, c);
             }
-            (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+            // Only a move changes a contact's folder (a download never does): one the step moved
+            // goes back where it was (no server had it: [`super::contacts_move`]).
+            if c.folder == cur.folder {
+                (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+            }
         }
         // In a folder that may only be read now, with nothing waiting for it (which would be
         // held, as any change there is): its server can't be told, so it stays as it is now.
@@ -308,6 +312,7 @@ fn keep_local(fresh: &mut Contact, old: &Contact, categories: bool) {
     fresh.uid.clone_from(&old.uid);
     fresh.imported.clone_from(&old.imported);
     fresh.imported_from.clone_from(&old.imported_from);
+    fresh.moved_from = old.moved_from;
     if categories {
         fresh.categories.clone_from(&old.categories);
     }
@@ -578,9 +583,14 @@ pub fn contact_upload(s: &Session, account: Id) -> Result<ContactsUpload, CmdErr
     let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     let (mailbox, now) = (&s.mailbox, s.now());
     let mut ops = Vec::new();
+    // A deletion a move left waits until the contact moved is made ([`super::contacts_move`]).
+    let held = super::contacts_move::held_deletions(mailbox);
     for change in mailbox.contact_changes.iter().filter(|c| c.account == account && c.next_try <= now && c.unconfirmed == 0) {
         if ops.len() >= MAX_CONTACT_OPS {
             break;
+        }
+        if change.kind == ContactChangeKind::Delete && held.contains(&change.contact) {
+            continue;
         }
         let Some(folder) = mailbox.contact_folder(change.folder).filter(|f| f.account == account && f.writable) else { continue };
         let contact = mailbox.contact(change.contact);
@@ -849,6 +859,11 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
     match change.kind {
         ContactChangeKind::Create => {
             let name = called(mailbox.contact(change.contact));
+            // Moved from a server's folder: back there rather than in neither.
+            if let Some(from) = super::contacts_move::moved_back(mailbox, change.contact) {
+                applied.say(said!("{name} couldn't be moved to {folder}{why}: it stays in {from}.", name, folder, why, from).to_string());
+                return;
+            }
             if let Ok(c) = mailbox.contact_mut(change.contact) {
                 (c.folder, c.origin) = (0, Origin::default());
             }
