@@ -36,6 +36,15 @@ internal object PeopleTasksShots {
         keptIn = "Contacts (sales@example.org)", readOnly = true,
     )
 
+    /** More than the account's server has places for: the fourth address and the second mobile stay on the phone (#1917). */
+    private val cy = PersonCard(
+        id = 4u, name = "Cy Example", company = "", title = "", department = "",
+        emails = (1..4).map { ContactLine("Work", "cy$it@example.org", localOnly = it == 4) },
+        phones = listOf(ContactLine("Mobile", "+44 20 7946 0002"), ContactLine("Mobile", "+44 20 7946 0003", localOnly = true)),
+        addresses = emptyList(),
+        keptIn = "Contacts (ada@example.org)",
+    )
+
     private val places = PersonPlaces(
         listOf(
             PersonPlace(PHONE, "This phone"),
@@ -48,6 +57,7 @@ internal object PeopleTasksShots {
     val people = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)))
     val person = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada))
     val readOnlyPerson = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 3uL, PersonState.Ready(bo))
+    val localOnlyPerson = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 4uL, PersonState.Ready(cy))
 
     val newPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),

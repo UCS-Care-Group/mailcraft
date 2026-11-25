@@ -441,6 +441,8 @@ pub struct LabeledRecord {
     /// What the contact's card calls it (`Work`, `Mobile`), as written there.
     pub label: String,
     pub value: String,
+    /// The account's server has no place for it: it is kept on this phone only (#1917).
+    pub local_only: bool,
 }
 
 /// One person (a contact) as the detail page shows it. Read-only: the app offers no editing.

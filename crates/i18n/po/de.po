@@ -9027,6 +9027,48 @@ msgstr "Microsoft bietet diese Möglichkeit für diesen Kontotyp nicht an."
 msgid "Microsoft has no mailbox at this address"
 msgstr "Microsoft hat kein Postfach unter dieser Adresse"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; the ones marked stay on this phone."
+msgstr "Microsoft speichert pro Kontakt eine private, eine geschäftliche und eine weitere Adresse; die markierten bleiben auf diesem Telefon."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."
+msgstr "Microsoft speichert pro Kontakt eine private, eine geschäftliche und eine weitere Adresse; diese bleibt auf diesem Computer."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; the ones marked stay on this phone."
+msgstr "Microsoft speichert pro Kontakt eine Mobil-, zwei private und zwei geschäftliche Nummern; die markierten bleiben auf diesem Telefon."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."
+msgstr "Microsoft speichert pro Kontakt eine Mobil-, zwei private und zwei geschäftliche Nummern; diese bleibt auf diesem Computer."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps one web page for a contact; this one stays on this computer."
+msgstr "Microsoft speichert eine Webseite pro Kontakt; diese bleibt auf diesem Computer."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/People.kt
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; the ones marked stay on this phone."
+msgstr "Microsoft speichert drei E-Mail-Adressen pro Kontakt; die markierten bleiben auf diesem Telefon."
+
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "Microsoft keeps three email addresses for a contact; this one stays on this computer."
+msgstr "Microsoft speichert drei E-Mail-Adressen pro Kontakt; diese bleibt auf diesem Computer."
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -10868,6 +10910,12 @@ msgid "On this computer for now"
 msgstr "Vorerst auf diesem Computer"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "On this computer only"
+msgstr "Nur auf diesem Computer"
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer, for the mail of every account"
@@ -10883,6 +10931,12 @@ msgstr "Auf diesem Computer. Sie haben noch keine eigenen Ansichten."
 #, fuzzy
 msgid "On this device only: no mail server"
 msgstr "Nur auf diesem Gerät: kein Mailserver"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
+#, fuzzy
+msgid "On this phone only"
+msgstr "Nur auf diesem Telefon"
 
 #. interface
 #: crates/ui-egui/src/updates.rs

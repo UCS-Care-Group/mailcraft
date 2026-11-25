@@ -218,3 +218,30 @@ fn the_contact_picker_lists_every_account_whatever_people_shows() {
     assert_eq!(rows(w.state(), PickKind::Contact, "").len(), every);
     assert!(rows(w.state(), PickKind::Contact, "wren").iter().any(|row| row.0 == id));
 }
+
+/// #1917: on the card, an entry the account's server has no place for says it stays on this
+/// computer, and its tooltip says why; one that fits, and every one On this computer, says
+/// nothing more.
+#[test]
+fn what_the_server_has_no_place_for_is_marked_on_the_card() {
+    let mut w = testing::window("view.people");
+    let work = add(&mut w, "work@example.org");
+    let id = from_server(&mut w, work, "work@example.org", "Wren Work");
+    let emails: Vec<_> = (1..=4).map(|n| json!({"label": "work", "value": format!("wren{n}@example.org")})).collect();
+    w.state_mut().execute("people.edit", json!({"id": id, "emails": emails})).unwrap();
+    let theirs = w.state().session.mailbox.contact(id).unwrap().clone();
+    assert_eq!(local_only(w.state(), &theirs).emails, [3]);
+    let why = "Microsoft keeps three email addresses for a contact; this one stays on this computer.";
+    let (label, tip) = marked("Work", "Write to wren4@example.org", Some(why));
+    assert_eq!(label, "Work · On this computer only");
+    assert_eq!(tip, format!("Write to wren4@example.org\n{why}"));
+    assert_eq!(marked("Work", "", None), ("Work".to_string(), String::new()));
+    // The same four On this computer: nothing marked.
+    let here = w.state_mut().execute("people.new", json!({"first": "Hal", "emails": emails, "folder": 0})).unwrap()["id"].as_u64().unwrap();
+    assert!(local_only(w.state(), w.state().session.mailbox.contact(here).unwrap()).is_empty());
+    // Both cards paint.
+    for shown in [id, here] {
+        w.state_mut().execute("people.select", json!({"id": shown})).unwrap();
+        w.run();
+    }
+}

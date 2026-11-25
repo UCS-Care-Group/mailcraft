@@ -61,7 +61,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has); the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -350,7 +350,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
-    json!({
+    let mut out = json!({
         "id": c.id, "name": c.name(), "fileAs": c.file_as(), "first": c.first, "middle": c.middle, "last": c.last, "displayName": c.display_name,
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
@@ -359,7 +359,13 @@ fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
         "folder": c.folder, "notSent": contacts_remote::not_sent(mailbox, c.id),
         "readOnly": contacts_remote::home(mailbox, c.folder).is_some_and(|f| !f.writable),
         "keys": c.keys.iter().map(|k| json!({"kind": k.kind.name(), "fingerprint": super::keys::card_key_facts(k).fingerprint, "uri": k.uri})).collect::<Vec<_>>(),
-    })
+    });
+    // What the folder's server has no place for: said only when there is some (#1917).
+    let local = mailcraft_model::contact_sync::local_only(mailbox, c);
+    if let (false, Some(map)) = (local.is_empty(), out.as_object_mut()) {
+        map.insert("localOnly".into(), json!(local));
+    }
+    out
 }
 
 fn get(s: &mut Session, v: &Value) -> CmdResult {
