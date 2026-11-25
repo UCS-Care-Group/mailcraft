@@ -198,7 +198,7 @@ fn updates(s: &Session, account: Id, collections: &[DavAskCollection]) -> Vec<Da
         if etag.is_empty() || !super::remote::dav_addable(&s.mailbox, event.calendar) {
             continue;
         }
-        let Some(raw) = crate::dav_raw::read(file, account, &change.remote) else { continue };
+        let Some(raw) = raw::read(file, account, &change.remote) else { continue };
         let opts = mailcraft_ical::WriteOptions { method: String::new(), now };
         let fresh = mailcraft_ical::write_in(&[event], &[], &opts, Some(s.zone()));
         let base = change.base.as_deref().unwrap_or(event);
@@ -1280,7 +1280,7 @@ pub(crate) fn text_size(e: &Event) -> usize {
 /// The kept documents, where there is a place to keep them.
 #[cfg(not(target_arch = "wasm32"))]
 mod raw {
-    pub(super) use crate::dav_raw::{Store, name_of, sweep};
+    pub(super) use crate::dav_raw::{Store, name_of, read, sweep};
 }
 
 /// Without a folder to keep them in (the browser): none is kept.
@@ -1302,4 +1302,7 @@ mod raw {
         }
     }
     pub(super) fn sweep(_: &Path, _: u64, _: &HashSet<String>) {}
+    pub(super) fn read(_: &Path, _: mailcraft_model::Id, _: &str) -> Option<String> {
+        None
+    }
 }
