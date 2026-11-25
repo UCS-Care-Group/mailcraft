@@ -3745,20 +3745,24 @@ impl Mailbox {
         let accounts: HashSet<Id> = self.accounts.iter().map(|a| a.id).collect();
         let mut per: HashMap<Id, usize> = HashMap::new();
         let mut seen: HashSet<Id> = HashSet::new();
-        let before = self.contact_folders.len();
-        // (Only the folders that can be kept count towards an account's cap.)
-        self.contact_folders.retain(|f| {
-            if f.id == 0 || f.id > MAX_ID || !accounts.contains(&f.account) || seen.contains(&f.id) {
-                return false;
+        let before = std::mem::take(&mut self.contact_folders);
+        let mut changed = false;
+        // (Only the folders that can be kept count towards an account's cap; each is cut to size
+        // as one from a server is.)
+        for f in before {
+            let id = f.id;
+            let tidy = (id != 0 && id <= MAX_ID && accounts.contains(&f.account) && !seen.contains(&id)).then(|| f.clone().tidied()).flatten();
+            match tidy {
+                Some(tidy) if per.get(&f.account).is_none_or(|n| *n < MAX_CONTACT_FOLDERS) => {
+                    *per.entry(f.account).or_default() += 1;
+                    seen.insert(id);
+                    changed |= tidy != f;
+                    self.contact_folders.push(tidy);
+                }
+                _ => changed = true,
             }
-            let n = per.entry(f.account).or_default();
-            if *n >= MAX_CONTACT_FOLDERS {
-                return false;
-            }
-            *n += 1;
-            seen.insert(f.id)
-        });
-        if self.contact_folders.len() != before {
+        }
+        if changed {
             fixed.push("contacts folders tidied".to_string());
         }
         let folders: HashSet<Id> = self.contact_folders.iter().map(|f| f.id).collect();
@@ -3799,12 +3803,9 @@ impl Mailbox {
         if freed > 0 {
             fixed.push(format!("{freed} contact(s) of an account that is gone kept on this computer"));
         }
-        if self.contact_changes.len() > MAX_CONTACT_CHANGES {
-            self.contact_changes.truncate(MAX_CONTACT_CHANGES);
-            fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
-        }
         // A change that couldn't be sent or put back: of no account or folder here, or a change or
-        // deletion without the server's name for it or its copy.
+        // deletion without the server's name for it or its copy. (Dropped before the cap, so it
+        // takes no room from one that can be sent.)
         use crate::contact_sync::ContactChangeKind;
         let before = self.contact_changes.len();
         // (A new contact gone here may wait only once sent: it is the record that it isn't wanted.)
@@ -3823,6 +3824,10 @@ impl Mailbox {
         });
         if self.contact_changes.len() != before {
             fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
+        }
+        if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
         }
         fixed
     }
@@ -4997,6 +5002,8 @@ impl Mailbox {
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
             .chain(self.contact_folders.iter().map(|f| f.id))
+            // (A change waiting for a contact that is gone keeps its key: it is never given out again.)
+            .chain(self.contact_changes.iter().map(|c| c.contact))
             .chain(self.rules.iter().map(|r| r.id))
             .filter(sane)
             .max()

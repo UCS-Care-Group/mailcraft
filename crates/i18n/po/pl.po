@@ -26374,6 +26374,15 @@ msgstr[2] "{n} kontaktów zostanie usuniętych po zapisaniu zachowanego. Cofnię
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} kontakt nie zostaje cofnięty: jego folder kontaktów jest teraz tylko do odczytu."
+msgstr[1] "{n} kontakty nie zostają cofnięte: ich foldery kontaktów są teraz tylko do odczytu."
+msgstr[2] "{n} kontaktów nie zostaje cofniętych: ich foldery kontaktów są teraz tylko do odczytu."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
 msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} kontakt nie zostaje cofnięty: zbyt wiele zmian czeka na wysłanie na jego serwer."

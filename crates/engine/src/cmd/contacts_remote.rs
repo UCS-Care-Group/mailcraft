@@ -204,15 +204,24 @@ fn put_note(mailbox: &mut Mailbox, at: Option<usize>, change: Option<ContactChan
 /// what the servers have now (so an undo after a change went up sends the opposite). Every other
 /// contact's note, and the folders, are as `now` has them.
 ///
-/// A contact whose change can't be noted for want of room isn't undone: it stays as `now` has
-/// it, so nothing is undone here that its server isn't told of (a deletion included). How many
-/// weren't.
-pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::undo::Touched) -> usize {
+/// A contact whose change can't be noted for want of room, or that is (or was) in a folder that
+/// may only be read now with nothing waiting for it, isn't undone: it stays as `now` has it, so
+/// nothing is undone here that its server isn't told of (a deletion included). How many weren't,
+/// for want of room and for a folder that may only be read.
+pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::undo::Touched) -> (usize, usize) {
     mailbox.contact_folders.clone_from(&now.contact_folders);
     // (The touched contacts' notes stay where they are and are worked out again in place, so
     // what was sent of them is remembered.)
     mailbox.contact_changes.clone_from(&now.contact_changes);
-    let mut no_room = 0;
+    let (mut no_room, mut read_only_kept) = (0, 0);
+    let keep = |mailbox: &mut Mailbox, id: Id| match now.contacts.get(&id) {
+        Some(c) => {
+            mailbox.contacts.insert(id, c.clone());
+        }
+        None => {
+            mailbox.contacts.remove(&id);
+        }
+    };
     for id in touched.changed_contacts() {
         // Of a contact the step changed, only the fields it changed go back: what a server
         // changed since in the others, and the server's key for it, stay as they are now.
@@ -224,21 +233,24 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             }
             (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
         }
-        if note_contact(mailbox, *id, server_copy(now, *id)).is_err() {
+        // In a folder that may only be read now, with nothing waiting for it (which would be
+        // held, as any change there is): its server can't be told, so it stays as it is now.
+        let shut = |m: &Mailbox| m.contact(*id).is_some_and(|c| read_only(m, c));
+        let differs = match (mailbox.contact(*id), now.contact(*id)) {
+            (Some(a), Some(b)) => !ContactField::changed(b, a).is_empty(),
+            (a, b) => a.is_some() != b.is_some(),
+        };
+        if differs && (shut(mailbox) || shut(now)) && !not_sent(now, *id) {
+            keep(mailbox, *id);
+            read_only_kept += 1;
+        } else if note_contact(mailbox, *id, server_copy(now, *id)).is_err() {
             // No room to tell its server: this contact stays as it is now (with what waits for
             // it already), rather than undone here and not there.
-            match now.contacts.get(id) {
-                Some(c) => {
-                    mailbox.contacts.insert(*id, c.clone());
-                }
-                None => {
-                    mailbox.contacts.remove(id);
-                }
-            }
+            keep(mailbox, *id);
             no_room += 1;
         }
     }
-    no_room
+    (no_room, read_only_kept)
 }
 
 /// The folder a new contact goes into when the command doesn't say (C8), without making
