@@ -30,8 +30,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::contact_sync::{
-    ContactChange, ContactChangeKind, ContactField, ContactFolder, ContactOp, ContactResult, ContactsUpload, ContactsUploaded, MAX_CONTACT_CHANGES,
-    MAX_CONTACT_OPS, RemoteContactFolder, delta, wait_after,
+    ContactChange, ContactChangeKind, ContactField, ContactFolder, ContactOp, ContactResult, ContactsUpload, ContactsUploaded, LONGEST_WAIT,
+    MAX_CONTACT_CHANGES, MAX_CONTACT_OPS, RemoteContactFolder, delta, wait_after,
 };
 use mailcraft_model::remote::{ContactsDownload, MAX_CONTACTS, RemoteContact, clean_key};
 use mailcraft_model::{AccountChoice, Contact, Id, Mailbox, Origin};
@@ -450,11 +450,38 @@ pub fn contact_upload(s: &Session, account: Id) -> Result<ContactsUpload, CmdErr
 }
 
 /// The sign-in of `account` changed (the owner gave a permission): what was held back is tried
-/// again at once.
+/// again at once, and a folder of somebody else's that refused a change once may be changed
+/// again (the server says when it still may not: it can't be asked beforehand).
 pub fn retry_contact_changes(s: &mut Session, account: Id) {
     let mut any = false;
     for change in s.mailbox.contact_changes.iter_mut().filter(|c| c.account == account && c.next_try != 0) {
         change.next_try = 0;
+        any = true;
+    }
+    for folder in s.mailbox.contact_folders.iter_mut().filter(|f| f.account == account && !f.owner.is_own() && !f.writable) {
+        folder.writable = true;
+        any = true;
+    }
+    if any {
+        s.mailbox_changed();
+    }
+}
+
+/// Whether a change to `account`'s contacts is due to go up at `now`.
+pub fn contacts_due(mailbox: &Mailbox, account: Id, now: mailcraft_time::Timestamp) -> bool {
+    mailbox.contact_changes.iter().any(|c| c.account == account && c.next_try <= now)
+}
+
+/// The sign-in of `account` doesn't cover changing contacts: what waits stays here, says why
+/// ("Not sent yet"), and isn't tried again before the owner allows it
+/// ([`retry_contact_changes`]) or a long wait is over.
+pub fn wait_for_permission(s: &mut Session, account: Id) {
+    let why = said!("Waiting for your permission to change this account's contacts on its server: File › Info › Ask again").to_string();
+    let later = s.now().saturating_add(LONGEST_WAIT);
+    let mut any = false;
+    for change in s.mailbox.contact_changes.iter_mut().filter(|c| c.account == account) {
+        change.error.clone_from(&why);
+        change.next_try = change.next_try.max(later);
         any = true;
     }
     if any {
@@ -520,6 +547,12 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
             change.error.clone_from(&outcome.error);
         };
         let denied_before = at.and_then(|at| mailbox.contact_changes.get(at)).is_some_and(|c| c.denied);
+        // A folder of somebody else's (a shared mailbox's, a person's): may it be changed?
+        let theirs = at
+            .and_then(|at| mailbox.contact_changes.get(at))
+            .and_then(|c| mailbox.contact_folder(c.folder))
+            .filter(|f| !f.owner.is_own())
+            .map(|f| f.id);
         // (Made, but under what name wasn't said: tried again, as for a failure.)
         let unnamed = outcome.result == ContactResult::Done && kind == ContactChangeKind::Create && outcome.remote.is_empty();
         match outcome.result {
@@ -534,6 +567,13 @@ pub fn apply_contact_outcomes(s: &mut Session, uploaded: &ContactsUploaded) -> R
                     hold(change);
                     applied.failed += 1;
                 }
+            }
+            // Somebody else's folder that refuses a change: it can only be read, from now on (C5).
+            ContactResult::Denied if theirs.is_some() => {
+                if let Some(f) = mailbox.contact_folders.iter_mut().find(|f| Some(f.id) == theirs) {
+                    f.writable = false;
+                }
+                give_up(mailbox, at, &outcome, &mut applied);
             }
             ContactResult::Denied if !denied_before => {
                 if let Some(change) = at.and_then(|at| mailbox.contact_changes.get_mut(at)) {

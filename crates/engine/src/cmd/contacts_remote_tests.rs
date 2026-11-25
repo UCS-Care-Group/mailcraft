@@ -395,3 +395,29 @@ fn junk_answers_and_downloads_are_refused_or_change_nothing_wrong() {
     let bad = RemoteContactFolder { owner: FolderOwner::Mailbox("not an address".into()), ..Default::default() };
     assert!(s.run("sync.applyContacts", &json!({"download": ContactsDownload { folder: Some(bad), ..download(account, vec![]) }})).is_err());
 }
+
+#[test]
+fn a_shared_folder_that_refuses_a_change_can_only_be_read_until_a_new_sign_in() {
+    let (mut s, account) = session();
+    let shared = RemoteContactFolder {
+        id: "f-leads".into(),
+        name: "Leads".into(),
+        owner: FolderOwner::Mailbox("sales@example.org".into()),
+        writable: true,
+        ..Default::default()
+    };
+    run(
+        &mut s,
+        "sync.applyContacts",
+        json!({"download": ContactsDownload { folder: Some(shared), ..download(account, vec![person("c-di", "Di")]) }}),
+    );
+    let who = called(&s, "Di");
+    run(&mut s, "people.edit", json!({"id": who, "last": "Ray"}));
+    let op = upload(&mut s, account).ops.remove(0);
+    answer(&mut s, account, &op, ContactResult::Denied, "");
+    // Given up at once (not asked twice), and the folder is now one that can only be read.
+    assert!(s.mailbox.contact_changes.is_empty());
+    assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-leads" && !f.writable));
+    crate::cmd::contacts_remote::retry_contact_changes(&mut s, account);
+    assert!(s.mailbox.contact_folders.iter().any(|f| f.remote == "f-leads" && f.writable));
+}

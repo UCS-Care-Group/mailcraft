@@ -228,6 +228,7 @@ impl MailApp {
             // A renewed sign-in that isn't the account's own (a shared mailbox's: its owner's)
             // stops the run before anything is read.
             signer: Some(owner.clone()),
+            contacts: None,
         };
         let graph = self.services.graph.as_ref()?;
         if !check {

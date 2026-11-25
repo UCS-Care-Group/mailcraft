@@ -229,8 +229,13 @@ const SOMEONE_ELSE: &str = "sync: you signed in as somebody other than this acco
 /// the owner signs in on Microsoft's page (for Graph, with `Mail.ReadWrite`).
 fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Result<(), Failure> {
     let request = mailcraft_engine::cmd::graph_mail::graph_mail_request(s, account)?;
+    // (The token for the contacts, #1917: the one given, or one of their own from the sign-in.)
+    let mut contacts_token = None;
     let token = match std::env::var("MAILCRAFT_ACCESS_TOKEN") {
-        Ok(token) => token,
+        Ok(token) => {
+            contacts_token = Some(token.clone());
+            token
+        }
         Err(_) => {
             // A shared mailbox is read with the sign-in of the account it is opened through (#70).
             let signer = s.mailbox.owner_of(account).map_or(account, |owner| owner.id);
@@ -261,6 +266,12 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
                 let renewed = renewed.map_err(|e| format!("sync: the sign-in doesn't cover this shared mailbox ({e})"))?;
                 renewed.tokens
             } else {
+                let shared = !s.mailbox.shared_mailboxes(account).is_empty();
+                let resource = mailcraft_net::oauth::Resource::GraphMail;
+                match mailcraft_net::oauth::refresh_graph_contacts(&oauth, &signed.refresh, shared, resource) {
+                    Ok(renewed) => contacts_token = Some(renewed.tokens.access),
+                    Err(e) => eprintln!("sync: contact changes wait: the sign-in doesn't cover changing contacts ({e})"),
+                }
                 signed
             };
             tokens.access
@@ -272,9 +283,38 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
         eprintln!("sync: {e}");
     }
     let applied = mailcraft_engine::cmd::graph_mail::apply_graph_mail(s, result)?;
+    let contacts_failed = match contacts_token {
+        Some(token) if !request.shared && s.mailbox.account(account).is_some_and(mailcraft_model::Account::keeps_contacts) => {
+            sync_contacts(s, account, &token)?
+        }
+        _ => false,
+    };
     s.run("file.save", &json!({"path": path}))?;
     print_json(&applied)?;
-    if failed { Err(Failure::Error("sync: finished with errors".into())) } else { Ok(()) }
+    if failed || contacts_failed { Err(Failure::Error("sync: finished with errors".into())) } else { Ok(()) }
+}
+
+/// The account's contacts both ways (#1917): what waits told to the server, then every folder
+/// read (its own, its subfolders and its shared mailboxes'). True when something went wrong.
+fn sync_contacts(s: &mut Session, account: mailcraft_model::Id, token: &str) -> Result<bool, Failure> {
+    let upload: mailcraft_model::contact_sync::ContactsUpload =
+        serde_json::from_value(s.run("sync.contactChanges", &json!({"account": account}))?).map_err(|e| format!("sync: {e}"))?;
+    if !upload.ops.is_empty() {
+        let uploaded = mailcraft_net::graph::push_contacts(token, &upload);
+        s.run("sync.applyContactChanges", &json!({"result": uploaded}))?;
+    }
+    let folders: Vec<_> = s.mailbox.contact_folders.iter().filter(|f| f.account == account).cloned().collect();
+    let mailboxes: Vec<String> = s.mailbox.shared_mailboxes(account).iter().map(|a| a.email.trim().to_string()).filter(|a| !a.is_empty()).collect();
+    let read = mailcraft_net::graph::read_contacts(token, &folders, &mailboxes);
+    let email = s.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
+    for download in read.downloads {
+        let download = mailcraft_model::remote::ContactsDownload { account, email: email.clone(), ..download };
+        s.run("sync.applyContacts", &json!({"download": download}))?;
+    }
+    for e in &read.errors {
+        eprintln!("sync: {e}");
+    }
+    Ok(read.token_refused || !read.errors.is_empty())
 }
 
 fn print_json(v: &Value) -> Result<(), Failure> {

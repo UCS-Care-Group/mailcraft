@@ -17449,6 +17449,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "კავშირის შემოწმება მხოლოდ იმას ამოწმებს, პასუხობს თუ არა ეს სერვერი. თუ მას მაინც სჭირდება შესვლა, ამას პირველი წერილის გაგზავნისას გაიგებთ."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "გაგზავნილი კონტაქტების ცვლილებების აღნიშვნა ვერ მოხერხდა: {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18166,6 +18172,12 @@ msgstr "სერვერზე არსებული წესების 
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "გაგზავნილი წესები ვერ აღირიცხა: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "იგივე გვერდი ითხოვს თქვენი კონტაქტების შეცვლის ნებართვასაც, რათა აქ შექმნილი, შეცვლილი ან წაშლილი კონტაქტები მის სერვერზეც მოხვდეს."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20805,6 +20817,12 @@ msgstr "MailCraft-ის Google-ში რეგისტრაციის მ�
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "დამტკიცების მოლოდინი მოულოდნელად შეწყდა"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "ველოდებით თქვენს ნებართვას ამ ანგარიშის კონტაქტების მის სერვერზე შესაცვლელად: ფაილი › ინფორმაცია › ხელახლა მოთხოვნა"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

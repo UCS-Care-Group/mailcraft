@@ -1726,11 +1726,11 @@ fn the_identity_token_says_which_directory_signed_in() {
 
 /// What an administrator is asked to approve: everything the program asks an owner for, and what
 /// later shared-mailbox slices will ask for.
-const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
+const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite.Shared offline_access openid profile email";
 /// The same, service by service.
 const ADMIN_SCOPES_MAIL: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
-const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access openid profile email";
+const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite https://graph.microsoft.com/Contacts.ReadWrite.Shared offline_access openid profile email";
 /// A directory's id and an application's, both invented.
 const DIRECTORY: &str = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
 const APPLICATION: &str = "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6";
@@ -2236,9 +2236,12 @@ fn tasks_are_an_extra_of_a_new_sign_ins_page_and_never_what_its_tokens_are_for()
         assert!(!sync.contains("Shared") && !sync.contains("MailboxConfigItem"), "{sync}");
         assert_eq!(sync.split(' ').any(|s| s == "https://graph.microsoft.com/Mail.ReadWrite"), mail_write, "{sync}");
         // The one question's page asks for exactly that, and puts the shared mailboxes' and
-        // calendars' permissions to the owner beside it (one_page_tests.rs).
+        // calendars' permissions to the owner beside it (one_page_tests.rs), and the shared contacts (#1917).
         let page = sync_endpoints(&oauth(), "ada@example.org", mail_write);
-        assert_eq!((page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()), (sync.as_str(), SHARED_ALL, ""));
+        assert_eq!(
+            (page.scope.as_str(), page.consent.as_str(), page.lesser.as_str()),
+            (sync.as_str(), format!("{SHARED_ALL} https://graph.microsoft.com/Contacts.ReadWrite.Shared").as_str(), "")
+        );
         let plain = Endpoints::for_resource(&oauth(), if mail_write { Resource::GraphMail } else { Resource::Graph });
         assert_eq!((page.authorize, page.token), (plain.authorize, plain.token));
     }
@@ -2271,6 +2274,38 @@ fn a_tasks_job_needs_its_permission_and_nothing_less() {
             .is_consent_needed()
     );
     assert_eq!(server.asked(), 1);
+}
+
+#[test]
+fn a_contacts_job_asks_for_changing_contacts_by_itself_and_a_no_is_the_owners_to_give() {
+    // (#1917: never on a sign-in's own page, nor what its tokens are for.)
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        for page in [Endpoints::for_resource(&oauth(), resource), Endpoints::for_resource_without_sync(&oauth(), resource)] {
+            let asked = format!("{} {} {} {}", page.scope, page.consent, page.fewer, page.lesser);
+            assert!(!asked.contains("Contacts.ReadWrite"), "{asked}");
+        }
+    }
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"contacts-access","refresh_token":"re-fresh-6"}"#;
+    for shared in [false, true] {
+        let server = FakeHttp::answering(ok(granted));
+        let got = refresh_graph_contacts_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh", shared).unwrap();
+        assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str()), ("contacts-access", "re-fresh-6"));
+        let scope = form_of(&server, 0)["scope"].to_string();
+        assert!(scope.split(' ').any(|s| s == "https://graph.microsoft.com/Contacts.ReadWrite"), "{scope}");
+        assert_eq!(scope.split(' ').any(|s| s == "https://graph.microsoft.com/Contacts.ReadWrite.Shared"), shared, "{scope}");
+        assert!(!scope.contains("Tasks") && !scope.contains("Mail.ReadWrite"), "{scope}");
+    }
+    // A server that says what it gave, and gave less: the owner is to be asked.
+    let less = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"a","scope":"https://graph.microsoft.com/Contacts.Read"}"#;
+    let server = FakeHttp::answering(ok(less));
+    let refused = refresh_graph_contacts_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh", false);
+    assert!(refused.unwrap_err().is_consent_needed());
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    let refused = refresh_graph_contacts_at(&endpoints_of(&server), (&endpoints_of(&server), Resource::Mail), &oauth(), "re-fresh", true);
+    assert!(refused.unwrap_err().is_consent_needed());
+    // The one page for an older sign-in asks for it.
+    assert!(sync_scope(false).split(' ').any(|s| s == "https://graph.microsoft.com/Contacts.ReadWrite"));
 }
 
 /// #520: Microsoft's no for the to-dos of a personal account that never agreed reads like a

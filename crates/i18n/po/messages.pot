@@ -14528,6 +14528,11 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 msgid "The contact {id} chosen for a field is not one of those merged."
 msgstr ""
@@ -15127,6 +15132,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/sync_driver/rules.rs
 msgid "The rules sent couldn't be noted: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
 msgstr ""
 
 #. interface
@@ -17326,6 +17336,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "Waiting for the approval stopped unexpectedly"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
 msgstr ""
 
 #. interface

@@ -17541,6 +17541,12 @@ msgid "The connection test only checks that this server answers. If it does want
 msgstr "Test připojení jen ověřuje, že tento server odpovídá. Pokud přihlášení vyžaduje, řekne vám to první odeslaná zpráva."
 
 #. what a command says
+#: crates/engine/src/sync_driver/calendar_plan.rs
+#, fuzzy
+msgid "The contact changes sent couldn't be noted: {error}"
+msgstr "Odeslané změny kontaktů se nepodařilo zaznamenat: {error}"
+
+#. what a command says
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The contact {id} chosen for a field is not one of those merged."
@@ -18262,6 +18268,12 @@ msgstr "Pravidla na serveru nešlo převzít: {error}"
 #, fuzzy
 msgid "The rules sent couldn't be noted: {error}"
 msgstr "Odeslaná pravidla nešlo zaznamenat: {error}"
+
+#. interface
+#: crates/ui-egui/src/server_sync.rs
+#, fuzzy
+msgid "The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."
+msgstr "Stejná stránka žádá i o změny vašich kontaktů, aby kontakty, které zde vytvoříte, změníte nebo odstraníte, šly i na jeho server."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -20929,6 +20941,12 @@ msgstr "Čeká se na registraci MailCraftu u Googlu"
 #, fuzzy
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Čekání na schválení se nečekaně zastavilo"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Čeká se na vaše svolení měnit kontakty tohoto účtu na jeho serveru: Soubor › Informace › Zeptat se znovu"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
