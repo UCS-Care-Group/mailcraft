@@ -232,6 +232,8 @@ private fun CoreShell(
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
     var swipe by remember { mutableStateOf(prefs.load()) }
+    val readingStore = remember { DeviceReadingPrefs(appContext) }
+    var readingPrefs by remember { mutableStateOf(readingStore.load()) }
     // (A folder of 0 is the first Inbox.)
     var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
     val ui by list.ui.collectAsState()
@@ -274,6 +276,7 @@ private fun CoreShell(
             categories = categories,
             nowMillis = now,
             swipe = swipe,
+            readingPrefs = readingPrefs,
             reading = pictured.reading,
             pictures = pictured.settings,
             avatars = pictured.avatars,
@@ -293,6 +296,10 @@ private fun CoreShell(
             onSwipe = {
                 swipe = it
                 prefs.save(it)
+            },
+            onReadingPrefs = {
+                readingPrefs = it
+                readingStore.save(it)
             },
             reading = pictured.reader.actions(writing::begin),
             onPictures = pictures::changed,

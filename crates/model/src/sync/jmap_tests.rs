@@ -36,6 +36,13 @@ fn request() -> JmapMailRequest {
         sends: vec![SendUp { message: 7, draft: None, mime: Some(Box::new(to_bob)) }],
         background: true,
         threads: vec!["E5".into()],
+        contacts: Some(super::JmapContactsRequest {
+            ops: vec![crate::contact_sync::ContactOp {
+                values: crate::remote::RemoteContact { display_name: ME.into(), ..Default::default() },
+                ..Default::default()
+            }],
+            places: vec![super::JmapContactPlace { owner: crate::contact_sync::FolderOwner::Person(ME.into()), state: "s1".into(), books: vec![] }],
+        }),
     }
 }
 
@@ -84,6 +91,9 @@ fn result() -> JmapMailResult {
         stopped: true,
         progress: Some(GraphProgress { folder: "M1".into(), read: 2, total: 4, number: 1, folders: 3 }),
         auth_refused: true,
+        contacts_sent: Some(crate::contact_sync::ContactsUploaded { email: ME.into(), ..Default::default() }),
+        contacts: vec![crate::remote::ContactsDownload { email: ME.into(), ..Default::default() }],
+        contact_listed: vec![JmapContactPlace { owner: FolderOwner::Own, state: String::new(), books: vec![String::new(), "AB2".into()] }],
     }
 }
 
@@ -233,11 +243,11 @@ fn debug_output_has_counts_only() {
     }
     assert_eq!(
         format!("{request:?}"),
-        "JmapMailRequest { account: 3, bearer: true, window: 300, list_folders: true, scope: \"light+2\", mailboxes: 2, known: 3, changes: 3, sends: 1, background: true }"
+        "JmapMailRequest { account: 3, bearer: true, window: 300, list_folders: true, scope: \"light+2\", mailboxes: 2, known: 3, changes: 3, sends: 1, background: true, contact_ops: Some(1) }"
     );
     assert_eq!(
         format!("{result:?}"),
-        "JmapMailResult { account: 3, changes: 4, sent: 1, listed: Some(1), pages: 1, messages: 1, errors: 1, busy_for: Some(30), partial: true, whole: true, stopped: true, progress: true, auth_refused: true }"
+        "JmapMailResult { account: 3, changes: 4, sent: 1, listed: Some(1), pages: 1, messages: 1, errors: 1, busy_for: Some(30), partial: true, whole: true, stopped: true, progress: true, auth_refused: true, contacts_sent: Some(0), contact_books: 1 }"
     );
 }
 

@@ -441,6 +441,8 @@ pub struct LabeledRecord {
     /// What the contact's card calls it (`Work`, `Mobile`), as written there.
     pub label: String,
     pub value: String,
+    /// The account's server has no place for it: it is kept on this phone only (#1917).
+    pub local_only: bool,
 }
 
 /// One person (a contact) as the detail page shows it. Read-only: the app offers no editing.
@@ -457,6 +459,48 @@ pub struct PersonDetail {
     /// Postal addresses, each on one line.
     pub addresses: Vec<LabeledRecord>,
     pub favorite: bool,
+    /// The contacts folder it is kept in; 0 for this phone.
+    pub folder: u64,
+    /// That folder as the card names it ("Contacts (ada@example.org)"); empty for this phone.
+    pub folder_name: String,
+    /// Whose the folder is: `own`, `mailbox` (a shared mailbox's), `person` (shared by a
+    /// person), or empty for this phone.
+    pub folder_kind: String,
+    /// The account may only read that folder: the person can't be changed or deleted here.
+    pub read_only: bool,
+    /// A change to the person waits to go to the account's server.
+    pub not_sent: bool,
+}
+
+/// A contacts folder a new person can go in.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ContactFolderRecord {
+    /// What `people.new`'s `folder` takes; `None` for the account's main folder not made yet
+    /// (`people.new` without `folder` makes it, when it is [`ContactFolders::default_index`]).
+    pub id: Option<u64>,
+    pub account: u64,
+    /// As the card names it ("Contacts (ada@example.org)").
+    pub name: String,
+    /// `own`, `mailbox` or `person`, as [`PersonDetail::folder_kind`].
+    pub kind: String,
+}
+
+/// Where a new person can go: this phone, or a contacts folder the account may write.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ContactFolders {
+    pub rev: u64,
+    pub folders: Vec<ContactFolderRecord>,
+    /// Where `people.new` puts a person when it isn't told: an index into `folders`, or
+    /// `None` for this phone.
+    pub default_index: Option<u32>,
+}
+
+/// Somebody a contacts folder has already, with an e-mail address of a person about to be moved
+/// there (#1144): the picker asks whether to open that one or move anyway.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AlreadyThere {
+    pub id: u64,
+    pub name: String,
 }
 
 /// One task as the editor shows it.

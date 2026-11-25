@@ -197,6 +197,19 @@ pub struct Contact {
     /// the server calls it is how the next download finds it again.
     #[serde(skip_serializing_if = "Origin::is_local")]
     pub origin: Origin,
+    /// The contacts folder it is kept in ([`crate::contact_sync::ContactFolder`]); 0 for On this
+    /// computer.
+    #[serde(skip_serializing_if = "is_no_folder")]
+    pub folder: Id,
+    /// Made here by Move to contacts folder (#1144) from the contact that had this id in a
+    /// server's folder: that one's deletion there waits until the server has made this one, and
+    /// comes back if the server won't. 0 for none. This computer's only: never sent or shown.
+    #[serde(skip_serializing_if = "is_no_folder")]
+    pub moved_from: Id,
+}
+
+fn is_no_folder(id: &Id) -> bool {
+    *id == 0
 }
 
 impl Contact {

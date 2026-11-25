@@ -650,6 +650,8 @@ fn new_in(s: &mut Session, kind: &str, account: Id) -> serde_json::Value {
     match kind {
         "calendar" => json!({"calendar": calendar_of(s, account)}),
         "tasks" => json!({"account": account}),
+        // (A contact goes to the main folder of the one account that keeps contacts.)
+        _ if account == 0 => json!({"folder": 0}),
         _ => json!({}),
     }
 }
@@ -660,10 +662,10 @@ fn editable(s: &mut Session, account: Id) -> Vec<(&'static str, Id)> {
     vec![("calendar.edit", event_of(s, account)), ("people.edit", contact_of(s, 0)), ("tasks.edit", task_of(s, account))]
 }
 
-/// The list an item of `command`'s kind uses when made in `account`: a contact is always this
-/// computer's, so the shared list.
+/// The list an item of `command`'s kind uses when made in `account`: the contact [`editable`]
+/// gives is this computer's, so the shared list.
 fn list_of(command: &str, account: Id) -> Id {
-    if command.starts_with("people") { 0 } else { account }
+    if command == "people.edit" { 0 } else { account }
 }
 
 /// `account` keeps its to-dos with Microsoft, so `tasks.new` may put one there.

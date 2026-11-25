@@ -18,10 +18,10 @@
   <launchable type="desktop-id">io.github.billsecond.mailcraft.desktop</launchable>
   <icon type="stock">io.github.billsecond.mailcraft</icon>
   <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
-  <url type="homepage">https://github.com/UCS-Care-Group/mailcraft</url>
-  <url type="bugtracker">https://github.com/UCS-Care-Group/mailcraft/issues</url>
-  <url type="help">https://github.com/UCS-Care-Group/mailcraft</url>
-  <url type="contact">https://github.com/UCS-Care-Group/mailcraft/issues</url>
+  <url type="homepage">https://github.com/UCSLabs/mailcraft</url>
+  <url type="bugtracker">https://github.com/UCSLabs/mailcraft/issues</url>
+  <url type="help">https://github.com/UCSLabs/mailcraft</url>
+  <url type="contact">https://github.com/UCSLabs/mailcraft/issues</url>
   <categories>
     <category>Office</category>
     <category>WordProcessor</category>

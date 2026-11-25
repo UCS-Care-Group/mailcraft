@@ -1,0 +1,1 @@
+| 2026-11-24 | Android build: the Gradle Plugin Portal's own copies of three plugin marker poms (Kotlin Android, Kotlin Compose, detekt) are also trusted, so a Maven Central hiccup no longer fails dependency verification |

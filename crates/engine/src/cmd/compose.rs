@@ -3,6 +3,7 @@
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
@@ -1912,7 +1913,7 @@ impl Typed {
 /// in mail that arrived, then by the latest message, then by name. The owner's own addresses are
 /// included, on that same footing ([`suggest_excluding_own`] leaves them out before the list is
 /// cut). Junk E-mail and Drafts are not a source, a date after now counts as now, and an incoming
-/// `From` is never counted as a send. One pass over the messages, so it can run on every key press.
+/// `From` is never counted as a send. One pass over the messages, and the send counts are kept per mailbox revision, so it can run on every key press.
 pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
     rank_suggestions(s, query, limit, true)
 }
@@ -1924,7 +1925,7 @@ pub(crate) fn suggest_excluding_own(s: &Session, query: &str, limit: usize) -> V
     rank_suggestions(s, query, limit, false)
 }
 
-/// Addresses kept while suggesting. The candidate list and the send tally each stop here. A
+/// Addresses kept while suggesting. The candidate list and the send counts each stop here. A
 /// mailbox file can name a fresh address on every message; past this, a new one is dropped and
 /// one already kept is still updated.
 pub(crate) const MAX_SUGGEST_TRACKED: usize = 32_768;
@@ -1959,8 +1960,6 @@ struct Candidate {
     sends: u32,
     last_sent: Option<i64>,
     last_seen: Option<i64>,
-    /// Sent-message generation that last counted a send, so To and Cc of one message count once.
-    stamp: u64,
 }
 
 impl Candidate {
@@ -1976,7 +1975,6 @@ impl Candidate {
             sends: 0,
             last_sent: None,
             last_seen: None,
-            stamp: 0,
         }
     }
 }
@@ -2176,15 +2174,6 @@ fn seed_account(people: &mut HashMap<String, Candidate>, facts: &HashMap<String,
     offer_name(person, name, NameFrom::Account, false, 0);
 }
 
-/// Sends to an address the query did not fit, merged into candidates afterwards. A bare
-/// `To:` in Sent Items still counts for a contact matched by name.
-struct Tally {
-    sends: u32,
-    last_sent: i64,
-    /// The message generation that last counted this address, so To and Cc of one message count once.
-    stamp: u64,
-}
-
 /// Whether this name and address fit and, when they do not, the latest message they were on. That
 /// date is given to the address once every message is read, so it reaches a candidate that another
 /// name matched, before or after.
@@ -2203,31 +2192,49 @@ fn read_messages(
     let (junk, drafts, outgoing) = folder_sets(s);
     let now = s.now();
     let mut matched: HashMap<(&str, &str), Pair> = HashMap::new();
-    let mut tally: HashMap<String, Tally> = HashMap::new();
-    // `From` on Sent Items or the Outbox is not a send: incoming mail chooses it, and a message
-    // the owner sent already has its copy there.
-    let mut generation = 0u64;
     for m in s.mailbox.messages.values() {
         if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) {
             continue;
         }
         let date = m.date.min(now);
+        // `From` on Sent Items or the Outbox is not a send: incoming mail chooses it, and a
+        // message the owner sent already has its copy there.
         if outgoing.contains(&m.folder) {
-            generation = generation.saturating_add(1);
             for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
-                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), true, generation, date);
+                see_address(people, facts, account_names, typed, &mut matched, a.name.trim(), a.email.trim(), true, date);
             }
         } else {
             for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
-                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), false, generation, date);
+                see_address(people, facts, account_names, typed, &mut matched, a.name.trim(), a.email.trim(), false, date);
             }
         }
     }
+    // How often the owner wrote to each address does not depend on what is typed: counted once
+    // per mailbox change (#1803).
+    let counts = send_counts(s, &junk, &drafts, &outgoing);
+    // A table that is full has left out addresses first sent to late: those that fit the query
+    // are counted here, from the messages, so a cap on the table never costs a match its sends.
+    let mut left_out: HashMap<String, (u32, i64)> = HashMap::new();
+    if counts.by_address.len() >= MAX_SUGGEST_TRACKED {
+        for m in s.mailbox.messages.values() {
+            if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) || !outgoing.contains(&m.folder) {
+                continue;
+            }
+            for_each_sent_address(m, |lower| {
+                if people.contains_key(lower) && !counts.by_address.contains_key(lower) {
+                    let row = left_out.entry(lower.to_string()).or_insert((0, m.date));
+                    row.0 = row.0.saturating_add(1);
+                    row.1 = row.1.max(m.date);
+                }
+            });
+        }
+    }
     for (key, person) in people.iter_mut() {
-        let Some(sent) = tally.get(key) else { continue };
-        person.sends = person.sends.saturating_add(sent.sends);
-        person.last_sent = Some(person.last_sent.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
-        person.last_seen = Some(person.last_seen.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
+        let Some(&(sends, last)) = counts.by_address.get(key).or_else(|| left_out.get(key)) else { continue };
+        let last = last.min(now);
+        person.sends = sends;
+        person.last_sent = Some(last);
+        person.last_seen = Some(person.last_seen.map_or(last, |was| was.max(last)));
     }
     for (&(_, email), pair) in &matched {
         let Some(date) = pair.last else { continue };
@@ -2295,32 +2302,69 @@ fn with_lower(email: &str, mut f: impl FnMut(&str)) {
     f(&owned);
 }
 
-fn tally_send(tally: &mut HashMap<String, Tally>, key: &str, generation: u64, date: i64) {
-    if let Some(sent) = tally.get_mut(key) {
-        if sent.stamp == generation {
-            return;
-        }
-        sent.stamp = generation;
-        sent.sends = sent.sends.saturating_add(1);
-        if date > sent.last_sent {
-            sent.last_sent = date;
-        }
-        return;
-    }
-    if tally.len() >= MAX_SUGGEST_TRACKED {
-        return;
-    }
-    tally.insert(key.to_string(), Tally { sends: 1, last_sent: date, stamp: generation });
+/// How often the owner wrote to each address: sends and the latest send (as its date, before it
+/// is held to now), by lower-cased address. Kept per mailbox revision ([`send_counts`]).
+#[derive(Default)]
+pub(crate) struct SendCounts {
+    by_address: HashMap<String, (u32, i64)>,
 }
 
-/// One send on a candidate. `generation` starts at 1, so a stamp of 0 has not counted one.
-fn count_send(person: &mut Candidate, generation: u64, date: i64) {
-    if person.stamp == generation {
-        return;
+impl SendCounts {
+    /// How many addresses are counted.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.by_address.len()
     }
-    person.stamp = generation;
-    person.sends = person.sends.saturating_add(1);
-    person.last_sent = Some(person.last_sent.map_or(date, |was| was.max(date)));
+}
+
+/// Each valid address a message was sent to, lower-cased, once however often it is named (To and
+/// Cc, another spelling).
+fn for_each_sent_address(m: &Message, mut f: impl FnMut(&str)) {
+    let mut seen: HashSet<String> = HashSet::new();
+    for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
+        let email = a.email.trim();
+        if !is_valid_email(email) {
+            continue;
+        }
+        let lower = email.to_lowercase();
+        if !seen.contains(&lower) {
+            f(&lower);
+            seen.insert(lower);
+        }
+    }
+}
+
+/// The send counts of the mailbox as it is: those kept for its revision, opening and message
+/// count, or counted now and kept. Rules as [`suggest`] says: To, Cc and Bcc of a message in
+/// Sent Items or the Outbox, once per message, not Junk or Drafts, an incoming `From` never.
+fn send_counts(s: &Session, junk: &HashSet<Id>, drafts: &HashSet<Id>, outgoing: &HashSet<Id>) -> Arc<SendCounts> {
+    let key = (s.rev(), s.openings(), s.mailbox.messages.len());
+    let mut kept = s.send_counts.lock().ok();
+    if let Some(guard) = &kept
+        && let Some((at, counts)) = guard.as_ref()
+        && *at == key
+    {
+        return counts.clone();
+    }
+    let mut counts = SendCounts::default();
+    for m in s.mailbox.messages.values() {
+        if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) || !outgoing.contains(&m.folder) {
+            continue;
+        }
+        for_each_sent_address(m, |lower| {
+            if let Some(row) = counts.by_address.get_mut(lower) {
+                row.0 = row.0.saturating_add(1);
+                row.1 = row.1.max(m.date);
+            } else if counts.by_address.len() < MAX_SUGGEST_TRACKED {
+                counts.by_address.insert(lower.to_string(), (1, m.date));
+            }
+        });
+    }
+    let counts = Arc::new(counts);
+    if let Some(guard) = kept.as_mut() {
+        **guard = Some((key, counts.clone()));
+    }
+    counts
 }
 
 fn see_last(person: &mut Candidate, date: i64) {
@@ -2333,11 +2377,9 @@ fn see_address<'a>(
     account_names: &HashMap<String, String>,
     typed: &Typed,
     matched: &mut HashMap<(&'a str, &'a str), Pair>,
-    tally: &mut HashMap<String, Tally>,
     name: &'a str,
     email: &'a str,
     sent: bool,
-    generation: u64,
     date: i64,
 ) {
     let name = name.trim();
@@ -2352,23 +2394,8 @@ fn see_address<'a>(
     with_lower(email, |key| {
         if fits {
             note_fit(people, facts, account_names, key, name, email, sent, date);
-            if sent {
-                let tallied = tally.get(key).is_some_and(|row| row.stamp == generation);
-                if let Some(person) = people.get_mut(key) {
-                    if tallied {
-                        person.stamp = generation;
-                    } else {
-                        count_send(person, generation, date);
-                    }
-                }
-            }
-        } else {
-            if sent && !people.get(key).is_some_and(|person| person.stamp == generation) {
-                tally_send(tally, key, generation, date);
-            }
-            if !kept && let Some(person) = people.get_mut(key) {
-                see_last(person, date);
-            }
+        } else if !kept && let Some(person) = people.get_mut(key) {
+            see_last(person, date);
         }
     });
 }
