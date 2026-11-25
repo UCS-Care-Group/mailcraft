@@ -67,6 +67,14 @@ internal object PeopleTasksShots {
         ),
         places = places,
     )
+    val movePerson = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada),
+        move = MoveState.Picking(1u, places.places.filter { it.folder != PHONE }),
+    )
+    val moveAsking = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada),
+        move = MoveState.Asking(1u, places.places[1], 9u, "Ada Example"),
+    )
     val badPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),
         editor = PersonDraft(first = "Ida", emails = "ida at example"),

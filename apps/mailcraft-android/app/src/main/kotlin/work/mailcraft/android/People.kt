@@ -57,6 +57,8 @@ internal data class PersonCard(
     val readOnly: Boolean = false,
     /** A change to the person waits to go to the account's server. */
     val notSent: Boolean = false,
+    /** The contacts folder it is kept in, as `people.moveToFolder` names it; [PHONE] for this phone. */
+    val folder: ULong = PHONE,
 ) {
     /** The job and the company on one line, as far as the card says them. */
     val subtitle: String get() = listOf(title, department, company).filter { it.isNotBlank() }.joinToString(" · ")
@@ -109,6 +111,7 @@ internal fun personCard(detail: PersonDetail): PersonCard = PersonCard(
     keptIn = detail.folderName,
     readOnly = detail.readOnly,
     notSent = detail.notSent,
+    folder = detail.folder,
 )
 
 internal fun peopleList(window: PeopleWindow): PeopleList =

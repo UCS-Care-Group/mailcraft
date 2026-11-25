@@ -495,6 +495,14 @@ pub struct ContactFolders {
     pub default_index: Option<u32>,
 }
 
+/// Somebody a contacts folder has already, with an e-mail address of a person about to be moved
+/// there (#1144): the picker asks whether to open that one or move anyway.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AlreadyThere {
+    pub id: u64,
+    pub name: String,
+}
+
 /// One task as the editor shows it.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct TaskDetail {

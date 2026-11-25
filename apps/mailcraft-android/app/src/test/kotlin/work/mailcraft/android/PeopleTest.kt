@@ -121,4 +121,13 @@ class PeopleTest {
         assertEquals(PHONE, PersonDraft(folder = PHONE).placed(places).folder)
         assertNull(PersonDraft().placed(null).folder)
     }
+
+    @Test
+    fun aPersonCanBeMovedEverywhereButWhereItIsAndAMainFolderNotMadeYet() {
+        val listed = listOf(folder(11u, "Contacts (ada@example.org)"), folder(null, "Contacts (bo@example.org)"))
+        val places = personPlaces("This phone", ContactFolders(0u, listed, null))
+        val card = PersonCard(1u, "Ada", "", "", "", emptyList(), emptyList(), emptyList(), folder = 11u)
+        assertEquals(listOf(PHONE), moveTargets(card, places).map { it.folder })
+        assertEquals(listOf(11uL), moveTargets(card.copy(folder = PHONE), places).map { it.folder })
+    }
 }
