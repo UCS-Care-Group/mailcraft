@@ -394,6 +394,11 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
 msgstr ""
@@ -528,6 +533,11 @@ msgstr ""
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
@@ -641,6 +651,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "A series and one of its days are both named; nothing was changed."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "A series or a meeting on a calendar server can't be changed from here yet: change it on the server."
 msgstr ""
 
 #. what a command says
@@ -1386,6 +1401,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "An appointment on a calendar server can't be moved to another calendar from here yet."
 msgstr ""
 
 #. interface
@@ -9633,6 +9653,11 @@ msgstr ""
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "On the"
@@ -9721,6 +9746,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+msgid "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server."
 msgstr ""
 
 #. what a command says
@@ -14461,7 +14491,12 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
-msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+msgid "The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it."
 msgstr ""
 
 #. what a command says
@@ -14574,6 +14609,20 @@ msgid ""
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server didn't take \"{title}\": it is kept in a calendar on this computer."
+msgid_plural "The calendar server didn't take {n} new events: they are kept in a calendar on this computer."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "The calendar server kept \"{title}\": it was changed there, or can't be deleted from here. It is shown again."
+msgid_plural "The calendar server kept {n} events: they were changed there, or can't be deleted from here. They are shown again."
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs

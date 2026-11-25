@@ -472,6 +472,12 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "日历更改尚无法发送，将重试：{error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer."
+msgstr "日历服务器上的日历可以从这里接受约会，但暂不接受会议：服务器可能会自行发送邀请。请将会议保留在此计算机上的日历中。"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
@@ -633,6 +639,12 @@ msgstr "无法将会议移动到其他邮箱的日历：这会向所有受邀者
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "一次最多将会议转发给 {n} 人。"
 
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."
+msgstr "暂时无法从这里删除日历服务器上的会议：服务器可能会自行发送取消通知。"
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -770,6 +782,12 @@ msgstr "无法建立与服务器的安全连接。在服务器设置中键入服
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
 msgstr "同时指定了一个系列及其中的某一天；未做任何更改。"
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "A series or a meeting on a calendar server can't be changed from here yet: change it on the server."
+msgstr "暂时无法从这里更改日历服务器上的定期系列或会议：请在服务器上更改。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1668,6 +1686,12 @@ msgstr "应用程序 ID 只能包含字母、数字、点和连字符"
 #, fuzzy
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
 msgstr "标记为私人的约会只显示您正忙，不会显示受邀者的姓名。"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "An appointment on a calendar server can't be moved to another calendar from here yet."
+msgstr "暂时无法从这里将日历服务器上的约会移到其他日历。"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11602,6 +11626,12 @@ msgstr "开"
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "在 Wayland 上，启用此选项后请重启 MailCraft。需要可用的 X11/XWayland 服务器和系统托盘。"
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server."
+msgstr "在日历服务器上，目前只能从这里更改约会的标题、时间、地点、说明、提醒、类别和私密设置：其余内容请在服务器上更改。"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11709,6 +11739,12 @@ msgstr "管理员批准后请重试；届时即可登录。"
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "成功后，系统凭据存储会保存它以供下次使用；它不会写入邮箱。"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server."
+msgstr "暂时无法从这里删除日历服务器上定期系列中的某一天：请删除整个系列，或在服务器上删除那一天。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -17425,8 +17461,14 @@ msgstr "日历“{name}”是网络上某个日历的副本：在此只能读取
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
-msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
-msgstr "日历\"{name}\"位于日历服务器上：此版本可以读取它，但还不能向其发送更改。"
+msgid "The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet."
+msgstr "日历“{name}”位于日历服务器上：此版本暂时无法向其发送该更改。"
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it."
+msgstr "日历服务器上的日历“{name}”为只读：服务器不允许此帐户更改它。"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -17565,6 +17607,20 @@ msgstr ""
 "{name} 的日历已与您共享，且您已接受共享，因此它现在位于您的日历列表中。您还通过地址打开过它，所以它显示了两次。\n"
 "\n"
 "移除通过地址打开的副本吗？另一份会保留，服务器上的内容也不会更改。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server didn't take \"{title}\": it is kept in a calendar on this computer."
+msgid_plural "The calendar server didn't take {n} new events: they are kept in a calendar on this computer."
+msgstr[0] "日历服务器未接受“{title}”：它保留在此计算机上的日历中。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server kept \"{title}\": it was changed there, or can't be deleted from here. It is shown again."
+msgid_plural "The calendar server kept {n} events: they were changed there, or can't be deleted from here. They are shown again."
+msgstr[0] "日历服务器保留了“{title}”：它已在服务器上被更改，或无法从这里删除。它会重新显示。"
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -27486,6 +27542,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+#~ msgstr "日历\"{name}\"位于日历服务器上：此版本可以读取它，但还不能向其发送更改。"
 
 #, fuzzy
 #~ msgid "Kept on this phone only: it is not sent to your account."
