@@ -26305,6 +26305,15 @@ msgstr[2] "{n} kontaktů se odstraní, jakmile se ponechaný uloží. Zpět je v
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} kontakt není vrácen zpět: jeho složka kontaktů je nyní jen pro čtení."
+msgstr[1] "{n} kontakty nejsou vráceny zpět: jejich složky kontaktů jsou nyní jen pro čtení."
+msgstr[2] "{n} kontaktů není vráceno zpět: jejich složky kontaktů jsou nyní jen pro čtení."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
 msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} kontakt není vrácen zpět: na odeslání na jeho server čeká příliš mnoho změn."

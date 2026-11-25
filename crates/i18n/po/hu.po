@@ -26227,6 +26227,14 @@ msgstr[1] "A megtartott névjegy mentésekor {n} névjegy törlődik. A Visszavo
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} névjegy nem lesz visszavonva: a névjegymappája most csak olvasható."
+msgstr[1] "{n} névjegy nem lesz visszavonva: a névjegymappáik most csak olvashatók."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
 msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} névjegy nem lesz visszavonva: túl sok módosítás vár a kiszolgálójára küldésre."

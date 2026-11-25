@@ -456,6 +456,36 @@ fn an_undo_with_no_room_to_tell_the_server_leaves_the_contact_as_it_is() {
     assert_eq!(s.mailbox.contact_changes, queue);
 }
 
+/// Review of #1934, second pass: undone after its change went up and its folder became one that
+/// may only be read, a step can't be told to the server: that contact isn't undone here either
+/// (an edit, a deletion, a new contact), and the owner is told.
+#[test]
+fn an_undo_in_a_folder_that_became_read_only_leaves_the_contact_as_it_is() {
+    let (mut s, account) = session();
+    run(&mut s, "sync.applyContacts", json!({"download": team(true, vec![person("c-di", "Di"), person("c-eve", "Eve")], account)}));
+    let (di, eve) = (called(&s, "Di"), called(&s, "Eve"));
+    let folder = s.mailbox.contact(di).unwrap().folder;
+    run(&mut s, "people.edit", json!({"id": di, "last": "Ray"}));
+    run(&mut s, "people.delete", json!({"id": eve}));
+    let fay = run(&mut s, "people.new", json!({"first": "Fay", "email": "fay@example.org", "folder": folder}))["id"].as_u64().unwrap();
+    for op in upload(&mut s, account).ops {
+        let remote = if op.kind == ContactChangeKind::Create { "c-fay" } else { "" };
+        answer(&mut s, account, &op, ContactResult::Done, remote);
+    }
+    assert!(s.mailbox.contact_changes.is_empty());
+    let di_there = RemoteContact { last: "Ray".into(), ..person("c-di", "Di") };
+    run(&mut s, "sync.applyContacts", json!({"download": team(false, vec![di_there, person("c-fay", "Fay")], account)}));
+    let before = s.mailbox.contacts.clone();
+    for _ in 0..3 {
+        run(&mut s, "edit.undo", json!({}));
+        assert!(s.undo_said().iter().any(|l| l.contains("can only be read")), "{:?}", s.undo_said());
+    }
+    assert!(s.mailbox.contact_changes.is_empty());
+    assert_eq!(s.mailbox.contacts, before);
+    assert!(s.mailbox.contact(fay).is_some_and(|c| c.origin.id == "c-fay") && s.mailbox.contact(eve).is_none());
+    assert_eq!(s.mailbox.contact(di).unwrap().last, "Ray");
+}
+
 /// Review of #1937: a new contact the server took nothing of (too many requests) wasn't sent:
 /// it is never taken for one the server lists. One whose answer was lost on the way was.
 #[test]

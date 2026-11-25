@@ -7,7 +7,7 @@ use proptest::prelude::*;
 use crate::contact_sync::{
     ContactChange, ContactChangeKind, ContactField, ContactFolder, ContactResult, FolderOwner, MAX_CONTACT_CHANGES, MAX_CONTACT_FOLDERS, wait_after,
 };
-use crate::{Account, Contact, Labeled, Mailbox, Origin};
+use crate::{Account, Contact, Id, Labeled, Mailbox, Origin};
 
 fn ada() -> Contact {
     Contact { first: "Ada".into(), last: "Lovelace".into(), emails: vec![Labeled::new("work", "ada@example.org")], ..Default::default() }
@@ -149,8 +149,75 @@ fn repair_counts_only_kept_folders_and_rehomes_without_losing_anything() {
     assert_eq!(mb.contact_folders.len(), MAX_CONTACT_FOLDERS);
     assert_eq!((mb.contacts.len(), mb.events.len()), (3, 2));
     assert_eq!(mb.contact_changes.len(), 1);
-    assert!(mb.contact_changes[0].contact <= MAX + 10, "{}", mb.contact_changes[0].contact);
-    assert!(mb.contact_changes[0].contact != MAX + 50);
+    // The deletion's key is the next one after every key given out: no item has it, and the
+    // next new item doesn't get it.
+    let id = mb.contact_changes[0].contact;
+    let top = mb.contacts.keys().chain(mb.events.keys()).copied().max().unwrap();
+    assert_eq!(id, top + 1);
+    assert!(mb.clone().alloc_id() > id);
+}
+
+/// Review of #1934, second pass: what a file keeps of contacts folders and changes waiting.
+/// A change waits only when it can still be sent, and the cap counts only those; a deletion's
+/// key is never given out again; a folder kept is cut to size like one from a server, and a
+/// folder given twice takes no room of its account's.
+#[test]
+fn repair_drops_before_it_caps_keeps_deletions_keys_and_tidies_folders() {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    let main = mb.ensure_main_contact_folder(account).unwrap();
+    let here = mb.add_contact(Contact { folder: main, origin: Origin { account, id: "c-1".into(), ..Default::default() }, ..ada() });
+    let sent = |contact| ContactChange { account, kind: ContactChangeKind::Create, folder: main, contact, sent: true, ..Default::default() };
+    // Of a contact that is gone: a change, and a new contact never sent, go.
+    let missing: Id = 1_000_000;
+    let mut changes = vec![
+        ContactChange {
+            account,
+            kind: ContactChangeKind::Change,
+            contact: missing,
+            folder: main,
+            remote: "c-2".into(),
+            base: Some(Box::new(ada())),
+            fields: BTreeSet::from([ContactField::Last]),
+            ..Default::default()
+        },
+        ContactChange { sent: false, ..sent(missing + 1) },
+    ];
+    // Then as many as may wait that can be sent: none of them is cut for the two above.
+    changes.extend((0..MAX_CONTACT_CHANGES as Id).map(|n| sent(missing + 10 + n)));
+    // A deletion of a contact whose key is above every other.
+    let deleted: Id = 3_000_000;
+    changes[2] = ContactChange { kind: ContactChangeKind::Delete, remote: "c-9".into(), base: Some(Box::new(ada())), ..sent(deleted) };
+    mb.contact_changes = changes;
+    // A folder with a name from outside, one whose owner isn't an address, and the main folder
+    // given twice, ahead of a full set.
+    let copy = mb.contact_folders[0].clone();
+    mb.contact_folders.insert(0, copy);
+    for n in 1..MAX_CONTACT_FOLDERS {
+        let id = mb.alloc_id();
+        let name = if n == 1 { format!("Sales\u{0}{}", "x".repeat(10_000)) } else { format!("f-{n}") };
+        mb.contact_folders.push(ContactFolder { id, account, remote: format!("f-{n}"), name, ..Default::default() });
+    }
+    let odd = mb.alloc_id();
+    let nobody = FolderOwner::Person("nobody".into());
+    mb.contact_folders.insert(1, ContactFolder { id: odd, account, remote: "odd".into(), owner: nobody, ..Default::default() });
+    let mut mb: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    mb.repair();
+    assert_eq!(mb.contact_changes.len(), MAX_CONTACT_CHANGES);
+    assert!(mb.contact_changes.iter().all(|c| c.contact != missing && c.contact != missing + 1));
+    assert!(mb.contact_changes.iter().any(|c| c.contact == deleted && c.kind == ContactChangeKind::Delete));
+    let next = mb.clone().alloc_id();
+    assert!(next > deleted && next > missing + 10 + MAX_CONTACT_CHANGES as Id, "{next}");
+    let fresh = mb.add_contact(Contact { first: "Bo".into(), ..Default::default() });
+    assert!(mb.contact_changes.iter().all(|c| c.contact != fresh));
+    // Folders: the twin goes without taking room, the one with no address goes, the rest stay.
+    assert_eq!(mb.contact_folders.len(), MAX_CONTACT_FOLDERS);
+    assert!(mb.contact_folder(odd).is_none());
+    assert_eq!(mb.contact_folders.iter().filter(|f| f.id == main).count(), 1);
+    let sales = mb.contact_folders.iter().find(|f| f.remote == "f-1").unwrap();
+    assert!(sales.name.starts_with("Sales") && sales.name.chars().count() <= crate::MAX_NAME && !sales.name.contains('\u{0}'), "{}", sales.name);
+    assert_eq!(mb.contact(here).map(|c| c.folder), Some(main));
+    assert!(mb.repair().is_empty());
 }
 
 /// Review of #1935/#1936: a contact of an account that is gone is this computer's, and a change

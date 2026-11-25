@@ -26231,6 +26231,14 @@ msgstr[1] "Se eliminan {n} contactos al guardar el conservado. Deshacer los recu
 #. what a command says
 #: crates/engine/src/session.rs
 #, fuzzy
+msgid "{n} contact isn't undone: its contacts folder can only be read now."
+msgid_plural "{n} contacts aren't undone: their contacts folders can only be read now."
+msgstr[0] "{n} contacto no se deshace: ahora su carpeta de contactos solo se puede leer."
+msgstr[1] "{n} contactos no se deshacen: ahora sus carpetas de contactos solo se pueden leer."
+
+#. what a command says
+#: crates/engine/src/session.rs
+#, fuzzy
 msgid "{n} contact isn't undone: too many changes are waiting to be sent to its server."
 msgid_plural "{n} contacts aren't undone: too many changes are waiting to be sent to their servers."
 msgstr[0] "{n} contacto no se deshace: hay demasiados cambios esperando a enviarse a su servidor."
