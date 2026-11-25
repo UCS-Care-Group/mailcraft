@@ -9,7 +9,12 @@
 //! ([`NotOnServer`]). The Sieve used: the base language (RFC 5228: `address`, `header`, `size`,
 //! `allof`, `anyof`, `not`, `stop`), `fileinto` (RFC 5228 §4.1), `copy` (RFC 3894), `imap4flags`
 //! (RFC 5232) and `body` (RFC 5173), each only when the server's scripts may use it. No rule
-//! forwards, redirects, rejects, discards or replies.
+//! made in the form forwards, redirects, rejects, discards or replies.
+//!
+//! **A Sieve rule** ([`mailcraft_model::Rule::sieve`]) is Sieve the owner wrote: its block is that
+//! text, under its id and a comment with its name ([`crate::sieve::comment_name`]), and its
+//! extensions join the script's one `require`. It may do whatever the server's Sieve does,
+//! redirect and reply too, when the server's scripts may use what it needs.
 //!
 //! **Folders** are named as `fileinto` takes them: the mailbox's whole name on the IMAP server, in
 //! UTF-8 with the server's own separator ([`mailcraft_model::Folder::remote`]); RFC 5228 §2.7.2
@@ -108,6 +113,9 @@ fn folder_name(mb: &Mailbox, account: Id, folder: Id, copy: bool) -> Result<Stri
 /// `rule`, for `account`'s server, as a block of the script, or why it can't be one.
 pub fn block(mb: &Mailbox, rule: &Rule, account: Id) -> Result<RuleScript, NotOnServer> {
     let Some(a) = mb.account(account) else { return Err(NotOnServer::NoServer) };
+    if rule.is_sieve() {
+        return sieve_block(a, rule);
+    }
     if rule.alert {
         return Err(NotOnServer::Alert);
     }
@@ -183,7 +191,23 @@ pub fn block(mb: &Mailbox, rule: &Rule, account: Id) -> Result<RuleScript, NotOn
         text.push_str(&format!("    {line}\r\n"));
     }
     text.push_str("}\r\n");
-    Ok(RuleScript { id: rule.id, text, requires: needs })
+    Ok(RuleScript { id: rule.id, text, requires: needs.into_iter().map(str::to_string).collect(), name: String::new() })
+}
+
+/// A Sieve rule ([`Rule::sieve`]) as a block of the script: its text as the owner wrote it,
+/// checked again (a mailbox file is hostile too) as a block that can't reach out of its place
+/// ([`crate::sieve_check::check_block`]), and what it needs, which the script's `require` names.
+/// One whose text has a mistake, or needs what the server's scripts can't use, isn't written.
+fn sieve_block(a: &mailcraft_model::Account, rule: &Rule) -> Result<RuleScript, NotOnServer> {
+    if rule.sieve.len() > mailcraft_model::MAX_SIEVE_RULE {
+        return Err(NotOnServer::SieveText);
+    }
+    let text = crate::sieve::crlf_lines(&rule.sieve);
+    let checked = crate::sieve_check::check_block(&text, None).map_err(|_| NotOnServer::SieveText)?;
+    if checked.needs.iter().any(|e| !a.sieve_offers(e)) {
+        return Err(NotOnServer::Extension);
+    }
+    Ok(RuleScript { id: rule.id, text, requires: checked.needs, name: rule.name.clone() })
 }
 
 /// Why `rule` can't be one of `account`'s server's, when it can't ([`block`]).

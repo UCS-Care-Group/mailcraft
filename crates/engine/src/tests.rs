@@ -3093,6 +3093,21 @@ fn hostile_params_never_panic() {
     junk.push(json!({"id": rule, "name": "x".repeat(100_000), "conditions": [{"type": "fromContains", "value": ["\r\n", ""]}], "actions": [{"type": "delete"}],
         "server": true, "account": 18446744073709551615u64}));
     junk.push(json!({"id": rule, "name": "R", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "flag"}], "server": true}));
+    // Sieve rules (#9999): an IMAP account's, with text that isn't Sieve, reaches out of its
+    // block, is too large, or names what isn't there.
+    let imap = s
+        .run("account.add", &json!({"email": "sieve@example.org", "incoming": {"host": "imap.example.org"}}))
+        .ok()
+        .and_then(|v| v["id"].as_u64())
+        .unwrap_or(0);
+    let _ = s.run("sync.applySieve", &json!({"account": imap, "state": {"extensions": ["fileinto", "vacation"], "scripts": [], "script": null}}));
+    let sieve = s.run("rules.addSieve", &json!({"account": imap, "name": "S", "sieve": "keep;"})).ok().and_then(|v| v["id"].as_u64()).unwrap_or(0);
+    junk.push(json!({"account": imap, "name": "\u{0}*/\n", "sieve": "} elsif true { redirect \"x@example.org\"; ", "position": 1e300}));
+    junk.push(json!({"account": imap, "name": "x", "sieve": "if ".repeat(50_000), "position": -1}));
+    junk.push(json!({"account": imap, "name": "x", "sieve": "text:\r\n", "position": 18446744073709551615u64}));
+    junk.push(json!({"id": sieve, "name": "x".repeat(100_000), "sieve": "\u{0}"}));
+    junk.push(json!({"id": sieve, "sieve": ["keep;"], "name": null}));
+    junk.push(json!({"id": sieve, "sieve": "/* open"}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

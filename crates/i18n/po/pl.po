@@ -519,6 +519,30 @@ msgstr "Poczty konta JMAP nie można jeszcze odkładać."
 msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
 msgstr "Serwer ManageSieve wita się zaraz po połączeniu. Ten port może oczekiwać połączenia szyfrowanego od samego początku (w Dovecot ssl = yes na listenerze sieve), którego ManageSieve nie używa: zaczyna bez szyfrowania i przechodzi na szyfrowanie przez STARTTLS. Albo serwer pośredniczący przed serwerem czeka na coś, czego MailCraft nie wysyła. Sprawdź serwer Sieve (odpowiedzi automatyczne) w ustawieniach konta albo zapytaj administratora serwera."
 
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "A Sieve rule is at most {kb} KB."
+msgstr "Reguła Sieve ma najwyżej {kb} KB."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "A Sieve rule is kept in the Sieve script on an IMAP account's server; this account has none."
+msgstr "Reguła Sieve jest przechowywana w skrypcie Sieve na serwerze konta IMAP; to konto go nie ma."
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
+msgstr "Reguła Sieve działa tylko na serwerze, na poczcie w chwili, gdy tam dociera."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "A Sieve rule: its Sieve is changed under Advanced…"
+msgstr "Reguła Sieve: jej Sieve zmienia się w menu Zaawansowane…"
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 #, fuzzy
@@ -3381,6 +3405,12 @@ msgstr "Zmień regułę"
 #, fuzzy
 msgid "Change Send Time"
 msgstr "Zmień czas wysłania"
+
+#. command label
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "Change Sieve Rule"
+msgstr "Zmień regułę Sieve"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7458,7 +7488,7 @@ msgid "Hold Unsent Mail"
 msgstr "Wstrzymaj niewysłane wiadomości"
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Home"
 msgstr "Narzędzia główne"
@@ -8836,6 +8866,18 @@ msgstr "Odstępy między wierszami"
 #, fuzzy
 msgid "Line delta"
 msgstr "Różnica wierszy"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "Line {line}, column {column} of the Sieve rule: a control character can't be in it."
+msgstr "Wiersz {line}, kolumna {column} reguły Sieve: nie może w niej być znaku sterującego."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "Line {line}, column {column} of the Sieve rule: {what}"
+msgstr "Wiersz {line}, kolumna {column} reguły Sieve: {what}"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -10288,7 +10330,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr "Większość nazwy nadawcy to znaki, które nie są wyświetlane, a wiadomość przyszła od {real}."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move"
 msgstr "Przenieś"
@@ -10889,6 +10931,12 @@ msgstr "Nowa skrzynka pocztowa"
 #, fuzzy
 msgid "New Meeting"
 msgstr "Nowe spotkanie"
+
+#. command label
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "New Sieve Rule"
+msgstr "Nowa reguła Sieve"
 
 #. command label, interface
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/forms.rs
@@ -16438,6 +16486,12 @@ msgstr "Obok siebie"
 msgid "Sieve Script to Send"
 msgstr "Skrypt Sieve do wysłania"
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sieve rule, run on the server"
+msgstr "Reguła Sieve, działa na serwerze"
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 #, fuzzy
@@ -17817,6 +17871,12 @@ msgstr "Podpis cyfrowy wygasł."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "Cała seria"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "The Sieve rule has a mistake."
+msgstr "Reguła Sieve zawiera błąd."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -20734,6 +20794,12 @@ msgstr "Tej reguły nie można przechowywać na serwerze: {why}. Działa ona na 
 #, fuzzy
 msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
 msgstr "Ta reguła ma część, której kreator reguł nie potrafi pokazać: usuń ją i utwórz ponownie, aby ją zmienić"
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+#, fuzzy
+msgid "This rule isn't a Sieve rule: change it in the rule builder."
+msgstr "Ta reguła nie jest regułą Sieve: zmień ją w kreatorze reguł."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -23841,6 +23907,12 @@ msgstr "ma dwa warunki tego samego rodzaju, a serwer przyjąłby tylko jeden z n
 msgid "it has two exceptions of one kind that look for different things, and the server takes one"
 msgstr "ma dwa wyjątki jednego rodzaju, które szukają różnych rzeczy, a serwer przyjmuje jeden"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it is a Sieve rule: its Sieve is changed as Sieve, not in the rule builder"
+msgstr "to reguła Sieve: jej Sieve zmienia się jako Sieve, nie w kreatorze reguł"
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
@@ -23936,6 +24008,12 @@ msgstr "trwało to zbyt długo"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "pisze do innych osób lub sięga do sieci"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "its Sieve has a mistake"
+msgstr "jej Sieve zawiera błąd"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -24172,7 +24250,7 @@ msgid "no account with id {account}"
 msgstr "brak konta o identyfikatorze {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "brak konta o identyfikatorze {id}"
@@ -24310,7 +24388,7 @@ msgid "no picture {id} was put in this message"
 msgstr "w tej wiadomości nie umieszczono obrazu {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "no rule with id {id}"
 msgstr "brak reguły o identyfikatorze {id}"
@@ -26176,7 +26254,7 @@ msgid "there are too many categories"
 msgstr "jest zbyt wiele kategorii"
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
 #, fuzzy
 msgid "there are too many rules"
 msgstr "jest zbyt wiele reguł"

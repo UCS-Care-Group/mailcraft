@@ -176,6 +176,9 @@ mod rules_parts_tests;
 pub mod rules_remote;
 #[cfg(test)]
 mod rules_remote_tests;
+pub mod rules_sieve;
+#[cfg(test)]
+mod rules_sieve_tests;
 #[cfg(test)]
 mod rules_waiting_tests;
 #[cfg(test)]
@@ -271,6 +274,7 @@ pub fn registry() -> Registry {
     v.extend(notes::specs());
     v.extend(rules::specs());
     v.extend(rules_remote::specs());
+    v.extend(rules_sieve::specs());
     v.extend(junk::specs());
     v.extend(unsubscribe::specs());
     v.extend(keys::specs());

@@ -5217,6 +5217,10 @@ pub(crate) mod rules {
     /// The rule in words, naming the folder a move goes to:
     /// `When from contains "x": move it to Inbox/Projects, flag it`.
     pub fn describe(mb: &Mailbox, r: &Rule) -> String {
+        // A Sieve rule is Sieve the owner wrote (#9999): it runs on the server alone.
+        if r.is_sieve() {
+            return tl!("Sieve rule, run on the server").to_string();
+        }
         let addresses = mb.rule_reads_addresses(r);
         let when = r.conditions.iter().map(|c| condition_text(c, addresses)).collect::<Vec<_>>().join(&format!(" {} ", tl!("and")));
         let except = r.exceptions.iter().map(|c| condition_text(c, addresses)).collect::<Vec<_>>().join(&format!(" {} ", tl!("or")));
@@ -5309,6 +5313,8 @@ pub(crate) mod rules {
         if let Some(why) = cannot_edit(mb, r) {
             return Some(match why {
                 NotEditable::Elsewhere => tl!("Made in another program: MailCraft never changes this rule"),
+                // (Its own editor comes under Advanced, #9999.)
+                NotEditable::Sieve => tl!("A Sieve rule: its Sieve is changed under Advanced…"),
                 other => tl!(other.said()),
             });
         }

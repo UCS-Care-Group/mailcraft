@@ -124,6 +124,8 @@ pub enum NotOnServer {
     Extension,
     /// It has a part this version doesn't know.
     Unknown,
+    /// A Sieve rule whose text has a mistake (#9999).
+    SieveText,
 }
 
 impl NotOnServer {
@@ -166,12 +168,17 @@ impl NotOnServer {
             NotOnServer::NoDeletedItems => "the account's Deleted Items isn't on the server",
             NotOnServer::Extension => "the server's Sieve scripts can't do one of its actions or conditions",
             NotOnServer::Unknown => "it has a part MailCraft can't write as Sieve",
+            NotOnServer::SieveText => "its Sieve has a mistake",
         }
     }
 }
 
 /// Why `rule` can't be kept on the server of `account`, or `None` when it can.
 pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServer> {
+    // A Sieve rule is kept in an IMAP account's Sieve script alone (#9999).
+    if rule.is_sieve() && !mb.account(account).is_some_and(mailcraft_model::Account::keeps_sieve) {
+        return Some(NotOnServer::NoServer);
+    }
     // An IMAP account's rules are blocks of MailCraft's Sieve script on its server (#9999).
     if mb.account(account).is_some_and(mailcraft_model::Account::keeps_sieve) {
         if !mb.keeps_sieve_rules(account) {
@@ -593,6 +600,8 @@ pub enum NotEditable {
     /// A Microsoft account's server keeps it, or is to: this version sends the server only
     /// whether it is on and where it stands.
     Microsoft,
+    /// A Sieve rule (#9999): its text is changed as Sieve (`rules.editSieve`), not in the form.
+    Sieve,
 }
 
 impl NotEditable {
@@ -602,6 +611,7 @@ impl NotEditable {
             NotEditable::Elsewhere => "it is in your own Sieve script on the server, made in another program: MailCraft never changes it",
             NotEditable::ReadOnly => "the server doesn't let this rule be changed",
             NotEditable::Unknown => "it has parts MailCraft can't show, which changing it here would lose",
+            NotEditable::Sieve => "it is a Sieve rule: its Sieve is changed as Sieve, not in the rule builder",
             NotEditable::Microsoft => {
                 "MailCraft can't yet change a rule kept on a Microsoft account's server: change it in Outlook on the web, or delete it and create it again"
             }
@@ -617,6 +627,9 @@ pub fn cannot_edit(mb: &Mailbox, r: &Rule) -> Option<NotEditable> {
     }
     if r.read_only() {
         return Some(NotEditable::ReadOnly);
+    }
+    if r.is_sieve() {
+        return Some(NotEditable::Sieve);
     }
     if !r.known() {
         return Some(NotEditable::Unknown);
@@ -694,7 +707,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 
 /// A rule of a Sieve script MailCraft didn't write is the owner's (#9999): refused by every
 /// command that would change or run one.
-fn elsewhere(s: &Session, id: Id) -> Result<(), CmdError> {
+pub(crate) fn elsewhere(s: &Session, id: Id) -> Result<(), CmdError> {
     if !super::sieve_elsewhere::is_elsewhere(id) {
         return Ok(());
     }
@@ -866,10 +879,13 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(rule) = only {
         elsewhere(s, rule)?;
     }
-    if let Some(rule) = only
-        && !s.mailbox.rules.iter().any(|r| r.id == rule)
-    {
-        return Err(failed!("no rule with id {id}", id = rule));
+    if let Some(rule) = only {
+        match s.mailbox.rules.iter().find(|r| r.id == rule) {
+            None => return Err(failed!("no rule with id {id}", id = rule)),
+            // (Run with the others, it leaves the mail alone: nothing of it is known here.)
+            Some(r) if r.is_sieve() => return Err(fail("A Sieve rule runs on the server alone, on mail as it arrives there.")),
+            Some(_) => {}
+        }
     }
     let matched = run_on(s, folder, only);
     Ok(json!({"matched": matched}))

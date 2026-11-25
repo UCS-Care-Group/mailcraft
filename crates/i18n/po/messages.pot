@@ -433,6 +433,26 @@ msgstr ""
 msgid "A ManageSieve server greets as soon as it is connected to. This port may expect an encrypted connection from the start (on Dovecot, ssl = yes on the sieve listener), which ManageSieve doesn't use: it starts unencrypted and switches to encryption with STARTTLS. Or a proxy in front of the server waits for something MailCraft doesn't send. Check the Sieve server (Automatic Replies) in Account Settings, or ask the server's administrator."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "A Sieve rule is at most {kb} KB."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "A Sieve rule is kept in the Sieve script on an IMAP account's server; this account has none."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "A Sieve rule runs on the server alone, on mail as it arrives there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "A Sieve rule: its Sieve is changed under Advanced…"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "A brand's name on another address."
@@ -2805,6 +2825,11 @@ msgstr ""
 #. command label, interface, name
 #: crates/engine/src/cmd/send_later.rs crates/ui-egui/src/send_later.rs
 msgid "Change Send Time"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "Change Sieve Rule"
 msgstr ""
 
 #. interface
@@ -6163,7 +6188,7 @@ msgid "Hold Unsent Mail"
 msgstr ""
 
 #. interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
 msgid "Home"
 msgstr ""
 
@@ -7309,6 +7334,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/credits.rs
 msgid "Line delta"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "Line {line}, column {column} of the Sieve rule: a control character can't be in it."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "Line {line}, column {column} of the Sieve rule: {what}"
 msgstr ""
 
 #. interface
@@ -8514,7 +8549,7 @@ msgid "Most of the sender's name is characters that aren't shown, and the messag
 msgstr ""
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/move_contacts.rs crates/ui-egui/src/ribbon.rs
 msgid "Move"
 msgstr ""
 
@@ -9001,6 +9036,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 msgid "New Meeting"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "New Sieve Rule"
 msgstr ""
 
 #. command label, interface
@@ -13591,6 +13631,11 @@ msgstr ""
 msgid "Sieve Script to Send"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Sieve rule, run on the server"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
 msgid "Sieve scripts are only read from and written to the account's own mail server"
@@ -14739,6 +14784,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The Entire Series"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "The Sieve rule has a mistake."
 msgstr ""
 
 #. interface
@@ -17156,6 +17206,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "This rule has a part the rule builder can't show: delete it and create it again to change it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_sieve.rs
+msgid "This rule isn't a Sieve rule: change it in the rule builder."
 msgstr ""
 
 #. what a command says
@@ -19722,6 +19777,11 @@ msgstr ""
 msgid "it has two exceptions of one kind that look for different things, and the server takes one"
 msgstr ""
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "it is a Sieve rule: its Sieve is changed as Sieve, not in the rule builder"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/images.rs
 msgid "it is a drawing of a kind that isn't shown (SVG)"
@@ -19800,6 +19860,11 @@ msgstr ""
 #. name
 #: crates/engine/src/agent.rs
 msgid "it writes to other people or reaches out to the web"
+msgstr ""
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+msgid "its Sieve has a mistake"
 msgstr ""
 
 #. interface
@@ -19998,7 +20063,7 @@ msgid "no account with id {account}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -20113,7 +20178,7 @@ msgid "no picture {id} was put in this message"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
 msgid "no rule with id {id}"
 msgstr ""
 
@@ -21672,7 +21737,7 @@ msgid "there are too many categories"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/rules.rs
+#: crates/engine/src/cmd/rules.rs crates/engine/src/cmd/rules_sieve.rs
 msgid "there are too many rules"
 msgstr ""
 

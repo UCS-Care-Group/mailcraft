@@ -137,3 +137,28 @@ fn the_dialog_opens_on_a_rule_to_change_when_asked() {
     let f = RulesForm::new(&app.session, &json!({"edit": 424242}));
     assert!(f.editing.is_none());
 }
+
+#[test]
+fn a_sieve_rule_is_shown_by_its_name_goes_to_the_host_and_its_pencil_waits_for_advanced() {
+    let (mut app, account, _, rule, writes) = window();
+    let made = app.execute("rules.addSieve", json!({"account": account, "name": "Big mail", "sieve": "if size :over 9M {\n  discard;\n}"})).unwrap();
+    let sieve = made["id"].as_u64().unwrap();
+    app.poll_sieve();
+    let write = writes.lock().unwrap().last().cloned().unwrap();
+    assert!(
+        write.text.contains(&format!("# rule {sieve}\r\n# Sieve rule: Big mail\r\nif size :over 9M {{\r\n  discard;\r\n}}\r\n")),
+        "{}",
+        write.text
+    );
+    assert!(write.text.find(&format!("# rule {rule}")).unwrap() < write.text.find(&format!("# rule {sieve}")).unwrap());
+    let mb = &app.session.mailbox;
+    let r = mb.rules.iter().find(|r| r.id == sieve).unwrap();
+    assert!(r.on_server());
+    assert_eq!(describe(mb, r), "Sieve rule, run on the server");
+    assert_eq!(not_changeable(mb, r), Some("A Sieve rule: its Sieve is changed under Advanced…"));
+    // Both rows are drawn; only the form's rule can be changed in the builder.
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = harness(app);
+    assert_eq!(h.query_all_by_label("Change this rule").count(), 2);
+    h.run_steps(1);
+}

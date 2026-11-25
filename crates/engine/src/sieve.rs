@@ -338,12 +338,53 @@ fn utc(at: Timestamp) -> String {
 }
 
 /// A rule of the owner's as one block of the script ([`crate::cmd::sieve_rules`]): its id (said
-/// in a comment above it), its Sieve, and the extensions it needs.
+/// in a comment above it), its Sieve, ending with a line break, and the extensions it needs. A
+/// Sieve rule's name is said in a comment of its own too (`name`), so that another program
+/// showing the script shows it; empty for the other rules.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuleScript {
     pub id: mailcraft_model::Id,
     pub text: String,
-    pub requires: Vec<&'static str>,
+    pub requires: Vec<String>,
+    pub name: String,
+}
+
+/// The longest name said in a rule's comment, in characters.
+const MAX_COMMENT_NAME: usize = 200;
+
+/// `name` as a `#` comment's text can hold it (#9999): one line, with no control or format
+/// character, no line or paragraph separator, and no `*/` (should the comment ever be read as a
+/// bracketed one), at most [`MAX_COMMENT_NAME`] characters.
+pub fn comment_name(name: &str) -> String {
+    let kept: String = name
+        .chars()
+        .map(|c| if c.is_whitespace() { ' ' } else { c })
+        .filter(|c| !c.is_control() && !mailcraft_names::is_format(*c))
+        .take(MAX_COMMENT_NAME)
+        .collect();
+    // ("* /" makes no new "*/": the space parts what it joins.)
+    kept.replace("*/", "* /").trim().to_string()
+}
+
+/// `text` with every line break CRLF, as a script has them, and ending with one: a `#` comment on
+/// its last line then ends there, and can't take in what follows it.
+pub fn crlf_lines(text: &str) -> String {
+    let mut out = String::with_capacity(text.len().saturating_add(2));
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' => {
+                chars.next_if_eq(&'\n');
+                out.push_str("\r\n");
+            }
+            '\n' => out.push_str("\r\n"),
+            c => out.push(c),
+        }
+    }
+    if !out.ends_with("\r\n") {
+        out.push_str("\r\n");
+    }
+    out
 }
 
 /// The extensions a script MailCraft writes may need, in the order its `require` names them.
@@ -362,14 +403,22 @@ pub fn script(vacation: &Vacation, owner: &Owner, rules: &[RuleScript]) -> Strin
     let mut out = format!("{HEADER}\r\n");
     let scheduled = vacation.status == AutoReplyStatus::Scheduled && vacation.start.is_some() && vacation.end.is_some();
     let replies = vacation.status != AutoReplyStatus::Disabled;
-    let needed: Vec<&str> = EXTENSIONS
+    let wanted = |e: &str| rules.iter().any(|r| r.requires.iter().any(|x| x == e));
+    let mut needed: Vec<&str> = EXTENSIONS
         .into_iter()
         .filter(|e| match *e {
-            "vacation" => replies,
-            "date" | "relational" => replies && scheduled,
-            other => rules.iter().any(|r| r.requires.contains(&other)),
+            "vacation" => replies || wanted(e),
+            "date" | "relational" => (replies && scheduled) || wanted(e),
+            other => wanted(other),
         })
         .collect();
+    // Then what a Sieve rule needs besides, each once, in the order the rules first need it: one
+    // `require` for the whole script (RFC 5228 §3.2), before any other command.
+    for e in rules.iter().flat_map(|r| &r.requires) {
+        if !needed.contains(&e.as_str()) {
+            needed.push(e);
+        }
+    }
     if !needed.is_empty() {
         let names: Vec<String> = needed.iter().map(|e| quoted(e)).collect();
         out.push_str(&format!("require [{}];\r\n", names.join(", ")));
@@ -381,10 +430,17 @@ pub fn script(vacation: &Vacation, owner: &Owner, rules: &[RuleScript]) -> Strin
     }
     for rule in rules {
         out.push_str(&format!("# rule {}\r\n", rule.id));
-        out.push_str(&rule.text);
+        let name = comment_name(&rule.name);
+        if !name.is_empty() {
+            out.push_str(&format!("# {RULE_NAME}{name}\r\n"));
+        }
+        out.push_str(&crlf_lines(&rule.text));
     }
     out
 }
+
+/// What the comment naming a Sieve rule starts with, after its `# `.
+const RULE_NAME: &str = "Sieve rule: ";
 
 /// The replies, to go first in the script.
 fn vacation_section(vacation: &Vacation, owner: &Owner, scheduled: bool) -> String {
@@ -430,7 +486,12 @@ pub fn read_vacation(script: &str) -> Option<Vacation> {
     if !script.starts_with(HEADER) {
         return None;
     }
-    let tokens = tokens(script)?;
+    // The replies' section alone: it ends where the first rule begins (`# rule <id>`), and a
+    // Sieve rule after it may have a `vacation` of its own (#9999).
+    let lexed = lex(script)?;
+    let rules_from =
+        lexed.comments.iter().find(|c| !c.bracketed && c.text(script).trim_start().starts_with("rule ")).map_or(usize::MAX, |c| c.at.start);
+    let tokens: Vec<Tok> = lexed.toks.into_iter().take_while(|(_, at)| at.start < rules_from).map(|(t, _)| t).collect();
     let mut vacation = Vacation {
         status: AutoReplyStatus::Disabled,
         start: None,

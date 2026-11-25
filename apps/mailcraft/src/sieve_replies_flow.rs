@@ -298,3 +298,28 @@ fn the_owners_own_scripts_rules_are_shown_and_never_written() {
     assert_eq!(world.script("roundcube"), Some(theirs));
     assert!(!world.heard("PUTSCRIPT") && !world.heard("SETACTIVE"));
 }
+
+#[test]
+fn a_sieve_rule_goes_into_mailcrafts_script_with_its_require_and_a_refusal_leaves_the_server_as_it_was() {
+    let fake = Fake::sieve(SieveWorld { refuse_scripts_with: Some("refuse-me".into()), ..world() });
+    let (mut app, account) = window(&fake);
+    read(&mut app, account);
+    let made = app
+        .execute("rules.addSieve", json!({"account": account, "name": "Too big", "sieve": "if size :over 9M {\n  reject \"too big\";\n} # end"}))
+        .unwrap();
+    let rule = made["id"].as_u64().unwrap();
+    app.poll_sieve();
+    let text = fake.world().script(SCRIPT_NAME).unwrap().to_string();
+    assert!(text.contains("require [\"reject\"];\r\n"), "{text}");
+    assert!(
+        text.ends_with(&format!("# rule {rule}\r\n# Sieve rule: Too big\r\nif size :over 9M {{\r\n  reject \"too big\";\r\n}} # end\r\n")),
+        "{text}"
+    );
+    assert_eq!(fake.world().active.as_deref(), Some(SCRIPT_NAME));
+    assert!(app.session.mailbox.rules.iter().find(|r| r.id == rule).unwrap().on_server());
+    // The server refuses the next script: what it has stays, and the window says why.
+    app.execute("rules.editSieve", json!({"id": rule, "sieve": "if header :contains \"subject\" \"refuse-me\" { discard; }"})).unwrap();
+    app.poll_sieve();
+    assert_eq!(fake.world().script(SCRIPT_NAME), Some(text.as_str()));
+    assert!(app.sieve_line(account).contains("unknown command"), "{}", app.sieve_line(account));
+}
