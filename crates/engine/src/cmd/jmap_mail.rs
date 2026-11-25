@@ -36,8 +36,10 @@
 
 use std::collections::HashSet;
 
+use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::sync::{
-    GraphFetchResult, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope, MAX_JMAP_WINDOW, SendOutcome, SyncPhase,
+    GraphFetchResult, JmapContactPlace, JmapContactsRequest, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapOutcome, JmapScope,
+    MAX_JMAP_WINDOW, SendOutcome, SyncPhase,
 };
 use mailcraft_model::{AccountKind, FolderKind, Id, JmapServer, Mailbox};
 use serde_json::{Value, json};
@@ -144,8 +146,38 @@ pub fn jmap_mail_request(s: &Session, account: Id, light: bool) -> Result<JmapMa
         sends: super::graph_send::sends(s, account),
         // The thread ids of mail listed before they were asked for, in a run of every mailbox (#795).
         threads: if light { Vec::new() } else { super::thread_ids::to_ask(mb, account) },
+        contacts: Some(contacts_request(s, account)?),
         ..Default::default()
     })
+}
+
+/// How long a new contact whose answer was lost waits for a read to say whether it was made (seconds).
+const UNCONFIRMED_FOR: i64 = 86_400;
+
+/// The contacts part of a JMAP run of `account` (#1068, #1076): the changes due to go up, and for
+/// each owner of the account's contacts folders where they were read up to. JMAP keeps one state
+/// for all of an account's cards, so an owner's folders are read from it only when every one of
+/// them was read up to the same; otherwise they are read whole.
+fn contacts_request(s: &Session, account: Id) -> Result<JmapContactsRequest, CmdError> {
+    let mut places: Vec<JmapContactPlace> = Vec::new();
+    for f in s.mailbox.contact_folders.iter().filter(|f| f.account == account) {
+        match places.iter_mut().find(|p| p.owner == f.owner) {
+            Some(place) => {
+                if place.state != f.delta {
+                    place.state.clear();
+                }
+                place.books.push(f.remote.clone());
+            }
+            None => places.push(JmapContactPlace { owner: f.owner.clone(), state: f.delta.clone(), books: vec![f.remote.clone()] }),
+        }
+        // A new contact that may have been made, its answer lost: only a whole read says whether
+        // it was (changes may not show it), before it goes up again.
+        let unsure = s.mailbox.contact_changes.iter().any(|c| c.folder == f.id && c.kind == ContactChangeKind::Create && c.unconfirmed != 0);
+        if unsure && let Some(place) = places.iter_mut().find(|p| p.owner == f.owner) {
+            place.state.clear();
+        }
+    }
+    Ok(JmapContactsRequest { ops: super::contacts_remote::contact_upload(s, account)?.ops, places })
 }
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
@@ -303,6 +335,34 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
             s.graph_listed_short.insert(account);
         }
     }
+    // The contacts (#1068, #1076): what became of the changes sent, then each address book read.
+    let mut contacts_changed = false;
+    if let Some(sent) = &result.contacts_sent {
+        match super::contacts_remote::apply_contact_outcomes(s, sent) {
+            Ok(applied) => refused.extend(applied.messages),
+            Err(e) => refused.push(e.to_string()),
+        }
+    }
+    for download in result.contacts.iter().take(mailcraft_model::contact_sync::MAX_CONTACT_FOLDERS) {
+        match super::contacts_remote::merge_contacts(&mut s.mailbox, download) {
+            Ok(merged) => contacts_changed |= merged.changed(),
+            Err(e) => refused.push(e.to_string()),
+        }
+    }
+    // A new contact whose answer was lost waits for a whole read of its book to say whether it was
+    // made; a book too big to be read whole (MAX_CONTACTS) never says. After a day it goes up again.
+    // lean: it may then be made twice; a stable uid per contact, looked up first, is the upgrade.
+    let now = s.now();
+    for c in s.mailbox.contact_changes.iter_mut() {
+        if c.account == account && c.kind == ContactChangeKind::Create && c.unconfirmed != 0 && now.saturating_sub(c.unconfirmed) > UNCONFIRMED_FOR {
+            c.unconfirmed = 0;
+            contacts_changed = true;
+        }
+    }
+    // The address books gone from the server: their folders go, what waited to go up stays here.
+    let (dropped, kept) = super::contacts_remote::drop_gone_folders(&mut s.mailbox, account, &result.contact_listed);
+    contacts_changed |= dropped;
+    refused.extend(kept);
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
         // A mailbox that turns up twice in a run is read in part: neither of its windows is taken
@@ -326,7 +386,7 @@ fn apply_jmap_news(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     // The threads of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded || waits_changed {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded || waits_changed || contacts_changed {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

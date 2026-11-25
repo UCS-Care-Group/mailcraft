@@ -707,7 +707,7 @@ A malicious or vulnerable dependency, GitHub Action or build step.
   release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Artifact Signing
   client, rustup-init, wasm-opt) and WiX (a NuGet package) is an exact version checked against a recorded sha256 before
   use; trunk runs offline. Every release file gets a build provenance attestation
-  (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).
+  (`gh attestation verify <file> -R UCSLabs/mailcraft`).
 - Pure-Rust TLS (rustls), and no handwritten JavaScript.
 
 ## Assurance case

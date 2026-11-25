@@ -283,6 +283,8 @@ const SAFE: &[&str] = &[
     "view.tasks",
     "view.readingPane",
     "view.gmailCategories",
+    // Every account's folder of a kind in one list (#625): only what the window shows.
+    "view.allAccounts",
     "view.folderPane",
     "view.navigationBar",
     "view.conversations",
@@ -658,6 +660,8 @@ const NEVER: &[&str] = &[
     "sync.applyEventChanges",
     "sync.applyEvents",
     "sync.applyContacts",
+    "sync.contactChanges",
+    "sync.applyContactChanges",
     "sync.taskChanges",
     "sync.applyTaskChanges",
     "sync.applyTasks",

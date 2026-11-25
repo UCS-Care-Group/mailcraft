@@ -561,6 +561,7 @@ impl SendReceive {
             // A renewed sign-in that isn't the account's own (a shared mailbox's owner's) stops
             // the run before the Outbox or anything of the mail goes.
             signer: Some(signer),
+            contacts: None,
         };
         session.sync_progress.phase(account, SyncPhase::Sending);
         let runner = self.runner.clone();

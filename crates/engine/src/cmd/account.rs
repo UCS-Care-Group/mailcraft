@@ -831,6 +831,14 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     let accounts: Vec<Id> = s.mailbox.accounts.iter().filter(|a| going.contains(&a.id)).map(|a| a.id).collect();
     for account in accounts {
         super::remote::forget(s, account)?;
+        // And what its calendar server gave, kept beside the mailbox.
+        s.dav_listed.remove(&account);
+        s.dav_asked.remove(&account);
+        s.dav_seen.remove(&account);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(file) = s.path.clone() {
+            crate::dav_raw::drop_all(&file, account);
+        }
     }
     // (Their mailbox's working hours go once the removal has gone through: `Session::run`.)
     s.mailbox.remove_account(id)?;
