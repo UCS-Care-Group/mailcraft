@@ -26017,6 +26017,12 @@ msgstr "{name} to udostępniona skrzynka pocztowa, której konta już nie ma: us
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "Trwa wysyłanie i odbieranie dla: {name}. Użyj Zatrzymaj."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} zostaje na tym komputerze: {folder} nie ma już na serwerze, a zmiany wprowadzonej tutaj nie udało się wysłać."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

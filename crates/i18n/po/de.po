@@ -24452,6 +24452,12 @@ msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} wird gerade gesendet und empfangen. Verwenden Sie „Anhalten“."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} bleibt auf diesem Computer: {folder} ist nicht mehr auf dem Server, und die hier vorgenommene Änderung konnte nicht hochgeladen werden."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

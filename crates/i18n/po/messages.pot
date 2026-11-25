@@ -21541,6 +21541,11 @@ msgstr ""
 msgid "{name} is being sent and received now. Use Stop."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 msgid "{name} is larger than {mb} MB"

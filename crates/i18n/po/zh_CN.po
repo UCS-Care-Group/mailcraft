@@ -25902,6 +25902,12 @@ msgstr "{name} 是共享邮箱，其所属账户已不存在：请将其删除�
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "{name} 正在发送/接收。请使用“停止”。"
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} 保留在此计算机上：{folder} 已不在服务器上，此处所做的更改无法上传。"
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy

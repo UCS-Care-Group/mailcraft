@@ -25841,6 +25841,12 @@ msgstr "{name} საერთო საფოსტო ყუთია, რო�
 msgid "{name} is being sent and received now. Use Stop."
 msgstr "ანგარიშის {name} გაგზავნა/მიღება ახლა მიმდინარეობს. გამოიყენეთ „შეჩერება“."
 
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "{name} is kept on this computer: {folder} is no longer on the server, and the change made here couldn't go up."
+msgstr "{name} ამ კომპიუტერზე რჩება: {folder} სერვერზე აღარ არის და აქ შეტანილი ცვლილება ვერ აიტვირთა."
+
 #. interface, what a command says
 #: crates/engine/src/cmd/attach_item.rs crates/engine/src/cmd/compose.rs crates/ui-egui/src/files.rs
 #, fuzzy
