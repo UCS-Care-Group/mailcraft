@@ -8254,6 +8254,12 @@ msgstr "Păstrați notele și intrările de jurnal"
 msgid "Keep this one"
 msgstr "Păstrez aceasta"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "Păstrează această persoană în"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8326,6 +8332,18 @@ msgstr "Păstrat în spațiul de stocare al acestui browser, salvat pe parcurs. 
 msgid "Kept in {path}, saved as you go."
 msgstr "Păstrat în {path}, salvat pe parcurs."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "Păstrat în: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "Păstrat în: {place} (doar citire)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8337,12 +8355,6 @@ msgstr "Păstrată doar pe acest computer"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Păstrat doar pe acest computer: invitațiile și evenimentele recurente nu sunt încă trimise serverului"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "Păstrată doar pe acest telefon: nu se trimite în contul dvs."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11231,6 +11243,12 @@ msgstr "Încă necitit."
 #, fuzzy
 msgid "Not saved"
 msgstr "Nesalvat"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Not sent yet"
+msgstr "Încă netrimis"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19877,7 +19895,7 @@ msgid "This person could not be read."
 msgstr "Această persoană nu a putut fi citită."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "Acest telefon"
@@ -27594,6 +27612,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Linii"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "Păstrată doar pe acest telefon: nu se trimite în contul dvs."
 
 #, fuzzy
 #~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."

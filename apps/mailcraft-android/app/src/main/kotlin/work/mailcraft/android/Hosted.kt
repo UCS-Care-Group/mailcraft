@@ -47,7 +47,8 @@ private fun launch(context: Context, action: String, link: String?): Boolean {
  * The state of the three tabs over [core], once [ready], read again whenever [reload] moves on (the
  * mailbox changed: a synchronisation brought contacts or tasks). Contacts are read a window at a time; a
  * change to a task is a command (`tasks.new`, `tasks.edit`, `tasks.complete`, `tasks.delete`) and
- * the lists are read again after it. Nothing is sent to a server from here.
+ * the lists are read again after it. Nothing is sent to a server from here: a person or task made in an
+ * account's folder or list goes with the next synchronisation.
  */
 @Composable
 internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: Int = 0): Hosted {
@@ -59,6 +60,15 @@ internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: In
         if (ready) value = loadToday(core)
     }
     return Hosted(today, people.first, tasks.first, people.second, tasks.second)
+}
+
+/** Where a new person can go, read again when the form opens (an account's folders may have come in since). */
+@Composable
+private fun rememberPlaces(core: Core, ready: Boolean, reload: Int, formOpen: Boolean): PersonPlaces? {
+    val places by produceState<PersonPlaces?>(null, ready, reload, formOpen) {
+        if (ready) value = loadPlaces(core)
+    }
+    return places
 }
 
 @Composable
@@ -84,11 +94,12 @@ private fun rememberPeople(
     val person by produceState<PersonState?>(null, ready, reload, open) {
         value = open?.let { if (ready) loadPerson(core, it.toULong()) else PersonState.Loading }
     }
+    val places = rememberPlaces(core, ready, reload, editorState.value != null)
     LaunchedEffect(ready, reload, query, added) {
         generation += 1
         if (ready) state = loadPeople(core, query, 0)
     }
-    val form = formActions(scope, core, editorState, busyState) { made ->
+    val form = formActions(scope, editorState, busyState, { addPerson(core, it.placed(places)) }) { made ->
         if (made != null) {
             notice = null
             query = ""
@@ -134,7 +145,7 @@ private fun rememberPeople(
     )
     val shown = open?.toULong()
     val card = if (shown != null) person ?: PersonState.Loading else null
-    return PeopleData(query, state, shown, card, notice, editorState.value, busyState.value) to actions
+    return PeopleData(query, state, shown, card, notice, editorState.value, busyState.value, places) to actions
 }
 
 private const val MAX_QUERY = 200

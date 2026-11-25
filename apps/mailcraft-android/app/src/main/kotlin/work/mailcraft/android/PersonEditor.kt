@@ -7,39 +7,49 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 private val Pad = 16.dp
 private val Gap = 12.dp
 private val Small = 8.dp
+private val RowHeight = 48.dp
 private const val MAX_LIST = 3_000
 
 /** The form for a new person. It only collects: saving is `people.new`, run by the app. */
 @Composable
-internal fun PersonEditor(texts: Texts, draft: PersonDraft, busy: Boolean, actions: FormActions) {
+internal fun PersonEditor(
+    texts: Texts,
+    draft: PersonDraft,
+    places: PersonPlaces?,
+    busy: Boolean,
+    actions: FormActions,
+) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Pad),
         verticalArrangement = Arrangement.spacedBy(Gap),
     ) {
         Text(texts.t("New person"), style = MaterialTheme.typography.headlineSmall)
-        Text(
-            texts.t("Kept on this phone only: it is not sent to your account."),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (places != null) PlaceChoice(texts, draft, places, actions)
         Field(texts.t("First name"), draft.first, MAX_PERSON_LINE) { actions.onDraft(draft.copy(first = it)) }
         Field(texts.t("Last name"), draft.last, MAX_PERSON_LINE) { actions.onDraft(draft.copy(last = it)) }
         Field(
@@ -65,6 +75,30 @@ internal fun PersonEditor(texts: Texts, draft: PersonDraft, busy: Boolean, actio
         Row(horizontalArrangement = Arrangement.spacedBy(Small), verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = actions.onSave, enabled = draft.canSave && !busy) { Text(texts.t("Save")) }
             TextButton(onClick = actions.onCancel) { Text(texts.t("Cancel")) }
+        }
+    }
+}
+
+/** Where the new person is kept: this phone or a contacts folder; until one is picked, [PersonPlaces.default]. */
+@Composable
+private fun PlaceChoice(texts: Texts, draft: PersonDraft, places: PersonPlaces, actions: FormActions) {
+    val chosen = draft.folder ?: places.default
+    val asHeading = Modifier.semantics { heading() }
+    Text(texts.t("Keep this person in"), style = MaterialTheme.typography.titleSmall, modifier = asHeading)
+    Column(modifier = Modifier.selectableGroup()) {
+        places.places.forEach { place ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = RowHeight)
+                    .selectable(selected = chosen == place.folder, role = Role.RadioButton) {
+                        actions.onDraft(draft.copy(folder = place.folder))
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = chosen == place.folder, onClick = null)
+                Text(place.label, modifier = Modifier.padding(start = Gap))
+            }
         }
     }
 }
