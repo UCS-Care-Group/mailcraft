@@ -8221,6 +8221,12 @@ msgstr "保留笔记和日记条目"
 msgid "Keep this one"
 msgstr "保留这个"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "将此联系人保存在"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8293,6 +8299,18 @@ msgstr "保存在此浏览器中，随操作自动保存。使用“打开和导
 msgid "Kept in {path}, saved as you go."
 msgstr "保存在 {path}，随操作自动保存。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "保存在：{place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "保存在：{place}（只读）"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8304,12 +8322,6 @@ msgstr "仅保存在此计算机上"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "仅保存在此计算机上：邀请和重复日程尚未发送到服务器"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "仅保存在此手机上：不会发送到你的账户。"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11192,6 +11204,12 @@ msgstr "尚未读取。"
 #, fuzzy
 msgid "Not saved"
 msgstr "未保存"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Not sent yet"
+msgstr "尚未发送"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19786,7 +19804,7 @@ msgid "This person could not be read."
 msgstr "无法读取此联系人。"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "此手机"
@@ -27232,6 +27250,10 @@ msgstr "−二进制"
 #, fuzzy
 msgid "−Lines"
 msgstr "−行"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "仅保存在此手机上：不会发送到你的账户。"
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

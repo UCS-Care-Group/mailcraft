@@ -26,10 +26,28 @@ internal object PeopleTasksShots {
         emails = listOf(ContactLine("Work", "ada@example.org"), ContactLine("Home", "ada.home@example.org")),
         phones = listOf(ContactLine("Mobile", "+44 20 7946 0000"), ContactLine("Desk", "ext. 4417")),
         addresses = listOf(ContactLine("Work", "1 Example Street, Exampletown, EX1 1AA")),
+        keptIn = "Contacts (ada@example.org)",
+        notSent = true,
+    )
+
+    private val bo = PersonCard(
+        id = 3u, name = "Bo Example", company = "Garden Club", title = "", department = "",
+        emails = listOf(ContactLine("Work", "bo@example.org")), phones = emptyList(), addresses = emptyList(),
+        keptIn = "Contacts (sales@example.org)", readOnly = true,
+    )
+
+    private val places = PersonPlaces(
+        listOf(
+            PersonPlace(PHONE, "This phone"),
+            PersonPlace(11u, "Contacts (ada@example.org)"),
+            PersonPlace(12u, "Garden club (ada@example.org)"),
+        ),
+        default = 11u,
     )
 
     val people = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)))
     val person = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada))
+    val readOnlyPerson = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 3uL, PersonState.Ready(bo))
 
     val newPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),
@@ -37,6 +55,7 @@ internal object PeopleTasksShots {
             first = "Ida", last = "Example", emails = "ida@example.org\nida.home@example.org", phones = "+44 20 7946 0001",
             company = "Example Ltd", title = "Designer", notes = "Met at the garden club.",
         ),
+        places = places,
     )
     val badPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),

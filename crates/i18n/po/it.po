@@ -8222,6 +8222,12 @@ msgstr "Mantieni le note e le voci del diario"
 msgid "Keep this one"
 msgstr "Mantieni questo"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "Conserva questa persona in"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8294,6 +8300,18 @@ msgstr "Conservata nella memoria di questo browser, salvata man mano. Usare Apri
 msgid "Kept in {path}, saved as you go."
 msgstr "Conservata in {path}, salvata man mano."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "Conservato in: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "Conservato in: {place} (sola lettura)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8305,12 +8323,6 @@ msgstr "Conservata solo su questo computer"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Conservato solo su questo computer: inviti ed eventi ricorrenti non vengono ancora inviati al server"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "Conservata solo su questo telefono: non viene inviata al tuo account."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11193,6 +11205,12 @@ msgstr "Non ancora letto."
 #, fuzzy
 msgid "Not saved"
 msgstr "Non salvato"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Not sent yet"
+msgstr "Non ancora inviato"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19789,7 +19807,7 @@ msgid "This person could not be read."
 msgstr "Non è stato possibile leggere questo contatto."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "Questo telefono"
@@ -27357,6 +27375,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Righe"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "Conservata solo su questo telefono: non viene inviata al tuo account."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

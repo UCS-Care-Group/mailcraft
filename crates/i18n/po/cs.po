@@ -8245,6 +8245,12 @@ msgstr "Ponechat poznámky a záznamy deníku"
 msgid "Keep this one"
 msgstr "Ponechat tuto"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "Uložit tuto osobu do"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8317,6 +8323,18 @@ msgstr "Uchováváno v úložišti tohoto prohlížeče, ukládá se průběžn�
 msgid "Kept in {path}, saved as you go."
 msgstr "Uchováváno v {path}, ukládá se průběžně."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "Uloženo v: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "Uloženo v: {place} (jen pro čtení)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8328,12 +8346,6 @@ msgstr "Uchováváno jen v tomto počítači"
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "Uchováváno jen v tomto počítači: pozvánky a opakované události se zatím na server neodesílají"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "Uloženo jen v tomto telefonu: neodesílá se do vašeho účtu."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11216,6 +11228,12 @@ msgstr "Zatím nepřečteno."
 #, fuzzy
 msgid "Not saved"
 msgstr "Neuloženo"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Not sent yet"
+msgstr "Zatím neodesláno"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19853,7 +19871,7 @@ msgid "This person could not be read."
 msgstr "Tuto osobu se nepodařilo přečíst."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "Tento telefon"
@@ -27566,6 +27584,10 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "Uloženo jen v tomto telefonu: neodesílá se do vašeho účtu."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."

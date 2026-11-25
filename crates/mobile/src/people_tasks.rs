@@ -1,16 +1,20 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The detail queries of the People and Tasks tabs: one person, one task, and where tasks can
-//! live. Like the other queries they only read; a task is made, changed, completed or deleted
+//! The detail queries of the People and Tasks tabs: one person, one task, and where people and
+//! tasks can live. Like the other queries they only read; a person is made through `execute`
+//! (`people.new`, with the `folder` [`ContactFolders`] offers); a task is made, changed, completed or deleted
 //! through `execute` (`tasks.new`, `tasks.edit`, `tasks.complete`, `tasks.delete`), and the
 //! owner's answer about the tasks that exist only on this phone is `tasks.sendLocal`.
 
 use mailcraft_engine::Session;
+use mailcraft_engine::cmd::contacts_remote::{default_contact_folder, home, not_sent, read_only};
+use mailcraft_engine::cmd::people::contact_accounts;
 use mailcraft_engine::cmd::tasks_remote::{local_task_count, task_accounts};
-use mailcraft_model::{Labeled, LocalTasks};
+use mailcraft_model::contact_sync::{ContactFolder, FolderOwner, MAIN_FOLDER_NAME};
+use mailcraft_model::{Id, Labeled, LocalTasks, Mailbox};
 
 use crate::queries::{account_kind, bad, task_record};
-use crate::records::{AccountRecord, LabeledRecord, PersonDetail, TaskDetail, TaskSetup};
+use crate::records::{AccountRecord, ContactFolderRecord, ContactFolders, LabeledRecord, PersonDetail, TaskDetail, TaskSetup};
 use crate::text::{self, MAX_ADDRESS, MAX_LISTED, MAX_NAME, MAX_PEOPLE_IN_ITEM};
 use crate::{Core, CoreError};
 
@@ -19,6 +23,61 @@ const MAX_NOTES: usize = 8_000;
 
 fn labeled(items: &[Labeled], max: usize) -> Vec<LabeledRecord> {
     text::first(items, MAX_PEOPLE_IN_ITEM, |l| LabeledRecord { label: text::clip(&l.label, MAX_NAME), value: text::clip(&l.value, max) })
+}
+
+fn folder_kind(owner: &FolderOwner) -> &'static str {
+    match owner {
+        FolderOwner::Own => "own",
+        FolderOwner::Mailbox(_) => "mailbox",
+        FolderOwner::Person(_) => "person",
+    }
+}
+
+/// What the card calls a contacts folder of `account` named `name`: with whose it is in brackets
+/// (the account's address, or the shared mailbox's); one a person shared goes by its own name.
+fn folder_name(mailbox: &Mailbox, account: Id, name: &str, owner: &FolderOwner) -> String {
+    let whose = match owner {
+        FolderOwner::Own => mailbox.account(account).map(|a| a.email.as_str()).unwrap_or_default(),
+        FolderOwner::Mailbox(address) => address,
+        FolderOwner::Person(_) => "",
+    };
+    let name = text::clip(name, MAX_NAME);
+    if whose.is_empty() { name } else { format!("{name} ({})", text::clip(whose, MAX_ADDRESS)) }
+}
+
+fn folder_record(mailbox: &Mailbox, f: &ContactFolder) -> ContactFolderRecord {
+    ContactFolderRecord {
+        id: Some(f.id),
+        account: f.account,
+        name: folder_name(mailbox, f.account, &f.name, &f.owner),
+        kind: folder_kind(&f.owner).into(),
+    }
+}
+
+/// Where a new person can go, and where `people.new` puts one by default (C8): every folder an
+/// account that keeps contacts may write, and that default when it is a main folder not made yet.
+fn contact_folders(s: &Session) -> ContactFolders {
+    let accounts = contact_accounts(&s.mailbox);
+    let mut writable: Vec<&ContactFolder> = s.mailbox.contact_folders.iter().filter(|f| f.writable && accounts.contains(&f.account)).collect();
+    // By account, its own main folder first, then by name.
+    writable.sort_by_key(|f| (accounts.iter().position(|a| *a == f.account), !(f.owner.is_own() && f.is_main()), f.name.to_lowercase()));
+    let mut folders = text::first(writable, MAX_LISTED, |f| folder_record(&s.mailbox, f));
+    let default_index = match default_contact_folder(s) {
+        Ok(0) => None,
+        Ok(id) => folders.iter().position(|f| f.id == Some(id)),
+        Err(account) => {
+            let main = ContactFolderRecord {
+                id: None,
+                account,
+                name: folder_name(&s.mailbox, account, MAIN_FOLDER_NAME, &FolderOwner::Own),
+                kind: folder_kind(&FolderOwner::Own).into(),
+            };
+            let at = folders.iter().position(|f| f.account == account).unwrap_or(folders.len());
+            folders.insert(at, main);
+            Some(at)
+        }
+    };
+    ContactFolders { rev: s.rev(), folders, default_index: default_index.and_then(|i| u32::try_from(i).ok()) }
 }
 
 fn setup(s: &Session) -> TaskSetup {
@@ -59,9 +118,20 @@ impl Core {
                     value: text::clip(&a.one_line(), MAX_ADDRESS),
                 }),
                 favorite: c.favorite,
+                folder: c.folder,
+                folder_name: home(&s.mailbox, c.folder).map(|f| folder_name(&s.mailbox, f.account, &f.name, &f.owner)).unwrap_or_default(),
+                folder_kind: home(&s.mailbox, c.folder).map(|f| folder_kind(&f.owner)).unwrap_or_default().into(),
+                read_only: read_only(&s.mailbox, c),
+                not_sent: not_sent(&s.mailbox, c.id),
             })
         })
         .await
+    }
+
+    /// Where a new person can go: this phone, or a contacts folder an account may write, and
+    /// where `people.new` puts one when it isn't told (C8).
+    pub async fn contact_folders(&self) -> Result<ContactFolders, CoreError> {
+        self.call(|s| Ok(contact_folders(s))).await
     }
 
     /// One task with its notes and reminder, for the editor. No such task is a `BadRequest`.

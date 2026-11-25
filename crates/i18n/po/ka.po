@@ -8215,6 +8215,12 @@ msgstr "შენიშვნებისა და ჟურნალის ჩ
 msgid "Keep this one"
 msgstr "ამის შენარჩუნება"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
+msgid "Keep this person in"
+msgstr "სად შეინახოს ეს პირი"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8287,6 +8293,18 @@ msgstr "ინახება ამ ბრაუზერის საცავ
 msgid "Kept in {path}, saved as you go."
 msgstr "ინახება აქ: {path}, მუშაობისას ავტომატურად."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place}"
+msgstr "სად ინახება: {place}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Kept in: {place} (read only)"
+msgstr "სად ინახება: {place} (მხოლოდ წასაკითხად)"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -8298,12 +8316,6 @@ msgstr "ინახება მხოლოდ ამ კომპიუტე
 #, fuzzy
 msgid "Kept on this computer only: invitations and repeating events aren't sent to the server yet"
 msgstr "ინახება მხოლოდ ამ კომპიუტერზე: მოწვევები და განმეორებადი ღონისძიებები სერვერზე ჯერ არ იგზავნება"
-
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
-#, fuzzy
-msgid "Kept on this phone only: it is not sent to your account."
-msgstr "ინახება მხოლოდ ამ ტელეფონზე: თქვენს ანგარიშზე არ იგზავნება."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -11166,6 +11178,12 @@ msgstr "ჯერ არ წაკითხულა."
 #, fuzzy
 msgid "Not saved"
 msgstr "არ არის შენახული"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt
+#, fuzzy
+msgid "Not sent yet"
+msgstr "ჯერ არ გაგზავნილა"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -19736,7 +19754,7 @@ msgid "This person could not be read."
 msgstr "ამ ადამიანის მონაცემების წაკითხვა ვერ მოხერხდა."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonPlaces.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Tasks.kt
 #, fuzzy
 msgid "This phone"
 msgstr "ეს ტელეფონი"
@@ -27293,6 +27311,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Kept on this phone only: it is not sent to your account."
+#~ msgstr "ინახება მხოლოდ ამ ტელეფონზე: თქვენს ანგარიშზე არ იგზავნება."
 
 #, fuzzy
 #~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
