@@ -89,9 +89,10 @@ pub(crate) struct DavSync {
     shown: HashMap<Id, DavProblem>,
     /// Whether each account's servers have a password of their own, to see it change.
     separate: HashMap<Id, bool>,
-    /// The accounts the owner was told are full ([`DavProblem::Full`]): said once for this
-    /// mailbox, however many runs find it so.
-    full_said: std::collections::HashSet<Id>,
+    /// The accounts the owner was told are full ([`DavProblem::Full`]), with the generation of
+    /// their settings then: said once while runs keep finding it so, again after a run that
+    /// didn't or once the settings were put away or changed.
+    full_said: HashMap<Id, u64>,
 }
 
 impl DavSync {
@@ -288,21 +289,33 @@ impl MailApp {
             let mark = self.dav.mark(&sent_under, &sent);
             self.dav.refused.insert(account, (mark, now));
         }
-        // (A run that stopped at its limits did what it could, and goes on at the next.)
+        // That the account is full is said again once a run finds room (or the settings change).
+        if problem != DavProblem::Full {
+            self.dav.full_said.remove(&account);
+        }
+        // (A run that stopped at its limits did what it could, and goes on at the next. So does
+        // one that found the account full or met errors of the server's: held up, every other
+        // change of the account's would wait with it.)
         if matches!(problem, DavProblem::None | DavProblem::Limits) {
             self.dav.trouble.remove(&account);
             self.dav.shown.remove(&account);
-            // (When it stopped for its limits, the next run, a minute on, goes on from there.)
         } else {
-            let failing = self.dav.trouble.get(&account).map_or(0, |(n, _)| *n).saturating_add(1);
-            let wait = applied.get("wait").and_then(Value::as_f64).unwrap_or(0.0) * 1000.0;
-            let backoff = (EVERY * 2f64.powi(i32::try_from(failing).unwrap_or(10).min(10))).min(LONGEST);
-            self.dav.trouble.insert(account, (failing, now + wait.max(backoff)));
+            if matches!(problem, DavProblem::Full | DavProblem::ServerErrors) {
+                self.dav.trouble.remove(&account);
+            } else {
+                let failing = self.dav.trouble.get(&account).map_or(0, |(n, _)| *n).saturating_add(1);
+                let wait = applied.get("wait").and_then(Value::as_f64).unwrap_or(0.0) * 1000.0;
+                let backoff = (EVERY * 2f64.powi(i32::try_from(failing).unwrap_or(10).min(10))).min(LONGEST);
+                self.dav.trouble.insert(account, (failing, now + wait.max(backoff)));
+            }
             // Said to the owner once for each account and kind of trouble, naming the account as
             // the folder pane does (nothing of the server, nor the name that signs in). That it
-            // is full is said once for the mailbox: it stays so until the owner makes room.
-            let new = if problem == DavProblem::Full { self.dav.full_said.insert(account) } else { true };
-            if self.dav.shown.insert(account, problem) != Some(problem) && new {
+            // is full is said once while every run finds it so.
+            let new = match problem {
+                DavProblem::Full => self.dav.full_said.insert(account, generation) != Some(generation),
+                _ => self.dav.shown.insert(account, problem) != Some(problem),
+            };
+            if new {
                 let name = self
                     .session
                     .mailbox

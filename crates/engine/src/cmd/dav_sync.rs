@@ -507,7 +507,8 @@ fn take_listing(
         }
     }
     for item in &listed {
-        let name: String = item.name.chars().filter(|c| !c.is_control()).take(mailcraft_model::MAX_NAME).collect();
+        // (No control or format character, as for an event's title.)
+        let name: String = mailcraft_names::incoming(&item.name, mailcraft_model::MAX_NAME).unwrap_or_default();
         let name = if name.trim().is_empty() { "Calendar".to_string() } else { name.trim().to_string() };
         // A calendar the mailbox has no room for is not kept, so never read (`DavAsk::no_room`),
         // and that is said.
@@ -761,6 +762,10 @@ fn take_read(
     // series, its changed occurrences and all, unless something here waits to be sent for it.
     if let Some(members) = read.members.as_ref().filter(|m| m.len() <= MAX_RESOURCES) {
         let present: HashSet<&str> = members.iter().map(String::as_str).chain(named.iter().copied()).collect();
+        // (What is held of the collection now: a listing that takes all of it is believed, but its
+        // token and change tag are not kept, so that the next run looks again.)
+        let held: usize = of_resource.values().map(Vec::len).sum();
+        let mut swept = 0usize;
         let gone: Vec<String> = of_resource
             .iter()
             .filter(|(resource, keys)| {
@@ -775,11 +780,15 @@ fn take_read(
                 if s.mailbox.remove_event(*id).is_ok() {
                     room.gone(size);
                     took.removed += 1;
+                    swept += 1;
                 }
             }
             if let Some(store) = docs.store() {
                 store.drop_one(&resource);
             }
+        }
+        if held > 0 && swept == held {
+            all = false;
         }
         if let Some(read_in) = s.dav_seen.get_mut(&account) {
             read_in.retain(|href, r| r.collection != collection || present.contains(href.as_str()));

@@ -273,3 +273,15 @@ fn foreign_homes_are_capped() {
     let m = ms(&prop("/", &format!("<c:calendar-home-set>{hrefs}</c:calendar-home-set>")));
     assert!(m.entries[0].foreign_calendar_homes.len() <= 8);
 }
+
+#[test]
+fn a_display_name_loses_its_format_characters() {
+    let m = ms(&prop(
+        "/cal/owner/work/",
+        "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Pay\u{202e}fdp.exe\u{200b}</d:displayname>",
+    ));
+    assert_eq!(m.entries.first().unwrap().display_name.as_deref(), Some("Payfdp.exe"));
+    let m =
+        ms(&prop("/cal/owner/work/", "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>\u{202e}\u{2066}</d:displayname>"));
+    assert_eq!(m.entries.first().unwrap().display_name, None, "nothing left: no name");
+}

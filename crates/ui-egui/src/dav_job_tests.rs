@@ -391,29 +391,27 @@ fn r6_a_job_out_while_the_server_was_put_away_and_set_again_is_not_taken_in() {
 }
 
 #[test]
-fn r6_an_account_that_is_full_is_said_once_and_errors_of_the_server_are_said() {
+fn r6_an_account_that_is_full_is_said_once_while_it_stays_so_and_neither_it_nor_errors_hold_the_account_up() {
     let (mut a, id) = app(false);
     a.passwords.insert(id, "mail".into());
-    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Full);
-    a.dav_tick();
-    a.dav_tick();
-    assert!(say(&a).contains("as much"), "{:?}", say(&a));
-    // A clean run between, then full again: not said again.
-    a.status_msg = None;
-    let _ = failing_job(&mut a, mailcraft_model::DavProblem::None);
-    a.dav.next = 0.0;
-    a.dav.trouble.clear();
-    a.dav_tick();
-    a.dav_tick();
-    let _ = failing_job(&mut a, mailcraft_model::DavProblem::Full);
-    a.dav.next = 0.0;
-    a.dav_tick();
-    a.dav_tick();
-    assert!(say(&a).is_empty(), "{:?}", say(&a));
-    let _ = failing_job(&mut a, mailcraft_model::DavProblem::ServerErrors);
-    a.dav.next = 0.0;
-    a.dav.trouble.clear();
-    a.dav_tick();
-    a.dav_tick();
-    assert!(say(&a).contains("errors"), "{:?}", say(&a));
+    let run = |a: &mut MailApp, problem: mailcraft_model::DavProblem| {
+        a.status_msg = None;
+        let _ = failing_job(a, problem);
+        a.dav.next = 0.0;
+        a.dav_tick();
+        a.dav_tick();
+        assert!(!a.dav.trouble.contains_key(&id), "{problem:?}: the next run comes at the usual time");
+        say(a)
+    };
+    use mailcraft_model::DavProblem as P;
+    assert!(run(&mut a, P::Full).contains("as much"));
+    assert!(run(&mut a, P::Full).is_empty(), "said once while every run finds it so");
+    assert!(run(&mut a, P::None).is_empty());
+    assert!(run(&mut a, P::Full).contains("as much"), "full again after a run that wasn't");
+    // Put away and set again: said again.
+    a.execute("account.davOff", json!({"id": id})).unwrap();
+    a.execute("account.davSet", json!({"id": id, "calendarHomes": [format!("{HOME}/cal/ada/")]})).unwrap();
+    assert!(run(&mut a, P::Full).contains("as much"));
+    assert!(run(&mut a, P::ServerErrors).contains("errors"));
+    assert!(run(&mut a, P::ServerErrors).is_empty(), "said once");
 }

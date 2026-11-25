@@ -245,8 +245,9 @@ fn read_props(response: &Node, origin: &Origin, base: &str, e: &mut Entry, skipp
                 _ => {}
             },
             (DAV, "displayname") => {
-                let name: String = p.text.trim().chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();
-                if !name.is_empty() {
+                // (No control or format character: a right-to-left override makes a name read as
+                // something else.)
+                if let Some(name) = mailcraft_names::incoming(p.text.trim(), MAX_NAME) {
                     e.display_name = Some(name);
                 }
             }

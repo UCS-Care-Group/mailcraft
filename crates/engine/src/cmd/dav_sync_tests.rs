@@ -961,3 +961,41 @@ fn r6_a_calendar_no_longer_listed_and_a_whole_listing_keep_what_is_not_the_serve
     let c = s.mailbox.calendar(calendar).unwrap();
     assert_eq!((c.origin.account, c.origin.id.as_str()), (0, ""), "the calendar stays, as the mailbox's own");
 }
+
+#[test]
+fn r7_a_calendars_name_loses_its_format_characters() {
+    let (mut s, id) = session();
+    let mut named = listing();
+    named.calendars[0].name = format!("Pay\u{202e}fdp.exe{}", "x".repeat(2_000));
+    apply(&mut s, id, Some(named), vec![]);
+    let c = s.mailbox.calendars.iter().find(|c| c.origin.account == id).unwrap();
+    assert!(c.name.starts_with("Payfdp.exe") && !c.name.chars().any(mailcraft_names::is_format), "{:?}", c.name);
+    assert!(c.name.chars().count() <= mailcraft_model::MAX_NAME);
+    let state = &s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0];
+    assert!(!state.name.chars().any(mailcraft_names::is_format));
+}
+
+#[test]
+fn r7_a_whole_listing_that_empties_a_collection_keeps_no_token_so_the_next_run_looks_again() {
+    let (mut s, id) = session();
+    apply(
+        &mut s,
+        id,
+        Some(listing()),
+        vec![read(vec![change("a.ics", "\"1\"", &event("a", 2, "A")), change("b.ics", "\"2\"", &event("b", 3, "B"))], true, true, "tok-1")],
+    );
+    let state = |s: &Session| {
+        let c = &s.mailbox.account(id).unwrap().dav.as_ref().unwrap().collections[0];
+        (c.sync_token.clone(), c.ctag.clone())
+    };
+    // A whole listing with nothing in it: believed, but the token and change tag stay.
+    let mut empty = read(vec![], true, true, "tok-2");
+    empty.ctag = "ctag-2".into();
+    let said = apply(&mut s, id, None, vec![empty.clone()]);
+    assert_eq!(said["removed"], 2);
+    assert!(titles(&s).is_empty());
+    assert_eq!(state(&s), ("tok-1".to_string(), "ctag-1".to_string()));
+    // Said again at the next run: now nothing is held, and they are kept.
+    apply(&mut s, id, None, vec![empty]);
+    assert_eq!(state(&s), ("tok-2".to_string(), "ctag-2".to_string()));
+}

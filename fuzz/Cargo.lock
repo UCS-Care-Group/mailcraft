@@ -1309,6 +1309,7 @@ version = "0.15.0"
 dependencies = [
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-names",
  "quick-xml",
 ]
 
