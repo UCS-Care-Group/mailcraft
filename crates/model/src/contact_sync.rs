@@ -616,8 +616,8 @@ impl LocalOnly {
 /// keeps every entry.
 pub fn local_only(mailbox: &crate::Mailbox, c: &Contact) -> LocalOnly {
     match mailbox.contact_folder(c.folder).and_then(|f| mailbox.account(f.account)) {
-        // As the contacts job: such an account's contacts are kept through Graph.
-        Some(a) if a.keeps_contacts() => graph_local_only(c),
+        // A Microsoft account: its contacts are kept through Graph, with its places.
+        Some(a) if a.contacts_in_graph() => graph_local_only(c),
         // Other servers keep every entry, as far as MailCraft knows; one that doesn't adds its
         // places here.
         _ => LocalOnly::default(),

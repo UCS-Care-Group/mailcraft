@@ -453,3 +453,28 @@ fn local_only_names_what_the_server_has_no_place_for() {
     assert!(local_only(&mb, &at(imap_folder)).is_empty(), "a server with no limit: nothing is marked");
     assert!(local_only(&mb, &Contact { folder: ms_folder, ..ada() }).is_empty(), "what fits isn't marked");
 }
+
+/// #1917: only a Microsoft (Graph) account's folders are marked: an account of another kind that
+/// keeps contacts (an Exchange server's, a JMAP server's) has no such limits.
+#[test]
+fn an_account_that_keeps_contacts_but_not_through_graph_is_never_marked() {
+    use crate::contact_sync::local_only;
+    use crate::{AccountKind, OAuth, OAuthProvider};
+    let mut mb = Mailbox::default();
+    let microsoft = || Some(OAuth { provider: OAuthProvider::Microsoft, ..Default::default() });
+    let exchange = mb.add_account(Account { email: "ex@example.org".into(), kind: AccountKind::Exchange, oauth: microsoft(), ..Default::default() });
+    let jmap = mb.add_account(Account { email: "jm@example.org".into(), kind: AccountKind::Jmap, oauth: microsoft(), ..Default::default() });
+    // One that keeps contacts without Graph: its kind decides, not that it keeps contacts.
+    assert!(mb.account(exchange).unwrap().keeps_contacts());
+    for account in [exchange, jmap] {
+        assert!(!mb.account(account).unwrap().contacts_in_graph());
+        let folder = mb.ensure_main_contact_folder(account).unwrap();
+        let many = Contact {
+            folder,
+            emails: (1..=5).map(|n| Labeled::new("work", format!("a{n}@example.org"))).collect(),
+            websites: vec!["https://a.example".into(), "https://b.example".into()],
+            ..ada()
+        };
+        assert!(local_only(&mb, &many).is_empty(), "account {account}");
+    }
+}
