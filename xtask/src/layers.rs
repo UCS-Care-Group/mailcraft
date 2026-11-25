@@ -88,8 +88,9 @@ pub const TABLE: &[(&str, Class)] = &[
 /// format characters of the one list (`names`), the mailbox's messages (`mime-model`) are read
 /// and written by the reader that knows nothing of a mailbox (`mime`), and that reader opens the
 /// TNEF streams (`tnef`) Outlook wraps files in, read with the code pages and rich text of `.pst`
-/// files (`pst`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["pst", "tnef", "mime", "mime-model"]];
+/// files (`pst`), and the socket transport (`net`) runs the calendar server requests that `dav`
+/// builds without any (#209).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["dav", "net"], &["names", "link"], &["pst", "tnef", "mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

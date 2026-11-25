@@ -132,14 +132,15 @@ impl Session {
     /// the first it can ([`Session::tasks_started`]). `refresh`: an account's refresh token now.
     pub fn tasks_due(&mut self, facts: &TasksFacts, refresh: impl Fn(Id) -> Option<String>, now: f64) -> Vec<Id> {
         let mut due = Vec::new();
-        // One thing at a time: the calendar's job, a Send/Receive and a sign-in go first.
-        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks(Start::Tasks) {
+        // One thing at a time: the calendar's job and a Send/Receive go first, and an account's
+        // sign-in goes before its own to-dos.
+        if !facts.reachable || !self.driver.auto_sync() || facts.running || facts.busy.blocks_every(Start::Tasks) {
             return due;
         }
         // Working offline: the books go on (a change waits its quiet time as ever), nothing is started.
         let offline = self.prefs.offline;
         for account in tasks_remote::task_accounts(&self.mailbox) {
-            if self.tasks_blocked(account, refresh(account).as_deref()) {
+            if facts.busy.blocks(Start::Tasks, account) || self.tasks_blocked(account, refresh(account).as_deref()) {
                 continue;
             }
             if matches!(self.driver.tasks.perm.get(&account), Some(Permission::SignInOver(_))) {

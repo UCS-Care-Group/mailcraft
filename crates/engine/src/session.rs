@@ -300,6 +300,13 @@ pub struct ViewState {
     /// Gmail's categories as a row of tabs above a Gmail Inbox's list, in place of the five
     /// folders under it in the folder pane (#911; `view.gmailCategories`). Off: as folders.
     pub gmail_tabs: bool,
+    /// Every account's folder of this kind in one list (#625; `view.allAccounts`): All Inboxes and
+    /// the like, over the accounts' own folders, nothing copied. Only while the folder in view is
+    /// a top-level folder of that kind ([`crate::unified::of`]); `folder.select` leaves it.
+    /// Kept with the view's settings, so that the window opens on it again (read leniently: a
+    /// value that isn't a kind is none).
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_kind")]
+    pub unified: Option<mailcraft_model::FolderKind>,
     pub search: String,
     pub scope: Scope,
     pub reading_pane: Pane,
@@ -333,9 +340,20 @@ pub struct ViewState {
     pub task_account: AccountChoice,
     /// Whose contacts People shows.
     pub people_account: AccountChoice,
+    /// The contacts folder of that account People shows alone (`view.peopleFolder`, #1917); none:
+    /// all of its folders. Not kept between sessions: an id means another folder in another file.
+    #[serde(skip)]
+    pub people_folder: Option<Id>,
     /// The Exchange server account whose organisation's address list People shows in place of
     /// the contacts (`people.addressBook`, #1262); none: the contacts.
     pub people_book: Option<Id>,
+}
+
+/// [`ViewState::unified`] from saved settings: a kind of folder, or none for anything else, so a
+/// damaged or newer value never loses the rest of the settings.
+fn lenient_kind<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<mailcraft_model::FolderKind>, D::Error> {
+    let value = <Value as Deserialize>::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 impl Default for ViewState {
@@ -350,6 +368,7 @@ impl Default for ViewState {
             filter: Filter::All,
             gmail: None,
             gmail_tabs: false,
+            unified: None,
             search: String::new(),
             scope: Scope::Folder,
             reading_pane: Pane::Right,
@@ -367,6 +386,7 @@ impl Default for ViewState {
             task_sort: TaskSort::DueDate,
             task_account: AccountChoice::All,
             people_account: AccountChoice::All,
+            people_folder: None,
             people_book: None,
         }
     }
@@ -484,6 +504,8 @@ pub struct Stays {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ListOf {
     folder: Id,
+    /// Every account's folder of a kind (#625).
+    unified: Option<mailcraft_model::FolderKind>,
     filter: Filter,
     /// The Gmail category it shows, if any (#911).
     gmail: Option<(Id, mailcraft_model::GmailCategory)>,
@@ -500,7 +522,7 @@ impl ListOf {
         let query = mailcraft_model::search::Query::parse(&view.search);
         let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, gmail: view.gmail, search, when }
+        ListOf { folder: view.folder, unified: view.unified, filter: view.filter, gmail: view.gmail, search, when }
     }
 }
 
@@ -1014,14 +1036,17 @@ impl Default for Prefs {
 }
 
 impl Prefs {
-    /// The waits Undo Send offers, in seconds (0 is off).
-    pub const UNDO_SEND_CHOICES: [u8; 6] = [0, 5, 10, 15, 20, 30];
+    /// The waits Undo Send offers, in seconds (0 is off), up to two minutes (#1799). Each fits a
+    /// `u8`, so a settings file stays readable by an older version (which reads more than 30 as 30).
+    pub const UNDO_SEND_CHOICES: [u8; 8] = [0, 5, 10, 15, 20, 30, 60, 120];
+    /// The longest wait offered.
+    pub const UNDO_SEND_MOST: u8 = 120;
 
     /// The seconds to wait before a message goes, 0 for none (a settings file may say anything:
-    /// a value the choice doesn't offer is read as the nearest one it does, never more than 30).
+    /// a value the choice doesn't offer is read as the next one up, never more than the most).
     pub fn undo_send(&self) -> u8 {
-        let n = self.undo_send_secs.min(30);
-        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(30)
+        let n = self.undo_send_secs.min(Self::UNDO_SEND_MOST);
+        Self::UNDO_SEND_CHOICES.iter().copied().filter(|c| *c >= n).min().unwrap_or(Self::UNDO_SEND_MOST)
     }
 
     /// The zoom of the message being read, in percent: the least, the most, and as it comes.
@@ -1137,6 +1162,9 @@ pub struct Session {
     /// The messages said to wait for the bytes they came as (#30), each said once
     /// ([`Session::first_told_held`]).
     told_held: std::sync::Mutex<HashSet<(Id, Held)>>,
+    /// Who the owner sent mail to, as of the revision, opening and message count it was counted
+    /// at (`cmd::compose::suggest`, #1803). In memory only.
+    pub(crate) send_counts: std::sync::Mutex<Option<((u64, u64, usize), std::sync::Arc<crate::cmd::compose::SendCounts>)>>,
     /// The current message being written, if one is open: the one a command acts on when it names
     /// none (#286), shown in the reading pane.
     pub compose: Option<Compose>,
@@ -1340,6 +1368,22 @@ pub struct Session {
     /// reads `MAILCRAFT_DAV=1` and sets it; off, their commands are disabled and the window offers
     /// nothing. Ships off until the feature is ready. Never saved.
     pub dav_enabled: bool,
+    /// When each account's calendar server was last asked which calendars it has (Unix seconds):
+    /// the homes are listed again after an hour ([`crate::cmd::dav_sync`]). Never saved.
+    pub dav_listed: std::collections::HashMap<Id, i64>,
+    /// When each account's calendar server was last asked for anything (a Unix time that goes up
+    /// by at least one at each ask): the one asked longest ago is next, so that every account has its turn. Never saved.
+    pub dav_asked: std::collections::HashMap<Id, i64>,
+    /// Resources of a calendar server read in that no event here names, by account and address:
+    /// one without an ETag (read again after a day, since nothing else shows that it changed) or
+    /// one that gave no event (a to-do, a document that isn't a calendar), so that it is not
+    /// fetched again until it changes ([`crate::cmd::dav_sync`]). Never saved: after a restart
+    /// each is read once.
+    pub dav_seen: std::collections::HashMap<Id, std::collections::HashMap<String, crate::cmd::dav_sync::Seen>>,
+    /// How many times each account's calendar server settings were put away or changed: a read
+    /// asked for before (`DavAsk::generation`) is not taken in, even when the settings are the
+    /// same again. Never saved, and never cleared: it only goes up.
+    pub dav_generation: std::collections::HashMap<Id, u64>,
     /// The width and theme each message was last read at in each place (the reading pane, a window
     /// of its own), whether its text part was shown instead of its HTML, and when it was last said
     /// ([`Session::read_at`]): a reply or forward quotes it as it was read where it was asked for,
@@ -1446,6 +1490,7 @@ impl Session {
             sel: Selection::default(),
             lost_originals: std::sync::Mutex::default(),
             told_held: std::sync::Mutex::default(),
+            send_counts: std::sync::Mutex::default(),
             compose: None,
             composing: Vec::new(),
             compose_seq: 0,
@@ -1514,6 +1559,10 @@ impl Session {
             date_region: None,
             gmail_category_moves: crate::gmail::GMAIL_CATEGORY_MOVES,
             dav_enabled: false,
+            dav_listed: Default::default(),
+            dav_asked: Default::default(),
+            dav_seen: Default::default(),
+            dav_generation: Default::default(),
             read_at: HashMap::new(),
             read_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
@@ -3465,6 +3514,10 @@ impl Session {
         self.run_had.clear();
         self.jmap_read.clear();
         self.auto_replies.clear();
+        // When a calendar server was asked, and what of it was read, is of the old mailbox's accounts.
+        self.dav_listed.clear();
+        self.dav_asked.clear();
+        self.dav_seen.clear();
         // The background fetch's waits and offline flag were the old mailbox's.
         self.driver.fetch.forget();
         self.openings = self.openings.wrapping_add(1);
@@ -3488,6 +3541,7 @@ impl Session {
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
         self.view.people_account = AccountChoice::All;
+        self.view.people_folder = None;
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -3724,6 +3778,25 @@ impl Session {
             .and_then(|(_, mut counts)| Arc::make_mut(&mut counts).apply(&changes).then_some((after, counts)));
         self.undo_said = said;
         self.tell_events_again(&now, &u.touched);
+        // The contacts it puts back go to their servers as such (#1917): undone after a change
+        // went up, the server is told the opposite.
+        let (no_room, read_only) = crate::cmd::contacts_remote::after_undo(&mut self.mailbox, &now, &u.touched);
+        if no_room > 0 {
+            let line = self.interface_language.tn(
+                no_room as u64,
+                "{n} contact isn't undone: too many changes are waiting to be sent to its server.",
+                "{n} contacts aren't undone: too many changes are waiting to be sent to their servers.",
+            );
+            self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &no_room.to_string())]));
+        }
+        if read_only > 0 {
+            let line = self.interface_language.tn(
+                read_only as u64,
+                "{n} contact isn't undone: its contacts folder can only be read now.",
+                "{n} contacts aren't undone: their contacts folders can only be read now.",
+            );
+            self.undo_said.push(mailcraft_i18n::fmt(line, &[("n", &read_only.to_string())]));
+        }
         // Undone, the step is to be done again from here: what that does is the way back (with
         // the events it told their servers of again).
         let touched = crate::undo::touched(&now, &self.mailbox);

@@ -440,201 +440,213 @@ pub(crate) fn sync_shown(app: &MailApp) -> SyncShown {
 /// The status bar, across the foot of the window.
 pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
+    // Filled with the accent where the theme has it so (#1203): what is on it in the accent's ink.
+    let t = if t.status_band { t.on_band(t.accent) } else { t };
+    let ctx = ui.ctx().clone();
     egui::Panel::bottom("status")
         .exact_size(STATUS_BAR_H)
         // No line around it: the bar is the window's own colour, and the panes above it are not.
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.status_bar).inner_margin(egui::Margin { left: 12, right: 12, top: 0, bottom: 0 }))
         .show(ui, |ui| {
-            let full_w = ui.available_width();
-            ui.horizontal_centered(|ui| {
-                ui.spacing_mut().item_spacing = vec2(14.0, 0.0);
-                // One line of text, no wider than `most` or the room there is: what doesn't fit
-                // ends in an ellipsis, and the whole of it is shown under the pointer.
-                let st_most = |ui: &mut Ui, s: &str, color: egui::Color32, most: f32| {
-                    let font = regular(STATUS_TEXT);
-                    let whole = text_width(ui.painter(), s, &font, 0.0, color);
-                    let w = whole.min(most).min(ui.available_width() - 2.0).max(0.0);
-                    let (r, resp) = ui.allocate_exact_size(vec2(w + 1.0, STATUS_TEXT * 1.4), Sense::hover());
-                    crate::theme::paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), w + 1.0, s, font, color);
-                    if w + 0.5 < whole { resp.on_hover_text(s) } else { resp }
-                };
-                let st = |ui: &mut Ui, s: &str, color: egui::Color32| st_most(ui, s, color, f32::INFINITY);
-                match app.session.view.module {
-                    Module::Mail => {
-                        let shown = mailcraft_engine::list::listed(&app.session.rows());
-                        let folder = app.session.view.folder;
-                        st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
-                        // (Counted once per change, not at every frame: `Session::folder_counts`.)
-                        // Of the Gmail category in view, when one is (#911).
-                        let counts = app.session.folder_counts();
-                        let unread = match mailcraft_engine::gmail::in_view(&app.session) {
-                            Some(category) => counts.gmail(folder, category).unread,
-                            None => counts.unread(folder),
-                        };
-                        if unread > 0 {
-                            st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
-                        }
-                        let picked = app.session.sel.messages.len();
-                        if picked > 1 {
-                            st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
-                        }
-                        // Delayed mail waiting in an Outbox (#950): when the next goes, or that it went late.
-                        if let Some(note) = crate::send_later::status_text(app, ui.ctx()) {
-                            st(ui, &note, t.text_dim);
-                        }
-                    }
-                    Module::Calendar => {
-                        let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
-                        let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
-                        st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
-                    }
-                    Module::People if app.address_book_shown().is_some() => {
-                        let found = app.address_book.as_ref().map_or(0, |b| b.people.len());
-                        st(ui, &tln!(found, "{n} found in the address list", "{n} found in the address list"), t.text_dim);
-                    }
-                    Module::People => {
-                        let shown = crate::people_view::shown_total(app, ui.ctx());
-                        st(ui, &tln!(shown, "{n} contact", "{n} contacts"), t.text_dim);
-                    }
-                    Module::Tasks => {
-                        let shown = mailcraft_engine::cmd::tasks::shown_account(&app.session);
-                        let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete() && shown.shows(&x.origin)).count();
-                        st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
-                    }
+            Tokens::scoped(&ctx, t, || {
+                if t.status_band {
+                    ui.visuals_mut().hyperlink_color = t.text;
                 }
-                if let Some((msg, at)) = &app.status_msg
-                    && crate::now_ms() - at < 6000.0
-                {
-                    let shown = st_most(ui, msg, t.accent_text, full_w * STATUS_MSG_SHARE);
-                    app.hit.add("statusMessage", 0, shown.rect);
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing = vec2(4.0, 0.0);
-                    // Reading pane: right, bottom, off.
-                    if app.session.view.module == Module::Mail {
-                        let pane = app.session.view.reading_pane;
-                        for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
-                            ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
-                            ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
-                        ] {
-                            let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
-                            if on {
-                                ui.painter().rect_filled(r, 3.0, t.checked);
-                            } else if resp.hovered() {
-                                ui.painter().rect_filled(r, 3.0, t.hover);
+                let full_w = ui.available_width();
+                ui.horizontal_centered(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(14.0, 0.0);
+                    // One line of text, no wider than `most` or the room there is: what doesn't fit
+                    // ends in an ellipsis, and the whole of it is shown under the pointer.
+                    let st_most = |ui: &mut Ui, s: &str, color: egui::Color32, most: f32| {
+                        let font = regular(STATUS_TEXT);
+                        let whole = text_width(ui.painter(), s, &font, 0.0, color);
+                        let w = whole.min(most).min(ui.available_width() - 2.0).max(0.0);
+                        let (r, resp) = ui.allocate_exact_size(vec2(w + 1.0, STATUS_TEXT * 1.4), Sense::hover());
+                        crate::theme::paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), w + 1.0, s, font, color);
+                        if w + 0.5 < whole { resp.on_hover_text(s) } else { resp }
+                    };
+                    let st = |ui: &mut Ui, s: &str, color: egui::Color32| st_most(ui, s, color, f32::INFINITY);
+                    match app.session.view.module {
+                        Module::Mail => {
+                            let shown = mailcraft_engine::list::listed(&app.session.rows());
+                            let folder = app.session.view.folder;
+                            st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
+                            // (Counted once per change, not at every frame: `Session::folder_counts`.)
+                            // Of the Gmail category in view, when one is (#911).
+                            let counts = app.session.folder_counts();
+                            let unread = match mailcraft_engine::gmail::in_view(&app.session) {
+                                Some(category) => counts.gmail(folder, category).unread,
+                                // (Every account's folder of a kind, #625: all of theirs.)
+                                None => match mailcraft_engine::unified::in_view(&app.session) {
+                                    Some(folders) => folders.iter().map(|f| counts.unread(*f)).sum(),
+                                    None => counts.unread(folder),
+                                },
+                            };
+                            if unread > 0 {
+                                st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                             }
-                            icons::paint(ui.painter(), r.shrink(3.0), icon, t.icon, t.accent);
-                            if resp.on_hover_text(tl!(tip)).clicked() {
-                                let _ = app.run("view.readingPane", json!({"value": value}));
+                            let picked = app.session.sel.messages.len();
+                            if picked > 1 {
+                                st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
                             }
-                        }
-                        ui.add_space(10.0);
-                    }
-                    // Another mailbox being read in the background (File › Open): how far it has
-                    // got, and Cancel, which leaves the one open as it is.
-                    if let Some((label, fraction)) = crate::opening::ahead_label(app) {
-                        let cancel = ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT));
-                        app.hit.add("cancelOpen", 0, cancel.rect);
-                        if cancel.on_hover_text(tl!("Stop opening it; the mailbox that is open stays")).clicked() {
-                            let _ = app.run("ui.cancelOpen", json!({}));
-                        }
-                        ui.add_space(6.0);
-                        let (resp, track) = progress_bar(ui, &t, &label, fraction, OPEN_BAR);
-                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &label));
-                        app.hit.add("openBar", 0, track);
-                        ui.add_space(10.0);
-                    } else {
-                        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
-                    }
-                    // Work Offline is on: said for as long as it is, and a click turns it off.
-                    if app.offline() {
-                        let offline = st(ui, tl!("Working Offline"), t.text)
-                            .interact(Sense::click())
-                            .on_hover_cursor(egui::CursorIcon::PointingHand)
-                            .on_hover_text(tl!("Nothing is sent or received. Click to connect again."));
-                        app.hit.add("workingOffline", 0, offline.rect);
-                        if offline.clicked() {
-                            let _ = app.run("sync.offline", json!({"value": false}));
-                        }
-                        ui.add_space(10.0);
-                    }
-                    // A new version downloaded and checked: Restart to update.
-                    crate::updates::status_item(app, ui, &t);
-                    // Automatic replies are on for an account: said, and a click opens them.
-                    crate::auto_replies::status_item(app, ui, &t, STATUS_TEXT);
-                    // The last Send/Receive had problems: one click shows them, in Send/Receive
-                    // Progress under their accounts.
-                    if app.has_sync_problems() {
-                        let link = ui.link(egui::RichText::new(tl!("Send/Receive problems")).size(STATUS_TEXT).color(t.red));
-                        app.hit.add("syncProblemsLink", 0, link.rect);
-                        if link.clicked() {
-                            let _ = app.run("ui.dialog", json!({"name": "syncProblems"}));
-                        }
-                    }
-                    let shown_sync = sync_shown(app);
-                    if shown_sync != SyncShown::Nothing {
-                        // Waiting for the owner in the browser (or for an administrator on
-                        // Microsoft's approval page) can be given up from here.
-                        if (app.signing_in() || app.approving()) && ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT)).clicked() {
-                            let _ = app.run("ui.cancelSignIn", json!({}));
-                        }
-                        // So can a Send/Receive that is taking long: what it brought stays.
-                        if app.syncing()
-                            && ui
-                                .link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT))
-                                .on_hover_text(tl!("Stop this Send/Receive; what has arrived stays"))
-                                .clicked()
-                        {
-                            let _ = app.run("ui.cancelSync", json!({}));
-                        }
-                        ui.add_space(6.0);
-                        // What Send/Receive is doing, or did: a click shows it account by account.
-                        let shown = match &shown_sync {
-                            SyncShown::Bar { label, fraction } => sync_bar(app, ui, &t, label, *fraction),
-                            SyncShown::Text(said) => st(ui, said, t.text_dim),
-                            SyncShown::Nothing => ui.allocate_exact_size(vec2(0.0, 0.0), Sense::hover()).1,
-                        };
-                        let shown = shown.interact(Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
-                        app.hit.add("syncStatus", 0, shown.rect);
-                        if shown.hovered() {
-                            ui.painter().hline(shown.rect.x_range(), shown.rect.max.y - 1.0, egui::Stroke::new(1.0, t.text_dim));
-                        }
-                        // Under the pointer, the run's own words say where it is.
-                        let tip = match &shown_sync {
-                            SyncShown::Bar { .. } if !app.session.sync_status.is_empty() => {
-                                format!("{}\n{}", app.session.sync_status, tl!("Show Send/Receive Progress"))
-                            }
-                            _ => tl!("Show Send/Receive Progress").to_string(),
-                        };
-                        if shown.on_hover_text(tip).clicked() {
-                            if app.sync_panel.is_some() {
-                                app.sync_panel = None;
-                            } else {
-                                let _ = app.run("ui.dialog", json!({"name": "syncProgress"}));
+                            // Delayed mail waiting in an Outbox (#950): when the next goes, or that it went late.
+                            if let Some(note) = crate::send_later::status_text(app, ui.ctx()) {
+                                st(ui, &note, t.text_dim);
                             }
                         }
-                    } else if app.session.mailbox.accounts.iter().all(|a| a.kind == mailcraft_model::AccountKind::Local) {
-                        st(ui, tl!("This mailbox is on this device only"), t.text_dim)
-                            .on_hover_text(tl!("Add a mail server account in File › Add Account to send and receive."));
+                        Module::Calendar => {
+                            let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
+                            let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
+                            st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
+                        }
+                        Module::People if app.address_book_shown().is_some() => {
+                            let found = app.address_book.as_ref().map_or(0, |b| b.people.len());
+                            st(ui, &tln!(found, "{n} found in the address list", "{n} found in the address list"), t.text_dim);
+                        }
+                        Module::People => {
+                            let shown = crate::people_view::shown_total(app, ui.ctx());
+                            st(ui, &tln!(shown, "{n} contact", "{n} contacts"), t.text_dim);
+                        }
+                        Module::Tasks => {
+                            let shown = mailcraft_engine::cmd::tasks::shown_account(&app.session);
+                            let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete() && shown.shows(&x.origin)).count();
+                            st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
+                        }
                     }
-                    // Messages being fetched whole in the background (R3.2).
-                    let fetching = app.fetching.progress.clone();
-                    if !fetching.is_empty() {
-                        ui.add_space(10.0);
-                        st(ui, &fetching, t.text_dim);
+                    if let Some((msg, at)) = &app.status_msg
+                        && crate::now_ms() - at < 6000.0
+                    {
+                        let shown = st_most(ui, msg, t.accent_text, full_w * STATUS_MSG_SHARE);
+                        app.hit.add("statusMessage", 0, shown.rect);
+                        ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
                     }
-                    // A save that takes a while, in the background (R6.3).
-                    if let Some(saving) = app.saving_text() {
-                        ui.add_space(10.0);
-                        st(ui, &saving, t.text_dim);
-                    }
-                    // The word index being built, in the background (R6.2).
-                    indexing_bar(app, ui, &t);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing = vec2(4.0, 0.0);
+                        // Reading pane: right, bottom, off.
+                        if app.session.view.module == Module::Mail {
+                            let pane = app.session.view.reading_pane;
+                            for (icon, value, on, tip) in [
+                                ("list", "off", pane == Pane::Off, tl_later!("Reading pane off")),
+                                ("previewLines", "bottom", pane == Pane::Bottom, tl_later!("Reading pane at the bottom")),
+                                ("readingPane", "right", pane == Pane::Right, tl_later!("Reading pane on the right")),
+                            ] {
+                                let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
+                                if on {
+                                    ui.painter().rect_filled(r, 3.0, t.checked);
+                                } else if resp.hovered() {
+                                    ui.painter().rect_filled(r, 3.0, t.hover);
+                                }
+                                icons::paint(ui.painter(), r.shrink(3.0), icon, t.icon, t.accent);
+                                if resp.on_hover_text(tl!(tip)).clicked() {
+                                    let _ = app.run("view.readingPane", json!({"value": value}));
+                                }
+                            }
+                            ui.add_space(10.0);
+                        }
+                        // Another mailbox being read in the background (File › Open): how far it has
+                        // got, and Cancel, which leaves the one open as it is.
+                        if let Some((label, fraction)) = crate::opening::ahead_label(app) {
+                            let cancel = ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT));
+                            app.hit.add("cancelOpen", 0, cancel.rect);
+                            if cancel.on_hover_text(tl!("Stop opening it; the mailbox that is open stays")).clicked() {
+                                let _ = app.run("ui.cancelOpen", json!({}));
+                            }
+                            ui.add_space(6.0);
+                            let (resp, track) = progress_bar(ui, &t, &label, fraction, OPEN_BAR);
+                            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &label));
+                            app.hit.add("openBar", 0, track);
+                            ui.add_space(10.0);
+                        } else {
+                            ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
+                        }
+                        // Work Offline is on: said for as long as it is, and a click turns it off.
+                        if app.offline() {
+                            let offline = st(ui, tl!("Working Offline"), t.text)
+                                .interact(Sense::click())
+                                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                .on_hover_text(tl!("Nothing is sent or received. Click to connect again."));
+                            app.hit.add("workingOffline", 0, offline.rect);
+                            if offline.clicked() {
+                                let _ = app.run("sync.offline", json!({"value": false}));
+                            }
+                            ui.add_space(10.0);
+                        }
+                        // A new version downloaded and checked: Restart to update.
+                        crate::updates::status_item(app, ui, &t);
+                        // Automatic replies are on for an account: said, and a click opens them.
+                        crate::auto_replies::status_item(app, ui, &t, STATUS_TEXT);
+                        // The last Send/Receive had problems: one click shows them, in Send/Receive
+                        // Progress under their accounts.
+                        if app.has_sync_problems() {
+                            let link = ui.link(egui::RichText::new(tl!("Send/Receive problems")).size(STATUS_TEXT).color(t.red));
+                            app.hit.add("syncProblemsLink", 0, link.rect);
+                            if link.clicked() {
+                                let _ = app.run("ui.dialog", json!({"name": "syncProblems"}));
+                            }
+                        }
+                        let shown_sync = sync_shown(app);
+                        if shown_sync != SyncShown::Nothing {
+                            // Waiting for the owner in the browser (or for an administrator on
+                            // Microsoft's approval page) can be given up from here.
+                            if (app.signing_in() || app.approving()) && ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT)).clicked() {
+                                let _ = app.run("ui.cancelSignIn", json!({}));
+                            }
+                            // So can a Send/Receive that is taking long: what it brought stays.
+                            if app.syncing()
+                                && ui
+                                    .link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT))
+                                    .on_hover_text(tl!("Stop this Send/Receive; what has arrived stays"))
+                                    .clicked()
+                            {
+                                let _ = app.run("ui.cancelSync", json!({}));
+                            }
+                            ui.add_space(6.0);
+                            // What Send/Receive is doing, or did: a click shows it account by account.
+                            let shown = match &shown_sync {
+                                SyncShown::Bar { label, fraction } => sync_bar(app, ui, &t, label, *fraction),
+                                SyncShown::Text(said) => st(ui, said, t.text_dim),
+                                SyncShown::Nothing => ui.allocate_exact_size(vec2(0.0, 0.0), Sense::hover()).1,
+                            };
+                            let shown = shown.interact(Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+                            app.hit.add("syncStatus", 0, shown.rect);
+                            if shown.hovered() {
+                                ui.painter().hline(shown.rect.x_range(), shown.rect.max.y - 1.0, egui::Stroke::new(1.0, t.text_dim));
+                            }
+                            // Under the pointer, the run's own words say where it is.
+                            let tip = match &shown_sync {
+                                SyncShown::Bar { .. } if !app.session.sync_status.is_empty() => {
+                                    format!("{}\n{}", app.session.sync_status, tl!("Show Send/Receive Progress"))
+                                }
+                                _ => tl!("Show Send/Receive Progress").to_string(),
+                            };
+                            if shown.on_hover_text(tip).clicked() {
+                                if app.sync_panel.is_some() {
+                                    app.sync_panel = None;
+                                } else {
+                                    let _ = app.run("ui.dialog", json!({"name": "syncProgress"}));
+                                }
+                            }
+                        } else if app.session.mailbox.accounts.iter().all(|a| a.kind == mailcraft_model::AccountKind::Local) {
+                            st(ui, tl!("This mailbox is on this device only"), t.text_dim)
+                                .on_hover_text(tl!("Add a mail server account in File › Add Account to send and receive."));
+                        }
+                        // Messages being fetched whole in the background (R3.2).
+                        let fetching = app.fetching.progress.clone();
+                        if !fetching.is_empty() {
+                            ui.add_space(10.0);
+                            st(ui, &fetching, t.text_dim);
+                        }
+                        // A save that takes a while, in the background (R6.3).
+                        if let Some(saving) = app.saving_text() {
+                            ui.add_space(10.0);
+                            st(ui, &saving, t.text_dim);
+                        }
+                        // The word index being built, in the background (R6.2).
+                        indexing_bar(app, ui, &t);
+                    });
                 });
-            });
+            })
         });
 }
 

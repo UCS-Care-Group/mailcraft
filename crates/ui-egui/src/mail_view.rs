@@ -232,6 +232,24 @@ fn tightening(tight: bool, one_line: bool) -> f32 {
     }
 }
 
+/// What a row gives up in a dense look ([`Tokens::dense`], Classic Light, #1203), on top of
+/// tighter spacing and in the same way: half above the sender and half under the last line.
+const DENSE_ONE_LINE: f32 = 4.0;
+const DENSE_ROWS: f32 = 8.0;
+
+/// How wide the bar in the accent is down a selected row's left edge ([`Tokens::row_bar`]).
+const ROW_BAR_W: f32 = 3.0;
+
+/// How much shorter a row is in all: tighter spacing (`tight`) and a dense look (`dense`).
+fn row_tightening(tight: bool, dense: bool, one_line: bool) -> f32 {
+    let look = match (dense, one_line) {
+        (false, _) => 0.0,
+        (true, true) => DENSE_ONE_LINE,
+        (true, false) => DENSE_ROWS,
+    };
+    tightening(tight, one_line) + look
+}
+
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
 /// names the catalogue has, and so is the heading of what is pinned.
 /// The owner's category names are drawn as they are spelt, never through the catalogue.
@@ -475,8 +493,14 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let t = Tokens::get(ui.ctx());
     let mb = &app.session.mailbox;
     let folder = mb.folder(app.session.view.folder);
+    let unified = mailcraft_engine::unified::of(&app.session);
     let scope = match app.session.view.scope {
         mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+        // Every account's folder of a kind in view (#625): those folders, or those mailboxes.
+        mailcraft_engine::Scope::Mailbox if unified.is_some() => tl!("All Accounts").to_string(),
+        mailcraft_engine::Scope::Folder | mailcraft_engine::Scope::Subfolders if let Some(kind) = unified => {
+            crate::nav::unified_name(kind).to_string()
+        }
         // The account in view, by the name the folder pane gives it (#493).
         mailcraft_engine::Scope::Mailbox => folder
             .and_then(|f| mb.account(f.account))
@@ -564,7 +588,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // The rows of a search on the server keep the height the preview lines ask for.
     let server_h = row_height(app.session.prefs.preview_lines);
     let row_h = if one_line { ONE_LINE_H } else { server_h };
-    let row_h = row_h - tightening(app.session.prefs.tight_spacing, one_line);
+    let row_h = row_h - row_tightening(app.session.prefs.tight_spacing, t.dense, one_line);
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
     let local: std::collections::HashSet<Id> =
@@ -800,10 +824,14 @@ fn shows_folder(s: &mailcraft_engine::Session) -> bool {
     s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
 
-/// Whether the list may hold mail of more than one account: a search of every mailbox, with more
-/// than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
+/// Whether the list may hold mail of more than one account: every account's Inbox and the like
+/// (#625), or a search of every mailbox, with more than one account to search. Its rows then wear their accounts' colours (#893); elsewhere the
 /// owner knows whose mail it is, and the rows stay as they were.
 fn mixes_accounts(s: &mailcraft_engine::Session) -> bool {
+    // (Or every account's folder of a kind, #625.)
+    if mailcraft_engine::unified::of(s).is_some() {
+        return true;
+    }
     s.view.scope == mailcraft_engine::Scope::Everywhere
         && s.mailbox.accounts.len() > 1
         && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
@@ -968,7 +996,8 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     let one = app.session.prefs.one_line;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
-    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`).
+    // With tighter spacing a row's lines move up by half of what it gave up (`view.density`), and
+    // in a dense look by half of what that takes too.
     let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let said = (lines > 0).then(|| preview(ui, &m, usize::from(lines) * 200));
     // A message with nothing to preview (one not downloaded yet) has its two lines in the middle
@@ -985,7 +1014,7 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         let ease = crate::motion::fade(ui, EMPTY_PREVIEW_EASE);
         ui.ctx().animate_value_with_time(ui.scope_id().with(("messageEmptyDrop", key, lines)), drop, ease)
     };
-    let lift = tightening(app.session.prefs.tight_spacing, one) / 2.0 - drop;
+    let lift = row_tightening(app.session.prefs.tight_spacing, t.dense, one) / 2.0 - drop;
     let (line1, line2) = if one { (line1, line2) } else { (line1 - lift, line2 - lift) };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
     // or closes it, as Right and Left do.
@@ -1043,20 +1072,32 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // accent edge (quieter while the list has no focus); a flag's tint is laid first, so it shows
     // through the selection rather than being replaced by it; the pointer's shade goes over the
     // tint of a row that is not selected.
-    let card = body.shrink2(vec2(4.0, 1.0));
+    // (With a bar in the accent instead of the outline, #1203, the card runs to the list's edge.)
+    let card = if t.row_bar { body.shrink2(vec2(0.0, 1.0)) } else { body.shrink2(vec2(4.0, 1.0)) };
+    // Where mail of several accounts is listed together, its account's colour (#893): painted below.
+    let stripe_color = account_stripe(&app.session, &m);
+    let corner = f32::from(t.control_radius);
     if let Some(tint) = layers.flag {
-        p.rect_filled(card, 6.0, tint);
+        p.rect_filled(card, corner, tint);
         if !selected {
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
     if let Some(fill) = layers.selection {
-        p.rect_filled(card, 6.0, fill);
+        p.rect_filled(card, corner, fill);
         let edge = if focus { t.selection_edge } else { t.selection_edge_unfocused };
-        p.rect_stroke(card, 6.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+        if t.row_bar {
+            // (Beside the account's stripe when there is one, never over it.)
+            let left = if stripe_color.is_some() { (rect.min.x + 2.0 + ACCOUNT_STRIPE).max(card.min.x) } else { card.min.x };
+            let bar = Rect::from_min_max(pos2(left, card.min.y), pos2(left + ROW_BAR_W, card.max.y));
+            p.rect_filled(bar, corner.min(ROW_BAR_W / 2.0), edge);
+            app.hit.add("messageSelectionBar", row.id, bar);
+        } else {
+            p.rect_stroke(card, corner, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+        }
     }
     if let Some(pointer) = layers.hover {
-        p.rect_filled(card, 6.0, pointer);
+        p.rect_filled(card, corner, pointer);
     }
     let under = layers.under();
     let ink = |c: Color32| t.text_ink_on(c, under);
@@ -1078,7 +1119,7 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     }
     // Where mail of several accounts is listed together, a stripe of its account's colour down
     // the row's left edge (#893), left of the selection's card so that it shows on a selected row too.
-    if let Some(color) = account_stripe(&app.session, &m) {
+    if let Some(color) = stripe_color {
         let stripe = Rect::from_min_max(pos2(rect.min.x + 1.0, rect.min.y + 3.0), pos2(rect.min.x + 1.0 + ACCOUNT_STRIPE, rect.max.y - 3.0));
         p.rect_filled(stripe, 1.5, crate::theme::c32(color));
         // (In High Contrast an edge in the text's colour, so that a mid-tone stays in sight.)
@@ -1088,8 +1129,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         app.hit.add("messageAccountColor", row.id, stripe);
     }
     // What is in the row is laid out from its top as in a row of the full height, moved with its
-    // lines: up with tighter spacing, down with nothing to preview (the background and the line
-    // under it are the row's own, above).
+    // lines: up with tighter spacing and in a dense look, down with nothing to preview (the
+    // background and the line under it are the row's own, above). (Where the row really ends stays
+    // where it is: the preview may come down to it.)
     let row_bottom = rect.max.y - 1.0;
     let rect = if one { rect } else { rect.translate(vec2(0.0, -lift)) };
     if let Some(arrow) = &arrow {
@@ -1215,7 +1257,9 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     // width, as for the size; tags that don't fit go into "+N", and that too when it doesn't.
     let (labels, labels_more) = list_labels(&app.session, &m);
     let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
-    let shown_folder = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten();
+    // In every account's Inbox (#625), the account it is in, where a search names the folder.
+    let unified = mailcraft_engine::unified::of(&app.session).is_some();
+    let shown_folder = (shows_folder(&app.session) || elsewhere || unified).then(|| app.session.mailbox.folder(m.folder)).flatten();
     let tail_after = shown_folder.map_or(0.0, |_| FOLDER_W + 6.0)
         + m.categories.len().min(4) as f32 * 13.0
         + if conversation { row.size().to_string().len() as f32 * 6.5 + 15.0 } else { 0.0 };
@@ -1263,7 +1307,11 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
     }
     // (And under an open conversation, a message of another folder: a reply in Sent Items, #503.)
     if let Some(folder) = shown_folder {
-        let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
+        let mb = &app.session.mailbox;
+        let label = match mb.account(folder.account).filter(|_| unified && !elsewhere && !shows_folder(&app.session)) {
+            Some(a) => crate::nav::account_label(a),
+            None => crate::nav::result_folder_label(mb, folder),
+        };
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
         app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
@@ -1322,10 +1370,11 @@ fn message_row_content(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, lo
         job.wrap =
             egui::text::TextWrapping { max_width: preview_end - left, max_rows: usize::from(lines), break_anywhere: false, overflow_character: None };
         let galley = p.layout_job(job);
-        // A word too long for the column runs on: it stops at the column's edge. Nor does it run
-        // past the row's line while the lines ease up after a body arrives.
-        let bottom = (rect.max.y - 1.0).min(row_bottom);
-        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, bottom)).intersect(p.clip_rect());
+        // A word too long for the column runs on: it stops at the column's edge. It stops above
+        // the line under the row, not above where that line would be in a row moved with its
+        // lines: in a row short enough the preview would lose its lower part, and while the lines
+        // ease up after a body arrives it would run past the row's line.
+        let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, row_bottom)).intersect(p.clip_rect());
         p.with_clip_rect(clip).galley(pos2(left, rect.min.y + PREVIEW_TOP), galley, t.text_dim);
     }
 
