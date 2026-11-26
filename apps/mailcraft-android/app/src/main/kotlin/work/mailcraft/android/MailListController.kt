@@ -232,13 +232,14 @@ internal class MailListController(
     }
 
     /**
-     * Marks message [id] read, as opening it does: a command made in turn like the owner's, so that an
-     * undo offered before it is withdrawn (undo would now take back the mark). Whether it was done.
+     * Makes [triage] to message [id] alone (opening it marks it read; a notification's button deletes
+     * it): a command made in turn like the owner's, so that an undo offered before it is withdrawn
+     * (undo would now take back this change). Whether it was done (not when the message is gone).
      */
-    suspend fun markRead(id: ULong): Boolean {
+    suspend fun runOn(triage: Triage, id: ULong): Boolean {
         val done = commandLock.withLock {
-            val mark = Triage.MarkRead(read = true)
-            source.run(mark.command(), jsonText(mark.params(listOf(id)))).also { if (it) commands.incrementAndGet() }
+            source.run(triage.command(), jsonText(triage.params(listOf(id))))
+                .also { if (it) commands.incrementAndGet() }
         }
         if (done) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
         return done

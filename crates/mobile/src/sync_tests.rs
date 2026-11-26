@@ -177,6 +177,12 @@ fn sync_now_brings_mail_in_and_the_app_learns_through_events() {
         .collect();
     assert_eq!(told.len(), 1, "{second:?}");
     assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "Ada Lovelace", "Budget review"));
+    // One message told of names it, for the notification's buttons: the one the inbox now has.
+    let budget = block_on(core.call(|s| Ok(s.mailbox.messages.values().find(|m| m.subject == "Budget review").map(|m| (m.id, m.folder))))).unwrap();
+    let about = told[0].message.expect("one message told of names it");
+    assert_eq!(Some((about.id, about.folder)), budget);
+    assert_eq!(block_on(core.message_folder(about.id)).unwrap(), Some(about.folder));
+    assert_eq!(block_on(core.message_folder(u64::MAX)).unwrap(), None);
     assert!(second.iter().any(|e| matches!(e, Event::SyncFinished { new_mail: 1, finished: true })));
     // The stored sign-in was what the runs began with, and no secret went anywhere else.
     assert_eq!(*seen.lock().unwrap(), ["stored-refresh", "stored-refresh"]);
@@ -217,7 +223,8 @@ fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
         .collect();
     assert_eq!(told.len(), 1, "{events:?}");
     assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
-    // Nothing of the message is anywhere in what the app is told.
+    // Nothing of the message is anywhere in what the app is told, not even which one it is.
+    assert_eq!(told[0].message, None);
     let all = format!("{told:?}");
     assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
 }

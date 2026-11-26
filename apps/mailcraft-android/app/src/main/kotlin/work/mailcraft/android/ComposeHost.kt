@@ -93,10 +93,10 @@ internal class ComposeHost(
      * With a message already open nothing is taken in, and the owner is told so.
      */
     fun beginIncoming(incoming: Incoming, reader: ShareReader, ownAuthority: String) {
+        if (controller != null) return busy()
         when (incoming) {
-            is Incoming.Mailto -> if (controller == null) begin(ComposeStart.New(0uL, incoming.link)) else busy()
+            is Incoming.Mailto, is Incoming.Reply -> incoming.start?.let(::begin)
             is Incoming.Share -> {
-                if (controller != null) return busy()
                 scope.launch {
                     reading = true
                     val load = try {

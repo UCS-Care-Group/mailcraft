@@ -123,7 +123,7 @@ pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
 pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
 pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
-pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
+pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, NotifiedMessage, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use reminders::{MAX_SCHEDULED, MAX_SKIPPED, ReminderKind, ReminderSchedule, ScheduledReminder};
 pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};

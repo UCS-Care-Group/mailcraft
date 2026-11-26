@@ -33,7 +33,7 @@ use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::Platform;
 use crate::queue::{Queue, Shed, Weight};
-use crate::{NotificationRecord, NotificationTopic};
+use crate::{NotificationRecord, NotificationTopic, NotifiedMessage};
 
 /// The application id the build was made with (`MAILCRAFT_MS_CLIENT_ID`): an identifier, not a secret.
 pub(crate) const MS_CLIENT_ID: &str = match option_env!("MAILCRAFT_MS_CLIENT_ID") {
@@ -939,12 +939,19 @@ fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, 
             topic: NotificationTopic::Mail,
             title: lang.t("New mail").to_string(),
             body: String::new(),
+            message: None,
         }];
     }
     if found.len() > AT_ONCE {
         *next_key = next_key.wrapping_add(1);
         let body = mailcraft_i18n::fmt(lang.tn(found.len() as u64, "{n} new message", "{n} new messages"), &[("n", &found.len().to_string())]);
-        return vec![NotificationRecord { key: *next_key, topic: NotificationTopic::Mail, title: lang.t("New mail").to_string(), body }];
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body,
+            message: None,
+        }];
     }
     found
         .iter()
@@ -956,6 +963,7 @@ fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, 
                 topic: NotificationTopic::Mail,
                 title: if sender.is_empty() { lang.t("New message").to_string() } else { sender },
                 body: if subject.is_empty() { lang.t("(no subject)").to_string() } else { subject },
+                message: Some(NotifiedMessage { id: a.message, folder: a.folder }),
             }
         })
         .collect()

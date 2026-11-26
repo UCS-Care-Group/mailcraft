@@ -12,6 +12,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
@@ -112,6 +115,41 @@ class MailCraftApplication : Application() {
         return reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
     }
 
+    /** A notification's buttons are made one at a time ([runNoticeButton]). */
+    private val noticeButtons = Mutex()
+
+    /**
+     * A new-mail notification's button ([NoticeActionReceiver]): [triage] made to [message] with the
+     * one core, opened when no window has (waited for no longer than [NOTICE_CORE_WAIT_MS]), as the
+     * list makes it, and only while the message is still in the [folder] it was told of in (one
+     * deleted twice would be gone for good). The mailbox is saved before the notification goes, so
+     * that the change outlives the process; the next Send/Receive takes it to the server, as a
+     * change made in the list. When nothing can be done (no core, the core can't say) the
+     * notification stays; one about a message moved or gone goes. [finished] is called whatever happens.
+     */
+    internal fun runNoticeButton(triage: Triage, message: ULong, folder: ULong, finished: () -> Unit) {
+        scope.launch {
+            try {
+                begin()
+                val phase = withTimeoutOrNull(NOTICE_CORE_WAIT_MS) { started.first { it !is Phase.Loading } }
+                val opened = (phase as? Phase.Ready)?.value ?: return@launch
+                // One at a time: a button pressed twice looks where the message is after the first
+                // press was made (a second Delete must not find it still in the Inbox).
+                val done = noticeButtons.withLock {
+                    val now = try {
+                        opened.core.messageFolder(message)
+                    } catch (_: CoreException) {
+                        return@launch
+                    }
+                    noticeButtonDone(now, folder, { opened.mail.runOn(triage, message) }, opened.hub::saveNow)
+                }
+                if (done) cancelMailNotice(applicationContext, message)
+            } finally {
+                finished()
+            }
+        }
+    }
+
     /**
      * The mailbox is written when no window is on screen: the system may end the process after it.
      * (A core still opening has nothing of the owner's to write yet.)
@@ -188,7 +226,8 @@ class MailCraftApplication : Application() {
             events.register(opened.hub::handle)
             val onlyNewMail = { DeviceSwitches(applicationContext).load().newMailOnly }
             val remindersOn = { DeviceSwitches(applicationContext).load().reminders }
-            events.register(MailNotifier(applicationContext, opened.core::t, onlyNewMail, remindersOn)::handle)
+            val buttons = { DeviceNoticeButtons(applicationContext).load() }
+            events.register(MailNotifier(applicationContext, opened.core::t, onlyNewMail, remindersOn, buttons)::handle)
             // The words of what a background round says (a notification's "New mail") are the
             // window's language even when no window has opened (the owner's saved choice first).
             opened.core.setLanguage(LanguageChoice.inUse(this))

@@ -63,6 +63,9 @@ class SettingsScreenshotTest {
     fun notifications() = four("settings_notifications", tallAtTwice = true) { SettingsShots.Page(SettingsPage.Notifications) }
 
     @Test
+    fun notificationButtons() = four("settings_notification_buttons") { SettingsShots.Page(SettingsPage.NotificationButtons) }
+
+    @Test
     fun pictures() = four("settings_pictures", tallAtTwice = true) { SettingsShots.Page(SettingsPage.Pictures) }
 
     @Test

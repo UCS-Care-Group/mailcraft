@@ -249,8 +249,20 @@ class MailListControllerTest {
         c.triage(Triage.Delete, listOf(FakeMailSource.row(1)))
         assertTrue(c.ui.value.notice?.notice is ListNotice.Done)
         // The reading pane marks what it opened read: Undo would take that back now, so the offer goes.
-        assertTrue(c.markRead(3uL))
+        assertTrue(c.runOn(Triage.MarkRead(true), 3uL))
         assertEquals("mail.markRead" to """{"ids":[3]}""", source.commands.last())
+        assertNull(c.ui.value.notice)
+    }
+
+    @Test
+    fun aNotificationsButtonRunsTheListsCommandOnItsMessageAlone() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        c.triage(Triage.Archive, listOf(FakeMailSource.row(1)))
+        assertTrue(c.runOn(NoticeButton.Delete.triage() ?: Triage.Archive, 4uL))
+        assertEquals("mail.delete" to """{"ids":[4]}""", source.commands.last())
+        // The list's Undo would take back the button's change now, so its offer goes.
         assertNull(c.ui.value.notice)
     }
 

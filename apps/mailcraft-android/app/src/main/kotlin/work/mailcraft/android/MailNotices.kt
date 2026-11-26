@@ -104,7 +104,9 @@ internal fun AskForNotificationsOnce(hasAccount: Boolean, answered: () -> Unit) 
  * switch for the app and for the channel). The notification is private: where the system hides
  * private content on the lock screen (its sensitive-content setting), only "New mail" shows there
  * and what the message says waits until the phone is unlocked; where the owner lets the lock
- * screen show all of it, the sender and subject show there too. Tapping one opens the app.
+ * screen show all of it, the sender and subject show there too. Tapping one opens the app; a
+ * notification about one message has the buttons the owner chose ([NoticeButtons]), which Android
+ * 12 and later let be used only once the phone is unlocked.
  */
 internal class MailNotifier(
     private val context: Context,
@@ -113,6 +115,8 @@ internal class MailNotifier(
     private val onlyNewMail: () -> Boolean = { false },
     /** The owner's Reminders switch, read as each one is shown: off, no calendar reminder is posted. */
     private val remindersOn: () -> Boolean = { true },
+    /** The buttons the owner chose for new mail, read as each one is shown. */
+    private val buttons: () -> NoticeButtons = { NoticeButtons(emptyList()) },
 ) {
     fun handle(event: Event) {
         if (event !is Event.Notification) return
@@ -139,7 +143,7 @@ internal class MailNotifier(
             .setSmallIcon(icon)
             .setContentTitle(if (reminder) t("Reminders") else t("New mail"))
             .build()
-        val notification = NotificationCompat.Builder(context, channel)
+        val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(icon)
             .setContentTitle(record.title)
             .setContentText(record.body)
@@ -148,7 +152,20 @@ internal class MailNotifier(
             .setPublicVersion(hidden)
             .setContentIntent(open)
             .setAutoCancel(true)
-            .build()
+        // A notification about one message has the owner's buttons; they carry its number alone, and
+        // the version a locked screen shows (the hidden one) has none.
+        val about = record.message.takeIf { !reminder }
+        if (about != null) {
+            buttons().chosen.forEach { button ->
+                val press = noticePendingIntent(context, button, about)
+                val action = NotificationCompat.Action.Builder(0, button.label(t), press)
+                    // Nothing is done from a locked phone (Android 12 and later ask for it to be unlocked first).
+                    .setAuthenticationRequired(true)
+                    .build()
+                builder.addAction(action)
+            }
+        }
+        val notification = builder.build()
         try {
             val tag = if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG
             NotificationManagerCompat.from(context).notify(tag, notificationId(record.key), notification)
@@ -170,7 +187,7 @@ internal fun postsNotification(topic: NotificationTopic, remindersOn: Boolean): 
  * [newMail] and nothing of the message, whatever the lock screen shows.
  */
 internal fun privateRecord(record: NotificationRecord, onlyNewMail: Boolean, newMail: String): NotificationRecord =
-    if (onlyNewMail) record.copy(title = newMail, body = "") else record
+    if (onlyNewMail) record.copy(title = newMail, body = "", message = null) else record
 
 /** The status-bar icon, an envelope drawn here in white on nothing (the system tints it). */
 internal fun envelope(): Bitmap {

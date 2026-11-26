@@ -107,6 +107,12 @@ impl Core {
         .await
     }
 
+    /// The folder message `id` is in now; `None` when there is no such message. A notification's
+    /// button looks first: it acts only on a message still where the notification found it.
+    pub async fn message_folder(&self, id: u64) -> Result<Option<u64>, CoreError> {
+        self.call(move |s| Ok(s.mailbox.message(id).map(|m| m.folder))).await
+    }
+
     /// The categories mail of `account` can be given (0: the list shared by accounts that keep
     /// none of their own), with their colours.
     pub async fn categories(&self, account: u64) -> Result<CategoryList, CoreError> {
