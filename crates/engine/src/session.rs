@@ -1485,11 +1485,7 @@ impl Session {
             return;
         }
         let mut copy = Message::clone(m);
-        for i in drawn {
-            if let Some(a) = copy.attachments.get_mut(i) {
-                a.inline = true;
-            }
-        }
+        mailcraft_mime_model::mark_parts(&mut copy.attachments, &drawn);
         self.put_message(id, copy);
         self.rev += 1;
         self.dirty = true;
@@ -3527,6 +3523,8 @@ impl Session {
     pub fn replace_mailbox(&mut self, mailbox: Mailbox) {
         self.mailbox = mailbox;
         self.resident.clear();
+        // (Its messages are read here for the first time, whatever their ids: `read_at`.)
+        self.read_at.clear();
         self.resident_bytes = 0;
         self.display_failed.clear();
         self.search_pass = None;

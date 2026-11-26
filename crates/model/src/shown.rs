@@ -44,11 +44,22 @@ impl ShownIds {
 
 /// Whether `data` is a picture the reading pane draws, by its own bytes: a PNG, JPEG, GIF or WebP.
 pub fn is_picture(data: &[u8]) -> bool {
-    data.starts_with(b"\x89PNG\r\n\x1a\n")
-        || data.starts_with(&[0xFF, 0xD8, 0xFF])
-        || data.starts_with(b"GIF87a")
-        || data.starts_with(b"GIF89a")
-        || (data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()))
+    picture_kind(data).is_some()
+}
+
+/// The type of the picture `data` is, by its own bytes ([`is_picture`]).
+pub fn picture_kind(data: &[u8]) -> Option<&'static str> {
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()) {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 /// Whether `a` is a picture: by its bytes when they are in memory, else by its declared type

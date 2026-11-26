@@ -174,10 +174,20 @@ pub fn mark_drawn(m: &mut Message) -> bool {
     if !m.attachments.iter().any(|a| !a.inline && !a.content_id.is_empty()) {
         return false;
     }
+    let drawn = drawn_parts(html, &m.attachments);
+    mark_parts(&mut m.attachments, &drawn)
+}
+
+/// Mark inline the parts `drawn` names that aren't yet, each with the type its bytes are (so
+/// that it is still known for a picture once its bytes are on disk): whether anything changed.
+pub fn mark_parts(attachments: &mut [Attachment], drawn: &BTreeSet<usize>) -> bool {
     let mut changed = false;
-    for i in drawn_parts(html, &m.attachments) {
-        if let Some(a) = m.attachments.get_mut(i).filter(|a| !a.inline) {
+    for i in drawn {
+        if let Some(a) = attachments.get_mut(*i).filter(|a| !a.inline) {
             a.inline = true;
+            if let Some(kind) = mailcraft_model::shown::picture_kind(&a.data) {
+                a.mime = kind.to_string();
+            }
             changed = true;
         }
     }
