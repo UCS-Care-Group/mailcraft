@@ -6,8 +6,8 @@ import androidx.compose.runtime.saveable.Saver
 
 /**
  * What the new-person form holds. Addresses and numbers are one text each, one per line (a comma or
- * semicolon also parts two addresses); [params] is what `people.new` is sent. A new person is kept on
- * this phone alone: the app's sign-in reads contacts but never writes them.
+ * semicolon also parts two addresses); [params] is what `people.new` is sent. [folder] is the contacts
+ * folder it goes in (0: this phone); null leaves that to `people.new`.
  */
 internal data class PersonDraft(
     val first: String = "",
@@ -17,6 +17,7 @@ internal data class PersonDraft(
     val company: String = "",
     val title: String = "",
     val notes: String = "",
+    val folder: ULong? = null,
 ) {
     val emailList: List<String> get() = entries(emails, ",;\\n")
     val phoneList: List<String> get() = entries(phones, ";\\n")
@@ -52,28 +53,34 @@ internal data class PersonDraft(
         list("phones", "mobile", phoneList)
         val note = notes.trim().takeScalars(MAX_NOTES)
         if (note.isNotEmpty()) fields.add("\"notes\":" + jsonString(note))
+        folder?.let { fields.add("\"folder\":$it") }
         return fields.joinToString(prefix = "{", postfix = "}", separator = ",")
     }
 
     companion object {
-        /** Kept by the system while the app is away: the seven texts, or nothing for no form. */
+        /** Kept by the system while the app is away: the seven texts and the folder, or nothing for no form. */
         val Saver: Saver<PersonDraft?, Any> = Saver(
             save = { d ->
                 if (d == null) {
                     arrayListOf<String>()
                 } else {
-                    arrayListOf(d.first, d.last, d.emails, d.phones, d.company, d.title, d.notes)
+                    val folder = d.folder?.toString().orEmpty()
+                    arrayListOf(d.first, d.last, d.emails, d.phones, d.company, d.title, d.notes, folder)
                 }
             },
             restore = { v ->
                 val s = (v as? List<*>)?.filterIsInstance<String>()
-                if (s != null && s.size == FIELDS) PersonDraft(s[0], s[1], s[2], s[3], s[4], s[5], s[6]) else null
+                if (s == null || s.size != FIELDS) {
+                    null
+                } else {
+                    PersonDraft(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7].toULongOrNull())
+                }
             },
         )
     }
 }
 
-private const val FIELDS = 7
+private const val FIELDS = 8
 internal const val MAX_PERSON_LINE = 300
 internal const val MAX_ENTRIES = 20
 

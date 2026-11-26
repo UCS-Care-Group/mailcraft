@@ -168,6 +168,9 @@ pub enum Dialog {
     /// Folder › Clean Up › Senders (#1207, [`crate::senders`]): it only lets the owner tick
     /// senders, then runs Unsubscribe, Delete All or Move All once it has closed.
     Senders(Box<crate::senders::Senders>),
+    /// Move to Contacts Folder… (#1144, [`crate::move_contacts`]): it only chooses the folder
+    /// (and asks about somebody there already), then runs `people.moveToFolder`.
+    MoveContacts(Box<crate::move_contacts::MoveContacts>),
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
@@ -192,6 +195,25 @@ pub enum AboutTab {
     About,
     Contributors,
     Testers,
+}
+
+/// The UCS Labs monogram for About (white on a dark theme, dark on a light one), made once per
+/// theme and kept in the context. `None` when the picture can't be read (About then shows the text only).
+fn labs_mark(ctx: &egui::Context, dark: bool) -> Option<egui::TextureHandle> {
+    // Trademark files (`assets/trademarks/`, `TRADEMARKS.md`): not under the project licence.
+    const DARK_INK: &[u8] = include_bytes!("../../../assets/trademarks/ucs-labs-monogram-128.png");
+    const WHITE_INK: &[u8] = include_bytes!("../../../assets/trademarks/ucs-labs-monogram-white-128.png");
+    let id = egui::Id::unique(if dark { "mailcraft-labs-mark-white" } else { "mailcraft-labs-mark-dark" });
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let png = if dark { WHITE_INK } else { DARK_INK };
+    let rgba = image::load_from_memory_with_format(png, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    let texture =
+        ctx.load_texture("mailcraft-labs-mark", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
 }
 
 /// What a [`Dialog::Confirm`] asks.
@@ -319,6 +341,7 @@ impl Dialog {
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::Senders(_) => "senders",
+            Dialog::MoveContacts(_) => "moveContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
@@ -489,6 +512,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
     }
+    if name == "moveContacts" {
+        return crate::move_contacts::MoveContacts::open(app, params).map(|d| Dialog::MoveContacts(Box::new(d)));
+    }
     if name == "importPst" {
         let path = params.get("path").and_then(Value::as_str)?;
         return Some(Dialog::ImportPst(Box::new(crate::import_pst::ImportPst::open(app, path))));
@@ -594,10 +620,10 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             Some(Question::new(tl!("Delete Permanently"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
-        // account's server keeps can't be deleted here, and the command says so without asking.
+        // account may only read can't be deleted here, and the command says so without asking.
         "people.delete" => {
             let c = mb.contact(mailcraft_engine::p::id_strict(params, "id").ok()?.or(app.session.sel.contact)?)?;
-            if mailcraft_engine::cmd::remote::keeper(mb, &c.origin).is_some() {
+            if mailcraft_engine::cmd::contacts_remote::read_only(mb, c) {
                 return None;
             }
             let name = c.name();
@@ -2096,6 +2122,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "people.merge" if !has("keep") => Some("mergeContacts"),
         // The senders of a folder are a list to tick, in a dialog of their own (#1207).
         "mail.senders" => Some("senders"),
+        // Which contacts folder, and what to do about somebody there already (#1144).
+        "people.moveToFolder" if !has("folder") => Some("moveContacts"),
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
@@ -3053,8 +3081,15 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     egui::RichText::new(crate::i18n::fmt(tl!("Version {version}"), &[("version", env!("CARGO_PKG_VERSION"))])).color(t.text_dim),
                 );
                 ui.label(tl!("Mail, calendar, people and tasks, written from scratch in Rust."));
+                ui.horizontal(|ui| {
+                    if let Some(mark) = labs_mark(ui.ctx(), t.dark) {
+                        ui.add(egui::Image::new(&mark).fit_to_exact_size(vec2(22.0, 22.0)));
+                    }
+                    ui.label(egui::RichText::new(tl!("Made by UCS Labs")).color(t.text_dim));
+                });
                 crate::backstage::contributors(ui);
                 ui.label(tl!("Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."));
+                ui.label(tl!("The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."));
                 let parity = mailcraft_engine::catalog::parity(&app.session.registry);
                 ui.label(
                     egui::RichText::new(crate::i18n::fmt(
@@ -3120,6 +3155,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Senders(dialog) => {
             let open = window(ctx, tl!("Senders"), crate::senders::WIDTH, |ui| then = dialog.show(app, ui, enter));
             close |= !open || then.is_some();
+        }
+        Dialog::MoveContacts(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Move to Contacts Folder"), crate::move_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
         }
         Dialog::Symbol(dialog) => {
             let mut done = false;
