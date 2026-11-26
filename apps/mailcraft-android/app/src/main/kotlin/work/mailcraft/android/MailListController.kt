@@ -232,17 +232,14 @@ internal class MailListController(
     }
 
     /**
-     * Makes [triage] to message [id] alone (opening it marks it read; a notification's button deletes
-     * it): a command made in turn like the owner's, so that an undo offered before it is withdrawn
-     * (undo would now take back this change). Whether it was done (not when the message is gone).
+     * Runs [command], made outside the list (opening a message marks it read; a notification's button
+     * deletes it), in turn with the list's own commands, so that an undo offered before it is
+     * withdrawn once it [made] a change (undo would now take back that change instead).
      */
-    suspend fun runOn(triage: Triage, id: ULong): Boolean {
-        val done = commandLock.withLock {
-            source.run(triage.command(), jsonText(triage.params(listOf(id))))
-                .also { if (it) commands.incrementAndGet() }
-        }
-        if (done) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
-        return done
+    suspend fun <T> inTurn(command: suspend () -> T, made: (T) -> Boolean): T {
+        val result = commandLock.withLock { command().also { if (made(it)) commands.incrementAndGet() } }
+        if (made(result)) state.update { if (it.notice?.notice?.undoable == true) it.copy(notice = null) else it }
+        return result
     }
 
     /**
@@ -273,6 +270,10 @@ internal class MailListController(
         return copy(snapshot = next, load = LoadState.Ready)
     }
 }
+
+/** Makes [triage] to message [id] alone, in turn ([MailListController.inTurn]); whether it was done. */
+internal suspend fun MailListController.runOn(triage: Triage, id: ULong): Boolean =
+    inTurn({ source.run(triage.command(), jsonText(triage.params(listOf(id)))) }) { it }
 
 /** The categories mail can be given, with their colours. */
 internal suspend fun MailListController.categories(): List<CategoryItem> = source.categories()

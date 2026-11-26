@@ -88,18 +88,8 @@ internal fun noticeRequestCode(message: ULong, button: NoticeButton): Int =
 /** How long a notification's button waits for the core to open (the system gives a receiver little time). */
 internal const val NOTICE_CORE_WAIT_MS = 8_000L
 
-/**
- * Whether the notification goes once its button was pressed: the message is no longer in the
- * [folder] it was told of in ([now]: where it is, null when gone) and there is nothing to do, or
- * [act] was done and the mailbox [save]d.
- */
-internal suspend fun noticeButtonDone(
-    now: ULong?,
-    folder: ULong,
-    act: suspend () -> Boolean,
-    save: suspend () -> Boolean,
-): Boolean =
-    if (now != folder) true else act() && save()
+/** The longest a notification's button holds its broadcast open, whatever it waits for. */
+internal const val NOTICE_BUDGET_MS = 20_000L
 
 /** Takes away the new-mail notification about [message], once its button did what it said. */
 internal fun cancelMailNotice(context: Context, message: ULong) {

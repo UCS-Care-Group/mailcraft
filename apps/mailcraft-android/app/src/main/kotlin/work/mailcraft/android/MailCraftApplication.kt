@@ -7,14 +7,14 @@ import android.app.Application
 import android.os.Bundle
 import android.util.Log
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
@@ -119,39 +119,41 @@ class MailCraftApplication : Application() {
         return reminders.refresh(ReminderWords.from(opened.core::t)) { askSchedule(opened.core, it) }
     }
 
-    /** A notification's buttons are made one at a time ([runNoticeButton]). */
-    private val noticeButtons = Mutex()
-
     /**
      * A new-mail notification's button ([NoticeActionReceiver]): [triage] made to [message] with the
-     * one core, opened when no window has (waited for no longer than [NOTICE_CORE_WAIT_MS]), as the
-     * list makes it, and only while the message is still in the [folder] it was told of in (one
-     * deleted twice would be gone for good). The mailbox is saved before the notification goes, so
-     * that the change outlives the process; the next Send/Receive takes it to the server, as a
-     * change made in the list. When nothing can be done (no core, the core can't say) the
-     * notification stays; one about a message moved or gone goes. [finished] is called whatever happens.
+     * one core, opened when no window has (waited for no longer than [NOTICE_CORE_WAIT_MS]), in turn
+     * with the list's commands, and only while the message is still in the [folder] it was told of
+     * in (the core looks and acts in one step: one deleted twice would be gone for good). The mailbox
+     * is saved before the notification goes, so that the change outlives the process; the next
+     * Send/Receive takes it to the server, as a change made in the list. A message moved or gone
+     * leaves nothing to do, and its notification goes too once the mailbox is saved. When nothing
+     * can be done (no core, the command failed, the save failed) the notification stays. [finished]
+     * is called when it is over, or after [NOTICE_BUDGET_MS] at the latest (the system gives a
+     * receiver little time; what is under way then goes on while the process lasts).
      */
     internal fun runNoticeButton(triage: Triage, message: ULong, folder: ULong, finished: () -> Unit) {
-        scope.launch {
+        val over = AtomicBoolean(false)
+        val finish = { if (over.compareAndSet(false, true)) finished() }
+        val work = scope.launch {
             try {
                 begin()
                 val phase = withTimeoutOrNull(NOTICE_CORE_WAIT_MS) { started.first { it !is Phase.Loading } }
                 val opened = (phase as? Phase.Ready)?.value ?: return@launch
-                // One at a time: a button pressed twice looks where the message is after the first
-                // press was made (a second Delete must not find it still in the Inbox).
-                val done = noticeButtons.withLock {
-                    val now = try {
-                        opened.core.messageFolder(message)
-                    } catch (_: CoreException) {
-                        return@launch
-                    }
-                    noticeButtonDone(now, folder, { opened.mail.runOn(triage, message) }, opened.hub::saveNow)
+                try {
+                    opened.mail.inTurn({ opened.core.noticeCommand(message, folder, triage.command()) }) { it }
+                } catch (_: CoreException) {
+                    return@launch
                 }
-                if (done) cancelMailNotice(applicationContext, message)
+                if (opened.hub.saveNow()) cancelMailNotice(applicationContext, message)
             } finally {
-                finished()
+                finish()
             }
         }
+        val budget = scope.launch {
+            delay(NOTICE_BUDGET_MS)
+            finish()
+        }
+        work.invokeOnCompletion { budget.cancel() }
     }
 
     /**

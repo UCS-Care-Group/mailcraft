@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import uniffi.mailcraft_mobile.Event
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -264,6 +265,17 @@ class MailListControllerTest {
         assertEquals("mail.delete" to """{"ids":[4]}""", source.commands.last())
         // The list's Undo would take back the button's change now, so its offer goes.
         assertNull(c.ui.value.notice)
+    }
+
+    @Test
+    fun aButtonThatFoundTheMessageMovedChangesNothingAndLeavesTheUndo() = runBlocking {
+        val source = FakeMailSource(FakeMailSource.rows(5))
+        val c = controller(source)
+        c.show(inbox)
+        c.triage(Triage.Archive, listOf(FakeMailSource.row(1)))
+        val made = c.inTurn({ false }) { it }
+        assertFalse(made)
+        assertTrue(c.ui.value.notice?.notice is ListNotice.Done)
     }
 
     @Test

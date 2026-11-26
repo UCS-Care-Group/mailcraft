@@ -181,8 +181,15 @@ fn sync_now_brings_mail_in_and_the_app_learns_through_events() {
     let budget = block_on(core.call(|s| Ok(s.mailbox.messages.values().find(|m| m.subject == "Budget review").map(|m| (m.id, m.folder))))).unwrap();
     let about = told[0].message.expect("one message told of names it");
     assert_eq!(Some((about.id, about.folder)), budget);
-    assert_eq!(block_on(core.message_folder(about.id)).unwrap(), Some(about.folder));
-    assert_eq!(block_on(core.message_folder(u64::MAX)).unwrap(), None);
+    // Its button acts while the message is where it was found, and never a second time.
+    assert!(matches!(block_on(core.notice_command(about.id, about.folder, "mail.deletePermanently".into())), Err(CoreError::BadRequest { .. })));
+    assert!(!block_on(core.notice_command(about.id, about.folder.wrapping_add(1), "mail.delete".into())).unwrap());
+    assert!(block_on(core.notice_command(about.id, about.folder, "mail.delete".into())).unwrap());
+    let moved = block_on(core.call(move |s| Ok(s.mailbox.message(about.id).map(|m| m.folder)))).unwrap();
+    assert!(moved.is_some_and(|f| f != about.folder), "deleted once, into Deleted Items: {moved:?}");
+    assert!(!block_on(core.notice_command(about.id, about.folder, "mail.delete".into())).unwrap());
+    assert!(block_on(core.call(move |s| Ok(s.mailbox.message(about.id).is_some()))).unwrap(), "a second Delete deletes nothing for good");
+    assert!(!block_on(core.notice_command(u64::MAX, about.folder, "mail.delete".into())).unwrap());
     assert!(second.iter().any(|e| matches!(e, Event::SyncFinished { new_mail: 1, finished: true })));
     // The stored sign-in was what the runs began with, and no secret went anywhere else.
     assert_eq!(*seen.lock().unwrap(), ["stored-refresh", "stored-refresh"]);

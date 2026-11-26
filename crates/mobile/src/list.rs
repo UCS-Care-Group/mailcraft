@@ -14,6 +14,9 @@ use crate::records::{CategoryList, CategoryRecord, InboxSplit, ListQuery, Messag
 use crate::text;
 use crate::{Core, CoreError};
 
+/// The commands a new-mail notification's button may run ([`Core::notice_command`]).
+pub const NOTICE_COMMANDS: [&str; 5] = ["mail.delete", "mail.archive", "mail.junk", "mail.markRead", "mail.flag"];
+
 /// The longest search text read; more is cut.
 const MAX_SEARCH: usize = 256;
 /// The longest filter or Inbox split code kept while a query waits: every known one is shorter, so
@@ -107,10 +110,24 @@ impl Core {
         .await
     }
 
-    /// The folder message `id` is in now; `None` when there is no such message. A notification's
-    /// button looks first: it acts only on a message still where the notification found it.
-    pub async fn message_folder(&self, id: u64) -> Result<Option<u64>, CoreError> {
-        self.call(move |s| Ok(s.mailbox.message(id).map(|m| m.folder))).await
+    /// A new-mail notification's button: `command` (one of [`NOTICE_COMMANDS`], the list's own) on
+    /// message `id` alone, only while it is still in `folder`, where the notification found it. The
+    /// look and the command are one step on the session's thread, so nothing (a list command, a
+    /// synchronisation) moves the message in between, and a second Delete never finds it still
+    /// there and deletes it for good. `false` when it is gone or elsewhere and nothing was done; an
+    /// error when the command failed, the mailbox as it was.
+    pub async fn notice_command(&self, id: u64, folder: u64, command: String) -> Result<bool, CoreError> {
+        if !NOTICE_COMMANDS.contains(&command.as_str()) {
+            return Err(CoreError::BadRequest { reason: "not a command a notification's button runs".to_string() });
+        }
+        self.call(move |s| {
+            if s.mailbox.message(id).map(|m| m.folder) != Some(folder) {
+                return Ok(false);
+            }
+            s.run(&command, &serde_json::json!({ "ids": [id] }))?;
+            Ok(true)
+        })
+        .await
     }
 
     /// The categories mail of `account` can be given (0: the list shared by accounts that keep

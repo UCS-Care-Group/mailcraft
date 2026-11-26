@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcraft_mobile.NotificationRecord
 import uniffi.mailcraft_mobile.NotificationTopic
@@ -68,21 +65,6 @@ class NoticeButtonsTest {
         assertNull(readNoticeAsk("android.intent.action.VIEW", "delete", 9L, 3L))
         // A number past Long's top half is the core's own u64, read back as it was written.
         assertEquals(ULong.MAX_VALUE, readNoticeAsk(ACTION_NOTICE_BUTTON, "flag", -1L, 3L)?.message)
-    }
-
-    @Test
-    fun aButtonActsOnlyWhileTheMessageIsWhereItWasToldOfAndTheNoticeGoesOnceSaved() = runBlocking {
-        var acted = 0
-        val act: suspend () -> Boolean = { acted++; true }
-        assertTrue(noticeButtonDone(3uL, 3uL, act) { true })
-        assertEquals(1, acted)
-        // Moved (deleted once already) or gone: nothing is done, and the notification goes.
-        assertTrue(noticeButtonDone(4uL, 3uL, act) { true })
-        assertTrue(noticeButtonDone(null, 3uL, act) { true })
-        assertEquals(1, acted)
-        // Not done, or not saved: the notification stays.
-        assertFalse(noticeButtonDone(3uL, 3uL, { false }) { true })
-        assertFalse(noticeButtonDone(3uL, 3uL, act) { false })
     }
 
     @Test

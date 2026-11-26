@@ -67,12 +67,8 @@ class MainActivity : AppCompatActivity() {
         // The intent this window is for from now on, so that a window made again reads this one.
         setIntent(intent)
         takeHandedOver(intent)
-        incoming.value = takeIncoming(intent)
+        incoming.value = incomingOf(intent)
     }
-
-    /** What [intent] asks for; a notification's Reply takes that notification away. */
-    private fun takeIncoming(intent: Intent?): Incoming? =
-        incomingOf(intent).also { if (it is Incoming.Reply) cancelMailNotice(applicationContext, it.message) }
 
     /** Reads the calendar file [intent] carries, if it carries one, off the main thread. */
     private fun takeHandedOver(intent: Intent) {
@@ -86,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         // reads it again only when the file it carried was never taken in.
         if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
         // A window built again (turned, or its language changed) has already taken a message it was asked for up.
-        if (savedInstanceState == null) incoming.value = takeIncoming(intent)
+        if (savedInstanceState == null) incoming.value = incomingOf(intent)
         enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
@@ -172,7 +168,10 @@ private fun TakeIncoming(texts: Texts, asked: Asked, writing: ComposeHost, conte
     LaunchedEffect(wanted) {
         if (wanted != null) {
             asked.handled()
-            writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            val taken = writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            // A notification's Reply takes its notification away once the reply is open; while
+            // another message is being written it stays, to be pressed again.
+            if (taken && wanted is Incoming.Reply) cancelMailNotice(context, wanted.message)
         }
     }
     IncomingLayers(texts, writing)
