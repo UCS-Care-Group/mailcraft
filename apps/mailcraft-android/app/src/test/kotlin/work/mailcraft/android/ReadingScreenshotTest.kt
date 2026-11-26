@@ -75,6 +75,13 @@ class ReadingScreenshotTest {
 
     @Test
     fun longLinks() = shoot("long_links", ReadingShots.ui(Corpus.longLinks))
+
+    /** A footer whose exact line is shorter than its text: each line clear of the next (#1967). */
+    @Test
+    fun footerWithAnExactLine() {
+        paparazzi.unsafeUpdateConfig(Tall.copy(nightMode = NightMode.NOTNIGHT, fontScale = 1f))
+        paparazzi.snapshot("reading_footer_light_100") { ReadingShots.Pane(ReadingShots.ui(Corpus.footer)) }
+    }
 }
 
 /** The reading pane on a tablet: the list's place beside it is the list's own shot. */
