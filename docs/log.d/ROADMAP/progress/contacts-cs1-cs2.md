@@ -1,0 +1,1 @@
+| 2026-11-25 | CS1–CS2 (#1917): contacts folders kept per account (own, shared mailbox, shared by a person; read-only refused with a reason); people made, changed and deleted in an account's folder wait to go up to its server (field by field, merged with what comes down, undo sends the opposite); the network part follows |

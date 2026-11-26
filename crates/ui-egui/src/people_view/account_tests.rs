@@ -5,6 +5,7 @@
 use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
+use mailcraft_model::contact_sync::{FolderOwner, RemoteContactFolder};
 use mailcraft_model::remote::{ContactsDownload, RemoteContact};
 use serde_json::json;
 
@@ -18,7 +19,7 @@ fn add(w: &mut Harness<'_, MailApp>, email: &str) -> Id {
 
 fn from_server(w: &mut Harness<'_, MailApp>, account: Id, email: &str, name: &str) -> Id {
     let contact = RemoteContact { id: "w1".into(), display_name: name.into(), ..Default::default() };
-    let download = ContactsDownload { account, email: email.into(), complete: true, contacts: vec![contact] };
+    let download = ContactsDownload { account, email: email.into(), complete: true, contacts: vec![contact], ..Default::default() };
     mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
     w.state().session.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }
@@ -73,21 +74,41 @@ fn with_every_account_each_contact_says_where_it_is() {
     // The card says where it is, whatever the list shows.
     let kept = |w: &Harness<'_, MailApp>, id: Id| kept_in(w.state(), w.state().session.mailbox.contact(id).unwrap());
     assert_eq!(kept(&w, ours).as_deref(), Some("On this computer"));
-    assert_eq!(kept(&w, theirs).as_deref(), Some("work@example.org"));
+    assert_eq!(kept(&w, theirs).as_deref(), Some("Contacts (work@example.org)"));
 }
 
 #[test]
-fn a_contact_the_server_keeps_says_it_is_read_only_here() {
+fn a_contact_of_a_read_only_folder_says_it_is_read_only_here() {
     let mut w = testing::window("view.people");
     let work = add(&mut w, "work@example.org");
     let theirs = from_server(&mut w, work, "work@example.org", "Wren Work");
     let ours = w.state().session.mailbox.contacts.values().find(|c| c.origin.is_local()).unwrap().id;
+    // A shared mailbox's folder the account may only read (#1917).
+    let folder = RemoteContactFolder {
+        id: "f-sales".into(),
+        name: "Sales".into(),
+        owner: FolderOwner::Mailbox("sales@example.org".into()),
+        ..Default::default()
+    };
+    let contact = RemoteContact { id: "s1".into(), display_name: "Sam Sales".into(), ..Default::default() };
+    let download = ContactsDownload {
+        account: work,
+        email: "work@example.org".into(),
+        complete: true,
+        contacts: vec![contact],
+        folder: Some(folder),
+        ..Default::default()
+    };
+    mailcraft_engine::cmd::remote::apply_contacts(&mut w.state_mut().session, &download).unwrap();
+    let shared = w.state().session.mailbox.contacts.values().find(|c| c.display_name == "Sam Sales").unwrap().id;
     let read_only = |w: &Harness<'_, MailApp>, id: Id| read_only_here(w.state(), w.state().session.mailbox.contact(id).unwrap());
-    assert!(read_only(&w, theirs));
-    assert!(!read_only(&w, ours));
+    assert!(read_only(&w, shared));
+    assert!(!read_only(&w, theirs) && !read_only(&w, ours));
     // What the mark says is what Edit is told.
-    assert!(w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).is_err());
+    assert!(w.state_mut().execute("people.edit", json!({"id": shared, "first": "Ren"})).is_err());
+    assert!(w.state_mut().execute("people.edit", json!({"id": theirs, "first": "Ren"})).is_ok());
     assert!(w.state_mut().execute("people.edit", json!({"id": ours, "notes": "Changed here"})).is_ok());
+    let theirs = shared;
     // The card with the mark draws.
     w.state_mut().execute("people.select", json!({"id": theirs})).unwrap();
     w.run();
@@ -196,4 +217,31 @@ fn the_contact_picker_lists_every_account_whatever_people_shows() {
     show(&mut w, json!("here"));
     assert_eq!(rows(w.state(), PickKind::Contact, "").len(), every);
     assert!(rows(w.state(), PickKind::Contact, "wren").iter().any(|row| row.0 == id));
+}
+
+/// #1917: on the card, an entry the account's server has no place for says it stays on this
+/// computer, and its tooltip says why; one that fits, and every one On this computer, says
+/// nothing more.
+#[test]
+fn what_the_server_has_no_place_for_is_marked_on_the_card() {
+    let mut w = testing::window("view.people");
+    let work = add(&mut w, "work@example.org");
+    let id = from_server(&mut w, work, "work@example.org", "Wren Work");
+    let emails: Vec<_> = (1..=4).map(|n| json!({"label": "work", "value": format!("wren{n}@example.org")})).collect();
+    w.state_mut().execute("people.edit", json!({"id": id, "emails": emails})).unwrap();
+    let theirs = w.state().session.mailbox.contact(id).unwrap().clone();
+    assert_eq!(local_only(w.state(), &theirs).emails, [3]);
+    let why = "Microsoft keeps three email addresses for a contact; this one stays on this computer.";
+    let (label, tip) = marked("Work", "Write to wren4@example.org", Some(why));
+    assert_eq!(label, "Work · On this computer only");
+    assert_eq!(tip, format!("Write to wren4@example.org\n{why}"));
+    assert_eq!(marked("Work", "", None), ("Work".to_string(), String::new()));
+    // The same four On this computer: nothing marked.
+    let here = w.state_mut().execute("people.new", json!({"first": "Hal", "emails": emails, "folder": 0})).unwrap()["id"].as_u64().unwrap();
+    assert!(local_only(w.state(), w.state().session.mailbox.contact(here).unwrap()).is_empty());
+    // Both cards paint.
+    for shown in [id, here] {
+        w.state_mut().execute("people.select", json!({"id": shown})).unwrap();
+        w.run();
+    }
 }

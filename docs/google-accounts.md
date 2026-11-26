@@ -9,7 +9,7 @@ existing account keeps its current sign-in method until you explicitly change it
 This guide describes the desktop implementation in this contribution, not a promise that an
 older downloaded release includes it. It covers Gmail and Google Workspace mail over IMAP and
 SMTP. It does not add Google Calendar or Contacts, nor Gmail access in the browser build;
-[browser Gmail #233](https://github.com/UCS-Care-Group/mailcraft/issues/233) is separate.
+[browser Gmail #233](https://github.com/UCSLabs/mailcraft/issues/233) is separate.
 
 ## Add a Google account
 

@@ -48,11 +48,11 @@ fn a_read_is_due_at_first_then_every_quarter_of_an_hour() {
 
 #[test]
 fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
-    let (mut s, _) = session();
+    let (mut s, a) = session();
     assert!(s.auto_replies_due(&RepliesFacts { reachable: false, ..facts() }, tokens, 0.0).plans.is_empty());
     assert!(s.auto_replies_due(&RepliesFacts { running: true, ..facts() }, tokens, 0.0).plans.is_empty());
     for busy in [
-        Busy { signing_in: true, ..Default::default() },
+        Busy { signing_in: Some(a), ..Default::default() },
         Busy { mail_run: true, ..Default::default() },
         Busy { graph: true, ..Default::default() },
         Busy { calendar: true, ..Default::default() },
@@ -61,8 +61,11 @@ fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
     ] {
         assert!(s.auto_replies_due(&RepliesFacts { busy, ..facts() }, tokens, 0.0).plans.is_empty(), "{busy:?}");
     }
-    // A Send/Receive that is only waiting its turn doesn't hold it back.
+    // A Send/Receive that is only waiting its turn doesn't hold it back, nor another account's
+    // sign-in (#1557).
     assert_eq!(s.auto_replies_due(&RepliesFacts { busy: Busy { queued: true, ..Default::default() }, ..facts() }, tokens, 0.0).plans.len(), 1);
+    let other = Busy { signing_in: Some(a + 1), ..Default::default() };
+    assert_eq!(s.auto_replies_due(&RepliesFacts { busy: other, ..facts() }, tokens, 0.0).plans.len(), 1);
 }
 
 #[test]
@@ -77,6 +80,34 @@ fn reads_wait_for_the_host_switch_but_a_change_the_owner_made_goes() {
 }
 
 #[test]
+fn a_change_for_an_account_that_is_signing_in_waits_for_it_and_the_others_are_read_meanwhile() {
+    let (mut s, a) = session();
+    let b = s.run("account.add", &json!({"email": "bo@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.auto_replies_change(a, away()), Change::Queued);
+    let signing = RepliesFacts { busy: Busy { signing_in: Some(a), ..Default::default() }, ..facts() };
+    assert_eq!(s.auto_replies_due(&signing, tokens, 0.0).plans, vec![RepliesPlan { account: b, change: None }]);
+    assert!(s.driver.auto_replies.waiting.contains_key(&a), "the change is kept");
+    // The sign-in is over: the change goes first, by itself.
+    assert_eq!(s.auto_replies_due(&facts(), tokens, 0.0).plans, vec![RepliesPlan { account: a, change: Some(away()) }]);
+}
+
+#[test]
+fn a_change_held_for_its_sign_in_is_not_overwritten_by_another_accounts_change_meanwhile() {
+    let (mut s, a) = session();
+    let b = s.run("account.add", &json!({"email": "bo@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.auto_replies_change(a, away()), Change::Queued);
+    let signing = RepliesFacts { busy: Busy { signing_in: Some(a), ..Default::default() }, ..facts() };
+    assert!(s.auto_replies_due(&signing, tokens, 0.0).plans.iter().all(|p| p.change.is_none()), "A's change waits");
+    // The owner changes B's replies while A signs in: B's change goes, and A's still waits.
+    assert_eq!(s.auto_replies_change(b, AutoReplies::default()), Change::Queued);
+    assert_eq!(s.auto_replies_due(&signing, tokens, 0.0).plans, vec![RepliesPlan { account: b, change: Some(AutoReplies::default()) }]);
+    assert!(s.driver.auto_replies.waiting.contains_key(&a));
+    // The sign-in is over: A's change goes as the owner made it.
+    assert_eq!(s.auto_replies_due(&facts(), tokens, 0.0).plans, vec![RepliesPlan { account: a, change: Some(away()) }]);
+    assert!(s.driver.auto_replies.waiting.is_empty());
+}
+
+#[test]
 fn working_offline_drops_what_waited_and_says_so_once() {
     let (mut s, a) = session();
     assert_eq!(s.auto_replies_change(a, away()), Change::Queued);
@@ -85,7 +116,7 @@ fn working_offline_drops_what_waited_and_says_so_once() {
     assert!(look.dropped && look.plans.is_empty());
     assert!(!s.auto_replies_due(&facts(), tokens, 1.0).dropped);
     assert_eq!(s.auto_replies_change(a, away()), Change::Offline);
-    assert!(s.driver.auto_replies.waiting.is_none());
+    assert!(s.driver.auto_replies.waiting.is_empty());
 }
 
 #[test]
@@ -147,7 +178,7 @@ fn a_change_that_finds_the_permission_missing_asks_the_owner_and_goes_once_he_al
     assert_eq!(s.driver.auto_replies.perm.get(&a), Some(&Permission::Needed));
     // Another change meanwhile: the owner is to be asked, and the change held when he is.
     assert_eq!(s.auto_replies_change(a, away()), Change::MustAsk);
-    assert!(s.driver.auto_replies.waiting.is_none());
+    assert!(s.driver.auto_replies.waiting.is_empty());
     s.driver.auto_replies.asking(a);
     s.driver.auto_replies.hold(a, away());
     assert_eq!(s.auto_replies_change(a, AutoReplies::default()), Change::Held);
@@ -199,7 +230,7 @@ fn removing_an_account_forgets_everything_kept_for_it() {
     let (mut s, a) = session();
     s.driver.auto_replies.asking(a);
     s.driver.auto_replies.hold(a, away());
-    s.driver.auto_replies.waiting = Some((a, away()));
+    s.driver.auto_replies.waiting.insert(a, away());
     s.driver.auto_replies.trouble.insert(a, Trouble::SignInToRead);
     s.auto_replies_started(a, 1.0);
     s.driver.auto_replies.forget_accounts(&HashSet::from([a]));

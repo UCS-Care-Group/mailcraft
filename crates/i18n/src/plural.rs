@@ -12,7 +12,7 @@ pub enum Rule {
     /// Singular for 1 only (`plural=(n != 1)`): English, German, Spanish…
     #[default]
     NotOne,
-    /// Singular for 0 and 1 (`plural=(n > 1)`): French.
+    /// Singular for 0 and 1 (`plural=(n > 1)`): French and Brazilian Portuguese.
     AboveOne,
     /// Three forms (`plural=(n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2)`): Romanian.
     /// One for 1; another for 0 and for 2 to 19 past the hundreds (101, 119); the third, written

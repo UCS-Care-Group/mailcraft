@@ -22,14 +22,14 @@ fn portuguese_is_offered_by_its_own_name_and_chosen_for_its_locales() {
 
 #[test]
 fn portuguese_has_two_plural_forms() {
-    let pt = Rule::from_header("nplurals=2; plural=(n != 1);");
-    assert_eq!(pt, Rule::NotOne);
+    let pt = Rule::from_header("nplurals=2; plural=(n > 1);");
+    assert_eq!(pt, Rule::AboveOne);
     assert_eq!(pt.index(1), 0);
-    assert_eq!(pt.index(0), 1);
+    assert_eq!(pt.index(0), 0);
     assert_eq!(pt.index(2), 1);
     assert_eq!(pt.forms(), 2);
     assert_eq!(Lang::Portuguese.tn(1, "{n} message", "{n} messages"), "{n} mensagem");
-    assert_eq!(Lang::Portuguese.tn(0, "{n} message", "{n} messages"), "{n} mensagens");
+    assert_eq!(Lang::Portuguese.tn(0, "{n} message", "{n} messages"), "{n} mensagem");
     assert_eq!(Lang::Portuguese.tn(2, "{n} message", "{n} messages"), "{n} mensagens");
 }
 

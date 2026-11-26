@@ -69,6 +69,21 @@ sync` refuses it.
   copy in Sent names no Bcc recipients either, and once the server has the message this
   computer's own copy is let go of, so after sending nothing here records who got a blind copy
   (an IMAP account's copy in Sent keeps them).
+- **Contacts are kept in step both ways** (#1068, #1076), when the server offers JMAP for
+  Contacts (RFC 9610): with each Send/Receive, after the mail. Every address book the account may
+  read is a contacts folder in People (its default one is the account's main Contacts), and so is
+  each one a person shared with you, kept in under their address; one you may not write to (the
+  server's rights say so) can only be read here. The first run reads them whole, the next only what
+  changed since, and whole again when the server can't say. A contact you make, change or delete in
+  one of them goes up with the next run: only the fields you changed are written, each worked out
+  from the card as the server has it then, so what the card holds and MailCraft doesn't show (instant
+  messaging addresses, a title in a name, an entry's preference) stays. A change made on both sides
+  keeps yours for the fields you changed and the server's for the rest. A change the server refuses
+  is put back to how the server has it and said once; one it can't take now (busy, failing) is tried
+  again later. A contact deleted from one folder leaves only that address book: the server deletes
+  the card when it was in no other. An address book gone from the server takes its folder with it;
+  a contact in it with a change not yet sent stays, On this computer, and you are told. Contact
+  groups aren't read; photos aren't read or sent.
 
 Not yet: what you change in an account's folders doesn't go up.
 Renaming, moving or deleting one of the server's mailboxes, deleting a folder that holds the
@@ -180,7 +195,7 @@ then serve it (`trunk serve` in `apps/mailcraft-web`) and open it: Send/Receive 
   each request and judges each answer, and holds every answer to sizes. The in-process server
   (`standin`) is behind the `stand-in` feature, for tests.
 - The engine works out what a run reads (`sync.jmapRequest`) and takes in what it brought
-  (`sync.applyJmap`), and the same for messages fetched whole, only for the account and from the
+  (`sync.applyJmap`), contacts among it (`mailcraft_jmap::mail::contacts`), and the same for messages fetched whole, only for the account and from the
   server it was asked for; it never reaches a server ([control-protocol.md](control-protocol.md)).
 - The window hands a run to its host (`Services::jmap`, `Services::jmap_fetch`) with the
   credential, and takes the pieces in as they come.
