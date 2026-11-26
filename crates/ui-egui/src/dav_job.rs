@@ -282,24 +282,30 @@ impl MailApp {
         // A password the server took is held for the session (the one that was sent, not what
         // would be found now), and remembered when the owner lets it be, unless it is the mail
         // password: that one is looked up at every job, by the rule as it stands.
-        for origin in signed_in {
-            if let Some((password, false)) = sent.get(&origin)
-                && self.hold_dav_password(account, &origin, password)
+        for origin in &signed_in {
+            if let Some((password, false)) = sent.get(origin)
+                && self.hold_dav_password(account, origin, password)
             {
-                self.remember_dav_password(account, &origin, password);
+                self.remember_dav_password(account, origin, password);
             }
         }
         let now = now_ms();
         if problem == DavProblem::WrongPassword {
             // Not held, not sent again (at every back-off: a lockout) until the owner gives
-            // another, or for hours (a password changed on the server, a mistaken refusal).
-            self.dav_passwords.retain(|(held, _), _| *held != account);
+            // another, or for hours (a password changed on the server, a mistaken refusal). Only
+            // what was sent and not taken: a server that took its password keeps it, and one the
+            // owner gave while the job was out hasn't been tried yet.
+            let refused = |origin: &str, password: &str| {
+                !signed_in.iter().any(|taken| taken == origin) && sent.get(origin).is_some_and(|(sent, _)| sent == password)
+            };
+            self.dav_passwords.retain(|(held, origin), password| *held != account || !refused(origin, password));
             // A remembered one that was refused isn't offered again this session either: File ›
             // Info asks for another. (The store keeps it until a new one is taken in its place.)
             if let Some(a) = self.session.mailbox.account(account).cloned() {
                 for (origin, (password, mail)) in &sent {
                     let Some(key) = Self::dav_secret_key(&a, origin) else { continue };
                     if !*mail
+                        && refused(origin, password)
                         && let Some(kept) = self.secret_cache.remove(&key)
                         && kept != *password
                     {

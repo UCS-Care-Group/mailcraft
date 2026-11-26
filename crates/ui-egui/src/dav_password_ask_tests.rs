@@ -88,3 +88,15 @@ fn a_password_that_has_to_wait_for_a_forget_keeps_what_was_typed_and_the_dialog_
     assert!(ask.give(&mut a));
     assert_eq!(a.dav_password(id, CARD).as_deref(), Some("card"));
 }
+
+#[test]
+fn the_dialog_goes_when_another_mailbox_takes_the_place_of_this_one() {
+    let (mut a, id) = app(true, CARD);
+    a.execute("ui.dialog", json!({"name": "davPassword", "id": id})).unwrap();
+    assert!(matches!(a.dialog, Some(crate::dialogs::Dialog::DavPassword(_))));
+    // Another file, whose account may have the same id: what is typed would be held for it.
+    let other = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0).mailbox;
+    a.session.replace_mailbox(other);
+    a.drop_secrets_if_replaced();
+    assert!(a.dialog.is_none());
+}

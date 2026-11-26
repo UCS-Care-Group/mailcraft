@@ -18,17 +18,25 @@ use crate::{DavDone, DavJob, MailApp, SecretStore, Services};
 const NOW: i64 = 1_791_993_600;
 const HOME: &str = "https://dav.example.org";
 
-/// A store that keeps what it is given and counts how often it is asked.
+/// A store that keeps what it is given and counts how often it is asked; with a gate, the first
+/// read says when it has copied what it found and waits to be let go before it answers.
 #[derive(Default)]
 struct Store {
     held: Mutex<HashMap<String, String>>,
     asked: AtomicUsize,
+    gate: Mutex<Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>>,
 }
 
 impl SecretStore for Store {
     fn get(&self, key: &str) -> Option<String> {
         self.asked.fetch_add(1, Ordering::SeqCst);
-        self.held.lock().ok()?.get(key).cloned()
+        let found = self.held.lock().ok()?.get(key).cloned();
+        let gate = self.gate.lock().ok()?.take();
+        if let Some((copied, go)) = gate {
+            let _ = copied.send(());
+            let _ = go.recv();
+        }
+        found
     }
     fn set(&self, key: &str, secret: &str) -> Result<(), SecretError> {
         self.held.lock().map_err(|_| SecretError::Refused)?.insert(key.into(), secret.into());
@@ -255,19 +263,32 @@ fn a_read_that_was_under_way_when_its_name_was_forgotten_brings_nothing_back() {
     let (mut a, id, _) = app(&store, true);
     let k = key(&a, id);
     store.set(&k, "old").unwrap();
+    let (copied, reached) = std::sync::mpsc::channel();
+    let (go, wait) = std::sync::mpsc::channel();
+    *store.gate.lock().unwrap() = Some((copied, wait));
     assert!(a.dav_secrets_first(), "the read starts");
-    // Meanwhile the servers change and change back: the old name is forgotten and given again.
+    reached.recv().unwrap();
+    // The read has the old password in hand. Meanwhile the servers change and change back: the
+    // old name is forgotten, and given again.
     a.execute("account.davSet", json!({"id": id, "username": "grace"})).unwrap();
     a.execute("account.davSet", json!({"id": id, "username": ""})).unwrap();
     assert_eq!(key(&a, id), k);
     for _ in 0..2_000 {
         a.poll_dav_forgetting();
-        if !a.dav_forget_pending(&k) && !a.dav.secrets.is_reading() {
+        if !a.dav_forget_pending(&k) {
             break;
         }
-        let _ = a.dav_secrets_first();
         std::thread::sleep(Duration::from_millis(1));
     }
-    let _ = a.dav_secrets_first();
+    assert!(!a.dav_forget_pending(&k) && store.held.lock().unwrap().get(&k).is_none(), "the forget is done");
+    // Only now does the read answer, with what it had.
+    go.send(()).unwrap();
+    for _ in 0..2_000 {
+        if !a.dav_secrets_first() || !a.dav.secrets.is_reading() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(!a.dav.secrets.is_reading(), "the read has answered and was taken in");
     assert_eq!(a.dav_password(id, HOME), None, "what the read brought from before the forget isn't taken in");
 }

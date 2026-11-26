@@ -4096,8 +4096,9 @@ impl MailApp {
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
             // A question about the mailbox that was open goes with it: it names messages and
-            // accounts by ids, which the other mailbox may have too (#503).
-            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+            // accounts by ids, which the other mailbox may have too (#503). So does a calendar
+            // server's password being typed: it would be held for the other mailbox's account.
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. } | dialogs::Dialog::DavPassword(..))) {
                 self.set_dialog(None);
             }
             // An agent's too.
