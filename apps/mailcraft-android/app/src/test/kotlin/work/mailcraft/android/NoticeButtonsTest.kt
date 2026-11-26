@@ -81,3 +81,23 @@ class NoticeButtonsTest {
         assertNull(privateRecord(record, true, "New mail").message)
     }
 }
+
+/** What a notification says once its button was pressed: a short word, nothing of the message. */
+class NoticeConfirmationTest {
+    private fun said(button: NoticeButton, outcome: NoticeOutcome) = noticeConfirmation(button, outcome, EnglishTexts)
+
+    @Test
+    fun eachButtonSaysWhatItDid() {
+        assertEquals("1 message deleted", said(NoticeButton.Delete, NoticeOutcome.Done))
+        assertEquals("1 message archived", said(NoticeButton.Archive, NoticeOutcome.Done))
+        assertEquals("1 message moved to Junk", said(NoticeButton.Junk, NoticeOutcome.Done))
+        assertEquals("Marked as read", said(NoticeButton.MarkRead, NoticeOutcome.Done))
+        assertEquals("Flagged", said(NoticeButton.Flag, NoticeOutcome.Done))
+    }
+
+    @Test
+    fun aMessageMovedOrAFailureIsSaidInstead() {
+        assertEquals("The message was moved or deleted already", said(NoticeButton.Delete, NoticeOutcome.Moved))
+        assertEquals("That did not work.", said(NoticeButton.Archive, NoticeOutcome.Failed))
+    }
+}

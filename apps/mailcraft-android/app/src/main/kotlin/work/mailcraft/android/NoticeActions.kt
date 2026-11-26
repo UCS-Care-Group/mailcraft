@@ -7,7 +7,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import uniffi.mailcraft_mobile.NotifiedMessage
 
 /** The broadcast of a new-mail notification's button that acts without opening the app. */
@@ -91,9 +93,53 @@ internal const val NOTICE_CORE_WAIT_MS = 8_000L
 /** The longest a notification's button holds its broadcast open, whatever it waits for. */
 internal const val NOTICE_BUDGET_MS = 20_000L
 
-/** Takes away the new-mail notification about [message], once its button did what it said. */
+/** Takes away the new-mail notification about [message] (its Reply was taken up in the window). */
 internal fun cancelMailNotice(context: Context, message: ULong) {
     NotificationManagerCompat.from(context).cancel(MAIL_NOTIFICATION_TAG, notificationId(message))
+}
+
+/** How long the word a button leaves in its notification's place stays before it goes by itself. */
+internal const val NOTICE_CONFIRM_MS = 4_000L
+
+/** What a notification's button came to. */
+internal enum class NoticeOutcome { Done, Moved, Failed }
+
+/** The word a notification's button leaves in its place: what it did, or why it did nothing; nothing of the message. */
+internal fun noticeConfirmation(button: NoticeButton, outcome: NoticeOutcome, texts: Texts): String = when (outcome) {
+    NoticeOutcome.Failed -> texts.t("That did not work.")
+    NoticeOutcome.Moved -> texts.t("The message was moved or deleted already")
+    NoticeOutcome.Done -> when (button) {
+        NoticeButton.Delete -> texts.tn(1uL, "{n} message deleted", "{n} messages deleted")
+        NoticeButton.Archive -> texts.tn(1uL, "{n} message archived", "{n} messages archived")
+        NoticeButton.Junk -> texts.tn(1uL, "{n} message moved to Junk", "{n} messages moved to Junk")
+        NoticeButton.MarkRead -> texts.t("Marked as read")
+        NoticeButton.Flag -> texts.t("Flagged")
+        // (Reply opens the window and leaves no word.)
+        NoticeButton.Reply -> texts.t("Reply")
+    }
+}
+
+/**
+ * Puts [said] in the place of the notification about [message]: the same notification, so that the
+ * shade stays open, quiet, saying nothing of the message, and gone by itself after
+ * [NOTICE_CONFIRM_MS] (or swiped away).
+ */
+internal fun confirmMailNotice(context: Context, message: ULong, said: String) {
+    val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
+        .setSmallIcon(IconCompat.createWithBitmap(envelope()))
+        .setContentTitle(said)
+        .setCategory(NotificationCompat.CATEGORY_STATUS)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setOnlyAlertOnce(true)
+        .setSilent(true)
+        .setTimeoutAfter(NOTICE_CONFIRM_MS)
+        .setAutoCancel(true)
+        .build()
+    try {
+        NotificationManagerCompat.from(context).notify(MAIL_NOTIFICATION_TAG, notificationId(message), notification)
+    } catch (_: SecurityException) {
+        // The right to notify was taken away meanwhile: nothing is shown.
+    }
 }
 
 /**
@@ -106,6 +152,6 @@ class NoticeActionReceiver : BroadcastReceiver() {
         val triage = ask.button.triage() ?: return
         val app = context.applicationContext as? MailCraftApplication ?: return
         val pending = goAsync()
-        app.runNoticeButton(triage, ask.message, ask.folder) { pending.finish() }
+        app.runNoticeButton(ask.button, triage, ask.message, ask.folder) { pending.finish() }
     }
 }

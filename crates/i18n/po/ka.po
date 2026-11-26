@@ -6160,7 +6160,7 @@ msgid "Flag the message and remind me:"
 msgstr "წერილზე დროშის დასმა და შეხსენება:"
 
 #. android, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt crates/engine/src/session.rs
 #, fuzzy
 msgid "Flagged"
 msgstr "დროშით მონიშნული"
@@ -9419,6 +9419,12 @@ msgstr "წაუკითხავად მონიშვნა"
 #, fuzzy
 msgid "Mark as verified"
 msgstr "დადასტურებულად მონიშვნა"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
+#, fuzzy
+msgid "Marked as read"
+msgstr "მონიშნულია წაკითხულად"
 
 #. interface
 #: crates/ui-egui/src/find_replace.rs
@@ -13871,7 +13877,7 @@ msgid "Replies and forwards"
 msgstr "პასუხები და გადაგზავნები"
 
 #. android, command label, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeButtons.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeButtons.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Reply.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Reply"
 msgstr "პასუხი"
@@ -17171,7 +17177,7 @@ msgid "That day of the series can't be put exactly where it was asked to go; not
 msgstr "სერიის ის დღე ზუსტად იქ ვერ მოთავსდება, სადაც მოითხოვეს; არაფერი გადატანილა."
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
 #, fuzzy
 msgid "That did not work."
 msgstr "ეს არ გამოვიდა."
@@ -18213,6 +18219,12 @@ msgstr "წერილი ელოდება „გასაგზავნ�
 #, fuzzy
 msgid "The message was downloaded before MailCraft kept the bytes it came as. Check Again downloads them."
 msgstr "წერილი ჩამოიტვირთა მანამ, სანამ MailCraft მის ორიგინალ ბაიტებს შეინახავდა. „ხელახლა შემოწმება“ მათ ჩამოტვირთავს."
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
+#, fuzzy
+msgid "The message was moved or deleted already"
+msgstr "წერილი უკვე გადატანილია ან წაშლილია"
 
 #. interface
 #: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
@@ -26856,7 +26868,7 @@ msgstr[0] "წერილი: {n}"
 msgstr[1] "წერილი: {n}"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
 #, fuzzy
 msgid "{n} message archived"
 msgid_plural "{n} messages archived"
@@ -26896,7 +26908,7 @@ msgstr[0] "Gmail-ის კატეგორიებს შორის ამ
 msgstr[1] "Gmail-ის კატეგორიებს შორის ამჯერად ვერ გადავიდა წერილი: {n}; ისინი მომდევნო გაშვებას ელოდება"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
 #, fuzzy
 msgid "{n} message deleted"
 msgid_plural "{n} messages deleted"
@@ -26944,7 +26956,7 @@ msgstr[0] "ანგარიშში გადატანილი წერ�
 msgstr[1] "ანგარიშში გადატანილი წერილი: {n} — „გაგზავნა/მიღება“ მათ Microsoft-ის სერვერზე ათავსებს, სათაურების უმეტესობის (მაგალითად, Received) გარეშე"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/NoticeActions.kt
 #, fuzzy
 msgid "{n} message moved to Junk"
 msgid_plural "{n} messages moved to Junk"
