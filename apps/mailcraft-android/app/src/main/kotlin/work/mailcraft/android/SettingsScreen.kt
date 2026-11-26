@@ -224,4 +224,13 @@ private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPref
     )
     ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = false)) }
     ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = true)) }
+    Text(
+        texts.t("Mark as read"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    MarkRead.entries.forEach { choice ->
+        ChoiceRow(choice.label(texts), selected = prefs.markRead == choice) { onPrefs(prefs.copy(markRead = choice)) }
+    }
 }

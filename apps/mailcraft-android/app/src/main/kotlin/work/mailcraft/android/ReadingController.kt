@@ -43,6 +43,8 @@ internal class ReadingController(
 
     /** Given when the generation moves on: a download already on its way ends, and nothing more is begun. */
     private var stop = Stop()
+    private var nearKey = 0 to false
+    private var wanted = emptySet<ULong>()
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -55,20 +57,24 @@ internal class ReadingController(
 
     /**
      * Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed).
-     * A positive [markAfterMs] holds the mark as read back that long (a swipe passing by).
+     * [markAfterMs] holds the mark as read back that long (null: never marked).
      */
-    fun open(id: ULong, widthDp: Int, dark: Boolean, markAfterMs: Long = 0) {
+    fun open(id: ULong, widthDp: Int, dark: Boolean, markAfterMs: Long? = 0) {
         val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
+        val key = widthDp to dark
         state.update {
+            // (What was read ahead for another width or theme is not the message as it would be drawn now.)
+            val near = if (key == nearKey) it.near else emptyMap()
             if (it.id != id) {
-                ReadingUi(id = id)
+                ReadingUi(id = id, near = near)
             } else {
-                it.copy(pictures = it.pictures.filterValues { p -> p !is PictureState.Pending })
+                it.copy(pictures = it.pictures.filterValues { p -> p !is PictureState.Pending }, near = near)
             }
         }
+        nearKey = key
         scope.launch {
-            val opened = source.open(id, widthDp, dark)
+            val opened = state.value.near[id] ?: source.open(id, widthDp, dark)
             if (mine != generation.get()) return@launch
             if (opened == null) {
                 state.update { it.copy(load = LoadState.Failed) }
@@ -76,16 +82,40 @@ internal class ReadingController(
             }
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
-            state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
+            state.update {
+                it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs, near = it.near - id)
+            }
             // A message swiped to counts as read only if it stays open: passing by quickly leaves it unread.
-            if (markAfterMs > 0 && opened.view.unread) {
+            if (markAfterMs != null && markAfterMs > 0 && opened.view.unread) {
                 wait(markAfterMs)
                 if (mine != generation.get()) return@launch
             }
-            if (opened.view.unread && remember(marked, id)) {
+            if (markAfterMs != null && opened.view.unread && remember(marked, id)) {
                 if (source.markRead(id)) triaged(id, unread = false) else forget(id)
             }
             loadPictures(mine, id, opened)
+        }
+    }
+
+    /**
+     * Reads [ids] (the messages either side of the open one) ahead, for a body [widthDp] wide in a dark or
+     * light window, and lets go of any other read ahead. Reading ahead is only reading: no mark as read, no
+     * pictures, nothing a message does when it is opened. It is dropped when another message is opened.
+     */
+    fun preload(ids: List<ULong>, widthDp: Int, dark: Boolean) {
+        val key = widthDp to dark
+        val mine = generation.get()
+        wanted = ids.take(MAX_NEAR).toSet()
+        state.update { u -> u.copy(near = (if (key == nearKey) u.near else emptyMap()).filterKeys { it in wanted }) }
+        nearKey = key
+        for (id in wanted) {
+            val now = state.value
+            if (id in now.near || id == now.id) continue
+            scope.launch {
+                val opened = source.open(id, widthDp, dark) ?: return@launch
+                if (mine != generation.get() || key != nearKey || id !in wanted) return@launch
+                state.update { if (it.id == id) it else it.copy(near = it.near + (id to opened)) }
+            }
         }
     }
 

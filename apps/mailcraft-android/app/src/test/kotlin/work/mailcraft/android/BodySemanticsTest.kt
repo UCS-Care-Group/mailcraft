@@ -80,6 +80,13 @@ class BodySemanticsTest {
     }
 
     @Test
+    fun aWideTableHasTenColumnsToScrollThroughBeforeASwipeMovesOn() {
+        val table = draw(Corpus.wideTable).filter { (it.tableColumns ?: 0) > 1 }
+        assertEquals(1, table.size)
+        assertEquals(10, table[0].tableColumns)
+    }
+
+    @Test
     fun aPictureIsSaidByItsDescriptionAndATinyOrUndescribedOneNotAtAll() {
         val ui = ReadingUi(
             id = 9uL,

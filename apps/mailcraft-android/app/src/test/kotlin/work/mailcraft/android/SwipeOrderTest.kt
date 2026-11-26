@@ -94,4 +94,87 @@ class SwipeOrderTest {
             dir.deleteRecursively()
         }
     }
+
+    private fun rig(dir: File, wait: suspend (Long) -> Unit = {}): Pair<FakeReadSource, ReadingController> {
+        val view = Corpus.plain.view.copy(id = 7uL, unread = true)
+        val facts = MessageFacts("a@example.org", false, true, false)
+        val source = FakeReadSource(OpenedMessage(view, facts, emptyMap()))
+        val c = ReadingController(
+            source, PictureCache(dir, SniffingCheck), MemoryPicturePrefs(PicturePrefs()),
+            CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined, wait,
+        )
+        return source to c
+    }
+
+    @Test
+    fun eachMarkReadChoiceWaitsAsLongAsItSaysForATapAndASwipe() {
+        // (A swipe waits at least the minimum even when the choice is to mark at once.)
+        val table = mapOf(
+            MarkRead.WhenOpened to (0L to SWIPE_READ_MS),
+            MarkRead.After2 to (2_000L to 2_000L),
+            MarkRead.After5 to (5_000L to 5_000L),
+            MarkRead.Never to (null to null),
+        )
+        for ((choice, want) in table) {
+            assertEquals(choice.toString(), want.first, choice.delayMs(swiped = false))
+            assertEquals(choice.toString(), want.second, choice.delayMs(swiped = true))
+        }
+    }
+
+    @Test
+    fun prefsFromAnOlderVersionMarkWhenOpened() {
+        assertEquals(MarkRead.WhenOpened, readingPrefsFrom { _, default -> default }.markRead)
+        val stored = readingPrefsFrom({ if (it == "mark_read") "5s" else null }) { _, d -> d }
+        assertEquals(MarkRead.After5, stored.markRead)
+        assertEquals(MarkRead.WhenOpened, readingPrefsFrom({ "garbage" }) { _, d -> d }.markRead)
+    }
+
+    @Test
+    fun aTapMarksAtOnceANeverOpensWithoutMarkingAndAWaitMarksOnlyAfterIt() {
+        val dir: File = Files.createTempDirectory("mark").toFile()
+        try {
+            val (tapped, c1) = rig(dir)
+            c1.open(7uL, 360, dark = false, markAfterMs = MarkRead.WhenOpened.delayMs(swiped = false))
+            assertEquals(listOf(7uL), tapped.marked)
+            val (never, c2) = rig(dir)
+            c2.open(7uL, 360, dark = false, markAfterMs = MarkRead.Never.delayMs(swiped = true))
+            assertEquals(emptyList<ULong>(), never.marked)
+            val gate = CompletableDeferred<Unit>()
+            val (waited, c3) = rig(dir) { gate.await() }
+            c3.open(7uL, 360, dark = false, markAfterMs = MarkRead.After2.delayMs(swiped = false))
+            assertEquals(emptyList<ULong>(), waited.marked)
+            gate.complete(Unit)
+            assertEquals(listOf(7uL), waited.marked)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun neighboursAreReadAheadWithoutBeingOpenedAndNoMoreThanTwoAreKept() {
+        val dir: File = Files.createTempDirectory("near").toFile()
+        try {
+            val (source, c) = rig(dir)
+            c.open(7uL, 360, dark = false)
+            c.preload(listOf(6uL, 8uL, 9uL), 360, dark = false)
+            assertEquals(setOf(6uL, 8uL), c.ui.value.near.keys)
+            // Read ahead is reading only: nothing is marked read.
+            assertEquals(listOf(7uL), source.marked)
+            // Moving on lets go of the far one and keeps the new neighbours.
+            c.preload(listOf(8uL, 10uL), 360, dark = false)
+            assertEquals(setOf(8uL, 10uL), c.ui.value.near.keys)
+            // A different width means what was read ahead is not what would be drawn.
+            c.preload(listOf(8uL), 400, dark = false)
+            assertEquals(setOf(8uL), c.ui.value.near.keys)
+            // Opening a neighbour uses what was read ahead: the source is not asked for it again.
+            val asked = source.opened.size
+            c.open(8uL, 400, dark = false)
+            assertEquals(asked, source.opened.size)
+            assertEquals(8uL, c.ui.value.id)
+            assertEquals(LoadState.Ready, c.ui.value.load)
+            assertEquals(emptyMap<ULong, OpenedMessage>(), c.ui.value.near)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }
