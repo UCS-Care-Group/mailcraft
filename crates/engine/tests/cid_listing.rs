@@ -146,3 +146,48 @@ fn a_pst_files_inline_part_is_a_picture_an_img_asks_for() {
     let shown = found("picture asked for");
     assert!(shown.attachments[0].inline && !listed(&shown));
 }
+
+/// A message as Exchange writes one whose signature pictures it holds as files (`isInline:
+/// false`): the HTML and its picture side by side in `multipart/mixed`, the picture `attachment`
+/// with a `Content-ID`.
+fn mixed(html: &str, content_id: &str) -> Vec<u8> {
+    format!(
+        "From: Sender <sender@a.example>\r\nTo: Avery Quinn <avery@lumen.example>\r\nSubject: signature\r\n\
+         Message-ID: <sig@a.example>\r\nDate: Wed, 14 Oct 2026 15:00:00 +0000\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n\
+         --B\r\nContent-Type: image/png; name=\"image001.png\"\r\nContent-Disposition: attachment; filename=\"image001.png\"\r\n\
+         Content-ID: {content_id}\r\nContent-Transfer-Encoding: base64\r\n\r\n{PNG_B64}\r\n--B--\r\n"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_picture_the_html_asks_for_is_shown_in_place_whatever_its_disposition_says() {
+    for html in [
+        "<p>Regards <img src=\"cid:image001.png@01DB0000.0000AAAA\"></p>",
+        // Another letter case, and angle brackets in the address.
+        "<p>Regards <img src=\"CID:<IMAGE001.PNG@01db0000.0000aaaa>\"></p>",
+    ] {
+        let m = mailcraft_mime_model::parse(&mixed(html, "<image001.png@01DB0000.0000AAAA>"));
+        assert!(!m.attachments[0].inline, "the part says attachment: {html}");
+        assert!(!listed(&m), "{html}");
+        // A reply carries it with its quote, as a picture of the text.
+        let (pictures, sent) = reply_carries(&mut session(), m.clone());
+        assert_eq!((pictures.len(), sent.len()), (1, 1), "{html}");
+        // A forward carries it as a picture of the text too, not as a file.
+        let mut s = session();
+        let mut m = m;
+        m.folder = s.mailbox.inbox().unwrap();
+        m.account = s.mailbox.accounts[0].id;
+        let id = s.mailbox.add_message(m).unwrap();
+        s.run("mail.forward", &json!({"id": id})).unwrap();
+        s.run("compose.set", &json!({"to": "robin@b.example"})).unwrap();
+        let sent = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+        let sent = s.mailbox.message(sent).unwrap();
+        assert_eq!(sent.attachments.len(), 1, "{html}");
+        assert!(sent.attachments[0].inline && !listed(sent), "{html}");
+    }
+    // A picture with a Content-ID that the HTML doesn't ask for stays a file.
+    let m = mailcraft_mime_model::parse(&mixed("<p>Regards</p>", "<image001.png@01DB0000.0000AAAA>"));
+    assert!(listed(&m));
+}

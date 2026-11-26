@@ -696,20 +696,24 @@ impl Message {
 
     /// The attachments the attachment list shows, with their index: everything except pictures
     /// the HTML body shows in place ([`crate::shown`]: an `<img>` asks for it by `cid:`, and it is
-    /// a PNG, JPEG, GIF or WebP by its bytes). A file merely marked "inline" by the sending
-    /// program, which no `<img>` of the body asks for, is still listed, and so is a file of any
-    /// other kind, whatever the body says of it. While the HTML is kept outside memory
-    /// ([`Message::kept`]), an inline picture with a `Content-ID` is taken to be one it shows,
-    /// until the HTML is read and says; a file that is no picture is listed all the same.
+    /// a PNG, JPEG, GIF or WebP by its bytes), however the sender marked it: a signature picture
+    /// sent as `Content-Disposition: attachment`, or one Graph calls `isInline: false`, is part
+    /// of the body all the same. A file merely marked "inline" by the sending program, which no
+    /// `<img>` of the body asks for, is still listed, and so is a file of any other kind,
+    /// whatever the body says of it. While the HTML is kept outside memory ([`Message::kept`]),
+    /// an inline picture with a `Content-ID` is taken to be one it shows, until the HTML is read
+    /// and says; a file that is no picture is listed all the same.
     pub fn listed_attachments(&self) -> impl Iterator<Item = (usize, &Attachment)> {
         let html_kept = self.body.html.is_none() && self.kept.as_ref().is_some_and(|k| k.html.is_some() && !k.failed);
         // Read only when some part may be one it shows.
-        let may_show = self.attachments.iter().any(|a| a.inline && !a.content_id.is_empty());
+        let may_show = self.attachments.iter().any(|a| !a.content_id.is_empty());
         let ids = if may_show && !html_kept { crate::shown::shown_ids(self.body.html.as_deref().unwrap_or("")) } else { Default::default() };
         self.attachments.iter().enumerate().filter(move |(_, a)| {
-            let shown = a.inline
-                && !a.content_id.is_empty()
-                && if html_kept { crate::shown::is_picture_part(a) } else { crate::shown::shown_in_place(&ids, a) };
+            let shown = if html_kept {
+                a.inline && !a.content_id.is_empty() && crate::shown::is_picture_part(a)
+            } else {
+                crate::shown::shown_in_place(&ids, a)
+            };
             !shown
         })
     }

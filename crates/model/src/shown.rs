@@ -168,12 +168,23 @@ fn content_id(src: &[u8]) -> Option<String> {
         return None;
     }
     let id = src.get(4..)?.trim_ascii();
-    let id = id.strip_prefix(b"<").unwrap_or(id);
-    let id = id.strip_suffix(b">").unwrap_or(id);
+    // The angle brackets as written, or as an attribute escapes them (a quote carries `&lt;…&gt;`).
+    let id = id.strip_prefix(b"<").or_else(|| strip_prefix_ignore_case(id, b"&lt;")).unwrap_or(id);
+    let id = id.strip_suffix(b">").or_else(|| strip_suffix_ignore_case(id, b"&gt;")).unwrap_or(id);
     if id.is_empty() || id.len() > MAX_ID_BYTES {
         return None;
     }
     std::str::from_utf8(id).ok().map(str::to_string)
+}
+
+fn strip_prefix_ignore_case<'a>(bytes: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
+    let (head, rest) = bytes.split_at_checked(prefix.len())?;
+    head.eq_ignore_ascii_case(prefix).then_some(rest)
+}
+
+fn strip_suffix_ignore_case<'a>(bytes: &'a [u8], suffix: &[u8]) -> Option<&'a [u8]> {
+    let (rest, tail) = bytes.split_at_checked(bytes.len().checked_sub(suffix.len())?)?;
+    tail.eq_ignore_ascii_case(suffix).then_some(rest)
 }
 
 /// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.

@@ -553,6 +553,13 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
+/// What a forward of `m` carries: all its files, those its HTML shows in place as pictures of the
+/// text, however the sender marked them (a signature picture sent as an attachment).
+fn forwarded_files(m: &Message) -> Vec<Attachment> {
+    let ids = mailcraft_model::shown::shown_ids(m.body.html.as_deref().unwrap_or(""));
+    m.attachments.iter().map(|a| Attachment { inline: a.inline || mailcraft_model::shown::shown_in_place(&ids, a), ..a.clone() }).collect()
+}
+
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
 /// bounded: the root and the latest ones.
 pub(super) fn references_of(m: &Message) -> Vec<String> {
@@ -665,7 +672,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
         format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
-        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
+        attachments: if mode == ComposeMode::Forward { forwarded_files(&m) } else { Vec::new() },
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()

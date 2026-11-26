@@ -89,6 +89,7 @@ impl Core {
                 .filter(|b| matches!(&b.kind, mailcraft_html::BlockKind::Image { src, .. } if !mailcraft_html::is_embedded(src)))
                 .count();
             let people = |a: &[mailcraft_model::Address]| text::first(a, MAX_PEOPLE_IN_ITEM, crate::queries::address);
+            let listed: std::collections::HashSet<usize> = m.listed_attachments().map(|(i, _)| i).collect();
             Ok(MessageView {
                 rev: s.rev(),
                 id: m.id,
@@ -107,7 +108,8 @@ impl Core {
                     name: text::clip(&a.name, MAX_NAME),
                     mime: text::clip(&a.mime, MAX_NAME),
                     size: u64::try_from(a.size()).unwrap_or(u64::MAX),
-                    inline: a.inline,
+                    // The desktop's rule: a picture the HTML shows by `cid:` is the body's, however it was marked.
+                    inline: !listed.contains(&i),
                 }),
                 blocks: views,
                 dark_design,
