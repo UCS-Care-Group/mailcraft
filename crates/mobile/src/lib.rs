@@ -58,6 +58,8 @@ mod accounts_tests;
 #[cfg(test)]
 mod attachments_tests;
 #[cfg(test)]
+mod blocks_tests;
+#[cfg(test)]
 mod calendar_tests;
 #[cfg(test)]
 mod compose_share_tests;
