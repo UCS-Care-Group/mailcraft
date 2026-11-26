@@ -9199,7 +9199,7 @@ msgstr "O MailCraft continuará em execução"
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft will make one appointment called \"MailCraft connection check\" in the calendar of {account}, a year from today. It reads it back, changes its time twice (the second time said in this computer's time zone), reads it back each time, and deletes it again. Nothing else in your calendar is read or changed, nobody is invited or written to, and no reminder is set. Afterwards you see what the server answered at each step, and whether what was sent is what the server has."
-msgstr "O MailCraft criará um compromisso chamado \"Verificação de conexão do MailCraft\" no calendário de {account}, daqui a um ano. Lê de volta, muda o horário duas vezes (a segunda no fuso deste computador), lê de volta cada vez, e exclui de novo. Nada mais no calendário é lido ou alterado, ninguém é convidado ou avisado, e nenhum lembrete é definido. Depois você vê o que o servidor respondeu em cada passo, e se o que foi enviado é o que o servidor tem."
+msgstr "O MailCraft criará um compromisso chamado \"MailCraft connection check\" no calendário de {account}, daqui a um ano. Lê de volta, muda o horário duas vezes (a segunda no fuso deste computador), lê de volta cada vez, e exclui de novo. Nada mais no calendário é lido ou alterado, ninguém é convidado ou avisado, e nenhum lembrete é definido. Depois você vê o que o servidor respondeu em cada passo, e se o que foi enviado é o que o servidor tem."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -19061,7 +19061,7 @@ msgstr "As tarefas não puderam ser lidas."
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "The test appointment (\"MailCraft connection check\", a year from today) could not be deleted: please delete it in the calendar. Nothing else was read or changed."
-msgstr "O compromisso de teste (\"Verificação de conexão do MailCraft\", daqui a um ano) não pôde ser excluído: exclua-o no calendário. Nada mais foi lido ou alterado."
+msgstr "O compromisso de teste (\"MailCraft connection check\", daqui a um ano) não pôde ser excluído: exclua-o no calendário. Nada mais foi lido ou alterado."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
