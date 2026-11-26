@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -30,6 +31,8 @@ internal class ReadingController(
     private val scope: CoroutineScope,
     /** Where the picture cache's files are read and written: never the main thread. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** Waits [it] milliseconds (swapped for a gate in tests). */
+    private val wait: suspend (Long) -> Unit = { delay(it) },
 ) {
     private val state = MutableStateFlow(ReadingUi())
 
@@ -50,8 +53,11 @@ internal class ReadingController(
     @Synchronized
     fun isAsked(id: ULong): Boolean = id in asked
 
-    /** Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed). */
-    fun open(id: ULong, widthDp: Int, dark: Boolean) {
+    /**
+     * Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed).
+     * A positive [markAfterMs] holds the mark as read back that long (a swipe passing by).
+     */
+    fun open(id: ULong, widthDp: Int, dark: Boolean, markAfterMs: Long = 0) {
         val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         state.update {
@@ -71,6 +77,11 @@ internal class ReadingController(
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
             state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
+            // A message swiped to counts as read only if it stays open: passing by quickly leaves it unread.
+            if (markAfterMs > 0 && opened.view.unread) {
+                wait(markAfterMs)
+                if (mine != generation.get()) return@launch
+            }
             if (opened.view.unread && remember(marked, id)) {
                 if (source.markRead(id)) triaged(id, unread = false) else forget(id)
             }

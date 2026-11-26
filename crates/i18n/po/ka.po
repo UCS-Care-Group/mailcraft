@@ -10630,6 +10630,11 @@ msgstr "შემდეგი კვირა"
 msgid "Next events"
 msgstr "მომავალი ღონისძიებები"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Next message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -12937,6 +12942,11 @@ msgstr "წინა თვე"
 #, fuzzy
 msgid "Previous Page"
 msgstr "წინა გვერდი"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Previous message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs

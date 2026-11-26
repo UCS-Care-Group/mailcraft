@@ -10654,6 +10654,11 @@ msgstr "Settimana prossima"
 msgid "Next events"
 msgstr "Prossimi eventi"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Next message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -12966,6 +12971,11 @@ msgstr "Mese precedente"
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Previous Page"
 msgstr "Pagina precedente"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Previous message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs

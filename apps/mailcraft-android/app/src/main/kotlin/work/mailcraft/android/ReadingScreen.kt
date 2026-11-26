@@ -51,7 +51,7 @@ private const val RGB_MASK = 0xFFFFFF
 /** What the reading pane asks of the app. */
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
-    val onOpen: (ULong, Int, Boolean) -> Unit,
+    val onOpen: (ULong, Int, Boolean, Long) -> Unit,
     /** Message [id] is no longer on screen: pictures still on their way are let go of. */
     val onClose: (ULong) -> Unit,
     val onAllow: (AllowScope) -> Unit,
@@ -64,7 +64,7 @@ internal class ReadingActions(
     val onTriaged: (id: ULong, unread: Boolean?, flagged: Boolean?) -> Unit = { _, _, _ -> },
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
+        val None = ReadingActions({ _, _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
     }
 }
 
@@ -100,13 +100,18 @@ internal fun ReadingPane(
             notice = null
         }
     }
-    Box(modifier = modifier.fillMaxSize()) {
+    // The message swiped to: it counts as read only after a short while (passing by quickly leaves it unread).
+    var swipedTo by remember { mutableStateOf<ULong?>(null) }
+    val swiped = modifier.fillMaxSize().swipesBetweenMessages(texts, tools.swipe) { to -> swipedTo = to.id }
+    Box(modifier = swiped) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val bodyWidth = maxWidth - Gutter * 2
             // (A light page asks the core for the message's light design, the one its sender made for it.)
             val designDark = dark && !light
             LaunchedEffect(id, bodyWidth.value.toInt(), designDark) {
-                actions.onOpen(id, bodyWidth.value.toInt(), designDark)
+                val after = if (swipedTo == id) SWIPE_READ_MS else 0L
+                swipedTo = null
+                actions.onOpen(id, bodyWidth.value.toInt(), designDark, after)
             }
             DisposableEffect(id) { onDispose { actions.onClose(id) } }
             val opened = ui.opened

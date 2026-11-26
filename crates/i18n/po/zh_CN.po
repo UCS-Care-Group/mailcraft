@@ -10649,6 +10649,11 @@ msgstr "下周"
 msgid "Next events"
 msgstr "接下来的活动"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Next message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -12967,6 +12972,11 @@ msgstr "上个月"
 #, fuzzy
 msgid "Previous Page"
 msgstr "上一页"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Previous message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs

@@ -77,7 +77,7 @@ internal class PictureStack(
         onLeft: () -> Unit = {},
         onCompose: (ComposeStart) -> Unit = {},
     ) = ReadingActions(
-        onOpen = { id, width, dark -> reading.open(id, width, dark) },
+        onOpen = { id, width, dark, after -> reading.open(id, width, dark, after) },
         onClose = {
             reading.close(it)
             onLeft()
