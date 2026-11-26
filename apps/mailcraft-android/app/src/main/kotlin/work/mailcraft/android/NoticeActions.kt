@@ -9,7 +9,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.graphics.drawable.IconCompat
 import uniffi.mailcraft_mobile.NotifiedMessage
 
 /** The broadcast of a new-mail notification's button that acts without opening the app. */
@@ -126,7 +125,7 @@ internal fun noticeConfirmation(button: NoticeButton, outcome: NoticeOutcome, te
  */
 internal fun confirmMailNotice(context: Context, message: ULong, said: String) {
     val notification = NotificationCompat.Builder(context, CHANNEL_MAIL)
-        .setSmallIcon(IconCompat.createWithBitmap(envelope()))
+        .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle(said)
         .setCategory(NotificationCompat.CATEGORY_STATUS)
         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
