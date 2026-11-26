@@ -120,6 +120,7 @@ proptest! {
     #[test]
     fn conversations_brought_in_step_are_those_built_afresh(changes in prop::collection::vec(change(), 1..40), every in 1usize..6) {
         let (mut s, inboxes) = mailbox();
+        let start = s.mailbox.clone();
         let _ = s.threads();
         for (n, change) in changes.iter().enumerate() {
             apply(&mut s, inboxes, change);
@@ -136,6 +137,13 @@ proptest! {
         prop_assert_eq!(conversations(&s, &kept), conversations(&s, &afresh));
         // Brought in step each time: built over every message only once.
         prop_assert_eq!(s.threads_built(), 1);
+        // Worked out on several threads, at first and brought in step since, they are the same.
+        for threads in [2, 3, 16] {
+            let on = crate::conversations::threads_on(&s.mailbox, &s.mailbox, threads);
+            prop_assert_eq!(conversations(&s, &on), conversations(&s, &afresh), "built on {} threads", threads);
+            let on = crate::conversations::threads_on(&start, &s.mailbox, threads);
+            prop_assert_eq!(conversations(&s, &on), conversations(&s, &afresh), "built on {} threads, then in step", threads);
+        }
     }
 }
 
@@ -161,4 +169,117 @@ fn new_mail_works_out_its_own_topics_only() {
     assert_eq!(s.threads_built(), 2);
     let afresh = ThreadIndex::build(s.mailbox.messages.values().map(|m| m.as_ref()));
     assert_eq!(conversations(&s, &threads), conversations(&s, &afresh));
+}
+
+/// How long the conversations take to work out over a large mailbox of real conversations: of
+/// one to eight messages each, replies naming what they answer, and every twentieth conversation
+/// of a topic many share ("Weekly report"). `MAILCRAFT_CONVERSATIONS_BENCH_MESSAGES` makes it
+/// another size than 326,000. Run with `--release --ignored --nocapture`.
+#[test]
+#[ignore = "a benchmark: builds a mailbox of 326,000 messages in memory"]
+fn conversations_bench() {
+    let messages: u32 = std::env::var("MAILCRAFT_CONVERSATIONS_BENCH_MESSAGES").ok().and_then(|s| s.parse().ok()).unwrap_or(326_000);
+    let (mut s, inboxes) = mailbox();
+    let mut n = 0u32;
+    let mut conversation = 0u32;
+    while n < messages {
+        let size = 1 + conversation % 8;
+        let topic = if conversation.is_multiple_of(20) { "Weekly report".to_string() } else { format!("Plans for the harbour, part {conversation}") };
+        let mut references: Vec<String> = Vec::new();
+        for k in 0..size {
+            let id = format!("c{conversation}.{k}@example.org");
+            let m = Message {
+                folder: inboxes[(conversation % 2) as usize],
+                subject: if k == 0 { topic.clone() } else { format!("Re: {topic}") },
+                message_id: format!("<{id}>"),
+                in_reply_to: references.last().cloned().unwrap_or_default(),
+                references: references.clone(),
+                ..Default::default()
+            };
+            s.mailbox.add_message(m).unwrap();
+            references.push(format!("<{id}>"));
+            n += 1;
+        }
+        conversation += 1;
+    }
+    s.mailbox_changed();
+    let ms = |d: std::time::Duration| d.as_secs_f64() * 1000.0;
+    let mut built = Vec::new();
+    let mut afresh = Vec::new();
+    for _ in 0..15 {
+        let t = std::time::Instant::now();
+        let threads = ThreadIndex::build(s.mailbox.messages.values().map(|m| m.as_ref()));
+        afresh.push(ms(t.elapsed()));
+        drop(threads);
+        let fresh = Session::new(s.mailbox.clone());
+        let t = std::time::Instant::now();
+        let _ = fresh.threads();
+        built.push(ms(t.elapsed()));
+    }
+    let median = |v: &mut Vec<f64>| {
+        v.sort_by(f64::total_cmp);
+        v[v.len() / 2]
+    };
+    let cores = std::thread::available_parallelism().map_or(1, |p| p.get());
+    eprintln!(
+        "CONVERSATIONS_BENCH {} messages, {cores} cores: ThreadIndex::build median {:.1} ms {afresh:.0?}; first build median {:.1} ms {built:.0?}",
+        s.mailbox.messages.len(),
+        median(&mut afresh),
+        median(&mut built)
+    );
+    let _ = s.threads();
+    let mut pieces = Vec::new();
+    for p in 0..20u32 {
+        for k in 0..50u32 {
+            let m = Message {
+                folder: inboxes[1],
+                subject: format!("Re: Plans for the harbour, part {}", p * 50 + k),
+                message_id: format!("<new{p}.{k}@example.org>"),
+                in_reply_to: format!("<c{}.0@example.org>", p * 50 + k),
+                ..Default::default()
+            };
+            s.mailbox.add_message(m).unwrap();
+        }
+        s.mailbox_changed();
+        let t = std::time::Instant::now();
+        let _ = s.threads();
+        pieces.push(ms(t.elapsed()));
+    }
+    eprintln!("CONVERSATIONS_BENCH a piece of 50 new messages brought in step: median {:.1} ms {pieces:.1?}", median(&mut pieces));
+    assert_eq!(s.threads_built(), 1);
+}
+
+/// Worked out on threads over a mailbox of many chunks, then brought in step with changes, the
+/// conversations are those of a build over every message on one.
+#[test]
+fn conversations_worked_out_on_threads_are_those_built_on_one() {
+    let (mut s, inboxes) = mailbox();
+    for n in 0..6_000u32 {
+        let m = Message {
+            folder: inboxes[(n % 2) as usize],
+            subject: if n % 3 == 0 { format!("Topic {}", n % 70) } else { format!("Re: Topic {}", n % 70) },
+            message_id: format!("more{n}@example.org"),
+            in_reply_to: if n % 4 == 0 { format!("more{}@example.org", n.saturating_sub(70)) } else { String::new() },
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+    }
+    s.mailbox_changed();
+    let start = s.mailbox.clone();
+    for n in 0..60u8 {
+        let change = match n % 4 {
+            0 => Change::Add { other: n % 8 == 0, subject: usize::from(n % 5), own: n % 12, answers: Some(n % 7), thread: None },
+            1 => Change::Remove(usize::from(n) * 97),
+            2 => Change::Subject(usize::from(n) * 131, usize::from(n % 5)),
+            _ => Change::Answers(usize::from(n) * 59, Some(n % 12)),
+        };
+        apply(&mut s, inboxes, &change);
+    }
+    let afresh = ThreadIndex::build(s.mailbox.messages.values().map(|m| m.as_ref()));
+    for threads in [1, 2, 3, 4, 7] {
+        let on = crate::conversations::threads_on(&s.mailbox, &s.mailbox, threads);
+        assert_eq!(conversations(&s, &on), conversations(&s, &afresh), "built on {threads} threads");
+        let on = crate::conversations::threads_on(&start, &s.mailbox, threads);
+        assert_eq!(conversations(&s, &on), conversations(&s, &afresh), "built on {threads} threads, then in step");
+    }
 }

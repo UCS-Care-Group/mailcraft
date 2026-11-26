@@ -728,7 +728,9 @@ impl Message {
     /// the same topic are of one conversation only when they are linked too
     /// ([`crate::ThreadIndex`], #795).
     pub fn topic_key(&self) -> String {
-        self.topic().to_lowercase()
+        // Without the copy `topic` makes: it is asked of every message when the conversations
+        // are worked out (#1897).
+        topic_of(&self.subject).to_lowercase()
     }
 
     /// Its size as the message list shows and sorts it (#273, #300): an IMAP message too large to
