@@ -9,10 +9,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,8 +19,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.IconCompat
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.NotificationRecord
 import uniffi.mailcraft_mobile.NotificationTopic
@@ -128,7 +122,6 @@ internal class MailNotifier(
         if (!mailNotificationsAllowed(context, channel)) return
         // The "New mail only" privacy switch is about mail; a reminder says what the core says.
         val record = if (reminder) sent else privateRecord(sent, onlyNewMail(), t("New mail"))
-        val icon = IconCompat.createWithBitmap(envelope())
         val open = PendingIntent.getActivity(
             context,
             0,
@@ -136,11 +129,11 @@ internal class MailNotifier(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val hidden = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(icon)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (reminder) t("Reminders") else t("New mail"))
             .build()
         val notification = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(icon)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(record.title)
             .setContentText(record.body)
             .setCategory(if (reminder) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EMAIL)
@@ -171,32 +164,3 @@ internal fun postsNotification(topic: NotificationTopic, remindersOn: Boolean): 
  */
 internal fun privateRecord(record: NotificationRecord, onlyNewMail: Boolean, newMail: String): NotificationRecord =
     if (onlyNewMail) record.copy(title = newMail, body = "") else record
-
-/** The status-bar icon, an envelope drawn here in white on nothing (the system tints it). */
-internal fun envelope(): Bitmap {
-    val size = ICON_PX
-    val bitmap = createBitmap(size, size)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.STROKE
-        strokeWidth = size * STROKE
-        strokeJoin = Paint.Join.ROUND
-        strokeCap = Paint.Cap.ROUND
-    }
-    val left = size * MARGIN
-    val right = size - left
-    val top = size * TOP
-    val bottom = size - top
-    canvas.drawRoundRect(left, top, right, bottom, size * CORNER, size * CORNER, paint)
-    canvas.drawLine(left, top, size / 2f, size * FOLD, paint)
-    canvas.drawLine(size / 2f, size * FOLD, right, top, paint)
-    return bitmap
-}
-
-private const val ICON_PX = 96
-private const val STROKE = 0.08f
-private const val MARGIN = 0.12f
-private const val TOP = 0.24f
-private const val CORNER = 0.08f
-private const val FOLD = 0.55f
