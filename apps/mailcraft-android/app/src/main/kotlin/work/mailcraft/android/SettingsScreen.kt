@@ -96,6 +96,7 @@ private fun SettingsBody(
             AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
         SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
         SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+        SettingsPage.NotificationButtons -> NoticeButtonsPage(texts, data.noticeButtons, actions.onNoticeButtons)
         SettingsPage.Reading -> ReadingPage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
         SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
@@ -114,6 +115,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
+            SettingsPage.NotificationButtons -> noticeButtonsSummary(texts, data.noticeButtons)
             SettingsPage.Reading -> readingSummary(texts, data.readingPrefs)
             SettingsPage.About -> data.version
             SettingsPage.RemoveData -> removeDataSummary(texts)

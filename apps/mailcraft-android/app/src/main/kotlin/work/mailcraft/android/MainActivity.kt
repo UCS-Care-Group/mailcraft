@@ -127,6 +127,10 @@ class MainActivity : AppCompatActivity() {
  */
 internal fun incomingOf(intent: Intent?): Incoming? {
     if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+    // A notification's Reply comes only through the alias no other app can reach.
+    if (intent.component?.className == NOTICE_REPLY_ALIAS) {
+        return noticeAskOf(intent)?.takeIf { it.button == NoticeButton.Reply }?.let { Incoming.Reply(it.message) }
+    }
     return try {
         routeIncoming(
             action = intent.action,
@@ -164,7 +168,10 @@ private fun TakeIncoming(texts: Texts, asked: Asked, writing: ComposeHost, conte
     LaunchedEffect(wanted) {
         if (wanted != null) {
             asked.handled()
-            writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            val taken = writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            // A notification's Reply takes its notification away once the reply is open; while
+            // another message is being written it stays, to be pressed again.
+            if (taken && wanted is Incoming.Reply) cancelMailNotice(context, wanted.message)
         }
     }
     IncomingLayers(texts, writing)
@@ -233,6 +240,8 @@ private fun CoreShell(
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
     var swipe by remember { mutableStateOf(prefs.load()) }
+    val noticeStore = remember { DeviceNoticeButtons(appContext) }
+    var noticeButtons by remember { mutableStateOf(noticeStore.load()) }
     val readingStore = remember { DeviceReadingPrefs(appContext) }
     var readingPrefs by remember { mutableStateOf(readingStore.load()) }
     // (A folder of 0 is the first Inbox.)
@@ -279,6 +288,7 @@ private fun CoreShell(
             categories = categories,
             nowMillis = now,
             swipe = swipe,
+            noticeButtons = noticeButtons,
             readingPrefs = readingPrefs,
             reading = pictured.reading,
             pictures = pictured.settings,
@@ -299,6 +309,10 @@ private fun CoreShell(
             onSwipe = {
                 swipe = it
                 prefs.save(it)
+            },
+            onNoticeButtons = {
+                noticeButtons = it
+                noticeStore.save(it)
             },
             onReadingPrefs = {
                 readingPrefs = it
@@ -369,7 +383,9 @@ private class Pictured(
 
 @Composable
 private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
-    val reader = remember(core, list) { ReadingStack(core, context, scope, list::markRead) }
+    val reader = remember(core, list) {
+        ReadingStack(core, context, scope) { id -> list.runOn(Triage.MarkRead(read = true), id) }
+    }
     val stack = reader.pictures
     val attachments by reader.attachments.ui.collectAsState()
     val reading by stack.reading.ui.collectAsState()
