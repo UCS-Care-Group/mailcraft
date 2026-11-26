@@ -256,6 +256,11 @@ impl SendReceive {
         self.running.is_some()
     }
 
+    /// The account whose run is under way, if one is.
+    pub fn running_account(&self) -> Option<Id> {
+        self.running.as_ref().map(|r| r.account)
+    }
+
     /// Call the run under way off at its next safe place; the rest of the round with it.
     pub fn stop(&mut self, session: &mut Session) {
         self.cancel.store(true, Ordering::Relaxed);

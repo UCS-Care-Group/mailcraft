@@ -34,7 +34,34 @@ impl Core {
     /// accounts of a kind that isn't sent and received here yet.
     pub async fn sync_now(&self) -> Result<SyncAnswer, CoreError> {
         let sync = self.sync.clone();
-        self.call(move |session| Ok(sync.ask(session, None, true))).await
+        self.call(move |session| Ok(sync.ask(session, None, true, None))).await
+    }
+
+    /// Send and receive the mail the owner is looking at, the owner having asked (a pull to
+    /// refresh): `account`'s alone (a list of one account's folder), or every account's with
+    /// `None` (a view across accounts). Only the holds of the accounts it asks for are let go of
+    /// ([`Core::hold_background_sync`]). A round under way that doesn't have an account asked for
+    /// takes it at the end of its line; one running or in line already isn't run twice. It returns
+    /// at once, as `sync_now` does and with its events; [`Core::mail_in`] waits for the mail.
+    pub async fn refresh_mail(&self, account: Option<u64>) -> Result<SyncAnswer, CoreError> {
+        let sync = self.sync.clone();
+        self.call(move |session| Ok(sync.ask(session, None, true, account))).await
+    }
+
+    /// Returns once the mail of `account` (every account's with `None`) is in: none of those
+    /// accounts' mail runs, sent mail included, is under way or waits in line, or the round was
+    /// called off. At once when that is so already. The calendar's, the to-dos' and the contacts'
+    /// jobs at the round's end are not waited for: the spinner of a pull to refresh. `Cancelled`
+    /// when the core closes meanwhile.
+    pub async fn mail_in(&self, account: Option<u64>) -> Result<(), CoreError> {
+        let replies = Queue::<Result<(), CoreError>>::new();
+        let (sync, reply) = (self.sync.clone(), replies.clone());
+        self.call(move |session| {
+            sync.wait_mail(session, account, reply);
+            Ok(())
+        })
+        .await?;
+        replies.next().await.unwrap_or(Err(CoreError::Cancelled))
     }
 
     /// Send and receive now without letting go of the accounts held back
@@ -43,7 +70,7 @@ impl Core {
     /// Otherwise as [`Core::sync_now`]: it returns at once, and says why when it didn't start.
     pub async fn sync_keeping_holds(&self) -> Result<SyncAnswer, CoreError> {
         let sync = self.sync.clone();
-        self.call(move |session| Ok(sync.ask(session, None, false))).await
+        self.call(move |session| Ok(sync.ask(session, None, false, None))).await
     }
 
     /// Hold `account` back from Send/Receive, the calendar's, the to-dos' and the background's
@@ -249,7 +276,7 @@ struct StopOnDrop<'a> {
 /// then call off in its place.
 pub(crate) fn start_attached(sync: &SyncHost, session: &mut Session, waiter: Arc<Queue<Wake>>, shared: &Started) -> SyncAnswer {
     let round = sync.round();
-    let answer = sync.ask(session, Some(waiter), false);
+    let answer = sync.ask(session, Some(waiter), false, None);
     if answer.started {
         shared.round.store(round.saturating_add(1), Ordering::SeqCst);
         // Dropped while this ran: the drop may not have seen the round, so it is called off here.

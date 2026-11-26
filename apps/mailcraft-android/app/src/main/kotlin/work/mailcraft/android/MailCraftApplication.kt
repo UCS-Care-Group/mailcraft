@@ -5,6 +5,7 @@ package work.mailcraft.android
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.util.Log
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,9 @@ import kotlinx.coroutines.launch
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 import uniffi.mailcraft_mobile.Event
+
+/** The tag of the device log's lines on how long Send/Receive took (`adb logcat -s MailCraftSync`). */
+private const val SYNC_LOG_TAG = "MailCraftSync"
 
 /** The Rust core and what the app built on it, once both are ready. */
 internal class Opened(
@@ -152,7 +156,8 @@ class MailCraftApplication : Application() {
                 scope = scope,
                 save = { core.saveNow() },
                 copy = { text -> copyToClipboard(applicationContext, text) },
-                sync = { core.syncNow() },
+                sync = { account -> core.refreshMail(account) },
+                mailIn = { account -> core.mailIn(account) },
                 firstRound = { core.syncKeepingHolds() },
                 roomFor = { account, storageMb -> settings?.roomForFirstSync(account, storageMb) ?: false },
                 holds = holds,
@@ -200,6 +205,9 @@ class MailCraftApplication : Application() {
             opened.mail.follow(opened.hub.syncing, opened.hub.syncNotice, opened.hub::syncNoticeShown, scope)
             // The reminders' alarms follow the core's schedule: at every open, and when it changed.
             events.register { event -> if (event is Event.ReminderScheduleChanged) refreshRemindersSoon(opened.core) }
+            // How long each part of Send/Receive took, for `adb logcat -s MailCraftSync`: numbers and
+            // account numbers only, never anything of the mail.
+            events.register { event -> if (event is Event.SyncLog) Log.i(SYNC_LOG_TAG, event.line) }
             events.launchIn(scope) { nextEvent(opened.core) }
             // The core keeps the holds in memory only: the ones the owner left say so again at every start.
             // The holds were given at the opening; said again here, an account that has gone is

@@ -57,9 +57,12 @@ internal class EventDispatcher {
  * to save now (it throws [CoreException] when it couldn't); a failed save is tried again by itself,
  * after [retryAfter] each time (the last one repeated), until one works, and [pause] waits between.
  *
- * [syncNow] is Send/Receive on the owner's word (the mail list's pull to refresh): [sync] starts a
- * round and says whether it did; [syncing] is true from the ask until the core says the round is
- * over, and [syncNotice] is why one didn't start, in the owner's language.
+ * [syncNow] is Send/Receive on the owner's word (the mail list's pull to refresh): [sync] asks for
+ * the mail of the account it is given (every account's for null) and says whether it started, and
+ * [mailIn] returns once that mail is in; [syncing] is true from the ask until then (the calendar,
+ * to-dos and contacts that follow in the core don't hold it), and [syncNotice] is why one didn't
+ * start, in the owner's language. A new account's first round ([firstRound]) returns at once, and
+ * [syncing] stays on until the core says that round is over.
  *
  * A sign-in that worked starts a Send/Receive the same way ([firstSync]), so that a new account's
  * mail comes at once; a new account's first one waits for [roomFor] (the room gate, told the space
@@ -75,7 +78,8 @@ internal class AccountsHub(
     copy: (String) -> Unit,
     private val retryAfter: List<Long> = DEFAULT_RETRY,
     private val pause: suspend (Long) -> Unit = { delay(it) },
-    private val sync: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val sync: suspend (account: ULong?) -> SyncAnswer = { SyncAnswer(started = false, message = "") },
+    private val mailIn: suspend (account: ULong?) -> Unit = {},
     private val firstRound: suspend () -> SyncAnswer = { SyncAnswer(started = false, message = "") },
     private val roomFor: suspend (account: ULong, storageMb: Long) -> Boolean = { _, _ -> true },
     private val holds: FirstSyncHolds? = null,
@@ -85,6 +89,9 @@ internal class AccountsHub(
 
     /** A first sync waits for the round under way to end (it began without the new account). */
     private val followUp = AtomicBoolean(false)
+
+    /** The spinner is the owner's pull, which ends when its mail is in: no round's end stops it. */
+    private val pulling = AtomicBoolean(false)
 
     /** True while a Send/Receive the owner asked for is under way (the pull-to-refresh spinner). */
     val syncing: StateFlow<Boolean> = syncingNow.asStateFlow()
@@ -125,10 +132,11 @@ internal class AccountsHub(
     }
 
     /**
-     * Send/Receive now, the owner having asked (pull to refresh). A second ask while one is under way
-     * changes nothing; the round's end comes as the core's `SyncFinished`.
+     * Send/Receive now, the owner having asked (pull to refresh): [account]'s mail (the account whose
+     * folder the list shows), or every account's for null (a list across accounts). A second ask while
+     * one is under way changes nothing; the spinner stops when the mail asked for is in.
      */
-    fun syncNow() = start(owner = true)
+    fun syncNow(account: ULong? = null) = start(owner = true, account = account)
 
     /**
      * A round the owner asked for ([owner]) lets go of every account held back (the core does as it
@@ -136,18 +144,37 @@ internal class AccountsHub(
      * account's first round ([firstRound]) is the app's, not the owner's: the accounts held back
      * stay held, in the core and here (that account's own hold the owner's yes let go already).
      */
-    private fun start(owner: Boolean) {
+    private fun start(owner: Boolean, account: ULong? = null) {
         if (!syncingNow.compareAndSet(expect = false, update = true)) return
         notice.value = null
+        pulling.set(owner)
         scope.launch {
             val answer = try {
                 // (The app's round waits for every hold kept to be said again, as the background's
                 // does: one the core didn't hear when it was answered must not be fetched.)
-                if (owner) holds?.ownerRound(sync) ?: sync() else afterHolds(holds, firstRound)
+                if (owner) {
+                    holds?.ownerRound(account) { sync(account) } ?: sync(account)
+                } else {
+                    afterHolds(holds, firstRound)
+                }
             } catch (_: CoreException) {
                 SyncAnswer(started = false, message = texts.t("Send/Receive couldn't start. Try again."))
             }
-            if (!answer.started) {
+            // The owner's pull is over once the mail it asked for is in (the holds' lock is not held
+            // meanwhile). A core that closes meanwhile ends it too.
+            if (owner && answer.started) {
+                try {
+                    mailIn(account)
+                } catch (_: CoreException) {
+                    Unit
+                }
+            }
+            if (owner) {
+                pulling.set(false)
+                if (!answer.started) notice.value = answer.message.ifEmpty { null }
+                syncingNow.value = false
+                startFollowUp()
+            } else if (!answer.started) {
                 notice.value = answer.message.ifEmpty { null }
                 syncingNow.value = false
                 startFollowUp()
@@ -231,7 +258,7 @@ internal class AccountsHub(
             is Event.SignInNeeded -> controller.signInNeeded(event.account)
             // (Synchronisation and every other change: what the window shows is read again.)
             is Event.RevChanged -> reloads.update { it + 1 }
-            is Event.SyncFinished -> {
+            is Event.SyncFinished -> if (!pulling.get()) {
                 syncingNow.value = false
                 startFollowUp()
             }

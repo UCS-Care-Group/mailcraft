@@ -17,6 +17,21 @@ to a screen, `./gradlew recordPaparazziDebug` draws them again), the licences of
 the check that no Google Play Services or Firebase is in it. From `apps/mailcraft-android`, the
 Gradle tasks run one by one too: `./gradlew testDebugUnitTest detekt lintDebug verifyPaparazziDebug`.
 
+## How long Send/Receive takes
+
+The app writes a line to the device's log for each part of Send/Receive: an account's mail run
+(its account number, how long it took, how it ended, whether it read every folder, and the time
+and requests of each phase), each calendar-and-contacts or to-do job, how long a pull to refresh
+waited for its mail, and each round. The lines hold numbers, account numbers and fixed words only,
+never an address, a folder's name, a subject, a link or a token. Read them with
+`adb logcat -s MailCraftSync`.
+
+A pull to refresh in one account's folder brings that account's mail, its Outbox included, and the
+spinner stops once that mail is in; a search of every account brings every account's. The
+calendar, to-dos and contacts that follow don't hold the spinner: they go on as they do between
+rounds. A pull while a round is under way adds the account to the end of the round unless it is
+running or waiting in it already. The background's runs are as they were.
+
 ## End to end
 
 One instrumented test (`app/src/androidTest/.../EndToEndTest.kt`) runs the whole app on an
