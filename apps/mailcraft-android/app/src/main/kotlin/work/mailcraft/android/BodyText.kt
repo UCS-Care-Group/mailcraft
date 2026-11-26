@@ -39,6 +39,9 @@ internal data class Paper(val rgb: Int, val ink: Int, val link: Int, val turn: I
     /** A line the message asks for, as it is painted on this paper; null when it would not be seen. */
     fun line(asked: Int): Int? = back(asked).takeIf { Readability.contrast(it, rgb) >= INVISIBLE_CONTRAST }
 
+    /** A horizontal rule the message colours: as written unless recoloured, then as [line]. */
+    fun rule(asked: Int): Int? = if (turn == null) asked else line(asked)
+
     /** The paper of a box of the message's own inside this one. */
     fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn)
 

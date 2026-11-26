@@ -160,5 +160,8 @@ class ReadabilityTest {
         assertTrue(dark.line(0xF7A136) != null)
         // Without a dark reading a white rule on the dark page is drawn as written.
         assertEquals(white, Paper.of(darkPaper, 0x9CCAFF).line(white))
+        // A rule is drawn as written unless recoloured, even one the sender hid in its paper's colour.
+        assertEquals(white, Paper.of(white, 0x1B5E8C).rule(white))
+        assertEquals(null, dark.rule(white))
     }
 }
