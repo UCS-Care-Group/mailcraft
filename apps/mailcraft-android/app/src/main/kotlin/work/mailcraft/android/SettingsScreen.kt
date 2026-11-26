@@ -80,7 +80,8 @@ internal fun SettingsScreen(
 }
 
 @Composable
-@Suppress("LongParameterList")
+// One flat arm per page: the exhaustive `when` is the clearest form.
+@Suppress("LongParameterList", "CyclomaticComplexMethod")
 private fun SettingsBody(
     texts: Texts,
     page: SettingsPage?,
@@ -111,6 +112,7 @@ private fun SettingsBody(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod") // one flat arm per page, as in SettingsBody
 private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -> Unit) {
     SettingsPage.entries.forEach { entry ->
         val summary = when (entry) {
