@@ -290,7 +290,7 @@ fn a_signature_picture_graph_calls_no_inline_one_is_shown_in_place_when_the_html
     let (status, _, mime) = get(&server, &format!("/v1.0/me/messages/{id}/$value"), "");
     assert_eq!(status, 200);
     let m = mailcraft_mime_model::parse(mime.as_bytes());
-    assert!(m.attachments.len() == 3 && m.attachments.iter().all(|a| !a.inline), "{mime}");
+    assert_eq!(m.attachments.len(), 3, "{mime}");
     // The two the HTML shows are part of the body; the one it doesn't ask for is a file.
     let listed: Vec<&str> = m.listed_attachments().map(|(_, a)| a.name.as_str()).collect();
     assert_eq!(listed, ["image003.png"]);

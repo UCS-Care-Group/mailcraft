@@ -553,11 +553,12 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
-/// What a forward of `m` carries: all its files, those its HTML shows in place as pictures of the
-/// text, however the sender marked them (a signature picture sent as an attachment).
-fn forwarded_files(m: &Message) -> Vec<Attachment> {
-    let ids = mailcraft_model::shown::shown_ids(m.body.html.as_deref().unwrap_or(""));
-    m.attachments.iter().map(|a| Attachment { inline: a.inline || mailcraft_model::shown::shown_in_place(&ids, a), ..a.clone() }).collect()
+/// What a forward of `m` carries: all its files, those the quoted original (`quoted`, its HTML)
+/// draws as pictures of the text, however the sender labelled them (a signature picture sent as
+/// an attachment, in a message read in before that was told).
+fn forwarded_files(m: &Message, quoted: Option<&str>) -> Vec<Attachment> {
+    let drawn = quoted.map(|html| mailcraft_mime_model::drawn_parts(html, &m.attachments)).unwrap_or_default();
+    m.attachments.iter().enumerate().map(|(i, a)| Attachment { inline: a.inline || drawn.contains(&i), ..a.clone() }).collect()
 }
 
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
@@ -660,6 +661,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
+    let attachments = if mode == ComposeMode::Forward { forwarded_files(&m, quote.as_ref().map(|q| q.html.as_str())) } else { Vec::new() };
     let mut c = Compose {
         mode,
         source: Some(m.id),
@@ -672,7 +674,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
         format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
-        attachments: if mode == ComposeMode::Forward { forwarded_files(&m) } else { Vec::new() },
+        attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()

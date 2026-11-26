@@ -1454,6 +1454,13 @@ impl Session {
     /// it had HTML to choose from).
     pub fn read_at(&mut self, id: Id, place: ReadIn, env: mailcraft_html::Env, as_text: bool) {
         self.read_count = self.read_count.saturating_add(1);
+        // Read here for the first time: the pictures its body draws are the body's (once, not
+        // every frame the pane is drawn).
+        if !self.read_at.contains_key(&(id, place))
+            && let Some(m) = self.mailbox.messages.get(&id).cloned()
+        {
+            self.note_drawn(id, &m);
+        }
         if self.read_at.len() >= MAX_READ_AT && !self.read_at.contains_key(&(id, place)) {
             // lean: a walk of the 1024 at the cap; an ordered map if it is ever felt.
             if let Some(oldest) = self.read_at.iter().min_by_key(|(_, r)| r.2).map(|(k, _)| *k) {
@@ -1461,6 +1468,31 @@ impl Session {
             }
         }
         self.read_at.insert((id, place), (env, as_text, self.read_count));
+    }
+
+    /// Mark inline the parts of message `id` that its HTML draws, as `seen` (the message with its
+    /// body in memory) has it ([`mailcraft_mime_model::drawn_parts`]): for a message read in
+    /// before that was told (#1970), so that its signature pictures are no longer attachments,
+    /// here or in the list, with its body on disk too. Outside the history: nothing the owner did.
+    pub fn note_drawn(&mut self, id: Id, seen: &Message) {
+        let Some(html) = seen.body.html.as_deref() else { return };
+        let Some(m) = self.mailbox.messages.get(&id).filter(|m| !m.draft && m.attachments.iter().any(|a| !a.inline && !a.content_id.is_empty()))
+        else {
+            return;
+        };
+        let drawn = mailcraft_mime_model::drawn_parts(html, &m.attachments);
+        if drawn.iter().all(|i| m.attachments.get(*i).is_none_or(|a| a.inline)) {
+            return;
+        }
+        let mut copy = Message::clone(m);
+        for i in drawn {
+            if let Some(a) = copy.attachments.get_mut(i) {
+                a.inline = true;
+            }
+        }
+        self.put_message(id, copy);
+        self.rev += 1;
+        self.dirty = true;
     }
 
     /// How message `id` was last read in each place it is remembered in ([`Session::read_as`]).

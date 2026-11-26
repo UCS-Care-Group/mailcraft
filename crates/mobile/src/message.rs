@@ -24,12 +24,10 @@ fn failed(message: &str) -> CoreError {
     CoreError::Failed { reason: message.to_string() }
 }
 
-/// The attachment a `cid:` address names: by its content id, as the reading pane finds it.
+/// The attachment a `cid:` address names: by its content id, as the reading pane finds it
+/// ([`mailcraft_model::shown::part_for`]).
 fn attachment_of<'a>(message: &'a Message, src: &str) -> Option<(usize, &'a Attachment)> {
-    let id = src.trim().get(4..).filter(|_| src.trim().get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:")))?;
-    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-    let parts = || message.attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
-    parts().find(|(_, a)| a.content_id == id).or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(id)))
+    mailcraft_model::shown::part_for(&message.attachments, src)
 }
 
 /// A picture's kind, told from its own bytes.
@@ -82,6 +80,16 @@ impl Core {
             // theme, its HTML or its text part, as shown (a choice only beside HTML: one read
             // before its body came is not quoted as text once the HTML is there).
             s.read_at(m.id, mailcraft_engine::ReadIn::Pane, env, from_text && m.body.html.is_some());
+            // The pictures its body draws are the body's, not attachments, here and in the list.
+            s.note_drawn(m.id, &m);
+            let mut m = m;
+            if let Some(now) = s.mailbox.message(m.id).filter(|now| {
+                now.attachments.len() == m.attachments.len() && now.attachments.iter().zip(&m.attachments).any(|(x, y)| x.inline != y.inline)
+            }) {
+                for (a, marked) in std::sync::Arc::make_mut(&mut m).attachments.iter_mut().zip(&now.attachments) {
+                    a.inline = marked.inline;
+                }
+            }
             let has_part = |src: &str| attachment_of(&m, src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });
             let remote_pictures = mailcraft_html::images(&blocks)

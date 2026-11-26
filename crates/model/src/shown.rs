@@ -13,6 +13,8 @@
 //! The HTML is the sender's: it is read once, to its end, with caps on the tags looked at and
 //! the ids kept.
 
+use std::collections::HashSet;
+
 use crate::Attachment;
 
 /// Most content ids kept from one body.
@@ -23,15 +25,15 @@ const MAX_TAGS: usize = 500_000;
 const MAX_ID_BYTES: usize = 998;
 
 /// The content ids the `<img>` elements of an HTML body ask for, each as written (without `cid:`
-/// and any angle brackets) and with `%xx` decoded.
+/// and any angle brackets) and with `%xx` decoded, in lower case.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ShownIds(Vec<String>);
+pub struct ShownIds(HashSet<String>);
 
 impl ShownIds {
-    /// Whether `content_id` is one of them: as written, then without regard to letter case (as
-    /// the reading pane finds the part a `cid:` address names).
+    /// Whether `content_id` is one of them, without regard to letter case (as [`part_for`] finds
+    /// the part a `cid:` address names).
     pub fn shows(&self, content_id: &str) -> bool {
-        !content_id.is_empty() && self.0.iter().any(|id| id == content_id || id.eq_ignore_ascii_case(content_id))
+        !content_id.is_empty() && self.0.contains(&content_id.to_ascii_lowercase())
     }
 
     /// Whether any `<img>` asks for a part by `cid:`.
@@ -62,13 +64,27 @@ pub fn is_picture_part(a: &Attachment) -> bool {
 /// Whether the HTML whose ids are `ids` shows `a` in place: an `<img>` asks for its `Content-ID`
 /// and it is a picture ([`is_picture_part`]).
 pub fn shown_in_place(ids: &ShownIds, a: &Attachment) -> bool {
-    !a.content_id.is_empty() && ids.shows(&a.content_id) && is_picture_part(a)
+    !a.content_id.is_empty() && is_picture_part(a) && ids.shows(&a.content_id)
+}
+
+/// The part a picture's address `src` names (`cid:…`, any letter case, angle brackets and
+/// `%xx` escapes allowed), with its index: the first whose `Content-ID` is the id as written,
+/// then as decoded, then either without regard to letter case. The one rule the reading pane,
+/// the phone and the attachment list find a part by.
+pub fn part_for<'a>(attachments: &'a [Attachment], src: &str) -> Option<(usize, &'a Attachment)> {
+    let id = content_id(src.as_bytes())?;
+    let decoded = percent_decode(&id);
+    let parts = || attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
+    parts()
+        .find(|(_, a)| a.content_id == id)
+        .or_else(|| parts().find(|(_, a)| a.content_id == decoded))
+        .or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(&id) || a.content_id.eq_ignore_ascii_case(&decoded)))
 }
 
 /// The content ids the `<img>` elements of `html` ask for (`src="cid:…"`), at most
 /// [`MAX_SHOWN_IDS`]. Comments are passed over; only the first `src` of an element counts.
 pub fn shown_ids(html: &str) -> ShownIds {
-    let mut out = Vec::new();
+    let mut out = HashSet::new();
     let bytes = html.as_bytes();
     let mut at = 0usize;
     let mut tags = 0usize;
@@ -97,10 +113,10 @@ pub fn shown_ids(html: &str) -> ShownIds {
         let Some(id) = src.and_then(content_id) else { continue };
         let decoded = percent_decode(&id);
         if decoded != id && out.len() < MAX_SHOWN_IDS {
-            out.push(decoded);
+            out.insert(decoded.to_ascii_lowercase());
         }
         if out.len() < MAX_SHOWN_IDS {
-            out.push(id);
+            out.insert(id.to_ascii_lowercase());
         }
     }
     ShownIds(out)

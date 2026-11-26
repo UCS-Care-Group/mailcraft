@@ -9,6 +9,9 @@
 pub mod rich;
 
 use mailcraft_mime as mime;
+use std::collections::BTreeSet;
+
+use mailcraft_model::shown::{is_picture_part, part_for};
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message, Original};
 
 pub use mailcraft_mime::WriteOptions;
@@ -95,7 +98,7 @@ pub fn to_model(m: mime::Message) -> Message {
     } = m;
     // What is read by name stays on the message; every other line goes to its block, in place.
     let (headers, header_block) = mailcraft_model::headers::split(headers);
-    Message {
+    let mut out = Message {
         message_id,
         in_reply_to,
         references,
@@ -135,7 +138,50 @@ pub fn to_model(m: mime::Message) -> Message {
         fresh_stamps,
         original: original.map(|data| Original { data, kept: None }),
         ..Message::default()
+    };
+    mark_drawn(&mut out);
+    out
+}
+
+/// The parts `html` draws in place, by index: a picture (by [`is_picture_part`]) that an
+/// `<img>` the reading pane lays out names by `cid:` ([`part_for`], the first part of a
+/// `Content-ID` only). An `<img>` that is never drawn names nothing: one hidden (`display:none`,
+/// `hidden`), of a pixel or less, or only text inside `<template>`, `<style>`, `<script>`,
+/// `<textarea>` or `<title>`. The HTML is laid out once, within `mailcraft-html`'s caps.
+pub fn drawn_parts(html: &str, attachments: &[Attachment]) -> BTreeSet<usize> {
+    if !attachments.iter().any(|a| !a.content_id.is_empty()) {
+        return BTreeSet::new();
     }
+    let tiny = |n: &Option<u16>| n.is_some_and(|n| n <= 1);
+    let blocks = mailcraft_html::parse_text(html);
+    mailcraft_html::images(&blocks)
+        .into_iter()
+        .filter_map(|b| match &b.kind {
+            mailcraft_html::BlockKind::Image { src, width, height, .. } if !tiny(width) && !tiny(height) => part_for(attachments, src),
+            _ => None,
+        })
+        .filter(|(_, a)| is_picture_part(a))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Mark inline the parts of `m` its HTML draws ([`drawn_parts`]), however the sender labelled
+/// them, so that they are the body's and not attachments wherever the message is listed, with its
+/// body in memory or on disk (#1970). A draft is left as it is (its parts go up as they are).
+/// Whether anything changed.
+pub fn mark_drawn(m: &mut Message) -> bool {
+    let Some(html) = m.body.html.as_deref().filter(|_| !m.draft) else { return false };
+    if !m.attachments.iter().any(|a| !a.inline && !a.content_id.is_empty()) {
+        return false;
+    }
+    let mut changed = false;
+    for i in drawn_parts(html, &m.attachments) {
+        if let Some(a) = m.attachments.get_mut(i).filter(|a| !a.inline) {
+            a.inline = true;
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// What of a message of the mailbox an Internet message carries, for `mailcraft-mime` to write.

@@ -63,3 +63,13 @@ fn a_picture_the_html_does_not_show_is_listed() {
     assert_eq!(view.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect::<Vec<_>>(), [("image001.png", true), ("photo.png", false)]);
     assert!(row_has_attachments(&core));
 }
+
+#[test]
+fn a_picture_asked_for_with_an_escaped_content_id_is_drawn_where_it_is_not_listed() {
+    let (core, id) = core("<p>Regards</p><img src=\"cid:logo%40a.example\">", vec![picture("logo.png", "logo@a.example")]);
+    let view = block_on(core.message(id, 400.0, false)).unwrap();
+    assert!(view.attachments[0].inline);
+    // The body draws it: its block names the part.
+    let blocks = format!("{:?}", view.blocks);
+    assert!(blocks.contains("picture: Some(\"cid:logo%40a.example\")"), "{blocks}");
+}
