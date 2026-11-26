@@ -638,7 +638,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
-    let mut read = crate::mime::parse_fetched(mime);
+    // (Its pictures are marked below, once it is known whether it is a draft.)
+    let mut read = crate::mime::parse_fetched_unmarked(mime);
     // What came brought no original (#30): the server's copy isn't protected either.
     let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
@@ -725,6 +726,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if let Some(server) = m.server.as_mut() {
         server.size = mime.len() as u64;
     }
+    // The pictures its body draws are the body's, but in a draft, which goes up as it is.
+    crate::mime::mark_drawn(m);
     // A draft as the server has it now: what a change made here is worked out from.
     if m.draft {
         let state = mailcraft_model::sync::DraftState::of(m);

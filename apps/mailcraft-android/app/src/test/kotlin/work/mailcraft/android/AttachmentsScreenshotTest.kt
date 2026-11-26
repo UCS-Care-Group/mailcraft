@@ -4,6 +4,8 @@
 
 package work.mailcraft.android
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -39,6 +41,8 @@ class AttachmentsScreenshotTest {
         paparazzi.snapshot(name) { ShellShots.Fixed { content() } }
     }
 
+    private val shown = ReadingTools(null, { _, _ -> }, {}, ReadingPrefs(foldAttachments = false), {})
+
     private fun pane(): ReadingUi {
         val entry = Corpus.plain
         val facts = MessageFacts(entry.view.from.address, junk = false, vouched = true, known = false)
@@ -46,10 +50,42 @@ class AttachmentsScreenshotTest {
     }
 
     @Test
-    fun rowsLight100() = shoot("attachments_rows_light_100", false, 1f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+    fun rowsLight100() = shoot("attachments_rows_light_100", false, 1f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None, tools = shown) }
 
     @Test
-    fun rowsDark200() = shoot("attachments_rows_dark_200", true, 2f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+    fun rowsDark200() = shoot("attachments_rows_dark_200", true, 2f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None, tools = shown) }
+
+    /** The default: the files as one folded row. */
+    @Test
+    fun foldedLight100() = shoot("attachments_folded_light_100", false, 1f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+
+    @Test
+    fun foldedDark200() = shoot("attachments_folded_dark_200", true, 2f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+
+    @Test
+    fun foldedLight200() = shoot("attachments_folded_light_200", false, 2f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+
+    @Test
+    fun foldedDark100() = shoot("attachments_folded_dark_100", true, 1f) { ReadingPane(EnglishTexts, 1uL, pane(), ReadingActions.None) }
+
+    /** The row opened (its state is the row's own, so the shot draws the row and the list as they stack). */
+    private val unfolded: @Composable () -> Unit = {
+        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(horizontal = 16.dp)) {
+            FoldedAttachments(EnglishTexts, 1uL, invented.take(3), AttachmentActions.None, open = true) {}
+        }
+    }
+
+    @Test
+    fun unfoldedLight100() = shoot("attachments_unfolded_light_100", false, 1f, unfolded)
+
+    @Test
+    fun unfoldedDark100() = shoot("attachments_unfolded_dark_100", true, 1f, unfolded)
+
+    @Test
+    fun unfoldedLight200() = shoot("attachments_unfolded_light_200", false, 2f, unfolded)
+
+    @Test
+    fun unfoldedDark200() = shoot("attachments_unfolded_dark_200", true, 2f, unfolded)
 
     private fun preview() = Preview(1uL, item("Garden plan.png"), B.png)
 

@@ -10,7 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val LightColors: ColorScheme = lightColorScheme(
+internal val LightColors: ColorScheme = lightColorScheme(
     primary = Color(0xFF1B5E8C),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFD3E6F5),

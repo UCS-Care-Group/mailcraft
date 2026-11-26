@@ -229,8 +229,13 @@ const SOMEONE_ELSE: &str = "sync: you signed in as somebody other than this acco
 /// the owner signs in on Microsoft's page (for Graph, with `Mail.ReadWrite`).
 fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Result<(), Failure> {
     let request = mailcraft_engine::cmd::graph_mail::graph_mail_request(s, account)?;
+    // (The token for the contacts, #1917: the one given, or one of their own from the sign-in.)
+    let (mut contacts_token, mut contacts_consent) = (None, false);
     let token = match std::env::var("MAILCRAFT_ACCESS_TOKEN") {
-        Ok(token) => token,
+        Ok(token) => {
+            contacts_token = Some(token.clone());
+            token
+        }
         Err(_) => {
             // A shared mailbox is read with the sign-in of the account it is opened through (#70).
             let signer = s.mailbox.owner_of(account).map_or(account, |owner| owner.id);
@@ -261,6 +266,21 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
                 let renewed = renewed.map_err(|e| format!("sync: the sign-in doesn't cover this shared mailbox ({e})"))?;
                 renewed.tokens
             } else {
+                // (Shared mailboxes' contacts, or folders a person shared, take the shared permission.)
+                let shared = !s.mailbox.shared_mailboxes(account).is_empty()
+                    || s.mailbox.contact_folders.iter().any(|f| f.account == account && !f.owner.is_own());
+                let resource = mailcraft_net::oauth::Resource::GraphMail;
+                match mailcraft_net::oauth::refresh_graph_contacts(&oauth, &signed.refresh, shared, resource) {
+                    Ok(renewed) => {
+                        // (A sign-in just now that may change them: what was held for it goes.)
+                        mailcraft_engine::cmd::contacts_remote::retry_contact_changes(s, account);
+                        contacts_token = Some(renewed.tokens.access);
+                    }
+                    Err(e) => {
+                        contacts_consent = e.is_consent_needed();
+                        eprintln!("sync: contact changes wait: no token for changing contacts ({e})");
+                    }
+                }
                 signed
             };
             tokens.access
@@ -272,9 +292,74 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
         eprintln!("sync: {e}");
     }
     let applied = mailcraft_engine::cmd::graph_mail::apply_graph_mail(s, result)?;
+    let contacts = !request.shared && s.mailbox.account(account).is_some_and(mailcraft_model::Account::keeps_contacts);
+    let contacts_failed = if contacts {
+        if contacts_consent {
+            mailcraft_engine::cmd::contacts_remote::wait_for_permission(s, account);
+        }
+        // (An error is said, and what was taken in is still saved: a change the server took isn't
+        // sent again.)
+        sync_contacts(s, account, contacts_token.as_deref(), &token).unwrap_or_else(|e| {
+            eprintln!("sync: {e}");
+            true
+        })
+    } else {
+        false
+    };
     s.run("file.save", &json!({"path": path}))?;
     print_json(&applied)?;
-    if failed { Err(Failure::Error("sync: finished with errors".into())) } else { Ok(()) }
+    if failed || contacts_failed { Err(Failure::Error("sync: finished with errors".into())) } else { Ok(()) }
+}
+
+/// The account's contacts both ways (#1917): what waits told to the server, then every folder
+/// read (its own, its subfolders and its shared mailboxes'). Without a token that may change
+/// them (`write`), nothing goes up and only its own folders are read, with `read`. True when
+/// something went wrong or waits.
+fn sync_contacts(s: &mut Session, account: mailcraft_model::Id, write: Option<&str>, read: &str) -> Result<bool, Failure> {
+    let mut waiting = false;
+    if let Some(token) = write {
+        // Batch after batch while they go through (a queue is at most so many batches).
+        let most = mailcraft_model::contact_sync::MAX_CONTACT_CHANGES / mailcraft_model::contact_sync::MAX_CONTACT_OPS + 1;
+        for _ in 0..most {
+            let upload: mailcraft_model::contact_sync::ContactsUpload =
+                serde_json::from_value(s.run("sync.contactChanges", &json!({"account": account}))?).map_err(|e| format!("sync: {e}"))?;
+            if upload.ops.is_empty() {
+                break;
+            }
+            let uploaded = mailcraft_net::graph::push_contacts(token, &upload);
+            let applied = s.run("sync.applyContactChanges", &json!({"result": uploaded}))?;
+            for line in applied["messages"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                eprintln!("sync: {line}");
+            }
+            let count = |name: &str| applied[name].as_u64().unwrap_or(0);
+            // Refused for good, or not taken: said, and the run ends with errors.
+            waiting |= count("refused") + count("denied") > 0;
+            if count("failed") > 0 || uploaded.token_refused {
+                waiting = true;
+                break;
+            }
+        }
+    } else {
+        waiting = s.mailbox.contact_changes.iter().any(|c| c.account == account);
+    }
+    let mut folders: Vec<_> = s.mailbox.contact_folders.iter().filter(|f| f.account == account).cloned().collect();
+    let mailboxes: Vec<String> = match write {
+        Some(_) => s.mailbox.shared_mailboxes(account).iter().map(|a| a.email.trim().to_string()).filter(|a| !a.is_empty()).collect(),
+        None => {
+            folders.retain(|f| f.owner.is_own());
+            Vec::new()
+        }
+    };
+    let read = mailcraft_net::graph::read_contacts(write.unwrap_or(read), &folders, &mailboxes);
+    let email = s.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
+    for download in read.downloads {
+        let download = mailcraft_model::remote::ContactsDownload { account, email: email.clone(), ..download };
+        s.run("sync.applyContacts", &json!({"download": download}))?;
+    }
+    for e in &read.errors {
+        eprintln!("sync: {e}");
+    }
+    Ok(waiting || read.token_refused || !read.errors.is_empty())
 }
 
 fn print_json(v: &Value) -> Result<(), Failure> {

@@ -239,6 +239,23 @@ class CalendarDayTest {
     }
 
     @Test
+    fun backToBackShortEventsGetSeparateColumnsWhileTheirBlocksOverlap() {
+        val a = event(1, "2026-11-10T09:00", "2026-11-10T09:15")
+        val b = event(2, "2026-11-10T09:15", "2026-11-10T09:30")
+        val utc = ZoneId.of("UTC")
+        for (min in listOf(30, 50)) {
+            val byId = dayLayout(listOf(a, b), day("2026-11-10"), utc, min).placed.associateBy { it.event.id }
+            assertEquals(2, byId.getValue(1uL).columns)
+            assertEquals(setOf(0, 1), byId.values.map { it.column }.toSet())
+        }
+        // A block long enough to end where the next begins frees its column.
+        val c = event(3, "2026-11-10T09:00", "2026-11-10T09:30")
+        val d = event(4, "2026-11-10T09:30", "2026-11-10T10:00")
+        val placed = dayLayout(listOf(c, d), day("2026-11-10"), utc, 30).placed
+        assertEquals(listOf(0, 0), placed.map { it.column })
+    }
+
+    @Test
     fun aShortEventIsStillAsTallAsALegibleBlockAndAnOvernightOneIsCutToTheDay() {
         val short = event(1, "2026-11-10T09:00", "2026-11-10T09:05")
         val night = event(2, "2026-11-10T22:00", "2026-11-11T02:00")
