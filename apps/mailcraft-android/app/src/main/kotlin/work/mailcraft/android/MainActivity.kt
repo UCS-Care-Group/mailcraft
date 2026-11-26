@@ -127,9 +127,10 @@ class MainActivity : AppCompatActivity() {
                         val asked = Asked({ incoming.value }, { incoming.value = null })
                         Root(
                             started, version, chosen, handedOver, window.handoff::handled, window, asked,
-                            ReadingChoice(reading) {
-                                reading = it
-                                store.save(it)
+                            ReadingChoice(reading) { edit ->
+                                val next = edit(store.load())
+                                reading = next
+                                store.save(next)
                             },
                         ) {
                             chosen = it

@@ -210,7 +210,7 @@ internal fun MessageBody(
     ) {
         item(key = "header") {
             Box(side) {
-                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs(tools.prefs.copy(headerOpen = it)) }
+                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs { p -> p.copy(headerOpen = it) } }
             }
         }
         item(key = "banner") { Box(side) { PicturesBanner(texts, ui, actions) } }

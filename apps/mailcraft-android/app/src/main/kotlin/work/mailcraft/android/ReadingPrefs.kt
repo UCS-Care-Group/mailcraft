@@ -21,7 +21,10 @@ internal data class ReadingPrefs(
 )
 
 /** The reading prefs the window holds, and how it changes them (kept by the window: the theme is outside the shell). */
-internal class ReadingChoice(val prefs: ReadingPrefs, val onChange: (ReadingPrefs) -> Unit)
+/** One field changed on the choices as stored now, so another window's newer save is kept. */
+internal typealias ReadingEdit = (ReadingPrefs) -> ReadingPrefs
+
+internal class ReadingChoice(val prefs: ReadingPrefs, val onChange: (ReadingEdit) -> Unit)
 
 /** The app's theme: its own light or dark, or whatever the phone is set to. */
 internal enum class ThemeChoice(val code: String) {

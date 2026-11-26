@@ -210,9 +210,9 @@ private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppearancePage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPrefs) -> Unit) {
+private fun AppearancePage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingEdit) -> Unit) {
     ThemeChoice.entries.forEach { choice ->
-        ChoiceRow(choice.label(texts), selected = prefs.theme == choice) { onPrefs(prefs.copy(theme = choice)) }
+        ChoiceRow(choice.label(texts), selected = prefs.theme == choice) { onPrefs { it.copy(theme = choice) } }
     }
 }
 
@@ -222,22 +222,22 @@ private fun readingSummary(texts: Texts, prefs: ReadingPrefs): String =
 
 @Composable
 @Suppress("MaxLineLength")
-private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPrefs) -> Unit) {
+private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingEdit) -> Unit) {
     SwitchRow(
         texts.t("Show messages on a light background in the dark theme"),
         texts.t(
             "The message body is drawn on a light page, as its sender made it. The header stays dark. You can change it for one message in its menu.",
         ),
         prefs.lightMessages,
-    ) { onPrefs(prefs.copy(lightMessages = it)) }
+    ) { onPrefs { p -> p.copy(lightMessages = it) } }
     Text(
         texts.t("Attachments"),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(Gutter),
     )
-    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = false)) }
-    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = true)) }
+    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs { it.copy(foldAttachments = false) } }
+    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs { it.copy(foldAttachments = true) } }
     Text(
         texts.t("Mark as read"),
         style = MaterialTheme.typography.labelLarge,
@@ -245,6 +245,6 @@ private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPref
         modifier = Modifier.padding(Gutter),
     )
     MarkRead.entries.forEach { choice ->
-        ChoiceRow(choice.label(texts), selected = prefs.markRead == choice) { onPrefs(prefs.copy(markRead = choice)) }
+        ChoiceRow(choice.label(texts), selected = prefs.markRead == choice) { onPrefs { it.copy(markRead = choice) } }
     }
 }
