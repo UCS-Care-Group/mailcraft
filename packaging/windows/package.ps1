@@ -117,7 +117,7 @@ function ConvertTo-RtfText([string] $Text) {
 }
 $paragraphs = [System.Collections.Generic.List[string]]::new()
 $paragraphs.Add('\b MailCraft\b0')
-$paragraphs.Add((ConvertTo-RtfText 'MailCraft is dual-licensed under the MIT License or the Apache License, Version 2.0, at your option. Both license texts follow. Bundled fonts and other third-party material keep their own open licenses, listed in NOTICE and ATTRIBUTION.md at https://github.com/UCS-Care-Group/mailcraft.'))
+$paragraphs.Add((ConvertTo-RtfText 'MailCraft is dual-licensed under the MIT License or the Apache License, Version 2.0, at your option. Both license texts follow. Bundled fonts and other third-party material keep their own open licenses, listed in NOTICE and ATTRIBUTION.md at https://github.com/UCSLabs/mailcraft.'))
 foreach ($file in 'LICENSE-MIT', 'LICENSE-APACHE') {
   $title = $true  # each file opens with its license's name: show it bold
   foreach ($para in ((Get-Content -Raw (Join-Path $Root $file)) -split '\r?\n\s*\r?\n')) {
