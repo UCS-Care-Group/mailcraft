@@ -286,10 +286,15 @@ fn a_run_called_off_to_go_on_keeps_its_one_retry() {
     let store = Arc::new(Store::default());
     let mut a = app(&store, Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0));
     let id = own_account(&mut a);
-    a.tokens.insert(id, mailcraft_model::sync::Tokens { refresh: "not-a-real-refresh-token".into(), ..Default::default() });
+    a.tokens.insert(
+        id,
+        mailcraft_model::sync::Tokens { access: "not-a-real-access-token".into(), refresh: "not-a-real-refresh-token".into(), ..Default::default() },
+    );
     a.token_retried.insert(id);
     end_run(&mut a, id, true, true);
     assert!(a.token_retried.contains(&id), "the retry was let go of while the run goes on");
+    // The run that goes on has a token to go with, so it starts no second renewal.
+    assert_eq!(a.tokens[&id].access, "not-a-real-access-token", "the run that goes on would renew again");
     assert_eq!(a.session.driver.round.queue.front().copied(), Some((id, true)), "the run doesn't go on");
     assert!(a.signing_in.is_none(), "renewed a second time in the same Send/Receive");
     // The run that goes on is refused again: no renewal, and the mark ends with it.
@@ -297,6 +302,7 @@ fn a_run_called_off_to_go_on_keeps_its_one_retry() {
     end_run(&mut a, id, true, false);
     assert!(!a.token_retried.contains(&id));
     assert!(a.signing_in.is_none(), "renewed a second time in the same Send/Receive");
+    assert!(a.tokens[&id].access.is_empty(), "the refused token was kept for the next Send/Receive");
     // Called off to go on, then the Send/Receive is stopped while it waits its turn behind
     // another account's run: the next one may renew again.
     a.token_retried.insert(id);

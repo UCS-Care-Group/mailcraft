@@ -4080,7 +4080,16 @@ impl MailApp {
             // Good for the whole run: Microsoft ends an IMAP session the moment its token runs
             // out, folders still to go. ponytail: ten minutes covers a run; a longer first
             // download still meets the end, and the next run renews.
-            match self.tokens.get(&account).filter(|t| t.fresh_for(mailcraft_time::now(), 600)).map(|t| t.access.clone()) {
+            // (A run that goes on after its Send/Receive already renewed once goes with the token
+            // it has, refused or not: a second refusal waits for the next Send/Receive, #1844
+            // review.)
+            let retried = self.token_retried.contains(&account);
+            match self
+                .tokens
+                .get(&account)
+                .filter(|t| t.fresh_for(mailcraft_time::now(), 600) || (retried && !t.access.is_empty()))
+                .map(|t| t.access.clone())
+            {
                 Some(access) => request.access_token = access,
                 None => {
                     self.begin_sign_in(account, oauth, &address, refresh, quiet, false)?;
@@ -5286,7 +5295,11 @@ impl MailApp {
                     store.delete(&key);
                     self.secret_cache.remove(&key);
                 }
-                if let Some(tokens) = self.tokens.get_mut(&account) {
+                // (Kept for a run called off to go on after this Send/Receive's one renewal: the
+                // run that goes on uses it rather than renewing a second time, #1844 review.)
+                if !(called_off && retried)
+                    && let Some(tokens) = self.tokens.get_mut(&account)
+                {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
