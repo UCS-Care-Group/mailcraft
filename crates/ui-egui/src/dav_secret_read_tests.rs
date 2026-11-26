@@ -292,3 +292,29 @@ fn a_read_that_was_under_way_when_its_name_was_forgotten_brings_nothing_back() {
     assert!(!a.dav.secrets.is_reading(), "the read has answered and was taken in");
     assert_eq!(a.dav_password(id, HOME), None, "what the read brought from before the forget isn't taken in");
 }
+
+#[test]
+fn a_read_under_way_when_remembering_is_switched_off_brings_nothing_back() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, _) = app(&store, true);
+    let k = key(&a, id);
+    store.set(&k, "old").unwrap();
+    let (copied, reached) = std::sync::mpsc::channel();
+    let (go, wait) = std::sync::mpsc::channel();
+    *store.gate.lock().unwrap() = Some((copied, wait));
+    assert!(a.dav_secrets_first(), "the read starts");
+    reached.recv().unwrap();
+    // The read has the old password in hand. Meanwhile the owner switches remembering off, and
+    // what was kept goes.
+    a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
+    assert!(store.held.lock().unwrap().get(&k).is_none(), "the store has forgotten it");
+    go.send(()).unwrap();
+    for _ in 0..2_000 {
+        if !a.dav_secrets_first() || !a.dav.secrets.is_reading() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(!a.dav.secrets.is_reading(), "the read has answered and was taken in");
+    assert_eq!(a.dav_password(id, HOME), None, "what the read brought from before the switch isn't taken in");
+}

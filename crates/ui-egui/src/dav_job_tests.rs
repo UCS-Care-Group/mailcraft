@@ -462,6 +462,7 @@ fn until_taken_in(a: &mut MailApp, id: Id) {
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
+    panic!("the refusal was never taken in");
 }
 
 #[test]

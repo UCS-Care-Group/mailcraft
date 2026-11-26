@@ -3533,6 +3533,11 @@ impl MailApp {
         }
         keys.sort();
         keys.dedup();
+        // A read of the store under way brought these from before the forget: not taken in, as
+        // `forget_dav_entries` has it.
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(keys.iter().cloned());
+        }
         let Some(store) = &self.services.secrets else { return Vec::new() };
         let mut left = Vec::new();
         for key in keys {
