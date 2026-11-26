@@ -437,6 +437,8 @@ mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
 #[cfg(test)]
+mod conversations_tests;
+#[cfg(test)]
 mod counts_tests;
 #[cfg(test)]
 mod draft_in_thread_tests;

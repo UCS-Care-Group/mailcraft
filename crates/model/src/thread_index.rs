@@ -162,6 +162,24 @@ impl ThreadIndex {
         index
     }
 
+    /// Work the conversations of some of the topics out again (#1897): `was`, every id those
+    /// topics had when they were last worked out, and `topics`, the messages of each now, in
+    /// order of id. What it gives is what [`ThreadIndex::build`] would give of the mailbox as it
+    /// is now, as long as every topic that changed is among them: a conversation is of one
+    /// account and one topic, so the others stand as they are. (All of `was` goes first: a
+    /// message whose subject changed was of one of them and is of another.)
+    pub fn rejoin(&mut self, was: &[Id], topics: &[Vec<&Message>]) {
+        for id in was {
+            self.work = self.work.saturating_add(1);
+            if let Some(key) = self.keys.remove(id) {
+                self.members.remove(&key);
+            }
+        }
+        for same in topics.iter().filter(|same| same.len() > 1) {
+            self.join(same);
+        }
+    }
+
     /// Link the messages `same`, all of one account and one topic, into their conversations.
     fn join(&mut self, same: &[&Message]) {
         let mut sets = Sets::new(same.len());

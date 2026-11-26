@@ -14,9 +14,13 @@
 //! is the same, and only one that isn't has its hash worked out again, and is pointed at as it is
 //! now, so that it isn't hashed again at the next check and what it was is let go of. So a flag,
 //! a category, a move or a read mark keeps the conversations (a pass of pointer comparisons over
-//! a few hundred chunks, and over the messages of the few that changed), and a changed subject or
-//! header, a server's answer about its conversation, or a message more or less, has them worked
-//! out again.
+//! a few hundred chunks, and over the messages of the few that changed). A changed subject or
+//! header, a server's answer about its conversation, or a message more or less has only its
+//! topics worked out again (#1897): a conversation is of one account and one topic
+//! ([`ThreadIndex::rejoin`]), and with each message is kept its topic, and with each topic its
+//! messages. So a new account's first download, a piece at a time, doesn't go over every message
+//! of the mailbox at each piece. A change past [`most_changed`] (another mailbox opened in its
+//! place) has them worked out over every message.
 //!
 //! The check is made at the first ask after a command begins and after it ends. Within one
 //! command, an ask, then a change of what groups a message, then another ask would get the first
@@ -24,6 +28,7 @@
 //! anything), and one that would must call [`Session::threads_may_change`] between the two.
 
 use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
@@ -35,6 +40,9 @@ use crate::Session;
 /// The conversations kept ([`Session::threads`]).
 pub(crate) type ThreadsCache = Mutex<Option<Kept>>;
 
+/// A topic of an account ([`Message::topic_key`]), shared by the messages of it that are kept.
+type Topic = Arc<(Id, String)>;
+
 pub(crate) struct Kept {
     /// The revision and the count of messages they were last checked at; `None` once the mailbox
     /// may have changed since ([`Session::threads_may_change`]).
@@ -42,23 +50,30 @@ pub(crate) struct Kept {
     threads: Arc<ThreadIndex>,
     /// Of each chunk of the map of messages, in the map's order.
     seen: Vec<SeenChunk>,
-    /// How many messages were hashed again in checks (for tests).
+    /// The ids of the messages of each topic, smallest first: the topics a change touches are
+    /// worked out again, and only those (#1897).
+    topics: HashMap<Topic, Vec<Id>>,
+    /// How many messages the checks hashed again (for tests).
     rehashed: u64,
+    /// How many times they were worked out over every message (for tests).
+    built: u64,
 }
 
 /// What is kept of one chunk of the map of messages: the chunk as it was seen, and of each of
-/// its messages, in order of id, its id, a weak pointer to it and the hash of what groups it.
+/// its messages, in order of id, what was seen of it.
 struct SeenChunk {
     key: Id,
     chunk: Weak<Chunk>,
-    messages: Vec<(Id, Weak<Message>, u64)>,
+    messages: Vec<Seen>,
 }
 
-impl SeenChunk {
-    fn of(key: Id, chunk: &Arc<Chunk>) -> SeenChunk {
-        let messages = chunk.iter().map(|(id, m)| (*id, Arc::downgrade(m), grouping_hash(m))).collect();
-        SeenChunk { key, chunk: Arc::downgrade(chunk), messages }
-    }
+/// What was seen of one message: a weak pointer to it, the hash of what groups it, and its topic
+/// (none, without a subject: a conversation of its own).
+struct Seen {
+    id: Id,
+    message: Weak<Message>,
+    hash: u64,
+    topic: Option<Topic>,
 }
 
 /// The hash of what [`ThreadIndex::build`] reads of `m`.
@@ -84,49 +99,161 @@ pub(crate) fn same_grouping(a: &Message, b: &Message) -> bool {
         && server(a) == server(b)
 }
 
-/// Whether `kept` is of the messages of `mailbox`, as far as conversations go; a chunk or a
-/// message found the same is pointed at as it is now.
-fn still_of(kept: &mut Kept, mailbox: &Mailbox) -> bool {
-    let chunks = mailbox.messages.chunks();
-    if kept.seen.len() != chunks.len() {
-        return false;
+/// The topic of `m`, the one kept when there is one (so each is kept once).
+fn topic_of(topics: &HashMap<Topic, Vec<Id>>, m: &Message) -> Option<Topic> {
+    let key = m.topic_key();
+    if key.is_empty() {
+        return None;
     }
-    let mut rehashed = 0u64;
-    let same = kept.seen.iter_mut().zip(chunks).all(|(seen, (key, chunk))| {
-        if seen.key != *key {
-            return false;
-        }
-        if std::ptr::eq(seen.chunk.as_ptr(), Arc::as_ptr(chunk)) {
-            return true;
-        }
-        if seen.messages.len() != chunk.len() {
-            return false;
-        }
-        let same = seen.messages.iter_mut().zip(chunk.iter()).all(|((was_id, was, hash), (id, now))| {
-            if was_id != id {
-                return false;
-            }
-            if std::ptr::eq(was.as_ptr(), Arc::as_ptr(now)) {
-                return true;
-            }
-            rehashed = rehashed.saturating_add(1);
-            let same = grouping_hash(now) == *hash;
-            if same {
-                *was = Arc::downgrade(now);
-            }
-            same
-        });
-        if same {
-            seen.chunk = Arc::downgrade(chunk);
-        }
-        same
-    });
-    kept.rehashed = kept.rehashed.saturating_add(rehashed);
-    same
+    let key = (m.account, key);
+    Some(topics.get_key_value(&key).map_or_else(|| Arc::new(key), |(topic, _)| topic.clone()))
 }
 
-fn seen_of(mailbox: &Mailbox) -> Vec<SeenChunk> {
-    mailbox.messages.chunks().iter().map(|(key, chunk)| SeenChunk::of(*key, chunk)).collect()
+fn seen(topics: &HashMap<Topic, Vec<Id>>, id: Id, m: &Arc<Message>) -> Seen {
+    Seen { id, message: Arc::downgrade(m), hash: grouping_hash(m), topic: topic_of(topics, m) }
+}
+
+/// What is kept of `mailbox`, with its conversations worked out over every message.
+fn kept_of(mailbox: &Mailbox, at: Option<(u64, usize)>, built: u64) -> Kept {
+    // Each topic with its messages, each message's topic found once.
+    let mut by_topic: HashMap<(Id, String), (Topic, Vec<Id>, Vec<&Message>)> = HashMap::new();
+    let mut seen_chunks = Vec::with_capacity(mailbox.messages.chunks().len());
+    for (key, chunk) in mailbox.messages.chunks() {
+        let mut messages = Vec::with_capacity(chunk.len());
+        for (id, m) in chunk.iter() {
+            let name = m.topic_key();
+            let topic = (!name.is_empty()).then(|| {
+                let (topic, ids, of_it) = by_topic.entry((m.account, name)).or_insert_with_key(|k| (Arc::new(k.clone()), Vec::new(), Vec::new()));
+                ids.push(*id);
+                of_it.push(m.as_ref());
+                topic.clone()
+            });
+            messages.push(Seen { id: *id, message: Arc::downgrade(m), hash: grouping_hash(m), topic });
+        }
+        seen_chunks.push(SeenChunk { key: *key, chunk: Arc::downgrade(chunk), messages });
+    }
+    let mut topics = HashMap::with_capacity(by_topic.len());
+    let mut lists = Vec::with_capacity(by_topic.len());
+    for (topic, ids, of_it) in by_topic.into_values() {
+        topics.insert(topic, ids);
+        lists.push(of_it);
+    }
+    let mut threads = ThreadIndex::default();
+    threads.rejoin(&[], &lists);
+    Kept { at, threads: Arc::new(threads), seen: seen_chunks, topics, rehashed: 0, built: built.saturating_add(1) }
+}
+
+/// Most messages a change may touch for its topics alone to be worked out again: past it (a
+/// mailbox opened in place of another, a whole folder brought in at once) working them all out
+/// is no slower.
+fn most_changed(mailbox: &Mailbox) -> usize {
+    (mailbox.messages.len() / 4).max(1024)
+}
+
+/// Bring `kept` in step with `mailbox`: a chunk that is the same `Arc` holds the same messages
+/// and isn't looked into; in one that isn't, a message that is the same `Arc` is the same, and
+/// only one that isn't has its hash worked out again, and is pointed at as it is now. The topics
+/// of the messages that came, went or group otherwise are worked out again. Whether it could be
+/// (`false` past [`most_changed`]: `kept` is then to be built afresh), and whether anything about
+/// the conversations changed.
+fn bring_in_step(kept: &mut Kept, mailbox: &Mailbox) -> Option<bool> {
+    let most = most_changed(mailbox);
+    let mut gone: Vec<(Id, Topic)> = Vec::new();
+    let mut came: Vec<(Id, Topic)> = Vec::new();
+    let mut changed = 0usize;
+    let mut rehashed = 0u64;
+    let mut old = std::mem::take(&mut kept.seen).into_iter().peekable();
+    let mut now_seen = Vec::with_capacity(mailbox.messages.chunks().len());
+    let went = |was: Seen, gone: &mut Vec<(Id, Topic)>, changed: &mut usize| {
+        *changed = changed.saturating_add(1);
+        if let Some(topic) = was.topic {
+            gone.push((was.id, topic));
+        }
+    };
+    for (key, chunk) in mailbox.messages.chunks() {
+        while let Some(before) = old.next_if(|c| c.key < *key) {
+            for was in before.messages {
+                went(was, &mut gone, &mut changed);
+            }
+        }
+        let before = old.next_if(|c| c.key == *key);
+        let before = match before {
+            Some(same) if std::ptr::eq(same.chunk.as_ptr(), Arc::as_ptr(chunk)) => {
+                now_seen.push(same);
+                continue;
+            }
+            other => other,
+        };
+        let mut was = before.map(|c| c.messages).unwrap_or_default().into_iter().peekable();
+        let mut messages = Vec::with_capacity(chunk.len());
+        for (id, now) in chunk.iter() {
+            while let Some(left) = was.next_if(|w| w.id < *id) {
+                went(left, &mut gone, &mut changed);
+            }
+            match was.next_if(|w| w.id == *id) {
+                Some(same) if std::ptr::eq(same.message.as_ptr(), Arc::as_ptr(now)) => messages.push(same),
+                Some(same) => {
+                    rehashed = rehashed.saturating_add(1);
+                    let hash = grouping_hash(now);
+                    if hash == same.hash {
+                        messages.push(Seen { message: Arc::downgrade(now), ..same });
+                    } else {
+                        went(same, &mut gone, &mut changed);
+                        let one = seen(&kept.topics, *id, now);
+                        came.extend(one.topic.clone().map(|topic| (*id, topic)));
+                        messages.push(one);
+                    }
+                }
+                None => {
+                    changed = changed.saturating_add(1);
+                    let one = seen(&kept.topics, *id, now);
+                    came.extend(one.topic.clone().map(|topic| (*id, topic)));
+                    messages.push(one);
+                }
+            }
+            if changed > most {
+                return None;
+            }
+        }
+        for left in was {
+            went(left, &mut gone, &mut changed);
+        }
+        now_seen.push(SeenChunk { key: *key, chunk: Arc::downgrade(chunk), messages });
+    }
+    for before in old {
+        for was in before.messages {
+            went(was, &mut gone, &mut changed);
+        }
+    }
+    if changed > most {
+        return None;
+    }
+    kept.seen = now_seen;
+    kept.rehashed = kept.rehashed.saturating_add(rehashed);
+    if gone.is_empty() && came.is_empty() {
+        return Some(false);
+    }
+    // The topics touched, and every id they had.
+    let touched: HashSet<Topic> = gone.iter().chain(&came).map(|(_, topic)| topic.clone()).collect();
+    let was: Vec<Id> = touched.iter().filter_map(|topic| kept.topics.get(topic)).flatten().copied().collect();
+    for (id, topic) in gone {
+        if let Some(ids) = kept.topics.get_mut(&topic)
+            && let Ok(at) = ids.binary_search(&id)
+        {
+            ids.remove(at);
+        }
+    }
+    for (id, topic) in came {
+        let ids = kept.topics.entry(topic).or_default();
+        if let Err(at) = ids.binary_search(&id) {
+            ids.insert(at, id);
+        }
+    }
+    kept.topics.retain(|_, ids| !ids.is_empty());
+    let topics: Vec<Vec<&Message>> =
+        touched.iter().filter_map(|topic| kept.topics.get(topic)).map(|ids| ids.iter().filter_map(|id| mailbox.message(*id)).collect()).collect();
+    Arc::make_mut(&mut kept.threads).rejoin(&was, &topics);
+    Some(true)
 }
 
 impl Session {
@@ -140,17 +267,20 @@ impl Session {
     pub fn threads(&self) -> Arc<ThreadIndex> {
         let key = self.threads_key();
         let mut cache = self.threads_cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut built = 0;
         if let Some(kept) = cache.as_mut() {
             if kept.at == Some(key) {
                 return kept.threads.clone();
             }
-            if still_of(kept, &self.mailbox) {
+            if bring_in_step(kept, &self.mailbox).is_some() {
                 kept.at = Some(key);
                 return kept.threads.clone();
             }
+            built = kept.built;
         }
-        let threads = Arc::new(ThreadIndex::build(self.mailbox.messages.values().map(|m| m.as_ref())));
-        *cache = Some(Kept { at: Some(key), threads: threads.clone(), seen: seen_of(&self.mailbox), rehashed: 0 });
+        let kept = kept_of(&self.mailbox, Some(key), built);
+        let threads = kept.threads.clone();
+        *cache = Some(kept);
         threads
     }
 
@@ -187,7 +317,7 @@ impl Session {
 /// Whether the conversations of `before` are those of `after`, as [`Session::threads`] checks.
 #[cfg(test)]
 pub(crate) fn grouping_kept(before: &Mailbox, after: &Mailbox) -> bool {
-    still_of(&mut Kept { at: None, threads: Arc::default(), seen: seen_of(before), rehashed: 0 }, after)
+    bring_in_step(&mut kept_of(before, None, 0), after) == Some(false)
 }
 
 #[cfg(test)]
@@ -202,8 +332,13 @@ impl Session {
             && kept.seen.iter().zip(chunks).all(|(seen, (_, chunk))| {
                 std::ptr::eq(seen.chunk.as_ptr(), Arc::as_ptr(chunk))
                     && seen.messages.len() == chunk.len()
-                    && seen.messages.iter().zip(chunk.iter()).all(|((_, was, _), (_, now))| std::ptr::eq(was.as_ptr(), Arc::as_ptr(now)))
+                    && seen.messages.iter().zip(chunk.iter()).all(|(was, (_, now))| std::ptr::eq(was.message.as_ptr(), Arc::as_ptr(now)))
             });
         (kept.rehashed, current)
+    }
+
+    /// How many times the conversations were worked out over every message (#1897).
+    pub(crate) fn threads_built(&self) -> u64 {
+        self.threads_cache.lock().unwrap_or_else(PoisonError::into_inner).as_ref().map_or(0, |kept| kept.built)
     }
 }
