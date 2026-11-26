@@ -186,8 +186,9 @@ internal class AccountsHub(
      * The first Send/Receive after a sign-in to [account] worked: true when it was asked for. A new
      * ([added]) account's waits for the room gate first, for what its window brings within the space
      * the owner chose ([KeepChoice.storageMb]); on a no nothing starts (the gate's question was the
-     * owner's word). A round the owner asked for that is under way began without this account, so
-     * this one stays asked for and starts when that round ends, however long it takes.
+     * owner's word). A pull the owner made that is under way began without this account, so this one
+     * stays asked for and starts once that pull's mail is in (the core puts the account at the end of
+     * the round still under way), however long it takes.
      */
     suspend fun firstSync(account: ULong, keep: KeepChoice, added: Boolean): Boolean {
         if (added) {

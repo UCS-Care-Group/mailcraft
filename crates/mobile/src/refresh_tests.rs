@@ -225,6 +225,20 @@ fn a_pull_while_another_account_runs_joins_the_end_of_the_line() {
 }
 
 #[test]
+fn a_new_accounts_first_round_asked_for_while_a_pull_runs_joins_its_line() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let mine = pull(&t.core, Some(t.a));
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    // The app's round for a new account (it keeps the holds): the round under way takes the account.
+    assert!(block_on(t.core.sync_keeping_holds()).unwrap().started);
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&mine).started);
+    until("the new account's first run never came", || t.calls.lock().unwrap().len() == 2);
+    assert_eq!(*t.calls.lock().unwrap(), vec![t.a, t.b]);
+}
+
+#[test]
 fn a_pull_with_no_network_says_so_and_a_failed_run_is_answered_too() {
     let t = two();
     *t.platform.net.lock().unwrap() = NetworkKind::Offline;
@@ -338,6 +352,21 @@ fn the_device_log_says_how_long_each_part_took_and_nothing_of_the_mail() {
             assert!(!line.contains(private), "{private} in {line}");
         }
     }
+}
+
+#[test]
+fn a_pull_whose_mail_came_before_its_wait_is_answered_at_once_and_logged() {
+    let t = two();
+    assert!(block_on(t.core.refresh_mail(Some(t.a))).unwrap().started);
+    let sync = t.core.sync.clone();
+    until("the run never ended", || {
+        let sync = sync.clone();
+        block_on(t.core.call(move |s| Ok(!sync.lock().sr.busy() && s.driver.round.queue.is_empty()))).unwrap()
+    });
+    let _ = drain(&t.core);
+    block_on(t.core.mail_in(Some(t.a))).unwrap();
+    let lines = logs(&drain(&t.core));
+    assert!(lines.iter().any(|l| l.starts_with("pull to refresh: mail in after ") && l.ends_with("1 accounts")), "{lines:?}");
 }
 
 #[test]

@@ -249,11 +249,18 @@ pub(crate) struct Inner {
     run_began: Option<(u64, Instant, bool)>,
     round_began: Option<Instant>,
     runs: u32,
+    /// When the owner last asked (a pull to refresh), for the log of its wait.
+    pull_began: Option<Instant>,
 }
 
 /// Milliseconds since `since`, for the device's log.
 fn ms(since: Instant) -> u128 {
     since.elapsed().as_millis()
+}
+
+/// The device's log line for a pull to refresh whose mail is in: the time since the owner asked.
+fn pull_line(since: Instant, accounts: usize) -> String {
+    format!("pull to refresh: mail in after {} ms, {accounts} accounts", ms(since))
 }
 
 /// The device's log line for an account's mail run: numbers, the account's number and fixed words
@@ -645,8 +652,9 @@ impl SyncHost {
     /// which lets go of every account held back first; any other round leaves them out.
     ///
     /// `only`: the round is that account's alone (a pull to refresh in one of its folders), and only
-    /// its hold is let go of. An owner's ask while a round is under way puts what the round doesn't
-    /// have yet at the end of its line; an account already running or in line isn't run twice.
+    /// its hold is let go of. An ask that isn't a background run's (no `waiter`) while a round is
+    /// under way puts what the round doesn't have yet at the end of its line; an account already
+    /// running or in line isn't run twice.
     pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool, only: Option<u64>) -> SyncAnswer {
         let mut inner = self.lock();
         let lang = session.interface_language;
@@ -664,6 +672,7 @@ impl SyncHost {
         // The owner asking (a pull to refresh) lets go of the accounts held back that it asks
         // for; a background run, and a round the app starts by itself, leave them out.
         if release {
+            inner.pull_began = Some(Instant::now());
             match only {
                 Some(account) => inner.sr.hold(account, false),
                 None => inner.sr.release_all(),
@@ -703,10 +712,11 @@ impl SyncHost {
                 inner.round_began = Some(Instant::now());
             }
             inner.active = true;
-        } else if release {
-            // The owner asked while a round is under way: what it doesn't have yet joins the end
-            // of its line, so that a pull to refresh always brings the mail asked for. One account
-            // is never run twice at once.
+        } else if waiter.is_none() {
+            // The owner (or a new account's first round) asked while a round is under way: what it
+            // doesn't have yet joins the end of its line, so that a pull to refresh always brings
+            // the mail asked for and a new account's first round isn't left for the next one. One
+            // account is never run twice at once. (A background run joins the round as it is.)
             let running = inner.sr.running_account();
             for id in &supported {
                 if running != Some(*id) && !session.driver.round.is_queued(*id) {
@@ -873,13 +883,18 @@ impl SyncHost {
         let accounts = only.map_or_else(|| server_accounts(session), |a| vec![a]);
         let running = inner.sr.running_account();
         let round = &session.driver.round;
-        if session.prefs.offline || !accounts.iter().any(|a| running == Some(*a) || round.is_queued(*a)) {
+        let since = inner.pull_began.unwrap_or_else(Instant::now);
+        if session.prefs.offline {
+            reply.push(Ok(()));
+        } else if !accounts.iter().any(|a| running == Some(*a) || round.is_queued(*a)) {
+            // In already (the run ended before the wait was asked for).
+            self.log(pull_line(since, accounts.len()));
             reply.push(Ok(()));
         } else if inner.mail_waiters.len() >= MOST_MAIL_WAITERS {
             // lean: past the cap a pull is answered at once (its spinner stops early); no app asks that often.
             reply.push(Ok(()));
         } else {
-            inner.mail_waiters.push(MailWaiter { accounts, since: Instant::now(), reply });
+            inner.mail_waiters.push(MailWaiter { accounts, since, reply });
         }
     }
 
@@ -889,7 +904,7 @@ impl SyncHost {
             std::mem::take(&mut inner.mail_waiters).into_iter().partition(|w| !w.accounts.iter().any(|a| pending(*a)));
         inner.mail_waiters = waiting;
         for w in done {
-            self.log(format!("pull to refresh: mail in after {} ms, {} accounts", ms(w.since), w.accounts.len()));
+            self.log(pull_line(w.since, w.accounts.len()));
             w.reply.push(Ok(()));
         }
     }
