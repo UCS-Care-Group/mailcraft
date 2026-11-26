@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -543,7 +544,8 @@ private fun TabBar(texts: Texts, tab: Tab, onTab: (Tab) -> Unit) {
                         // (The label names the tab on show; the others are named by their icon.)
                         Icon(entry.icon(), contentDescription = if (on) null else label)
                     }
-                    if (on) TabLabel(label)
+                    // (A long name wraps and the bar grows, at large text on a narrow phone.)
+                    if (on) Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
                 }
             }
         }
