@@ -21444,17 +21444,17 @@ msgstr "MailCraft-ის Google-ში რეგისტრაციის მ�
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "დამტკიცების მოლოდინი მოულოდნელად შეწყდა"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "ველოდებით თქვენს ნებართვას ამ ანგარიშის კონტაქტების მის სერვერზე შესაცვლელად: ფაილი › ინფორმაცია › ხელახლა მოთხოვნა"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "სისტემის ავტორიზაციის მონაცემების საცავის მოლოდინი…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "ველოდებით თქვენს ნებართვას ამ ანგარიშის კონტაქტების მის სერვერზე შესაცვლელად: ფაილი › ინფორმაცია › ხელახლა მოთხოვნა"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

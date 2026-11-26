@@ -21495,17 +21495,17 @@ msgstr "In attesa della registrazione Google di MailCraft"
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "L'attesa dell'approvazione si è interrotta in modo imprevisto"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "In attesa della tua autorizzazione a modificare i contatti di questo account sul suo server: File › Informazioni › Chiedi di nuovo"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "In attesa dell'archivio credenziali del sistema…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "In attesa della tua autorizzazione a modificare i contatti di questo account sul suo server: File › Informazioni › Chiedi di nuovo"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

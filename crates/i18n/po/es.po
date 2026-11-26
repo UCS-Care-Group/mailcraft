@@ -21520,17 +21520,17 @@ msgstr "Esperando el registro de Google de MailCraft"
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "La espera de la aprobación se detuvo de forma inesperada"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "Esperando su permiso para cambiar los contactos de esta cuenta en su servidor: Archivo › Información › Volver a preguntar"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "Esperando al almacén de credenciales del sistema…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Esperando su permiso para cambiar los contactos de esta cuenta en su servidor: Archivo › Información › Volver a preguntar"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

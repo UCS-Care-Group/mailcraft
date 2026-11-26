@@ -20923,17 +20923,17 @@ msgstr "Wacht op de registratie van MailCraft bij Google"
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Het wachten op de goedkeuring is onverwacht gestopt"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "Wacht op uw toestemming om de contactpersonen van dit account op de server te wijzigen: Bestand › Info › Opnieuw vragen"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "Wachten op de referentieopslag van het systeem…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Wacht op uw toestemming om de contactpersonen van dit account op de server te wijzigen: Bestand › Info › Opnieuw vragen"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

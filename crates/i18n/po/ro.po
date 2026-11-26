@@ -21596,17 +21596,17 @@ msgstr "Se așteaptă înregistrarea Google a MailCraft"
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Așteptarea aprobării s-a oprit neașteptat"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "Se așteaptă permisiunea dvs. de a modifica persoanele de contact ale acestui cont pe serverul său: Fișier › Informații › Întrebați din nou"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "Se așteaptă depozitul de acreditări al sistemului…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Se așteaptă permisiunea dvs. de a modifica persoanele de contact ale acestui cont pe serverul său: Fișier › Informații › Întrebați din nou"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

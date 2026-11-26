@@ -21570,17 +21570,17 @@ msgstr "Čeká se na registraci MailCraftu u Googlu"
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr "Čekání na schválení se nečekaně zastavilo"
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-#, fuzzy
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr "Čeká se na vaše svolení měnit kontakty tohoto účtu na jeho serveru: Soubor › Informace › Zeptat se znovu"
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Waiting for the system's credential store…"
 msgstr "Čeká se na úložiště přihlašovacích údajů systému…"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+#, fuzzy
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
+msgstr "Čeká se na vaše svolení měnit kontakty tohoto účtu na jeho serveru: Soubor › Informace › Zeptat se znovu"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

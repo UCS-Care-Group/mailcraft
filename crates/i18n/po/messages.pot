@@ -17862,14 +17862,14 @@ msgstr ""
 msgid "Waiting for the approval stopped unexpectedly"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/contacts_remote.rs
-msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Waiting for the system's credential store…"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_remote.rs
+msgid "Waiting for your permission to change this account's contacts on its server: File › Info › Ask again"
 msgstr ""
 
 #. interface
