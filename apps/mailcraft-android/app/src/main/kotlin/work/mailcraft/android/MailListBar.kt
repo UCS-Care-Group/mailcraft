@@ -21,8 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +33,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -44,18 +48,25 @@ private val IconBox = 18.dp
 /** How long typing pauses before the search runs. */
 private const val SEARCH_DELAY_MILLIS = 300L
 
-/** The bar over the list: the search box and the funnel; under them the filter that is on, as a chip. */
+/** What is under the top bar: the filter that is on, and where a search looks, as chips. */
 @Composable
-internal fun MailListBar(
-    texts: Texts,
-    query: MailQuery,
-    actions: MailListActions,
-    menuOpen: Boolean = false,
-) {
+internal fun MailListBar(texts: Texts, query: MailQuery, actions: MailListActions) {
+    ActiveChips(texts, query, actions)
+}
+
+/**
+ * What the top bar shows in place of the folder's name while the owner searches: a field that sends
+ * the search once typing pauses. The cross in [MailBarActions] ends the search and clears it.
+ */
+@Composable
+internal fun MailSearchField(texts: Texts, query: MailQuery, actions: MailListActions) {
     var text by rememberSaveable(query.folder) { mutableStateOf(query.search) }
     // The search the box last sent (trimmed, as the query keeps it): a search of the query's that is
     // not that one came from elsewhere (the same folder chosen again clears it) and replaces the draft.
     var sent by rememberSaveable(query.folder) { mutableStateOf(query.search) }
+    val focus = remember { FocusRequester() }
+    // Opened by the search button (nothing searched yet): the keyboard comes up, ready to type.
+    LaunchedEffect(Unit) { if (query.search.isEmpty()) runCatching { focus.requestFocus() } }
     LaunchedEffect(query.search) {
         text = searchDraft(query.search, sent, text)
         sent = query.search
@@ -67,40 +78,53 @@ internal fun MailListBar(
             actions.onSearch(text)
         }
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(space = 4.dp),
-    ) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it.take(MAX_SEARCH) },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            placeholder = { Text(texts.t("Search mail")) },
-            leadingIcon = { Icon(ListIcons.Search, contentDescription = null, modifier = Modifier.size(IconBox)) },
-            trailingIcon = {
-                if (text.isNotEmpty()) {
-                    IconButton(onClick = { text = "" }) {
-                        Icon(
-                            ListIcons.Close,
-                            contentDescription = texts.t("Clear search"),
-                            modifier = Modifier.size(IconBox),
-                        )
-                    }
-                }
+    TextField(
+        value = text,
+        onValueChange = { text = it.take(MAX_SEARCH) },
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        singleLine = true,
+        placeholder = { Text(texts.t("Search mail")) },
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                sent = text.trim()
+                actions.onSearch(text)
             },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    sent = text.trim()
-                    actions.onSearch(text)
-                },
-            ),
-        )
-        FunnelMenu(texts, query, actions, menuOpen)
+        ),
+    )
+}
+
+/** The top bar's buttons on the Mail tab: search (a cross while searching, which ends it) and the funnel. */
+@Composable
+internal fun MailBarActions(
+    texts: Texts,
+    query: MailQuery,
+    actions: MailListActions,
+    searching: Boolean,
+    onSearching: (Boolean) -> Unit,
+    menuOpen: Boolean = false,
+) {
+    if (searching) {
+        IconButton(
+            onClick = {
+                actions.onSearch("")
+                onSearching(false)
+            },
+        ) {
+            Icon(ListIcons.Close, contentDescription = texts.t("Clear search"))
+        }
+    } else {
+        IconButton(onClick = { onSearching(true) }) {
+            Icon(ListIcons.Search, contentDescription = texts.t("Search mail"))
+        }
     }
-    ActiveChips(texts, query, actions)
+    FunnelMenu(texts, query, actions, menuOpen)
 }
 
 /** The longest search text the box takes. */

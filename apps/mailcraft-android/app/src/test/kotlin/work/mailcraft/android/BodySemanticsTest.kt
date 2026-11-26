@@ -19,7 +19,7 @@ import org.junit.Test
  * A Paparazzi handler that keeps no picture: this test reads the semantics and has nothing to compare.
  * (A proxy, since the picture type it is handed is not on the compile path of an Android test.)
  */
-private fun noPictures(): SnapshotHandler {
+internal fun noPictures(): SnapshotHandler {
     val loader = SnapshotHandler::class.java.classLoader
     val frames = Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler.FrameHandler::class.java)) { _, _, _ -> null }
     return Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler::class.java)) { _, method, _ ->
@@ -77,6 +77,13 @@ class BodySemanticsTest {
         assertEquals(5, cells.count { it.heading })
         assertTrue(cells.filter { it.heading }.all { it.cellRow == 0 })
         assertTrue(nodes.any { it.heading && it.cellRow == 0 && it.cellColumn == 0 })
+    }
+
+    @Test
+    fun aWideTableHasTenColumnsToScrollThroughBeforeASwipeMovesOn() {
+        val table = draw(Corpus.wideTable).filter { (it.tableColumns ?: 0) > 1 }
+        assertEquals(1, table.size)
+        assertEquals(10, table[0].tableColumns)
     }
 
     @Test

@@ -150,7 +150,7 @@ pub(crate) fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> 
         when: mailcraft_engine::list::when(m),
         unread: r.unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
-        has_attachments: m.attachments.iter().any(|a| !a.inline),
+        has_attachments: m.has_attachments(),
         important: m.importance == Importance::High,
         answered: m.answered,
         forwarded: m.forwarded,

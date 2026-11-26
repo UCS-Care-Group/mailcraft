@@ -31,6 +31,8 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod dav_raw;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
@@ -438,6 +440,8 @@ mod category_rows_tests;
 mod composing_tests;
 #[cfg(test)]
 mod counts_tests;
+#[cfg(test)]
+mod draft_in_thread_tests;
 #[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]

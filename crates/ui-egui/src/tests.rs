@@ -468,7 +468,7 @@ fn about_credits_the_contributors() {
             );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("Made by its contributors").is_some(), "{id}");
-        assert!(harness.query_by_label_contains("github.com/UCS-Care-Group/mailcraft/graphs/contributors").is_some(), "{id}");
+        assert!(harness.query_by_label_contains("github.com/UCSLabs/mailcraft/graphs/contributors").is_some(), "{id}");
         assert!(harness.query_by_label_contains("Initial contributor").is_none(), "{id}");
     }
 }

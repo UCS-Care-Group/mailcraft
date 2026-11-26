@@ -47,7 +47,8 @@ private fun launch(context: Context, action: String, link: String?): Boolean {
  * The state of the three tabs over [core], once [ready], read again whenever [reload] moves on (the
  * mailbox changed: a synchronisation brought contacts or tasks). Contacts are read a window at a time; a
  * change to a task is a command (`tasks.new`, `tasks.edit`, `tasks.complete`, `tasks.delete`) and
- * the lists are read again after it. Nothing is sent to a server from here.
+ * the lists are read again after it. Nothing is sent to a server from here: a person or task made in an
+ * account's folder or list goes with the next synchronisation.
  */
 @Composable
 internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: Int = 0): Hosted {
@@ -61,7 +62,17 @@ internal fun rememberHosted(core: Core, texts: Texts, ready: Boolean, reload: In
     return Hosted(today, people.first, tasks.first, people.second, tasks.second)
 }
 
+/** Where a new person can go, read again when the form opens (an account's folders may have come in since). */
 @Composable
+private fun rememberPlaces(core: Core, ready: Boolean, reload: Int, formOpen: Boolean): PersonPlaces? {
+    val places by produceState<PersonPlaces?>(null, ready, reload, formOpen) {
+        if (ready) value = loadPlaces(core)
+    }
+    return places
+}
+
+@Composable
+@Suppress("LongMethod")
 private fun rememberPeople(
     core: Core,
     texts: Texts,
@@ -74,10 +85,39 @@ private fun rememberPeople(
     var open by rememberSaveable { mutableStateOf<Long?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf<PeopleState>(PeopleState.Loading) }
+    // The new-person form is kept by the system while the app is away.
+    val editorState = rememberSaveable(stateSaver = PersonDraft.Saver) { mutableStateOf<PersonDraft?>(null) }
+    val busyState = remember { mutableStateOf(false) }
+    var added by remember { mutableIntStateOf(0) }
+    // Bumped on every reload and add: a page asked for before that is stale when it comes back.
+    var generation by remember { mutableIntStateOf(0) }
     val person by produceState<PersonState?>(null, ready, reload, open) {
         value = open?.let { if (ready) loadPerson(core, it.toULong()) else PersonState.Loading }
     }
-    LaunchedEffect(ready, reload, query) { if (ready) state = loadPeople(core, query, 0) }
+    val moveState = remember { mutableStateOf<MoveState?>(null) }
+    val places = rememberPlaces(core, ready, reload, editorState.value != null)
+    LaunchedEffect(ready, reload, query, added) {
+        generation += 1
+        if (ready) state = loadPeople(core, query, 0)
+    }
+    val form = formActions(scope, editorState, busyState, { addPerson(core, it.placed(places)) }) { made ->
+        if (made != null) {
+            notice = null
+            query = ""
+            open = made.toLong()
+            added += 1
+        } else {
+            notice = texts.t("That could not be saved.")
+        }
+    }
+    // The person moved (or the one already there) is opened; the list is read again either way.
+    val moved: (ULong, Boolean) -> Unit = { now, ok ->
+        moveState.value = null
+        notice = texts.t("That could not be moved.").takeUnless { ok }
+        open = now.toLong()
+        added += 1
+    }
+    val moveActions = moveActions(scope, core, moveState, { picking(person, places) }, moved)
     val actions = PeopleActions(
         onQuery = { query = it.take(MAX_QUERY) },
         onMore = {
@@ -85,11 +125,12 @@ private fun rememberPeople(
             if (current != null && !current.list.complete) {
                 val asked = query
                 val offset = current.list.rows.size
+                val asking = generation
                 scope.launch {
                     val next = loadPeople(core, asked, offset)
                     val now = state as? PeopleState.Ready
                     // A window for a search the owner has since changed, or for a list that has moved on, is dropped.
-                    val unchanged = query == asked && now?.list?.rows?.size == offset
+                    val unchanged = generation == asking && query == asked && now?.list?.rows?.size == offset
                     if (next is PeopleState.Ready && now != null && unchanged) {
                         state = PeopleState.Ready(now.list.append(next.list))
                     }
@@ -98,21 +139,28 @@ private fun rememberPeople(
         },
         onOpen = {
             notice = null
+            moveState.value = null
             open = it.toLong()
         },
-        onClose = { open = null },
+        onClose = {
+            moveState.value = null
+            open = null
+        },
+        form = form,
+        move = moveActions,
         onMail = {
             val done = launch(context, Intent.ACTION_SENDTO, mailtoLink(it))
-            notice = if (done) null else texts.t("No program can write to this address.")
+            notice = texts.t("No program can write to this address.").takeUnless { done }
         },
         onCall = {
             val done = launch(context, Intent.ACTION_DIAL, dialLink(it))
-            notice = if (done) null else texts.t("No program can call this number.")
+            notice = texts.t("No program can call this number.").takeUnless { done }
         },
     )
     val shown = open?.toULong()
     val card = if (shown != null) person ?: PersonState.Loading else null
-    return PeopleData(query, state, shown, card, notice) to actions
+    val move = moveState.value
+    return PeopleData(query, state, shown, card, notice, editorState.value, busyState.value, places, move) to actions
 }
 
 private const val MAX_QUERY = 200
