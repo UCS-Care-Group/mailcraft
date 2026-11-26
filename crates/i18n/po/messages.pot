@@ -1512,6 +1512,11 @@ msgstr ""
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr ""
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Appearance"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Application (client) ID"
@@ -3688,8 +3693,8 @@ msgstr ""
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr ""
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 msgid "Dark"
 msgstr ""
 
@@ -5218,6 +5223,11 @@ msgstr ""
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Follow Up"
+msgstr ""
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+msgid "Follow system"
 msgstr ""
 
 #. interface
@@ -7101,8 +7111,8 @@ msgstr ""
 msgid "Licences"
 msgstr ""
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 msgid "Light"
 msgstr ""
 

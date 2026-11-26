@@ -1815,6 +1815,12 @@ msgstr "任何其他邮件服务器"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "等待发送到服务器的内容将先被处理：发件箱中的邮件，以及您离线时的标记和移动。如果 MailCraft 无法连接服务器，切换将等待连接恢复。"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "外观"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4434,8 +4440,8 @@ msgstr "剪切不接受参数：它剪切所选内容"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\user 或 you@example.org；留空则使用您的地址"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "深色"
@@ -6277,6 +6283,12 @@ msgstr "后续 ↵ 操作"
 #, fuzzy
 msgid "Follow Up"
 msgstr "跟进"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "跟随系统"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8546,8 +8558,8 @@ msgstr "让别人知道您不在或暂时无法回复：邮箱会自动回复"
 msgid "Licences"
 msgstr "许可证"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "浅色"

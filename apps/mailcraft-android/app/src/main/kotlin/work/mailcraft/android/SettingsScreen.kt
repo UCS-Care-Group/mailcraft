@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 @file:OptIn(ExperimentalMaterial3Api::class)
+@file:Suppress("TooManyFunctions")
 
 package work.mailcraft.android
 
@@ -96,6 +97,7 @@ private fun SettingsBody(
             AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
         SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
         SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+        SettingsPage.Appearance -> AppearancePage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.Reading -> ReadingPage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
         SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
@@ -114,6 +116,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
+            SettingsPage.Appearance -> data.readingPrefs.theme.label(texts)
             SettingsPage.Reading -> readingSummary(texts, data.readingPrefs)
             SettingsPage.About -> data.version
             SettingsPage.RemoveData -> removeDataSummary(texts)
@@ -200,6 +203,13 @@ private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) Icon(AppIcons.Check, contentDescription = null, modifier = Modifier.size(IconBox))
     }
     HorizontalDivider()
+}
+
+@Composable
+private fun AppearancePage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPrefs) -> Unit) {
+    ThemeChoice.entries.forEach { choice ->
+        ChoiceRow(choice.label(texts), selected = prefs.theme == choice) { onPrefs(prefs.copy(theme = choice)) }
+    }
 }
 
 /** The summary under the Reading row. */

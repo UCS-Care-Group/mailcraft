@@ -1777,6 +1777,12 @@ msgstr "Elke andere e-mailserver"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Alles wat nog naar de server moet, gaat eerst: e-mail in Postvak UIT, en markeringen en verplaatsingen die u hebt gemaakt terwijl u offline was. Als MailCraft de server niet kan bereiken, wacht de overstap tot dat wel kan."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Weergave"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4287,8 +4293,8 @@ msgstr "Knippen neemt geen parameters: het knipt wat geselecteerd is"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\user of naam@example.org; leeg voor uw adres"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "Donker"
@@ -6050,6 +6056,12 @@ msgstr "Opvolgen"
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Follow Up"
 msgstr "Opvolgen"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Systeem volgen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8252,8 +8264,8 @@ msgstr "Laat weten dat u afwezig bent of een tijd niet kunt antwoorden: uw postv
 msgid "Licences"
 msgstr "Licenties"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Licht"

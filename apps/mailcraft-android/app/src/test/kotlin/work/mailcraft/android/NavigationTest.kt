@@ -19,8 +19,8 @@ class NavigationTest {
     fun settingsHasItsSections() {
         assertEquals(
             listOf(
-                "Accounts", "Mail to keep offline", "Notifications", "Swipe actions", "Reading", "Pictures",
-                "Sender images", "Signatures", "Language", "Remove local data", "About",
+                "Accounts", "Mail to keep offline", "Notifications", "Swipe actions", "Appearance", "Reading",
+                "Pictures", "Sender images", "Signatures", "Language", "Remove local data", "About",
             ),
             SettingsPage.entries.map { it.label(EnglishTexts) },
         )

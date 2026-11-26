@@ -1812,6 +1812,12 @@ msgstr "Jakýkoli jiný poštovní server"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Vše, co ještě čeká na odeslání na server, jde první: pošta ve složce Pošta k odeslání a příznaky a přesuny provedené offline. Pokud se MailCraft k serveru nedostane, přepnutí počká, dokud to nepůjde."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Vzhled"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4432,8 +4438,8 @@ msgstr "Vyjmout nepřijímá žádné parametry: vyjme, co je vybrané"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMÉNA\\uživatel nebo vy@example.org; prázdné pro vaši adresu"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "Tmavý"
@@ -6293,6 +6299,12 @@ msgstr ""
 #, fuzzy
 msgid "Follow Up"
 msgstr "K vyřízení"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Podle systému"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8572,8 +8584,8 @@ msgstr "Dejte lidem vědět, že jste pryč nebo chvíli nemůžete odpovídat: 
 msgid "Licences"
 msgstr "Licence"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Světlý"

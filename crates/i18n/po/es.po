@@ -1818,6 +1818,12 @@ msgstr "Cualquier otro servidor de correo"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Primero se envía todo lo que aún espera para ir al servidor: el correo de la Bandeja de salida y las marcas y movimientos hechos mientras estaba sin conexión. Si MailCraft no puede conectar con el servidor, el cambio espera hasta que pueda."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Apariencia"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4434,8 +4440,8 @@ msgstr "Cortar no admite parámetros: corta lo que está seleccionado"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMINIO\\usuario o usted@example.org; vacío para su dirección"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "Oscuro"
@@ -6285,6 +6291,12 @@ msgstr "Seguimiento"
 #, fuzzy
 msgid "Follow Up"
 msgstr "Seguimiento"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Seguir el sistema"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8553,8 +8565,8 @@ msgstr "Avise a la gente de que está ausente o no puede responder por un tiempo
 msgid "Licences"
 msgstr "Licencias"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Claro"

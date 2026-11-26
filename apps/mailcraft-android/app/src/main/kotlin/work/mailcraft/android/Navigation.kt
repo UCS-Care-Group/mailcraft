@@ -29,6 +29,7 @@ internal enum class SettingsPage {
     MailOffline,
     Notifications,
     SwipeActions,
+    Appearance,
     Reading,
     Pictures,
     SenderImages,
@@ -43,6 +44,7 @@ internal enum class SettingsPage {
         MailOffline -> texts.t("Mail to keep offline")
         Notifications -> texts.t("Notifications")
         SwipeActions -> texts.t("Swipe actions")
+        Appearance -> texts.t("Appearance")
         Reading -> texts.t("Reading")
         Pictures -> texts.t("Pictures")
         SenderImages -> texts.t("Sender images")
