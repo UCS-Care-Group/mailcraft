@@ -177,6 +177,15 @@ impl MailApp {
                 "The same page asks to read and send from the shared mailboxes you have access to and to read the calendars shared with you, so that MailCraft doesn't have to ask again."
             ));
         }
+        // (And changing the contacts, for an account whose contacts Outlook keeps: #1917.)
+        if self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::keeps_contacts) {
+            text.push_str(
+                "
+
+",
+            );
+            text.push_str(tl!("The same page asks to change your contacts, so that contacts you make, change or delete here go to its server too."));
+        }
         let title = if self.sync_only_shared(account) { tl!("Shared Mailboxes and Calendars") } else { tl!("Keep in Step with Outlook") };
         let ask = Question {
             title: title.to_string(),
@@ -290,6 +299,8 @@ impl MailApp {
                     self.auto_replies_sync_refused(account, said);
                     self.categories_sync_refused(account, said);
                 } else {
+                    // (Contact changes that waited for it go at once, #1917.)
+                    mailcraft_engine::cmd::contacts_remote::retry_contact_changes(&mut self.session, account);
                     self.tasks_allowed(account);
                     self.rules_allowed(account);
                     self.auto_replies_allowed(account);

@@ -120,6 +120,7 @@ impl MailApp {
             // A renewed sign-in that isn't the owner's stops the run before the Outbox or
             // anything of the mail goes.
             signer: Some(owner.clone()),
+            contacts: None,
         };
         self.resume_fetch();
         if self.offline() {

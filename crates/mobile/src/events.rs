@@ -19,6 +19,10 @@ pub enum Event {
     /// A Send/Receive round is over (`finished` is false when it was called off for its time
     /// running out): `new_mail` is what it brought that notifications count.
     SyncFinished { new_mail: u64, finished: bool },
+    /// A line for the device's log on how long a part of Send/Receive took: a round, an account's
+    /// mail run, a calendar or to-do job, a pull to refresh. Made of numbers, account numbers and
+    /// fixed words only: never an address, a folder's name, a subject, a link or a token.
+    SyncLog { line: String },
     /// The account's sign-in has to be done again: the app opens the provider's page.
     SignInNeeded { account: u64 },
     /// The owner is asked to allow something before it is done (a permission for To Do, a shared
@@ -59,7 +63,7 @@ impl Shed for Event {
     /// a revision is replaced by a newer one; progress by the next.
     fn weight(&self) -> Weight {
         match self {
-            Event::SyncProgress { .. } => Weight::Progress,
+            Event::SyncProgress { .. } | Event::SyncLog { .. } => Weight::Progress,
             Event::RevChanged { .. } => Weight::Replaced,
             Event::Notification { .. } | Event::ReminderScheduleChanged | Event::SyncFinished { .. } => Weight::Notice,
             Event::SignInNeeded { .. }

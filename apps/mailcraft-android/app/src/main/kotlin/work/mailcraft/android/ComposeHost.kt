@@ -90,13 +90,16 @@ internal class ComposeHost(
     /**
      * Another app asked for a message: a `mailto:` link (the core reads it, and the message is only ever
      * started, never sent), or something shared (text, links, files, read off the main thread under the caps).
-     * With a message already open nothing is taken in, and the owner is told so.
+     * With a message already open nothing is taken in, and the owner is told so. Whether it was taken.
      */
-    fun beginIncoming(incoming: Incoming, reader: ShareReader, ownAuthority: String) {
+    fun beginIncoming(incoming: Incoming, reader: ShareReader, ownAuthority: String): Boolean {
+        if (controller != null) {
+            busy()
+            return false
+        }
         when (incoming) {
-            is Incoming.Mailto -> if (controller == null) begin(ComposeStart.New(0uL, incoming.link)) else busy()
+            is Incoming.Mailto, is Incoming.Reply -> incoming.start?.let(::begin)
             is Incoming.Share -> {
-                if (controller != null) return busy()
                 scope.launch {
                     reading = true
                     val load = try {
@@ -122,6 +125,7 @@ internal class ComposeHost(
                 }
             }
         }
+        return true
     }
 
     private fun busy() {

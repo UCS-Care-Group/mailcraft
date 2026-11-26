@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -126,6 +127,10 @@ class MainActivity : AppCompatActivity() {
  */
 internal fun incomingOf(intent: Intent?): Incoming? {
     if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+    // A notification's Reply comes only through the alias no other app can reach.
+    if (intent.component?.className == NOTICE_REPLY_ALIAS) {
+        return noticeAskOf(intent)?.takeIf { it.button == NoticeButton.Reply }?.let { Incoming.Reply(it.message) }
+    }
     return try {
         routeIncoming(
             action = intent.action,
@@ -163,7 +168,10 @@ private fun TakeIncoming(texts: Texts, asked: Asked, writing: ComposeHost, conte
     LaunchedEffect(wanted) {
         if (wanted != null) {
             asked.handled()
-            writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            val taken = writing.beginIncoming(wanted, shareReader, OpenedFiles.authority(context))
+            // A notification's Reply takes its notification away once the reply is open; while
+            // another message is being written it stays, to be pressed again.
+            if (taken && wanted is Incoming.Reply) cancelMailNotice(context, wanted.message)
         }
     }
     IncomingLayers(texts, writing)
@@ -232,6 +240,10 @@ private fun CoreShell(
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { DeviceSwipePrefs(appContext) }
     var swipe by remember { mutableStateOf(prefs.load()) }
+    val noticeStore = remember { DeviceNoticeButtons(appContext) }
+    var noticeButtons by remember { mutableStateOf(noticeStore.load()) }
+    val readingStore = remember { DeviceReadingPrefs(appContext) }
+    var readingPrefs by remember { mutableStateOf(readingStore.load()) }
     // (A folder of 0 is the first Inbox.)
     var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
     val ui by list.ui.collectAsState()
@@ -253,8 +265,10 @@ private fun CoreShell(
     val pictures = pictured.stack
     val writing = rememberComposeHost(core, texts, scope)
     TakeIncoming(texts, asked, writing, appContext)
+    // A pull to refresh brings the account whose folder is on screen (all of them for a search of every account).
+    val pullFor by rememberUpdatedState(pullAccount(accounts, folder?.id, query))
     val mailActions = remember(list, scope, hub) {
-        mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
+        mailListActions(list, scope, pictures.senderImages, retryOutline, { hub.syncNow(pullFor) }) { change ->
             query = change(query)
         }
     }
@@ -274,6 +288,8 @@ private fun CoreShell(
             categories = categories,
             nowMillis = now,
             swipe = swipe,
+            noticeButtons = noticeButtons,
+            readingPrefs = readingPrefs,
             reading = pictured.reading,
             pictures = pictured.settings,
             avatars = pictured.avatars,
@@ -293,6 +309,14 @@ private fun CoreShell(
             onSwipe = {
                 swipe = it
                 prefs.save(it)
+            },
+            onNoticeButtons = {
+                noticeButtons = it
+                noticeStore.save(it)
+            },
+            onReadingPrefs = {
+                readingPrefs = it
+                readingStore.save(it)
             },
             reading = pictured.reader.actions(writing::begin),
             onPictures = pictures::changed,
@@ -359,7 +383,9 @@ private class Pictured(
 
 @Composable
 private fun rememberPictures(core: Core, list: MailListController, scope: CoroutineScope, context: Context): Pictured {
-    val reader = remember(core, list) { ReadingStack(core, context, scope, list::markRead) }
+    val reader = remember(core, list) {
+        ReadingStack(core, context, scope) { id -> list.runOn(Triage.MarkRead(read = true), id) }
+    }
     val stack = reader.pictures
     val attachments by reader.attachments.ui.collectAsState()
     val reading by stack.reading.ui.collectAsState()
@@ -379,7 +405,7 @@ private fun mailListActions(
     senderImages: SenderImages,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
-    /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
+    /** Send/Receive on the owner's word ([AccountsHub.syncNow], for the account on screen): what a pull asks for. */
     syncNow: () -> Unit,
     change: ((MailQuery) -> MailQuery) -> Unit,
 ) = MailListActions(

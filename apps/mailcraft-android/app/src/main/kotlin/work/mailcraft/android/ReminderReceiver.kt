@@ -10,7 +10,6 @@ import android.content.Intent
 import android.text.format.DateUtils
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.graphics.drawable.IconCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -83,7 +82,6 @@ internal fun showReminder(context: Context, payload: ReminderPayload) {
         payload.startsMillis,
         if (payload.allDay) DateUtils.FORMAT_SHOW_DATE else DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_SHOW_DATE,
     )
-    val icon = IconCompat.createWithBitmap(envelope())
     val id = notificationId(payload.key.toULong())
     fun action(intent: Intent) =
         PendingIntent.getBroadcast(
@@ -100,11 +98,11 @@ internal fun showReminder(context: Context, payload: ReminderPayload) {
     )
     val snoozeIntent = putPayload(reminderIntent(context, ACTION_SNOOZE, payload.key), payload)
     val hidden = NotificationCompat.Builder(context, CHANNEL_REMINDERS)
-        .setSmallIcon(icon)
+        .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle(payload.words.hidden)
         .build()
     val notification = NotificationCompat.Builder(context, CHANNEL_REMINDERS)
-        .setSmallIcon(icon)
+        .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle(payload.title)
         .setContentText(reminderText(payload, at))
         .setCategory(if (payload.task) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EVENT)

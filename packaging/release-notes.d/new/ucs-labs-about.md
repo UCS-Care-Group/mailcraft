@@ -1,0 +1,1 @@
+- About now shows the UCS Labs logo with a "Made by UCS Labs" line; the logo files are trademarks, not under the MIT or Apache licence (see TRADEMARKS.md).
