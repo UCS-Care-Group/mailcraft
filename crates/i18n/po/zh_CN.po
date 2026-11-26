@@ -8775,6 +8775,12 @@ msgid "Low on top"
 msgstr "低重要性在上"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "由 UCS Labs 制作"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -17314,6 +17320,12 @@ msgstr "数字签名已过期。"
 #, fuzzy
 msgid "The Entire Series"
 msgstr "整个系列"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "UCS Labs 的名称和标志是 UCS Care Group Limited 的商标；请参阅 TRADEMARKS.md。"
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs

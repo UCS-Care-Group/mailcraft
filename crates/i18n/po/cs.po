@@ -8799,6 +8799,12 @@ msgid "Low on top"
 msgstr "Nízká nahoře"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "Vytvořilo UCS Labs"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -17349,6 +17355,12 @@ msgstr "Platnost digitálního podpisu vypršela."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "Celou řadu"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Název a logo UCS Labs jsou ochranné známky společnosti UCS Care Group Limited; viz TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs

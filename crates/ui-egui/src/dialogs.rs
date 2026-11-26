@@ -194,6 +194,25 @@ pub enum AboutTab {
     Testers,
 }
 
+/// The UCS Labs monogram for About (white on a dark theme, dark on a light one), made once per
+/// theme and kept in the context. `None` when the picture can't be read (About then shows the text only).
+fn labs_mark(ctx: &egui::Context, dark: bool) -> Option<egui::TextureHandle> {
+    // Trademark files (`assets/trademarks/`, `TRADEMARKS.md`): not under the project licence.
+    const DARK_INK: &[u8] = include_bytes!("../../../assets/trademarks/ucs-labs-monogram-128.png");
+    const WHITE_INK: &[u8] = include_bytes!("../../../assets/trademarks/ucs-labs-monogram-white-128.png");
+    let id = egui::Id::unique(if dark { "mailcraft-labs-mark-white" } else { "mailcraft-labs-mark-dark" });
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let png = if dark { WHITE_INK } else { DARK_INK };
+    let rgba = image::load_from_memory_with_format(png, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    let texture =
+        ctx.load_texture("mailcraft-labs-mark", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
+}
+
 /// What a [`Dialog::Confirm`] asks.
 pub struct Question {
     pub title: String,
@@ -3050,8 +3069,15 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     egui::RichText::new(crate::i18n::fmt(tl!("Version {version}"), &[("version", env!("CARGO_PKG_VERSION"))])).color(t.text_dim),
                 );
                 ui.label(tl!("Mail, calendar, people and tasks, written from scratch in Rust."));
+                ui.horizontal(|ui| {
+                    if let Some(mark) = labs_mark(ui.ctx(), t.dark) {
+                        ui.add(egui::Image::new(&mark).fit_to_exact_size(vec2(22.0, 22.0)));
+                    }
+                    ui.label(egui::RichText::new(tl!("Made by UCS Labs")).color(t.text_dim));
+                });
                 crate::backstage::contributors(ui);
                 ui.label(tl!("Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."));
+                ui.label(tl!("The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."));
                 let parity = mailcraft_engine::catalog::parity(&app.session.registry);
                 ui.label(
                     egui::RichText::new(crate::i18n::fmt(
