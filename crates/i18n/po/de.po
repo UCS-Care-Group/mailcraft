@@ -4838,8 +4838,8 @@ msgstr "Fertig: auf dem neuesten Stand"
 msgid "Done: {n} new"
 msgstr "Fertig: {n} neu"
 
-#. ribbon location
-#: crates/engine/src/cmd/send_receive.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
 msgid "Download"
 msgstr "Herunterladen"
 
@@ -9294,7 +9294,7 @@ msgid "More about this"
 msgstr "Mehr dazu"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
 msgid "More actions"
 msgstr "Weitere Aktionen"
 

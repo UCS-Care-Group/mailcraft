@@ -5086,8 +5086,8 @@ msgstr "მზადაა: განახლებულია"
 msgid "Done: {n} new"
 msgstr "მზადაა: ახალი {n}"
 
-#. ribbon location
-#: crates/engine/src/cmd/send_receive.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
 #, fuzzy
 msgid "Download"
 msgstr "ჩამოტვირთვა"
@@ -9855,7 +9855,7 @@ msgid "More about this"
 msgstr "ვრცლად"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
 #, fuzzy
 msgid "More actions"
 msgstr "სხვა მოქმედებები"

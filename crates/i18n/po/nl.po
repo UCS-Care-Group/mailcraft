@@ -4927,8 +4927,8 @@ msgstr "Gereed: bijgewerkt"
 msgid "Done: {n} new"
 msgstr "Gereed: {n} nieuw"
 
-#. ribbon location
-#: crates/engine/src/cmd/send_receive.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
 msgid "Download"
 msgstr "Downloaden"
 
@@ -9538,7 +9538,7 @@ msgid "More about this"
 msgstr "Meer hierover"
 
 #. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt
 #, fuzzy
 msgid "More actions"
 msgstr "Meer acties"
