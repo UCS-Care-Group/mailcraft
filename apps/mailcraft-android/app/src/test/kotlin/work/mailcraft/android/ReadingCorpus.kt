@@ -13,6 +13,7 @@ import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.CellView
 import uniffi.mailcraft_mobile.InsetsView
 import uniffi.mailcraft_mobile.LengthView
+import uniffi.mailcraft_mobile.LineHeightView
 import uniffi.mailcraft_mobile.LineStyleView
 import uniffi.mailcraft_mobile.LineView
 import uniffi.mailcraft_mobile.MarkerView
@@ -204,6 +205,28 @@ internal object Corpus {
             ),
         ),
         listOf(LONG, "https://evil.example/collect"),
+    )
+
+    private fun exact(px: UByte, size: UByte, vararg spans: Pair<String, String?>, space: UByte = 1u) = BlockView(
+        BlockKindView.Paragraph, spans.map { (text, link) -> B.span(text, link = link, size = size) },
+        0u, AlignView.CENTER, space, false, 0u, LineHeightView.Px(px), 0u, 0u, null, B.noLine,
+    )
+
+    /** An invoice's footer as the core reads `font-size:12px; line-height:10px; mso-line-height-rule:exactly` (#1967). */
+    val footer = Entry(
+        "footer",
+        view(
+            6uL, "Your invoice is ready",
+            listOf(
+                B.p("Thank you for your payment. Your invoice is attached.", 0u),
+                exact(
+                    10u, 12u, "visit our website" to "https://example.org/", " | " to null, "log in" to "https://example.org/login",
+                    " | " to null, "get support" to "https://example.org/help",
+                ),
+                exact(9u, 11u, "© 2026 Example Ltd. All rights reserved. Registered in England, company no. 00000000." to null, space = 0u),
+            ),
+        ),
+        listOf("https://example.org/", "https://example.org/login", "https://example.org/help"),
     )
 
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)
