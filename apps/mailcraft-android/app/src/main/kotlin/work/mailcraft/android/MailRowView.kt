@@ -199,7 +199,7 @@ internal fun MailRowContent(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
                 Line(row.subject, weight, Modifier.weight(1f), MaterialTheme.typography.bodyMedium)
-                if (row.important) MarkIcon(ListIcons.Important, MaterialTheme.colorScheme.error)
+                ImportanceMark(row)
                 if (row.hasAttachments) MarkIcon(ListIcons.Attachment)
                 if (row.flagged) MarkIcon(ListIcons.FlagFilled, MaterialTheme.colorScheme.error)
             }
@@ -249,6 +249,6 @@ private fun rowFill(row: InboxRow): Color {
 }
 
 @Composable
-private fun MarkIcon(icon: ImageVector, tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+internal fun MarkIcon(icon: ImageVector, tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
     Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(SmallIcon))
 }

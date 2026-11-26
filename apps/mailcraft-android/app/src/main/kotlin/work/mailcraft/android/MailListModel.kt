@@ -75,6 +75,7 @@ internal data class InboxRow(
     val flagged: Boolean = false,
     val hasAttachments: Boolean = false,
     val important: Boolean = false,
+    val lowImportance: Boolean = false,
     /** Messages the row stands for: more than one for a conversation. */
     val members: Int = 1,
     /** The ids of those messages (capped by the core), which a command on the row names. */

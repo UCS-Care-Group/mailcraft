@@ -57,6 +57,16 @@ internal object ListIcons {
         }
     }
 
+    /** A down arrow: Low importance. */
+    val LowImportance: ImageVector by lazy {
+        icon("LowImportance") {
+            line(12f, 4f, 12f, 19f)
+            moveTo(6f, 13f)
+            lineTo(12f, 19f)
+            lineTo(18f, 13f)
+        }
+    }
+
     /** A flag on a pole, filled: the mark of a flagged row. */
     val FlagFilled: ImageVector by lazy {
         icon("FlagFilled", filled = true) {

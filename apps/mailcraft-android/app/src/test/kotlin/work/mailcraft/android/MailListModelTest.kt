@@ -105,6 +105,10 @@ class MailListModelTest {
             "Unread, High importance, Flagged, Has attachments, 3 messages in the conversation",
             rowDescription(EnglishTexts, row),
         )
+        assertEquals(
+            "Low importance",
+            rowDescription(EnglishTexts, FakeMailSource.row(1).copy(lowImportance = true)),
+        )
         assertEquals("", rowDescription(EnglishTexts, FakeMailSource.row(1)))
     }
 }

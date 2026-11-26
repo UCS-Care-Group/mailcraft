@@ -16,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -113,7 +115,7 @@ private fun HeaderLine(label: String, people: List<AddressRecord>) {
     )
 }
 
-/** The subject, and under it a red "!" and the words when the sender marked it High importance. */
+/** The subject, and under it the mark and words when the sender marked it High or Low importance. */
 @Composable
 private fun Subject(texts: Texts, view: MessageView) {
     Text(
@@ -121,14 +123,17 @@ private fun Subject(texts: Texts, view: MessageView) {
         style = MaterialTheme.typography.titleLarge,
         modifier = Modifier.semantics { heading() },
     )
-    if (!view.important) return
+    if (view.important) {
+        ImportanceLine(ListIcons.Important, MaterialTheme.colorScheme.error, texts.t("High importance"))
+    } else if (view.lowImportance) {
+        ImportanceLine(ListIcons.LowImportance, MaterialTheme.colorScheme.onSurfaceVariant, texts.t("Low importance"))
+    }
+}
+
+@Composable
+private fun ImportanceLine(icon: ImageVector, tint: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MarkGap)) {
-        Icon(
-            ListIcons.Important,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(MarkSize),
-        )
-        Text(texts.t("High importance"), style = MaterialTheme.typography.labelLarge)
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(MarkSize))
+        Text(label, style = MaterialTheme.typography.labelLarge)
     }
 }

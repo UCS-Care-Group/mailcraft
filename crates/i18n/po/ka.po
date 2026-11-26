@@ -8757,8 +8757,8 @@ msgstr "დაბალი"
 msgid "Low Importance"
 msgstr "დაბალი მნიშვნელობა"
 
-#. interface
-#: crates/ui-egui/src/calendar_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Low importance"
 msgstr "დაბალი მნიშვნელობა"

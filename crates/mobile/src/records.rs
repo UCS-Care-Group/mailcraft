@@ -68,6 +68,9 @@ pub struct MessageRow {
     pub group: Option<String>,
     /// Whether `group` is one of the owner's categories (shown as spelt, never translated).
     pub group_is_category: bool,
+    /// The sender marked it Low importance.
+    #[uniffi(default = false)]
+    pub low_importance: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -237,6 +240,9 @@ pub struct MessageView {
     /// The sender marked it High importance.
     #[uniffi(default = false)]
     pub important: bool,
+    /// The sender marked it Low importance.
+    #[uniffi(default = false)]
+    pub low_importance: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]

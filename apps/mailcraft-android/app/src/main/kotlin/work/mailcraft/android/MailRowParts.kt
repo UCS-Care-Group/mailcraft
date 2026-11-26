@@ -19,6 +19,7 @@ private val Gutter = 16.dp
 internal fun rowDescription(texts: Texts, row: InboxRow): String = listOfNotNull(
     if (row.unread) texts.t("Unread") else null,
     if (row.important) texts.t("High importance") else null,
+    if (row.lowImportance) texts.t("Low importance") else null,
     if (row.flagged) texts.t("Flagged") else null,
     if (row.hasAttachments) texts.t("Has attachments") else null,
     if (row.members > 1) {
@@ -55,3 +56,10 @@ internal fun RowPlaceholder() {
 private const val PLACEHOLDER_WIDTH = 0.6f
 private val PlaceholderHeight = 72.dp
 private val BarHeight = 16.dp
+
+/** A red "!" for High importance, a muted down arrow for Low. */
+@Composable
+internal fun ImportanceMark(row: InboxRow) {
+    if (row.important) MarkIcon(ListIcons.Important, MaterialTheme.colorScheme.error)
+    if (row.lowImportance) MarkIcon(ListIcons.LowImportance)
+}

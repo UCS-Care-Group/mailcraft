@@ -112,6 +112,7 @@ impl Core {
                 unread: !m.read,
                 flagged: m.flag == FlagStatus::Flagged,
                 important: m.importance == Importance::High,
+                low_importance: m.importance == Importance::Low,
                 categories: text::first(&m.categories, MAX_CATEGORIES, |c| text::clip(c, MAX_NAME)),
                 attachments: text::first(m.attachments.iter().enumerate(), MAX_LISTED, |(i, a)| AttachmentRecord {
                     index: text::count_of(i),
