@@ -49,6 +49,27 @@ internal object ListIcons {
         }
     }
 
+    /** An exclamation mark: High importance. */
+    val Important: ImageVector by lazy {
+        icon("Important") {
+            line(12f, 3.5f, 12f, 15f)
+            circle(12f, 19.5f, 1.2f)
+        }
+    }
+
+    /** A flag on a pole, filled: the mark of a flagged row. */
+    val FlagFilled: ImageVector by lazy {
+        icon("FlagFilled", filled = true) {
+            line(5.5f, 21f, 5.5f, 3.5f)
+            moveTo(5.5f, 4.5f)
+            lineTo(19f, 4.5f)
+            lineTo(15.5f, 9f)
+            lineTo(19f, 13.5f)
+            lineTo(5.5f, 13.5f)
+            close()
+        }
+    }
+
     /** A paperclip. */
     val Attachment: ImageVector by lazy {
         icon("Attachment") {

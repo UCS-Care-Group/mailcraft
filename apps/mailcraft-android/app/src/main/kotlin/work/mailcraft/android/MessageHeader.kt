@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +26,8 @@ import uniffi.mailcraft_mobile.AddressRecord
 import uniffi.mailcraft_mobile.MessageView
 
 private val DateGap = 8.dp
+private val MarkGap = 4.dp
+private val MarkSize = 16.dp
 
 /**
  * The subject, then the sender with the date and time at the right. Shut, that is one line and the
@@ -33,11 +37,7 @@ private val DateGap = 8.dp
 @Composable
 internal fun MessageHeader(texts: Texts, view: MessageView, open: Boolean, onToggle: (Boolean) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            view.subject.ifBlank { texts.t("(no subject)") },
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.semantics { heading() },
-        )
+        Subject(texts, view)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,4 +111,24 @@ private fun HeaderLine(label: String, people: List<AddressRecord>) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** The subject, and under it a red "!" and the words when the sender marked it High importance. */
+@Composable
+private fun Subject(texts: Texts, view: MessageView) {
+    Text(
+        view.subject.ifBlank { texts.t("(no subject)") },
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.semantics { heading() },
+    )
+    if (!view.important) return
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MarkGap)) {
+        Icon(
+            ListIcons.Important,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(MarkSize),
+        )
+        Text(texts.t("High importance"), style = MaterialTheme.typography.labelLarge)
+    }
 }

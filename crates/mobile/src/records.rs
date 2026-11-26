@@ -234,6 +234,9 @@ pub struct MessageView {
     /// The whole message is on the phone. When not, only its headers and preview are (the body
     /// shows the preview): `Core::open_message` fetches it.
     pub whole: bool,
+    /// The sender marked it High importance.
+    #[uniffi(default = false)]
+    pub important: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]

@@ -15,9 +15,10 @@ import androidx.compose.ui.unit.dp
 
 private val Gutter = 16.dp
 
-/** What a screen reader says of the row beyond its words: unread, flagged, attachments, conversation. */
+/** What a screen reader says of the row beyond its words: unread, importance, flagged, attachments, conversation. */
 internal fun rowDescription(texts: Texts, row: InboxRow): String = listOfNotNull(
     if (row.unread) texts.t("Unread") else null,
+    if (row.important) texts.t("High importance") else null,
     if (row.flagged) texts.t("Flagged") else null,
     if (row.hasAttachments) texts.t("Has attachments") else null,
     if (row.members > 1) {

@@ -385,3 +385,13 @@ fn a_message_with_a_big_attachment_reads_without_the_attachment() {
     assert_eq!(view.attachments.len(), 1);
     assert_eq!(view.attachments[0].size, 8 << 20);
 }
+
+#[test]
+fn a_message_opened_says_high_importance_as_its_row_does() {
+    let core = sample_core();
+    let rows = block_on(core.messages(inbox(&core), "all".into(), 0, 200)).unwrap().rows;
+    assert!(rows.iter().any(|r| r.important) && rows.iter().any(|r| !r.important));
+    for row in rows {
+        assert_eq!(block_on(core.message(row.id, 390.0, false)).unwrap().important, row.important, "{}", row.subject);
+    }
+}
