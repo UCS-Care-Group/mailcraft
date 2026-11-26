@@ -7,6 +7,10 @@ package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -75,6 +79,13 @@ class AttachmentsFoldTest {
     private fun first(node: SemanticsNode): SemanticsNode? =
         if (node.config.getOrNull(SemanticsProperties.StateDescription) != null) node else node.children.firstNotNullOfOrNull { first(it) }
 
+    /** What the reading pane does: the state is kept per message id by the caller. */
+    @Composable
+    private fun Folding(id: ULong) {
+        var open by remember(id) { mutableStateOf(false) }
+        FoldedAttachments(EnglishTexts, id, files, AttachmentActions.None, open) { open = it }
+    }
+
     /** Each message keeps its own state: unfolding the first leaves the second (another message) folded. */
     @Test
     fun foldedThenUnfoldedAndAnotherMessageStaysFolded() {
@@ -83,8 +94,8 @@ class AttachmentsFoldTest {
             ShellShots.Fixed {
                 Probe(seen, tap = true) {
                     androidx.compose.foundation.layout.Column {
-                        FoldedAttachments(EnglishTexts, 1uL, files, AttachmentActions.None)
-                        FoldedAttachments(EnglishTexts, 2uL, files, AttachmentActions.None)
+                        Folding(1uL)
+                        Folding(2uL)
                     }
                 }
             }

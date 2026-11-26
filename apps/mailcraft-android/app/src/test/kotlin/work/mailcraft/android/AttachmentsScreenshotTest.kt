@@ -71,7 +71,7 @@ class AttachmentsScreenshotTest {
     /** The row opened (its state is the row's own, so the shot draws the row and the list as they stack). */
     private val unfolded: @Composable () -> Unit = {
         androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(horizontal = 16.dp)) {
-            FoldedAttachments(EnglishTexts, 1uL, invented.take(3), AttachmentActions.None, startOpen = true)
+            FoldedAttachments(EnglishTexts, 1uL, invented.take(3), AttachmentActions.None, open = true) {}
         }
     }
 

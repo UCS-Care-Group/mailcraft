@@ -78,12 +78,18 @@ internal fun AttachmentsList(
 
 /**
  * The files as one row, "N attachments", that opens the list in place and folds it again. Each message starts
- * folded: [id] keys the state, which is not saved.
+ * folded: the caller keeps [open] by message (above any lazy list, so scrolling away does not fold it) and does not save it.
  */
 @Composable
-internal fun FoldedAttachments(texts: Texts, id: ULong, items: List<AttachmentItem>, actions: AttachmentActions, startOpen: Boolean = false) {
+internal fun FoldedAttachments(
+    texts: Texts,
+    id: ULong,
+    items: List<AttachmentItem>,
+    actions: AttachmentActions,
+    open: Boolean,
+    onOpen: (Boolean) -> Unit,
+) {
     if (items.isEmpty()) return
-    var open by remember(id) { mutableStateOf(startOpen) }
     val state = if (open) texts.t("Unfolded") else texts.t("Folded")
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Row(
@@ -91,7 +97,7 @@ internal fun FoldedAttachments(texts: Texts, id: ULong, items: List<AttachmentIt
                 .fillMaxWidth()
                 .heightIn(min = RowHeight)
                 .semantics { stateDescription = state }
-                .clickable(role = Role.Button) { open = !open },
+                .clickable(role = Role.Button) { onOpen(!open) },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
