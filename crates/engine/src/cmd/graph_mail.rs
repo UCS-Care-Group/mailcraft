@@ -104,7 +104,7 @@ pub const FULL_SWEEP_EVERY: i64 = 60 * 60;
 /// folder passed over might be where it went). Counts that match can hide a change (one message
 /// in and one out, one read and another unread, a flag or a category): the sweep is what brings
 /// those, late but never lost.
-pub fn full_sweep_due(s: &Session, account: Id) -> bool {
+fn full_sweep_due(s: &Session, account: Id) -> bool {
     let due = s.graph_swept.get(&account).is_none_or(|at| s.now().saturating_sub(*at) >= FULL_SWEEP_EVERY);
     due || s.mailbox.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|server| server.gone))
 }

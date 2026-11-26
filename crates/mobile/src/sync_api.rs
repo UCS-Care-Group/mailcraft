@@ -39,9 +39,11 @@ impl Core {
 
     /// Send and receive the mail the owner is looking at, the owner having asked (a pull to
     /// refresh): `account`'s alone (a list of one account's folder), or every account's with
-    /// `None` (a view across accounts). Only the holds of the accounts it asks for are let go of
-    /// ([`Core::hold_background_sync`]). A round under way that doesn't have an account asked for
-    /// takes it at the end of its line; one running or in line already isn't run twice. It returns
+    /// `None` (a view across accounts); a shared mailbox's owner for one of its folders, and every
+    /// account for an account that is gone or of a kind the phone doesn't run. Only the holds of
+    /// the accounts it asks for are let go of ([`Core::hold_background_sync`]). A round under way
+    /// puts the accounts asked for first in its line, as the owner asks (a sign-in needed is said);
+    /// the one running isn't run twice. It returns
     /// at once, as `sync_now` does and with its events; [`Core::mail_in`] waits for the mail.
     pub async fn refresh_mail(&self, account: Option<u64>) -> Result<SyncAnswer, CoreError> {
         let sync = self.sync.clone();

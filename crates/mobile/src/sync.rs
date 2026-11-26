@@ -258,6 +258,21 @@ fn ms(since: Instant) -> u128 {
     since.elapsed().as_millis()
 }
 
+/// Whether `account`'s mail is still to come in the round: its run is under way or it waits in
+/// line, and something can start (not Work Offline).
+fn mail_pending(session: &Session, running: Option<u64>, account: u64) -> bool {
+    !session.prefs.offline && (running == Some(account) || session.driver.round.is_queued(account))
+}
+
+/// The account a pull for `only` brings: that account; a shared mailbox's owner (the phone reads
+/// no shared mailbox of its own); every account (`None`) for one that is gone or of a kind the
+/// phone doesn't run, as a pull did before it could bring one account alone.
+fn pull_scope(session: &Session, only: Option<u64>) -> Option<u64> {
+    let account = session.mailbox.account(only?)?;
+    let own = session.mailbox.account(account.shared_of.unwrap_or(account.id))?;
+    (own.kind == AccountKind::Microsoft && !own.is_shared()).then_some(own.id)
+}
+
 /// The device's log line for a pull to refresh whose mail is in: the time since the owner asked.
 fn pull_line(since: Instant, accounts: usize) -> String {
     format!("pull to refresh: mail in after {} ms, {accounts} accounts", ms(since))
@@ -651,10 +666,10 @@ impl SyncHost {
     /// given, is woken with the round's summary. `release`: the owner asked (a pull to refresh),
     /// which lets go of every account held back first; any other round leaves them out.
     ///
-    /// `only`: the round is that account's alone (a pull to refresh in one of its folders), and only
-    /// its hold is let go of. An ask that isn't a background run's (no `waiter`) while a round is
-    /// under way puts what the round doesn't have yet at the end of its line; an account already
-    /// running or in line isn't run twice.
+    /// `only`: the round is that account's alone (a pull to refresh in one of its folders; a shared
+    /// mailbox's owner, every account for one the phone doesn't run), and only its hold is let go
+    /// of. An ask while a round is under way puts what the round doesn't have yet in its line: the
+    /// owner's first, the rest at its end; the run under way isn't started twice.
     pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool, only: Option<u64>) -> SyncAnswer {
         let mut inner = self.lock();
         let lang = session.interface_language;
@@ -665,6 +680,7 @@ impl SyncHost {
         if matches!(self.host.platform().network(), NetworkState::Offline) {
             return refused("There is no network connection.");
         }
+        let only = pull_scope(session, only);
         let accounts: Vec<u64> = server_accounts(session).into_iter().filter(|id| only.is_none_or(|a| a == *id)).collect();
         if accounts.is_empty() {
             return refused("There is no account to send and receive.");
@@ -712,15 +728,24 @@ impl SyncHost {
                 inner.round_began = Some(Instant::now());
             }
             inner.active = true;
-        } else if waiter.is_none() {
-            // The owner (or a new account's first round) asked while a round is under way: what it
-            // doesn't have yet joins the end of its line, so that a pull to refresh always brings
-            // the mail asked for and a new account's first round isn't left for the next one. One
-            // account is never run twice at once. (A background run joins the round as it is.)
+        } else {
+            // Asked while a round is under way: what the round doesn't have yet joins its line, so
+            // that a pull brings the mail asked for, a new account's first round isn't left for the
+            // next one and a background run covers what it would have alone. The owner's go first
+            // (and are asked as the owner asks: a sign-in that is needed is said); the rest go at
+            // the end, a background run's quietly. The run under way is never started twice.
             let running = inner.sr.running_account();
-            for id in &supported {
-                if running != Some(*id) && !session.driver.round.is_queued(*id) {
-                    session.driver.round.queue.push_back((*id, false));
+            let queue = &mut session.driver.round.queue;
+            if release {
+                queue.retain(|(a, _)| !supported.contains(a));
+                for id in supported.iter().rev().filter(|id| running != Some(**id)) {
+                    queue.push_front((*id, false));
+                }
+            } else {
+                for id in &supported {
+                    if running != Some(*id) && !queue.iter().any(|(a, _)| a == id) {
+                        queue.push_back((*id, waiter.is_some()));
+                    }
                 }
             }
         }
@@ -746,8 +771,23 @@ impl SyncHost {
     }
 
     fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
+        // A background run's time ran out (the only stop there is): what a pull still waits for
+        // stays in line, first, and goes on after; the run under way is stopped all the same and
+        // run again.
+        let running = inner.sr.running_account();
+        let mut kept: Vec<u64> = Vec::new();
+        for w in &inner.mail_waiters {
+            for a in &w.accounts {
+                if !kept.contains(a) && mail_pending(session, running, *a) {
+                    kept.push(*a);
+                }
+            }
+        }
         inner.sr.stop(session);
         session.driver.round.queue.clear();
+        for a in kept.iter().rev() {
+            session.driver.round.queue.push_front((*a, false));
+        }
         let summary = self.finish_round(inner, session, false);
         // Pages the run brought before the stop stay: keep the mailbox within the limits.
         inner.trim.due = true;
@@ -816,8 +856,7 @@ impl SyncHost {
         // A pull to refresh is answered once none of its accounts runs or waits in line (or nothing
         // can start: Work Offline), whatever the round's end still waits for.
         let running = inner.sr.running_account();
-        let (round, offline) = (&session.driver.round, session.prefs.offline);
-        self.answer_mail_waiters(inner, |account| !offline && (running == Some(account) || round.is_queued(account)));
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
         let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
         self.busy.store(working, Ordering::Relaxed);
         // The round's mail is in, and its end is still to come.
@@ -880,13 +919,12 @@ impl SyncHost {
             reply.push(Err(CoreError::Cancelled));
             return;
         }
-        let accounts = only.map_or_else(|| server_accounts(session), |a| vec![a]);
+        let accounts = pull_scope(session, only).map_or_else(|| server_accounts(session), |a| vec![a]);
         let running = inner.sr.running_account();
-        let round = &session.driver.round;
         let since = inner.pull_began.unwrap_or_else(Instant::now);
         if session.prefs.offline {
             reply.push(Ok(()));
-        } else if !accounts.iter().any(|a| running == Some(*a) || round.is_queued(*a)) {
+        } else if !accounts.iter().any(|a| mail_pending(session, running, *a)) {
             // In already (the run ended before the wait was asked for).
             self.log(pull_line(since, accounts.len()));
             reply.push(Ok(()));
@@ -959,7 +997,7 @@ impl SyncHost {
     fn stepped(&self, inner: &mut Inner, session: &mut Session, step: Step) {
         match step {
             Step::Started { account } => {
-                let full = mailcraft_engine::cmd::graph_mail::full_sweep_due(session, account);
+                let full = inner.sr.running_full_sweep();
                 inner.run_began = Some((account, Instant::now(), full));
                 inner.runs = inner.runs.saturating_add(1);
                 inner.round_began.get_or_insert_with(Instant::now);
@@ -1028,8 +1066,10 @@ impl SyncHost {
             self.log(format!("round: {} ms, {} mail runs, {}", ms(since), inner.runs, if finished { "finished" } else { "called off" }));
         }
         inner.runs = 0;
-        // Whatever a pull to refresh waited for, the round is over.
-        self.answer_mail_waiters(inner, |_| false);
+        // The round is over: a pull is answered unless what it waits for is still in line (kept
+        // there by a stop, [`Self::stop_locked`]).
+        let running = inner.sr.running_account();
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
         inner.active = false;
         inner.ran = false;
         inner.tail_starts = 0;

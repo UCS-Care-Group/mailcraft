@@ -36,9 +36,6 @@ use crate::sync::run_line;
 use crate::sync_tests::{Runner, drain, signed_in, stand_in};
 use crate::{Core, CoreError, Event, NetworkKind, SyncAnswer};
 
-const FIRST: &str = "owner@example.org";
-const SECOND: &str = "second@example.org";
-
 /// The accounts the runner was called for, in order.
 type Calls = Arc<Mutex<Vec<u64>>>;
 
@@ -82,6 +79,8 @@ struct Two {
     platform: Arc<FakePlatform>,
     a: u64,
     b: u64,
+    /// Every account, in the mailbox's order (`a` and `b` are the first two).
+    ids: Vec<u64>,
     calls: Calls,
     hold: Arc<Mutex<Option<u64>>>,
     entered: Arc<AtomicBool>,
@@ -89,13 +88,21 @@ struct Two {
 
 /// Two Microsoft accounts, both signed in as an earlier start left them, rounds only when asked.
 fn two() -> Two {
+    accounts(&[true, true])
+}
+
+/// A Microsoft account for each of `signed`, signed in as an earlier start left it where it says
+/// so (else with no sign-in kept), rounds only when asked.
+fn accounts(signed: &[bool]) -> Two {
     let (calls, hold, entered) = (Calls::default(), Arc::new(Mutex::new(None)), Arc::new(AtomicBool::new(false)));
     let run = runner(calls.clone(), hold.clone(), entered.clone());
     let platform = FakePlatform::new();
-    let make = || {
+    let n = signed.len();
+    let make = move || {
         let mut s = Session::empty();
-        s.run("account.add", &json!({"email": FIRST, "kind": "microsoft"})).unwrap();
-        s.run("account.add", &json!({"email": SECOND, "kind": "microsoft"})).unwrap();
+        for i in 0..n {
+            s.run("account.add", &json!({"email": format!("owner{i}@example.org"), "kind": "microsoft"})).unwrap();
+        }
         s.prefs.sync_minutes = 0;
         s
     };
@@ -103,10 +110,23 @@ fn two() -> Two {
     let ids: Vec<(u64, String)> =
         block_on(core.call(|s| Ok(s.mailbox.accounts.iter().filter(|a| a.kind.has_server()).map(|a| (a.id, secret_key("refresh", a))).collect())))
             .unwrap();
-    for (_, key) in &ids {
-        platform.secrets.kept.lock().unwrap().push((key.clone(), "stored-refresh".to_string()));
+    for ((_, key), signed) in ids.iter().zip(signed) {
+        if *signed {
+            platform.secrets.kept.lock().unwrap().push((key.clone(), "stored-refresh".to_string()));
+        }
     }
-    Two { core, platform, a: ids[0].0, b: ids[1].0, calls, hold, entered }
+    let all: Vec<u64> = ids.iter().map(|(id, _)| *id).collect();
+    Two { core, platform, a: all[0], b: all[1], ids: all, calls, hold, entered }
+}
+
+/// A background run on a thread of its own, its summary on the channel.
+fn background(core: &Arc<Core>, budget_ms: u64) -> Receiver<crate::SyncSummary> {
+    let (tx, rx) = channel();
+    let core = core.clone();
+    std::thread::spawn(move || {
+        let _ = tx.send(block_on(core.background_sync(budget_ms)).unwrap());
+    });
+    rx
 }
 
 /// A pull to refresh as the app makes it: the ask, then the wait for its mail when it started.
@@ -211,7 +231,7 @@ fn a_pull_while_the_account_runs_does_not_run_it_twice_and_is_answered() {
 }
 
 #[test]
-fn a_pull_while_another_account_runs_joins_the_end_of_the_line() {
+fn a_pull_while_another_account_runs_joins_the_line() {
     let t = two();
     *t.hold.lock().unwrap() = Some(t.b);
     let other = pull(&t.core, Some(t.b));
@@ -394,9 +414,149 @@ fn a_pull_that_waits_is_let_go_of_when_the_core_closes() {
 }
 
 #[test]
-fn a_pull_for_an_account_that_is_not_there_says_so() {
+fn a_pull_for_an_account_that_is_gone_brings_every_account_as_before() {
     let t = two();
     let answer = refresh(&t.core, Some(t.a + t.b + 99)).unwrap();
-    assert!(!answer.started && !answer.message.is_empty(), "{answer:?}");
-    assert!(t.calls.lock().unwrap().is_empty());
+    assert!(answer.started, "{answer:?}");
+    let calls = t.calls.lock().unwrap().clone();
+    assert!(calls.contains(&t.a) && calls.contains(&t.b), "{calls:?}");
+}
+
+#[test]
+fn a_pull_in_a_shared_mailboxs_folder_brings_its_owners_account() {
+    let t = two();
+    let a = t.a;
+    let shared = block_on(t.core.call(move |s| {
+        let id = s.mailbox.add_shared_mailbox(a, "team@example.org").map_err(|e| CoreError::Failed { reason: e.to_string() })?;
+        s.mailbox_changed();
+        Ok(id)
+    }))
+    .unwrap();
+    let answer = refresh(&t.core, Some(shared)).unwrap();
+    assert!(answer.started, "never refused: {answer:?}");
+    assert_eq!(*t.calls.lock().unwrap(), vec![a]);
+}
+
+#[test]
+fn a_background_run_that_comes_while_a_pull_runs_brings_every_account() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let mine = pull(&t.core, Some(t.a));
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    let worker = background(&t.core, 20_000);
+    std::thread::sleep(Duration::from_millis(100));
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&mine).started);
+    let summary = worker.recv_timeout(Duration::from_secs(15)).expect("the background run never ended");
+    assert!(summary.finished, "{summary:?}");
+    // The background run's answer came after the other account's mail, as when it starts a round.
+    assert_eq!(*t.calls.lock().unwrap(), vec![t.a, t.b]);
+}
+
+#[test]
+fn a_pull_for_an_account_waiting_quietly_in_line_asks_for_its_sign_in() {
+    // The second account has no sign-in kept: quietly, it is left out; asked for, the owner is asked.
+    let t = accounts(&[true, false]);
+    *t.hold.lock().unwrap() = Some(t.a);
+    let first = pull(&t.core, Some(t.a));
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    // A background run joins the round: the second account waits in line quietly.
+    let worker = background(&t.core, 20_000);
+    let b = t.b;
+    until("the background run never joined", || block_on(t.core.call(move |s| Ok(s.driver.round.queue.contains(&(b, true))))).unwrap());
+    let mine = pull(&t.core, Some(t.b));
+    std::thread::sleep(Duration::from_millis(100));
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&first).started);
+    assert!(answered(&mine).started);
+    let _ = worker.recv_timeout(Duration::from_secs(15));
+    let _ = block_on(t.core.call(|_| Ok(())));
+    let events = drain(&t.core);
+    assert!(events.iter().any(|e| matches!(e, Event::SignInNeeded { account } if *account == b)), "{events:?}");
+}
+
+#[test]
+fn a_pull_goes_before_the_accounts_waiting_in_line() {
+    let t = accounts(&[true, true, true]);
+    let (a, b, c) = (t.ids[0], t.ids[1], t.ids[2]);
+    *t.hold.lock().unwrap() = Some(a);
+    let worker = background(&t.core, 20_000);
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    let mine = pull(&t.core, Some(c));
+    std::thread::sleep(Duration::from_millis(100));
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&mine).started);
+    let _ = worker.recv_timeout(Duration::from_secs(15));
+    assert_eq!(*t.calls.lock().unwrap(), vec![a, c, b]);
+}
+
+#[test]
+fn a_pull_that_joined_a_background_round_outlives_that_rounds_time() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    // The background's round, with half a second: its first account's run never ends by itself.
+    let worker = background(&t.core, 500);
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    let mine = pull(&t.core, Some(t.b));
+    let summary = worker.recv_timeout(Duration::from_secs(15)).expect("the budget never ran out");
+    assert!(!summary.finished, "{summary:?}");
+    // The pull still brings its account's mail.
+    assert!(answered(&mine).started);
+    assert!(t.calls.lock().unwrap().contains(&t.b), "{:?}", t.calls.lock().unwrap());
+    let b = t.b;
+    let mail = block_on(t.core.call(move |s| Ok(s.mailbox.messages.values().filter(|m| m.account == b).count()))).unwrap();
+    assert!(mail > 0);
+}
+
+#[test]
+fn past_the_most_pulls_that_wait_one_is_answered_at_once() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let mine = pull(&t.core, Some(t.a));
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    let (sync, a) = (t.core.sync.clone(), t.a);
+    let replies = block_on(t.core.call(move |s| {
+        let replies: Vec<_> = (0..17).map(|_| crate::queue::Queue::<Result<(), CoreError>>::new()).collect();
+        for reply in &replies {
+            sync.wait_mail(s, Some(a), reply.clone());
+        }
+        Ok(replies)
+    }))
+    .unwrap();
+    // (The pull on its thread may be waiting too: one of the 16 places is its.)
+    let answered_now = replies.iter().filter(|r| r.len() == 1).count();
+    assert!((1..=2).contains(&answered_now), "{answered_now}");
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&mine).started);
+    until("a pull that waited was never answered", || replies.iter().all(|r| r.len() == 1));
+}
+
+#[test]
+fn a_pull_whose_account_is_removed_while_it_waits_is_answered() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let mine = pull(&t.core, None);
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    let b = t.b;
+    block_on(t.core.call(move |s| s.run("account.remove", &json!({"id": b})).map(|_| ()).map_err(|e| CoreError::Failed { reason: e.to_string() })))
+        .unwrap();
+    *t.hold.lock().unwrap() = None;
+    assert!(answered(&mine).started);
+    assert_eq!(*t.calls.lock().unwrap(), vec![t.a]);
+}
+
+#[test]
+fn work_offline_turned_on_while_a_pull_waits_answers_it() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let mine = pull(&t.core, Some(t.a));
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    block_on(t.core.call(|s| {
+        s.prefs.offline = true;
+        Ok(())
+    }))
+    .unwrap();
+    // Answered while the run hasn't ended: nothing more starts.
+    assert!(answered(&mine).started);
+    *t.hold.lock().unwrap() = None;
 }
