@@ -1,0 +1,1 @@
+| 2026-11-26 | Russian as a preview language: every interface text translated and marked as not yet reviewed, Русский (предварительная версия) in File › Options, Automatic following `ru-RU`, dates day first with a 24-hour clock and Monday first, three plural forms. |

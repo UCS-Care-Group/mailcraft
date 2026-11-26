@@ -24,6 +24,10 @@ pub enum Rule {
     /// Three forms (`plural=(n==1 ? 0 : (n>=2 && n<=4) ? 1 : 2)`): Czech (and Slovak).
     /// One for 1; another for 2, 3 and 4 alone (22 is "22 zpráv"); the third for the rest, 0 included.
     Czech,
+    /// Three forms (`plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`):
+    /// Russian. One for counts ending 1 but not 11 (1, 21, 101); another for counts ending 2 to 4
+    /// except 12 to 14 (2, 22, 104); the third for the rest, 0 included.
+    Russian,
 }
 
 impl Rule {
@@ -43,6 +47,11 @@ impl Rule {
                 2..=4 => 1,
                 _ => 2,
             },
+            Rule::Russian => match n {
+                n if n % 10 == 1 && n % 100 != 11 => 0,
+                n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
+                _ => 2,
+            },
             Rule::Romanian => match n {
                 1 => 0,
                 0 => 1,
@@ -57,7 +66,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Romanian | Rule::Polish | Rule::Czech => 3,
+            Rule::Romanian | Rule::Polish | Rule::Czech | Rule::Russian => 3,
         }
     }
 
@@ -80,6 +89,7 @@ impl Rule {
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
             (Some(3), Some("n==1?0:(n>=2&&n<=4)?1:2" | "(n==1)?0:(n>=2&&n<=4)?1:2" | "n==1?0:n>=2&&n<=4?1:2")) => Rule::Czech,
+            (Some(3), Some("n%10==1&&n%100!=11?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Russian,
             _ => Rule::NotOne,
         }
     }
@@ -120,6 +130,11 @@ mod tests {
         let forms: Vec<usize> = [1, 0, 2, 19, 20, 100, 101, 119, 120, 1001].iter().map(|n| ro.index(*n)).collect();
         assert_eq!(forms, [0, 1, 1, 1, 2, 2, 1, 1, 2, 1]);
         assert_eq!(ro.forms(), 3);
+        let ru = Rule::from_header("nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");
+        assert_eq!(ru, Rule::Russian);
+        let forms: Vec<usize> = [1, 11, 21, 2, 22, 5, 0, 101, 111].iter().map(|n| ru.index(*n)).collect();
+        assert_eq!(forms, [0, 2, 0, 1, 1, 2, 2, 0, 2]);
+        assert_eq!(ru.forms(), 3);
         assert_eq!(Rule::from_header("nplurals=2; plural=n>1;"), Rule::AboveOne);
         assert_eq!(Rule::from_header("nplurals=2; plural=(n != 1);"), Rule::NotOne);
         assert_eq!(Rule::from_header("nplurals=1; plural=0;"), Rule::Single);

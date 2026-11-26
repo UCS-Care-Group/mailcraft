@@ -1,0 +1,1 @@
+- **Russian:** the window comes in Russian as a preview language, chosen in File › Options.
