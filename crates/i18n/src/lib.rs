@@ -41,6 +41,8 @@ mod czech_tests;
 #[cfg(test)]
 mod polish_tests;
 #[cfg(test)]
+mod portuguese_tests;
+#[cfg(test)]
 mod said_tests;
 
 use std::collections::HashMap;
@@ -74,6 +76,8 @@ pub enum Lang {
     Czech,
     ChineseSimplified,
     Georgian,
+    /// Brazilian Portuguese (`pt_BR`).
+    Portuguese,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -81,7 +85,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 13] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -94,6 +98,7 @@ impl Lang {
         Lang::Czech,
         Lang::ChineseSimplified,
         Lang::Georgian,
+        Lang::Portuguese,
         Lang::Pseudo,
     ];
 
@@ -112,6 +117,7 @@ impl Lang {
             Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
+            Lang::Portuguese => "pt_BR",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -153,6 +159,7 @@ impl Lang {
             "pl" => Some(Lang::Polish),
             "cs" => Some(Lang::Czech),
             "ka" => Some(Lang::Georgian),
+            "pt" => Some(Lang::Portuguese),
             _ => None,
         }
     }
@@ -172,6 +179,7 @@ impl Lang {
             Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
+            Lang::Portuguese => "Português",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -191,6 +199,7 @@ impl Lang {
                 | Lang::Czech
                 | Lang::ChineseSimplified
                 | Lang::Georgian
+                | Lang::Portuguese
         )
     }
 
@@ -492,6 +501,7 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
+        expected.push("Português (pré-visualização)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
@@ -505,6 +515,8 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
+        assert_eq!(Lang::from_pref("auto", Some("pt_BR.UTF-8")), Lang::Portuguese);
+        assert_eq!(Lang::from_pref("pt_BR", None), Lang::Portuguese);
     }
 
     #[test]

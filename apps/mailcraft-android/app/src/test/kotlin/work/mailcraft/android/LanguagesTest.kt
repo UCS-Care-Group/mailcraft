@@ -18,7 +18,8 @@ class LanguagesTest {
         assertEquals("pl", coreLanguage("pl-PL"))
         assertEquals("cs", coreLanguage("cs-CZ"))
         assertEquals("ka", coreLanguage("ka-GE"))
-        assertEquals("en", coreLanguage("pt"))
+        assertEquals("pt", coreLanguage("pt"))
+        assertEquals("pt", coreLanguage("pt-BR"))
         assertEquals("en", coreLanguage(""))
         assertEquals("en", coreLanguage(null))
         assertEquals("en", coreLanguage("\u0000￿"))
@@ -28,8 +29,9 @@ class LanguagesTest {
     fun theChoiceIsTheFirstLanguageThatIsOffered() {
         assertEquals("", chosenTag(emptyList()))
         assertEquals("fr", chosenTag(listOf("fr-CA")))
-        assertEquals("es", chosenTag(listOf("pt-BR", "es-MX", "fr")))
-        assertEquals("", chosenTag(listOf("pt-BR", "ja")))
+        assertEquals("pt", chosenTag(listOf("pt-BR", "es-MX", "fr")))
+        assertEquals("es", chosenTag(listOf("ja", "es-MX", "fr")))
+        assertEquals("", chosenTag(listOf("ja")))
         assertEquals("", chosenTag(listOf("")))
     }
 
@@ -44,9 +46,12 @@ class LanguagesTest {
 
     @Test
     fun everyLanguageHasACatalogueOrIsEnglish() {
-        // crates/i18n/po/<code>.po, from the app's folder.
+        // crates/i18n/po/<code>.po, from the app's folder. Brazilian Portuguese's catalogue is pt_BR.po.
         val po = File("../../../crates/i18n/po")
-        LANGUAGES.filter { it.tag != "en" }.forEach { assertTrue(it.tag, File(po, it.tag + ".po").isFile) }
+        LANGUAGES.filter { it.tag != "en" }.forEach { lang ->
+            val file = if (lang.tag == "pt") "pt_BR.po" else "${lang.tag}.po"
+            assertTrue(lang.tag, File(po, file).isFile)
+        }
     }
 
     @Test
