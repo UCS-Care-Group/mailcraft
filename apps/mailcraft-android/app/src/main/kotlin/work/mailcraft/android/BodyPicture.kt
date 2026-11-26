@@ -6,9 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -26,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
@@ -42,9 +41,9 @@ internal fun BodyEnv.stateOf(kind: BlockKindView.Image): PictureState? = picture
 /**
  * A picture in a message. Where it is: the picture, as wide as the message says (or as it is) and no
  * wider than the column. Where it is not (not allowed, waiting, on its way, failed): a plain box of the
- * declared size, clamped to the column, with the picture's description, or the description alone when
- * the message gives no size. A muted surface, nothing animated, nothing to tap. A picture with no
- * description, or declared 2 px or smaller, says nothing to a screen reader.
+ * declared size, clamped to the column and to [MAX_PLACEHOLDER_HEIGHT], with the picture's description,
+ * or the description alone when the message gives no size. A muted surface, nothing animated, nothing
+ * to tap. A picture with no description, or declared 2 px or smaller, says nothing to a screen reader.
  */
 @Composable
 internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: BodyEnv, paper: Paper, room: Dp) {
@@ -82,11 +81,13 @@ private fun ShownPicture(decoded: Decoded, ref: PictureRef, room: Dp, alt: Strin
     val density = LocalDensity.current.density
     val natural = (decoded.width / density).dp
     val wanted = (ref.width?.dp ?: natural).coerceAtMost(room).coerceAtLeast(1.dp)
+    // (A size, not a shape, for the same reason as a placeholder's.)
+    val tall = wanted * (decoded.height.toFloat() / decoded.width.coerceAtLeast(1))
     Image(
         bitmap = decoded.bitmap,
         contentDescription = alt.ifBlank { null },
         contentScale = ContentScale.Fit,
-        modifier = Modifier.width(wanted).aspectRatio(decoded.width.toFloat() / decoded.height.coerceAtLeast(1)),
+        modifier = Modifier.size(wanted, tall.coerceAtLeast(1.dp)),
     )
 }
 
@@ -98,9 +99,10 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
     val w = ref.width
     val h = ref.height
     if (w != null && h != null) {
-        val shown = w.dp.coerceAtMost(room).coerceAtLeast(1.dp)
+        // A size of its own, not a shape: a row that measures its cells' least height (a tinted one)
+        // would otherwise take the box at the row's whole width, an empty space screens tall (#1966).
         Box(
-            modifier = Modifier.width(shown).aspectRatio(w.toFloat() / h.coerceAtLeast(1)).background(muted),
+            modifier = Modifier.size(placeholderSize(w, h, room)).background(muted),
             contentAlignment = Alignment.Center,
         ) {
             if (alt.isNotBlank()) AltText(alt, ink, MaterialTheme.typography.labelSmall, Modifier.padding(BoxPad))
@@ -108,6 +110,16 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
     } else if (alt.isNotBlank()) {
         AltText(alt, ink, MaterialTheme.typography.labelMedium, Modifier.background(muted).padding(ChipPad, ChipPadV))
     }
+}
+
+/** The most height a picture that is not shown takes, in dp: a tall one does not push the message away. */
+internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
+
+/** A box for a picture not shown: declared width within [room], its shape, at most [MAX_PLACEHOLDER_HEIGHT] high. */
+internal fun placeholderSize(width: Int, height: Int, room: Dp): DpSize {
+    val w = width.dp.coerceAtMost(room).coerceAtLeast(1.dp)
+    val h = (w * (height.toFloat() / width.coerceAtLeast(1))).coerceIn(1.dp, MAX_PLACEHOLDER_HEIGHT)
+    return DpSize(w, h)
 }
 
 @Composable
