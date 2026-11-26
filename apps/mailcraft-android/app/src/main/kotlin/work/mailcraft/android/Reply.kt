@@ -56,7 +56,7 @@ internal fun ReplyBar(texts: Texts, draft: Boolean, onReply: (Reply) -> Unit) {
                 ) {
                     Icon(replyIcon(reply), contentDescription = null, modifier = Modifier.size(ReplyIconSize))
                     Spacer(Modifier.width(ReplyIconGap))
-                    Text(replyLabel(texts, reply), maxLines = 1)
+                    Text(replyLabel(texts, reply))
                 }
             }
         }

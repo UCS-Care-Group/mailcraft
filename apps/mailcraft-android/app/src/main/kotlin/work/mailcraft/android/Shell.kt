@@ -6,7 +6,21 @@
 package work.mailcraft.android
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -20,8 +34,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -503,19 +515,37 @@ internal fun readsFullScreen(open: Boolean, expanded: Boolean, tab: Tab) = open 
 internal fun showBottomBar(expanded: Boolean, reading: Boolean) = !expanded && !reading
 
 private val BarHeight = 64.dp
+private val PillSize = DpSize(56.dp, 28.dp)
 
-/** Icons for every tab and the name under the one on show; large text keeps that name and the bar grows to fit it. */
+/**
+ * Icons for every tab and the name under the one on show; large text keeps that name and the bar grows
+ * to fit it. (Drawn here rather than by `NavigationBar`, whose items are never less than 80 dp high.)
+ */
 @Composable
 private fun TabBar(texts: Texts, tab: Tab, onTab: (Tab) -> Unit) {
-    NavigationBar(modifier = Modifier.heightIn(min = BarHeight)) {
-        Tab.entries.forEach { entry ->
-            NavigationBarItem(
-                selected = entry == tab,
-                onClick = { onTab(entry) },
-                icon = { Icon(entry.icon(), contentDescription = null) },
-                label = { TabLabel(entry.label(texts)) },
-                alwaysShowLabel = false,
-            )
+    Surface(color = NavigationBarDefaults.containerColor, tonalElevation = NavigationBarDefaults.Elevation) {
+        val insets = NavigationBarDefaults.windowInsets
+        Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(insets).selectableGroup()) {
+            Tab.entries.forEach { entry ->
+                val on = entry == tab
+                val label = entry.label(texts)
+                Column(
+                    modifier = Modifier.weight(1f).heightIn(min = BarHeight)
+                        .selectable(selected = on, role = Role.Tab, onClick = { onTab(entry) }),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    val pill = if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+                    Box(
+                        modifier = Modifier.size(PillSize).background(pill, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        // (The label names the tab on show; the others are named by their icon.)
+                        Icon(entry.icon(), contentDescription = if (on) null else label)
+                    }
+                    if (on) TabLabel(label)
+                }
+            }
         }
     }
 }
