@@ -25191,7 +25191,7 @@ msgstr "«{subject}» ble ikke funnet på serveren, så den kan ikke videresende
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "DOMAIN\\user or you@example.org; empty for your address"
-msgstr "DOMENE\\\\bruker eller du@example.org; tomt for din egen adresse"
+msgstr "DOMENE\\bruker eller du@example.org; tomt for din egen adresse"
 
 #. why a mail server couldn't be used
 #: crates/net/src/sync.rs
