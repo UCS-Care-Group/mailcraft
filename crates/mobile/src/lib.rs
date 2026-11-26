@@ -74,6 +74,8 @@ mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
 #[cfg(test)]
+mod inline_pictures_tests;
+#[cfg(test)]
 mod jobs_tests;
 #[cfg(test)]
 mod junk_tests;
