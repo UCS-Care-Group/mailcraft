@@ -154,3 +154,21 @@ fn hostile_text_goes_through_without_harm() {
     assert!(s.mailbox.contact(id).unwrap().first.chars().count() <= 300);
     assert!(label_text(&junk).chars().count() <= 41);
 }
+
+/// A new contact goes to the folder picked, or where `people.new` puts it, and takes that
+/// account's categories (#1917).
+#[test]
+fn a_new_contact_takes_the_account_of_the_folder_it_goes_to() {
+    use mailcraft_model::remote::{ContactsDownload, RemoteContact};
+    let mut s = session();
+    let params = json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"});
+    let ada = s.run("account.add", &params).unwrap()["id"].as_u64().unwrap();
+    let contact = RemoteContact { id: "mo".into(), display_name: "Mo Main".into(), ..Default::default() };
+    let download = ContactsDownload { account: ada, email: "ada@example.org".into(), complete: true, contacts: vec![contact], ..Default::default() };
+    mailcraft_engine::cmd::remote::apply_contacts(&mut s, &download).unwrap();
+    let main = s.mailbox.main_contact_folder(ada).unwrap();
+    // One account: its main folder, by itself.
+    assert_eq!(destination(&s, None), (Some(main), ada));
+    assert_eq!(destination(&s, Some(main)), (Some(main), ada));
+    assert_eq!(destination(&s, Some(0)), (Some(0), 0));
+}

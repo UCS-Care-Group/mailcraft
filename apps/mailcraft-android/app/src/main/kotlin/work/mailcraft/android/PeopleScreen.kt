@@ -56,6 +56,10 @@ internal class PeopleData(
     val editor: PersonDraft? = null,
     /** A new person on its way to the core. */
     val busy: Boolean = false,
+    /** Where a new person can go; null until the core has said. */
+    val places: PersonPlaces? = null,
+    /** Move to contacts folder, while it is open over the person's page. */
+    val move: MoveState? = null,
 )
 
 /** What the People tab asks of the app. */
@@ -67,6 +71,7 @@ internal class PeopleActions(
     val onMail: (String) -> Unit = {},
     val onCall: (String) -> Unit = {},
     val form: FormActions = FormActions(),
+    val move: MoveActions = MoveActions(),
 )
 
 /** What the new-person form asks of the app. */
@@ -84,7 +89,11 @@ internal class FormActions(
 @Composable
 internal fun PeopleScreen(texts: Texts, data: PeopleData, actions: PeopleActions, modifier: Modifier = Modifier) {
     BackHandler(enabled = data.editor != null || data.open != null) {
-        if (data.editor != null) actions.form.onCancel() else actions.onClose()
+        when {
+            data.editor != null -> actions.form.onCancel()
+            data.move != null -> actions.move.onCancel()
+            else -> actions.onClose()
+        }
     }
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         if (maxWidth >= TwoPaneWidth) {
@@ -194,7 +203,11 @@ private fun PersonRowView(row: PersonRow, selected: Boolean, onClick: () -> Unit
 private fun PersonPane(texts: Texts, data: PeopleData, actions: PeopleActions, showBack: Boolean, modifier: Modifier) {
     Column(modifier = modifier) {
         if (showBack) {
-            val back = if (data.editor != null) actions.form.onCancel else actions.onClose
+            val back = when {
+                data.editor != null -> actions.form.onCancel
+                data.move != null -> actions.move.onCancel
+                else -> actions.onClose
+            }
             IconButton(onClick = back) { Icon(AppIcons.Back, contentDescription = texts.t("Back")) }
         }
         data.notice?.let {
@@ -202,7 +215,12 @@ private fun PersonPane(texts: Texts, data: PeopleData, actions: PeopleActions, s
         }
         val editor = data.editor
         if (editor != null) {
-            PersonEditor(texts, editor, data.busy, actions.form)
+            PersonEditor(texts, editor, data.places, data.busy, actions.form)
+            return@Column
+        }
+        val move = data.move
+        if (move != null) {
+            MovePage(texts, move, actions.move)
             return@Column
         }
         when (val person = data.person) {
@@ -217,11 +235,15 @@ private fun PersonPane(texts: Texts, data: PeopleData, actions: PeopleActions, s
 @Composable
 private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Gutter)) {
-        Text(
-            card.name,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = Gutter),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                card.name,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.weight(1f).padding(horizontal = Gutter),
+            )
+            // A folder the account may only read keeps its people where they are.
+            if (!card.readOnly) PersonMenu(texts, actions.move)
+        }
         if (card.subtitle.isNotBlank()) {
             Text(
                 card.subtitle,
@@ -230,9 +252,14 @@ private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
                 modifier = Modifier.padding(horizontal = Gutter),
             )
         }
-        LinesSection(texts.t("Email"), card.emails, texts.t("Write"), actions.onMail) { mailtoLink(it) != null }
-        LinesSection(texts.t("Phone"), card.phones, texts.t("Call"), actions.onCall) { dialLink(it) != null }
-        LinesSection(texts.t("Address"), card.addresses, null, {}) { false }
+        KeptIn(texts, card, Gutter)
+        val mark = texts.t("On this phone only")
+        val emails = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Email))
+        val phones = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Phone))
+        val addresses = LocalOnlyText(mark, localOnlyWhy(texts, LocalOnlyKind.Address))
+        LinesSection(texts.t("Email"), card.emails, emails, texts.t("Write"), actions.onMail) { mailtoLink(it) != null }
+        LinesSection(texts.t("Phone"), card.phones, phones, texts.t("Call"), actions.onCall) { dialLink(it) != null }
+        LinesSection(texts.t("Address"), card.addresses, addresses, null, {}) { false }
     }
 }
 
@@ -240,6 +267,7 @@ private fun PersonPage(texts: Texts, card: PersonCard, actions: PeopleActions) {
 private fun LinesSection(
     title: String,
     lines: List<ContactLine>,
+    local: LocalOnlyText,
     action: String?,
     onAct: (String) -> Unit,
     canAct: (String) -> Boolean,
@@ -275,6 +303,13 @@ private fun LinesSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (line.localOnly) {
+                    Text(
+                        local.mark,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
             if (acts) {
                 val style = MaterialTheme.typography.labelLarge
@@ -282,6 +317,14 @@ private fun LinesSection(
             }
         }
         HorizontalDivider()
+    }
+    if (lines.any { it.localOnly }) {
+        Text(
+            local.why,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 4.dp),
+        )
     }
 }
 

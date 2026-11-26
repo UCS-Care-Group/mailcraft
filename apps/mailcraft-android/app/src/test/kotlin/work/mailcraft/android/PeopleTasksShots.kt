@@ -26,10 +26,38 @@ internal object PeopleTasksShots {
         emails = listOf(ContactLine("Work", "ada@example.org"), ContactLine("Home", "ada.home@example.org")),
         phones = listOf(ContactLine("Mobile", "+44 20 7946 0000"), ContactLine("Desk", "ext. 4417")),
         addresses = listOf(ContactLine("Work", "1 Example Street, Exampletown, EX1 1AA")),
+        keptIn = "Contacts (ada@example.org)",
+        notSent = true,
+    )
+
+    private val bo = PersonCard(
+        id = 3u, name = "Bo Example", company = "Garden Club", title = "", department = "",
+        emails = listOf(ContactLine("Work", "bo@example.org")), phones = emptyList(), addresses = emptyList(),
+        keptIn = "Contacts (sales@example.org)", readOnly = true,
+    )
+
+    /** More than the account's server has places for: the fourth address and the second mobile stay on the phone (#1917). */
+    private val cy = PersonCard(
+        id = 4u, name = "Cy Example", company = "", title = "", department = "",
+        emails = (1..4).map { ContactLine("Work", "cy$it@example.org", localOnly = it == 4) },
+        phones = listOf(ContactLine("Mobile", "+44 20 7946 0002"), ContactLine("Mobile", "+44 20 7946 0003", localOnly = true)),
+        addresses = emptyList(),
+        keptIn = "Contacts (ada@example.org)",
+    )
+
+    private val places = PersonPlaces(
+        listOf(
+            PersonPlace(PHONE, "This phone"),
+            PersonPlace(11u, "Contacts (ada@example.org)"),
+            PersonPlace(12u, "Garden club (ada@example.org)"),
+        ),
+        default = 11u,
     )
 
     val people = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)))
     val person = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada))
+    val readOnlyPerson = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 3uL, PersonState.Ready(bo))
+    val localOnlyPerson = PeopleData("", PeopleState.Ready(PeopleList(rows, rows.size)), 4uL, PersonState.Ready(cy))
 
     val newPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),
@@ -37,6 +65,15 @@ internal object PeopleTasksShots {
             first = "Ida", last = "Example", emails = "ida@example.org\nida.home@example.org", phones = "+44 20 7946 0001",
             company = "Example Ltd", title = "Designer", notes = "Met at the garden club.",
         ),
+        places = places,
+    )
+    val movePerson = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada),
+        move = MoveState.Picking(1u, places.places.filter { it.folder != PHONE }),
+    )
+    val moveAsking = PeopleData(
+        "", PeopleState.Ready(PeopleList(rows, rows.size)), 1uL, PersonState.Ready(ada),
+        move = MoveState.Asking(1u, places.places[1], 9u, "Ada Example"),
     )
     val badPerson = PeopleData(
         "", PeopleState.Ready(PeopleList(rows, rows.size)),

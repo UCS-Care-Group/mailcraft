@@ -218,7 +218,8 @@ fn from_server(s: &mut Session, account: Id, who: &str) -> Id {
         ..Default::default()
     });
     s.mailbox.add_event(Event { calendar, title: format!("{who}'s meeting"), origin: origin("meeting"), ..Default::default() }).unwrap();
-    s.mailbox.add_contact(Contact { display_name: format!("{who}'s colleague"), origin: origin("colleague"), ..Default::default() });
+    let folder = s.mailbox.ensure_main_contact_folder(account).unwrap();
+    s.mailbox.add_contact(Contact { display_name: format!("{who}'s colleague"), origin: origin("colleague"), folder, ..Default::default() });
     calendar
 }
 

@@ -92,6 +92,9 @@ private fun decorationOf(span: SpanView, linked: Boolean): TextDecoration? {
     return if (lines.isEmpty()) null else TextDecoration.combine(lines)
 }
 
+/** The size a span asks for, in sp, within [MAX_SIZE]; null when it asks for none. */
+internal fun sizeOf(span: SpanView): Int? = span.size?.toInt()?.coerceIn(1, MAX_SIZE)
+
 /** The style of one span on [paper]: what it asks for, with the colours adjusted to read. */
 internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle = SpanStyle(
     color = composeColor(inkOf(span, paper, linked)),
@@ -99,7 +102,7 @@ internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle =
     fontWeight = if (span.bold) FontWeight.Bold else null,
     fontStyle = if (span.italic) FontStyle.Italic else null,
     textDecoration = decorationOf(span, linked),
-    fontSize = span.size?.toInt()?.coerceIn(1, MAX_SIZE)?.sp ?: TextUnit.Unspecified,
+    fontSize = sizeOf(span)?.sp ?: TextUnit.Unspecified,
     fontFamily = familyOf(span.font, span.code),
 )
 

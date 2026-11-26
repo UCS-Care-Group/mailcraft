@@ -31,6 +31,8 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod dav_raw;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
