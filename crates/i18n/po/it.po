@@ -8771,6 +8771,12 @@ msgid "Low on top"
 msgstr "Bassa in alto"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Made by UCS Labs"
+msgstr "Realizzato da UCS Labs"
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Made by its contributors:"
@@ -17282,6 +17288,12 @@ msgstr "La firma digitale è scaduta."
 #, fuzzy
 msgid "The Entire Series"
 msgstr "L'intera serie"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Il nome e il logo di UCS Labs sono marchi di UCS Care Group Limited; vedere TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
