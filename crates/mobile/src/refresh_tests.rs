@@ -152,6 +152,11 @@ fn answered(rx: &Receiver<Result<SyncAnswer, CoreError>>) -> SyncAnswer {
     rx.recv_timeout(Duration::from_secs(15)).expect("the pull was never answered").unwrap()
 }
 
+/// Whether the round's line holds `entry` now.
+fn in_line(core: &Core, entry: (u64, bool)) -> bool {
+    block_on(core.call(move |s| Ok(s.driver.round.queue.contains(&entry)))).unwrap()
+}
+
 fn until(what: &str, f: impl Fn() -> bool) {
     let end = Instant::now() + Duration::from_secs(10);
     while !f() {
@@ -223,7 +228,7 @@ fn a_pull_while_the_account_runs_does_not_run_it_twice_and_is_answered() {
     let first = pull(&t.core, Some(t.a));
     until("the run never started", || t.entered.load(Ordering::SeqCst));
     let second = pull(&t.core, Some(t.a));
-    std::thread::sleep(Duration::from_millis(200));
+    until("the second pull never waited", || t.core.sync.mail_waiting() == 2);
     *t.hold.lock().unwrap() = None;
     assert!(answered(&first).started);
     assert!(answered(&second).started);
@@ -237,7 +242,7 @@ fn a_pull_while_another_account_runs_joins_the_line() {
     let other = pull(&t.core, Some(t.b));
     until("the run never started", || t.entered.load(Ordering::SeqCst));
     let mine = pull(&t.core, Some(t.a));
-    std::thread::sleep(Duration::from_millis(100));
+    until("the pull never joined the line", || in_line(&t.core, (t.a, false)));
     *t.hold.lock().unwrap() = None;
     assert!(answered(&mine).started);
     assert!(answered(&other).started);
@@ -444,7 +449,7 @@ fn a_background_run_that_comes_while_a_pull_runs_brings_every_account() {
     let mine = pull(&t.core, Some(t.a));
     until("the run never started", || t.entered.load(Ordering::SeqCst));
     let worker = background(&t.core, 20_000);
-    std::thread::sleep(Duration::from_millis(100));
+    until("the background run never joined", || in_line(&t.core, (t.b, true)));
     *t.hold.lock().unwrap() = None;
     assert!(answered(&mine).started);
     let summary = worker.recv_timeout(Duration::from_secs(15)).expect("the background run never ended");
@@ -463,9 +468,9 @@ fn a_pull_for_an_account_waiting_quietly_in_line_asks_for_its_sign_in() {
     // A background run joins the round: the second account waits in line quietly.
     let worker = background(&t.core, 20_000);
     let b = t.b;
-    until("the background run never joined", || block_on(t.core.call(move |s| Ok(s.driver.round.queue.contains(&(b, true))))).unwrap());
+    until("the background run never joined", || in_line(&t.core, (b, true)));
     let mine = pull(&t.core, Some(t.b));
-    std::thread::sleep(Duration::from_millis(100));
+    until("the pull never took the account", || in_line(&t.core, (b, false)));
     *t.hold.lock().unwrap() = None;
     assert!(answered(&first).started);
     assert!(answered(&mine).started);
@@ -483,7 +488,7 @@ fn a_pull_goes_before_the_accounts_waiting_in_line() {
     let worker = background(&t.core, 20_000);
     until("the run never started", || t.entered.load(Ordering::SeqCst));
     let mine = pull(&t.core, Some(c));
-    std::thread::sleep(Duration::from_millis(100));
+    until("the pull never went first", || block_on(t.core.call(move |s| Ok(s.driver.round.queue.front() == Some(&(c, false))))).unwrap());
     *t.hold.lock().unwrap() = None;
     assert!(answered(&mine).started);
     let _ = worker.recv_timeout(Duration::from_secs(15));
@@ -506,6 +511,25 @@ fn a_pull_that_joined_a_background_round_outlives_that_rounds_time() {
     let b = t.b;
     let mail = block_on(t.core.call(move |s| Ok(s.mailbox.messages.values().filter(|m| m.account == b).count()))).unwrap();
     assert!(mail > 0);
+}
+
+#[test]
+fn a_pull_asked_for_before_a_background_stop_still_brings_its_mail() {
+    let t = two();
+    *t.hold.lock().unwrap() = Some(t.a);
+    let worker = background(&t.core, 20_000);
+    until("the run never started", || t.entered.load(Ordering::SeqCst));
+    // The pull is asked for, and the background's time runs out before its wait is asked for.
+    assert!(block_on(t.core.refresh_mail(Some(t.b))).unwrap().started);
+    let sync = t.core.sync.clone();
+    block_on(t.core.call(move |s| {
+        sync.stop(s);
+        Ok(())
+    }))
+    .unwrap();
+    let _ = worker.recv_timeout(Duration::from_secs(15));
+    block_on(t.core.mail_in(Some(t.b))).unwrap();
+    assert!(t.calls.lock().unwrap().contains(&t.b), "{:?}", t.calls.lock().unwrap());
 }
 
 #[test]

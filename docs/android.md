@@ -30,9 +30,10 @@ A pull to refresh in one account's folder brings that account's mail, its Outbox
 spinner stops once that mail is in; a search of every account brings every account's. The
 calendar, to-dos and contacts that follow don't hold the spinner: they go on as they do between
 rounds. A pull while a round is under way puts the account first in that round's line, unless it
-is running already; when a background run's time runs out, what a pull waits for stays in line.
-A pull in a shared mailbox's folder brings the account it belongs to. A background run that comes
-while a pull runs adds the other accounts to the round, so it brings all of them as before.
+is running already; when a background run's time runs out, the accounts a pull asked for that
+are still in line stay there. A pull in a shared mailbox's folder brings the account it belongs
+to. A background run that comes while a pull runs adds the other accounts to the round, so it
+brings all of them as before.
 
 ## End to end
 

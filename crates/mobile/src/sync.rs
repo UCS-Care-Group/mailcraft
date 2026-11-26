@@ -251,6 +251,9 @@ pub(crate) struct Inner {
     runs: u32,
     /// When the owner last asked (a pull to refresh), for the log of its wait.
     pull_began: Option<Instant>,
+    /// The accounts a pull asked for whose mail is still to come (in line or running), from the
+    /// moment it was asked: a stop keeps them in line whether or not the pull waits for them yet.
+    pulled: BTreeSet<u64>,
 }
 
 /// Milliseconds since `since`, for the device's log.
@@ -749,6 +752,9 @@ impl SyncHost {
                 }
             }
         }
+        if release {
+            inner.pulled.extend(supported.iter().copied());
+        }
         if let Some(waiter) = waiter {
             inner.waiters.push(waiter);
             // A background run: the round's end brings messages whole too, within its time.
@@ -771,18 +777,11 @@ impl SyncHost {
     }
 
     fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
-        // A background run's time ran out (the only stop there is): what a pull still waits for
-        // stays in line, first, and goes on after; the run under way is stopped all the same and
-        // run again.
-        let running = inner.sr.running_account();
-        let mut kept: Vec<u64> = Vec::new();
-        for w in &inner.mail_waiters {
-            for a in &w.accounts {
-                if !kept.contains(a) && mail_pending(session, running, *a) {
-                    kept.push(*a);
-                }
-            }
-        }
+        // A stop (a background run's time ran out, or its call was dropped): the accounts a pull
+        // asked for that still wait in line stay there, first, and go on after. The run under way
+        // is called off all the same, a pull's or not: a stop always ends it.
+        let round = &session.driver.round;
+        let kept: Vec<u64> = inner.pulled.iter().copied().filter(|a| round.is_queued(*a)).collect();
         inner.sr.stop(session);
         session.driver.round.queue.clear();
         for a in kept.iter().rev() {
@@ -857,6 +856,7 @@ impl SyncHost {
         // can start: Work Offline), whatever the round's end still waits for.
         let running = inner.sr.running_account();
         self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
+        inner.pulled.retain(|account| mail_pending(session, running, *account));
         let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
         self.busy.store(working, Ordering::Relaxed);
         // The round's mail is in, and its end is still to come.
@@ -954,6 +954,12 @@ impl SyncHost {
         for w in inner.mail_waiters.drain(..) {
             w.reply.push(Err(CoreError::Cancelled));
         }
+    }
+
+    /// How many pulls wait for their mail (the tests').
+    #[cfg(test)]
+    pub(crate) fn mail_waiting(&self) -> usize {
+        self.lock().mail_waiters.len()
     }
 
     /// A line for the device's log ([`Event::SyncLog`]).
