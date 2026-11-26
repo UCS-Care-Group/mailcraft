@@ -28,8 +28,21 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import uniffi.mailcraft_mobile.SpanView
 
-/** The paper a piece of a message is drawn on and the ink that reads on it, as `0xRRGGBB`. */
-internal data class Paper(val rgb: Int, val ink: Int, val link: Int) {
+/**
+ * The paper a piece of a message is drawn on and the ink that reads on it, as `0xRRGGBB`. [turn] is the
+ * reader's dark paper when the message's own colours are recoloured for a dark reading (#1966), else null.
+ */
+internal data class Paper(val rgb: Int, val ink: Int, val link: Int, val turn: Int? = null) {
+    /** A background the message asks for, as it is painted here. */
+    fun back(asked: Int): Int = turn?.let { Readability.darkBackground(asked, it) } ?: asked
+
+    /** The paper of a box of the message's own inside this one. */
+    fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn)
+
+    /** A text colour the message asks for, on [behind] (painted here), as it is drawn. */
+    fun inkOn(asked: Int, behind: Int): Int =
+        if (turn != null) Readability.darkInk(asked, behind) else Readability.adjust(asked, behind)
+
     companion object {
         /** A paper of [rgb] of the message's own, with the default ink for it. */
         fun of(rgb: Int, link: Int): Paper = Paper(rgb, Readability.plainInk(rgb), Readability.adjust(link, rgb))
@@ -74,10 +87,10 @@ internal fun familyOf(font: String?, code: Boolean): FontFamily? {
 
 /** The colour of a span's text on [paper]: its own, adjusted to read, else the paper's ink (or the link colour). */
 private fun inkOf(span: SpanView, paper: Paper, linked: Boolean): Int {
-    val behind = span.background?.rgb() ?: paper.rgb
+    val behind = span.background?.rgb()?.let(paper::back) ?: paper.rgb
     val own = span.color?.rgb()
     return when {
-        own != null -> Readability.adjust(own, behind)
+        own != null -> paper.inkOn(own, behind)
         linked -> Readability.adjust(paper.link, behind)
         span.background != null -> Readability.plainInk(behind)
         else -> paper.ink
@@ -98,7 +111,7 @@ internal fun sizeOf(span: SpanView): Int? = span.size?.toInt()?.coerceIn(1, MAX_
 /** The style of one span on [paper]: what it asks for, with the colours adjusted to read. */
 internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle = SpanStyle(
     color = composeColor(inkOf(span, paper, linked)),
-    background = span.background?.let { composeColor(it.rgb()) } ?: Color.Unspecified,
+    background = span.background?.let { composeColor(paper.back(it.rgb())) } ?: Color.Unspecified,
     fontWeight = if (span.bold) FontWeight.Bold else null,
     fontStyle = if (span.italic) FontStyle.Italic else null,
     textDecoration = decorationOf(span, linked),

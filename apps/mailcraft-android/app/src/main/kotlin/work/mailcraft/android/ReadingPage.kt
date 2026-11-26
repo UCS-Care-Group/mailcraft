@@ -78,8 +78,10 @@ internal fun MessagePage(
         )
     }
     val page = if (light) colors.surfaceContainerLowest else colors.surface
+    // A dark page recolours a message written for a white one (#1966); one with its own dark design keeps its colours.
+    val turn = (page.toArgb() and RGB_MASK).takeIf { appIsDark() && !light && !opened.view.darkDesign }
     val paper = Paper.of(page.toArgb() and RGB_MASK, colors.primary.toArgb() and RGB_MASK)
-        .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
+        .copy(ink = colors.onSurface.toArgb() and RGB_MASK, turn = turn)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         val title = opened.view.subject.ifBlank { shortName(opened.view.from) }
         ReadingBar(texts, tools, title, onMenu)
