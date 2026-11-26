@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The messages a swipe moves between, and when a message swiped to counts as read; invented rows only. */
@@ -207,6 +208,8 @@ class SwipeOrderTest {
             c.close(7uL, onward = true)
             assertEquals(setOf(6uL, 8uL), c.ui.value.near.keys)
             c.open(8uL, 360, dark = false)
+            c.preload(listOf(7uL, 9uL), 360, dark = false)
+            assertTrue(c.ui.value.near.isNotEmpty())
             c.close(8uL)
             assertEquals(emptyMap<ULong, OpenedMessage>(), c.ui.value.near)
         } finally {
