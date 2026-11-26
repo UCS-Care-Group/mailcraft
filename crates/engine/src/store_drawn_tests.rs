@@ -55,6 +55,43 @@ fn a_drawn_signature_picture_has_no_paperclip_with_its_body_on_disk() {
     }
 }
 
+/// A session on a mailbox with one message read in before its pictures were told: its id.
+fn unmarked() -> (Session, Id) {
+    let mut mb = Mailbox::with_local_account("Avery", "avery@example.org");
+    let mut m = signed(PNG, "image/png");
+    m.attachments[0].inline = false;
+    m.account = mb.accounts[0].id;
+    m.folder = mb.inbox().unwrap();
+    let id = mb.add_message(m).unwrap();
+    (Session::new(mb), id)
+}
+
+fn read(s: &mut Session, id: Id) {
+    s.read_at(id, crate::ReadIn::Pane, mailcraft_html::Env::default(), false);
+}
+
+#[test]
+fn an_undo_that_takes_the_mark_away_lets_it_be_told_again() {
+    let (mut s, id) = unmarked();
+    s.run("mail.flag", &serde_json::json!({"id": id})).unwrap();
+    read(&mut s, id);
+    assert!(not_listed_anywhere(s.mailbox.message(id).unwrap()));
+    // The flag undone puts back the message as it was before it, unmarked.
+    s.run("edit.undo", &serde_json::json!({})).unwrap();
+    read(&mut s, id);
+    assert!(not_listed_anywhere(s.mailbox.message(id).unwrap()));
+}
+
+#[test]
+fn telling_a_messages_pictures_keeps_the_list_as_it_was_built() {
+    let (mut s, id) = unmarked();
+    let rows = s.rows();
+    assert!(rows.iter().any(|r| r.members.contains(&id)));
+    read(&mut s, id);
+    assert!(not_listed_anywhere(s.mailbox.message(id).unwrap()));
+    assert!(s.rows_in_view().is_some_and(|now| Arc::ptr_eq(&now, &rows)));
+}
+
 #[test]
 fn a_mailbox_opened_in_place_of_another_has_its_pictures_told_when_first_read() {
     let mailbox = |unmarked: bool| {

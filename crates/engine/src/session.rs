@@ -1390,6 +1390,10 @@ pub struct Session {
     /// with what its `@media` hid there left out. A message not read there is quoted with only
     /// what every pane would show of it.
     read_at: HashMap<(Id, ReadIn), (mailcraft_html::Env, bool, u64)>,
+    /// The messages whose drawn pictures were looked for ([`Session::note_drawn`]): forgotten
+    /// when an Undo or Redo may put back a message from before it, and with another mailbox.
+    // lean: one id per message opened; a cap if a session ever opens millions.
+    drawn_checked: HashSet<Id>,
     /// How many times [`Session::read_at`] was told something: the age of what it keeps.
     read_count: u64,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
@@ -1454,9 +1458,8 @@ impl Session {
     /// it had HTML to choose from).
     pub fn read_at(&mut self, id: Id, place: ReadIn, env: mailcraft_html::Env, as_text: bool) {
         self.read_count = self.read_count.saturating_add(1);
-        // Read here for the first time: the pictures its body draws are the body's (once, not
-        // every frame the pane is drawn).
-        if !self.read_at.contains_key(&(id, place))
+        // The pictures its body draws are the body's (looked for once: [`Session::note_drawn`]).
+        if !self.drawn_checked.contains(&id)
             && let Some(m) = self.mailbox.messages.get(&id).cloned()
         {
             self.note_drawn(id, &m);
@@ -1474,8 +1477,16 @@ impl Session {
     /// body in memory) has it ([`mailcraft_mime_model::drawn_parts`]): for a message read in
     /// before that was told (#1970), so that its signature pictures are no longer attachments,
     /// here or in the list, with its body on disk too. Outside the history: nothing the owner did.
+    ///
+    /// Looked for once per message with its HTML at hand ([`Session::drawn_checked`]). The
+    /// message list and the counts stand through it, as through a read mark: a mark changes
+    /// nothing the list is built from, unless it lists by attachments or searches.
     pub fn note_drawn(&mut self, id: Id, seen: &Message) {
         let Some(html) = seen.body.html.as_deref() else { return };
+        if self.drawn_checked.contains(&id) {
+            return;
+        }
+        self.drawn_checked.insert(id);
         let Some(m) = self.mailbox.messages.get(&id).filter(|m| !m.draft && m.attachments.iter().any(|a| !a.inline && !a.content_id.is_empty()))
         else {
             return;
@@ -1486,9 +1497,17 @@ impl Session {
         }
         let mut copy = Message::clone(m);
         mailcraft_mime_model::mark_parts(&mut copy.attachments, &drawn);
+        let stands = self.view.filter == Filter::All
+            && mailcraft_model::search::Query::parse(&self.view.search).is_empty()
+            && self.list_cache.as_ref().is_some_and(|c| c.key == self.list_key());
+        let counts_before = self.counts_cache.as_ref().map(|(_, counts)| counts.clone());
+        let rev_before = self.rev;
         self.put_message(id, copy);
         self.rev += 1;
         self.dirty = true;
+        if stands {
+            self.keep_through_read_marks(&[], rev_before, counts_before);
+        }
     }
 
     /// How message `id` was last read in each place it is remembered in ([`Session::read_as`]).
@@ -1592,6 +1611,7 @@ impl Session {
             dav_seen: Default::default(),
             dav_generation: Default::default(),
             read_at: HashMap::new(),
+            drawn_checked: HashSet::new(),
             read_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
@@ -3523,8 +3543,8 @@ impl Session {
     pub fn replace_mailbox(&mut self, mailbox: Mailbox) {
         self.mailbox = mailbox;
         self.resident.clear();
-        // (Its messages are read here for the first time, whatever their ids: `read_at`.)
-        self.read_at.clear();
+        // (Its messages are looked at for the first time, whatever their ids.)
+        self.drawn_checked.clear();
         self.resident_bytes = 0;
         self.display_failed.clear();
         self.search_pass = None;
@@ -4410,6 +4430,10 @@ impl Session {
         // what it changed, [`FolderCounts::apply`](crate::counts::FolderCounts::apply).)
         // (Undo and Redo bring the counts in step with what they put back themselves, [`Session::swap`].)
         let steps = matches!(id, "edit.undo" | "edit.redo");
+        if steps {
+            // A message put back as it was before its pictures were told is told again.
+            self.drawn_checked.clear();
+        }
         let counts_aside = if spec.mutates && !steps { self.counts_cache.take() } else { None };
         // How many messages the command finds, beside the revision the counts are keyed by
         // ([`Session::counts_through`]); no copy of the mailbox is needed for it.

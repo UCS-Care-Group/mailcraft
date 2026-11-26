@@ -13,7 +13,7 @@
 //! The HTML is the sender's: it is read once, to its end, with caps on the tags looked at and
 //! the ids kept.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::Attachment;
 
@@ -81,15 +81,45 @@ pub fn shown_in_place(ids: &ShownIds, a: &Attachment) -> bool {
 /// The part a picture's address `src` names (`cid:…`, any letter case, angle brackets and
 /// `%xx` escapes allowed), with its index: the first whose `Content-ID` is the id as written,
 /// then as decoded, then either without regard to letter case. The one rule the reading pane,
-/// the phone and the attachment list find a part by.
+/// the phone and the attachment list find a part by; [`PartIndex`] for many addresses.
 pub fn part_for<'a>(attachments: &'a [Attachment], src: &str) -> Option<(usize, &'a Attachment)> {
-    let id = content_id(src.as_bytes())?;
-    let decoded = percent_decode(&id);
-    let parts = || attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
-    parts()
-        .find(|(_, a)| a.content_id == id)
-        .or_else(|| parts().find(|(_, a)| a.content_id == decoded))
-        .or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(&id) || a.content_id.eq_ignore_ascii_case(&decoded)))
+    PartIndex::new(attachments).find(src)
+}
+
+/// The parts of a message by `Content-ID`, for finding many pictures' parts ([`part_for`]) in
+/// one pass over the parts and one look-up per picture, however many of each a message has.
+pub struct PartIndex<'a> {
+    attachments: &'a [Attachment],
+    /// The first part of each `Content-ID`, as written.
+    exact: HashMap<&'a str, usize>,
+    /// The first part of each `Content-ID` in lower case.
+    folded: HashMap<String, usize>,
+}
+
+impl<'a> PartIndex<'a> {
+    pub fn new(attachments: &'a [Attachment]) -> Self {
+        let mut exact = HashMap::new();
+        let mut folded = HashMap::new();
+        for (i, a) in attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty()) {
+            exact.entry(a.content_id.as_str()).or_insert(i);
+            folded.entry(a.content_id.to_ascii_lowercase()).or_insert(i);
+        }
+        PartIndex { attachments, exact, folded }
+    }
+
+    /// The part `src` names, with its index ([`part_for`]).
+    pub fn find(&self, src: &str) -> Option<(usize, &'a Attachment)> {
+        if self.exact.is_empty() {
+            return None;
+        }
+        let id = content_id(src.as_bytes())?;
+        let decoded = percent_decode(&id);
+        let at = self.exact.get(id.as_str()).or_else(|| self.exact.get(decoded.as_str())).copied().or_else(|| {
+            let either = [self.folded.get(&id.to_ascii_lowercase()), self.folded.get(&decoded.to_ascii_lowercase())];
+            either.into_iter().flatten().min().copied()
+        })?;
+        self.attachments.get(at).map(|a| (at, a))
+    }
 }
 
 /// The content ids the `<img>` elements of `html` ask for (`src="cid:…"`), at most

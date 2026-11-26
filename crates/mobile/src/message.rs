@@ -90,7 +90,8 @@ impl Core {
                     a.inline = marked.inline;
                 }
             }
-            let has_part = |src: &str| attachment_of(&m, src).is_some();
+            let parts = mailcraft_model::shown::PartIndex::new(&m.attachments);
+            let has_part = |src: &str| parts.find(src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });
             let remote_pictures = mailcraft_html::images(&blocks)
                 .into_iter()

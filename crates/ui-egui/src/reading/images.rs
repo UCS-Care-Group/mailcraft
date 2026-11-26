@@ -14,8 +14,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use mailcraft_model::{Attachment, Message};
-
 /// Largest attached picture that is looked at, in bytes.
 pub const MAX_PICTURE_BYTES: usize = 24 * 1024 * 1024;
 
@@ -69,12 +67,6 @@ pub fn frame(ctx: &egui::Context) -> u64 {
 pub fn is_remote(src: &str) -> bool {
     let src = src.trim_start();
     ["http://", "https://"].iter().any(|scheme| src.get(..scheme.len()).is_some_and(|start| start.eq_ignore_ascii_case(scheme)))
-}
-
-/// The attachment a `cid:` address refers to ([`mailcraft_model::shown::part_for`]: the one
-/// rule the phone and the attachment list find it by too).
-pub fn attachment<'a>(message: &'a Message, src: &str) -> Option<&'a Attachment> {
-    mailcraft_model::shown::part_for(&message.attachments, src).map(|(_, a)| a)
 }
 
 /// The kinds of picture shown, by what their bytes are: in a message (and in a signature), and
@@ -506,6 +498,7 @@ impl Pictures {
 mod tests {
     use super::*;
     use crate::reading::tests::{gif, jpeg, png, webp};
+    use mailcraft_model::{Attachment, Message};
 
     #[test]
     fn pictures_are_found_by_their_content_id() {
@@ -514,6 +507,10 @@ mod tests {
             attachments: vec![Attachment::new("plain.txt", "text/plain", vec![2]), part("logo@example.org"), part("Image 2@X")],
             ..Message::default()
         };
+        // (The pane finds them as the phone and the attachment list do: `part_for`.)
+        fn attachment<'a>(m: &'a Message, src: &str) -> Option<&'a Attachment> {
+            mailcraft_model::shown::part_for(&m.attachments, src).map(|(_, a)| a)
+        }
         let found = |src: &str| attachment(&m, src).map(|a| a.content_id.as_str());
         assert_eq!(found("cid:logo@example.org"), Some("logo@example.org"));
         assert_eq!(found(" CID:logo@example.org "), Some("logo@example.org"));

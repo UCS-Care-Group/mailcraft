@@ -11,7 +11,7 @@ pub mod rich;
 use mailcraft_mime as mime;
 use std::collections::BTreeSet;
 
-use mailcraft_model::shown::{is_picture_part, part_for};
+use mailcraft_model::shown::{PartIndex, is_picture_part};
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message, Original};
 
 pub use mailcraft_mime::WriteOptions;
@@ -26,6 +26,12 @@ pub fn parse(bytes: &[u8]) -> Message {
 /// keeps the bytes it came as ([`mailcraft_mime::parse_fetched`]).
 pub fn parse_fetched(bytes: &[u8]) -> Message {
     to_model(mime::parse_fetched(bytes))
+}
+
+/// [`parse_fetched`] with no part marked as drawn: for a message whose server says afterwards
+/// whether it is a draft, which marks it with [`mark_drawn`] once that is known.
+pub fn parse_fetched_unmarked(bytes: &[u8]) -> Message {
+    unmarked(mime::parse_fetched(bytes))
 }
 
 /// The messages of an mbox file ([`mailcraft_mime::mbox_messages`]).
@@ -66,8 +72,15 @@ pub fn write_mbox(messages: &[&Message], opts: &WriteOptions) -> Vec<u8> {
 }
 
 /// A message read by `mailcraft-mime` as one of the mailbox, which is new: no id, account or
-/// folder, and nothing of a server's. `received` is the `Date`.
+/// folder, and nothing of a server's. `received` is the `Date`. The parts its HTML draws are
+/// marked ([`mark_drawn`]).
 pub fn to_model(m: mime::Message) -> Message {
+    let mut out = unmarked(m);
+    mark_drawn(&mut out);
+    out
+}
+
+fn unmarked(m: mime::Message) -> Message {
     // Every field named, so a field added to mime's Message fails to compile here until it is carried.
     let mime::Message {
         message_id,
@@ -98,7 +111,7 @@ pub fn to_model(m: mime::Message) -> Message {
     } = m;
     // What is read by name stays on the message; every other line goes to its block, in place.
     let (headers, header_block) = mailcraft_model::headers::split(headers);
-    let mut out = Message {
+    Message {
         message_id,
         in_reply_to,
         references,
@@ -138,26 +151,26 @@ pub fn to_model(m: mime::Message) -> Message {
         fresh_stamps,
         original: original.map(|data| Original { data, kept: None }),
         ..Message::default()
-    };
-    mark_drawn(&mut out);
-    out
+    }
 }
 
 /// The parts `html` draws in place, by index: a picture (by [`is_picture_part`]) that an
 /// `<img>` the reading pane lays out names by `cid:` ([`part_for`], the first part of a
 /// `Content-ID` only). An `<img>` that is never drawn names nothing: one hidden (`display:none`,
-/// `hidden`), of a pixel or less, or only text inside `<template>`, `<style>`, `<script>`,
+/// `hidden`), of two pixels or less, or only text inside `<template>`, `<style>`, `<script>`,
 /// `<textarea>` or `<title>`. The HTML is laid out once, within `mailcraft-html`'s caps.
 pub fn drawn_parts(html: &str, attachments: &[Attachment]) -> BTreeSet<usize> {
     if !attachments.iter().any(|a| !a.content_id.is_empty()) {
         return BTreeSet::new();
     }
-    let tiny = |n: &Option<u16>| n.is_some_and(|n| n <= 1);
+    // (A speck draws nothing that can be seen.)
+    let tiny = |n: &Option<u16>| n.is_some_and(|n| n <= 2);
+    let parts = PartIndex::new(attachments);
     let blocks = mailcraft_html::parse_text(html);
     mailcraft_html::images(&blocks)
         .into_iter()
         .filter_map(|b| match &b.kind {
-            mailcraft_html::BlockKind::Image { src, width, height, .. } if !tiny(width) && !tiny(height) => part_for(attachments, src),
+            mailcraft_html::BlockKind::Image { src, width, height, .. } if !tiny(width) && !tiny(height) => parts.find(src),
             _ => None,
         })
         .filter(|(_, a)| is_picture_part(a))
@@ -257,5 +270,7 @@ fn addresses(list: Vec<mime::Address>) -> Vec<Address> {
 
 #[cfg(test)]
 mod adapter_tests;
+#[cfg(test)]
+mod drawn_tests;
 #[cfg(test)]
 mod tests;

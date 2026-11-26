@@ -353,7 +353,7 @@ impl Laid {
         let mut cx = Cx {
             ctx,
             t,
-            message,
+            parts: message.map(|m| mailcraft_model::shown::PartIndex::new(&m.attachments)),
             pictures,
             remote: self.remote,
             frame: images::frame(ctx),
@@ -391,7 +391,8 @@ impl Laid {
 struct Cx<'a> {
     ctx: &'a egui::Context,
     t: Tokens,
-    message: Option<&'a Message>,
+    /// The message's parts by `Content-ID`, where `cid:` pictures are looked up.
+    parts: Option<mailcraft_model::shown::PartIndex<'a>>,
     pictures: &'a mut Pictures,
     /// Pictures from the web are shown when they have come.
     remote: bool,
@@ -481,8 +482,7 @@ impl Cx<'_> {
             return None;
         }
         let src = picture.src.trim();
-        let bytes =
-            picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+        let bytes = picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.parts.as_ref().and_then(|p| p.find(src)).map(|(_, a)| a.data.clone()));
         let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
         self.stats.behind += 1;
         Some(Behind { slot: self.slot(), data, size })
@@ -1026,7 +1026,7 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     // One of the message's own, written into it or attached to it; or one from the web, when
     // the owner asked and it has come.
     let asked_for = cx.remote && images::is_remote(src);
-    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.parts.as_ref().and_then(|p| p.find(src)).map(|(_, a)| a.data.clone()));
     if bytes.is_none()
         && asked_for
         && let Some(images::Remote::Ready(data)) = cx.pictures.remote(src.trim(), cx.frame)
