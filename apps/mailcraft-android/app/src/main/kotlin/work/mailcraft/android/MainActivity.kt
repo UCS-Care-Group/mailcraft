@@ -13,8 +13,10 @@ import android.content.IntentFilter
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -83,7 +85,6 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null || window.handoff.readAgain) takeHandedOver(intent)
         // A window built again (turned, or its language changed) has already taken a message it was asked for up.
         if (savedInstanceState == null) incoming.value = incomingOf(intent)
-        enableEdgeToEdge()
         val application = application as? MailCraftApplication
         application?.begin()
         val starting = application?.started ?: MutableStateFlow(Phase.Failed)
@@ -103,13 +104,35 @@ class MainActivity : AppCompatActivity() {
                     started = phase
                 }
             }
-            MailCraftTheme {
+            // The theme is the owner's choice (kept with the reading choices); the bars' icons follow it.
+            val store = remember { DeviceReadingPrefs(applicationContext) }
+            var reading by remember { mutableStateOf(store.load()) }
+            // Another window (split screen) may save a newer choice: take it in, so a save here never undoes it.
+            DisposableEffect(store) {
+                val stop = store.watch { reading = store.load() }
+                onDispose { stop() }
+            }
+            val dark = reading.theme.dark(isSystemInDarkTheme())
+            DisposableEffect(dark) {
+                val clear = android.graphics.Color.TRANSPARENT
+                val bars = SystemBarStyle.auto(clear, clear) { dark }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                onDispose {}
+            }
+            MailCraftTheme(dark) {
                 DeviceDateSettings {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         var chosen by remember { mutableStateOf(LanguageChoice.current()) }
                         val handedOver by window.handoff.file.collectAsState()
                         val asked = Asked({ incoming.value }, { incoming.value = null })
-                        Root(started, version, chosen, handedOver, window.handoff::handled, window, asked) {
+                        Root(
+                            started, version, chosen, handedOver, window.handoff::handled, window, asked,
+                            ReadingChoice(reading) { edit ->
+                                val next = edit(store.load())
+                                reading = next
+                                store.save(next)
+                            },
+                        ) {
                             chosen = it
                             LanguageChoice.choose(it)
                         }
@@ -186,11 +209,14 @@ internal fun Root(
     onHandled: () -> Unit = {},
     window: WindowModel? = null,
     asked: Asked = Asked.None,
+    readingChoice: ReadingChoice = ReadingChoice(ReadingPrefs()) {},
     onLanguage: (String) -> Unit,
 ) {
     when (started) {
         is Phase.Ready ->
-            CoreShell(started.value, version, chosenLanguage, handedOver, onHandled, window, asked, onLanguage)
+            CoreShell(
+                started.value, version, chosenLanguage, handedOver, onHandled, window, asked, readingChoice, onLanguage,
+            )
         Phase.Loading -> Opening()
         Phase.Failed -> Centered(stringResource(R.string.start_failed))
     }
@@ -225,6 +251,7 @@ private fun CoreShell(
     onHandled: () -> Unit,
     window: WindowModel?,
     asked: Asked,
+    readingChoice: ReadingChoice,
     onLanguage: (String) -> Unit,
 ) {
     val (core, hub, list) = Triple(opened.core, opened.hub, opened.mail)
@@ -242,8 +269,6 @@ private fun CoreShell(
     var swipe by remember { mutableStateOf(prefs.load()) }
     val noticeStore = remember { DeviceNoticeButtons(appContext) }
     var noticeButtons by remember { mutableStateOf(noticeStore.load()) }
-    val readingStore = remember { DeviceReadingPrefs(appContext) }
-    var readingPrefs by remember { mutableStateOf(readingStore.load()) }
     // (A folder of 0 is the first Inbox.)
     var query by rememberSaveable(stateSaver = MailQuery.Saver) { mutableStateOf(MailQuery(0uL)) }
     val ui by list.ui.collectAsState()
@@ -289,7 +314,7 @@ private fun CoreShell(
             nowMillis = now,
             swipe = swipe,
             noticeButtons = noticeButtons,
-            readingPrefs = readingPrefs,
+            readingPrefs = readingChoice.prefs,
             reading = pictured.reading,
             pictures = pictured.settings,
             avatars = pictured.avatars,
@@ -314,10 +339,7 @@ private fun CoreShell(
                 noticeButtons = it
                 noticeStore.save(it)
             },
-            onReadingPrefs = {
-                readingPrefs = it
-                readingStore.save(it)
-            },
+            onReadingPrefs = readingChoice.onChange,
             reading = pictured.reader.actions(writing::begin),
             onPictures = pictures::changed,
             onClearPictures = pictures::clear,

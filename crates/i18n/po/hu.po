@@ -1826,6 +1826,12 @@ msgstr "Más levelezési kiszolgáló"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Bármi, ami még vár a szerverre, az az első: a postafiókban, a zászlók és a mozdulatok, amíg offline. Ha MailCraft nem éri el a szervert, a kapcsoló vár, amíg nem."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Megjelenés"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4440,8 +4446,8 @@ msgstr "A Kivágás nem fogad paramétert: azt vágja ki, ami ki van jelölve"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\user or you@pexage.org; üresen áll a címre"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "Sötét"
@@ -6281,6 +6287,12 @@ msgstr "Elintézendő"
 #, fuzzy
 msgid "Follow Up"
 msgstr "Elintézendő"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Rendszerbeállítás követése"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8554,8 +8566,8 @@ msgstr "Tudasd az emberekkel, hogy távol vagy, vagy nem tudsz válaszolni egy i
 msgid "Licences"
 msgstr "Licencek"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Világos"
