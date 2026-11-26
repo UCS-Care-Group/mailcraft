@@ -177,6 +177,17 @@ const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite
 /// once for it and for [`MICROSOFT_GRAPH_TASKS`] together ([`sign_in_for_sync`]). The working
 /// hours are never written with it, nor anything else of the settings.
 const MICROSOFT_GRAPH_SETTINGS_WRITE: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
+/// What keeping the owner's contacts in step both ways takes (#1917): contacts made, changed and
+/// deleted here go to the server. **Not** on the page of a sign-in, nor part of [`MICROSOFT_GRAPH`]
+/// (which reads them): an older sign-in would get no token at all for calendar and contacts. A
+/// job that has contact changes to send asks for it by itself ([`refresh_graph_contacts`]); a
+/// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`], and the window asks the owner
+/// on the one page of [`sign_in_for_sync`].
+const MICROSOFT_GRAPH_CONTACTS: &str = "https://graph.microsoft.com/Contacts.ReadWrite";
+/// And the contacts of the shared mailboxes the owner opens, and of folders shared with him: read
+/// and, where he may, changed. Put to the owner on the one page beside the other shared ones, for
+/// an account that isn't a personal one (Microsoft has no such thing for those).
+const MICROSOFT_GRAPH_SHARED_CONTACTS: &str = "https://graph.microsoft.com/Contacts.ReadWrite.Shared";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -573,6 +584,8 @@ fn admin_scope() -> String {
         MICROSOFT_GRAPH_SHARED_CALENDARS,
         MICROSOFT_GRAPH_TASKS,
         MICROSOFT_GRAPH_SETTINGS_WRITE,
+        MICROSOFT_GRAPH_CONTACTS,
+        MICROSOFT_GRAPH_SHARED_CONTACTS,
         SIGN_IN_SCOPE,
     ]);
     all.collect::<Vec<_>>().join(" ")
@@ -935,6 +948,38 @@ pub fn refresh_graph_tasks_at(
     refresh_by_itself_at(&Endpoints { scope: tasks_scope(), ..endpoints.clone() }, mail, oauth, refresh_token, "Microsoft To Do")
 }
 
+/// What the tokens of a job that changes contacts are asked for (#1917): what Graph is asked for,
+/// changing the owner's contacts, and with `shared` those of shared mailboxes and folders too.
+fn contacts_scope(shared: bool) -> String {
+    let shared = if shared { format!(" {MICROSOFT_GRAPH_SHARED_CONTACTS}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_CONTACTS}{shared} {SIGN_IN_SCOPE}")
+}
+
+/// [`refresh_graph`] for a job that changes contacts, or reads a shared mailbox's (#1917): asked
+/// for with `Contacts.ReadWrite` (and `Contacts.ReadWrite.Shared` with `shared`), and for nothing
+/// less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the changes wait here,
+/// and the window asks the owner ([`sign_in_for_sync`]). `mail` as for [`refresh_graph_tasks`].
+pub fn refresh_graph_contacts(oauth: &OAuth, refresh_token: &str, shared: bool, mail: Resource) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_contacts_at(&endpoints, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token, shared)
+}
+
+/// [`refresh_graph_contacts`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_contacts_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+    shared: bool,
+) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: contacts_scope(shared), ..endpoints.clone() };
+    let got = refresh_by_itself_at(&endpoints, mail, oauth, refresh_token, "changing contacts")?;
+    // (A server that says what it gave, and didn't give this, is a no too.)
+    let tokens = granted(got.tokens, MICROSOFT_GRAPH_CONTACTS)?;
+    let tokens = if shared { granted(tokens, MICROSOFT_GRAPH_SHARED_CONTACTS)? } else { tokens };
+    Ok(GraphTokens { tokens, ..got })
+}
+
 /// Tokens at `endpoints` for a permission that is asked for by itself (the to-dos', the
 /// automatic replies' and the rules'): a sign-in that doesn't cover it gets
 /// [`NetError::ConsentNeeded`].
@@ -1019,7 +1064,7 @@ pub fn refresh_graph_replies_at(
 /// the same page, [`sync_endpoints`]; their jobs ask for their own tokens.)
 fn sync_scope(mail_write: bool) -> String {
     let mail = if mail_write { format!(" {MICROSOFT_GRAPH_MAIL}") } else { String::new() };
-    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {SIGN_IN_SCOPE}")
+    format!("{MICROSOFT_GRAPH}{mail} {MICROSOFT_GRAPH_TASKS} {MICROSOFT_GRAPH_SETTINGS_WRITE} {MICROSOFT_GRAPH_CONTACTS} {SIGN_IN_SCOPE}")
 }
 
 /// Ask the owner, on the provider's page, once, for everything a sign-in's page asks for today
@@ -1047,13 +1092,13 @@ pub fn sign_in_for_sync(
 /// is a personal one (Microsoft has no shared mailboxes for those).
 fn sync_endpoints(oauth: &OAuth, email: &str, mail_write: bool) -> Endpoints {
     let plain = Endpoints::for_resource(oauth, if mail_write { Resource::GraphMail } else { Resource::Graph });
-    let consent = if oauth.is_personal(email) { String::new() } else { MICROSOFT_GRAPH_SHARED_ALL.to_string() };
+    let consent = if oauth.is_personal(email) { String::new() } else { format!("{MICROSOFT_GRAPH_SHARED_ALL} {MICROSOFT_GRAPH_SHARED_CONTACTS}") };
     Endpoints { scope: sync_scope(mail_write), consent, fewer: String::new(), lesser: String::new(), ..plain }
 }
 
 /// `scope` without what keeping the to-dos and the settings in step takes.
 fn without_sync_scopes(scope: &str) -> String {
-    let own = |word: &&str| ![MICROSOFT_GRAPH_TASKS, MICROSOFT_GRAPH_SETTINGS_WRITE].contains(word);
+    let own = |word: &&str| ![MICROSOFT_GRAPH_TASKS, MICROSOFT_GRAPH_SETTINGS_WRITE, MICROSOFT_GRAPH_CONTACTS].contains(word);
     scope.split(' ').filter(own).collect::<Vec<_>>().join(" ")
 }
 

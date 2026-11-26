@@ -35,8 +35,8 @@ internal object ReadingShots {
 
     /** The pane with its dates in UTC and US English, whatever machine records or checks the shot. */
     @Composable
-    fun Pane(ui: ReadingUi) = ShellShots.Fixed {
-        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None)
+    fun Pane(ui: ReadingUi, tools: ReadingTools = ReadingTools.None) = ShellShots.Fixed {
+        ReadingPane(EnglishTexts, ui.id ?: 0uL, ui, ReadingActions.None, tools = tools)
     }
 }
 
@@ -75,6 +75,13 @@ class ReadingScreenshotTest {
 
     @Test
     fun longLinks() = shoot("long_links", ReadingShots.ui(Corpus.longLinks))
+
+    /** A footer whose exact line is shorter than its text: each line clear of the next (#1967). */
+    @Test
+    fun footerWithAnExactLine() {
+        paparazzi.unsafeUpdateConfig(Tall.copy(nightMode = NightMode.NOTNIGHT, fontScale = 1f))
+        paparazzi.snapshot("reading_footer_light_100") { ReadingShots.Pane(ReadingShots.ui(Corpus.footer)) }
+    }
 }
 
 /** The reading pane on a tablet: the list's place beside it is the list's own shot. */
@@ -229,3 +236,73 @@ private fun ShellData.withRows() = copy(
         rows = ShellShots.rows.mapIndexed { i, r -> r.copy(address = if (i % 2 == 0) "ada@example.org" else "bo@example.org") },
     ),
 )
+
+/** The message actions over the body, the open and shut header, and the light page in the dark theme. */
+class ReadingToolsScreenshotTest {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = Tall,
+        renderingMode = SessionParams.RenderingMode.NORMAL,
+        maxPercentDifference = TOLERANCE,
+    )
+
+    private fun tools(prefs: ReadingPrefs) = ReadingTools(
+        MailListContext(EnglishTexts, ShellShots.NOW, SwipeConfig(), emptyList(), ShellShots.categories),
+        { _, _ -> },
+        {},
+        prefs,
+        {},
+    )
+
+    private fun shoot(name: String, entry: Corpus.Entry, prefs: ReadingPrefs, dark: Boolean = true) {
+        for ((suffix, scale) in listOf("100" to 1f, "200" to 2f)) {
+            paparazzi.unsafeUpdateConfig(
+                Tall.copy(nightMode = if (dark) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = scale),
+            )
+            paparazzi.snapshot("reading_tools_${name}_$suffix") { ReadingShots.Pane(ReadingShots.ui(entry), tools(prefs)) }
+        }
+    }
+
+    private fun shootMenu(name: String, dark: Boolean, scale: Float) {
+        paparazzi.unsafeUpdateConfig(
+            Tall.copy(screenHeight = 1_800, nightMode = if (dark) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = scale),
+        )
+        val tools = tools(ReadingPrefs()).let { ReadingTools(it.context, it.onTriage, it.onLeave, it.prefs, it.onPrefs, phone = true) }
+        val entry = Corpus.plain
+        paparazzi.snapshot("reading_menu_$name") {
+            ShellShots.Fixed {
+                androidx.compose.foundation.layout.Box {
+                    ReadingPane(EnglishTexts, entry.view.id, ReadingShots.ui(entry), ReadingActions.None, tools = tools)
+                    MessageMenu(
+                        EnglishTexts, tools, entry.view, darkWindow = dark, light = false, open = true,
+                        onClose = {}, onTriaged = { _, _, _ -> }, onLight = {},
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun menuLight100() = shootMenu("light_100", dark = false, scale = 1f)
+
+    @Test
+    fun menuDark100() = shootMenu("dark_100", dark = true, scale = 1f)
+
+    @Test
+    fun menuLight200() = shootMenu("light_200", dark = false, scale = 2f)
+
+    @Test
+    fun shutHeaderLight() = shoot("shut_light", Corpus.plain, ReadingPrefs(), dark = false)
+
+    @Test
+    fun openHeaderLight() = shoot("open_light", Corpus.plain, ReadingPrefs(headerOpen = true), dark = false)
+
+    @Test
+    fun lightPageInDark() = shoot("light_page_dark", Corpus.newsletter, ReadingPrefs())
+
+    @Test
+    fun darkPageInDark() = shoot("dark_page_dark", Corpus.newsletter, ReadingPrefs(lightMessages = false))
+
+    @Test
+    fun openHeaderDark() = shoot("open_dark", Corpus.reply, ReadingPrefs(headerOpen = true))
+}

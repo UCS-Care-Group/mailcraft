@@ -65,11 +65,18 @@ internal fun TextBlock(
     LinkedText(text, style, env, if (fill) semantic.fillMaxWidth() else semantic)
 }
 
-/** The line height the message asks for, or one that reads well. */
-internal fun lineHeightOf(block: BlockView, size: Int): TextUnit = when (val h = block.lineHeight) {
-    is LineHeightView.Scale -> (size * h.hundredths.toInt() / HUNDRED).sp
-    is LineHeightView.Px -> h.px.toInt().coerceAtLeast(1).sp
-    null -> (size * DEFAULT_LINE).sp
+/**
+ * The line height the message asks for, or one that reads well; never shorter than the block's
+ * largest text, whose glyphs would otherwise be drawn over the line below (#1967).
+ */
+internal fun lineHeightOf(block: BlockView, size: Int): TextUnit {
+    val asked = when (val h = block.lineHeight) {
+        is LineHeightView.Scale -> size * h.hundredths.toInt() / HUNDRED
+        is LineHeightView.Px -> h.px.toFloat()
+        null -> size * DEFAULT_LINE
+    }
+    val largest = block.spans.maxOfOrNull { sizeOf(it) ?: size } ?: size
+    return maxOf(asked, largest * MIN_LINE).sp
 }
 
 /** A list item: its marker, and its text beside it. */
@@ -110,6 +117,9 @@ internal fun RuleBlock(block: BlockView, env: BodyEnv) {
 private const val BULLET = "•"
 private const val HUNDRED = 100f
 private const val DEFAULT_LINE = 1.4f
+
+/** The least line height, in sizes of its text: room for the ascent and descent of the phone's fonts. */
+private const val MIN_LINE = 1.2f
 private const val MAX_LIST_DEPTH = 8
 private const val LIST_INDENT = 18
 private const val MARKER_WIDTH = 24

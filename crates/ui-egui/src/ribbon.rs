@@ -52,6 +52,34 @@ const MODE_W: f32 = 24.0;
 /// A note after the buttons is drawn when this much room is left for it.
 const NOTE_MIN: f32 = 180.0;
 
+/// The sizes of the ribbon: MailCraft's own, or closer together where the look is dense
+/// ([`Tokens::dense`], Classic Light, #1203). The row is fitted to the window the same way at
+/// either size ([`plan`]): a narrower button only leaves more of the row in view.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Sizes {
+    /// The simplified row: the band's height and a button's.
+    band: f32,
+    button: f32,
+    /// In a button: the space at its start (and its end without a `▾`), the gap before its
+    /// label and the label's size.
+    pad: f32,
+    label_gap: f32,
+    label: f32,
+    /// The gaps above the ribbon's sheet and under it.
+    top_gap: f32,
+    sheet_gap: f32,
+}
+
+impl Sizes {
+    fn of(t: &Tokens) -> Sizes {
+        if t.dense {
+            Sizes { band: 40.0, button: 28.0, pad: 6.0, label_gap: 6.0, label: 12.0, top_gap: 3.0, sheet_gap: 4.0 }
+        } else {
+            Sizes { band: BAND_H, button: BUTTON_H, pad: PAD, label_gap: LABEL_GAP, label: LABEL_SIZE, top_gap: TOP_GAP, sheet_gap: SHEET_GAP }
+        }
+    }
+}
+
 /// How the ribbon lays its commands out (the menu at its right end, View › Layout,
 /// `ui.ribbonMode`): `Simplified`, one row of commands with what doesn't fit behind `…`, which
 /// is what a new installation starts with; or `Classic`, three rows in groups with their names.
@@ -744,6 +772,8 @@ fn home_people(app: &MailApp) -> Tab {
                 // The contacts picked together, else every group that shares an address or a
                 // number (#506).
                 Item::big("mergeContacts", "Merge\nDuplicates", "people.merge", merge_params(app)).at(3, 4),
+                // Into another contacts folder or On this computer (#1144): the dialog asks which.
+                Item::big("move", "Move", "people.moveToFolder", move_params(app)).at(3, 4),
             ],
         ),
         g(
@@ -762,6 +792,12 @@ fn home_people(app: &MailApp) -> Tab {
 /// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
 /// there are two or more.
 pub(crate) fn merge_params(app: &MailApp) -> Value {
+    if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
+}
+
+/// What Move to Contacts Folder… opens its dialog with: the contacts picked together, else the
+/// selected one.
+pub(crate) fn move_params(app: &MailApp) -> Value {
     if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
 }
 
@@ -2217,15 +2253,15 @@ pub(crate) fn plan(buttons: &[Button<'_>], width: &dyn Fn(usize, bool) -> f32, a
     }
 }
 
-/// The width of a button of the simplified row whose name is `text` wide.
-fn button_width(b: &Button<'_>, labelled: bool, text: f32) -> f32 {
-    let label = if labelled { LABEL_GAP + text } else { 0.0 };
+/// The width of a button of the simplified row whose name is `text` wide, at `sizes`.
+fn button_width(b: &Button<'_>, labelled: bool, text: f32, sizes: Sizes) -> f32 {
+    let label = if labelled { sizes.label_gap + text } else { 0.0 };
     let end = match (b.has_drop(), labelled) {
         (true, true) => DROP_GAP_LABEL + DROP_W,
         (true, false) => DROP_GAP_ICON + DROP_W,
-        (false, _) => PAD,
+        (false, _) => sizes.pad,
     };
-    PAD + ICON + label + end
+    sizes.pad + ICON + label + end
 }
 
 /// What is under a button's `▾`: its own menu, then the controls under it.
@@ -2281,6 +2317,7 @@ pub(crate) fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 /// One button of the simplified row, in `rect`.
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
+    let sizes = Sizes::of(t);
     let id = ui.scope_id().with(("ribbon", item.key));
     let on = usable(app, item);
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
@@ -2289,10 +2326,16 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let main = ui.interact(main_rect, id, if item.pending { Sense::hover() } else { Sense::click() });
     app.hit.add("ribbon", hit_id(item.key), main_rect);
     if item.pending {
-        let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
+        let icon = Rect::from_center_size(pos2(rect.min.x + sizes.pad + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
         icons::paint(ui.painter(), icon, item.icon, t.text_disabled, t.text_disabled);
         if labelled {
-            ui.painter().text(pos2(icon.max.x + LABEL_GAP, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(LABEL_SIZE), t.text_disabled);
+            ui.painter().text(
+                pos2(icon.max.x + sizes.label_gap, rect.center().y),
+                Align2::LEFT_CENTER,
+                item.name(),
+                regular(sizes.label),
+                t.text_disabled,
+            );
         }
         pending_tip(main, item);
         return;
@@ -2301,10 +2344,10 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         bg(ui, main_rect, &main, item.checked, t);
     }
     let (ink, accent, text) = if on { (t.icon, t.accent, t.text) } else { (t.text_disabled, t.text_disabled, t.text_disabled) };
-    let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
+    let icon = Rect::from_center_size(pos2(rect.min.x + sizes.pad + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
     icons::paint(ui.painter(), icon, item.icon, ink, accent);
     if labelled {
-        ui.painter().text(pos2(icon.max.x + LABEL_GAP, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(LABEL_SIZE), text);
+        ui.painter().text(pos2(icon.max.x + sizes.label_gap, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(sizes.label), text);
     }
     let Some((command, params)) = &item.command else {
         // The whole button opens its menu.
@@ -2345,10 +2388,11 @@ pub(crate) fn behind_more(ctx: &egui::Context) -> Vec<&'static str> {
 /// The simplified layout: one row of `tab` in `area`, with `…` at its end for what doesn't fit.
 fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect) {
     let buttons = row(tab);
+    let sizes = Sizes::of(t);
     let names: Vec<f32> =
-        buttons.iter().map(|b| ui.ctx().fonts_mut(|f| f.layout_no_wrap(b.item.name(), regular(LABEL_SIZE), t.text).size().x)).collect();
+        buttons.iter().map(|b| ui.ctx().fonts_mut(|f| f.layout_no_wrap(b.item.name(), regular(sizes.label), t.text).size().x)).collect();
     let width = |i: usize, labelled: bool| match (buttons.get(i), names.get(i)) {
-        (Some(b), Some(text)) => button_width(b, labelled, *text),
+        (Some(b), Some(text)) => button_width(b, labelled, *text, sizes),
         _ => 0.0,
     };
     let plan = plan(&buttons, &width, area.width());
@@ -2672,19 +2716,40 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 for tab in tabs {
-                    let shown = tl!(tab);
+                    // Named in capitals, a little smaller, where the theme has it so (#1203).
+                    // (Unicode's capitals, not a locale's: right for every catalogue shipped, not for Turkish's dotted i.)
+                    let (shown, size) = if t.tab_caps { (tl!(tab).to_uppercase(), TAB_SIZE - 1.5) } else { (tl!(tab).to_string(), TAB_SIZE) };
                     let active = current == *tab;
                     // As wide as its name in the heavier weight, so a tab keeps its place when chosen.
-                    let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.to_string(), semibold(TAB_SIZE), t.text).size().x);
+                    let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.clone(), semibold(size), t.text).size().x);
                     let w = text_w + 24.0;
                     let (r, resp) = ui.allocate_exact_size(vec2(w, TAB_H), Sense::click());
                     app.hit.add("ribbonTab", hit_id(tab), r);
-                    if resp.hovered() && !active {
-                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), 4.0, t.hover);
+                    // File as a button in the accent, apart from the tabs (#1203).
+                    let filled = t.file_tab_fill && *tab == "File";
+                    if filled {
+                        // Under the pointer a step away from its words, so they keep their contrast.
+                        let shade = Tokens::away_from(t.on_accent);
+                        let fill = if resp.is_pointer_button_down_on() {
+                            t.accent.lerp_to_gamma(shade, 0.2)
+                        } else if resp.hovered() {
+                            t.accent.lerp_to_gamma(shade, 0.12)
+                        } else {
+                            t.accent
+                        };
+                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 3.0)), f32::from(t.control_radius), fill);
+                    } else if resp.hovered() && !active {
+                        ui.painter().rect_filled(r.shrink2(vec2(2.0, 4.0)), f32::from(t.control_radius).min(4.0), t.hover);
                     }
                     // The tab that came up for the message being written stands out.
-                    let color = if matches!(*tab, "Message" | "Attachments") && !active { t.accent_text } else { t.text };
-                    ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active { semibold(TAB_SIZE) } else { regular(TAB_SIZE) }, color);
+                    let color = if filled {
+                        t.on_accent
+                    } else if matches!(*tab, "Message" | "Attachments") && !active {
+                        t.accent_text
+                    } else {
+                        t.text
+                    };
+                    ui.painter().text(r.center(), Align2::CENTER_CENTER, shown, if active || filled { semibold(size) } else { regular(size) }, color);
                     if active {
                         // The tab in view: its name in the heavier weight, underlined in the accent.
                         let u = Rect::from_min_size(pos2(r.center().x - text_w / 2.0, r.min.y + 25.0), vec2(text_w, 2.0));
@@ -2723,15 +2788,16 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
 fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
     let t = Tokens::get(ui.ctx());
     let mode = app.ui.ribbon_mode;
+    let sizes = Sizes::of(&t);
     // The ribbon is a sheet on the window's own colour, with a gap under it before the panes. The
     // commands have the sheet less its edges and the layout button at its right end.
     let (height, edge) = match mode {
         Mode::Classic => (CONTENT_H + LABEL_H + 10.0, 4.0),
-        Mode::Simplified => (BAND_H, (BAND_H - BUTTON_H) / 2.0),
+        Mode::Simplified => (sizes.band, (sizes.band - sizes.button) / 2.0),
     };
-    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + TOP_GAP) as i8, bottom: (edge + SHEET_GAP) as i8 };
+    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + sizes.top_gap) as i8, bottom: (edge + sizes.sheet_gap) as i8 };
     egui::Panel::top(id)
-        .exact_size(height + TOP_GAP + SHEET_GAP)
+        .exact_size(height + sizes.top_gap + sizes.sheet_gap)
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.tab_strip).inner_margin(margin))
         .show(ui, |ui| {
@@ -2739,7 +2805,7 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
             let sheet = Rect::from_min_max(pos2(area.min.x - 8.0, area.min.y - edge), pos2(area.max.x + 8.0 + MODE_W, area.max.y + edge));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
             let line = t.ribbon_edge;
-            ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
+            ui.painter().rect(sheet, t.sheet_radius, t.ribbon, line, egui::StrokeKind::Inside);
             app.hit.add("ribbonBand", 0, sheet);
             match mode {
                 Mode::Classic => {
@@ -2777,6 +2843,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
             });
         });
 }
+
+#[cfg(test)]
+mod dense_tests;
 
 #[cfg(test)]
 mod fit_tests;

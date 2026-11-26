@@ -96,6 +96,7 @@ private fun SettingsBody(
             AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
         SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
         SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+        SettingsPage.Reading -> ReadingPage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
         SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
         SettingsPage.MailOffline -> MailOfflinePage(texts, data.settingsUi, data.accounts, actions.settings)
@@ -113,6 +114,7 @@ private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -
             SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
+            SettingsPage.Reading -> readingSummary(texts, data.readingPrefs)
             SettingsPage.About -> data.version
             SettingsPage.RemoveData -> removeDataSummary(texts)
             SettingsPage.MailOffline -> offlineSummary(texts, data.settingsUi, data.accounts)
@@ -198,4 +200,28 @@ private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) Icon(AppIcons.Check, contentDescription = null, modifier = Modifier.size(IconBox))
     }
     HorizontalDivider()
+}
+
+/** The summary under the Reading row. */
+private fun readingSummary(texts: Texts, prefs: ReadingPrefs): String =
+    if (prefs.lightMessages) texts.t("Light page in the dark theme") else texts.t("Dark page in the dark theme")
+
+@Composable
+@Suppress("MaxLineLength")
+private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPrefs) -> Unit) {
+    SwitchRow(
+        texts.t("Show messages on a light background in the dark theme"),
+        texts.t(
+            "The message body is drawn on a light page, as its sender made it. The header stays dark. You can change it for one message in its menu.",
+        ),
+        prefs.lightMessages,
+    ) { onPrefs(prefs.copy(lightMessages = it)) }
+    Text(
+        texts.t("Attachments"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = false)) }
+    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = true)) }
 }

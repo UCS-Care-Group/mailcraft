@@ -38,12 +38,16 @@ pub mod compose;
 mod compose_send_counts_tests;
 #[cfg(test)]
 mod compose_trust_tests;
+pub mod contacts_move;
+pub mod contacts_remote;
 #[cfg(test)]
 mod conversation_thread_tests;
 pub mod dav_account;
 #[cfg(test)]
 mod dav_account_tests;
 pub mod dav_sync;
+#[cfg(test)]
+mod dav_sync_tests;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;
@@ -280,6 +284,8 @@ pub fn registry() -> Registry {
     v.extend(graph_send::specs());
     v.extend(remote::specs());
     v.extend(tasks_remote::specs());
+    v.extend(contacts_remote::specs());
+    v.extend(contacts_move::specs());
     v.extend(sync_progress::specs());
     v.extend(search_server::specs());
     Registry::new(v)
@@ -473,12 +479,14 @@ pub fn message_json(s: &Session, m: &Message) -> Value {
         o.insert("forwarded".into(), json!(m.forwarded));
         o.insert("draft".into(), json!(m.draft));
         o.insert("pinned".into(), json!(m.pinned));
+        // `inline`: the body shows it in place, not listed (`Message::listed_attachments`).
+        let listed: std::collections::BTreeSet<usize> = m.listed_attachments().map(|(i, _)| i).collect();
         o.insert(
             "attachments".into(),
             m.attachments
                 .iter()
                 .enumerate()
-                .map(|(i, a)| json!({"index": i, "name": a.name, "mime": a.mime, "size": a.size(), "inline": a.inline}))
+                .map(|(i, a)| json!({"index": i, "name": a.name, "mime": a.mime, "size": a.size(), "inline": !listed.contains(&i)}))
                 .collect(),
         );
         o.insert("conversation".into(), json!(s.mailbox.conversation(m.id)));

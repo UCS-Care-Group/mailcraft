@@ -696,11 +696,15 @@ impl Message {
 
     /// The attachments the attachment list shows, with their index: everything except pictures
     /// the HTML body shows in place ([`crate::shown`]: an `<img>` asks for it by `cid:`, and it is
-    /// a PNG, JPEG, GIF or WebP by its bytes). A file merely marked "inline" by the sending
-    /// program, which no `<img>` of the body asks for, is still listed, and so is a file of any
-    /// other kind, whatever the body says of it. While the HTML is kept outside memory
-    /// ([`Message::kept`]), an inline picture with a `Content-ID` is taken to be one it shows,
-    /// until the HTML is read and says; a file that is no picture is listed all the same.
+    /// a PNG, JPEG, GIF or WebP by its bytes) and that is marked inline. A part the body draws
+    /// is marked inline when the message is read in, however its sender labelled it
+    /// (`mailcraft_mime_model::mark_drawn`: a signature picture sent as `Content-Disposition:
+    /// attachment`, or one Graph calls `isInline: false`), so the mark goes with the body to disk.
+    /// A file merely marked "inline" by the sending program, which no `<img>` of the body asks
+    /// for, is still listed, and so is a file of any other kind, whatever the body says of it.
+    /// While the HTML is kept outside memory ([`Message::kept`]), an inline picture with a
+    /// `Content-ID` is taken to be one it shows, until the HTML is read and says; a file that is
+    /// no picture is listed all the same.
     pub fn listed_attachments(&self) -> impl Iterator<Item = (usize, &Attachment)> {
         let html_kept = self.body.html.is_none() && self.kept.as_ref().is_some_and(|k| k.html.is_some() && !k.failed);
         // Read only when some part may be one it shows.
