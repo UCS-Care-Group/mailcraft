@@ -208,11 +208,14 @@ pub(super) fn run_stand_in(stand_in: &StandIn, request: &JmapMailRequest) -> Vec
 pub(super) fn shaped(pieces: &[JmapMailResult]) {
     let (last, rest) = pieces.split_last().expect("a run ends with a piece");
     assert!(!last.partial && last.pages.is_empty() && last.listing.is_none() && last.changes.is_empty() && last.sent.is_empty(), "{last:?}");
+    assert!(last.contacts.is_empty() && last.contacts_sent.is_none(), "{last:?}");
     assert!(rest.iter().all(|piece| piece.partial && piece.errors.is_empty() && !piece.whole && !piece.stopped), "{rest:?}");
     assert!(pieces.iter().all(|piece| piece.account == ID && piece.email == ME && !piece.session.is_empty()));
     let kinds: Vec<usize> = rest
         .iter()
         .map(|piece| match (piece.changes.len(), piece.sent.len(), &piece.listing, piece.pages.len()) {
+            // The contacts, after the mail (CS10).
+            (0, 0, None, 0) if piece.contacts_sent.is_some() || !piece.contacts.is_empty() || !piece.contact_listed.is_empty() => 4,
             (1.., 0, None, 0) => 0,
             (0, 1, None, 0) => 1,
             (0, 0, Some(_), 0) => 2,
@@ -220,7 +223,7 @@ pub(super) fn shaped(pieces: &[JmapMailResult]) {
             _ => panic!("a piece that is not one thing: {piece:?}"),
         })
         .collect();
-    assert!(kinds.is_sorted(), "the changes, the Outbox, the list, the windows: {kinds:?}");
+    assert!(kinds.is_sorted(), "the changes, the Outbox, the list, the windows, the contacts: {kinds:?}");
     assert!(!(last.whole && (last.stopped || last.auth_refused || last.busy_for.is_some() || !last.errors.is_empty())), "{last:?}");
 }
 

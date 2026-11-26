@@ -57,10 +57,20 @@ class PersonDraftTest {
     }
 
     @Test
+    fun theChosenFolderIsSentAndNoneLeavesItToTheCore() {
+        assertEquals("{\"first\":\"Ada\"}", PersonDraft(first = "Ada").params())
+        assertEquals("{\"first\":\"Ada\",\"folder\":0}", PersonDraft(first = "Ada", folder = PHONE).params())
+        assertEquals("{\"first\":\"Ada\",\"folder\":12}", PersonDraft(first = "Ada", folder = 12u).params())
+    }
+
+    @Test
     fun theFormSurvivesTheAppGoingAway() {
         val d = PersonDraft("Ada", "Example", "a@example.org", "1", "Co", "Dev", "n")
         val saved = PersonDraft.Saver.run { SaverScope { true }.save(d) }
         assertEquals(d, saved?.let { PersonDraft.Saver.restore(it) })
+        val placed = d.copy(folder = 12u)
+        val kept = PersonDraft.Saver.run { SaverScope { true }.save(placed) }
+        assertEquals(placed, kept?.let { PersonDraft.Saver.restore(it) })
         assertNull(PersonDraft.Saver.restore(arrayListOf<String>()))
         assertNull(PersonDraft.Saver.restore("junk"))
     }
