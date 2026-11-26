@@ -3,12 +3,13 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -18,6 +19,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.mailcraft_mobile.AlignView
+import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.TableView
 
 /** A picture that was not downloaded never leaves empty space (#1966). */
@@ -57,11 +59,26 @@ class BodyGapTest {
     }
 
     @Test
-    fun aPlaceholderKeepsItsShapeWithinTheRoomAndALimitedHeight() {
-        assertEquals(DpSize(24.dp, 24.dp), placeholderSize(24, 24, 360.dp))
-        assertEquals(DpSize(300.dp, 75.dp), placeholderSize(560, 140, 300.dp))
-        assertEquals(DpSize(360.dp, MAX_PLACEHOLDER_HEIGHT), placeholderSize(600, 1200, 360.dp))
-        assertEquals(DpSize(1.dp, 1.dp), placeholderSize(0, 0, 360.dp))
+    fun aPictureBoxKeepsItsShapeWithinTheRoomAndALimitedHeight() {
+        assertEquals(IntSize(24, 24), boxSize(24, 360, 1f, Int.MAX_VALUE))
+        assertEquals(IntSize(300, 75), boxSize(560, 300, 0.25f, Int.MAX_VALUE))
+        assertEquals(IntSize(360, 120), boxSize(600, 360, 2f, 120))
+        assertEquals(IntSize(1, 1), boxSize(0, 0, 0f, 0))
+        assertEquals(IntSize(1, Int.MAX_VALUE), boxSize(1, 360, Float.MAX_VALUE, Int.MAX_VALUE))
+    }
+
+    @Test
+    fun aPlaceholderInLessRoomThanItWasToldKeepsItsShape() {
+        val block = B.image("https://img.shop.example/a.png", "Fern Hollow nursery", 560u, 140u)
+        val kind = block.kind as BlockKindView.Image
+        var height = -1f
+        paparazzi.snapshot {
+            val density = LocalDensity.current.density
+            Box(modifier = Modifier.width(100.dp)) {
+                Measured({ height = it / density }) { PictureBlock(block, kind, env, Paper.of(WHITE, LINK), 360.dp) }
+            }
+        }
+        assertEquals(25f, height, 1f)
     }
 
     private companion object {

@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,17 +16,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
+import kotlin.math.roundToInt
 
 /** The text of a block's spans. */
 internal fun plainText(block: BlockView): String = block.spans.joinToString("") { it.text }.trim()
@@ -81,13 +83,11 @@ private fun ShownPicture(decoded: Decoded, ref: PictureRef, room: Dp, alt: Strin
     val density = LocalDensity.current.density
     val natural = (decoded.width / density).dp
     val wanted = (ref.width?.dp ?: natural).coerceAtMost(room).coerceAtLeast(1.dp)
-    // (A size, not a shape, for the same reason as a placeholder's.)
-    val tall = wanted * (decoded.height.toFloat() / decoded.width.coerceAtLeast(1))
     Image(
         bitmap = decoded.bitmap,
         contentDescription = alt.ifBlank { null },
         contentScale = ContentScale.Fit,
-        modifier = Modifier.size(wanted, tall.coerceAtLeast(1.dp)),
+        modifier = Modifier.pictureBox(wanted, decoded.height.toFloat() / decoded.width.coerceAtLeast(1), null),
     )
 }
 
@@ -99,10 +99,9 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
     val w = ref.width
     val h = ref.height
     if (w != null && h != null) {
-        // A size of its own, not a shape: a row that measures its cells' least height (a tinted one)
-        // would otherwise take the box at the row's whole width, an empty space screens tall (#1966).
+        val box = Modifier.pictureBox(w.dp.coerceAtMost(room), h.toFloat() / w.coerceAtLeast(1), MAX_PLACEHOLDER_HEIGHT)
         Box(
-            modifier = Modifier.size(placeholderSize(w, h, room)).background(muted),
+            modifier = box.background(muted),
             contentAlignment = Alignment.Center,
         ) {
             if (alt.isNotBlank()) AltText(alt, ink, MaterialTheme.typography.labelSmall, Modifier.padding(BoxPad))
@@ -115,11 +114,25 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
 /** The most height a picture that is not shown takes, in dp: a tall one does not push the message away. */
 internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
 
-/** A box for a picture not shown: declared width within [room], its shape, at most [MAX_PLACEHOLDER_HEIGHT] high. */
-internal fun placeholderSize(width: Int, height: Int, room: Dp): DpSize {
-    val w = width.dp.coerceAtMost(room).coerceAtLeast(1.dp)
-    val h = (w * (height.toFloat() / width.coerceAtLeast(1))).coerceIn(1.dp, MAX_PLACEHOLDER_HEIGHT)
-    return DpSize(w, h)
+/**
+ * A picture's box in pixels: [wanted] wide but no wider than [room], [tall] high for each unit of width,
+ * no higher than [cap], never nothing.
+ */
+internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int): IntSize {
+    val w = wanted.coerceAtMost(room).coerceAtLeast(1)
+    return IntSize(w, (w * tall).roundToInt().coerceIn(1, cap.coerceAtLeast(1)))
+}
+
+/**
+ * A picture's box sized from the width there really is, unlike `width().aspectRatio()`: a tinted row
+ * measures its cells' least height at the row's whole width, and a shape alone answered with a box
+ * that wide, an empty space screens tall under a row of small icons (#1966). Asked the same way, this
+ * answers what it draws.
+ */
+private fun Modifier.pictureBox(wanted: Dp, tall: Float, cap: Dp?): Modifier = layout { measurable, constraints ->
+    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, cap?.roundToPx() ?: Int.MAX_VALUE)
+    val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
+    layout(size.width, size.height) { placeable.place(0, 0) }
 }
 
 @Composable
