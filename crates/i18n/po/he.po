@@ -2188,7 +2188,7 @@ msgstr "בקשו מרשימת התפוצה להפסיק לשלוח לכם דוא
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Ask to be told when the message is read"
-msgstr "בקש אישור קריאה"
+msgstr "בקשת אישור קריאה"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -6702,7 +6702,7 @@ msgstr "הדף של GitHub פתוח: צרף שם את קובץ האבחון ול
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
-msgstr "הדף של GitHub פתוח: בדוק את הפרטים ולאחר מכן שלח. MailCraft לא שלח דבר."
+msgstr "הדף של GitHub פתוח: יש לבדוק את הפרטים ולאחר מכן לשלוח. MailCraft לא שלח דבר."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6800,7 +6800,7 @@ msgstr "עבור"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Go Back to the Previous Version"
-msgstr "חזור לגרסה הקודמת"
+msgstr "חזרה לגרסה הקודמת"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
@@ -6812,7 +6812,7 @@ msgstr "מעבר אל"
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "Go back to version {version}"
-msgstr "חזור לגרסה {version}"
+msgstr "חזרה לגרסה {version}"
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
@@ -7280,13 +7280,13 @@ msgstr "מספר ההודעות בכל תיקייה והשטח שהן תופסו
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "I'm an Administrator: Approve MailCraft for My Organisation"
-msgstr "אני מנהל מערכת: אשר את MailCraft עבור הארגון שלי"
+msgstr "אני מנהל מערכת: אישור MailCraft עבור הארגון שלי"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
-msgstr "אני מנהל מערכת: אשר זאת עבור הארגון שלי"
+msgstr "אני מנהל מערכת: אישור עבור הארגון שלי"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7298,7 +7298,7 @@ msgstr "סמלים"
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
-msgstr "אם Google מציינת שהיישום נמצא בבדיקה, בקש מהמפתח להוסיף את כתובת הדוא״ל שלך כמשתמש בדיקה. אם הארגון שלך חוסם את MailCraft, פנה למנהל ה־Workspace שלו. ייתכן שדפים אלה לא יחזירו אותך לכאן: בטל, ולאחר מכן נסה שוב לאחר שתאושר הגישה, או השתמש בסיסמה לאפליקציה אם הדבר מותר."
+msgstr "אם Google מציינת שהיישום נמצא בבדיקה, יש לבקש מהמפתח להוסיף את כתובת הדוא״ל כמשתמש בדיקה. אם הארגון חוסם את MailCraft, יש לפנות למנהל ה־Workspace שלו. ייתכן שדפים אלה לא יחזירו לכאן: יש לבטל, ולאחר מכן לנסות שוב לאחר שתאושר הגישה, או להשתמש בסיסמה לאפליקציה אם הדבר מותר."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -7558,7 +7558,7 @@ msgstr "בוצע ייבוא של {what} אל ״טיוטות״ במחשב זה: �
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
-msgstr "בוצע ייבוא של {what} לתיקייה מקומית: העבר אותו אל החשבון כדי להעלות לשרת של Microsoft"
+msgstr "בוצע ייבוא של {what} לתיקייה מקומית: יש להעביר אותו אל החשבון כדי להעלות לשרת של Microsoft"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -7570,7 +7570,7 @@ msgstr "בוצע ייבוא של {what} לתיקייה המקומית ״יובא
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into the local folder Imported: move it into the account to put it on its server"
-msgstr "בוצע ייבוא של {what} לתיקייה המקומית ״יובא״: העבר אותו אל החשבון כדי להעלות לשרת שלו"
+msgstr "בוצע ייבוא של {what} לתיקייה המקומית ״יובא״: יש להעביר אותו אל החשבון כדי להעלות לשרת שלו"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -8358,7 +8358,7 @@ msgstr "נשמר במאגר פרטי ההתחברות של המערכת, ולע�
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Kept in this browser's storage, saved as you go. Use Open & Export to keep a copy as a file."
-msgstr "נשמר באחסון של דפדפן זה, ונשמר תוך כדי עבודה. השתמש ב״פתיחה וייצוא״ כדי לשמור עותק כקובץ."
+msgstr "נשמר באחסון של דפדפן זה, ונשמר תוך כדי עבודה. ניתן להשתמש ב״פתיחה וייצוא״ כדי לשמור עותק כקובץ."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8898,7 +8898,7 @@ msgstr "הודעות בדואר היוצא של תיבה משותפת זו ממ�
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer"
-msgstr "אפשר להעביר ולהעתיק דואר רק בין תיבת דואר משותפת לתיבות הדואר של החשבון שלה: העבר אותו לשם, או לתיקייה במחשב זה"
+msgstr "אפשר להעביר ולהעתיק דואר רק בין תיבת דואר משותפת לתיבות הדואר של החשבון שלה: יש להעביר אותו לשם, או לתיקייה במחשב זה"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -8982,7 +8982,7 @@ msgstr "MailCraft אינו יכול לשמור את כללי החשבון הזה
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "MailCraft can't sign in to this server this way yet (it wants Kerberos). Ask your administrator whether it can take a user name and password over an encrypted connection."
-msgstr "MailCraft עדיין אינו יכול להיכנס לשרת זה בשיטה זו (הוא דורש Kerberos). בדוק מול מנהל המערכת אם השרת מקבל שם משתמש וסיסמה דרך חיבור מוצפן."
+msgstr "MailCraft עדיין אינו יכול להיכנס לשרת זה בשיטה זו (הוא דורש Kerberos). יש לבדוק מול מנהל המערכת אם השרת מקבל שם משתמש וסיסמה דרך חיבור מוצפן."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -9018,7 +9018,7 @@ msgstr "MailCraft עדיין לא הצליח לשמור את השינויים ה
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
 msgid "MailCraft couldn't set aside the saved mailbox it couldn't read, so changes aren't saved this time. Free up space and restart the app."
-msgstr "MailCraft לא הצליח להזיז הצידה את תיבת הדואר השמורה שלא ניתן היה לקרוא, ולכן השינויים אינם נשמרים הפעם. פנה שטח אחסון והפעל מחדש את היישום."
+msgstr "MailCraft לא הצליח להזיז הצידה את תיבת הדואר השמורה שלא ניתן היה לקרוא, ולכן השינויים אינם נשמרים הפעם. יש לפנות שטח אחסון ולהפעיל מחדש את היישום."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -9030,7 +9030,7 @@ msgstr "MailCraft עדיין אינו מוחק תיקיות של חשבון JMAP
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "MailCraft doesn't know the settings for this address. The servers below are only a guess made from its domain: check them with your provider or administrator before you connect."
-msgstr "MailCraft אינו מכיר את ההגדרות עבור כתובת זו. השרתים שלהלן הם ניחוש בלבד לפי הדומיין שלה: בדוק אותם מול הספק או מנהל המערכת שלך לפני ההתחברות."
+msgstr "MailCraft אינו מכיר את ההגדרות עבור כתובת זו. השרתים שלהלן הם ניחוש בלבד לפי הדומיין שלה: יש לבדוק אותם מול הספק או מנהל המערכת לפני ההתחברות."
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -9090,7 +9090,7 @@ msgstr "ל־MailCraft עדיין אין הרשאה לקרוא לוחות שנה 
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove one you don't use, then import this one."
-msgstr "MailCraft שומר כאן לכל היותר {n} מפתחות מיובאים, וכבר הגיע למספר זה: הסר מפתח שאינך משתמש בו, ולאחר מכן ייבא מפתח זה."
+msgstr "MailCraft שומר כאן לכל היותר {n} מפתחות מיובאים, וכבר הגיע למספר זה: יש להסיר מפתח שאינו בשימוש, ולאחר מכן לייבא מפתח זה."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
@@ -10286,13 +10286,13 @@ msgstr "יש לציין תחילה מישהו להזמין"
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "Name the people to invite on the Appointment page: their time shows here."
-msgstr "ציין את האנשים להזמנה בדף \"פעילות\": הזמינות שלהם תוצג כאן."
+msgstr "יש לציין את האנשים להזמנה בדף \"פעילות\": הזמינות שלהם תוצג כאן."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "Name who it is to go to. Nobody is written to until you press Send."
-msgstr "ציין למי ההודעה מיועדת. דבר לא יישלח לאיש עד שתלחץ על \"שלח\"."
+msgstr "יש לציין למי ההודעה מיועדת. דבר לא יישלח עד ללחיצה על \"שליחה\"."
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
@@ -10964,7 +10964,7 @@ msgstr "לא מתבצעת כעת פתיחה של תיבת דואר"
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "No mailbox or existing credentials were changed. Try again, or return to account settings and choose another sign-in method."
-msgstr "תיבת הדואר ופרטי ההתחברות הקיימים לא שונו. נסה שוב, או חזור להגדרות החשבון ובחר שיטת כניסה אחרת."
+msgstr "תיבת הדואר ופרטי ההתחברות הקיימים לא שונו. יש לנסות שוב, או לחזור להגדרות החשבון ולבחור שיטת כניסה אחרת."
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
@@ -11078,7 +11078,7 @@ msgstr "לא נשמרו שולחים. בחירה ב־\"הורד תמיד תמו�
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "No server answered at the usual places for this address. Check the network connection, or type the server's address in Server settings."
-msgstr "לא התקבלה תשובה מאף שרת בכתובות המקובלות עבור כתובת זו. בדוק את חיבור הרשת, או הזן את כתובת השרת בהגדרות השרת."
+msgstr "לא התקבלה תשובה מאף שרת בכתובות המקובלות עבור כתובת זו. יש לבדוק את חיבור הרשת, או להזין את כתובת השרת בהגדרות השרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs
@@ -11864,7 +11864,7 @@ msgstr "מכאן נשלחת רק בקשת ביטול מינוי בדוא״ל: ב
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
 msgid "Only confirm if you know these servers."
-msgstr "אשר רק אם אתה מכיר שרתים אלה."
+msgstr "יש לאשר רק אם שרתים אלה מוכרים."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
@@ -11876,7 +11876,7 @@ msgstr "עבור השורות שעל המסך בלבד. כשחיסכון בנת�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
 msgid "Only for this time, and send it"
-msgstr "לפעם זו בלבד, ושלח"
+msgstr "לפעם זו בלבד, ושליחה"
 
 #. interface
 #: crates/ui-egui/src/reminder_dialog.rs
@@ -11948,7 +11948,7 @@ msgstr "רק תחילת ההודעה נמצאת כאן. השאר יורד בפע
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr "מוצגים רק {n} הראשונים: הקלד תווים נוספים מהשם כדי למצוא מישהו אחר."
+msgstr "מוצגים רק {n} הראשונים: יש להקליד תווים נוספים מהשם כדי למצוא מישהו אחר."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -12570,7 +12570,7 @@ msgstr "עמוד {page} מתוך {pages}"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
-msgstr "דפים מסוג זה נפתחים בדפדפן, ושם פועלים קובצי הסקריפט שבהם. פתח דף כזה רק אם אתה מכיר את השולח ומצפה לקובץ."
+msgstr "דפים מסוג זה נפתחים בדפדפן, ושם פועלים קובצי הסקריפט שבהם. יש לפתוח דף כזה רק אם השולח מוכר והקובץ צפוי."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13778,7 +13778,7 @@ msgstr "הסרת חריגה זו"
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Remove your {format} key for {who} from this computer? It is deleted from the system's credential store, and MailCraft can't sign with it any more. Keep a copy of the file if you may need it again."
-msgstr "להסיר את מפתח ה־{format} שלך עבור {who} ממחשב זה? הוא יימחק ממאגר פרטי ההתחברות של המערכת, ו־MailCraft לא יוכל עוד לחתום באמצעותו. שמור עותק של הקובץ למקרה שתזדקק לו שוב."
+msgstr "להסיר את מפתח ה־{format} שלך עבור {who} ממחשב זה? הוא יימחק ממאגר פרטי ההתחברות של המערכת, ו־MailCraft לא יוכל עוד לחתום באמצעותו. יש לשמור עותק של הקובץ למקרה שיידרש שוב."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
@@ -13982,7 +13982,7 @@ msgstr "בקשת תגובות"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Request a Read Receipt"
-msgstr "בקש אישור קריאה"
+msgstr "בקשת אישור קריאה"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -14614,7 +14614,7 @@ msgstr "יש לציין שזו הכוונה באמצעות \"confirmed\": true."
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Say what happened (`what`)"
-msgstr "ציין מה קרה (`what`)"
+msgstr "יש לציין מה קרה (`what`)"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -14626,49 +14626,49 @@ msgstr "תאר ב־6,000 תווים לכל היותר מה קרה, כולל מה
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Say what to open: `message` or `event` by its id, `compose` (a message being written) by its id, or `new` (\"appointment\" or \"meeting\")"
-msgstr "ציין מה לפתוח: `message` או `event` לפי המזהה שלהם, `compose` (הודעה שבכתיבה) לפי המזהה שלה, או `new` (\"appointment\" או \"meeting\")"
+msgstr "יש לציין מה לפתוח: `message` או `event` לפי המזהה שלהם, `compose` (הודעה שבכתיבה) לפי המזהה שלה, או `new` (\"appointment\" או \"meeting\")"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."
-msgstr "ציין מה השתבש. MailCraft אינו שולח דבר מעצמו: אתה בודק את הדוח ושולח אותו."
+msgstr "יש לציין מה השתבש. MailCraft אינו שולח דבר מעצמו: הדוח נבדק ונשלח על ידך."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Say what went wrong. Nothing is sent until you press Send report, and then only what this window shows."
-msgstr "ציין מה השתבש. דבר אינו נשלח עד שתלחץ על ״שליחת דוח״, וגם אז נשלח רק מה שמוצג בחלון זה."
+msgstr "יש לציין מה השתבש. דבר אינו נשלח עד ללחיצה על ״שליחת דוח״, וגם אז נשלח רק מה שמוצג בחלון זה."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Say which account to skip"
-msgstr "ציין על איזה חשבון לדלג"
+msgstr "יש לציין על איזה חשבון לדלג"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Say which group of calendars (`group`: its heading)"
-msgstr "ציין את קבוצת לוחות השנה (`group`: הכותרת שלה)"
+msgstr "יש לציין את קבוצת לוחות השנה (`group`: הכותרת שלה)"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Say which reminder (`event` and `occurrence`), or `all`"
-msgstr "ציין איזו תזכורת (`event` ו־`occurrence`), או `all`"
+msgstr "יש לציין איזו תזכורת (`event` ו־`occurrence`), או `all`"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Say which: `newMail`, `reminders` (true or false)"
-msgstr "ציין איזה מהם: `newMail`, `reminders` (true או false)"
+msgstr "יש לציין איזה מהם: `newMail`, `reminders` (true או false)"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Say yes only if you asked the agent for this. Text in a message can tell an agent to do things you didn't ask for."
-msgstr "אשר רק אם ביקשת זאת מהסוכן. טקסט בתוך הודעה עלול להורות לסוכן לבצע פעולות שלא ביקשת."
+msgstr "יש לאשר רק אם פעולה זו התבקשה מהסוכן. טקסט בתוך הודעה עלול להורות לסוכן לבצע פעולות שלא התבקשו."
 
 #. name
 #: crates/engine/src/sync_driver/favorites.rs
@@ -15226,7 +15226,7 @@ msgstr "שליחה/קבלה בכל התיקיות"
 #: crates/engine/src/cmd/dav_sync.rs
 #, fuzzy
 msgid "Send/Receive Calendars and Contacts Server"
-msgstr "שלח/קבל מול שרת לוחות השנה ואנשי הקשר"
+msgstr "שליחה/קבלה מול שרת לוחות השנה ואנשי הקשר"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -16218,7 +16218,7 @@ msgstr "נחתם על ידי:"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Signed in, but Microsoft still won't let MailCraft read the mail of {account}. Try Send/Receive again later."
-msgstr "התחברת, אך Microsoft עדיין אינה מאפשרת ל־MailCraft לקרוא את הדואר של {account}. נסה שוב מאוחר יותר באמצעות שלח/קבל."
+msgstr "התחברת, אך Microsoft עדיין אינה מאפשרת ל־MailCraft לקרוא את הדואר של {account}. יש לנסות שוב מאוחר יותר באמצעות שלח/קבל."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -16236,7 +16236,7 @@ msgstr "הכניסה לא הצליחה"
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again."
-msgstr "הכניסה מתבצעת בדף של Microsoft בדפדפן אינטרנט, ולא ניתן היה להפעיל דפדפן במחשב זה. בדוק שמוגדר בו דפדפן ברירת מחדל ונסה שוב."
+msgstr "הכניסה מתבצעת בדף של Microsoft בדפדפן אינטרנט, ולא ניתן היה להפעיל דפדפן במחשב זה. יש לבדוק שמוגדר בו דפדפן ברירת מחדל ולנסות שוב."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17340,7 +17340,7 @@ msgstr "כניסה זו מיועדת לתיבת הדואר של מישהו אח�
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
-msgstr "זו הכמות המרבית שניתן להעביר בקישור ל־GitHub: הוסף את השאר ב־GitHub לאחר שהדף ייפתח."
+msgstr "זו הכמות המרבית שניתן להעביר בקישור ל־GitHub: יש להוסיף את השאר ב־GitHub לאחר שהדף ייפתח."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -17394,7 +17394,7 @@ msgstr "לא ניתן להתחבר כעת לחשבון."
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The account changed since its settings were opened. Reopen Account Settings before switching sign-in methods."
-msgstr "החשבון השתנה מאז שנפתחו הגדרותיו. פתח מחדש את הגדרות החשבון לפני החלפת שיטת הכניסה."
+msgstr "החשבון השתנה מאז שנפתחו הגדרותיו. יש לפתוח מחדש את הגדרות החשבון לפני החלפת שיטת הכניסה."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt
@@ -17412,7 +17412,7 @@ msgstr "לא ניתן להוסיף את החשבון"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The account couldn't be set up. Check the details, or type the server's address in Server settings."
-msgstr "לא ניתן היה להגדיר את החשבון. בדוק את הפרטים, או הקלד את כתובת השרת בהגדרות שרת."
+msgstr "לא ניתן היה להגדיר את החשבון. יש לבדוק את הפרטים, או להקליד את כתובת השרת בהגדרות שרת."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
@@ -17442,7 +17442,7 @@ msgstr "החשבון שדרכו נפתח {address} אינו קיים עוד."
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
 #, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr "נדרשת תחילה סיסמת החשבון: לחץ על שלח/קבל והקלד אותה"
+msgstr "נדרשת תחילה סיסמת החשבון: יש ללחוץ על שלח/קבל ולהקליד אותה"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -17890,7 +17890,7 @@ msgstr "לא ניתן לתשאל את לוח השנה של החשבון לגבי
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The diagnostics are too long for a report. Untick Include diagnostics, or open it on GitHub."
-msgstr "נתוני האבחון ארוכים מדי עבור דוח. בטל את הסימון של \"כלול נתוני אבחון\", או פתח אותו ב־GitHub."
+msgstr "נתוני האבחון ארוכים מדי עבור דוח. יש לבטל את הסימון של \"כלול נתוני אבחון\", או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -17908,7 +17908,7 @@ msgstr "נתוני האבחון לא נשמרו, ולכן דף ה־GitHub לא �
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The domain {domain} names a server for Exchange's automatic setup (Autodiscover), so this looks like an Exchange server account. Type your password and press Connect: MailCraft looks for the server and checks the account. Nothing is sent until then."
-msgstr "הדומיין {domain} מציין שרת להגדרה אוטומטית של Exchange (Autodiscover), כך שנראה שמדובר בחשבון שרת Exchange. הזן את הסיסמה ולחץ על התחברות: MailCraft יאתר את השרת ויבדוק את החשבון. דבר אינו נשלח עד אז."
+msgstr "הדומיין {domain} מציין שרת להגדרה אוטומטית של Exchange (Autodiscover), כך שנראה שמדובר בחשבון שרת Exchange. יש להזין את הסיסמה וללחוץ על התחברות: MailCraft יאתר את השרת ויבדוק את החשבון. דבר אינו נשלח עד אז."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18108,7 +18108,7 @@ msgstr "המפתח הוסר ממחשב זה."
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
-msgstr "הקישור נמצא בלוח: שלח אותו למנהל המערכת של הארגון שלך"
+msgstr "הקישור נמצא בלוח: יש לשלוח אותו למנהל המערכת של הארגון"
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -18198,7 +18198,7 @@ msgstr "לאיש הקשר הממוזג יהיו יותר אישורים דיגי
 #: crates/engine/src/cmd/people_merge.rs
 #, fuzzy
 msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
-msgstr "השדה {field} של איש הקשר הממוזג יהיה גדול מדי ({now}, לכל היותר {max}), ולכן אנשי הקשר אינם ממוזגים. בחר עבורו את {field} של איש קשר אחד, או קצר אותם תחילה."
+msgstr "השדה {field} של איש הקשר הממוזג יהיה גדול מדי ({now}, לכל היותר {max}), ולכן אנשי הקשר אינם ממוזגים. יש לבחור עבורו את {field} של איש קשר אחד, או לקצר אותם תחילה."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
@@ -18468,49 +18468,49 @@ msgstr "הטווח דורש תאריך התחלה"
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service couldn't be reached. Check that you're online and try again, or open it on GitHub."
-msgstr "לא ניתן היה להגיע לשירות הדיווחים. בדוק שאתה מחובר לאינטרנט ונסה שוב, או פתח אותו ב־GitHub."
+msgstr "לא ניתן היה להגיע לשירות הדיווחים. יש לבדוק שיש חיבור לאינטרנט ולנסות שוב, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service couldn't file the report. Try again, or open it on GitHub."
-msgstr "שירות הדיווחים לא הצליח להגיש את הדוח. נסה שוב, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים לא הצליח להגיש את הדוח. יש לנסות שוב, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service didn't answer in time, so the report may have arrived. Try again later, or open it on GitHub."
-msgstr "שירות הדיווחים לא השיב בזמן, כך שייתכן שהדוח הגיע. נסה שוב מאוחר יותר, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים לא השיב בזמן, כך שייתכן שהדוח הגיע. יש לנסות שוב מאוחר יותר, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service didn't take the report as it is. Shorten it and try again, or open it on GitHub."
-msgstr "שירות הדיווחים לא קיבל את הדוח במתכונתו הנוכחית. קצר אותו ונסה שוב, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים לא קיבל את הדוח במתכונתו הנוכחית. יש לקצר אותו ולנסות שוב, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service has taken as many reports as it can for now. Try again later, or open it on GitHub."
-msgstr "שירות הדיווחים קיבל את מספר הדיווחים המרבי האפשרי לעת עתה. נסה שוב מאוחר יותר, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים קיבל את מספר הדיווחים המרבי האפשרי לעת עתה. יש לנסות שוב מאוחר יותר, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service isn't taking reports just now. Try again later, or open it on GitHub."
-msgstr "שירות הדיווחים אינו מקבל דיווחים כרגע. נסה שוב מאוחר יותר, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים אינו מקבל דיווחים כרגע. יש לנסות שוב מאוחר יותר, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service isn't working just now. Try again later, or open it on GitHub."
-msgstr "שירות הדיווחים אינו פועל כרגע. נסה שוב מאוחר יותר, או פתח אותו ב־GitHub."
+msgstr "שירות הדיווחים אינו פועל כרגע. יש לנסות שוב מאוחר יותר, או לפתוח אותו ב־GitHub."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The report service's answer wasn't one MailCraft understands, so the report may have arrived. Try again later, or open it on GitHub."
-msgstr "תשובת שירות הדיווחים לא הובנה על ידי MailCraft, כך שייתכן שהדוח הגיע. נסה שוב מאוחר יותר, או פתח אותו ב־GitHub."
+msgstr "תשובת שירות הדיווחים לא הובנה על ידי MailCraft, כך שייתכן שהדוח הגיע. יש לנסות שוב מאוחר יותר, או לפתוח אותו ב־GitHub."
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -18624,13 +18624,13 @@ msgstr "הסדרה דורשת תאריך סיום"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server answered without the address of Exchange Web Services. Ask your administrator for it and type it in Server settings."
-msgstr "השרת השיב ללא כתובת Exchange Web Services. בקש אותה ממנהל המערכת והקלד אותה בהגדרות שרת."
+msgstr "השרת השיב ללא כתובת Exchange Web Services. יש לבקש אותה ממנהל המערכת ולהקליד אותה בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server answered, but not as an Exchange server does. Check its address in Server settings."
-msgstr "השרת השיב, אך לא כשרת Exchange. בדוק את כתובתו בהגדרות שרת."
+msgstr "השרת השיב, אך לא כשרת Exchange. יש לבדוק את כתובתו בהגדרות שרת."
 
 #. what a command says
 #: crates/mobile/src/fetch.rs
@@ -18642,7 +18642,7 @@ msgstr "לא ניתן היה לחפש בשרת. יש לנסות שוב בעוד 
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server didn't accept the user name and password. Check them, or type your user name in Server settings (DOMAIN\\user or you@example.org)."
-msgstr "השרת לא קיבל את שם המשתמש והסיסמה. בדוק אותם, או הקלד את שם המשתמש שלך בהגדרות שרת (DOMAIN\\user או you@example.org)."
+msgstr "השרת לא קיבל את שם המשתמש והסיסמה. יש לבדוק אותם, או להקליד את שם המשתמש בהגדרות שרת (DOMAIN\\user או you@example.org)."
 
 #. what a command says
 #: crates/engine/src/cmd/contacts_remote.rs
@@ -18738,13 +18738,13 @@ msgstr[1] "השרת של {account} מודיע ל־{n} האנשים המוזמנ�
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
-msgstr "השרת או הארגון לא מסרו את ההגדרות. בקש ממנהל המערכת את כתובת השרת והקלד אותה בהגדרות שרת."
+msgstr "השרת או הארגון לא מסרו את ההגדרות. יש לבקש ממנהל המערכת את כתובת השרת ולהקליד אותה בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
-msgstr "השרת הפנה את ההגדרה ליעד שאינו מוצפן, שאליו MailCraft לעולם אינו עובר. הקלד את כתובת השרת בהגדרות שרת."
+msgstr "השרת הפנה את ההגדרה ליעד שאינו מוצפן, שאליו MailCraft לעולם אינו עובר. יש להקליד את כתובת השרת בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
@@ -18756,7 +18756,7 @@ msgstr "השרת מציג תעודת אבטחה הממתינה להחלטתך."
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
-msgstr "השרת דחה את הכניסה עבור חשבון זה. השתמש בשלח/קבל כדי להיכנס שוב."
+msgstr "השרת דחה את הכניסה עבור חשבון זה. יש להשתמש בשלח/קבל כדי להיכנס שוב."
 
 #. what a command says
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
@@ -18774,13 +18774,13 @@ msgstr "כתובת השרת חייבת להתחיל ב־https:// ולציין א
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's address or the user name can't be used. Check them in Server settings."
-msgstr "לא ניתן להשתמש בכתובת השרת או בשם המשתמש. בדוק אותם בהגדרות שרת."
+msgstr "לא ניתן להשתמש בכתובת השרת או בשם המשתמש. יש לבדוק אותם בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's answer for automatic setup couldn't be read. Type the server's address in Server settings."
-msgstr "לא ניתן היה לקרוא את תשובת השרת להגדרה אוטומטית. הקלד את כתובת השרת בהגדרות שרת."
+msgstr "לא ניתן היה לקרוא את תשובת השרת להגדרה אוטומטית. יש להקליד את כתובת השרת בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -18798,19 +18798,19 @@ msgstr "תעודת האבטחה של השרת השתנתה"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate has expired, so MailCraft won't connect to it. Ask your administrator to renew it."
-msgstr "פג תוקפה של תעודת האבטחה של השרת, ולכן MailCraft לא יתחבר אליו. בקש ממנהל המערכת שלך לחדש אותה."
+msgstr "פג תוקפה של תעודת האבטחה של השרת, ולכן MailCraft לא יתחבר אליו. יש לבקש ממנהל המערכת לחדש אותה."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate is for another server's name, so MailCraft won't connect to it. Check the address in Server settings."
-msgstr "תעודת האבטחה של השרת מיועדת לשם של שרת אחר, ולכן MailCraft לא יתחבר אליו. בדוק את הכתובת בהגדרות שרת."
+msgstr "תעודת האבטחה של השרת מיועדת לשם של שרת אחר, ולכן MailCraft לא יתחבר אליו. יש לבדוק את הכתובת בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate isn't valid yet, so MailCraft won't connect to it. Check this computer's date and time, or ask your administrator."
-msgstr "תעודת האבטחה של השרת עדיין אינה בתוקף, ולכן MailCraft לא יתחבר אליו. בדוק את התאריך והשעה במחשב זה, או פנה למנהל המערכת שלך."
+msgstr "תעודת האבטחה של השרת עדיין אינה בתוקף, ולכן MailCraft לא יתחבר אליו. יש לבדוק את התאריך והשעה במחשב זה, או לפנות למנהל המערכת."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18828,19 +18828,19 @@ msgstr "שם השרת"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The servers below are what Mozilla's ISP database lists for {domain}. Check them before you connect."
-msgstr "השרתים שלהלן הם אלה שמסד הנתונים של ספקי השירות של Mozilla מפרט עבור {domain}. בדוק אותם לפני שתתחבר."
+msgstr "השרתים שלהלן הם אלה שמסד הנתונים של ספקי השירות של Mozilla מפרט עבור {domain}. יש לבדוק אותם לפני ההתחברות."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The servers below are what {domain} publishes for mail programs (its autoconfig document). Check them before you connect."
-msgstr "השרתים שלהלן הם אלה ש־{domain} מפרסם לתוכנות דואר (מסמך ה־autoconfig שלו). בדוק אותם לפני שתתחבר."
+msgstr "השרתים שלהלן הם אלה ש־{domain} מפרסם לתוכנות דואר (מסמך ה־autoconfig שלו). יש לבדוק אותם לפני ההתחברות."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The servers below were found in the DNS records of {domain} (its SRV records). Check them before you connect."
-msgstr "השרתים שלהלן נמצאו ברשומות ה־DNS של {domain} (רשומות ה־SRV שלו). בדוק אותם לפני שתתחבר."
+msgstr "השרתים שלהלן נמצאו ברשומות ה־DNS של {domain} (רשומות ה־SRV שלו). יש לבדוק אותם לפני ההתחברות."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18894,7 +18894,7 @@ msgstr "ההגדרות שמסר השרת מציינות את {host}, שאינו 
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The setup was sent from one server to another too many times. Type the server's address in Server settings."
-msgstr "תהליך ההגדרה הופנה משרת אחד לאחר פעמים רבות מדי. הקלד את כתובת השרת בהגדרות שרת."
+msgstr "תהליך ההגדרה הופנה משרת אחד לאחר פעמים רבות מדי. יש להקליד את כתובת השרת בהגדרות שרת."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -18966,7 +18966,7 @@ msgstr "הכניסה נדחתה."
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr "לא ניתן היה לשמור את החתימה: {why}. סגור שוב כדי להשאיר אותה ללא שמירה."
+msgstr "לא ניתן היה לשמור את החתימה: {why}. יש לסגור שוב כדי להשאיר אותה ללא שמירה."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -19248,7 +19248,7 @@ msgstr "לא ניתן היה להסיר את הפריטים הבאים. יש ל�
 #: crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "These tasks exist only on this computer. Choose the Microsoft account whose To Do gets them. Until you choose, they stay here and nothing of them is sent."
-msgstr "משימות אלה קיימות רק במחשב זה. בחר את חשבון Microsoft שיקבל אותן ל־To Do שלו. עד שתבחר, הן נשארות כאן ודבר מהן אינו נשלח."
+msgstr "משימות אלה קיימות רק במחשב זה. יש לבחור את חשבון Microsoft שיקבל אותן ל־To Do שלו. עד לבחירה, הן נשארות כאן ודבר מהן אינו נשלח."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -19368,7 +19368,7 @@ msgstr "חשבון זה אינו משתמש עוד בסיסמה לאפליקצי
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "This account was added by a newer version of MailCraft. This version keeps it as it is and doesn't send or receive with it: use the newer version for that, and to change its settings."
-msgstr "חשבון זה נוסף על ידי גרסה חדשה יותר של MailCraft. גרסה זו שומרת אותו כפי שהוא ואינה שולחת או מקבלת באמצעותו: השתמש בגרסה החדשה יותר לשם כך, וכדי לשנות את הגדרותיו."
+msgstr "חשבון זה נוסף על ידי גרסה חדשה יותר של MailCraft. גרסה זו שומרת אותו כפי שהוא ואינה שולחת או מקבלת באמצעותו: יש להשתמש בגרסה החדשה יותר לשם כך, וכדי לשנות את הגדרותיו."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -19670,7 +19670,7 @@ msgstr "מכשיר זה בלבד"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This domain's servers have no automatic setup. Type the server's address in Server settings."
-msgstr "לשרתים של דומיין זה אין הגדרה אוטומטית. הקלד את כתובת השרת ב״הגדרות שרת״."
+msgstr "לשרתים של דומיין זה אין הגדרה אוטומטית. יש להקליד את כתובת השרת ב״הגדרות שרת״."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -19748,13 +19748,13 @@ msgstr "מדובר במופע בתאריך {day} בלבד."
 #: crates/engine/src/private_keys.rs
 #, fuzzy
 msgid "This is an RSA certificate, which MailCraft doesn't use by itself on this system: put it on a smartcard or token (PKCS#11), where MailCraft finds it."
-msgstr "זהו אישור RSA ש־MailCraft אינו משתמש בו בעצמו במערכת זו: העבר אותו לכרטיס חכם או לטוקן (PKCS#11), שם MailCraft מוצא אותו."
+msgstr "זהו אישור RSA ש־MailCraft אינו משתמש בו בעצמו במערכת זו: יש להעביר אותו לכרטיס חכם או לטוקן (PKCS#11), שם MailCraft מוצא אותו."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
 #, fuzzy
 msgid "This is an RSA key, which MailCraft doesn't use by itself: keep it in GnuPG, whose agent MailCraft signs with, and leave it out of here."
-msgstr "זהו מפתח RSA ש־MailCraft אינו משתמש בו בעצמו: שמור אותו ב־GnuPG, שבאמצעות הסוכן שלו MailCraft חותם, ואל תוסיף אותו לכאן."
+msgstr "זהו מפתח RSA ש־MailCraft אינו משתמש בו בעצמו: יש לשמור אותו ב־GnuPG, שבאמצעות הסוכן שלו MailCraft חותם, ולא להוסיף אותו לכאן."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -19796,13 +19796,13 @@ msgstr "לפריט זה מצורפים קבצים שנשמרים בשרת בלב
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item hasn't reached the server of {who} yet. Forward it once it is there (in a moment)."
-msgstr "פריט זה עדיין לא הגיע לשרת של {who}. העבר אותו לאחר שיגיע לשם (בעוד רגע)."
+msgstr "פריט זה עדיין לא הגיע לשרת של {who}. יש להעביר אותו לאחר שיגיע לשם (בעוד רגע)."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "This item is still on its way to the account's server. Move it once it is there (in a moment)."
-msgstr "פריט זה עדיין בדרכו לשרת של החשבון. העבר אותו לאחר שיגיע לשם (בעוד רגע)."
+msgstr "פריט זה עדיין בדרכו לשרת של החשבון. יש להעביר אותו לאחר שיגיע לשם (בעוד רגע)."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -19814,7 +19814,7 @@ msgstr "מפתח זה אינו יכול ליצור חתימות דיגיטליו
 #: crates/engine/src/private_keys.rs
 #, fuzzy
 msgid "This key has no passphrase, so MailCraft doesn't keep it. Add one in GnuPG (gpg --edit-key <key>, then passwd) and import it again."
-msgstr "למפתח זה אין ביטוי סיסמה, ולכן MailCraft אינו שומר אותו. הוסף ביטוי סיסמה ב־GnuPG (gpg --edit-key <key>, ולאחר מכן passwd) וייבא אותו שוב."
+msgstr "למפתח זה אין ביטוי סיסמה, ולכן MailCraft אינו שומר אותו. יש להוסיף ביטוי סיסמה ב־GnuPG (gpg --edit-key <key>, ולאחר מכן passwd) ולייבא אותו שוב."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -19874,13 +19874,13 @@ msgstr "תיבת דואר זו נפתחה מקובץ. החשבונות שבה מ
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
-msgstr "תיבת דואר זו נפתחה מקובץ: אשר תחילה את השרתים שלה"
+msgstr "תיבת דואר זו נפתחה מקובץ: יש לאשר תחילה את השרתים שלה"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "This makes, changes and deletes a test appointment in the account's real calendar. Say that this is meant with \"confirmed\": true."
-msgstr "פעולה זו יוצרת, משנה ומוחקת פעילות בדיקה בלוח השנה האמיתי של החשבון. ציין שזו הכוונה באמצעות \"confirmed\": true."
+msgstr "פעולה זו יוצרת, משנה ומוחקת פעילות בדיקה בלוח השנה האמיתי של החשבון. יש לציין שזו הכוונה באמצעות \"confirmed\": true."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -20050,7 +20050,7 @@ msgstr "הודעה זו אינה הזמנה שאפשר להשיב לה."
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
 msgid "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself."
-msgstr "הודעה זו אינה ממארגן הפגישה הזאת, ולכן אינה יכולה לבטל אותה: הסר את הפגישה מלוח השנה בעצמך."
+msgstr "הודעה זו אינה ממארגן הפגישה הזאת, ולכן אינה יכולה לבטל אותה: יש להסיר את הפגישה מלוח השנה ידנית."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -20180,7 +20180,7 @@ msgstr "פעולה זו מסירה את כל הנתונים ש־MailCraft שומ
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "This report is too long to send: shorten what you wrote, or untick Include diagnostics."
-msgstr "דוח זה ארוך מדי לשליחה: קצר את מה שכתבת, או בטל את הסימון של ״כלול נתוני אבחון״."
+msgstr "דוח זה ארוך מדי לשליחה: יש לקצר את הטקסט, או לבטל את הסימון של ״כלול נתוני אבחון״."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -20488,7 +20488,7 @@ msgstr "כדי לעבור, שמור תחילה את שרתי ה־IMAP וה־SMTP
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "To use another server or user name, remove the account and add it again."
-msgstr "כדי להשתמש בשרת או בשם משתמש אחר, הסר את החשבון והוסף אותו שוב."
+msgstr "כדי להשתמש בשרת או בשם משתמש אחר, יש להסיר את החשבון ולהוסיף אותו שוב."
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -20680,7 +20680,7 @@ msgstr "לשני חשבונות או יותר בתיבת דואר זו יש או
 #: crates/ui-egui/src/unconfirmed.rs
 #, fuzzy
 msgid "Two or more of these accounts have the same address. Only confirm if every one of their servers is yours."
-msgstr "לשניים או יותר מחשבונות אלה יש אותה כתובת. אשר רק אם כל אחד מהשרתים שלהם שייך לך."
+msgstr "לשניים או יותר מחשבונות אלה יש אותה כתובת. יש לאשר רק אם כל השרתים שלהם בבעלותך."
 
 #. command label, interface
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
@@ -20710,13 +20710,13 @@ msgstr "יש להקליד מה ברצונך לעשות"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Type your address. MailCraft finds your mail servers and how you sign in."
-msgstr "הקלד את הכתובת שלך. MailCraft יאתר את שרתי הדואר שלך ואת אופן ההתחברות."
+msgstr "יש להקליד את כתובת הדוא״ל. MailCraft יאתר את שרתי הדואר ואת אופן ההתחברות."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only"
-msgstr "הקלד את כתובת הדוא״ל שלך ו־MailCraft ימצא את השאר: Microsoft 365, Outlook.com, Google וספקים אחרים, או תיבת דואר במכשיר זה בלבד"
+msgstr "יש להקליד את כתובת הדוא״ל ו־MailCraft ימצא את השאר: Microsoft 365, Outlook.com, Google וספקים אחרים, או תיבת דואר במכשיר זה בלבד"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -21382,7 +21382,7 @@ msgstr "מה שכתבת נוקה מחלון זה."
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
-msgstr "מה שכתבת ארוך מדי עבור קישור אל GitHub: קצר את הטקסט, והוסף את השאר ב־GitHub"
+msgstr "הטקסט ארוך מדי עבור קישור אל GitHub: יש לקצר אותו, ולהוסיף את השאר ב־GitHub"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21740,7 +21740,7 @@ msgstr "דחית פגישה זו."
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "You didn't agree to send your sign-in to the server the setup led to. Type the server's address in Server settings."
-msgstr "לא הסכמת לשלוח את פרטי ההתחברות שלך לשרת שאליו הובילה ההגדרה. הקלד את כתובת השרת ב״הגדרות שרת״."
+msgstr "לא ניתנה הסכמה לשלוח את פרטי ההתחברות לשרת שאליו הובילה ההגדרה. יש להקליד את כתובת השרת ב״הגדרות שרת״."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -21872,7 +21872,7 @@ msgstr "הנתונים שלך הוסרו"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Your domain's DNS couldn't be asked. Check the network connection and search again."
-msgstr "לא ניתן היה לשאול את ה־DNS של הדומיין שלך. בדוק את חיבור הרשת וחפש שוב."
+msgstr "לא ניתן היה לשאול את ה־DNS של הדומיין. יש לבדוק את חיבור הרשת ולחפש שוב."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -21968,13 +21968,13 @@ msgstr "השם שלך"
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Your organisation doesn't allow Exchange Web Services for this account. Ask your administrator."
-msgstr "הארגון שלך אינו מאפשר Exchange Web Services עבור חשבון זה. פנה למנהל המערכת שלך."
+msgstr "הארגון שלך אינו מאפשר Exchange Web Services עבור חשבון זה. יש לפנות למנהל המערכת."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Your organisation doesn't let MailCraft change your automatic replies. Ask your administrator."
-msgstr "הארגון שלך אינו מאפשר ל־MailCraft לשנות את התשובות האוטומטיות שלך. פנה למנהל המערכת שלך."
+msgstr "הארגון שלך אינו מאפשר ל־MailCraft לשנות את התשובות האוטומטיות שלך. יש לפנות למנהל המערכת."
 
 #. interface
 #: crates/ui-egui/src/server_sync.rs
@@ -22004,7 +22004,7 @@ msgstr "הארגון שלך אישר את MailCraft. כעת יש להתחבר ע
 #: crates/mobile/src/sync_api.rs
 #, fuzzy
 msgid "Your organisation has to approve MailCraft before you can sign in. Ask an administrator."
-msgstr "הארגון שלך צריך לאשר את MailCraft לפני שתוכל להתחבר. פנה למנהל מערכת."
+msgstr "הארגון שלך צריך לאשר את MailCraft לפני ההתחברות. יש לפנות למנהל מערכת."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -22034,7 +22034,7 @@ msgstr "הארגון שלך מתיר רק למנהל מערכת לאשר תוכ�
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Your organisation needs an administrator to approve this first. Ask your administrator, then try again."
-msgstr "הארגון שלך מחייב אישור ממנהל מערכת תחילה. פנה למנהל המערכת שלך, ונסה שוב."
+msgstr "הארגון שלך מחייב אישור ממנהל מערכת תחילה. יש לפנות למנהל המערכת ולנסות שוב."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
@@ -22214,7 +22214,7 @@ msgstr "קובץ .pst מיובא לתיקייה במחשב זה בלבד, לעו
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
-msgstr "אי אפשר לשנות את השרת ואת הכתובת של חשבון JMAP לאחר שהדואר שלו כבר כאן: הסר אותו והוסף את החשבון האחר"
+msgstr "אי אפשר לשנות את השרת ואת הכתובת של חשבון JMAP לאחר שהדואר שלו כבר כאן: יש להסיר אותו ולהוסיף את החשבון האחר"
 
 #. what a command says
 #: crates/engine/src/cmd/senders.rs
@@ -22268,7 +22268,7 @@ msgstr "נדרש יום של הסדרה כדי להעביר אחד מהמופע�
 #: crates/model/src/mailbox_followup.rs
 #, fuzzy
 msgid "a draft can't have a reminder: send it first, or use Follow Up in the message itself"
-msgstr "לטיוטה לא יכולה להיות תזכורת: שלח אותה תחילה, או השתמש ב״המשך טיפול״ בהודעה עצמה"
+msgstr "לטיוטה לא יכולה להיות תזכורת: יש לשלוח אותה תחילה, או להשתמש ב״המשך טיפול״ בהודעה עצמה"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
@@ -22298,7 +22298,7 @@ msgstr "תיקייה אינה יכולה לעבור לחשבון אחר"
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a folder is put among the folders beside it: name one with the same parent"
-msgstr "תיקייה ממוקמת בין התיקיות שלצדה: ציין תיקייה בעלת אותו הורה"
+msgstr "תיקייה ממוקמת בין התיקיות שלצדה: יש לציין תיקייה בעלת אותו הורה"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22430,7 +22430,7 @@ msgstr "תיבת דואר משותפת שואלת לפני מחיקת שיחה �
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
-msgstr "תיבת דואר משותפת אינה יכולה לפתוח תיבה משותפת אחרת: ציין את החשבון שדרכו היא נפתחת"
+msgstr "תיבת דואר משותפת אינה יכולה לפתוח תיבה משותפת אחרת: יש לציין את החשבון שדרכו היא נפתחת"
 
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
@@ -22448,19 +22448,19 @@ msgstr "תיבת דואר משותפת שומרת במצב לא מקוון את 
 #: crates/engine/src/cmd/offline.rs
 #, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: name that account"
-msgstr "תיבת דואר משותפת שומרת במצב לא מקוון את אותה כמות דואר כמו החשבון שדרכו היא נפתחת: ציין את אותו חשבון"
+msgstr "תיבת דואר משותפת שומרת במצב לא מקוון את אותה כמות דואר כמו החשבון שדרכו היא נפתחת: יש לציין את אותו חשבון"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox stays under the account it is opened through: move that account"
-msgstr "תיבת דואר משותפת נשארת תחת החשבון שדרכו היא נפתחת: העבר את אותו חשבון"
+msgstr "תיבת דואר משותפת נשארת תחת החשבון שדרכו היא נפתחת: יש להעביר את אותו חשבון"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
-msgstr "לא ניתן לשנות את הכתובת של תיבת דואר משותפת: הסר אותה והוסף את האחרת"
+msgstr "לא ניתן לשנות את הכתובת של תיבת דואר משותפת: יש להסיר אותה ולהוסיף את האחרת"
 
 #. what a command says
 #: crates/engine/src/cmd/rules.rs
@@ -22472,7 +22472,7 @@ msgstr "כללי תיבת דואר משותפת שייכים לתיבה עצמה
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
 msgid "a signature is open: add its pictures with signature.picture.add"
-msgstr "חתימה פתוחה כעת: הוסף את התמונות שלה באמצעות signature.picture.add"
+msgstr "חתימה פתוחה כעת: יש להוסיף את התמונות שלה באמצעות signature.picture.add"
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
@@ -22520,19 +22520,19 @@ msgstr "יש להוסיף נמען אחד לפחות"
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
-msgstr "לא ניתן לשנות את השרת, הכתובת ושם המשתמש של חשבון שרת Exchange לאחר שהדואר שלו כבר כאן: הסר אותו והוסף את החשבון האחר"
+msgstr "לא ניתן לשנות את השרת, הכתובת ושם המשתמש של חשבון שרת Exchange לאחר שהדואר שלו כבר כאן: יש להסיר אותו ולהוסיף את החשבון האחר"
 
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
 msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
-msgstr "חתימת HTML מציגה תמונות מכתובת האינטרנט שלהן בלבד: הסר תחילה את התמונות של חתימה זו"
+msgstr "חתימת HTML מציגה תמונות מכתובת האינטרנט שלהן בלבד: יש להסיר תחילה את התמונות של חתימה זו"
 
 #. what a command says
 #: crates/model/src/signature.rs
 #, fuzzy
 msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
-msgstr "חתימת HTML מציגה תמונות מכתובת האינטרנט שלהן: העבר אותה לטקסט עשיר כדי להוסיף תמונה"
+msgstr "חתימת HTML מציגה תמונות מכתובת האינטרנט שלהן: יש להעביר אותה לטקסט עשיר כדי להוסיף תמונה"
 
 #. what a command says
 #: crates/engine/src/digital_signature.rs
@@ -23483,7 +23483,7 @@ msgstr "אין רשומת יומן עם מזהה זה"
 #: crates/engine/src/cmd/edit.rs
 #, fuzzy
 msgid "no look was copied: press Format Painter on the text to copy it from first"
-msgstr "לא הועתק עיצוב: לחץ תחילה על ״מברשת עיצוב״ בטקסט שממנו ברצונך להעתיק"
+msgstr "לא הועתק עיצוב: יש ללחוץ תחילה על ״מברשת עיצוב״ בטקסט שממנו יש להעתיק"
 
 #. what a command says
 #: crates/engine/src/composing.rs
@@ -23657,7 +23657,7 @@ msgstr "לא ידוע עד פעולת שלח/קבל הראשונה"
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "not sent: {why}. Send with \"confirmed\": true to send it anyway, or with \"moveToBcc\": true to move the people outside the organisation to Bcc first"
-msgstr "לא נשלח: {why}. שלח עם \"confirmed\": true כדי לשלוח בכל זאת, או עם \"moveToBcc\": true כדי להעביר תחילה לעותק מוסתר את האנשים שמחוץ לארגון"
+msgstr "לא נשלח: {why}. יש לשלוח עם \"confirmed\": true כדי לשלוח בכל זאת, או עם \"moveToBcc\": true כדי להעביר תחילה לעותק מוסתר את האנשים שמחוץ לארגון"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -23825,7 +23825,7 @@ msgstr "אישי"
 #: crates/engine/src/cmd/picture.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
-msgstr "תמונות מהרשת אינן מורדות: שמור את התמונה והוסף אותה מהקובץ"
+msgstr "תמונות מהרשת אינן מורדות: יש לשמור את התמונה ולהוסיף אותה מהקובץ"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -24075,7 +24075,7 @@ msgstr "זו אינה תמונה שניתן להציג"
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "that is the account's own address: name the shared mailbox's"
-msgstr "זו כתובת החשבון עצמו: ציין את הכתובת של תיבת הדואר המשותפת"
+msgstr "זו כתובת החשבון עצמו: יש לציין את הכתובת של תיבת הדואר המשותפת"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -24273,7 +24273,7 @@ msgstr "הקובץ המצורף גדול מדי"
 #: crates/engine/src/cmd/save_all.rs
 #, fuzzy
 msgid "the attachments are larger than {mb} MB together: save them in a folder"
-msgstr "הקבצים המצורפים גדולים יחד מ־{mb} מ״ב: שמור אותם בתיקייה"
+msgstr "הקבצים המצורפים גדולים יחד מ־{mb} מ״ב: יש לשמור אותם בתיקייה"
 
 #. what a command says
 #: crates/engine/src/cmd/auto_replies.rs
@@ -24399,7 +24399,7 @@ msgstr "ההורדה הופסקה לפני שהסתיימה"
 #: crates/proto/src/line.rs
 #, fuzzy
 msgid "the encrypted connection was damaged on the way (this is usually antivirus or firewall software that scans mail connections: turn off its mail or SSL scanning for MailCraft, or ask the mail provider)"
-msgstr "החיבור המוצפן נפגע בדרך (בדרך כלל מדובר בתוכנת אנטי־וירוס או חומת אש הסורקת חיבורי דואר: כבה את סריקת הדואר או ה־SSL שלה עבור MailCraft, או פנה לספק הדואר)"
+msgstr "החיבור המוצפן נפגע בדרך (בדרך כלל מדובר בתוכנת אנטי־וירוס או חומת אש הסורקת חיבורי דואר: יש לכבות את סריקת הדואר או ה־SSL שלה עבור MailCraft, או לפנות לספק הדואר)"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/zones.rs
@@ -25407,7 +25407,7 @@ msgstr "חשבון זה אינו רשאי לשמור זאת"
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this account sends no mail, so a message can't wait for a time: send it now, or save it as a draft"
-msgstr "חשבון זה אינו שולח דואר, ולכן הודעה אינה יכולה להמתין למועד שליחה: שלח אותה כעת, או שמור אותה כטיוטה"
+msgstr "חשבון זה אינו שולח דואר, ולכן הודעה אינה יכולה להמתין למועד שליחה: יש לשלוח אותה כעת, או לשמור אותה כטיוטה"
 
 #. what a command says
 #: crates/engine/src/cmd/category.rs
@@ -25449,13 +25449,13 @@ msgstr "הורדה זו הייתה עבור חשבון אחר, לא עבור {na
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this draft isn't downloaded yet: open it once you're online, then edit it"
-msgstr "טיוטה זו טרם הורדה: פתח אותה כשתהיה מחובר לרשת, ולאחר מכן ערוך אותה"
+msgstr "טיוטה זו טרם הורדה: יש לפתוח אותה בעת חיבור לרשת, ולאחר מכן לערוך אותה"
 
 #. what a command says
 #: crates/engine/src/cmd/keys.rs
 #, fuzzy
 msgid "this file holds a private key, which isn't imported as a Public key: import your own keys in File › Options › Security"
-msgstr "קובץ זה מכיל מפתח פרטי, שאינו מיובא כמפתח ציבורי: ייבא את המפתחות שלך תחת קובץ › אפשרויות › אבטחה"
+msgstr "קובץ זה מכיל מפתח פרטי, שאינו מיובא כמפתח ציבורי: יש לייבא מפתחות אישיים תחת קובץ › אפשרויות › אבטחה"
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
@@ -25473,7 +25473,7 @@ msgstr "לא ניתן לגשת לתיבת דואר זו דרך Microsoft Graph (
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "this mailbox is too large ({mb} MB) to save as one self-contained file: save it to another folder instead, which keeps its content in a folder beside the file"
-msgstr "תיבת דואר זו גדולה מדי ({mb} MB) מכדי להישמר כקובץ אחד עצמאי: שמור אותה בתיקייה אחרת במקום זאת, שבה תוכנה נשמר בתיקייה לצד הקובץ"
+msgstr "תיבת דואר זו גדולה מדי ({mb} MB) מכדי להישמר כקובץ אחד עצמאי: יש לשמור אותה בתיקייה אחרת במקום זאת, שבה תוכנה נשמר בתיקייה לצד הקובץ"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -25533,7 +25533,7 @@ msgstr "הודעה זו כבר נמצאת בתיקייה \"נדחה\""
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "this message isn't downloaded: open it once you're online, then send it again"
-msgstr "הודעה זו לא הורדה: פתח אותה כשתהיה מחובר לרשת, ולאחר מכן שלח אותה שוב"
+msgstr "הודעה זו לא הורדה: יש לפתוח אותה בעת חיבור לרשת, ולאחר מכן לשלוח אותה שוב"
 
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
@@ -25603,7 +25603,7 @@ msgstr "יותר מדי דגלים עבור פקודה אחת"
 #: crates/engine/src/cmd/junk.rs
 #, fuzzy
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
-msgstr "הקלד כתובת, כגון someone@example.org, או דומיין, כגון @example.org"
+msgstr "יש להקליד כתובת, כגון someone@example.org, או דומיין, כגון @example.org"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
@@ -25676,7 +25676,7 @@ msgstr "ששולחת את הדואר שלו: השב להזמנה שם, או כא
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "which sends its mail: send this message from another account, or save it as a draft to send it from that version"
-msgstr "ששולחת את הדואר שלו: שלח הודעה זו מחשבון אחר, או שמור אותה כטיוטה כדי לשלוח אותה מאותה גרסה"
+msgstr "ששולחת את הדואר שלו: יש לשלוח הודעה זו מחשבון אחר, או לשמור אותה כטיוטה כדי לשלוח אותה מאותה גרסה"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -27066,7 +27066,7 @@ msgstr[1] "{n} הודעות הוסרו"
 #, fuzzy
 msgid "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."
 msgid_plural "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again."
-msgstr[0] "{n} הודעה נשארת במקום שאליו הועברה: היא חתומה דיגיטלית או מוצפנת, והעותק שלה בתיבת הדואר שממנה הגיעה הוסר בעוד העותק שממנו הועברה לראשונה שומר על הבתים המקוריים שבהם הגיעה. העבר אותה בחזרה כדי להשיבה לשם."
+msgstr[0] "{n} הודעה נשארת במקום שאליו הועברה: היא חתומה דיגיטלית או מוצפנת, והעותק שלה בתיבת הדואר שממנה הגיעה הוסר בעוד העותק שממנו הועברה לראשונה שומר על הבתים המקוריים שבהם הגיעה. יש להעביר אותה בחזרה כדי להשיבה לשם."
 msgstr[1] "{n} הודעות נשארות במקום שאליו הועברו: הן חתומות דיגיטלית או מוצפנות, והעותקים שלהן בתיבת הדואר שממנה הגיעו הוסרו בעוד העותקים שמהם הועברו לראשונה שומרים על הבתים המקוריים שבהם הגיעו. העבר אותן בחזרה כדי להשיבן לשם."
 
 #. interface
@@ -27665,7 +27665,7 @@ msgstr[1] "נשלחו {sent} הודעות"
 #: crates/net/src/send.rs
 #, fuzzy
 msgid "{server} (This server wants a sign-in: untick \"My outgoing server needs no sign-in\" in the account's settings.)"
-msgstr "{server} (שרת זה דורש התחברות: בטל את הסימון של \"שרת הדואר היוצא שלי אינו דורש התחברות\" בהגדרות החשבון.)"
+msgstr "{server} (שרת זה דורש התחברות: יש לבטל את הסימון של \"שרת הדואר היוצא שלי אינו דורש התחברות\" בהגדרות החשבון.)"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -27775,13 +27775,13 @@ msgstr "\"{subject}\" הגיעה מהשרת שלה אך לא ניתן היה ל�
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
-msgstr "\"{subject}\" טרם הורדה: פתח אותה כשתהיה מחובר לרשת, ולאחר מכן העבר אותה כקובץ מצורף"
+msgstr "\"{subject}\" טרם הורדה: יש לפתוח אותה בעת חיבור לרשת, ולאחר מכן להעביר אותה כקובץ מצורף"
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
 #, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr "\"{subject}\" טרם הורדה: פתח אותה כשתהיה מחובר לרשת, ולאחר מכן שמור אותה"
+msgstr "\"{subject}\" טרם הורדה: יש לפתוח אותה בעת חיבור לרשת, ולאחר מכן לשמור אותה"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
