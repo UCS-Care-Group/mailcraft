@@ -188,6 +188,8 @@ class SwipeOrderTest {
             // The owner marks it read and then unread from the toolbar before the wait is over.
             c.triaged(7uL, unread = false)
             c.triaged(7uL, unread = true)
+            // A redraw (another width) while it waits keeps that choice.
+            c.open(7uL, 400, dark = false, markAfterMs = MarkRead.After5.delayMs(swiped = false))
             gate.complete(Unit)
             assertEquals(emptyList<ULong>(), source.marked)
         } finally {

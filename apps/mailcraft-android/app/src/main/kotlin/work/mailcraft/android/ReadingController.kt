@@ -47,6 +47,7 @@ internal class ReadingController(
     private var wanted = emptySet<ULong>()
     /** Messages whose read state the owner set by hand since they were opened: a timer does not undo that. */
     private val decided = LinkedHashSet<ULong>()
+    private var waitingFor: ULong? = null
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -65,7 +66,9 @@ internal class ReadingController(
         val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         val key = widthDp to dark
-        undecide(id)
+        // (A redraw of the message while its mark waits keeps what the owner set by hand meanwhile.)
+        if (waitingFor != id) undecide(id)
+        waitingFor = null
         state.update {
             // (What was read ahead for another width or theme is not the message as it would be drawn now.)
             val near = if (key == nearKey) it.near else emptyMap()
@@ -96,7 +99,10 @@ internal class ReadingController(
 
     /** Marks [id] read once it has stayed open [afterMs]: passing by quickly (a swipe) leaves it unread. */
     private suspend fun markWhenStayed(mine: Int, id: ULong, afterMs: Long) {
-        if (afterMs > 0) wait(afterMs)
+        if (afterMs > 0) {
+            waitingFor = id
+            wait(afterMs)
+        }
         if (mine != generation.get()) return
         val unread = state.value.let { it.id == id && it.opened?.view?.unread == true }
         if (unread && !isDecided(id) && remember(marked, id)) {
