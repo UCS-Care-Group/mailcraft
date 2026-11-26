@@ -98,6 +98,8 @@ mod queue_tests;
 #[cfg(test)]
 mod quote_choice_tests;
 #[cfg(test)]
+mod refresh_tests;
+#[cfg(test)]
 mod reminders_tests;
 #[cfg(test)]
 mod review_tests;

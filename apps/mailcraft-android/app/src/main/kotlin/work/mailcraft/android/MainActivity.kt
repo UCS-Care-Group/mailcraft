@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -265,8 +266,10 @@ private fun CoreShell(
     val pictures = pictured.stack
     val writing = rememberComposeHost(core, texts, scope)
     TakeIncoming(texts, asked, writing, appContext)
+    // A pull to refresh brings the account whose folder is on screen (all of them for a search of every account).
+    val pullFor by rememberUpdatedState(pullAccount(accounts, folder?.id, query))
     val mailActions = remember(list, scope, hub) {
-        mailListActions(list, scope, pictures.senderImages, retryOutline, hub::syncNow) { change ->
+        mailListActions(list, scope, pictures.senderImages, retryOutline, { hub.syncNow(pullFor) }) { change ->
             query = change(query)
         }
     }
@@ -403,7 +406,7 @@ private fun mailListActions(
     senderImages: SenderImages,
     /** Reads the mailbox's outline again when it could not be read: without it the list has no query to refresh. */
     retryOutline: () -> Unit,
-    /** Send/Receive on the owner's word ([AccountsHub.syncNow]): the one way a pull to refresh asks for mail. */
+    /** Send/Receive on the owner's word ([AccountsHub.syncNow], for the account on screen): what a pull asks for. */
     syncNow: () -> Unit,
     change: ((MailQuery) -> MailQuery) -> Unit,
 ) = MailListActions(

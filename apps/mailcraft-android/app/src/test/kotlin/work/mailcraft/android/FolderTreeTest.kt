@@ -46,4 +46,19 @@ class FolderTreeTest {
     fun nothingIsNothing() {
         assertEquals(emptyList<FolderItem>(), folderTree(emptyList()))
     }
+
+    @Test
+    fun aPullBringsTheAccountWhoseFolderIsOnScreenAndEveryAccountForASearchOfAll() {
+        val ada = AccountItem(1u, "Ada", "ada@example.org", listOf(f(10u, null), f(11u, 10u)))
+        val kit = AccountItem(2u, "Kit", "kit@example.org", listOf(f(20u, null)))
+        val accounts = listOf(ada, kit)
+        assertEquals(1uL, pullAccount(accounts, 11u, MailQuery(11u)))
+        assertEquals(2uL, pullAccount(accounts, 20u, MailQuery(20u)))
+        // A search of every account spans them: all are brought.
+        assertEquals(null, pullAccount(accounts, 20u, MailQuery(20u, search = "budget", everywhere = true)))
+        // "Every account" with nothing searched still lists the one folder.
+        assertEquals(2uL, pullAccount(accounts, 20u, MailQuery(20u, everywhere = true)))
+        // A folder no account has (the outline not read yet): every account.
+        assertEquals(null, pullAccount(accounts, null, MailQuery(0u)))
+    }
 }
