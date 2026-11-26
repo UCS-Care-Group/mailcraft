@@ -7217,8 +7217,8 @@ msgstr "Importancia alta"
 msgid "High contrast"
 msgstr "Alto contraste"
 
-#. interface
-#: crates/ui-egui/src/calendar_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "High importance"
 msgstr "Importancia alta"
@@ -8793,8 +8793,8 @@ msgstr "Baja"
 msgid "Low Importance"
 msgstr "Importancia baja"
 
-#. interface
-#: crates/ui-egui/src/calendar_view.rs
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Low importance"
 msgstr "Importancia baja"
