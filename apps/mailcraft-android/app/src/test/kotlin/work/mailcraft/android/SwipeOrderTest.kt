@@ -177,4 +177,38 @@ class SwipeOrderTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun aReadStateSetByHandWhileWaitingIsNotUndoneByTheTimer() {
+        val dir: File = Files.createTempDirectory("hand").toFile()
+        try {
+            val gate = CompletableDeferred<Unit>()
+            val (source, c) = rig(dir) { gate.await() }
+            c.open(7uL, 360, dark = false, markAfterMs = MarkRead.After5.delayMs(swiped = false))
+            // The owner marks it read and then unread from the toolbar before the wait is over.
+            c.triaged(7uL, unread = false)
+            c.triaged(7uL, unread = true)
+            gate.complete(Unit)
+            assertEquals(emptyList<ULong>(), source.marked)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun goingOnByASwipeKeepsWhatWasReadAheadAndLeavingForTheListDropsIt() {
+        val dir: File = Files.createTempDirectory("onward").toFile()
+        try {
+            val (_, c) = rig(dir)
+            c.open(7uL, 360, dark = false)
+            c.preload(listOf(6uL, 8uL), 360, dark = false)
+            c.close(7uL, onward = true)
+            assertEquals(setOf(6uL, 8uL), c.ui.value.near.keys)
+            c.open(8uL, 360, dark = false)
+            c.close(8uL)
+            assertEquals(emptyMap<ULong, OpenedMessage>(), c.ui.value.near)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

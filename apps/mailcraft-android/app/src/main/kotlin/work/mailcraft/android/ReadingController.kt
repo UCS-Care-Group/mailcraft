@@ -45,6 +45,8 @@ internal class ReadingController(
     private var stop = Stop()
     private var nearKey = 0 to false
     private var wanted = emptySet<ULong>()
+    /** Messages whose read state the owner set by hand since they were opened: a timer does not undo that. */
+    private val decided = LinkedHashSet<ULong>()
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -63,6 +65,7 @@ internal class ReadingController(
         val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
         val key = widthDp to dark
+        undecide(id)
         state.update {
             // (What was read ahead for another width or theme is not the message as it would be drawn now.)
             val near = if (key == nearKey) it.near else emptyMap()
@@ -85,15 +88,19 @@ internal class ReadingController(
             state.update {
                 it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs, near = it.near - id)
             }
-            // A message swiped to counts as read only if it stays open: passing by quickly leaves it unread.
-            if (markAfterMs != null && markAfterMs > 0 && opened.view.unread) {
-                wait(markAfterMs)
-                if (mine != generation.get()) return@launch
-            }
-            if (markAfterMs != null && opened.view.unread && remember(marked, id)) {
-                if (source.markRead(id)) triaged(id, unread = false) else forget(id)
-            }
-            loadPictures(mine, id, opened)
+            // (Pictures do not wait for the mark.)
+            scope.launch { loadPictures(mine, id, opened) }
+            if (markAfterMs != null && opened.view.unread) markWhenStayed(mine, id, markAfterMs)
+        }
+    }
+
+    /** Marks [id] read once it has stayed open [afterMs]: passing by quickly (a swipe) leaves it unread. */
+    private suspend fun markWhenStayed(mine: Int, id: ULong, afterMs: Long) {
+        if (afterMs > 0) wait(afterMs)
+        if (mine != generation.get()) return
+        val unread = state.value.let { it.id == id && it.opened?.view?.unread == true }
+        if (unread && !isDecided(id) && remember(marked, id)) {
+            if (source.markRead(id)) triaged(id, unread = false) else forget(id)
         }
     }
 
@@ -123,6 +130,7 @@ internal class ReadingController(
     fun triaged(id: ULong, unread: Boolean? = null, flagged: Boolean? = null) {
         // Marked unread on purpose: the next open reads it again.
         if (unread == true) forget(id)
+        if (unread != null) decide(id)
         state.update {
             val opened = it.opened
             if (it.id != id || opened == null) return@update it
@@ -143,10 +151,11 @@ internal class ReadingController(
      * on its way is not asked for any more, and what arrives is dropped and not kept. When another message
      * has been opened since, nothing changes.
      */
-    fun close(id: ULong) {
+    fun close(id: ULong, onward: Boolean = false) {
         if (state.value.id != id) return
         advance()
-        state.value = ReadingUi()
+        // (Going on to a neighbour by a swipe: what was read ahead is the next message.)
+        state.value = ReadingUi(near = if (onward) state.value.near else emptyMap())
     }
 
     /** The owner said Download pictures, for this message alone, its sender, or its sender's domain. */
@@ -301,6 +310,19 @@ internal class ReadingController(
         if (set.size > MAX_REMEMBERED_MESSAGES) set.remove(set.first())
         return added
     }
+
+    @Synchronized
+    private fun decide(id: ULong) {
+        remember(decided, id)
+    }
+
+    @Synchronized
+    private fun undecide(id: ULong) {
+        decided.remove(id)
+    }
+
+    @Synchronized
+    private fun isDecided(id: ULong) = id in decided
 
     /** A mark that failed is tried again when the message is opened again. */
     @Synchronized

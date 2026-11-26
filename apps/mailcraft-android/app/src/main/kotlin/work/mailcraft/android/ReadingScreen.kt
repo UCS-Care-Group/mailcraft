@@ -51,8 +51,8 @@ private val Gutter = 16.dp
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
     val onOpen: (ULong, Int, Boolean, Long?) -> Unit,
-    /** Message [id] is no longer on screen: pictures still on their way are let go of. */
-    val onClose: (ULong) -> Unit,
+    /** Message [id] is no longer on screen (true: a swipe is taking another's place): pictures on their way stop. */
+    val onClose: (ULong, Boolean) -> Unit,
     /** The messages either side of the open one: read them ahead (a body this many dp wide, dark or light). */
     val onNear: (List<ULong>, Int, Boolean) -> Unit = { _, _, _ -> },
     val onAllow: (AllowScope) -> Unit,
@@ -66,7 +66,7 @@ internal class ReadingActions(
 ) {
     companion object {
         val None = ReadingActions(
-            { _, _, _, _ -> }, {}, onAllow = {}, onDownloadNow = {}, onLink = { LinkResult.Ignored },
+            { _, _, _, _ -> }, { _, _ -> }, onAllow = {}, onDownloadNow = {}, onLink = { LinkResult.Ignored },
         )
     }
 }
@@ -122,7 +122,7 @@ internal fun ReadingPane(
                     swipedTo = null
                     actions.onOpen(id, bodyWidth.value.toInt(), designDark, after)
                 }
-                DisposableEffect(id) { onDispose { actions.onClose(id) } }
+                DisposableEffect(id) { onDispose { actions.onClose(id, swipedTo != null) } }
                 val settled = ui.id == id && ui.load == LoadState.Ready
                 val before = swipe?.previous?.id
                 val after = swipe?.next?.id
