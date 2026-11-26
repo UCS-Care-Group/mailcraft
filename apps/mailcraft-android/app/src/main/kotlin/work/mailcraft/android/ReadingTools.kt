@@ -14,6 +14,10 @@ internal class ReadingTools(
     val onLeave: () -> Unit,
     val prefs: ReadingPrefs,
     val onPrefs: (ReadingPrefs) -> Unit,
+    /** The message fills a phone's screen: the bar over it has the back button, since the app's own bar is gone. */
+    val phone: Boolean = false,
+    /** The messages either side of this one in the list it was opened from; null: no list, no swiping. */
+    val swipe: MessageSwipe? = null,
 ) {
     companion object {
         val None = ReadingTools(null, { _, _ -> }, {}, ReadingPrefs(), {})
