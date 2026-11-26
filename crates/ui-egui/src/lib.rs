@@ -193,6 +193,7 @@ mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
+mod move_contacts;
 mod move_items;
 #[cfg(test)]
 mod move_items_tests;
@@ -6113,6 +6114,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 && v.get("wait").and_then(Value::as_bool) != Some(true) =>
         {
             Some(tl!("In the Outbox: it waits for its time").to_string())
+        }
+        // What a server refused for good of changes to contacts, said once (#1917).
+        // Each one names its contact, as the engine says it; the first three, and how many more.
+        "sync.applyContactChanges" => {
+            let said: Vec<&str> = v.get("messages").and_then(Value::as_array)?.iter().filter_map(Value::as_str).collect();
+            let mut line = said.iter().take(3).copied().collect::<Vec<_>>().join(" ");
+            // (The engine keeps a few lines; `refused` counts every refusal.)
+            let refused = v.get("refused").and_then(Value::as_u64).map_or(0, |n| usize::try_from(n).unwrap_or(usize::MAX));
+            let more = said.len().max(refused).saturating_sub(said.len().min(3));
+            if more > 0 {
+                line = format!("{line} {}", tln!(more as u64, "And {n} more change was put back.", "And {n} more changes were put back."));
+            }
+            (!line.is_empty()).then_some(line)
         }
         "calendar.selectAll" => {
             let selected = tln!(n("selected")?, "{n} calendar item selected", "{n} calendar items selected");

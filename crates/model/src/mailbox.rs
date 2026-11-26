@@ -3835,8 +3835,28 @@ impl Mailbox {
             fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
         }
         if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            // A move's deletion waits for its new contact to be made (#1144): one whose Create is
+            // cut goes with it, never sent alone.
+            let contacts = &self.contacts;
+            let held: HashSet<Id> = self.contact_changes[MAX_CONTACT_CHANGES..]
+                .iter()
+                .filter(|c| c.kind == ContactChangeKind::Create)
+                .filter_map(|c| contacts.get(&c.contact))
+                .map(|c| c.moved_from)
+                .filter(|f| *f != 0)
+                .collect();
             self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            self.contact_changes.retain(|c| !(c.kind == ContactChangeKind::Delete && held.contains(&c.contact)));
             fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        // A move's link to the contact it came from means something only while that one's
+        // deletion waits (#1144).
+        let deleting: HashSet<Id> =
+            self.contact_changes.iter().filter(|c| c.kind == ContactChangeKind::Delete && c.base.is_some()).map(|c| c.contact).collect();
+        for c in self.contacts.values_mut() {
+            if c.moved_from != 0 && !deleting.contains(&c.moved_from) {
+                Arc::make_mut(c).moved_from = 0;
+            }
         }
         fixed
     }
@@ -5052,7 +5072,7 @@ impl Mailbox {
         // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
         // in order from `next`).
         let first = *next;
-        let moved: HashMap<Id, Id> =
+        let mut moved: HashMap<Id, Id> =
             self.contacts.range(MAX_ID + 1..).map(|(k, _)| *k).enumerate().map(|(n, k)| (k, first.saturating_add(n as Id))).collect();
         for change in self.contact_changes.iter_mut() {
             if let Some(new) = moved.get(&change.contact) {
@@ -5070,8 +5090,18 @@ impl Mailbox {
             c.contact > MAX_ID && !contacts.contains_key(&c.contact) && (c.kind == Delete || (c.kind == Create && c.sent))
         };
         for change in self.contact_changes.iter_mut().filter(|c| gone(c)) {
+            if change.kind == crate::contact_sync::ContactChangeKind::Delete {
+                moved.entry(change.contact).or_insert(*next);
+            }
             change.contact = *next;
             *next += 1;
+        }
+        // A move's link to the contact it came from follows that one's new key (#1144): the
+        // deletion it holds stays held.
+        for c in self.contacts.values_mut() {
+            if let Some(new) = moved.get(&c.moved_from) {
+                Arc::make_mut(c).moved_from = *new;
+            }
         }
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {

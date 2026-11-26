@@ -58,6 +58,8 @@ mod accounts_tests;
 #[cfg(test)]
 mod attachments_tests;
 #[cfg(test)]
+mod blocks_tests;
+#[cfg(test)]
 mod calendar_tests;
 #[cfg(test)]
 mod compose_share_tests;
@@ -71,6 +73,8 @@ mod fetch_review_tests;
 mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
+#[cfg(test)]
+mod inline_pictures_tests;
 #[cfg(test)]
 mod jobs_tests;
 #[cfg(test)]

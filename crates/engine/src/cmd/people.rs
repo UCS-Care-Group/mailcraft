@@ -17,6 +17,8 @@ mod account_tests;
 #[cfg(test)]
 mod address_book_tests;
 #[cfg(test)]
+mod folder_tests;
+#[cfg(test)]
 mod share_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -24,8 +26,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.new", "New Contact", "Home › New", new).key("Mod+Shift+C").params(CONTACT),
         CommandSpec::new("people.edit", "Edit Contact", "Contact", edit)
             .params(r#"{"id"?: number, …the fields of people.new}"#)
-            .selection(needs_contact),
-        CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
+            .selection(needs_changeable_contact),
+        CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_changeable_contact),
         CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
         CommandSpec::new("people.list", "List Contacts", "People", list)
@@ -37,7 +39,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_contact),
         CommandSpec::new("people.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
-            .selection(needs_contact),
+            .selection(needs_changeable_contact),
         CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
         CommandSpec::new("people.email", "Email", "Home › Communicate", email)
             .pure()
@@ -61,10 +63,17 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "keepAddressList"?: bool (people.new only: true keeps an address list People shows in view, as Add to Contacts on its card does; by default People shows the contacts), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "keepAddressList"?: bool (people.new only: true keeps an address list People shows in view, as Add to Contacts on its card does; by default People shows the contacts), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: the folder the list shows alone (view.peopleFolder); else with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
+}
+
+/// [`needs_contact`], for a command that changes the contact: off for one of a contacts folder
+/// the account may only read (#1917).
+fn needs_changeable_contact(s: &Session) -> Option<&'static str> {
+    let read_only = s.sel.contact.and_then(|id| s.mailbox.contact(id)).is_some_and(|c| contacts_remote::read_only(&s.mailbox, c));
+    if read_only { Some("this contacts folder can only be read") } else { needs_contact(s) }
 }
 
 /// Whether the account's contacts are read from its server: a Microsoft account's, and a JMAP
@@ -123,6 +132,19 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
+/// The contacts folder the list shows alone (`view.peopleFolder`), while it is one of the shown
+/// account's that a server keeps.
+pub fn shown_folder(s: &Session) -> Option<Id> {
+    let AccountChoice::Account(account) = shown_account(s) else { return None };
+    s.view.people_folder.filter(|f| contacts_remote::home(&s.mailbox, *f).is_some_and(|f| f.account == account))
+}
+
+/// Whether the People list shows contact `c`: of the account in view, and of its folder when
+/// one is chosen.
+pub fn shows(s: &Session, c: &Contact) -> bool {
+    shown_account(s).shows(&c.origin) && shown_folder(s).is_none_or(|f| c.folder == f)
+}
+
 /// A contact just made or picked is in view: People shows the contacts (it leaves the address
 /// list), and where the list doesn't show it, the list moves to it, and a search that would leave
 /// it out is cleared, so its row is there beside its card.
@@ -134,11 +156,10 @@ pub(crate) fn reveal(s: &mut Session, id: Id) {
 /// As [`reveal`], but an address list in view stays: a contact made from it (`people.new` with
 /// `keepAddressList`), whose card there then says they are in the contacts, with Open Contact.
 fn reveal_beside_list(s: &mut Session, id: Id) {
-    let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
-    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
+    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shows(s, c), !c.matches(&s.view.people_search));
     if hidden {
-        s.view.people_account = choice;
+        (s.view.people_account, s.view.people_folder) = (choice, None);
     }
     if unmatched {
         s.view.people_search.clear();
@@ -318,7 +339,11 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 /// The contacts the People list shows, in its order ([`sorted_of`]): `people.list` and the
 /// neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
-    sorted_of(s, query, shown_account(s))
+    let mut ids = sorted_of(s, query, shown_account(s));
+    if let Some(folder) = shown_folder(s) {
+        ids.retain(|id| s.mailbox.contact(*id).is_some_and(|c| c.folder == folder));
+    }
+    ids
 }
 
 /// Contacts of `account` in the People list's order: by name, favourites first; arranged by
@@ -407,7 +432,9 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         let kept_at = kept_at(&s.mailbox, &c.origin);
         json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at})
     };
-    let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
+    // Without an account, the list as People shows it, of the folder in view.
+    let ids = if v.get("account").is_some() { sorted_of(s, &query, account) } else { sorted(s, &query) };
+    let items: Vec<Value> = ids.into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
 }
 

@@ -40,6 +40,27 @@ class PhoneShellScreenshotTest {
     @Test
     fun mailDark200() = shoot("phone_mail_dark_200", night = true, fontScale = 2f)
 
+    private fun shootReading(name: String, night: Boolean, fontScale: Float) {
+        paparazzi.unsafeUpdateConfig(
+            DeviceConfig.PIXEL_5.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = fontScale),
+        )
+        val entry = Corpus.plain
+        val data = ShellShots.data.copy().let { d ->
+            ShellData(
+                accounts = d.accounts, folderName = d.folderName, folderId = d.folderId, mail = d.mail, categories = d.categories,
+                nowMillis = d.nowMillis, swipe = d.swipe, version = d.version, chosenLanguage = d.chosenLanguage,
+                reading = ReadingShots.ui(entry),
+            )
+        }
+        paparazzi.snapshot(name) { ShellShots.Shell(NavState().openMessage(entry.view.id), with = data) }
+    }
+
+    @Test
+    fun readingLight100() = shootReading("phone_reading_light_100", night = false, fontScale = 1f)
+
+    @Test
+    fun readingDark200() = shootReading("phone_reading_dark_200", night = true, fontScale = 2f)
+
     @Test
     fun drawerLight100() = shoot("phone_drawer_light_100", night = false, fontScale = 1f, drawer = DrawerValue.Open)
 

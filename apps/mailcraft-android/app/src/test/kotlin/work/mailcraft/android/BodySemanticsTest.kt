@@ -19,7 +19,7 @@ import org.junit.Test
  * A Paparazzi handler that keeps no picture: this test reads the semantics and has nothing to compare.
  * (A proxy, since the picture type it is handed is not on the compile path of an Android test.)
  */
-private fun noPictures(): SnapshotHandler {
+internal fun noPictures(): SnapshotHandler {
     val loader = SnapshotHandler::class.java.classLoader
     val frames = Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler.FrameHandler::class.java)) { _, _, _ -> null }
     return Proxy.newProxyInstance(loader, arrayOf(SnapshotHandler::class.java)) { _, method, _ ->

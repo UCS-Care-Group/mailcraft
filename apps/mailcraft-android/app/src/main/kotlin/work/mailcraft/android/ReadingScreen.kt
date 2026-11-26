@@ -1,17 +1,13 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-@file:OptIn(ExperimentalLayoutApi::class)
 
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,10 +21,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,7 +46,6 @@ import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.MessageView
 
 private val Gutter = 16.dp
-private val ButtonGap = 8.dp
 private const val RGB_MASK = 0xFFFFFF
 
 /** What the reading pane asks of the app. */
@@ -74,9 +67,6 @@ internal class ReadingActions(
         val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
     }
 }
-
-/** A way of answering a message, or continuing a draft, which the composer takes. */
-internal enum class Reply { Reply, ReplyAll, Forward, Edit }
 
 /**
  * The reading pane: the message's header, the banner that offers its pictures, its attachments, and
@@ -101,6 +91,7 @@ internal fun ReadingPane(
     var pageChoice by remember(id) { mutableStateOf<Boolean?>(null) }
     val light = dark && (pageChoice ?: tools.prefs.lightMessages)
     val snackbar = remember { SnackbarHostState() }
+    var menu by remember(id) { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var details by remember { mutableStateOf<LinkInfo?>(null) }
     LaunchedEffect(notice) {
@@ -120,8 +111,8 @@ internal fun ReadingPane(
             DisposableEffect(id) { onDispose { actions.onClose(id) } }
             val opened = ui.opened
             when {
-                ui.load == LoadState.Failed -> Centered(texts.t("The message could not be read."))
-                opened == null || ui.id != id -> Centered(texts.t("Loading…"))
+                ui.load == LoadState.Failed || opened == null || ui.id != id ->
+                    NotThere(texts, tools, ui.load == LoadState.Failed)
                 else -> {
                     val colors = if (light) LightColors else MaterialTheme.colorScheme
                     val env = remember(opened, ui.pictures, texts, colors) {
@@ -138,12 +129,8 @@ internal fun ReadingPane(
                     val paper = Paper.of(page.toArgb() and RGB_MASK, colors.primary.toArgb() and RGB_MASK)
                         .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
                     Column(modifier = Modifier.fillMaxSize()) {
-                        tools.context?.let {
-                            ReadingToolbar(texts, tools, it, opened.view, dark, light, actions.onTriaged) { on ->
-                                pageChoice = on
-                            }
-                            HorizontalDivider()
-                        }
+                        val title = opened.view.subject.ifBlank { shortName(opened.view.from) }
+                        ReadingBar(texts, tools, title) { menu = true }
                         MessageBody(
                             texts, ui, opened, env, paper, bodyWidth, actions, tools, if (light) page else null,
                             Modifier.weight(1f),
@@ -151,6 +138,9 @@ internal fun ReadingPane(
                         HorizontalDivider()
                         ReplyBar(texts, draft) { actions.onCompose(startFor(it, id)) }
                     }
+                    MessageMenu(
+                        texts, tools, opened.view, dark, light, menu, { menu = false }, actions.onTriaged,
+                    ) { on -> pageChoice = on }
                 }
             }
         }
@@ -162,6 +152,16 @@ internal fun ReadingPane(
             notice = followed(texts, actions, link)
             details = null
         }) { details = null }
+    }
+}
+
+/** The message is loading or could not be read: the bar still offers the way back that a phone has no other of. */
+@Composable
+private fun NotThere(texts: Texts, tools: ReadingTools, failed: Boolean) {
+    Column {
+        ReadingBar(texts, tools, "", null)
+        val said = if (failed) texts.t("The message could not be read.") else texts.t("Loading…")
+        Centered(said, Modifier.weight(1f))
     }
 }
 
@@ -251,35 +251,6 @@ private fun Page(page: androidx.compose.ui.graphics.Color?, content: @Composable
             Box(modifier = Modifier.fillMaxWidth().background(page)) { content() }
         }
     }
-}
-
-/** What a button of the bar starts writing: an answer to message [id], or a draft continued. */
-internal fun startFor(reply: Reply, id: ULong): ComposeStart = when (reply) {
-    Reply.Reply -> ComposeStart.Reply(id)
-    Reply.ReplyAll -> ComposeStart.ReplyAll(id)
-    Reply.Forward -> ComposeStart.Forward(id)
-    Reply.Edit -> ComposeStart.Draft(id)
-}
-
-@Composable
-private fun ReplyBar(texts: Texts, draft: Boolean, onReply: (Reply) -> Unit) {
-    Surface(tonalElevation = 2.dp) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(ButtonGap),
-        ) {
-            (if (draft) listOf(Reply.Edit) else Reply.entries.filter { it != Reply.Edit }).forEach { reply ->
-                OutlinedButton(onClick = { onReply(reply) }) { Text(replyLabel(texts, reply)) }
-            }
-        }
-    }
-}
-
-internal fun replyLabel(texts: Texts, reply: Reply): String = when (reply) {
-    Reply.Reply -> texts.t("Reply")
-    Reply.ReplyAll -> texts.t("Reply all")
-    Reply.Forward -> texts.t("Forward")
-    Reply.Edit -> texts.t("Edit draft")
 }
 
 @Composable
