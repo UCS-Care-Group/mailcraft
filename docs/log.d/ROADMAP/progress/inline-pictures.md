@@ -1,1 +1,0 @@
-| 2026-11-25 | Fix: a picture the HTML shows by `cid:` is the body's, not an attachment, whatever its Content-Disposition or Graph's `isInline` says (one rule for desktop, phone list, paperclip and forward) |
