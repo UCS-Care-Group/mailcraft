@@ -256,6 +256,34 @@ class ReadingToolsScreenshotTest {
         }
     }
 
+    private fun shootMenu(name: String, dark: Boolean, scale: Float) {
+        paparazzi.unsafeUpdateConfig(
+            Tall.copy(screenHeight = 1_800, nightMode = if (dark) NightMode.NIGHT else NightMode.NOTNIGHT, fontScale = scale),
+        )
+        val tools = tools(ReadingPrefs()).let { ReadingTools(it.context, it.onTriage, it.onLeave, it.prefs, it.onPrefs, phone = true) }
+        val entry = Corpus.plain
+        paparazzi.snapshot("reading_menu_$name") {
+            ShellShots.Fixed {
+                androidx.compose.foundation.layout.Box {
+                    ReadingPane(EnglishTexts, entry.view.id, ReadingShots.ui(entry), ReadingActions.None, tools = tools)
+                    MessageMenu(
+                        EnglishTexts, tools, entry.view, darkWindow = dark, light = false, open = true,
+                        onClose = {}, onTriaged = { _, _, _ -> }, onLight = {},
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun menuLight100() = shootMenu("light_100", dark = false, scale = 1f)
+
+    @Test
+    fun menuDark100() = shootMenu("dark_100", dark = true, scale = 1f)
+
+    @Test
+    fun menuLight200() = shootMenu("light_200", dark = false, scale = 2f)
+
     @Test
     fun shutHeaderLight() = shoot("shut_light", Corpus.plain, ReadingPrefs(), dark = false)
 

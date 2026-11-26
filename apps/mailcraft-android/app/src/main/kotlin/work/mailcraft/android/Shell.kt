@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -43,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -147,9 +147,6 @@ internal class WritingActions(
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
 private val ExpandedWidth = 840.dp
-
-/** Above this font scale the bottom bar keeps a label only for the tab that is on. */
-private const val LARGE_TEXT = 1.3f
 
 /**
  * The app's frame. Phone: a top bar with the ☰ button, the bottom bar of five tabs. Tablet (an
@@ -425,7 +422,8 @@ private fun MainFrame(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val expanded = maxWidth >= ExpandedWidth
-        val largeText = LocalDensity.current.fontScale > LARGE_TEXT
+        // A message open on a phone has the screen to itself: its own bar, no tabs.
+        val reading = readsFullScreen(onBack != null, expanded, tab)
         Row(modifier = Modifier.fillMaxSize()) {
             if (expanded) {
                 NavigationRail {
@@ -442,6 +440,7 @@ private fun MainFrame(
             Scaffold(
                 modifier = Modifier.weight(1f),
                 topBar = {
+                  if (!reading) {
                     // The list's search and funnel sit in the bar (not beside a message that is open on a phone).
                     val bar = mailBar?.takeIf { onBack == null || expanded }
                     val searching = bar != null && (searchOpen || bar.query.search.isNotBlank())
@@ -470,6 +469,7 @@ private fun MainFrame(
                             }
                         },
                     )
+                  }
                 },
                 snackbarHost = { SnackbarHost(snackbar) },
                 floatingActionButton = {
@@ -487,23 +487,35 @@ private fun MainFrame(
                     }
                 },
                 bottomBar = {
-                    if (!expanded) {
-                        NavigationBar {
-                            Tab.entries.forEach { entry ->
-                                NavigationBarItem(
-                                    selected = entry == tab,
-                                    onClick = { onTab(entry) },
-                                    icon = { Icon(entry.icon(), contentDescription = null) },
-                                    label = { TabLabel(entry.label(texts)) },
-                                    alwaysShowLabel = !largeText,
-                                )
-                            }
-                        }
-                    }
+                    if (showBottomBar(expanded, reading)) TabBar(texts, tab, onTab)
                 },
             ) { padding ->
                 Box(modifier = Modifier.padding(padding)) { content(Modifier, expanded) }
             }
+        }
+    }
+}
+
+/** A message open on a phone, in the Mail tab, has the screen to itself. */
+internal fun readsFullScreen(open: Boolean, expanded: Boolean, tab: Tab) = open && !expanded && tab == Tab.Mail
+
+/** The tabs show unless the window is wide (a rail instead) or a message is open full screen. */
+internal fun showBottomBar(expanded: Boolean, reading: Boolean) = !expanded && !reading
+
+private val BarHeight = 64.dp
+
+/** Icons for every tab and the name under the one on show; large text keeps that name and the bar grows to fit it. */
+@Composable
+private fun TabBar(texts: Texts, tab: Tab, onTab: (Tab) -> Unit) {
+    NavigationBar(modifier = Modifier.heightIn(min = BarHeight)) {
+        Tab.entries.forEach { entry ->
+            NavigationBarItem(
+                selected = entry == tab,
+                onClick = { onTab(entry) },
+                icon = { Icon(entry.icon(), contentDescription = null) },
+                label = { TabLabel(entry.label(texts)) },
+                alwaysShowLabel = false,
+            )
         }
     }
 }
@@ -526,7 +538,8 @@ private fun MailTab(
     onLeave: () -> Unit,
 ) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
-    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, data.readingPrefs, actions.onReadingPrefs)
+    val prefs = data.readingPrefs
+    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
