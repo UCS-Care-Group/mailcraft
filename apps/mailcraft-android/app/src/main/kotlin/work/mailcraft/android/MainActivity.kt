@@ -107,6 +107,11 @@ class MainActivity : AppCompatActivity() {
             // The theme is the owner's choice (kept with the reading choices); the bars' icons follow it.
             val store = remember { DeviceReadingPrefs(applicationContext) }
             var reading by remember { mutableStateOf(store.load()) }
+            // Another window (split screen) may save a newer choice: take it in, so a save here never undoes it.
+            DisposableEffect(store) {
+                val stop = store.watch { reading = store.load() }
+                onDispose { stop() }
+            }
             val dark = reading.theme.dark(isSystemInDarkTheme())
             DisposableEffect(dark) {
                 val clear = android.graphics.Color.TRANSPARENT

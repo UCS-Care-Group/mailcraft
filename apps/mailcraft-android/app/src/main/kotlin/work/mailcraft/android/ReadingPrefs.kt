@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 
 /** What the owner chose about reading, kept on this phone only. */
 internal data class ReadingPrefs(
@@ -111,6 +112,14 @@ internal class DeviceReadingPrefs(context: Context) {
                 ?.putString(THEME, value.theme.code)
                 ?.apply()
         }
+    }
+
+    /** Calls [onChange] whenever any window saves; returns the call that stops watching. */
+    fun watch(onChange: () -> Unit): () -> Unit {
+        // Held here: the preferences keep only a weak reference to a listener.
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> onChange() }
+        prefs?.registerOnSharedPreferenceChangeListener(listener)
+        return { prefs?.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     private companion object {
