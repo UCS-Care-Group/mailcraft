@@ -36,6 +36,9 @@ internal data class Paper(val rgb: Int, val ink: Int, val link: Int, val turn: I
     /** A background the message asks for, as it is painted here. */
     fun back(asked: Int): Int = turn?.let { Readability.darkBackground(asked, it) } ?: asked
 
+    /** A line the message asks for, as it is painted on this paper; null when it would not be seen. */
+    fun line(asked: Int): Int? = back(asked).takeIf { Readability.contrast(it, rgb) >= INVISIBLE_CONTRAST }
+
     /** The paper of a box of the message's own inside this one. */
     fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn)
 
@@ -48,6 +51,9 @@ internal data class Paper(val rgb: Int, val ink: Int, val link: Int, val turn: I
         fun of(rgb: Int, link: Int): Paper = Paper(rgb, Readability.plainInk(rgb), Readability.adjust(link, rgb))
     }
 }
+
+/** The least contrast at which a line the message colours is drawn in its own colour. */
+private const val INVISIBLE_CONTRAST = 1.2
 
 /** A link's place in a text. */
 internal class LinkRange(val start: Int, val end: Int, val link: LinkInfo)

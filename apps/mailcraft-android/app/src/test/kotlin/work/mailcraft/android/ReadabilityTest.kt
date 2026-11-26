@@ -151,4 +151,14 @@ class ReadabilityTest {
         assertTrue(Readability.contrast(box.ink, box.rgb) >= Readability.MIN_CONTRAST)
         assertEquals(white, box.inkOn(black, box.rgb))
     }
+    @Test
+    fun aLineThatWouldVanishIsLeftToTheReader() {
+        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper)
+        // A white rule on the dark page turns dark too, and would not be seen: the reader's own line colour is used.
+        assertEquals(null, dark.line(white))
+        // An orange line is darkened a little and still seen.
+        assertTrue(dark.line(0xF7A136) != null)
+        // Without a dark reading a white rule on the dark page is drawn as written.
+        assertEquals(white, Paper.of(darkPaper, 0x9CCAFF).line(white))
+    }
 }

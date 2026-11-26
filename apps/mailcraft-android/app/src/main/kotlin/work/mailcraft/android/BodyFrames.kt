@@ -19,7 +19,6 @@ internal fun SidesView.hasAny() = top || right || bottom || left
 
 private const val DASH = 6f
 private const val DOT = 2f
-private const val INVISIBLE_CONTRAST = 1.2
 private const val MAX_LINE = 4
 private const val TOP = 0
 private const val RIGHT = 1
@@ -40,8 +39,7 @@ internal fun Modifier.frame(lines: List<LineView>, sides: SidesView?, fallback: 
 
 private fun DrawScope.drawSide(side: Int, line: LineView?, fallback: Color, paper: Paper) {
     val thickness = (line?.width?.toInt() ?: 0).coerceIn(1, MAX_LINE).dp.toPx()
-    val seen = line?.color?.rgb()?.let(paper::back)
-        ?.takeIf { Readability.contrast(it, paper.rgb) >= INVISIBLE_CONTRAST }
+    val seen = line?.color?.rgb()?.let(paper::line)
     val effect = when (line?.style) {
         LineStyleView.DASHED -> PathEffect.dashPathEffect(floatArrayOf(DASH * thickness, DASH * thickness))
         LineStyleView.DOTTED -> PathEffect.dashPathEffect(floatArrayOf(DOT * thickness, DOT * thickness))
