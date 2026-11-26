@@ -215,7 +215,13 @@ private fun MessageBody(
         item(key = "banner") { Box(side) { PicturesBanner(texts, ui, actions) } }
         if (opened.attachments.isNotEmpty()) {
             item(key = "attachments") {
-                Box(side) { AttachmentsList(texts, view.id, opened.attachments, actions.attachments) }
+                Box(side) {
+                    if (tools.prefs.foldAttachments) {
+                        FoldedAttachments(texts, view.id, opened.attachments, actions.attachments)
+                    } else {
+                        AttachmentsList(texts, view.id, opened.attachments, actions.attachments)
+                    }
+                }
             }
         }
         item(key = "gap") { Page(lightPage) { Box(modifier = Modifier.padding(top = Gutter)) } }
