@@ -2286,8 +2286,8 @@ msgstr "Opties voor bijlagen"
 msgid "Attachment options for {name}"
 msgstr "Opties voor bijlagen voor {name}"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 msgid "Attachments"
 msgstr "Bijlagen"
 
@@ -5938,11 +5938,23 @@ msgstr "Markeer het bericht en herinner mij:"
 msgid "Flagged"
 msgstr "Gemarkeerd"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
+msgid "Fold"
+msgstr "Samenvouwen"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Fold the calendars of this group away"
 msgstr "De agenda's van deze groep invouwen"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Folded"
+msgstr "Samengevouwen"
 
 #. interface, name, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
@@ -15034,8 +15046,8 @@ msgstr "Gedeelde postvakken en agenda's: niet toegestaan ({why})"
 msgid "Shared mailboxes and calendars: waiting for your permission"
 msgstr "Gedeelde postvakken en agenda's: wachten op uw toestemming"
 
-#. ribbon location
-#: crates/engine/src/cmd/calendar/share.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/calendar/share.rs
 msgid "Show"
 msgstr "Weergeven"
 
@@ -20114,6 +20126,12 @@ msgstr "Typen ongedaan maken"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "{what} ongedaan maken"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Unfolded"
+msgstr "Uitgevouwen"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs

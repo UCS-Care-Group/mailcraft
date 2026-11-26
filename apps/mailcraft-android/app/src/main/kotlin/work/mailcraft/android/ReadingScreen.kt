@@ -193,6 +193,8 @@ private fun MessageBody(
 ) {
     val view = opened.view
     val lines = remember(view.blocks) { linesOf(view.blocks) }
+    // Kept here, not in the lazy item: scrolling the row away and back leaves it as it was. Not saved.
+    var attachmentsOpen by remember(view.id) { mutableStateOf(false) }
     val side = Modifier.padding(horizontal = Gutter)
     // The header, banner and attachments are the app's and keep its theme; only the body is the sender's page.
     val state = rememberLazyListState()
@@ -215,7 +217,16 @@ private fun MessageBody(
         item(key = "banner") { Box(side) { PicturesBanner(texts, ui, actions) } }
         if (opened.attachments.isNotEmpty()) {
             item(key = "attachments") {
-                Box(side) { AttachmentsList(texts, view.id, opened.attachments, actions.attachments) }
+                Box(side) {
+                    if (tools.prefs.foldAttachments) {
+                        FoldedAttachments(
+                            texts, view.id, opened.attachments, actions.attachments,
+                            attachmentsOpen,
+                        ) { attachmentsOpen = it }
+                    } else {
+                        AttachmentsList(texts, view.id, opened.attachments, actions.attachments)
+                    }
+                }
             }
         }
         item(key = "gap") { Page(lightPage) { Box(modifier = Modifier.padding(top = Gutter)) } }

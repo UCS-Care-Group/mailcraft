@@ -216,4 +216,12 @@ private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPref
         ),
         prefs.lightMessages,
     ) { onPrefs(prefs.copy(lightMessages = it)) }
+    Text(
+        texts.t("Attachments"),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(Gutter),
+    )
+    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = false)) }
+    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = true)) }
 }

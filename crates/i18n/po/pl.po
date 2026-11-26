@@ -2366,8 +2366,8 @@ msgstr "Opcje załącznika"
 msgid "Attachment options for {name}"
 msgstr "Opcje załącznika {name}"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Attachments"
 msgstr "Załączniki"
@@ -6179,11 +6179,23 @@ msgstr "Oflaguj wiadomość i przypomnij mi:"
 msgid "Flagged"
 msgstr "Oflagowane"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
+msgid "Fold"
+msgstr "Zwiń"
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Fold the calendars of this group away"
 msgstr "Zwiń kalendarze tej grupy"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Folded"
+msgstr "Zwinięte"
 
 #. interface, name, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
@@ -15604,8 +15616,8 @@ msgstr "Skrzynki i kalendarze udostępnione: brak pozwolenia ({why})"
 msgid "Shared mailboxes and calendars: waiting for your permission"
 msgstr "Skrzynki i kalendarze udostępnione: czekają na Twoje pozwolenie"
 
-#. ribbon location
-#: crates/engine/src/cmd/calendar/share.rs
+#. android, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/calendar/share.rs
 #, fuzzy
 msgid "Show"
 msgstr "Pokaż"
@@ -20781,6 +20793,12 @@ msgstr "Cofnij pisanie"
 #, fuzzy
 msgid "Undo {what}"
 msgstr "Cofnij: {what}"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
+#, fuzzy
+msgid "Unfolded"
+msgstr "Rozwinięte"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
