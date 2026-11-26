@@ -707,6 +707,57 @@ fn a_block_is_named_where_it_went_though_another_program_appended_meanwhile() {
     assert_eq!(pack::read_at(&dir, then, &two).as_deref(), Some(&b"two block"[..]));
 }
 
+/// #1871: some file systems won't give one handle both reading a file that is there and
+/// appending to it (Cryptomator's vault refuses it, and its FUSE volume says EIO). The pack a save
+/// appends to was opened that way, so with the mailbox in such a vault every save after the one
+/// that made the pack failed, and what changed after it was lost when MailCraft closed. A pack is
+/// appended to through a handle that only appends, the one there and a new one alike; what was
+/// written is read back through a handle of its own. The kernel's record of each open handle
+/// says which (Linux).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_pack_is_appended_to_through_a_handle_that_never_reads() {
+    let mb = with_exchange_headers(2);
+    let tmp = Temp::new("pack-append-only");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    let dir = blob_dir(&path);
+    let (there, _) = the_pack(&path);
+    // A later save, appending to the pack that is there.
+    let mut later = pack::Writer::appending(&dir);
+    let block = b"the header lines of mail a later save brings";
+    let at = later.place(&Ref::of(block), Some(block)).unwrap().unwrap();
+    assert_eq!(at.pack, 1);
+    assert_handles_never_read_and_append(&there);
+    // A whole rewrite, appending to a pack it makes.
+    let mut fresh = pack::Writer::compacting(&dir, true);
+    let other = b"the header lines a fresh pack is made with";
+    let made = fresh.place(&Ref::of(other), Some(other)).unwrap().unwrap();
+    assert_ne!(made.pack, 1);
+    assert_handles_never_read_and_append(&dir.join(pack::name(made.pack).unwrap()));
+}
+
+/// Every handle this process has open on `file` either doesn't read or doesn't append, as the
+/// kernel was asked when it was opened (`/proc/self/fdinfo`; the access mode and `O_APPEND` of
+/// Linux's generic ABI). And there is one: the writer holds the pack open.
+#[cfg(target_os = "linux")]
+fn assert_handles_never_read_and_append(file: &Path) {
+    const ACCESS: u32 = 0o3;
+    const WRITE_ONLY: u32 = 0o1;
+    const APPEND: u32 = 0o2000;
+    let file = fs::canonicalize(file).unwrap();
+    let flags: Vec<u32> = fs::read_dir("/proc/self/fd")
+        .unwrap()
+        .flatten()
+        .filter(|fd| fs::read_link(fd.path()).is_ok_and(|to| to == file))
+        .filter_map(|fd| fs::read_to_string(Path::new("/proc/self/fdinfo").join(fd.file_name())).ok())
+        .filter_map(|info| info.lines().find_map(|l| l.strip_prefix("flags:")).and_then(|f| u32::from_str_radix(f.trim(), 8).ok()))
+        .collect();
+    assert!(!flags.is_empty(), "nothing has {} open", file.display());
+    let both: Vec<String> = flags.iter().filter(|f| *f & APPEND != 0 && *f & ACCESS != WRITE_ONLY).map(|f| format!("{f:o}")).collect();
+    assert!(both.is_empty(), "{} is open for reading and appending at once (flags {both:?})", file.display());
+}
+
 /// What 20,000 messages with Exchange-like headers and short bodies take beside the mailbox file:
 /// how many files, and how much of the disk.
 ///
