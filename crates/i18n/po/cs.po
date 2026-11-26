@@ -1334,6 +1334,18 @@ msgstr "Upřesňující možnosti"
 msgid "After"
 msgstr "Po"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "After 2 seconds"
+msgstr "Po 2 sekundách"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "After 5 seconds"
+msgstr "Po 5 sekundách"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -9428,7 +9440,7 @@ msgid "Mark as Unread"
 msgstr "Označit jako nepřečtené"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Označit jako přečtené"
@@ -10366,6 +10378,12 @@ msgstr "Vyžaduje přihlášení přes Google"
 msgid "Neutral grey"
 msgstr "Neutrální šedá"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Never (I mark them myself)"
+msgstr "Nikdy (označím je sám)"
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10679,6 +10697,11 @@ msgstr "Příští týden"
 #, fuzzy
 msgid "Next events"
 msgstr "Další události"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Next message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12995,6 +13018,11 @@ msgstr "Předchozí měsíc"
 #, fuzzy
 msgid "Previous Page"
 msgstr "Předchozí stránka"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Previous message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -21425,6 +21453,12 @@ msgstr "Co je nového a jak to získat:"
 #, fuzzy
 msgid "When"
 msgstr "Kdy"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "When opened"
+msgstr "Při otevření"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

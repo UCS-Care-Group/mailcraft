@@ -1271,6 +1271,18 @@ msgstr "Erweiterte Optionen"
 msgid "After"
 msgstr "Nach"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "After 2 seconds"
+msgstr "Nach 2 Sekunden"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "After 5 seconds"
+msgstr "Nach 5 Sekunden"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -8845,7 +8857,7 @@ msgid "Mark as Unread"
 msgstr "Als ungelesen markieren"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/RowActionsSheet.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/swipe.rs
 #, fuzzy
 msgid "Mark as read"
 msgstr "Als gelesen markieren"
@@ -9751,6 +9763,12 @@ msgstr "Erfordert eine Google-Anmeldung"
 msgid "Neutral grey"
 msgstr "Neutrales Grau"
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Never (I mark them myself)"
+msgstr "Nie (ich markiere sie selbst)"
+
 #. command label, interface
 #: crates/engine/src/cmd/junk.rs crates/ui-egui/src/ribbon.rs
 msgid "Never Block Sender"
@@ -10030,6 +10048,11 @@ msgstr "Nächste Woche"
 #, fuzzy
 msgid "Next events"
 msgstr "Nächste Termine"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Next message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12191,6 +12214,11 @@ msgstr "Vorheriger Monat"
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "Previous Page"
 msgstr "Vorherige Seite"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+msgid "Previous message"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -20141,6 +20169,12 @@ msgstr "Was neu ist und wie Sie es erhalten:"
 #, fuzzy
 msgid "When"
 msgstr "Wann"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "When opened"
+msgstr "Beim Öffnen"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

@@ -571,7 +571,17 @@ private fun MailTab(
 ) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
     val prefs = data.readingPrefs
-    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded)
+    // (The place in the list is kept while a message is open; leaving to the list forgets it.)
+    val order = remember(messageId == null) { SwipeOrder() }
+    val around = messageId?.let { order.around(data.mail.snapshot, it) }
+    // The rows either side are read when they are not yet (a list on a phone isn't drawn to ask for them).
+    LaunchedEffect(around?.at) {
+        around?.takeIf { it.at >= 0 }?.let { actions.mail.onRange((it.at - 1).coerceAtLeast(0), it.at + 1) }
+    }
+    val swipe = around?.takeIf { it.at >= 0 }?.let { n ->
+        MessageSwipe(n.previous, n.next, actions.mail.onOpen)
+    }
+    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded, swipe)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))

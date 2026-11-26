@@ -33,6 +33,11 @@ internal data class ReadingUi(
     /** Pictures are allowed but data saving holds the downloads back. */
     val waiting: Boolean = false,
     val prefs: PicturePrefs = PicturePrefs(),
+    /**
+     * The messages either side of the open one, read ahead (not opened: not marked read, no pictures asked
+     * for) so that a swipe shows them coming in. At most [MAX_NEAR]; never the open one.
+     */
+    val near: Map<ULong, OpenedMessage> = emptyMap(),
 ) {
     val facts: MessageFacts? get() = opened?.facts
 
@@ -43,6 +48,9 @@ internal data class ReadingUi(
     /** The ways the banner offers to allow them. */
     val choices: List<AllowScope> get() = facts?.let(PicturePolicy::choices).orEmpty()
 }
+
+/** How many messages are read ahead beside the open one (the one before and the one after). */
+internal const val MAX_NEAR = 2
 
 /** One picture block of a message. */
 internal class PictureRef(val src: String, val part: String?, val width: Int?, val height: Int?)

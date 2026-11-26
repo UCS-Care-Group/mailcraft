@@ -13,13 +13,51 @@ internal data class ReadingPrefs(
     val headerOpen: Boolean = false,
     /** A message's files show as one row, "N attachments", that opens the list; off, the list is always open. On. */
     val foldAttachments: Boolean = true,
+    /** When an opened message counts as read. */
+    val markRead: MarkRead = MarkRead.WhenOpened,
 )
 
+/** When a message that was opened is marked read. */
+@Suppress("MagicNumber")
+internal enum class MarkRead(val code: String, private val seconds: Int) {
+    WhenOpened("opened", 0),
+    After2("2s", 2),
+    After5("5s", 5),
+    Never("never", -1),
+    ;
+
+    /**
+     * How long the message must stay open before it is marked, in milliseconds; null: never marked.
+     * One swiped to waits at least [SWIPE_READ_MS], so that passing by quickly never marks.
+     */
+    fun delayMs(swiped: Boolean): Long? = when {
+        seconds < 0 -> null
+        else -> maxOf(seconds * MS_PER_SECOND, if (swiped) SWIPE_READ_MS else 0L)
+    }
+
+    fun label(texts: Texts): String = when (this) {
+        WhenOpened -> texts.t("When opened")
+        After2 -> texts.t("After 2 seconds")
+        After5 -> texts.t("After 5 seconds")
+        Never -> texts.t("Never (I mark them myself)")
+    }
+
+    companion object {
+        private const val MS_PER_SECOND = 1000L
+
+        fun fromCode(code: String?): MarkRead = entries.firstOrNull { it.code == code } ?: WhenOpened
+    }
+}
+
 /** The prefs as [get] answers for a key with its default; a key an older version never wrote gives the default. */
-internal fun readingPrefsFrom(get: (key: String, default: Boolean) -> Boolean) = ReadingPrefs(
+internal fun readingPrefsFrom(
+    text: (key: String) -> String? = { null },
+    get: (key: String, default: Boolean) -> Boolean,
+) = ReadingPrefs(
     lightMessages = get("light_messages", true),
     headerOpen = get("header_open", false),
     foldAttachments = get("fold_attachments", true),
+    markRead = MarkRead.fromCode(text("mark_read")),
 )
 
 /** [ReadingPrefs] in the app's private preferences. A store that cannot be read gives the defaults. */
@@ -27,7 +65,7 @@ internal class DeviceReadingPrefs(context: Context) {
     private val prefs = runCatching { context.getSharedPreferences(FILE, Context.MODE_PRIVATE) }.getOrNull()
 
     fun load(): ReadingPrefs = runCatching {
-        readingPrefsFrom { key, default -> prefs?.getBoolean(key, default) ?: default }
+        readingPrefsFrom({ prefs?.getString(it, null) }) { key, default -> prefs?.getBoolean(key, default) ?: default }
     }.getOrDefault(ReadingPrefs())
 
     // (The KTX `edit {}` would be a dependency for one line.)
@@ -38,6 +76,7 @@ internal class DeviceReadingPrefs(context: Context) {
                 ?.putBoolean(LIGHT, value.lightMessages)
                 ?.putBoolean(HEADER, value.headerOpen)
                 ?.putBoolean(FOLD, value.foldAttachments)
+                ?.putString(MARK, value.markRead.code)
                 ?.apply()
         }
     }
@@ -47,5 +86,6 @@ internal class DeviceReadingPrefs(context: Context) {
         const val LIGHT = "light_messages"
         const val HEADER = "header_open"
         const val FOLD = "fold_attachments"
+        const val MARK = "mark_read"
     }
 }
