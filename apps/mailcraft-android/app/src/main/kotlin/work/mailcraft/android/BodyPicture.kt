@@ -132,7 +132,8 @@ internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int, keepShape: B
     return IntSize(narrowed, h.coerceIn(1.0, most).roundToInt())
 }
 
-private const val MAX_BOX_WIDTH = 8_000
+/** The widest and tallest box a measure is given, in pixels: what `Constraints.fixed` always takes. */
+internal const val MAX_BOX_WIDTH = 8_000
 internal const val MAX_BOX_HEIGHT = 200_000
 
 /**

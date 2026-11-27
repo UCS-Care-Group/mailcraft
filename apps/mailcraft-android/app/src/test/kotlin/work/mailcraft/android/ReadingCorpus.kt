@@ -49,7 +49,8 @@ internal object B {
         align: AlignView = AlignView.LEFT,
         space: UByte = 1u,
         beside: Boolean = false,
-    ) = BlockView(kind, spans.toList(), quote, align, space, beside, 0u, null, 0u, 0u, null, noLine)
+        rtl: Boolean = false,
+    ) = BlockView(kind, spans.toList(), quote, align, space, beside, 0u, null, 0u, 0u, null, noLine, rtl = rtl)
 
     fun p(text: String, space: UByte = 1u) = block(BlockKindView.Paragraph, span(text), space = space)
 
@@ -60,14 +61,31 @@ internal object B {
     fun image(src: String, alt: String, width: UShort? = null, height: UShort? = null, picture: String? = null, link: String? = null) =
         block(BlockKindView.Image(src, width, height, link, picture), span(alt), space = 0u)
 
-    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u, rowspan: UShort = 1u) =
+    /** A cell; [at] is its row and column in the grid, as the core places it, where a test gives one. */
+    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u, rowspan: UShort = 1u, at: Pair<Int, Int>? = null) =
         CellView(
             blocks.toList(), header, colspan, rowspan, background, width, noSides, emptyList(),
             padding?.let { InsetsView(it, it, it, it) }, 0u, null,
+            row = (at?.first ?: -1).toUInt(), col = (at?.second ?: -1).toUShort(), rows = rowspan.toUInt(), cols = colspan,
         )
 
+    private fun placed(rows: List<List<CellView>>): List<List<CellView>> = rows.mapIndexed { r, cells ->
+        var col = 0
+        cells.map { c ->
+            val given = c.row != UInt.MAX_VALUE
+            val at = if (given) c else c.copy(row = r.toUInt(), col = col.toUShort())
+            col = at.col.toInt() + at.cols.toInt()
+            at
+        }
+    }
+
+    /**
+     * A table of [rows]. The core gives each cell its place in the grid; here a cell that gives none
+     * ([at] of [cell] left out) is put in its row after the cells before it, which is that place for
+     * a table with no row spans.
+     */
     fun table(layout: Boolean, rows: List<List<CellView>>, width: LengthView? = null, border: Boolean = false) = TableView(
-        rows.map { RowView(it) }, (rows.maxOfOrNull { r -> r.sumOf { it.colspan.toInt() } } ?: 0).toUShort(), layout, border, false, width, null,
+        placed(rows).map { RowView(it) }, (rows.maxOfOrNull { r -> r.sumOf { it.colspan.toInt() } } ?: 0).toUShort(), layout, border, false, width, null,
         emptyList(), 0u, null, inline = false, spaced = false, boxMarginLeft = 0u, boxMarginRight = 0u, float = false,
     )
 
