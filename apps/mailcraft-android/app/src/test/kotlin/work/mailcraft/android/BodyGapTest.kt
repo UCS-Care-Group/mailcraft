@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
@@ -64,7 +65,22 @@ class BodyGapTest {
         assertEquals(IntSize(300, 75), boxSize(560, 300, 0.25f, Int.MAX_VALUE))
         assertEquals(IntSize(360, 120), boxSize(600, 360, 2f, 120))
         assertEquals(IntSize(1, 1), boxSize(0, 0, 0f, 0))
-        assertEquals(IntSize(1, Int.MAX_VALUE), boxSize(1, 360, Float.MAX_VALUE, Int.MAX_VALUE))
+    }
+
+    private val extremes = listOf(Int.MIN_VALUE, -1, 0, 1, 24, 8_000, 40_000_000, Int.MAX_VALUE)
+    private val shapes = listOf(-1f, 0f, 1e-7f, 1f, 4e7f, Float.MAX_VALUE, Float.POSITIVE_INFINITY, Float.NaN)
+
+    @Test
+    fun anyPictureBoxIsOneComposeCanLayOut() {
+        for (wanted in extremes) for (room in extremes) boxesFit(wanted, room)
+    }
+
+    private fun boxesFit(wanted: Int, room: Int) {
+        for (tall in shapes) for (cap in extremes) {
+            val size = boxSize(wanted, room, tall, cap)
+            assertTrue("$wanted $room $tall $cap -> $size", size.width >= 1 && size.height >= 1)
+            Constraints.fixed(size.width, size.height)
+        }
     }
 
     @Test

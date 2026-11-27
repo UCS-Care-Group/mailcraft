@@ -116,12 +116,18 @@ internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
 
 /**
  * A picture's box in pixels: [wanted] wide but no wider than [room], [tall] high for each unit of width,
- * no higher than [cap], never nothing.
+ * no higher than [cap], never nothing, and never more than [MAX_BOX_WIDTH] by [MAX_BOX_HEIGHT], which
+ * `Constraints.fixed` always takes. (It throws past what it can pack: a width under 8192 px leaves room
+ * for a height of 262143 px. A message's picture can be 1 by 40 million pixels.)
  */
 internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int): IntSize {
-    val w = wanted.coerceAtMost(room).coerceAtLeast(1)
-    return IntSize(w, (w * tall).roundToInt().coerceIn(1, cap.coerceAtLeast(1)))
+    val w = wanted.coerceAtMost(room).coerceIn(1, MAX_BOX_WIDTH)
+    val h = (w * tall.toDouble()).takeUnless { it.isNaN() } ?: 1.0
+    return IntSize(w, h.coerceIn(1.0, cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()).roundToInt())
 }
+
+private const val MAX_BOX_WIDTH = 8_000
+private const val MAX_BOX_HEIGHT = 200_000
 
 /**
  * A picture's box sized from the width there really is, unlike `width().aspectRatio()`: a tinted row
