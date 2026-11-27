@@ -86,7 +86,7 @@ internal object Corpus {
 
     class Entry(val name: String, val view: MessageView, val links: List<String>)
 
-    private fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
+    fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
         MessageView(
             1uL, id, 1uL, 1uL, ada, listOf(me), emptyList(), subject, 1_730_000_000L, false, false, emptyList(),
             attachments, blocks, false, remote, true,
