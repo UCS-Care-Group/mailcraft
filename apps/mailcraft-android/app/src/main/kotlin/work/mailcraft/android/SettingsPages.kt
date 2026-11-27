@@ -33,6 +33,9 @@ private val Gutter = 16.dp
 private val Gap = 8.dp
 private val IconBox = 24.dp
 
+/** Material's strength for a row that can't be chosen now. */
+private const val DISABLED_ALPHA = 0.38f
+
 /** The app's privacy notice on the project's site, which About links to. */
 internal const val PRIVACY_URL = "https://mailcraft.work/privacy/app/"
 
@@ -252,3 +255,56 @@ internal fun SignaturesPage(texts: Texts, ui: SettingsUi, accounts: List<Account
 }
 
 private const val SIGNATURE_LINES = 3
+
+/** What the Notification buttons row says: the buttons in their order, or that there are none. */
+internal fun noticeButtonsSummary(texts: Texts, buttons: NoticeButtons): String =
+    if (buttons.chosen.isEmpty()) {
+        texts.t("No buttons")
+    } else {
+        buttons.chosen.joinToString(" · ") { it.label(texts::t) }
+    }
+
+/**
+ * The buttons of a new-mail notification: each a row that is ticked or not, numbered in the order
+ * the buttons show; a button ticked goes last, and with three ticked the others wait.
+ */
+@Composable
+internal fun NoticeButtonsPage(texts: Texts, buttons: NoticeButtons, onButtons: (NoticeButtons) -> Unit) {
+    Hint(
+        texts.t(
+            "A new-mail notification shows up to three buttons, in the order you tick them. Reply opens the reply; the others act on the message without opening the app.",
+        ),
+    )
+    NoticeButton.entries.forEach { button ->
+        val place = buttons.chosen.indexOf(button)
+        val ticked = place >= 0
+        val room = ticked || buttons.chosen.size < NoticeButtons.MOST
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(value = ticked, enabled = room, role = Role.Checkbox) {
+                    onButtons(buttons.toggled(button))
+                }
+                .padding(horizontal = Gutter, vertical = Gutter),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val colour = MaterialTheme.colorScheme.onSurface.let { if (room) it else it.copy(alpha = DISABLED_ALPHA) }
+            Text(
+                button.label(texts::t),
+                style = MaterialTheme.typography.bodyLarge,
+                color = colour,
+                modifier = Modifier.weight(1f),
+            )
+            if (ticked) {
+                Text(
+                    "${place + 1}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                )
+                Icon(AppIcons.Check, contentDescription = null, modifier = Modifier.size(IconBox))
+            }
+        }
+        HorizontalDivider()
+    }
+}

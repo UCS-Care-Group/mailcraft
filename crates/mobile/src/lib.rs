@@ -74,6 +74,8 @@ mod fetch_tests;
 #[cfg(test)]
 mod host_failure_tests;
 #[cfg(test)]
+mod inline_pictures_tests;
+#[cfg(test)]
 mod jobs_tests;
 #[cfg(test)]
 mod junk_tests;
@@ -95,6 +97,8 @@ mod preview_tests;
 mod queue_tests;
 #[cfg(test)]
 mod quote_choice_tests;
+#[cfg(test)]
+mod refresh_tests;
 #[cfg(test)]
 mod reminders_tests;
 #[cfg(test)]
@@ -121,7 +125,7 @@ pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
 pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
 pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
-pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
+pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, NotifiedMessage, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use reminders::{MAX_SCHEDULED, MAX_SKIPPED, ReminderKind, ReminderSchedule, ScheduledReminder};
 pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};

@@ -176,6 +176,28 @@ internal object Corpus {
         emptyList(),
     )
 
+    /** A table of ten columns, far wider than a phone: it scrolls sideways on its own, and a swipe must wait for its edge. */
+    val wideTable = Entry(
+        "wide",
+        view(
+            4uL, "Planting schedule, whole year",
+            listOf(
+                B.p("Every bed, every month.", 0u),
+                B.tableBlock(
+                    B.table(
+                        layout = false,
+                        border = true,
+                        rows = listOf(
+                            listOf("Bed", "January", "February", "March", "April", "May", "June", "July", "August", "September").map { B.cell(B.p(it, 0u), header = true) },
+                            listOf("North border", "Prune hedging", "Order seed", "Sow peas", "Plant out sweet peas", "Water weekly", "Pick first roses", "Deadhead", "Collect seed", "Divide perennials").map { B.cell(B.p(it, 0u)) },
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        emptyList(),
+    )
+
     val reply = Entry(
         "reply",
         view(
