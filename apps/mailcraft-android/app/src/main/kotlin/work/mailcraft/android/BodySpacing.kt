@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.CellView
@@ -16,16 +18,14 @@ import uniffi.mailcraft_mobile.TableView
  * The room above [block] after the line [before] it, in dp, by the desktop's rule: the first blank line
  * is a paragraph's gap and each further one a line of body text, a margin the message gives in pixels
  * wins where it is more, and lists, headings, pictures and data tables keep a little room of their
- * own. The blank lines grow with the text ([fontScale]); the room the message or a kind of block asks for
- * in pixels does not. The first block of a column has none.
+ * own. The blank lines grow with the text as [density] scales it (Android's own curve at large sizes); the
+ * room the message or a kind of block asks for in pixels does not. The first block of a column has none.
  */
-internal fun spaceAbove(before: List<BlockView>?, block: BlockView, fontScale: Float = 1f): Dp {
+internal fun spaceAbove(before: List<BlockView>?, block: BlockView, density: Density = Density(1f)): Dp {
     if (before.isNullOrEmpty()) return 0.dp
-    // A line of pictures and text is text.
-    val prev = before.singleOrNull()?.kind ?: BlockKindView.Paragraph
+    val prev = lineKind(before)
     val steps = block.space.toInt().coerceIn(0, MAX_SPACE_STEPS)
-    val text = fontScale.coerceIn(MIN_SCALE, MAX_SCALE)
-    val asked = if (steps == 0) 0f else (PARAGRAPH_GAP + (steps - 1) * BLANK_LINE) * text
+    val asked = if (steps == 0) 0f else with(density) { (PARAGRAPH_GAP + (steps - 1) * BLANK_LINE).sp.toDp().value }
     val kind = block.kind
     val least = when {
         kind is BlockKindView.ListItem && prev is BlockKindView.ListItem -> LIST_GAP
@@ -39,6 +39,22 @@ internal fun spaceAbove(before: List<BlockView>?, block: BlockView, fontScale: F
 
 private fun BlockKindView.isDataTable() = this is BlockKindView.Table && !table.layout
 
+/**
+ * What a line counts as for the room below it, as on the desktop: a run of pictures is a picture, a run
+ * of boxes on a line (a lone one too, whatever it holds) neither text nor a grid, pictures and text text.
+ */
+private fun lineKind(line: List<BlockView>): BlockKindView {
+    val first = line.first().kind
+    val box = { k: BlockKindView -> k is BlockKindView.Table && k.table.inline }
+    return when {
+        line.all { it.kind is BlockKindView.Image } -> first
+        // Neither text nor a grid: what a rule counts as too.
+        line.all { box(it.kind) } -> BlockKindView.Rule
+        line.size == 1 -> first
+        else -> BlockKindView.Paragraph
+    }
+}
+
 /** A paragraph's gap and a blank line: the desktop's 10 and 18 pixels at its 13 pixel text, at the phone's size. */
 private const val PARAGRAPH_GAP = BASE_SIZE * 10f / 13f
 private const val BLANK_LINE = BASE_SIZE * DEFAULT_LINE
@@ -47,17 +63,19 @@ private const val HEADING_GAP = 4f
 private const val DATA_TABLE_GAP = 8f
 private const val PICTURE_GAP = 4f
 private const val MAX_SPACE_STEPS = 3
-private const val MIN_SCALE = 0.5f
-private const val MAX_SCALE = 4f
 
-/** The margins of a box on a line, scaled down to leave it at least [MIN_ROOM] of [width]. */
+/**
+ * The margins of a box on a line, as on the desktop: together at most what leaves the box [MIN_BOX] of
+ * [width], the left one kept first.
+ */
 internal fun boxMargins(table: TableView, width: Dp): Pair<Dp, Dp> {
     val left = table.boxMarginLeft.toFloat()
-    val right = table.boxMarginRight.toFloat()
-    val spare = (width - MIN_ROOM).value.coerceAtLeast(0f)
-    val shrink = if (left + right > spare) spare / (left + right) else 1f
-    return (left * shrink).dp to (right * shrink).dp
+    val clear = (left + table.boxMarginRight.toFloat()).coerceAtMost((width.value - MIN_BOX).coerceAtLeast(0f))
+    val kept = left.coerceAtMost(clear)
+    return kept.dp to (clear - kept).dp
 }
+
+private const val MIN_BOX = 24f
 
 private fun insets(side: Int, top: Int) = InsetsView(top.toUByte(), side.toUByte(), top.toUByte(), side.toUByte())
 
