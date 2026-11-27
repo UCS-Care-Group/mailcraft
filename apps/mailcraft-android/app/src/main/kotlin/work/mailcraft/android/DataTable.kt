@@ -158,6 +158,9 @@ private class DataTablePolicy(
     /** The row tops in pixels in [edges], each cell asked its height at its width once. */
     private fun rowsOf(cells: List<Pair<PlacedCell, IntrinsicMeasurable>>, edges: IntArray): IntArray {
         val tallest = tallestFor(edges.last())
+        // Every cell of a row is drawn as tall as the row (its lines, its colour), a fixed measure: so a
+        // row is held to what one packs beside the table's width (docs/gaps.md, row 19).
+        // lean: a data row taller than [tallest] has its foot cut; drawn in pieces if a message ever needs more.
         // A cell past the widest a measure takes has no room, and asks for none down the page either.
         val heights = cells.map { (p, m) ->
             val w = edges.between(p.col, p.col + p.cols)

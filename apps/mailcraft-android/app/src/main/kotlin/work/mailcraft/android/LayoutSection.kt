@@ -9,6 +9,7 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.constrainHeight
@@ -47,17 +48,24 @@ internal class Arranged(
  * they don't fit there, as the desktop decides it, at the real width; [rowGap] between rows and between
  * stacked cells. A row with colours or lines ([tinted]) has every cell as tall as the row: a coloured
  * bar beside a card reaches its foot, a cell's lines meet the row's; never taller than its tallest
- * cell (#2006). A cell over several rows stands in its first.
+ * cell (#2006). Any other row is as tall as its cells are drawn, each measured with no limit to its
+ * height, so a long message in a wrapper table is drawn whole. A cell over several rows stands in its
+ * first.
  *
- * Invariants (LayoutSectionTest, NestedTablesTest, TallRowsTest):
- * - I1, what it says of its size is what it draws. Its intrinsic height at a width is the height
- *   measure gives at that width, and measure gives each cell the slot that height was made of: both
- *   are [arrange] of the same width and the same cell heights. Its intrinsic widths say what it needs
- *   to stand side by side (the cells of a row, with the gaps) and at least (its widest cell's least,
- *   as it can stack), and its own width in pixels where it gives one.
+ * Invariants (TableSizeTest, NestedTablesTest, TallRowsTest):
+ * - I1, what it says of its size is what it draws, where each cell's own intrinsics say what that
+ *   cell draws. Its intrinsic height at a width is [arrange] of that width and the cells' intrinsic
+ *   heights; measure arranges the same width with those heights for a row with colour and with the
+ *   heights the cells are drawn at for any other. The children a cell holds are made to keep their
+ *   side of it (text; pictures and text in a line and boxes on a line through [BoxesPolicy]; tables
+ *   in it through this policy and the data table's), and TableSizeTest's matrix checks each of them in
+ *   a coloured, a plain and a data cell at four widths. Its intrinsic widths say what it needs to stand
+ *   side by side (the cells of a row, with the gaps) and at least (its widest cell's least, as it can
+ *   stack), and its own width in pixels where it gives one, widened to that least.
  * - I2, bounded work. A measure, or any one intrinsic, asks each cell each intrinsic at most once.
- * - No measure throws: a cell's height is asked with a fallback and held to [MAX_BOX_HEIGHT] (as a
- *   picture's foot is cut), its width to [MAX_BOX_WIDTH], and the section to [MAX_LAYOUT].
+ * - No measure throws: a cell's height is asked with a fallback, a cell that fills a row with colour
+ *   is held to [MAX_BOX_HEIGHT] (as a picture's foot is cut), a cell's width to [MAX_BOX_WIDTH], and the
+ *   section to [MAX_LAYOUT].
  */
 internal class SectionPolicy(
     private val cells: List<PlacedCell>,
@@ -69,11 +77,14 @@ internal class SectionPolicy(
     private val gap get() = gaps.column
     private val rowGap get() = gaps.row
 
-    /** The width it is laid out in, of [given] pixels: its own where it gives one, never more. */
-    private fun Density.roomOf(given: Int): Int {
+    /**
+     * The width it is laid out in, of [given] pixels: its own where it gives one, never more; one in
+     * pixels narrower than what its widest cell needs at least ([needs]) is that wide, as on the desktop.
+     */
+    private fun Density.roomOf(given: Int, needs: () -> Int): Int {
         val room = if (given == Constraints.Infinity) MAX_BOX_WIDTH else given.coerceIn(0, MAX_BOX_WIDTH)
         val least = CellMinimum.roundToPx().coerceAtMost(room)
-        own.dp?.let { return it.dp.roundToPx().coerceIn(least, room) }
+        own.dp?.let { return maxOf(it.dp.roundToPx(), needs()).coerceIn(least, room) }
         own.percent?.let { return room * it.coerceIn(0, PERCENT) / PERCENT }
         return room
     }
@@ -92,11 +103,16 @@ internal class SectionPolicy(
         return Triple(false, lefts, wides)
     }
 
-    /** The section laid out in [given] pixels, each cell [heightOf] (its index, its width) asked once. */
-    fun Density.arrange(given: Int, heightOf: (Int, Int) -> Int): Arranged {
-        val room = roomOf(given)
+    /**
+     * The section laid out in [given] pixels, each cell [heightOf] (its index, its width, whether it
+     * fills a row with colour) asked once, and its widest cell's least width [needs] at most once.
+     */
+    fun Density.arrange(given: Int, needs: () -> Int, heightOf: (Int, Int, Boolean) -> Int): Arranged {
+        val room = roomOf(given, needs)
         val (stacked, lefts, wides) = across(room)
-        val heights = IntArray(cells.size) { heightOf(it, wides[it]).coerceIn(0, MAX_BOX_HEIGHT) }
+        val heights = IntArray(cells.size) {
+            heightOf(it, wides[it], !stacked && cells[it].row in tinted).coerceIn(0, MAX_LAYOUT)
+        }
         val between = rowGap.dp.roundToPx()
         val tops = IntArray(cells.size)
         val slots = IntArray(cells.size)
@@ -125,19 +141,27 @@ internal class SectionPolicy(
         return Arranged(stacked, lefts, wides, tops, slots, room, y)
     }
 
-    private fun IntrinsicMeasurable.heightAt(width: Int): Int =
-        intrinsic(MAX_BOX_HEIGHT) { minIntrinsicHeight(width) }
+    /** A cell's height at [width]: held to [MAX_BOX_HEIGHT] where it [fills] its row, a fixed measure. */
+    private fun IntrinsicMeasurable.heightAt(width: Int, fills: Boolean): Int =
+        intrinsic(MAX_BOX_HEIGHT) { minIntrinsicHeight(width) }.coerceAtMost(if (fills) MAX_BOX_HEIGHT else MAX_LAYOUT)
+
+    private fun needsOf(measurables: List<IntrinsicMeasurable>): () -> Int =
+        { minIntrinsicWidthOf(measurables, Constraints.Infinity) }
 
     override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
         val all = measurables.take(cells.size)
-        val heights = IntArray(all.size)
-        val at = arrange(constraints.maxWidth) { i, w -> all[i].heightAt(w).also { heights[i] = it } }
-        val placeables = all.mapIndexed { i, m ->
-            val w = at.wides[i]
-            val tall = !at.stacked && cells[i].row in tinted
-            // A tinted row's cells fill it; any other cell is no taller than its slot, which is its own height.
-            m.measure(if (tall) Constraints.fixed(w, at.slots[i]) else Constraints(w, w, 0, at.slots[i]))
+        val drawn = arrayOfNulls<Placeable>(all.size)
+        // A cell that fills a row with colour is measured at the row's height, so its own is asked first;
+        // any other is measured as tall as it is (the row is the tallest of them), so nothing is cut.
+        val at = arrange(constraints.maxWidth, needsOf(all)) { i, w, fills ->
+            val m = all.getOrNull(i)
+            when {
+                m == null -> 0
+                fills -> m.heightAt(w, fills = true)
+                else -> m.measure(Constraints(w, w, 0, Constraints.Infinity)).also { drawn[i] = it }.height
+            }
         }
+        val placeables = all.mapIndexed { i, m -> drawn[i] ?: m.measure(Constraints.fixed(at.wides[i], at.slots[i])) }
         val height = constraints.constrainHeight(at.height)
         return layout(at.width.coerceIn(constraints.minWidth, constraints.maxWidth), height) {
             placeables.forEachIndexed { i, pl ->
@@ -148,7 +172,7 @@ internal class SectionPolicy(
     }
 
     override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
-        arrange(width) { i, w -> measurables.getOrNull(i)?.heightAt(w) ?: 0 }.height
+        arrange(width, needsOf(measurables)) { i, w, fills -> measurables.getOrNull(i)?.heightAt(w, fills) ?: 0 }.height
 
     override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
         minIntrinsicHeight(measurables, width)

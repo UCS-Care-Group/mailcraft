@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -12,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -36,17 +38,35 @@ class TallRowsTest {
         var height = -1
         paparazzi.snapshot {
             density = LocalDensity.current.density
-            Box(modifier = Modifier.onGloballyPositioned { height = it.size.height }) {
+            Box(modifier = Modifier.whole { height = it }) {
                 TableBlock(table, AlignView.LEFT, env, Paper.of(WHITE, LINK), room)
             }
         }
         return height
     }
 
+    /** As tall as what it holds, past the screen's foot, telling [height] of it. */
+    private fun Modifier.whole(height: (Int) -> Unit) =
+        wrapContentHeight(unbounded = true).onGloballyPositioned { height(it.size.height) }
+
     @Test
     fun aTallTintedLayoutCellIsHeld() {
         val height = heightOf(TablesRtl.tintedNote(6_000))
         assertTrue("height $height", height in 1..MAX_BOX_HEIGHT)
+    }
+
+    @Test
+    fun aTallUntintedLayoutCellIsDrawnWhole() {
+        // A wrapper table of one plain cell round 6,000 lines ends where the lines alone do: none is cut.
+        var column = -1
+        paparazzi.snapshot {
+            Box(modifier = Modifier.whole { column = it }) {
+                BlockColumn(listOf(B.p(TablesRtl.lines(6_000), 0u)), env, Paper.of(WHITE, LINK), 360.dp)
+            }
+        }
+        val height = heightOf(TablesRtl.plainNote(6_000))
+        assertTrue("column $column", column > MAX_BOX_HEIGHT)
+        assertEquals(column, height)
     }
 
     @Test

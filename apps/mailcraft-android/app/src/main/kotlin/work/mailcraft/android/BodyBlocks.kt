@@ -1,14 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-@file:OptIn(ExperimentalLayoutApi::class)
 
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,12 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
@@ -123,8 +121,7 @@ internal val MIN_ROOM = 40.dp
 private val QuoteBar = 2.dp
 /** The gap between the things in one line (text, pictures), and between boxes' lines, in dp. */
 internal const val RUN_GAP = 4f
-private val RunGap = RUN_GAP.dp
-private val RunLineGap = 2.dp
+private const val RUN_LINE_GAP = 2f
 
 internal fun quoteWidth(levels: Int): Dp = (levels.coerceIn(0, MAX_QUOTE_LEVELS) * QUOTE_INDENT).dp
 
@@ -162,19 +159,29 @@ private fun InlineRun(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width
         BoxesLine(blocks, env, paper, width)
         return
     }
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(RunGap),
-        verticalArrangement = Arrangement.spacedBy(RunLineGap),
-    ) {
-        blocks.forEach { block ->
-            when (val kind = block.kind) {
-                is BlockKindView.Image -> PictureBlock(block, kind, env, paper, width)
-                is BlockKindView.Table -> BoxOnALine(kind.table, block.align, env, paper, width)
-                else -> TextBlock(block, env, paper, fill = false)
-            }
-        }
+    val policy = remember(blocks) {
+        val n = blocks.size
+        BoxesPolicy(
+            gapsDp = List(n) { RUN_GAP.toInt() },
+            right = List(n) { false },
+            align = AlignView.LEFT,
+            floats = false,
+            lineGapDp = RUN_LINE_GAP,
+        )
     }
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            blocks.forEach { block ->
+                when (val kind = block.kind) {
+                    is BlockKindView.Image -> PictureBlock(block, kind, env, paper, width)
+                    is BlockKindView.Table -> BoxOnALine(kind.table, block.align, env, paper, width)
+                    else -> TextBlock(block, env, paper, fill = false)
+                }
+            }
+        },
+        measurePolicy = policy,
+    )
 }
 
 /** A table that is a box on a line, with the room its margins keep free left and right of it while there is room. */

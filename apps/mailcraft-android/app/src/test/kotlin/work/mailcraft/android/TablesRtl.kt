@@ -95,7 +95,7 @@ internal object TablesRtl {
         emptyList(),
     )
 
-    private fun lines(n: Int) = (1..n).joinToString("\n") { "Line $it of the delivery note" }
+    fun lines(n: Int) = (1..n).joinToString("\n") { "Line $it of the delivery note" }
 
     /** A cell of about 5,000 lines in a table of the phone's width: taller than a measure can pack beside its width. */
     val tallNarrow = Corpus.Entry(
@@ -106,6 +106,9 @@ internal object TablesRtl {
 
     /** A note of [n] lines in a coloured box: a layout table of one tinted cell, as a coloured `<div>` becomes. */
     fun tintedNote(n: Int): TableView = B.table(layout = true, rows = listOf(listOf(B.cell(B.p(lines(n), 0u), background = 0xFFF4D6u))))
+
+    /** The same note in a table of one cell with no colour: a wrapper `<table>` round a long message. */
+    fun plainNote(n: Int): TableView = B.table(layout = true, rows = listOf(listOf(B.cell(B.p(lines(n), 0u)))))
 
     /** A digest of about 6,000 lines in a coloured box. */
     val tallTinted = Corpus.Entry(
