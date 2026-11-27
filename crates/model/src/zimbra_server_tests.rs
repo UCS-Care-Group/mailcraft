@@ -12,6 +12,35 @@ fn an_https_address_may_be_used() {
 }
 
 #[test]
+fn the_same_server_is_told_whatever_the_case_of_its_name() {
+    let server = ZimbraServer { url: "https://Mail.Example.org:8443/zimbra/".into(), ..Default::default() };
+    // The scheme and the server's name are read in any case, and a `/` at the end names nothing.
+    for same in ["https://mail.example.org:8443/zimbra", "HTTPS://MAIL.EXAMPLE.ORG:8443/zimbra/", " https://mail.example.org:8443/zimbra// "] {
+        assert!(server.same_server(same), "{same}");
+    }
+    // A path is the server's own to tell apart, and a port or a scheme is another service.
+    for other in [
+        "https://mail.example.org:8443/ZIMBRA",
+        "https://mail.example.org:8443",
+        "https://mail.example.org/zimbra",
+        "https://mail.example.org:8444/zimbra",
+        "http://mail.example.org:8443/zimbra",
+        "https://other.example.org:8443/zimbra",
+        "https://mail.example.org:8443/zimbra/more",
+        "mail.example.org:8443/zimbra",
+        "",
+    ] {
+        assert!(!server.same_server(other), "{other:?}");
+    }
+    let plain = ZimbraServer { url: "https://mail.example.org".into(), ..Default::default() };
+    assert!(plain.same_server("HTTPS://MAIL.EXAMPLE.ORG/") && !plain.same_server("https://mail.example.org/zimbra"));
+    // No address is no server: it is the same as none, not even as another empty one.
+    assert!(!ZimbraServer::default().same_server("") && !ZimbraServer::default().same_server("https://mail.example.org"));
+    // (Text of any kind is compared, never sliced inside a character.)
+    assert!(!server.same_server("https://mäil.example.org:8443/zimbra") && !server.same_server("://") && !server.same_server("é://é/é"));
+}
+
+#[test]
 fn other_addresses_are_refused() {
     for bad in [
         "",

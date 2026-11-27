@@ -13,9 +13,11 @@
 //! 4. **The last piece** carries the token to go on from. A run that failed or was called off
 //!    carries none: the mailbox stays at the token it had, and the next run reads again what this
 //!    one didn't finish. A run that only reached one of its caps (more pages of changes, or of a
-//!    folder, than one run reads) is not `whole` but does carry one: the token of the last page
-//!    it read whole, with where each half-read folder goes on from (`resume`). The two belong
-//!    together and are kept together, whether the run was whole or not.
+//!    folder, than one run reads) is not `whole` but does carry one, with where each half-read
+//!    folder goes on from (`resume`): the token of the last page of changes it read whole, or,
+//!    on a fresh read, the token asked for before the first folder was read (a folder's page
+//!    gives where that folder goes on from, never a token). The two belong together and are
+//!    kept together, whether the run was whole or not.
 //!
 //! Every piece says the token the run went on from, so that the engine never takes a piece in for
 //! a mailbox that has moved on meanwhile. Nothing a server wrote reaches a piece's lines.
@@ -50,8 +52,10 @@ const MAX_RELISTS: usize = 2;
 const MAX_FETCH: usize = 100;
 /// Most bytes of MIME one fetch hands back: at [`crate::http::RESPONSE_LIMIT`] a message, a
 /// hundred of them would be more than three gigabytes. What doesn't fit is fetched by the fetch
-/// that asks again for what this one left. (While the answer that turns out not to fit is being
-/// read, it is held beside these: at most one message's [`crate::http::RESPONSE_LIMIT`] more.)
+/// that asks again for what this one left. (This is what is handed back, not all that is held
+/// meanwhile: the answer being read is held beside these, and so is the copy
+/// [`crate::fetch::answer`] makes of its text before the answer is let go, which is up to
+/// twice [`crate::http::RESPONSE_LIMIT`] more for as long as one message is taken over.)
 const MAX_FETCH_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Why a run stopped before its end.

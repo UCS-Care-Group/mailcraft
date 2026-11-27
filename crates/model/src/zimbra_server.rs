@@ -115,6 +115,22 @@ impl ZimbraServer {
     pub fn base(&self) -> &str {
         self.url.trim().trim_end_matches('/')
     }
+
+    /// Whether `address` names this server: the one rule for it, so that an edit of the settings
+    /// and a result coming back agree. The scheme and the server's name (with its port) are read
+    /// in any case of letters, as a web address is; the path is the server's own and is compared
+    /// as written; a `/` at the end names nothing. No address is no server, and the same as none.
+    pub fn same_server(&self, address: &str) -> bool {
+        // The address up to its path, and the path.
+        fn parts(address: &str) -> (&str, &str) {
+            let address = address.trim().trim_end_matches('/');
+            let named = address.find("://").map_or(0, |at| at.saturating_add(3));
+            let path = address.get(named..).and_then(|rest| rest.find('/')).map(|at| named.saturating_add(at));
+            path.and_then(|at| address.split_at_checked(at)).unwrap_or((address, ""))
+        }
+        let (mine, theirs) = (parts(&self.url), parts(address));
+        !mine.0.is_empty() && mine.0.eq_ignore_ascii_case(theirs.0) && mine.1 == theirs.1
+    }
 }
 
 #[cfg(test)]
