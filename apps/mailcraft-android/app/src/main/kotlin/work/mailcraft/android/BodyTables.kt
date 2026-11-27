@@ -48,7 +48,7 @@ private const val PERCENT = 100
 @Composable
 internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, room: Dp) {
     val width = tableWidth(table, room)
-    val own = table.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     // Over what is in it, as the desktop draws it: a cell's own colour never hides the table's frame.
     val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own, over = true) else Modifier
@@ -144,7 +144,7 @@ private fun Modifier.alignIn(row: RowScope, v: VAlignView?): Modifier = with(row
 /** One cell: its background, lines and padding, and its blocks in the room that is left. */
 @Composable
 internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
-    val own = cell.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = cell.background?.let { paper.inner(it.rgb()) } ?: paper
     val pad = cellPadding(table, cell)
     val left = pad.left.toInt()
     val right = pad.right.toInt()
