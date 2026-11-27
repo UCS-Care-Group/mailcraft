@@ -113,9 +113,9 @@ private fun LayoutRow(
     ruled: Boolean,
 ) {
     val cells = row.sortedBy { it.col }
-    // A row with colours or lines has every cell as tall as the row, as a table's are: a coloured
-    // bar beside a card reaches its foot.
-    val tinted = cells.any { it.cell.background != null || it.cell.border.hasAny() }
+    // A row with colours or lines (its cells' or the table's grid) has every cell as tall as the row, as a
+    // table's are: a coloured bar beside a card reaches its foot, a cell's lines meet the row's.
+    val tinted = table.border || cells.any { it.cell.background != null || it.cell.border.hasAny() }
     val tall = if (tinted) Modifier.fillMaxHeight() else Modifier
     Row(modifier = if (tinted) Modifier.height(IntrinsicSize.Min) else Modifier) {
         var next = 0

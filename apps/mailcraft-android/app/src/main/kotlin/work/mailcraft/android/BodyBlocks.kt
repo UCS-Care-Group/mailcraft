@@ -72,7 +72,7 @@ private const val SPACE_FOR_QUOTE_BAR = 3
 @Composable
 internal fun BodyLineView(line: BodyLine, env: BodyEnv, paper: Paper, width: Dp) {
     val first = line.blocks.first()
-    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current.fontScale))
+    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current))
     Box(modifier = pad.quoted(first.quote.toInt(), env.rule)) {
         if (line.blocks.size == 1) {
             SingleBlock(first, env, paper, width)
