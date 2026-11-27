@@ -540,7 +540,11 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                     }
                 }
             };
-            if ui.available_width() >= buttons + 180.0 {
+            let subject_fits = subject.len() <= 512 && {
+                let subject_width = ui.painter().layout_no_wrap(subject.to_owned(), semibold(17.0), t.text).size().x;
+                ui.available_width() >= buttons + ui.spacing().item_spacing.x + subject_width
+            };
+            if subject_fits {
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                         ui.allocate_ui_with_layout(vec2(buttons, 24.0), egui::Layout::left_to_right(egui::Align::Center), show_actions);
