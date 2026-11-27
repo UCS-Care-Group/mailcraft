@@ -3,8 +3,8 @@
 > **Last reviewed:** 2026-10-29 · **Last updated:** 2026-11-20 · **Change:** minor
 
 MailCraft's interface comes in English and, as preview languages, French, German, Spanish,
-Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor.
-Simplified Chinese is offered on desktop only until the browser build has a CJK font.
+Italian, Dutch, Romanian, Hungarian, Polish, Czech, Simplified Chinese, Georgian and Korean. Preview translations may be marked for further review; the initial Simplified Chinese catalogue was reviewed by its contributor, and the Korean catalogue is a machine-assisted draft.
+Simplified Chinese and Korean are offered on desktop only until the browser build has a CJK font.
 File › Options names each preview in its own words ("Français (aperçu)", "Deutsch (Vorschau)"). Reviewing
 one, or adding another, needs no Rust.
 
@@ -12,7 +12,7 @@ one, or adding another, needs no Rust.
 
 - `crates/i18n/po/messages.pot`: the template, every text the window and the engine show. It is
   generated; never edit it by hand.
-- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `zh_CN.po`, `ka.po`), in
+- `crates/i18n/po/<code>.po`: one catalogue per language (`fr.po`, `de.po`, `es.po`, `it.po`, `nl.po`, `ro.po`, `hu.po`, `pl.po`, `cs.po`, `zh_CN.po`, `ka.po`, `ko.po`), in
   the gettext format any `.po` editor opens. The catalogues are compiled into the program.
 
 `cargo xtask i18n` gathers the texts from the code, rewrites the template, merges it into every
@@ -78,6 +78,7 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-27 | minor | Korean as a preview language (`ko.po`, `한국어 (미리 보기)`), a machine-assisted draft. |
 | 2026-11-20 | minor | New texts in a pull request: a draft translation in every catalogue, marked `#, fuzzy`; empty ones don't block a review |
 | 2026-11-16 | minor | added the Czech preview catalogue (`cs.po`), with its three plural forms. |
 | 2026-11-15 | minor | #1357: added the Polish preview catalogue (`pl.po`), with its three plural forms. |
