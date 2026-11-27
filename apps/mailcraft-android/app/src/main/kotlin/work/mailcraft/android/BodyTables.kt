@@ -50,7 +50,7 @@ private const val PERCENT = 100
 internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, room: Dp) {
     val (marginLeft, marginRight) = if (table.inline) boxMargins(table, room.value) else 0f to 0f
     val width = drawnWidth(table, room - (marginLeft + marginRight).dp)
-    val own = table.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own) else Modifier
     val box = Modifier
@@ -158,7 +158,7 @@ private fun Modifier.alignIn(row: RowScope, v: VAlignView?): Modifier = with(row
 /** One cell: its background, lines and padding, and its blocks in the room that is left. */
 @Composable
 internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
-    val own = cell.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = cell.background?.let { paper.inner(it.rgb()) } ?: paper
     val pad = cell.padding
     // A cell of a data table that says nothing of its padding has the grid's own.
     val roomy = !table.layout && pad == null
