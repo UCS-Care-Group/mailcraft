@@ -264,7 +264,7 @@ internal object Corpus {
         view(
             7uL, "Weights and faces",
             listOf(
-                B.block(BlockKindView.Heading(2u), B.span("Spring at Fern Hollow", face = FaceView.CONDENSED, size = 24u)),
+                B.block(BlockKindView.Heading(2u), B.span("Spring at Fern Hollow", bold = true, face = FaceView.CONDENSED, size = 24u)),
                 B.block(
                     BlockKindView.Paragraph,
                     B.span("Light 300, ", weight = 300u), B.span("regular 400, "), B.span("semibold 600, ", bold = true, weight = 600u),

@@ -33,6 +33,10 @@ fn a_name_may_give_a_weight_and_a_width() {
     assert_eq!(known("segoe ui semibold"), Some((Generic::Own, 600)));
     assert_eq!(known("calibri light"), Some((Generic::Own, 300)));
     assert_eq!(known("arial black"), Some((Generic::Own, 900)));
+    assert_eq!(known("segoe ui bold"), Some((Generic::Own, 700)));
+    assert_eq!(known("segoe ui regular"), Some((Generic::Own, 400)));
+    assert_eq!(known("arial narrow bold"), Some((Generic::Condensed, 700)));
+    assert_eq!(known("arial rounded mt bold"), Some((Generic::Own, 700)));
     assert_eq!(known("arial narrow"), Some((Generic::Condensed, 400)));
     assert_eq!(known("aptos narrow"), Some((Generic::Condensed, 400)));
     assert_eq!(known("franklin gothic medium cond"), Some((Generic::Condensed, 500)));

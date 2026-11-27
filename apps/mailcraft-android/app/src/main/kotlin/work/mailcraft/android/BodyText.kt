@@ -113,9 +113,8 @@ internal fun sizeOf(span: SpanView): Int? = span.size?.toInt()?.coerceIn(1, MAX_
 internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle = SpanStyle(
     color = composeColor(inkOf(span, paper, linked)),
     background = span.background?.let { composeColor(it.rgb()) } ?: Color.Unspecified,
-    // Regular text keeps the weight of what it is in (a heading's).
-    fontWeight = FontWeight(span.weight.toInt().coerceIn(LIGHTEST, HEAVIEST))
-        .takeIf { it != FontWeight.Normal },
+    // Always said, regular too: a heading is bold by its spans, as the core reads it.
+    fontWeight = FontWeight(span.weight.toInt().coerceIn(LIGHTEST, HEAVIEST)),
     fontStyle = if (span.italic) FontStyle.Italic else null,
     textDecoration = decorationOf(span, linked),
     fontSize = sizeOf(span)?.sp ?: TextUnit.Unspecified,

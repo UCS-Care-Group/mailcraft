@@ -25,11 +25,12 @@ class BodyFontsTest {
     private fun weightOf(span: SpanView) = styleOf(span, Paper(0xFFFFFF, 0, 0), linked = false).fontWeight
 
     @Test
-    fun weightsAreKeptAndRegularIsTheBodys() {
+    fun weightsAreKeptRegularToo() {
         assertEquals(FontWeight(300), weightOf(B.span("light", weight = 300u)))
         assertEquals(FontWeight.Bold, weightOf(B.span("bold", bold = true)))
         assertEquals(FontWeight(900), weightOf(B.span("black", bold = true, weight = 900u)))
-        assertNull(weightOf(B.span("regular")))
+        // Regular is said, so a heading that asks for `font-weight:normal` is regular, as on the desktop.
+        assertEquals(FontWeight.Normal, weightOf(B.span("regular")))
         // Out of range is held to it.
         assertEquals(FontWeight(1000), weightOf(B.span("past", weight = 2000u)))
     }

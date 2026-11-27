@@ -92,6 +92,7 @@ const MONO: &[&str] = &[
 ];
 const SANS: &[&str] = &[
     "arial",
+    "arial rounded mt",
     "helvetica",
     "helvetica neue",
     "calibri",
@@ -140,7 +141,9 @@ const SANS: &[&str] = &[
 ];
 
 /// The words a family's name may end in that give its weight (`segoe ui light`, `aptos semibold`).
-const WEIGHTS: [(&str, u16); 12] = [
+const WEIGHTS: [(&str, u16); 14] = [
+    ("regular", 400),
+    ("bold", 700),
     ("thin", 100),
     ("extralight", 200),
     ("ultralight", 200),
