@@ -15444,13 +15444,13 @@ msgstr "나에게만 보냄"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Sent to"
-msgstr "보낸 사람"
+msgstr "받는 사람"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Sent to the MailCraft team privately. If it's a real problem we may make it public on GitHub, with what you wrote and the diagnostics, so we can track it. Leave out anything private."
-msgstr "MailCraft팀에 비공개로 보냈습니다. 만약 그것이 진짜 문제라면 우리는 그것을 추적할 수 있도록 여러분이 작성한 내용과 진단 내용을 GitHub에 공개할 수 있습니다. 개인적인 내용은 모두 남겨두세요."
+msgstr "MailCraft 팀에 비공개로 보냅니다. 실제 문제라면 추적할 수 있도록 작성하신 내용과 진단 정보를 포함해 GitHub에 공개할 수 있습니다. 개인정보나 비공개 내용은 포함하지 마세요."
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -22503,13 +22503,13 @@ msgstr "공유 사서함의 규칙은 고유합니다. 이 버전에서는 규�
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
 msgid "a signature is open: add its pictures with signature.picture.add"
-msgstr "서명이 열려 있음: 서명.picture.add를 사용하여 그림을 추가하세요."
+msgstr "서명이 열려 있습니다: signature.picture.add로 그림을 추가하세요."
 
 #. why a command can't run
 #: crates/engine/src/cmd/picture.rs
 #, fuzzy
 msgid "a signature is open: size its pictures with signature.picture.set"
-msgstr "서명이 열려 있음: 서명.picture.set를 사용하여 그림의 크기를 조정합니다."
+msgstr "서명이 열려 있습니다: signature.picture.set으로 그림 크기를 설정하세요."
 
 #. what a command says
 #: crates/model/src/signature.rs
