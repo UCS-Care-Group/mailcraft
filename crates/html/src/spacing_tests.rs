@@ -281,3 +281,38 @@ fn a_hidden_row_of_a_composed_grid_is_left_out() {
     let rows = table(&blocks).rows.len();
     assert_eq!(rows, 2, "{blocks:?}");
 }
+
+#[test]
+fn a_row_that_is_not_there_is_gone_and_one_hidden_in_place_shows_nothing() {
+    // Gone under a row span: the row is removed, as in a browser.
+    let html = "<table border=1><tr><td rowspan=2>N</td><td>a</td></tr><tr style='display:none'><td>b</td></tr><tr><td>X</td><td>Y</td></tr></table>";
+    assert_eq!(grid(html), [vec!["N", "a"], vec!["X", "Y"]]);
+    // A table section that is not there takes its rows with it, and no further than its table.
+    for section in ["<tbody style='display:none'>", "<thead hidden>", "<tfoot style='display:none'>"] {
+        let html = format!(
+            "<table border=1><tr><td>a</td><td>1</td></tr>{section}<tr><td>b</td><td>2</td></tr></table><table border=1><tr><td>c</td><td>3</td></tr></table>"
+        );
+        let blocks = parse(&html);
+        assert_eq!(blocks.iter().filter(|b| matches!(b.kind, BlockKind::Table(_))).count(), 2, "{section}");
+        assert_eq!(grid(&html), [vec!["a", "1"]], "{section}");
+        assert!(!crate::to_text(&html).contains('b'), "{section}");
+    }
+    let html =
+        "<table border=1><tbody style='display:none'><tr><td>b</td><td>2</td></tr></tbody><tbody><tr><td>c</td><td>3</td></tr></tbody></table>";
+    assert_eq!(grid(html), [vec!["c", "3"]]);
+    // A row hidden in its place: its text is hidden text, never shown, and its colour reaches no cell.
+    let html = "<table border=1><tr><td>a</td><td>1</td></tr><tr style='visibility:hidden' bgcolor=red><td>Secret</td><td>2</td></tr></table>";
+    let (shown, hidden) = crate::text_and_hidden(html);
+    assert!(!shown.contains("Secret") && hidden.contains("Secret"), "{shown:?} {hidden:?}");
+    let blocks = parse(html);
+    let held: Vec<_> =
+        table(&blocks).rows.get(1).map(|r| r.cells.iter().map(|c| (c.background, c.held, c.blocks.len())).collect()).unwrap_or_default();
+    assert_eq!(held, [(None, true, 0), (None, true, 0)]);
+}
+
+#[test]
+fn white_space_written_as_a_reference_is_no_divider_either() {
+    let grey = Some(Rgb(0xcc, 0xcc, 0xcc));
+    let html = "<table><tr><td bgcolor=#ccc style='font-size:1px;padding:0'>&#32;&Tab;&#10;</td><td>x</td></tr></table>";
+    assert_eq!(bar_of(html), Some((top(0), grey, 0)));
+}

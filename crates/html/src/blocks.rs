@@ -706,6 +706,9 @@ struct TableBuild {
     spacing: Option<u8>,
     /// `cellpadding`: the room inside each of its cells on the sides they give none of their own.
     cell_padding: Option<u8>,
+    /// The table section being read (`<tbody>`, `<thead>`, `<tfoot>`) is not there (`display:
+    /// none`, `hidden`): its rows are gone with it.
+    section_gone: bool,
     inline: bool,
     bg_picture: Option<Box<BgPicture>>,
     /// A box on a line floated to the side `align` says ([`Table::float`]).
@@ -1154,7 +1157,7 @@ impl Builder {
         }
         if self.style().tiny {
             // (White space alone draws no line in a browser; a no-break space does.)
-            if self.style().tiny_some && raw.chars().any(|c| !c.is_ascii_whitespace()) {
+            if self.style().tiny_some && unescape(raw).chars().any(|c| !c.is_ascii_whitespace()) {
                 // (The cell it is in is a divider of a pixel, when it holds nothing else.)
                 let cell = self.nodes.iter_mut().rev().take_while(|n| !matches!(n.kind, Kind::Table(_))).find_map(|n| match &mut n.kind {
                     Kind::Cell(cell) => Some(cell),
@@ -2243,6 +2246,7 @@ impl Builder {
             last_row: false,
             spacing: None,
             cell_padding: None,
+            section_gone: false,
             inline: false,
             bg_picture: None,
             float: false,
@@ -2296,6 +2300,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
+            section_gone: false,
             cell_padding: tag.attr("cellpadding").and_then(|v| style::attr_px(&v)).map(|px| px.round().min(f32::from(MAX_BOX_PX)) as u8),
             inline,
             bg_picture,
@@ -2342,12 +2347,15 @@ impl Builder {
         let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.or_attr_align(attr("align").as_deref());
-        let hidden = css.hidden || tag.has("hidden");
+        // (A row of a table section that is not there is gone with it; nothing past its table counts.)
+        let section_gone = self.table_at(table).is_some_and(|t| t.section_gone);
+        let gone = css.display_none || tag.has("hidden") || section_gone;
+        let hidden = css.hidden || tag.has("hidden") || section_gone;
         let unseen = self.hidden > 0 || hidden;
         let background =
             css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
-        let row = RowBuild { cells: Vec::new(), background, valign, full: false, gone: css.display_none || tag.has("hidden") };
+        let row = RowBuild { cells: Vec::new(), background, valign, full: false, gone };
         if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -2491,7 +2499,10 @@ impl Builder {
         }
     }
 
-    fn table_row_group(&mut self, data: bool) {
+    fn table_row_group(&mut self, data: bool, gone: bool) {
+        if let Some(table) = self.table_index().and_then(|index| self.table_at(index)) {
+            table.section_gone = gone;
+        }
         let grid =
             self.overflow == 0 && self.table_index().is_some_and(|index| self.table_at(index).is_some_and(|table| table.compose_grid && !table.full));
         if grid {
@@ -3165,8 +3176,10 @@ impl Builder {
             "tr" => self.open_row(tag, "tr"),
             "td" => self.open_cell(tag, "td", false),
             "th" => self.open_cell(tag, "th", true),
-            "thead" | "tfoot" => self.table_row_group(true),
-            "tbody" => self.table_row_group(false),
+            "thead" | "tfoot" | "tbody" => {
+                let css = css_of(tag);
+                self.table_row_group(tag.name != "tbody", css.display_none || tag.has("hidden"));
+            }
             "caption" => self.table_part(true),
             "html" => {
                 // (The whole message reads the way `<html dir>` says, under what its body says.)
@@ -3208,7 +3221,7 @@ impl Builder {
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
             // The message's own style lasts to its end, whatever follows `</body>`.
-            "thead" | "tbody" | "tfoot" => self.table_row_group(false),
+            "thead" | "tbody" | "tfoot" => self.table_row_group(false, false),
             "caption" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
             name => {
                 if block_name(name).is_some() {
