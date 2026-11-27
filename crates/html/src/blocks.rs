@@ -732,6 +732,8 @@ struct CellBuild {
     bg_picture: Option<Box<BgPicture>>,
     /// The height of a coloured bar, when the cell holds nothing ([`bar_px`]).
     bar: Option<u8>,
+    /// Hidden, or inside what is: it is left out, colour, lines and all.
+    unseen: bool,
 }
 
 /// What an open element is.
@@ -1959,6 +1961,9 @@ impl Builder {
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
+        if cell.unseen {
+            return;
+        }
         let (blocks, padding) = match cell.bar {
             Some(height) if blank(&blocks) => (Vec::new(), bar(cell.padding, height)),
             _ => (blocks, cell.padding),
@@ -1995,6 +2000,16 @@ impl Builder {
         let mut cells = row.cells;
         for cell in &mut cells {
             cell.background = cell.background.or(row.background);
+            // A cell of colour that holds nothing and is given no room is a divider: a pixel, as a
+            // browser draws one whose text is too small to keep, not nothing.
+            if cell.blocks.is_empty()
+                && cell.background.is_some()
+                && let Some(pad) = cell.padding.as_mut()
+                && pad.top == 0
+                && pad.bottom == 0
+            {
+                pad.top = 1;
+            }
         }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
             Kind::Table(table) => Some(table),
@@ -2286,10 +2301,13 @@ impl Builder {
         let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.or_attr_align(attr("align").as_deref());
-        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        let hidden = css.hidden || tag.has("hidden");
+        let background = css
+            .background
+            .or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c)))
+            .filter(|bg| self.hidden == 0 && !hidden && Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
         let row = RowBuild { cells: Vec::new(), background, valign, full: false };
-        let hidden = css.hidden || tag.has("hidden");
         if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -2353,10 +2371,9 @@ impl Builder {
         let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
         let span =
             |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
-        // (A cell that is hidden, or inside what is, shows no colour: as a band or a bar it would be seen.)
-        let unseen = self.hidden > 0 || css.hidden || tag.has("hidden");
-        let background =
-            css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
+        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        // (A bar takes its row's colour where it has none of its own, as the cell does.)
+        let colour = background.or_else(|| self.row_at(row).and_then(|r| r.background));
         // `cellpadding` fills the sides the cell's own style leaves open.
         let cell_padding = self.table_at(table).and_then(|t| t.cell_padding);
         let mut padding = css.padding;
@@ -2381,7 +2398,9 @@ impl Builder {
             radius: css.radius,
             valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
             bg_picture,
-            bar: background.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
+            bar: colour.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
+            // (A cell that is hidden, or inside what is, is left out: its colour or lines would be seen.)
+            unseen: self.hidden > 0 || css.hidden || tag.has("hidden"),
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;

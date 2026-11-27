@@ -115,12 +115,17 @@ fn a_bar_is_capped_and_a_height_without_colour_makes_no_room() {
         "<div style='display:none'><div style='height:64px;background:#c00030'></div></div>",
         "<div style='display:none'><table><tr><td height=9 bgcolor='#c00030'></td><td>x</td></tr></table></div>",
         "<table><tr><td bgcolor='#c00030' hidden></td></tr></table>",
+        "<table><tr style='display:none' bgcolor='#c00030'><td>x</td></tr></table>",
+        "<table style='display:none'><tr bgcolor='#c00030'><td>x</td></tr></table>",
+        "<table><tr><td style='display:none;border:2px solid #c00030'></td></tr></table>",
         "<table><tr><td hidden height=9 bgcolor='#c00030'></td></tr></table>",
         "<table><tr><td style='display:none;height:9px;background:#c00030'></td></tr></table>",
     ] {
         let blocks = parse(&format!("{hidden}<p>Visible</p>"));
         assert_eq!(blocks.iter().map(Block::text).collect::<Vec<_>>(), ["Visible"], "{hidden}: {blocks:?}");
     }
+    // A row's colour is the bar's where the cell has none.
+    assert_eq!(bar_of("<table><tr bgcolor='#c00030'><td height=4></td></tr></table>"), Some((top(4), red, 0)));
     // No colour: no bar, and no room beyond the blank lines there were.
     assert_eq!(parse("<div style='height:40px'></div>"), Vec::new());
     let blocks = parse("<p>One</p><div style='height:40px'></div><p>Two</p>");
@@ -174,7 +179,8 @@ fn outlooks_margins_stand_in_where_the_plain_ones_are_missing() {
     }
     assert_eq!(margins("mso-margin-top-alt:99999px").0, Some(MAX_BOX_PX));
     assert_eq!(margins("mso-margin-top-alt:-40px"), (Some(0), None, Some(true), None));
-    assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:auto").0, Some(8));
+    assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:auto").0, None);
+    assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:bogus").0, Some(8));
 }
 
 #[test]
@@ -185,4 +191,16 @@ fn outlooks_spacing_reaches_the_blocks() {
     let found: Vec<Option<Insets>> = cells(table(&blocks)).iter().map(|c| c.padding).collect();
     // A cell's own Outlook padding is its own, and beats the table's `cellpadding`.
     assert_eq!(found, [Some(Insets { top: 8, right: 16, bottom: 8, left: 16 }), all(3)]);
+}
+
+#[test]
+fn a_divider_cell_given_no_room_is_still_a_pixel() {
+    let grey = Some(Rgb(0xcc, 0xcc, 0xcc));
+    // Its text too small to keep: a pixel, as a browser draws it, not nothing.
+    let html = "<table cellpadding=0 cellspacing=0 width=600><tr><td bgcolor=#ccc style='font-size:1px;line-height:1px'>&nbsp;</td></tr></table>";
+    assert_eq!(bar_of(html), Some((top(1), grey, 0)));
+    assert_eq!(bar_of("<table><tr bgcolor=#ccc><td style='padding:0'></td></tr></table>"), Some((top(1), grey, 0)));
+    // Room given, or none said (the reader's own band): as it was.
+    assert_eq!(bar_of("<table cellpadding=2><tr><td bgcolor=#ccc></td></tr></table>"), Some((all(2), grey, 0)));
+    assert_eq!(bar_of("<table><tr><td bgcolor=#ccc></td></tr></table>"), Some((None, grey, 0)));
 }

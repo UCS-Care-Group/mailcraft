@@ -71,3 +71,22 @@ fn a_height_without_colour_makes_no_room() {
         assert!((plain.y - spaced.y).abs() < 0.5, "{plain:?} {spaced:?}");
     });
 }
+
+#[test]
+fn a_divider_cell_given_no_room_is_drawn_a_pixel_high() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = laid(
+                ctx,
+                "<p>Above</p><table cellpadding=0 cellspacing=0 width=600><tr><td bgcolor=#cccccc style='font-size:1px;line-height:1px'>&nbsp;</td></tr></table><p>Below</p>",
+            );
+            let lines = laid
+                .items
+                .iter()
+                .filter(|i| matches!(i.kind, ItemKind::Fill { .. }) && i.rect.width() > 500.0)
+                .map(|i| i.rect.height())
+                .collect::<Vec<_>>();
+            assert!(lines.iter().any(|h| (h - 1.0).abs() < 0.5), "{lines:?}");
+        });
+    }
+}

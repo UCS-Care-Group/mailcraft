@@ -162,8 +162,9 @@ pub(crate) struct Css {
     /// `Some(None)` is `normal`, which asks for nothing of its own.
     pub line_height: Option<Option<LineHeight>>,
     pub mso_list: Option<MsoList>,
-    /// The width and height when given in absolute units, in CSS pixels (for telling a tracking
-    /// pixel; never used to size anything).
+    /// The width and height when given in absolute units, in CSS pixels: for telling a tracking
+    /// pixel, sizing a picture that gives no size of its own, and the height of a bar of colour
+    /// that holds nothing (`blocks.rs`); nothing else is sized by them.
     pub width: Option<f32>,
     pub height: Option<f32>,
     /// The `width` a table or cell asks for, like its `width` attribute ([`Length`], clamped).
@@ -383,8 +384,9 @@ impl Css {
                         mso_padding = sides.map(Some);
                     }
                 }
-                "mso-margin-top-alt" => mso_top = mso_margin(value).or(mso_top),
-                "mso-margin-bottom-alt" => mso_bottom = mso_margin(value).or(mso_bottom),
+                // (`auto` takes back one before it; nonsense is ignored.)
+                "mso-margin-top-alt" => mso_top = if value == "auto" { None } else { mso_margin(value).or(mso_top) },
+                "mso-margin-bottom-alt" => mso_bottom = if value == "auto" { None } else { mso_margin(value).or(mso_bottom) },
                 "border" => {
                     if let Some(line) = line_shorthand(value) {
                         raw = [line; 4];
