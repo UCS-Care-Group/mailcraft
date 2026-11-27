@@ -907,3 +907,23 @@ fn forwarding_from_a_message_window_starts_with_the_keyboard_in_to() {
     type_text(&mut h, "forward-recipient@example.org");
     assert_eq!(h.state().session.composing_by_id(compose).unwrap().to, "forward-recipient@example.org");
 }
+
+#[test]
+fn choosing_a_forwards_body_keeps_the_keyboard_there_while_to_is_empty() {
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        for own_window in [false, true] {
+            let mut a = app();
+            a.ui.replies_in_window = own_window;
+            let message = a.session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+            let mut h = window(a);
+            owner(&mut h, "ui.focusSearch", json!({}));
+            let compose = owner(&mut h, command, json!({"id": message}))["compose"].as_u64().unwrap();
+            assert!(h.state().session.composing_by_id(compose).unwrap().to.is_empty());
+            into_body(&mut h, compose);
+            type_text(&mut h, "Writing in the body first");
+            let c = h.state().session.composing_by_id(compose).unwrap();
+            assert!(c.to.is_empty(), "{command}, own window: {own_window}");
+            assert!(c.body.plain().contains("Writing in the body first"));
+        }
+    }
+}
