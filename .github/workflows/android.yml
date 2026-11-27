@@ -93,7 +93,7 @@ jobs:
           export JAVA_HOME="$JAVA_HOME_21_X64"
           cd apps/mailcraft-android
           ./gradlew --console=plain --no-daemon -PversionName="$VERSION" -PversionCode="$CODE" \
-            :app:assembleRelease :app:bundleRelease
+            :app:assembleRelease :app:bundleRelease :app:assembleDebug
       - name: Hand the files on by digest
         id: seal
         env:
@@ -109,6 +109,15 @@ jobs:
           name: android-unsigned
           path: handoff/
           if-no-files-found: error
+
+      # The debug variant is signed by Android's temporary debug key, so it can be installed
+      # directly for user testing. It is not a Play Store or production signing key.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug-installable
+          path: apps/mailcraft-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
 
   sign:
     name: Sign (upload key)
