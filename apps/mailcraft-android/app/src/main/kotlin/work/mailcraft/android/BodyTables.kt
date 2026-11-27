@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -51,21 +53,22 @@ internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper:
     val own = table.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own) else Modifier
-    val box = Modifier
-        .width(width)
+    // A data table is as wide as its columns, which fit the room when their words let them.
+    val box = (if (table.layout) Modifier.width(width) else Modifier.widthIn(max = width))
         .then(if (table.background != null) Modifier.background(composeColor(own.rgb), shape) else Modifier)
         .then(outline)
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignOf(align)) {
         Box(modifier = box) {
-            if (table.layout) LayoutTable(table, env, own, width) else DataTable(table, env, own)
+            if (table.layout) LayoutTable(table, env, own, width) else DataTable(table, env, own, width)
         }
     }
 }
 
+// The side the message names, whichever way the phone reads.
 private fun alignOf(align: AlignView): Alignment = when (align) {
-    AlignView.LEFT -> Alignment.TopStart
+    AlignView.LEFT -> AbsoluteAlignment.TopLeft
     AlignView.CENTER -> Alignment.TopCenter
-    AlignView.RIGHT -> Alignment.TopEnd
+    AlignView.RIGHT -> AbsoluteAlignment.TopRight
 }
 
 /** Rows of a layout table that are planned together: all of them, or each on its own when the rows differ in width. */
@@ -73,7 +76,7 @@ internal fun sectionsOf(grid: Grid): List<Grid> {
     val byRow = grid.placed.groupBy { it.row }
     val ragged = byRow.values.map { cells -> cells.sumOf { it.cols } }.distinct().size > 1
     // Rows joined by a row span stay one section: their cells keep the columns they have.
-    val joined = grid.placed.any { it.cell.rowspan.toInt() > 1 }
+    val joined = grid.placed.any { it.rows > 1 }
     if (!ragged || joined) return listOf(grid)
     return byRow.values.map { cells ->
         Grid(1, cells.sumOf { it.cols }, cells.map { PlacedCell(it.cell, 0, it.col, it.cols) })
@@ -137,12 +140,20 @@ private fun Modifier.alignIn(row: RowScope, v: VAlignView?): Modifier = with(row
     }
 }
 
+/**
+ * The room left and right of what a cell holds together, in dp. A cell of a data table that says
+ * nothing of its padding has the grid's own.
+ */
+internal fun cellSides(table: TableView, cell: CellView): Int {
+    val pad = cell.padding ?: return if (table.layout) 0 else 2 * DATA_SIDE
+    return pad.left.toInt() + pad.right.toInt()
+}
+
 /** One cell: its background, lines and padding, and its blocks in the room that is left. */
 @Composable
 internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
     val own = cell.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
     val pad = cell.padding
-    // A cell of a data table that says nothing of its padding has the grid's own.
     val roomy = !table.layout && pad == null
     val left = pad?.left?.toInt() ?: if (roomy) DATA_SIDE else 0
     val right = pad?.right?.toInt() ?: if (roomy) DATA_SIDE else 0

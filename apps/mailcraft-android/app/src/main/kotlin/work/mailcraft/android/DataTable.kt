@@ -5,7 +5,7 @@ package work.mailcraft.android
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -21,14 +21,24 @@ import androidx.compose.ui.semantics.collectionItemInfo
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 
 /** What a cell of a data table is placed by, for the grid that measures it. */
 private class CellPlace(val placed: PlacedCell)
 
-private val DataMinColumn = 48.dp
-internal val DataMaxColumn = 280.dp
+/**
+ * The least room for a cell that holds something, and the widest a long word makes its column, as on
+ * the desktop; the word's limit grows with the phone's text size, so that larger text keeps its words.
+ */
+private val DataMinCell = 24.dp
+private val DataMaxWord = 110.dp
+
+/** Room past a measured width, in pixels, so that a word never breaks for want of a rounding (as on the desktop). */
+private const val SLACK = 2f
 
 private const val HEADER_ON_LIGHT = 0xEDEFF1
 private const val HEADER_ON_DARK = 0x2A2F33
@@ -36,33 +46,29 @@ private const val HEADER_ON_DARK = 0x2A2F33
 private fun headerTint(paper: Paper): Color =
     composeColor(if (Readability.isLight(paper.rgb)) HEADER_ON_LIGHT else HEADER_ON_DARK)
 
-/**
- * The width of each of [columns] columns, in pixels, from the widths the cells ask for ([wanted], by
- * cell): each column as wide as its widest single-column cell, within [minimum] and [maximum], and a
- * cell over several columns widens those it covers when they are too narrow together.
- */
-internal fun dataColumnWidths(wanted: List<Pair<PlacedCell, Int>>, columns: Int, minimum: Int, maximum: Int): IntArray {
-    val widths = IntArray(columns.coerceAtLeast(1))
-    for ((p, w) in wanted) {
-        if (p.cols == 1) widths[p.col] = maxOf(widths[p.col], w.coerceIn(minimum, maximum))
-    }
-    for ((p, w) in wanted) {
-        val covered = p.col until minOf(p.col + p.cols, widths.size)
-        val have = covered.sumOf { widths[it] }
-        if (p.cols > 1 && have < w) for (c in covered) widths[c] += (w - have) / p.cols + 1
-    }
-    return widths
-}
-
 private fun placeOf(m: Measurable): PlacedCell? = (m.layoutId as? CellPlace)?.placed
 
+/** What the cell at [p] asks of its columns, measured as [m]: never narrower than its longest word, up to a point. */
+private fun Density.needOf(table: TableView, p: PlacedCell, m: Measurable): CellNeed {
+    val pad = cellSides(table, p.cell).dp.toPx()
+    val most = m.maxIntrinsicWidth(Constraints.Infinity) + SLACK
+    val word = minOf(m.minIntrinsicWidth(Constraints.Infinity) + SLACK, DataMaxWord.toPx() * fontScale + pad)
+    val floor = if (p.cell.blocks.isEmpty()) 0f else DataMinCell.toPx() + pad
+    return CellNeed(
+        p.col, p.cols, maxOf(minOf(word, most), floor), maxOf(most, floor),
+        px = (p.cell.width as? LengthView.Px)?.px?.toInt()?.dp?.toPx(),
+        percent = (p.cell.width as? LengthView.Percent)?.percent?.toInt(),
+    )
+}
+
 /**
- * A data table: a grid that keeps the widths its words ask for (each column within 48 to 280 dp) and
- * scrolls sideways in a box of its own when it is wider than the screen. Each cell says where it is
- * in the table to a screen reader.
+ * A data table: a grid whose columns fit the screen ([room]) as far as their words allow, and which
+ * scrolls sideways in a box of its own when they don't. A cell over several rows or columns covers
+ * them all; a header cell with no colour of its own is shaded a little. Each cell says where it is in
+ * the table to a screen reader.
  */
 @Composable
-internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper) {
+internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
     val grid = remember(table) { gridOf(table) }
     Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
         Layout(
@@ -78,26 +84,24 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper) {
                             if (head) heading()
                         },
                     ) {
-                        CellBox(table, p.cell, env, paper, DataMaxColumn, Modifier.fillMaxWidth())
+                        CellBox(table, p.cell, env, paper, room, Modifier.fillMaxSize())
                     }
                 }
             },
             modifier = Modifier.semantics { collectionInfo = CollectionInfo(grid.rows, grid.columns) },
         ) { measurables, _ ->
             val cells = measurables.mapNotNull { m -> placeOf(m)?.let { it to m } }
-            val wanted = cells.map { (p, m) -> p to m.maxIntrinsicWidth(Constraints.Infinity) }
-            val columns = dataColumnWidths(wanted, grid.columns, DataMinColumn.roundToPx(), DataMaxColumn.roundToPx())
-            val starts = IntArray(columns.size + 1)
-            columns.forEachIndexed { i, w -> starts[i + 1] = starts[i] + w }
+            val needs = cells.map { (p, m) -> needOf(table, p, m) }
+            val asked = if (table.width != null) room.toPx() else null
+            val edges = edgesOf(dataColumnWidths(needs, grid.columns, room.toPx(), asked))
+            fun wide(p: PlacedCell): Int = edges.between(p.col, p.col + p.cols)
+            val tops = dataRowTops(cells.map { (p, m) -> p to m.minIntrinsicHeight(wide(p)) }, grid.rows)
             val placeables = cells.map { (p, m) ->
-                m.measure(Constraints.fixedWidth(starts[p.col + p.cols] - starts[p.col])) to p
+                m.measure(Constraints.fixed(wide(p), tops.between(p.row, p.row + p.rows))) to p
             }
-            val heights = IntArray(grid.rows.coerceAtLeast(1))
-            placeables.forEach { (pl, p) -> heights[p.row] = maxOf(heights[p.row], pl.height) }
-            val tops = IntArray(heights.size + 1)
-            heights.forEachIndexed { i, h -> tops[i + 1] = tops[i] + h }
-            layout(starts.last(), tops.last()) {
-                placeables.forEach { (pl, p) -> pl.placeRelative(starts[p.col], tops[p.row]) }
+            layout(edges.last(), tops.last()) {
+                // Columns stand from the left whichever way the phone reads, as in the reading pane.
+                placeables.forEach { (pl, p) -> pl.place(edges.at(p.col), tops.at(p.row)) }
             }
         }
     }

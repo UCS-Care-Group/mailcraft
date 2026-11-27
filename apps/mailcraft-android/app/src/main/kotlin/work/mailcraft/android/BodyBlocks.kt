@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -110,10 +111,11 @@ private val RunLineGap = 2.dp
 
 internal fun quoteWidth(levels: Int): Dp = (levels.coerceIn(0, MAX_QUOTE_LEVELS) * QUOTE_INDENT).dp
 
+// The side the message names, whichever way the phone reads.
 private fun alignment(align: AlignView): Alignment = when (align) {
-    AlignView.LEFT -> Alignment.TopStart
+    AlignView.LEFT -> AbsoluteAlignment.TopLeft
     AlignView.CENTER -> Alignment.TopCenter
-    AlignView.RIGHT -> Alignment.TopEnd
+    AlignView.RIGHT -> AbsoluteAlignment.TopRight
 }
 
 /** A bar for each level of quoting, with the text moved in past them. */
@@ -135,12 +137,7 @@ private fun Modifier.quoted(levels: Int, color: Color): Modifier {
 private fun InlineRun(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
     if (blocks.all { it.kind !is BlockKindView.Image && it.kind !is BlockKindView.Table }) {
         // Text that goes on in the line of the text before it is one text.
-        val merged = blocks.first().let { head ->
-            BlockView(
-                head.kind, blocks.flatMap { it.spans }, head.quote, head.align, head.space, false, head.gap,
-                head.lineHeight, head.insetLeft, head.insetRight, head.imagePadding, head.line,
-            )
-        }
+        val merged = blocks.first().copy(spans = blocks.flatMap { it.spans }, beside = false)
         SingleBlock(merged, env, paper, width)
         return
     }

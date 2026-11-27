@@ -103,7 +103,7 @@ class TablePlanTest {
             layout = true,
             rows = listOf(
                 listOf(B.cell(B.p("a"), rowspan = 2u), B.cell(B.p("b"))),
-                listOf(B.cell(B.p("c"))),
+                listOf(B.cell(B.p("c"), at = 1 to 1)),
             ),
         )
         val sections = sectionsOf(gridOf(t))
@@ -113,7 +113,7 @@ class TablePlanTest {
 
     @Test
     fun aRowSpanIsToldToAScreenReaderWithinTheRowsThatAreLeft() {
-        val t = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a"), rowspan = 9u)), listOf(B.cell(B.p("b")))))
+        val t = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a"), rowspan = 9u)), listOf(B.cell(B.p("b"), at = 1 to 1))))
         val grid = gridOf(t)
         assertEquals(2, rowSpanOf(grid.placed[0], grid.rows))
         assertEquals(1, rowSpanOf(grid.placed[1], grid.rows))
@@ -153,19 +153,6 @@ class TablePlanTest {
         assertEquals(100f + 12f + 50f, spanWidth(listOf(100f, 50f, 10f), 0, 2, 12f), 0f)
         assertEquals(10f, spanWidth(listOf(100f, 50f, 10f), 2, 3, 12f), 0f)
         assertEquals(0f, spanWidth(listOf(1f), 5, 9, 12f), 0f)
-    }
-
-    @Test
-    fun dataColumnsAreAsWideAsTheirWidestCellWithinTheirLimits() {
-        val a = PlacedCell(B.cell(B.p("a")), 0, 0, 1)
-        val b = PlacedCell(B.cell(B.p("b")), 0, 1, 1)
-        val wide = PlacedCell(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
-        val widths = dataColumnWidths(listOf(a to 10, b to 500), 2, minimum = 48, maximum = 280)
-        assertEquals(listOf(48, 280), widths.toList())
-        // A cell over two columns widens them when they are too narrow together.
-        val narrow = dataColumnWidths(listOf(a to 50, b to 50, wide to 400), 2, minimum = 48, maximum = 280)
-        assertTrue(narrow.sum() >= 400)
-        assertEquals(1, dataColumnWidths(emptyList(), 0, 48, 280).size)
     }
 
     @Test

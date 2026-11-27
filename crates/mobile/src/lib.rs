@@ -110,6 +110,8 @@ mod sync_stop_tests;
 #[cfg(test)]
 mod sync_tests;
 #[cfg(test)]
+mod tables_rtl_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod zone_tests;

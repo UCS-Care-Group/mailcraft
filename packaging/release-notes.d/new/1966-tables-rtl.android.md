@@ -1,0 +1,1 @@
+- A data table fits the phone's width as far as its words allow, and only scrolls sideways past that; a cell over several rows or columns covers them as on the desktop, and Hebrew and Arabic paragraphs, table cells and list items read from the right ([#1966](https://github.com/GITHUB_REPOSITORY/issues/1966)).

@@ -16,49 +16,62 @@ internal const val DEFAULT_COLUMN_GAP = 12f
 internal const val MAX_COLUMNS = 64
 internal const val MAX_CELLS = 5_000
 
-/** A cell in its place in the grid of a table: its row, first column and the columns it covers. */
-internal class PlacedCell(val cell: CellView, val row: Int, val col: Int, val cols: Int)
+/** Most rows of one grid that are drawn: a table keeps 1,000, and a cell with no room in its row starts another. */
+internal const val MAX_GRID_ROWS = 10_000
+
+/** Most rows a cell may span, as the core holds it. */
+internal const val MAX_ROW_SPAN = 200
+
+/** Most places in a grid that cells may cover in all: past it the rest of the table is left out. */
+private const val MAX_SLOTS = 200_000
+
+/** A cell in its place in the grid of a table: its row, first column, the columns and the rows it covers. */
+internal class PlacedCell(val cell: CellView, val row: Int, val col: Int, val cols: Int, val rows: Int = 1)
 
 /** The cells of a table in a grid: spans honoured, a cell that a row span covers leaves no gap in its row. */
 internal class Grid(val rows: Int, val columns: Int, val placed: List<PlacedCell>)
 
-/** [table]'s cells placed in a grid, within the caps. */
+/**
+ * [table]'s cells in the places the core gives them (the reading pane's own rule), within the caps.
+ * The core never lays one cell over another; a cell that would be, or that lies past the caps, is left out.
+ */
 internal fun gridOf(table: TableView): Grid {
-    val taken = HashSet<Pair<Int, Int>>()
+    val taken = HashSet<Long>()
     val placed = ArrayList<PlacedCell>()
+    var rows = 0
     var columns = 0
-    for ((r, row) in table.rows.withIndex()) {
-        var col = 0
-        for (cell in row.cells) {
-            col = firstFree(taken, r, col)
-            if (col >= MAX_COLUMNS || placed.size >= MAX_CELLS) break
-            val at = place(taken, cell, r, col, table.rows.size)
-            placed += at
-            col += at.cols
+    for (p in table.rows.asSequence().flatMap { it.cells }.mapNotNull(::placedWithinCaps)) {
+        if (placed.size >= MAX_CELLS) break
+        val slots = (p.row until p.row + p.rows).flatMap { y ->
+            (p.col until p.col + p.cols).map { x -> y.toLong() * MAX_COLUMNS + x }
         }
-        columns = maxOf(columns, col)
+        if (taken.size + slots.size <= MAX_SLOTS && slots.none { it in taken }) {
+            taken.addAll(slots)
+            placed += p
+            rows = maxOf(rows, p.row + 1)
+            columns = maxOf(columns, p.col + p.cols)
+        }
     }
-    return Grid(table.rows.size, columns, placed)
+    // A row span ends with the last row a cell starts in, as the core holds it.
+    val held = placed.map {
+        if (it.row + it.rows <= rows) it else PlacedCell(it.cell, it.row, it.col, it.cols, rows - it.row)
+    }
+    return Grid(rows, columns, held)
 }
 
-/** The first column from [from] that no row span from above covers in row [r]. */
-private fun firstFree(taken: Set<Pair<Int, Int>>, r: Int, from: Int): Int {
-    var col = from
-    while ((r to col) in taken && col < MAX_COLUMNS) col++
-    return col
-}
-
-/** [cell] at row [r], column [col]: its spans clamped, and the places they cover taken. */
-private fun place(taken: MutableSet<Pair<Int, Int>>, cell: CellView, r: Int, col: Int, rows: Int): PlacedCell {
-    val cols = cell.colspan.toInt().coerceIn(1, MAX_COLUMNS - col)
-    val down = cell.rowspan.toInt().coerceIn(1, rows - r)
-    for (dr in 0 until down) for (dc in 0 until cols) taken.add((r + dr) to (col + dc))
-    return PlacedCell(cell, r, col, cols)
+/** [cell] at the place the core gives it, its spans held to the caps; null when it starts past them. */
+private fun placedWithinCaps(cell: CellView): PlacedCell? {
+    val row = cell.row.toLong()
+    val col = cell.col.toInt()
+    if (row >= MAX_GRID_ROWS || col >= MAX_COLUMNS) return null
+    val r = row.toInt()
+    val cols = cell.cols.toInt().coerceIn(1, MAX_COLUMNS - col)
+    val down = cell.rows.toLong().coerceIn(1, minOf(MAX_ROW_SPAN, MAX_GRID_ROWS - r).toLong()).toInt()
+    return PlacedCell(cell, r, col, cols, down)
 }
 
 /** The rows [p] covers as a screen reader is told: its row span, within the rows of [rows] that are left. */
-internal fun rowSpanOf(p: PlacedCell, rows: Int): Int =
-    p.cell.rowspan.toInt().coerceIn(1, (rows - p.row).coerceAtLeast(1))
+internal fun rowSpanOf(p: PlacedCell, rows: Int): Int = p.rows.coerceIn(1, (rows - p.row).coerceAtLeast(1))
 
 /** What a column of a layout table asks for. */
 internal class ColumnSpec(

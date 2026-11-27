@@ -6,7 +6,7 @@
 //! the reference a block names.
 
 use mailcraft_html::{
-    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Rgb, Row, Sides, Span, Table, VAlign,
+    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Place, Rgb, Row, Sides, Span, Table, VAlign,
 };
 
 use crate::text::MAX_URL;
@@ -149,6 +149,10 @@ pub struct BlockView {
     pub inset_right: u8,
     pub image_padding: Option<InsetsView>,
     pub line: LineView,
+    /// The block reads from the right (its direction, not its side: `align` is that), as the
+    /// message's `dir` or `direction` says, or a plain-text paragraph's first strong letter.
+    #[uniffi(default = false)]
+    pub rtl: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -191,6 +195,16 @@ pub struct CellView {
     pub padding: Option<InsetsView>,
     pub radius: u8,
     pub valign: Option<VAlignView>,
+    /// Its place in the table's grid, as the reading pane puts it (`mailcraft_html::grid`): its
+    /// first row and column and the rows and columns it covers. No two cells overlap.
+    #[uniffi(default = 0)]
+    pub row: u32,
+    #[uniffi(default = 0)]
+    pub col: u16,
+    #[uniffi(default = 1)]
+    pub rows: u32,
+    #[uniffi(default = 1)]
+    pub cols: u16,
 }
 
 fn rgb(c: Rgb) -> u32 {
@@ -352,16 +366,18 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         inset_right: b.inset[1],
         image_padding: b.image_padding.map(insets),
         line: line(&b.line),
+        rtl: b.rtl,
     }
 }
 
 fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> TableView {
+    let mut places = mailcraft_html::grid(t).places.into_iter();
     let mut rows = Vec::new();
     for r in &t.rows {
         if !budget.take() {
             break;
         }
-        rows.push(row(r, pictures, budget, depth));
+        rows.push(row(r, &mut places, pictures, budget, depth));
     }
     TableView {
         rows,
@@ -382,18 +398,22 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
     }
 }
 
-fn row(r: &Row, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
+fn row(r: &Row, places: &mut impl Iterator<Item = Place>, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
     let mut cells = Vec::new();
     for c in &r.cells {
+        // Taken before the budget: once that runs out nothing after is kept, so places never slip.
+        let place = places.next().unwrap_or(Place { row: 0, col: 0, rows: 1, cols: 1 });
         if !budget.take() {
             break;
         }
-        cells.push(cell(c, pictures, budget, depth));
+        cells.push(cell(c, place, pictures, budget, depth));
     }
     RowView { cells }
 }
 
-fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+fn cell(c: &Cell, place: Place, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+    let wide = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+    let narrow = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     CellView {
         blocks: blocks_of(&c.blocks, pictures, budget, depth),
         header: c.header,
@@ -410,6 +430,10 @@ fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) ->
             VAlign::Middle => VAlignView::Middle,
             VAlign::Bottom => VAlignView::Bottom,
         }),
+        row: wide(place.row),
+        col: narrow(place.col),
+        rows: wide(place.rows),
+        cols: narrow(place.cols),
     }
 }
 
