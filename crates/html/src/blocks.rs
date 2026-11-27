@@ -390,6 +390,9 @@ struct Style {
     /// newsletters set a size of nothing around their pictures and columns to close the gaps
     /// between them.
     tiny: bool,
+    /// That size is more than nothing (`1px`, not `0`): its text, though not shown, still takes a
+    /// line of a pixel or so, as a divider's `&nbsp;` does in a browser.
+    tiny_some: bool,
     /// The element that asked for that size carries a class or an id itself: what is in the
     /// elements inside it is not held to it.
     tiny_hooked: bool,
@@ -596,6 +599,10 @@ impl Delta {
                     style.tiny = false;
                 }
                 None => {
+                    style.tiny_some = match size {
+                        Size::Px(px) => px > 0.0,
+                        Size::Scale(scale) => scale > 0.0 && (!parent.tiny || parent.tiny_some),
+                    };
                     style.tiny = true;
                     style.tiny_hooked = self.hooked;
                 }
@@ -647,6 +654,8 @@ struct BoxBuild {
     radius: u8,
     /// The room left and right of the box.
     margin: [u8; 2],
+    /// The height of a coloured bar, when the box holds nothing ([`bar_px`]).
+    bar: Option<u8>,
     /// `display: inline-block`: a box on a line.
     inline: bool,
     /// `display: table`: a block as wide as what it holds, which stands at the left (or in the
@@ -695,6 +704,11 @@ struct TableBuild {
     /// The row being read is the last one this table may have.
     last_row: bool,
     spacing: Option<u8>,
+    /// `cellpadding`: the room inside each of its cells on the sides they give none of their own.
+    cell_padding: Option<u8>,
+    /// The table section being read (`<tbody>`, `<thead>`, `<tfoot>`) is not there (`display:
+    /// none`, `hidden`): its rows are gone with it.
+    section_gone: bool,
     inline: bool,
     bg_picture: Option<Box<BgPicture>>,
     /// A box on a line floated to the side `align` says ([`Table::float`]).
@@ -711,6 +725,9 @@ struct RowBuild {
     valign: Option<VAlign>,
     /// At [`MAX_TABLE_COLUMNS`]: the last cell takes what follows.
     full: bool,
+    /// Not there at all (`display: none`, `hidden`): left out, with its cells. A row hidden in
+    /// its place keeps it, its cells held ([`Cell::held`]).
+    gone: bool,
 }
 
 #[derive(Debug)]
@@ -726,6 +743,14 @@ struct CellBuild {
     radius: u8,
     valign: Option<VAlign>,
     bg_picture: Option<Box<BgPicture>>,
+    /// The height of a coloured bar, when the cell holds nothing ([`bar_px`]).
+    bar: Option<u8>,
+    /// Not there at all (`display: none`, `hidden`): it is left out of its row, as in a browser.
+    gone: bool,
+    /// Hidden in its place ([`Cell::held`]).
+    held: bool,
+    /// It held text of a size more than nothing that was too small to keep ([`Style::tiny_some`]).
+    faint: bool,
 }
 
 /// What an open element is.
@@ -1131,6 +1156,17 @@ impl Builder {
             return;
         }
         if self.style().tiny {
+            // (White space alone draws no line in a browser; a no-break space does.)
+            if self.style().tiny_some && unescape(raw).chars().any(|c| !c.is_ascii_whitespace()) {
+                // (The cell it is in is a divider of a pixel, when it holds nothing else.)
+                let cell = self.nodes.iter_mut().rev().take_while(|n| !matches!(n.kind, Kind::Table(_))).find_map(|n| match &mut n.kind {
+                    Kind::Cell(cell) => Some(cell),
+                    _ => None,
+                });
+                if let Some(cell) = cell {
+                    cell.faint = true;
+                }
+            }
             self.note_unseen(raw);
             return;
         }
@@ -1916,17 +1952,12 @@ impl Builder {
 
     /// A block with a background or a frame of its own: one cell as wide as there is room.
     fn end_box(&mut self, boxed: BoxBuild, blocks: Vec<Block>) {
-        if blocks.is_empty() {
-            return;
-        }
-        let cell = Cell {
-            blocks,
-            background: boxed.background,
-            padding: boxed.padding,
-            radius: boxed.radius,
-            bg_picture: boxed.bg_picture,
-            ..Cell::default()
+        let (blocks, padding) = match boxed.bar {
+            Some(height) if blank(&blocks) => (Vec::new(), bar(boxed.padding, height)),
+            _ if blocks.is_empty() => return,
+            _ => (blocks, boxed.padding),
         };
+        let cell = Cell { blocks, background: boxed.background, padding, radius: boxed.radius, bg_picture: boxed.bg_picture, ..Cell::default() };
         let table = Table {
             rows: vec![Row { cells: vec![cell] }],
             columns: 1,
@@ -1958,6 +1989,14 @@ impl Builder {
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
+        if cell.gone {
+            return;
+        }
+        let faint = cell.faint;
+        let (blocks, padding) = match cell.bar {
+            Some(height) if blank(&blocks) => (Vec::new(), bar(cell.padding, height)),
+            _ => (blocks, cell.padding),
+        };
         let cell = Cell {
             blocks,
             header: cell.header,
@@ -1967,15 +2006,29 @@ impl Builder {
             width: cell.width,
             border: cell.border,
             lines: cell.lines,
-            padding: cell.padding,
+            padding,
             radius: cell.radius,
             valign: cell.valign,
             bg_picture: cell.bg_picture,
+            held: cell.held,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
             match &mut node.kind {
                 Kind::Row(row) => {
+                    let mut cell = cell;
+                    // A cell of colour that holds nothing but text too small to keep, and is given
+                    // no room, is a divider: a pixel, as a browser draws it. (Nothing at all in it,
+                    // or text of no size, is nothing.)
+                    if faint
+                        && cell.blocks.is_empty()
+                        && cell.background.or(row.background).is_some()
+                        && let Some(pad) = cell.padding.as_mut()
+                        && pad.top == 0
+                        && pad.bottom == 0
+                    {
+                        pad.top = 1;
+                    }
                     row.cells.push(cell);
                     return;
                 }
@@ -1987,8 +2040,13 @@ impl Builder {
     }
 
     fn end_row(&mut self, row: RowBuild) {
+        // (A row that is not there shows nothing, not even its place in a grid kept for the
+        // composer; one hidden in its place keeps it, its cells held.)
+        if row.gone {
+            return;
+        }
         let mut cells = row.cells;
-        for cell in &mut cells {
+        for cell in cells.iter_mut().filter(|c| !c.held) {
             cell.background = cell.background.or(row.background);
         }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
@@ -2021,9 +2079,15 @@ impl Builder {
         for cell in rows.iter_mut().flat_map(|r| &mut r.cells) {
             cell.bg_picture = self.bg_decoded(cell.bg_picture.take());
         }
-        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
-        // Rows and columns that only make room make none here.
+        // (A cell hidden in its place holds its column.)
+        let empty =
+            |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any() && !cell.held;
+        // Rows and columns that only make room make none here. (A row of cells hidden in their
+        // places keeps its place, under a row span too; a table of nothing else shows nothing.)
         if !table.compose_grid {
+            if rows.iter().flat_map(|r| &r.cells).all(|c| empty(c) || c.held) {
+                return;
+            }
             rows.retain(|r| !r.cells.iter().all(empty));
         }
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
@@ -2181,6 +2245,8 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: None,
+            cell_padding: None,
+            section_gone: false,
             inline: false,
             bg_picture: None,
             float: false,
@@ -2234,6 +2300,8 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
+            section_gone: false,
+            cell_padding: tag.attr("cellpadding").and_then(|v| style::attr_px(&v)).map(|px| px.round().min(f32::from(MAX_BOX_PX)) as u8),
             inline,
             bg_picture,
             float: float.is_some(),
@@ -2279,10 +2347,15 @@ impl Builder {
         let attr = |attribute| if name == "tr" { tag.attr(attribute) } else { None };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.or_attr_align(attr("align").as_deref());
-        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        // (A row of a table section that is not there is gone with it; nothing past its table counts.)
+        let section_gone = self.table_at(table).is_some_and(|t| t.section_gone);
+        let gone = css.display_none || tag.has("hidden") || section_gone;
+        let hidden = css.hidden || tag.has("hidden") || section_gone;
+        let unseen = self.hidden > 0 || hidden;
+        let background =
+            css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
-        let row = RowBuild { cells: Vec::new(), background, valign, full: false };
-        let hidden = css.hidden || tag.has("hidden");
+        let row = RowBuild { cells: Vec::new(), background, valign, full: false, gone };
         if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -2313,7 +2386,7 @@ impl Builder {
                 }
                 if !self.push_node(
                     "",
-                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false }),
+                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false, gone: false }),
                     Delta::default(),
                     false,
                 ) {
@@ -2346,21 +2419,44 @@ impl Builder {
         let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
         let span =
             |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
+        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        // (A bar takes its row's colour where it has none of its own, as the cell does.)
+        let colour = background.or_else(|| self.row_at(row).and_then(|r| r.background));
+        // `cellpadding` fills the sides the cell's own style leaves open.
+        let cell_padding = self.table_at(table).and_then(|t| t.cell_padding);
+        let mut padding = css.padding;
+        if let Some(px) = cell_padding {
+            padding.iter_mut().for_each(|side| *side = side.or(Some(px)));
+        }
         let build = CellBuild {
             header,
             colspan: span("colspan", 1, MAX_TABLE_COLUMNS as u16),
             rowspan: span("rowspan", u32::from(!grid), MAX_ROW_SPAN),
-            background: css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
+            background,
             width: sized(&css, attr("width").and_then(|w| style::attr_length(&w))),
             border: {
                 let [top, right, bottom, left] = css.borders;
                 Sides { top, right, bottom, left }
             },
             lines: css.lines,
-            padding: css.padding_insets(),
+            padding: padding.iter().any(Option::is_some).then(|| {
+                let [top, right, bottom, left] = padding.map(|side| side.unwrap_or(0));
+                Insets { top, right, bottom, left }
+            }),
             radius: css.radius,
             valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
             bg_picture,
+            bar: colour.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
+            gone: css.display_none || tag.has("hidden"),
+            held: self.hidden > 0 || css.hidden,
+            faint: false,
+        };
+        // A cell hidden in its place (`visibility: hidden` and the like, its own or round it) keeps
+        // its room and shows nothing: no colour, picture, lines or bar.
+        let build = if build.held {
+            CellBuild { background: None, bg_picture: None, border: Sides::default(), lines: [Line::default(); 4], bar: None, ..build }
+        } else {
+            build
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
@@ -2403,7 +2499,14 @@ impl Builder {
         }
     }
 
-    fn table_row_group(&mut self, data: bool) {
+    fn table_row_group(&mut self, data: bool, gone: bool) {
+        // (A section tag inside a cell is ignored, as in a browser: it neither starts nor ends one.)
+        if let Some(index) = self.table_index()
+            && !self.nodes.iter().skip(index.saturating_add(1)).any(|n| matches!(n.kind, Kind::Cell(_)))
+            && let Some(table) = self.table_at(index)
+        {
+            table.section_gone = gone;
+        }
         let grid =
             self.overflow == 0 && self.table_index().is_some_and(|index| self.table_at(index).is_some_and(|table| table.compose_grid && !table.full));
         if grid {
@@ -2604,6 +2707,7 @@ impl Builder {
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bar: None,
                 inline: true,
                 table: css.table,
                 parent,
@@ -2836,6 +2940,7 @@ impl Builder {
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || bg_picture.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bar: background.filter(|_| self.hidden == 0).and(bar_px(css.height)),
                 bg_picture,
             }),
         };
@@ -3075,8 +3180,10 @@ impl Builder {
             "tr" => self.open_row(tag, "tr"),
             "td" => self.open_cell(tag, "td", false),
             "th" => self.open_cell(tag, "th", true),
-            "thead" | "tfoot" => self.table_row_group(true),
-            "tbody" => self.table_row_group(false),
+            "thead" | "tfoot" | "tbody" => {
+                let css = css_of(tag);
+                self.table_row_group(tag.name != "tbody", css.display_none || tag.has("hidden"));
+            }
             "caption" => self.table_part(true),
             "html" => {
                 // (The whole message reads the way `<html dir>` says, under what its body says.)
@@ -3118,7 +3225,7 @@ impl Builder {
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
             // The message's own style lasts to its end, whatever follows `</body>`.
-            "thead" | "tbody" | "tfoot" => self.table_row_group(false),
+            "thead" | "tbody" | "tfoot" => self.table_row_group(false, false),
             "caption" | "html" | "head" | "body" | "option" | "optgroup" => self.flush(),
             name => {
                 if block_name(name).is_some() {
@@ -3231,6 +3338,30 @@ pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
     // (`dir` is a style a browser gives the element, which the message's own beats.)
     css.direction = css.direction.or_else(|| tag.attr("dir").as_deref().and_then(Dir::attr));
     css
+}
+
+/// The tallest coloured bar an empty block or cell may be, in pixels: an accent above a card or a
+/// divider is a few pixels, and past this a bar of nothing but colour would only push the message
+/// down the pane (a sender could fill the screen with it). The same as the room a box may have.
+const MAX_BAR_PX: u8 = MAX_BOX_PX;
+
+/// The height of a coloured bar: whole pixels of a `height` (a style's, or a cell's attribute), 1
+/// to [`MAX_BAR_PX`]; nothing for none, zero, a negative one or nonsense.
+fn bar_px(height: Option<f32>) -> Option<u8> {
+    height.filter(|h| h.is_finite() && *h >= 0.5).map(|h| h.round().min(f32::from(MAX_BAR_PX)) as u8)
+}
+
+/// Whether blocks hold nothing to see: no blocks, or only paragraphs of white space.
+fn blank(blocks: &[Block]) -> bool {
+    blocks.iter().all(|b| matches!(b.kind, BlockKind::Paragraph) && b.spans.iter().all(|s| s.text.trim().is_empty()))
+}
+
+/// The room inside a coloured bar: its height above, on top of its own padding.
+// lean: the height rides as room above in a cell that holds nothing, which both renderers draw
+// as they are; a `Cell::height` of its own if a cell with content ever needs one.
+fn bar(padding: Option<Insets>, height: u8) -> Option<Insets> {
+    let pad = padding.unwrap_or_default();
+    Some(Insets { top: pad.top.saturating_add(height).min(MAX_BOX_PX), ..pad })
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
