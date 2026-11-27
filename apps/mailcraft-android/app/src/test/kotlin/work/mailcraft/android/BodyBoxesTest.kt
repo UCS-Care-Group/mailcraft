@@ -11,7 +11,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import app.cash.paparazzi.SnapshotHandler
@@ -101,9 +103,12 @@ class BodyBoxesTest {
     fun blankLinesGrowWithTheTextAndAMarginInPixelsDoesNot() {
         val before = listOf(B.p("Monthly news", 0u))
         val blank = B.p("Second part", 2u)
-        assertEquals(2 * spaceAbove(before, blank).value, spaceAbove(before, blank, fontScale = 2f).value, 0.1f)
+        // Large text grows blank lines too, by the platform's own curve (less than twice at twice the size).
+        val scaled = Density(1f, fontScale = 2f)
+        assertEquals(with(scaled) { spaceAbove(before, blank).value.sp.toDp().value }, spaceAbove(before, blank, scaled).value, 0.1f)
+        assertTrue(spaceAbove(before, blank, scaled) > spaceAbove(before, blank))
         val margin = B.p("Second part", 0u).copy(gap = 30u)
-        assertEquals(30f, spaceAbove(before, margin, fontScale = 2f).value, 0f)
+        assertEquals(30f, spaceAbove(before, margin, Density(1f, fontScale = 2f)).value, 0f)
     }
 
     private fun insets(top: Int, right: Int, bottom: Int, left: Int) = InsetsView(top.toUByte(), right.toUByte(), bottom.toUByte(), left.toUByte())
@@ -154,6 +159,37 @@ class BodyBoxesTest {
         assertEquals(10.dp to 20.dp, boxMargins(box, 300.dp))
         val (left, right) = boxMargins(box, 70.dp)
         assertEquals(30f, (left + right).value, 0.01f)
+        // Short of room, the box keeps 24 dp and the left margin goes first, as on the desktop.
+        assertEquals(10.dp to 6.dp, boxMargins(box, 40.dp))
+        assertEquals(0.dp to 0.dp, boxMargins(box, 20.dp))
+    }
+
+    @Test
+    fun theLineBeforeCountsAsWhatItHolds() {
+        val text = B.p("After", 0u)
+        val picture = B.image("cid:a@example.org", "a", 20u, 20u)
+        val box = B.tableBlock(B.table(layout = true, rows = listOf(listOf(B.cell(B.p("a", 0u))))).copy(inline = true))
+        val dataBox = B.tableBlock(B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a", 0u))))).copy(inline = true))
+        // A run of pictures is pictures; a run of boxes, or a lone box that is a data table, is neither text nor a grid.
+        assertEquals(4f, spaceAbove(listOf(picture, picture.copy(beside = true)), text).value, 0f)
+        assertEquals(0f, spaceAbove(listOf(box, box.copy(beside = true)), text).value, 0f)
+        assertEquals(0f, spaceAbove(listOf(dataBox), text).value, 0f)
+        assertEquals(8f, spaceAbove(listOf(dataBox.copy(kind = BlockKindView.Table((dataBox.kind as BlockKindView.Table).table.copy(inline = false)))), text).value, 0f)
+        // Pictures and text in one line are text.
+        assertEquals(0f, spaceAbove(listOf(picture, B.p("caption", 0u).copy(beside = true)), text).value, 0f)
+    }
+
+    @Test
+    fun everyCellOfABorderedTableIsAsTallAsItsRow() {
+        val short = B.cell(B.p("Total", 0u))
+        val long = B.cell(B.p("Seed trays, ten of them, with lids and labels, to be collected from the shed on Saturday morning before the fair opens.", 0u))
+        val table = B.table(layout = true, rows = listOf(listOf(short, long)), border = true)
+        val (bounds, at) = draw { TableBlock(table, AlignView.LEFT, env, Paper.of(WHITE, LINK), 360.dp) }
+        // The short cell's line along its foot lies at the foot of the row.
+        val foot = bounds.bottom - 1f
+        val longFoot = at(bounds.left + bounds.width * 0.75f, foot)
+        assertNotEquals("no line at the long cell's foot", at(bounds.left + bounds.width * 0.25f, bounds.top + bounds.height / 2), longFoot)
+        assertEquals("the short cell stops above the row's foot", longFoot, at(bounds.left + bounds.width * 0.25f, foot))
     }
 
     @Test
