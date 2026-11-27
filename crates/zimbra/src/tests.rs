@@ -533,6 +533,29 @@ fn a_folder_left_half_read_starts_over_without_a_token() {
 }
 
 #[test]
+fn a_half_read_folder_with_no_cursor_is_read_from_its_start_though_nothing_changed() {
+    let server = StandIn::new();
+    let older = server.deliver(2, "Older", "");
+    let newer = server.deliver(2, "Newer", "");
+    let token = whole(&run(&server, &request(""), PASSWORD)).token;
+    // Nothing changes on the server; the folder is asked for with no place to go on from (what
+    // the engine asks when the place it had kept is none).
+    let mut req = request(&token);
+    req.resume = vec![mailcraft_model::sync::ZimbraResume { folder: "2".into(), ..Default::default() }];
+    let all = whole(&run(&server, &req, PASSWORD));
+    assert_eq!(all.errors, Vec::<String>::new());
+    assert!(all.whole && !all.token.is_empty());
+    assert_eq!(all.resume, Some(Vec::new()));
+    let folder = all.pages.iter().filter(|p| p.folder == "2").collect::<Vec<_>>();
+    assert!(folder.first().is_some_and(|page| page.afresh) && folder.last().is_some_and(|page| page.last));
+    let mut read: Vec<String> = folder.iter().flat_map(|p| p.messages.iter().map(|m| m.server.id.clone())).collect();
+    read.sort();
+    let mut held = vec![older.to_string(), newer.to_string()];
+    held.sort();
+    assert_eq!(read, held);
+}
+
+#[test]
 fn a_run_on_a_token_finishes_a_folder_left_half_read() {
     let server = StandIn::new();
     let older = server.deliver(2, "Older", "");

@@ -219,7 +219,7 @@ fn receiving(mb: &Mailbox, account: Id, email: &str, url: Option<&str>, username
     {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
-    if url.is_some_and(|url| url.trim().is_empty() || !server.base().eq_ignore_ascii_case(url.trim().trim_end_matches('/'))) {
+    if url.is_some_and(|url| !server.same_server(url)) {
         return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
     }
     Ok(a.name.clone())
@@ -289,12 +289,12 @@ fn take_in(s: &mut Session, result: ZimbraMailResult) -> CmdResult {
     // in one step, when it went well. With a folder left half-read (`resume`), nothing marked gone
     // is gone yet — the tail of that folder's read is still to come — so nothing is removed until
     // a run leaves no folder half-read.
-    // (The folders left half-read are the piece's, when it says, else the ones the account was
-    // left at: a piece that brings no token leaves those as they were.)
-    let half_read = match &result.resume {
-        Some(resume) => !resume.is_empty(),
-        None => s.mailbox.account(account).and_then(|a| a.zimbra.as_ref()).is_some_and(|z| !z.resume.is_empty()),
-    };
+    // (The folders half-read once the piece is in: its own, and the ones the account was left
+    // at unless the piece replaces them, which only a piece that brings a token does. A list
+    // with no folder in it and no token to go with it says nothing of those.)
+    let replaces = !result.token.is_empty() && result.resume.is_some();
+    let half_read = result.resume.as_ref().is_some_and(|resume| !resume.is_empty())
+        || (!replaces && s.mailbox.account(account).and_then(|a| a.zimbra.as_ref()).is_some_and(|z| !z.resume.is_empty()));
     if !result.partial && !run_cut {
         if result.whole && !half_read {
             if let Some(listing) = &result.listing {

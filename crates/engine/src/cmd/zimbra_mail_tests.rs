@@ -362,6 +362,120 @@ fn a_saved_half_read_folder_holds_off_removal_until_its_read_ends() {
 }
 
 #[test]
+fn the_end_of_a_run_removes_and_moves_on_only_as_its_reads_allow() {
+    // Every way a run can end, by what it brings (a token or none; no list of half-read folders,
+    // an empty one or one with a folder in it; whole or not), what the account was left at (a
+    // folder half-read or none) and whether a piece of the run was lost. One rule for all of
+    // them: a refused or cut end changes nothing; the token moves, with its list, only when one
+    // comes; and mail goes only when the run was whole and no folder is half-read after it.
+    let open = || vec![ZimbraResume { folder: "2".into(), cursor: "257".into(), sort: 1 }];
+    let mut wrong = Vec::new();
+    for saved_open in [false, true] {
+        for token in ["", "4712"] {
+            for resume in [None, Some(false), Some(true)] {
+                for whole in [false, true] {
+                    for lost in [false, true] {
+                        let (mut s, account) = session();
+                        first_read(&mut s, account);
+                        if saved_open {
+                            s.mailbox.account_mut(account).unwrap().zimbra.as_mut().unwrap().resume = open();
+                        }
+                        let mut removal = result(account, "4711");
+                        removal.partial = true;
+                        removal.pages.push(ZimbraMessagePage { removed: vec!["257".into()], ..Default::default() });
+                        apply(&mut s, removal);
+                        if lost {
+                            let mut odd = serde_json::to_value(result(account, "4711")).unwrap();
+                            odd["pages"] = json!(7);
+                            assert!(s.run("sync.applyZimbra", &json!({"result": odd})).is_err());
+                        }
+                        let mut end = result(account, "4711");
+                        (end.token, end.whole) = (token.into(), whole);
+                        end.resume = resume.map(|folders| if folders { open() } else { Vec::new() });
+                        let refused = s.run("sync.applyZimbra", &json!({"result": end})).is_err();
+                        // (A token comes with its list, or the piece is no end of a run.)
+                        let kept = lost || (!token.is_empty() && resume.is_none());
+                        let moved = !kept && !token.is_empty();
+                        let left_open = if moved { resume == Some(true) } else { saved_open };
+                        let removed = !kept && whole && !left_open && resume != Some(true);
+                        let server = s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap();
+                        let got = (refused, server.token.clone(), !server.resume.is_empty(), subjects(&s, account, "Inbox").len());
+                        let want = (
+                            !token.is_empty() && resume.is_none(),
+                            if moved { "4712" } else { "4711" }.to_string(),
+                            left_open,
+                            if removed { 1 } else { 2 },
+                        );
+                        if got != want {
+                            wrong.push(format!(
+                                "saved_open={saved_open} token={token:?} resume={resume:?} whole={whole} lost={lost}: {got:?}, not {want:?}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn a_piece_lost_inside_a_fresh_read_keeps_the_token_and_the_mail() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    // The server can't go on from the token, so the run reads the mailbox afresh: the Inbox's
+    // first page marks what the folder held as gone until the read brings it again.
+    let mut inbox = result(account, "4711");
+    inbox.pages =
+        vec![ZimbraMessagePage { folder: "2".into(), messages: vec![mail("257", "2", "Hello", false)], afresh: true, ..Default::default() }];
+    inbox.partial = true;
+    apply(&mut s, inbox);
+    // The page that would have brought "Later" back can't be read.
+    let mut odd = serde_json::to_value(result(account, "4711")).unwrap();
+    odd["pages"] = json!(7);
+    assert!(s.run("sync.applyZimbra", &json!({"result": odd})).is_err());
+    // The run ends as if it had gone well: with a piece lost, it neither moves on nor removes.
+    let mut end = result(account, "4711");
+    (end.token, end.whole, end.resume) = ("4800".into(), true, Some(Vec::new()));
+    apply(&mut s, end);
+    let server = s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap();
+    assert_eq!((server.token.as_str(), server.resume.is_empty()), ("4711", true));
+    assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later"]);
+    assert_eq!(subjects(&s, account, "Projects"), ["Filed"]);
+}
+
+#[test]
+fn a_folder_read_again_from_its_start_misses_nothing_when_nothing_else_changed() {
+    let (mut s, account) = session();
+    first_read(&mut s, account);
+    // The Inbox was left half-read, at a cursor that is none (a damaged file).
+    s.mailbox.account_mut(account).unwrap().zimbra.as_mut().unwrap().resume =
+        vec![ZimbraResume { folder: "2".into(), cursor: "25\u{0}7".into(), sort: 9 }];
+    let request = s.run("sync.zimbraRequest", &json!({"account": account})).unwrap();
+    assert_eq!((request["token"].as_str(), &request["resume"]), (Some("4711"), &json!([{"folder": "2", "sort": 0}])), "{request}");
+    // The run that request asks for: no changes since the token, and the Inbox from its start,
+    // which brings the older message the half-read left out.
+    let mut inbox = result(account, "4711");
+    inbox.pages = vec![ZimbraMessagePage {
+        folder: "2".into(),
+        messages: vec![mail("257", "2", "Hello", false), mail("258", "2", "Later", true), mail("120", "2", "Older", true)],
+        afresh: true,
+        last: true,
+        ..Default::default()
+    }];
+    inbox.partial = true;
+    apply(&mut s, inbox);
+    let mut end = result(account, "4711");
+    (end.token, end.whole, end.resume) = ("4711".into(), true, Some(Vec::new()));
+    apply(&mut s, end);
+    assert_eq!(subjects(&s, account, "Inbox"), ["Hello", "Later", "Older"]);
+    let server = s.mailbox.account(account).unwrap().zimbra.as_ref().unwrap();
+    assert_eq!((server.token.as_str(), server.resume.is_empty()), ("4711", true));
+    // And nothing is asked for a second time.
+    assert_eq!(s.run("sync.zimbraRequest", &json!({"account": account})).unwrap().get("resume"), None);
+}
+
+#[test]
 fn the_request_goes_on_from_no_more_folders_than_a_listing_holds() {
     let (mut s, id) = session();
     let most = mailcraft_model::sync::MAX_LISTED_FOLDERS;
@@ -496,6 +610,11 @@ fn a_piece_names_the_account_and_server_it_is_for_whatever_their_case() {
     no_server.url.clear();
     no_server.pages = vec![ZimbraMessagePage { removed: vec!["257".into()], last: true, ..Default::default() }];
     assert!(s.run("sync.applyZimbra", &json!({"result": no_server})).is_err());
+    // (Another path at the same host is another service, as an edit of the account takes it.)
+    let mut other_path = result(account, "4711");
+    other_path.url = format!("{URL}/other");
+    other_path.pages = vec![ZimbraMessagePage { removed: vec!["257".into()], last: true, ..Default::default() }];
+    assert!(s.run("sync.applyZimbra", &json!({"result": other_path})).is_err());
     assert_eq!(s.mailbox, before);
     // The same server written in other capitals, and with a slash at its end, is the same server.
     let mut same = result(account, "4711");
