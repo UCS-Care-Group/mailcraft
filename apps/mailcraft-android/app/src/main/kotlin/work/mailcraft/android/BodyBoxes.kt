@@ -179,7 +179,7 @@ internal fun drawnWidth(table: TableView, room: Dp): Dp {
  * Null when a column takes what is left: such a box takes the line.
  */
 internal fun boxWidth(table: TableView, gap: Float): Float? {
-    val specs = columnSpecs(gridOf(table))
+    val specs = columnSpecs(gridOf(table), table)
     if (specs.isEmpty() || specs.any { it.holds && it.asks == null }) return null
     return specs.sumOf { (it.asks ?: 0f).toDouble() }.toFloat() + gap * (specs.size - 1)
 }

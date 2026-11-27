@@ -14,19 +14,19 @@ import uniffi.mailcraft_mobile.InsetsView
  * row of icons): theirs, line by line, with their padding and the cell's, as the desktop sizes such a
  * column. Null when it holds anything else, or nothing.
  */
-internal fun picturesWidth(cell: CellView): Float? {
+internal fun picturesWidth(cell: CellView, padding: InsetsView? = cell.padding): Float? {
     if (cell.blocks.isEmpty()) return null
     val lines = linesOf(cell.blocks).map { line ->
         val each = line.blocks.map { pictureWidth(it) ?: return null }
         each.sum() + RUN_GAP * (each.size - 1)
     }
-    val pad = cell.padding?.let { it.left.toFloat() + it.right.toFloat() } ?: 0f
+    val pad = padding?.let { it.left.toFloat() + it.right.toFloat() } ?: 0f
     return lines.maxOrNull()?.plus(pad)
 }
 
 /** What a column asks for, in dp, when each of its own cells that holds anything holds only pictures of a set width. */
-internal fun picturesColumn(own: List<PlacedCell>): Float? {
-    val held = own.filter { it.cell.blocks.isNotEmpty() }.map { picturesWidth(it.cell) }
+internal fun picturesColumn(own: List<PlacedCell>, padding: (CellView) -> InsetsView?): Float? {
+    val held = own.filter { it.cell.blocks.isNotEmpty() }.map { picturesWidth(it.cell, padding(it.cell)) }
     return if (held.isEmpty() || null in held) null else held.maxOf { it ?: 0f }
 }
 

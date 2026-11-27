@@ -3,6 +3,7 @@
 package work.mailcraft.android
 
 import uniffi.mailcraft_mobile.CellView
+import uniffi.mailcraft_mobile.InsetsView
 import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 
@@ -72,16 +73,26 @@ internal class ColumnSpec(
     val asks: Float? get() = fixed ?: pictures
 }
 
-internal fun columnSpecs(grid: Grid): List<ColumnSpec> = (0 until grid.columns).map { c ->
+/**
+ * What each column of [grid] asks for. With the [table] it belongs to, a cell's padding is the one it is
+ * drawn with ([cellPadding]); without, the one it says.
+ */
+internal fun columnSpecs(grid: Grid, table: TableView? = null): List<ColumnSpec> {
+    val ruled = table?.let(::ruled) ?: false
+    val padding = { cell: CellView -> table?.let { cellPadding(it, cell, ruled) } ?: cell.padding }
+    return (0 until grid.columns).map { c -> columnSpec(grid, c, padding) }
+}
+
+private fun columnSpec(grid: Grid, c: Int, padding: (CellView) -> InsetsView?): ColumnSpec {
     val own = grid.placed.filter { it.col == c && it.cols == 1 }
     val widths = own.mapNotNull { it.cell.width }
     // A column that only a spanning cell covers holds what that cell holds, so that it is not left at nothing.
     val spanned = own.isEmpty() && grid.placed.any { it.cell.blocks.isNotEmpty() && c in it.col until it.col + it.cols }
-    ColumnSpec(
+    return ColumnSpec(
         holds = spanned || own.any { it.cell.blocks.isNotEmpty() },
         fixed = widths.filterIsInstance<LengthView.Px>().maxOfOrNull { it.px.toFloat() },
         percent = widths.filterIsInstance<LengthView.Percent>().maxOfOrNull { it.percent.toInt() },
-        pictures = picturesColumn(own).takeIf { widths.isEmpty() },
+        pictures = picturesColumn(own, padding).takeIf { widths.isEmpty() },
     )
 }
 

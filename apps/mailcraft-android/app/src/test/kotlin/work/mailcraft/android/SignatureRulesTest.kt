@@ -101,6 +101,17 @@ class SignatureRulesTest {
     }
 
     @Test
+    fun aPictureColumnCountsThePaddingItsCellIsDrawnWith() {
+        val icon = B.cell(B.image("a", "icon", 20u, 20u)).copy(background = 0x2e7d32u)
+        val table = B.table(layout = true, rows = listOf(listOf(icon)))
+        // A coloured cell that says nothing of its padding is drawn with the box padding (12 a side).
+        assertEquals(44f, columnSpecs(gridOf(table), table).single().pictures)
+        val own = icon.copy(padding = inset(2, 2))
+        val padded = B.table(layout = true, rows = listOf(listOf(own)))
+        assertEquals(24f, columnSpecs(gridOf(padded), padded).single().pictures)
+    }
+
+    @Test
     fun linesOfBoxesStandOneUnderAnotherWithTheGapBetween() {
         val (tops, all) = lineTops(intArrayOf(20, 30, 10), between = 4)
         assertEquals(listOf(0, 24, 58), tops.toList())

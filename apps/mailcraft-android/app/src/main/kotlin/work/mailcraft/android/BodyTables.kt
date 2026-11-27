@@ -92,7 +92,7 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
         sections.forEach { section ->
             val least = table.minColumn.toFloat()
-            val widths = remember(section, width) { planColumns(columnSpecs(section), width.value, gap, least) }
+            val widths = remember(section, width) { planColumns(columnSpecs(section, table), width.value, gap, least) }
             if (widths == null) {
                 section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth(), ruled) }
             } else {
