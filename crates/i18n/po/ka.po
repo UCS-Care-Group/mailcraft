@@ -27015,6 +27015,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "წერილები ({n}), რომლებიც უარყოფილი წაშლის შემდეგ ცარიელი დაბრუნდა, ხელახლა ჩამოიტვირთება."
 msgstr[1] "წერილები ({n}), რომლებიც უარყოფილი წაშლის შემდეგ ცარიელი დაბრუნდა, ხელახლა ჩამოიტვირთება."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} წერილი, რომელიც მხოლოდ ამ კომპიუტერზე იყო, ისეთ საქაღალდეში იყო, რომელსაც სერვერი აღარ ასახელებს. ახლა ის საქაღალდეშია „{name}“."
+msgstr[1] "{n} წერილი, რომელიც მხოლოდ ამ კომპიუტერზე იყო, ისეთ საქაღალდეში იყო, რომელსაც სერვერი აღარ ასახელებს. ახლა ისინი საქაღალდეშია „{name}“."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

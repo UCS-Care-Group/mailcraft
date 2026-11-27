@@ -27098,6 +27098,14 @@ msgid_plural "{n} messages that came back empty after a refused delete are being
 msgstr[0] "A MailCraft újra letölt {n} üzenetet, amely egy elutasított törlés után üresen került vissza."
 msgstr[1] "A MailCraft újra letölt {n} üzenetet, amely egy elutasított törlés után üresen került vissza."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} üzenet, amely csak ezen a számítógépen volt, egy olyan mappában volt, amelyet a kiszolgáló már nem listáz. Most a(z) \"{name}\" mappában van."
+msgstr[1] "{n} üzenet, amely csak ezen a számítógépen volt, egy olyan mappában volt, amelyet a kiszolgáló már nem listáz. Ezek most a(z) \"{name}\" mappában vannak."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy

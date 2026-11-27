@@ -27266,6 +27266,15 @@ msgstr[0] "{n} wiadomość, która wróciła pusta po odmowie usunięcia, jest p
 msgstr[1] "{n} wiadomości, które wróciły puste po odmowie usunięcia, są pobierane ponownie."
 msgstr[2] "{n} wiadomości, które wróciły puste po odmowie usunięcia, jest pobieranych ponownie."
 
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "{n} message that was only on this computer was in a folder the server no longer lists. It is now in the folder \"{name}\"."
+msgid_plural "{n} messages that were only on this computer were in a folder the server no longer lists. They are now in the folder \"{name}\"."
+msgstr[0] "{n} wiadomość, która była tylko na tym komputerze, znajdowała się w folderze, którego serwer już nie wyświetla. Teraz jest w folderze „{name}”."
+msgstr[1] "{n} wiadomości, które były tylko na tym komputerze, znajdowały się w folderze, którego serwer już nie wyświetla. Teraz są w folderze „{name}”."
+msgstr[2] "{n} wiadomości, które były tylko na tym komputerze, znajdowało się w folderze, którego serwer już nie wyświetla. Teraz są w folderze „{name}”."
+
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
