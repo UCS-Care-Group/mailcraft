@@ -47,6 +47,18 @@ fn a_plain_refusal_is_redacted_and_never_retried_with_login() {
 }
 
 #[test]
+fn a_bad_plain_command_falls_back_to_login() {
+    // Some servers list AUTH=PLAIN but answer AUTHENTICATE with BAD: the capability is there,
+    // the command isn't. BAD says nothing about the password, so LOGIN is tried.
+    let mut stream = Script::new(greeting("AUTH=PLAIN", "A0001 BAD invalid command\r\nA0002 OK [CAPABILITY IMAP4rev1] welcome\r\n"));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), "A0001 AUTHENTICATE PLAIN\r\nA0002 LOGIN \"user@example.org\" \"invented\"\r\n");
+    assert!(stream.finished());
+}
+
+#[test]
 fn a_refusal_before_the_challenge_sends_no_password() {
     let mut stream = Script::new(greeting("AUTH=PLAIN", "A0001 NO unavailable\r\n"));
     assert!(Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").is_err());
