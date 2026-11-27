@@ -353,3 +353,21 @@ fn a_block_of_many_short_spans_is_cut_in_one_pass() {
     assert!(views.len() > 1);
     assert!(looked <= 50_000 + 2 * views.len(), "{looked} spans looked at for {} pieces", views.len());
 }
+
+#[test]
+fn a_long_span_is_copied_once_whatever_the_pieces() {
+    // One span of a million characters in 250 pieces: each piece copies its own text, not the span's.
+    let text = "a".repeat(1_000_000);
+    crate::blocks::BYTES_COPIED.with(|n| n.set(0));
+    let views = of(&[paragraph(&text)]);
+    let copied = crate::blocks::BYTES_COPIED.with(std::cell::Cell::get);
+    assert_eq!(views.len(), 250);
+    assert!(copied <= 2 * text.len(), "{copied} bytes copied for {} bytes", text.len());
+}
+
+#[test]
+fn a_blank_line_before_a_letter_longer_than_a_block_is_not_a_block_alone() {
+    let text = format!("\ne{}", "\u{301}".repeat(MAX_BLOCK_CHARS + 10));
+    let all = texts(&of(&[paragraph(&text)]));
+    assert!(all.first().is_some_and(|t| t.starts_with("\ne")), "{:?}", all.iter().map(|t| t.chars().take(2).collect::<String>()).collect::<Vec<_>>());
+}

@@ -455,6 +455,8 @@ fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
                 .and_then(|(end, _)| whole_at(rest, end))
                 .filter(|&cut| rest.get(..cut).is_some_and(|t| !t.trim().is_empty()))
                 .or_else(|| whole_at(rest, at))
+                // Never a piece of only a line break before a letter longer than a block: cut in it.
+                .filter(|&cut| rest.get(..cut).is_some_and(|t| !t.chars().all(|c| c == '\n')))
                 .unwrap_or(at);
             // A line break right at the cut goes, as at any line break: the next block starts the line.
             if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) && cut > 1 {
@@ -473,27 +475,32 @@ fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
 thread_local! {
     /// How many spans [`spans_in`] has looked at: what pins its one pass in a test.
     pub(crate) static SPANS_LOOKED_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many bytes of text [`spans_in`] has copied: what pins its one pass over the text in a test.
+    pub(crate) static BYTES_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-/// What of `spans` (each starting at its byte of `starts` in the joined text) lies in `from..end`:
-/// only the spans from the one `from` falls in are looked at, so a block is cut in one pass.
-fn spans_in(spans: &[SpanView], starts: &[usize], from: usize, end: usize) -> Vec<SpanView> {
+/// What of `text` (the block's spans joined) lies in `from..end`, in the look of each span it falls in:
+/// `styles` are the spans with their text taken out, each starting at its byte of `starts`. Only the
+/// spans from the one `from` falls in are looked at, and only the piece's own text is copied, so a
+/// block is cut in one pass over its text.
+fn spans_in(text: &str, styles: &[SpanView], starts: &[usize], from: usize, end: usize) -> Vec<SpanView> {
     let first = starts.partition_point(|&start| start <= from).saturating_sub(1);
-    spans
-        .iter()
-        .zip(starts)
-        .skip(first)
-        .take_while(|(_, start)| {
+    let mut out = Vec::new();
+    for (i, style) in styles.iter().enumerate().skip(first) {
+        #[cfg(test)]
+        SPANS_LOOKED_AT.with(|n| n.set(n.get().saturating_add(1)));
+        let start = starts.get(i).copied().unwrap_or(text.len());
+        if start >= end {
+            break;
+        }
+        let stop = starts.get(i.saturating_add(1)).copied().unwrap_or(text.len());
+        if let Some(t) = text.get(from.max(start)..end.min(stop)).filter(|t| !t.is_empty()) {
             #[cfg(test)]
-            SPANS_LOOKED_AT.with(|n| n.set(n.get().saturating_add(1)));
-            **start < end
-        })
-        .filter_map(|(s, &start)| {
-            let a = from.max(start).saturating_sub(start);
-            let b = end.min(start.saturating_add(s.text.len())).saturating_sub(start);
-            s.text.get(a..b).filter(|t| !t.is_empty()).map(|t| SpanView { text: t.to_string(), ..s.clone() })
-        })
-        .collect()
+            BYTES_COPIED.with(|n| n.set(n.get().saturating_add(t.len()).saturating_add(style.text.len())));
+            out.push(SpanView { text: t.to_string(), ..style.clone() });
+        }
+    }
+    out
 }
 
 /// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each, cut where [`next_cut`] says, the
@@ -516,6 +523,8 @@ fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
             Some(start)
         })
         .collect();
+    // Each span's look alone, its text taken out: what a piece copies with its own text.
+    let styles: Vec<SpanView> = spans.into_iter().map(|s| SpanView { text: String::new(), ..s }).collect();
     // A piece after the first goes on under it: no room above, and a list item's marker only once.
     let mut next = first.clone();
     next.space = 0;
@@ -528,7 +537,7 @@ fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
     let mut from = 0usize;
     while from < text.len() {
         let (end, resume) = next_cut(&text, from).unwrap_or((text.len(), text.len()));
-        let piece = spans_in(&spans, &starts, from, end);
+        let piece = spans_in(&text, &styles, &starts, from, end);
         if !piece.is_empty() {
             if !out.is_empty() && !budget.take() {
                 return out;
