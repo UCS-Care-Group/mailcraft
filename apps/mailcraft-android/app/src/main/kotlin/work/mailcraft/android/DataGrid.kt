@@ -8,7 +8,8 @@ private const val TINY = 1e-3f
 /**
  * What one cell asks of the columns it covers, in pixels: [min] it can't be narrower than without
  * breaking a word, [max] it takes with all the room it wants, and a width ([px]) or a share of the
- * table ([percent]) where the message gives one.
+ * table ([percent]) where the message gives one. As on the desktop, only a cell of one column sets its
+ * column's width that way: a cell over several gives them its words' widths alone.
  */
 internal class CellNeed(
     val col: Int,

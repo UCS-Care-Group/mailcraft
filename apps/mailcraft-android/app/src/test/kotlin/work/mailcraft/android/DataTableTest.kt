@@ -49,6 +49,12 @@ class DataTableTest {
     }
 
     @Test
+    fun aWidthOnACellOverColumnsIsLeftToItsWordsAsOnTheDesktop() {
+        val widths = dataColumnWidths(listOf(need(0, 40f, 80f, cols = 2, px = 240f)), 2, room = 328f, asked = null)
+        assertEquals(80f, widths.sum(), 0.01f)
+    }
+
+    @Test
     fun hostileNeedsStayInsideTheGrid() {
         assertEquals(0, dataColumnWidths(emptyList(), 0, 328f, null).size)
         assertEquals(MAX_COLUMNS, dataColumnWidths(emptyList(), 100_000, 328f, null).size)
