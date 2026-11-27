@@ -348,6 +348,117 @@ fn related_html_selects_its_enclosing_alternative_without_duplicate_renderings()
     }
 }
 
+fn mixed_alternative(before: &str, after: &str) -> String {
+    format!(
+        "Content-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain\r\n\r\n{before}\r\n--x\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--x\r\nContent-Type: text/plain\r\n\r\n{after}\r\n--x--"
+    )
+}
+
+#[test]
+fn alternative_mixed_caption_is_synthesized_once() {
+    let candidate = mixed_alternative("Caption", "");
+    let message = parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{candidate}\r\n--a--\r\n").as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(html.matches("Caption").count(), 1, "{html}");
+    assert_eq!(message.body.text, "Caption");
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+}
+
+#[test]
+fn alternative_mixed_branch_preserves_all_text_and_picture_positions() {
+    let candidate = mixed_alternative("Before", "After");
+    let alternative = format!(
+        "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{candidate}\r\n--a\r\nContent-Type: text/plain\r\n\r\nWrong rendering\r\n--a--"
+    );
+    for surrounded in [false, true] {
+        let wire = if surrounded {
+            format!(
+                "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: text/plain\r\n\r\nPrefix\r\n--m\r\n{alternative}\r\n--m\r\nContent-Type: text/plain\r\n\r\nSuffix\r\n--m--\r\n"
+            )
+        } else {
+            format!("{alternative}\r\n")
+        };
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        for text in ["Before", "After"] {
+            assert_eq!(html.matches(text).count(), 1, "{html}");
+        }
+        assert!(html.find("Before").unwrap() < html.find("<img").unwrap());
+        assert!(html.find("<img").unwrap() < html.find("After").unwrap());
+        assert!(!html.contains("Wrong rendering"), "{html}");
+        let expected = if surrounded { "Prefix\n\nBefore\n\nAfter\n\nSuffix" } else { "Before\n\nAfter" };
+        assert_eq!(message.body.text, expected);
+        if surrounded {
+            assert!(html.find("Prefix").unwrap() < html.find("Before").unwrap());
+            assert!(html.find("After").unwrap() < html.find("Suffix").unwrap());
+        }
+    }
+}
+
+#[test]
+fn skipped_alternative_branch_keeps_files_without_body_contributions() {
+    for rich_first in [true, false] {
+        let candidate = mixed_alternative("Plain before", "Plain after");
+        let rich = "Content-Type: text/html\r\n\r\n<p>Chosen HTML</p>";
+        let (first, last) = if rich_first { (rich, candidate.as_str()) } else { (candidate.as_str(), rich) };
+        let message =
+            parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{first}\r\n--a\r\n{last}\r\n--a--\r\n").as_bytes());
+        assert_eq!(message.body.html.as_deref(), Some("<p>Chosen HTML</p>"));
+        assert_eq!(message.body.text, "Plain before\n\nPlain after");
+        assert_eq!(message.attachments.len(), 1);
+        assert_eq!(message.attachments[0].data.as_slice(), b"\x89PNG\r\n\x1a\n");
+        assert!(message.attachments[0].inline);
+        assert!(message.attachments[0].content_id.is_empty());
+    }
+}
+
+#[test]
+fn nested_alternatives_prefer_source_html_over_synthetic_picture_html() {
+    let mixed = mixed_alternative("Plain before", "Plain after");
+    let nested = format!(
+        "Content-Type: multipart/alternative; boundary=n\r\n\r\n--n\r\n{mixed}\r\n--n\r\nContent-Type: text/html\r\n\r\n<p>Chosen nested HTML</p>\r\n--n--"
+    );
+    let message = parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{nested}\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Wrong outer HTML</p>\r\n--a--\r\n").as_bytes());
+    assert_eq!(message.body.html.as_deref(), Some("<p>Chosen nested HTML</p>"));
+    assert_eq!(message.body.text, "Plain before\n\nPlain after");
+    assert_eq!(message.attachments.len(), 1);
+    assert!(message.attachments[0].content_id.is_empty());
+}
+
+#[test]
+fn sibling_alternative_picture_offsets_are_rebased_independently() {
+    let alternative = |boundary, before, after| {
+        format!(
+            "Content-Type: multipart/alternative; boundary={boundary}\r\n\r\n--{boundary}\r\n{}\r\n--{boundary}--",
+            mixed_alternative(before, after)
+        )
+    };
+    let first = alternative("a", "First before", "First after");
+    let last = alternative("b", "Last before", "Last after");
+    let wire = format!(
+        "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--m\r\n{first}\r\n--m\r\nContent-Type: text/plain\r\n\r\nBetween groups\r\n--m\r\n{last}\r\n--m--\r\n"
+    );
+    let message = parse(wire.as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(message.attachments.len(), 3);
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 3);
+    let mut positions = Vec::new();
+    for part in &message.attachments {
+        positions.push(html.find(&format!("cid:{}", part.content_id)).unwrap());
+    }
+    assert!(positions[0] < html.find("First before").unwrap());
+    assert!(html.find("First before").unwrap() < positions[1]);
+    assert!(positions[1] < html.find("First after").unwrap());
+    assert!(html.find("First after").unwrap() < html.find("Between groups").unwrap());
+    assert!(html.find("Between groups").unwrap() < html.find("Last before").unwrap());
+    assert!(html.find("Last before").unwrap() < positions[2]);
+    assert!(positions[2] < html.find("Last after").unwrap());
+    for text in ["First before", "First after", "Between groups", "Last before", "Last after"] {
+        assert_eq!(html.matches(text).count(), 1, "{html}");
+    }
+    assert_eq!(message.body.text, "First before\n\nFirst after\n\nBetween groups\n\nLast before\n\nLast after");
+}
+
 #[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[

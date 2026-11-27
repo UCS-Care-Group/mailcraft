@@ -86,22 +86,22 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     walk.part(&headers, body, 0, Parent::None);
     walk.finish_mixed_pictures();
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
-    let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
+    let (html_text, hidden) = walk.body.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
     message.hidden_text = hidden.unwrap_or_default();
     // A winmail.dat's text, for a message with no text or HTML of its own.
-    if walk.html.is_none()
-        && walk.text.as_deref().is_none_or(|t| t.trim().is_empty())
+    if walk.body.html.is_none()
+        && walk.body.text.as_deref().is_none_or(|t| t.trim().is_empty())
         && let Some(text) = walk.tnef_text.take()
     {
-        walk.text = Some(text);
+        walk.body.text = Some(text);
     }
-    message.body.text = match (walk.text, html_text) {
+    message.body.text = match (walk.body.text, html_text) {
         (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
         (None, Some(html)) => html,
         (None, None) => String::new(),
     };
-    message.body.html = walk.html;
+    message.body.html = walk.body.html;
     message.attachments = walk.attachments;
     message
 }
@@ -256,8 +256,7 @@ enum Parent {
 /// What a walk over the MIME tree has found.
 #[derive(Default)]
 struct Walk {
-    text: Option<String>,
-    html: Option<String>,
+    body: BodyParts,
     attachments: Vec<Attachment>,
     parts: usize,
     /// Opaque signed parts opened so far, and the bytes of what they held ([`MAX_OPAQUE`],
@@ -269,39 +268,36 @@ struct Walk {
     /// TNEF streams opened so far ([`MAX_TNEF`]), and the text of the first that had one.
     tnef: usize,
     tnef_text: Option<String>,
-    /// HTML insertion offset, attachment index, and candidate id (reserved after the walk).
-    mixed_pictures: Vec<(usize, usize, String)>,
-    /// Selection belongs to the enclosing alternative, including its related wrappers.
-    alternative: Option<Alternative>,
 }
 
-/// Only the selected branch contributes HTML; plain text waits until all branches are known.
+/// A single MIME rendering, collected independently before alternative selection.
 #[derive(Default)]
-struct Alternative {
-    html: bool,
-    skip_html: bool,
-    inherited_skip: bool,
-    plain: Option<String>,
+struct BodyParts {
+    text: Option<String>,
+    html: Option<String>,
+    source_html: bool,
+    /// HTML insertion offset, absolute attachment index, and candidate id.
+    mixed_pictures: Vec<(usize, usize, String)>,
 }
 
 impl Walk {
     fn finish_mixed_pictures(&mut self) {
-        if self.mixed_pictures.is_empty() {
+        if self.body.mixed_pictures.is_empty() {
             return;
         }
-        let Some(html) = self.html.take() else { return };
+        let Some(html) = self.body.html.take() else { return };
         // Inspect the finished HTML once, including references following the MIME
         // picture. Insert the remaining pictures in a single pass over the body.
         let blocks = mailcraft_html::parse(&html);
         let images = mailcraft_html::images(&blocks);
         if images.len() > 4096 {
-            self.html = Some(html);
+            self.body.html = Some(html);
             return;
         }
         // Later explicit ids must also be reserved before any missing id is assigned.
         let mut reserved: HashSet<Vec<u8>> =
             self.attachments.iter().filter(|part| !part.content_id.is_empty()).map(|part| cid_raw_key(&part.content_id)).collect();
-        for (_, index, generated_id) in &self.mixed_pictures {
+        for (_, index, generated_id) in &self.body.mixed_pictures {
             let Some(part) = self.attachments.get_mut(*index) else { continue };
             if part.content_id.is_empty() {
                 let mut id = generated_id.clone();
@@ -328,7 +324,7 @@ impl Walk {
             .collect();
         let mut combined = String::new();
         let mut cursor = 0;
-        for (at, index, _) in &self.mixed_pictures {
+        for (at, index, _) in &self.body.mixed_pictures {
             let Some(before) = html.get(cursor..*at) else { continue };
             combined.push_str(before);
             cursor = *at;
@@ -340,7 +336,7 @@ impl Walk {
             }
         }
         combined.push_str(html.get(cursor..).unwrap_or_default());
-        self.html = Some(combined);
+        self.body.html = Some(combined);
     }
 
     fn part(&mut self, headers: &Headers, body: &[u8], depth: usize, parent: Parent) {
@@ -368,33 +364,12 @@ impl Walk {
                 "mixed" => Parent::Mixed,
                 _ => Parent::Other,
             };
-            let outer_alternative = if kind == Parent::Alternative { self.alternative.take() } else { None };
             if kind == Parent::Alternative {
-                self.alternative =
-                    Some(Alternative { inherited_skip: outer_alternative.as_ref().is_some_and(|outer| outer.skip_html), ..Alternative::default() });
-            }
-            for piece in split_multipart(body, boundary, MAX_PARTS.saturating_sub(self.parts)) {
-                if kind == Parent::Alternative
-                    && let Some(choice) = &mut self.alternative
-                {
-                    choice.skip_html = choice.inherited_skip || choice.html;
-                }
-                let (part_headers, part_body) = header::split(piece, false);
-                self.part(&part_headers, part_body, depth + 1, kind);
-            }
-            if kind == Parent::Alternative {
-                let choice = self.alternative.take().unwrap_or_default();
-                self.alternative = outer_alternative;
-                if let Some(outer) = &mut self.alternative {
-                    outer.html |= choice.html;
-                    if outer.plain.is_none() {
-                        outer.plain = choice.plain;
-                    }
-                } else if !choice.html
-                    && !choice.inherited_skip
-                    && let (Some(html), Some(plain)) = (&mut self.html, choice.plain)
-                {
-                    html.push_str(&mailcraft_html::from_text(&plain));
+                self.alternative_parts(body, boundary, depth, parent);
+            } else {
+                for piece in split_multipart(body, boundary, MAX_PARTS.saturating_sub(self.parts)) {
+                    let (part_headers, part_body) = header::split(piece, false);
+                    self.part(&part_headers, part_body, depth + 1, kind);
                 }
             }
             return;
@@ -435,8 +410,8 @@ impl Walk {
         // form for inline pictures between text parts, without an HTML img element.
         // Only an explicitly inline, locally carried picture becomes body content.
         if parent == Parent::Mixed && disposition.value == "inline" && supported_picture(&data) {
-            let body = self.html.get_or_insert_with(|| self.text.as_deref().map(mailcraft_html::from_text).unwrap_or_default());
-            self.mixed_pictures.push((body.len(), self.attachments.len(), format!("mailcraft-mixed-{}@inline.invalid", self.parts)));
+            let body = self.body.html.get_or_insert_with(|| self.body.text.as_deref().map(mailcraft_html::from_text).unwrap_or_default());
+            self.body.mixed_pictures.push((body.len(), self.attachments.len(), format!("mailcraft-mixed-{}@inline.invalid", self.parts)));
         }
         // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
         // stream itself, which keeps what of it isn't read here.
@@ -498,29 +473,67 @@ impl Walk {
         true
     }
 
-    fn add_text(&mut self, text: String, parent: Parent) {
-        let parent = if let Some(choice) = &mut self.alternative {
-            if choice.plain.is_none() {
-                choice.plain = Some(text.clone());
+    /// Parse candidates with independent body state; only files and hostile-input caps are shared.
+    fn alternative_parts(&mut self, body: &[u8], boundary: &str, depth: usize, parent: Parent) {
+        let outer = std::mem::take(&mut self.body);
+        let mut plain = None;
+        let mut preferred = None;
+        let mut fallback = None;
+        for piece in split_multipart(body, boundary, MAX_PARTS.saturating_sub(self.parts)) {
+            let (headers, body) = header::split(piece, false);
+            self.part(&headers, body, depth + 1, Parent::Alternative);
+            let mut candidate = std::mem::take(&mut self.body);
+            if plain.is_none() {
+                plain = candidate.text.take();
             }
-            Parent::Alternative
-        } else {
-            parent
-        };
-        match &mut self.text {
+            if candidate.source_html && preferred.is_none() {
+                preferred = Some(candidate);
+                fallback = None;
+            } else if preferred.is_none() && candidate.html.is_some() && fallback.is_none() {
+                fallback = Some(candidate);
+            }
+        }
+        self.body = outer;
+        if let Some(mut selected) = preferred.or(fallback) {
+            let prefix = if self.body.html.is_none() { self.body.text.as_deref().map(mailcraft_html::from_text) } else { None };
+            // Plain and HTML are distinct renderings. Merge the plain version without
+            // adding it again to the HTML that already carries its selected rendering.
+            let html = self.body.html.take();
+            if let Some(text) = plain {
+                self.add_text(text, parent);
+            }
+            self.body.html = html;
+            if let Some(html) = selected.html.take() {
+                // Prefix text belongs to an earlier mixed part, outside this alternative.
+                if self.body.html.is_none() {
+                    self.body.html = prefix;
+                }
+                let offset = self.body.html.as_ref().map_or(0, |body| body.len().saturating_add(1));
+                let source_html = self.body.source_html || selected.source_html;
+                self.add_html(html);
+                self.body.source_html = source_html;
+                self.body.mixed_pictures.extend(selected.mixed_pictures.into_iter().map(|(at, index, id)| (offset.saturating_add(at), index, id)));
+            }
+        } else if let Some(text) = plain {
+            self.add_text(text, parent);
+        }
+    }
+
+    fn add_text(&mut self, text: String, parent: Parent) {
+        match &mut self.body.text {
             None => {
                 if parent == Parent::Mixed
-                    && let Some(html) = &mut self.html
+                    && let Some(html) = &mut self.body.html
                 {
                     html.push_str(&mailcraft_html::from_text(&text));
                 }
-                self.text = Some(text);
+                self.body.text = Some(text);
             }
             // Another rendering of the same body.
             Some(_) if parent == Parent::Alternative => {}
             Some(_) if text.trim().is_empty() => {}
             Some(body) => {
-                if let Some(html) = &mut self.html {
+                if let Some(html) = &mut self.body.html {
                     html.push_str(&mailcraft_html::from_text(&text));
                 }
                 if !body.is_empty() {
@@ -532,14 +545,9 @@ impl Walk {
     }
 
     fn add_html(&mut self, html: String) {
-        if let Some(choice) = &mut self.alternative {
-            if choice.skip_html {
-                return;
-            }
-            choice.html = true;
-        }
-        match &mut self.html {
-            None => self.html = Some(html),
+        self.body.source_html = true;
+        match &mut self.body.html {
+            None => self.body.html = Some(html),
             Some(body) => {
                 body.push('\n');
                 body.push_str(&html);
