@@ -114,3 +114,59 @@ fn a_bar_is_capped_and_a_height_without_colour_makes_no_room() {
     let blocks = parse("<p>One</p><div style='height:40px'></div><p>Two</p>");
     assert_eq!(blocks.iter().map(|b| (b.text(), b.space)).collect::<Vec<_>>(), [("One".into(), 0), ("Two".into(), 1)]);
 }
+
+fn css(style: &str) -> crate::style::Css {
+    crate::style::Css::parse(style)
+}
+
+#[test]
+fn outlooks_padding_stands_in_where_the_plain_one_is_missing() {
+    assert_eq!(css("mso-padding-alt:6pt 12pt").padding, [Some(8), Some(16), Some(8), Some(16)]);
+    assert_eq!(css("mso-padding-alt:0in 5.4pt 0in 5.4pt").padding, [Some(0), Some(7), Some(0), Some(7)]);
+    // The plain property wins on every side it gives, whichever comes first.
+    assert_eq!(css("padding:2px;mso-padding-alt:30px").padding, [Some(2); 4]);
+    assert_eq!(css("mso-padding-alt:30px;padding:2px").padding, [Some(2); 4]);
+    assert_eq!(css("padding-left:0;mso-padding-alt:5px").padding, [Some(5), Some(5), Some(5), Some(0)]);
+    // Repeated: the last that can be read.
+    assert_eq!(css("mso-padding-alt:4px;mso-padding-alt:9px").padding, [Some(9); 4]);
+    assert_eq!(css("mso-padding-alt:4px;mso-padding-alt:bogus").padding, [Some(4); 4]);
+}
+
+#[test]
+fn hostile_outlook_padding_is_clamped_or_ignored() {
+    assert_eq!(css("mso-padding-alt:9999px 100in").padding, [Some(MAX_BOX_PX); 4]);
+    for junk in ["-5px", "calc(4px)", "10", "auto", "1px 2px 3px 4px 5px", "NaN", "1e3px", "url(x)", ""] {
+        assert_eq!(css(&format!("mso-padding-alt:{junk}")).padding, [None; 4], "{junk}");
+    }
+}
+
+#[test]
+fn outlooks_margins_stand_in_where_the_plain_ones_are_missing() {
+    let margins = |style: &str| {
+        let c = css(style);
+        (c.margin[0], c.margin[2], c.margin_top_zero, c.margin_bottom_zero)
+    };
+    assert_eq!(margins("mso-margin-top-alt:24px;mso-margin-bottom-alt:3px"), (Some(24), Some(3), Some(false), Some(true)));
+    assert_eq!(margins("mso-margin-top-alt:12pt"), (Some(16), None, Some(false), None));
+    // The plain margin wins, written before or after; `margin` itself counts for both.
+    assert_eq!(margins("margin-top:0;mso-margin-top-alt:24px"), (Some(0), None, Some(true), None));
+    assert_eq!(margins("mso-margin-bottom-alt:24px;margin-bottom:2px").1, Some(2));
+    assert_eq!(margins("margin:0;mso-margin-top-alt:30px;mso-margin-bottom-alt:30px"), (Some(0), Some(0), Some(true), Some(true)));
+    // `auto` (Word's own paragraph spacing), nonsense and the hostile ask nothing; huge is capped, negative is none.
+    for junk in ["auto", "calc(9px)", "10", "NaN", "bogus", ""] {
+        assert_eq!(margins(&format!("mso-margin-top-alt:{junk}")), (None, None, None, None), "{junk}");
+    }
+    assert_eq!(margins("mso-margin-top-alt:99999px").0, Some(MAX_BOX_PX));
+    assert_eq!(margins("mso-margin-top-alt:-40px"), (Some(0), None, Some(true), None));
+    assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:auto").0, Some(8));
+}
+
+#[test]
+fn outlooks_spacing_reaches_the_blocks() {
+    let blocks = parse("<p style='margin:0'>One</p><p style='mso-margin-top-alt:24px;margin-bottom:0'>Two</p>");
+    assert_eq!(blocks.get(1).map(|b| b.gap), Some(24));
+    let blocks = parse("<table border=1 cellpadding=3><tr><td style='mso-padding-alt:6pt 12pt'>Order</td><td>Due</td></tr></table>");
+    let found: Vec<Option<Insets>> = cells(table(&blocks)).iter().map(|c| c.padding).collect();
+    // A cell's own Outlook padding is its own, and beats the table's `cellpadding`.
+    assert_eq!(found, [Some(Insets { top: 8, right: 16, bottom: 8, left: 16 }), all(3)]);
+}
