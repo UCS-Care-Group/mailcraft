@@ -13,8 +13,16 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
-import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.VAlignView
+
+/** A layout table's own width: in dp ([dp]), or a share of the room ([percent]); neither when it gives none. */
+internal class OwnWidth(val dp: Float?, val percent: Int?)
+
+/**
+ * The gaps between a layout table's columns and rows in dp, the least a column is ([planColumns]), and
+ * whether it is [told] its width.
+ */
+internal class Gaps(val column: Float, val row: Float, val least: Float, val told: Boolean)
 
 /** The most a layout is, in pixels (Compose packs a size into 24 bits). */
 internal const val MAX_LAYOUT = (1 shl 24) - 1
@@ -54,24 +62,25 @@ internal class Arranged(
 internal class SectionPolicy(
     private val cells: List<PlacedCell>,
     private val specs: List<ColumnSpec>,
-    private val gap: Float,
-    private val rowGap: Float,
+    private val gaps: Gaps,
     private val tinted: Set<Int>,
-    private val own: LengthView?,
+    private val own: OwnWidth,
 ) : MeasurePolicy {
+    private val gap get() = gaps.column
+    private val rowGap get() = gaps.row
+
     /** The width it is laid out in, of [given] pixels: its own where it gives one, never more. */
     private fun Density.roomOf(given: Int): Int {
         val room = if (given == Constraints.Infinity) MAX_BOX_WIDTH else given.coerceIn(0, MAX_BOX_WIDTH)
-        return when (val w = own) {
-            is LengthView.Px -> w.px.toInt().dp.roundToPx().coerceAtMost(room)
-            is LengthView.Percent -> room * w.percent.toInt().coerceIn(0, PERCENT) / PERCENT
-            null -> room
-        }
+        val least = CellMinimum.roundToPx().coerceAtMost(room)
+        own.dp?.let { return it.dp.roundToPx().coerceIn(least, room) }
+        own.percent?.let { return room * it.coerceIn(0, PERCENT) / PERCENT }
+        return room
     }
 
     /** Where the cells stand across [room] pixels, before any is asked anything: lefts, widths, stacked. */
     private fun Density.across(room: Int): Triple<Boolean, IntArray, IntArray> {
-        val widths = planColumns(specs, room.toDp().value, gap)
+        val widths = planColumns(specs, room.toDp().value, gap, gaps.least, gaps.told)
             ?: return Triple(true, IntArray(cells.size), IntArray(cells.size) { room })
         val lefts = IntArray(cells.size)
         val wides = IntArray(cells.size)
@@ -145,14 +154,13 @@ internal class SectionPolicy(
         minIntrinsicHeight(measurables, width)
 
     /** Its own width in pixels, where it gives one. */
-    private fun Density.told(): Int? =
-        (own as? LengthView.Px)?.px?.toInt()?.dp?.roundToPx()?.coerceAtMost(MAX_BOX_WIDTH)
+    private fun Density.told(): Int? = own.dp?.dp?.roundToPx()?.coerceAtMost(MAX_BOX_WIDTH)
 
     // The cells of each row side by side with the gaps (and the widths their columns are told), the widest row.
     override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int {
         val wants = measurables.take(cells.size).mapIndexed { i, m ->
             val p = cells[i]
-            val fixed = (p.col until p.col + p.cols).sumOf { c -> specs.getOrNull(c)?.fixed?.dp?.roundToPx() ?: 0 }
+            val fixed = (p.col until p.col + p.cols).sumOf { c -> specs.getOrNull(c)?.asks?.dp?.roundToPx() ?: 0 }
             maxOf(intrinsic(MAX_BOX_WIDTH) { m.maxIntrinsicWidth(height) }, fixed)
         }
         val gaps = gap.dp.roundToPx() * (specs.size - 1).coerceAtLeast(0)

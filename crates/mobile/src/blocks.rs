@@ -8,6 +8,7 @@
 use mailcraft_html::fonts::{self, Generic};
 use mailcraft_html::{
     Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Place, Rgb, Row, Sides, Span, Table, VAlign,
+    reading,
 };
 
 use crate::text::MAX_URL;
@@ -36,6 +37,9 @@ pub struct SpanView {
     pub size: Option<u8>,
     /// The phone font the families asked for come to ([`mailcraft_html::fonts::stand_in`]).
     pub face: FaceView,
+    /// A link drawn without its line: the message says so.
+    #[uniffi(default = false)]
+    pub bare: bool,
 }
 
 /// A kind of phone font.
@@ -188,6 +192,13 @@ pub struct TableView {
     pub box_margin_left: u8,
     pub box_margin_right: u8,
     pub float: bool,
+    /// A layout table is stacked rather than given columns that hold something narrower than
+    /// this, in dp: the desktop's rule (`mailcraft_html::reading::MIN_LAYOUT_COLUMN`).
+    #[uniffi(default = 110)]
+    pub min_column: u8,
+    /// A box on a line: the gap in front of it when it follows another, in dp.
+    #[uniffi(default = 0)]
+    pub gap_before: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -269,6 +280,7 @@ fn span(s: &Span) -> SpanView {
             Generic::Mono => FaceView::Mono,
             Generic::Condensed => FaceView::Condensed,
         },
+        bare: s.bare,
     }
 }
 
@@ -422,6 +434,8 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         box_margin_left: t.box_margin[0],
         box_margin_right: t.box_margin[1],
         float: t.float,
+        min_column: reading::MIN_LAYOUT_COLUMN,
+        gap_before: reading::box_gap(t),
     }
 }
 

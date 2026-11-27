@@ -27,7 +27,7 @@ import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 import uniffi.mailcraft_mobile.VAlignView
 
-private val CellMinimum = 24.dp
+internal val CellMinimum = 24.dp
 
 /** The width a table takes of [room], where it says. */
 internal fun tableWidth(table: TableView, room: Dp): Dp = when (val w = table.width) {
@@ -40,9 +40,9 @@ private const val PERCENT = 100
 
 /**
  * A table. A layout table only positions things: its columns stand side by side when each fits at
- * about 140 dp or more, and are stacked in reading order when not. A data table is a grid that keeps
- * the widths its words ask for, and scrolls sideways in a box of its own when it is wider than the
- * screen, so that the message never does.
+ * 110 dp or more (the desktop's rule), and are stacked in reading order when not. A data table is a
+ * grid that keeps the widths its words ask for, and scrolls sideways in a box of its own when it is
+ * wider than the screen, so that the message never does.
  */
 @Composable
 internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, room: Dp) {
@@ -51,7 +51,7 @@ internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper:
         FlatTable(table, env, paper, room)
         return
     }
-    val width = tableWidth(table, room)
+    val width = drawnWidth(table, room)
     val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     // Over what is in it, as the desktop draws it: a cell's own colour never hides the table's frame.
@@ -61,7 +61,9 @@ internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper:
     val box = (if (table.layout) Modifier else Modifier.widthIn(max = width))
         .then(if (table.background != null) Modifier.background(composeColor(own.rgb), shape) else Modifier)
         .then(outline)
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignOf(align)) {
+    // A box on a line stands as wide as it is, beside the next; any other table has the line to itself.
+    val holder = if (table.inline) Modifier else Modifier.fillMaxWidth()
+    Box(modifier = holder, contentAlignment = alignOf(align)) {
         Box(modifier = box) {
             CompositionLocalProvider(LocalTableDepth provides depth + 1) {
                 if (table.layout) LayoutTable(table, env, own, width) else DataTable(table, env, own, width)
@@ -123,11 +125,19 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
     Column(verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
         sections.forEach { section ->
             val cells = remember(section) { section.placed.sortedWith(compareBy({ it.row }, { it.col })) }
-            val specs = remember(section) { columnSpecs(section) }
-            val planned = remember(specs, width) { planColumns(specs, width.value, gap) }
+            val specs = remember(section) { columnSpecs(section, table) }
+            val least = table.minColumn.toFloat()
+            val told = table.width != null
+            val planned = remember(specs, width) { planColumns(specs, width.value, gap, least, told) }
             val policy = remember(cells, specs, table) {
                 val tinted = cells.filter { table.border || it.cell.background != null || it.cell.border.hasAny() }
-                SectionPolicy(cells, specs, gap, rowGap, tinted.map { it.row }.toSet(), table.width)
+                val own = when (val w = table.width) {
+                    is LengthView.Px -> OwnWidth(w.px.toFloat(), null)
+                    is LengthView.Percent -> OwnWidth(null, w.percent.toInt())
+                    // A box on a line that says nothing is as wide as its columns ask, where they all do.
+                    null -> OwnWidth(if (table.inline) boxWidth(table, gap) else null, null)
+                }
+                SectionPolicy(cells, specs, Gaps(gap, rowGap, least, told), tinted.map { it.row }.toSet(), own)
             }
             Layout(
                 content = {
