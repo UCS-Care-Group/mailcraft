@@ -76,7 +76,7 @@ private const val SPACE_FOR_QUOTE_BAR = 3
 @Composable
 internal fun BodyLineView(line: BodyLine, env: BodyEnv, paper: Paper, width: Dp) {
     val first = line.blocks.first()
-    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current.fontScale))
+    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current))
     // A message is laid out from the left whichever way the phone reads, as on the desktop: only its
     // own right-to-left text and list items read from the right.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
