@@ -105,6 +105,8 @@ mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+mod spelling;
 mod system_locale;
 mod system_motion;
 #[cfg(test)]
@@ -734,36 +736,14 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         let asked = mailcraft_net::oauth::sign_in_for_favorites(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
-    // A shared mailbox is to be read (#70): the page comes up for what reading shared mailboxes
-    // takes, by itself, in the same words for a no as the Favorites'.
-    // A shared mailbox's calendar was ticked for the first time, and the owner said go ahead
-    // (#70): the page comes up for what reading shared mailboxes' calendars takes, by itself.
-    if request.graph && request.shared && request.shared_calendars {
-        let asked = mailcraft_net::oauth::sign_in_for_shared_calendars(&request.oauth, &request.email, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    // Mail is to be sent from a shared mailbox for the first time, and the owner said go ahead
-    // (#70): the page comes up for what sending from shared mailboxes takes too, by itself.
-    if request.graph && request.shared && request.shared_send {
-        let asked = mailcraft_net::oauth::sign_in_for_shared_send(&request.oauth, &request.email, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    // One of the to-dos, the rules, the automatic replies and the categories found the sign-in
-    // doesn't cover keeping them in step with the server (#661), and the owner said go ahead: the
-    // page comes up for what all four take, by itself.
+    // The one page for an older sign-in: something found the sign-in doesn't cover what a
+    // sign-in's page asks for today (the to-dos, the rules, the automatic replies and the
+    // categories kept in step, #661; the shared mailboxes and the calendars shared with the owner,
+    // #70), and the owner said go ahead or asked for a shared mailbox to be read: the page comes up
+    // for all of it, in the same words for a no as the Favorites'.
     if request.graph && request.sync {
         // (Reading and changing mail only for an account kept in step through Graph, R3.)
         let asked = mailcraft_net::oauth::sign_in_for_sync(&request.oauth, &request.email, request.mail_write, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    // Calendars are opened by address for the first time (#70): the page comes up for the same
-    // one permission, without what reading shared mailboxes' mail takes, by itself.
-    if request.graph && request.shared_calendars {
-        let asked = mailcraft_net::oauth::sign_in_for_opened_calendars(&request.oauth, &request.email, &open, &request.cancel);
-        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
-    }
-    if request.graph && request.shared {
-        let asked = mailcraft_net::oauth::sign_in_for_shared(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
     }
     // A sign-in on the page, at `endpoints`: how it ended, when it brought no tokens. (How, and
@@ -839,7 +819,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     }
     if request.mail_only {
         // Without the calendar and contacts along: for when the provider's page won't have both.
-        let mail = Endpoints { consent: String::new(), lesser: String::new(), ..Endpoints::of(&request.oauth) };
+        let mail = Endpoints { consent: String::new(), fewer: String::new(), lesser: String::new(), ..Endpoints::of(&request.oauth) };
         return on_the_page(&mail);
     }
     on_the_page(&Endpoints::of(&request.oauth))
@@ -1117,6 +1097,7 @@ fn services(
     let pictures_ctx = ctx.clone();
     let unsubscribe_ctx = ctx.clone();
     let subscription_ctx = ctx.clone();
+    let dav_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
     let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
@@ -1162,6 +1143,8 @@ fn services(
     Services {
         platform_calls,
         file_dialog: Some(file_dialog),
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        spelling: Some(Box::new(spelling::NativeChecker::default())),
         #[cfg(windows)]
         recent_attachments: Some(Box::new(|ctx| background(ctx, "recent attachments", recent_attachments::list))),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
@@ -1323,6 +1306,19 @@ fn services(
             background(&subscription_ctx, "subscribed calendar", move || mailcraft_ui_egui::SubscriptionDone {
                 calendar: job.calendar,
                 outcome: mailcraft_net::subscription::look(&job.address, &job.etag, &job.last_modified),
+            })
+        })),
+        // An account's calendars from its CalDAV server (#209, behind `MAILCRAFT_DAV=1`): the host
+        // sends a password only in answer to that origin's own challenge, over TLS, to the one
+        // certificate the owner trusted when there is one. Nothing here is logged but counts.
+        dav: Some(Box::new(move |job: mailcraft_ui_egui::DavJob| {
+            background(&dav_ctx, "calendar server", move || {
+                let passwords = job.passwords;
+                let (download, certificate) = mailcraft_net::dav::look(&job.ask, &|origin: &str| passwords.get(origin).cloned());
+                if certificate.is_some() {
+                    log::warn!("a calendar server's certificate isn't one the system or the owner trusts");
+                }
+                mailcraft_ui_egui::DavDone { download }
             })
         })),
         // A sender's picture for the message list, once the owner turned that on: from

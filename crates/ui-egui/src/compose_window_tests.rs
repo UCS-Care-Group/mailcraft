@@ -436,6 +436,123 @@ fn reply_from_a_messages_window_opens_a_window_of_its_own() {
     assert!(h.state().windows.of_message(message).is_some(), "the message's window stays");
 }
 
+/// A message open in the reading pane and in a window of its own at another width: a reply asked
+/// for in each quotes it as that one reads it, whichever was drawn last, with what its `@media`
+/// hides there left out.
+#[test]
+fn a_reply_quotes_the_message_as_the_place_it_was_asked_for_reads_it() {
+    use mailcraft_engine::ReadIn;
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "mail.select", json!({"id": message}));
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let win = h.state().windows.of_message(message).unwrap();
+    let width = |h: &Harness, place| h.state().session.read_as(message, place).map(|r| r.0.width()).unwrap();
+    let (pane, own) = (width(&h, ReadIn::Pane), width(&h, ReadIn::Window(win)));
+    assert!(pane.abs_diff(own) > 2, "pane {pane}, window {own}");
+    let mid = pane.min(own) + pane.abs_diff(own) / 2;
+    let html = format!(
+        "<style>@media (max-width:{mid}px){{.w{{display:none}}}}@media (min-width:{}px){{.n{{display:none}}}}</style>\
+         <p>Both</p><p class=w>WIDE WORDS</p><p class=n>NARROW WORDS</p>",
+        mid + 1
+    );
+    let m = h.state_mut().session.mailbox.message_mut(message).unwrap();
+    m.body = mailcraft_model::Body { text: String::new(), html: Some(html) };
+    h.run_steps(4);
+    let words = |pane_wider: bool| if pane_wider { ("WIDE WORDS", "NARROW WORDS") } else { ("NARROW WORDS", "WIDE WORDS") };
+    let quoted = |h: &Harness| {
+        let c = h.state().session.all_composing().find(|c| c.source == Some(message)).unwrap();
+        (c.id, c.quote.clone().unwrap())
+    };
+    // From the main window's ribbon: as the pane reads it.
+    owner(&mut h, "mail.reply", json!({}));
+    let (compose, q) = quoted(&h);
+    let (kept, gone) = words(pane > own);
+    assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "pane: {}", q.html);
+    assert!(q.text.contains(kept) && !q.text.contains(gone), "pane: {}", q.text);
+    script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    let _ = h.state_mut().execute("compose.close", json!({"discard": true}));
+    h.run_steps(3);
+    // From the message's window: as the window reads it.
+    for kind in ["windowReply", "windowForward"] {
+        let rect = h.state().hit.rect(kind, message).unwrap_or_else(|| panic!("no {kind}"));
+        click(&mut h, rect.center());
+        let (compose, q) = quoted(&h);
+        let (kept, gone) = words(own > pane);
+        assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "{kind}: {}", q.html);
+        assert!(q.text.contains(kept) && !q.text.contains(gone), "{kind}: {}", q.text);
+        script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    }
+}
+
+#[test]
+fn insert_link_in_a_forwards_window_comes_up_over_that_window() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let forward = h.state().session.all_composing().find(|c| c.source == Some(message)).map(|c| c.id).unwrap();
+    let w = window_of(&h, forward);
+    script(&mut h, "compose.formatHtml", json!({"compose": forward}));
+    // Link in the forward's own ribbon: the dialog is that window's, not the main window's behind it.
+    ribbon(&mut h, w, "ribbon", "compose.link");
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), Some(forward));
+    assert_eq!(h.state().session.compose_id(), Some(forward));
+    // Answered, it belongs to nobody.
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    assert!(h.state().dialog.is_none(), "Escape closes it");
+    assert_eq!(h.state().windows.dialog_for, None);
+    // One opened from the reading pane's message is the main window's.
+    script(&mut h, "ui.closeWindow", json!({"compose": forward, "discard": true}));
+    owner(&mut h, "mail.new", json!({}));
+    owner(&mut h, "compose.link", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), None);
+}
+
+/// The message being written `compose` has a link to `url`.
+fn linked(harness: &Harness, compose: u64, url: &str) -> bool {
+    harness.state().session.composing_by_id(compose).is_some_and(|c| {
+        let text = c.body.text();
+        (0..text.len()).any(|i| text.style_at(i).link.as_deref() == Some(url))
+    })
+}
+
+#[test]
+fn a_main_window_dialog_replaces_the_pop_outs() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let forward = h.state().session.all_composing().find(|c| c.source == Some(message)).map(|c| c.id).unwrap();
+    let w = window_of(&h, forward);
+    script(&mut h, "compose.formatHtml", json!({"compose": forward}));
+    ribbon(&mut h, w, "ribbon", "compose.link");
+    assert_eq!(crate::windows::dialog_compose(h.state()), Some(forward));
+    // An inline reply, then All Categories from the main window: the forward's Insert Link is
+    // replaced, and the new dialog is the main window's, not the forward's.
+    let reply = owner(&mut h, "mail.reply", json!({"id": message}))["compose"].as_u64().unwrap();
+    assert_eq!(pane(&h), Some(reply));
+    script(&mut h, "compose.formatHtml", json!({"compose": reply}));
+    owner(&mut h, "category.list", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("categories"));
+    assert_eq!((crate::windows::dialog_compose(h.state()), h.state().windows.dialog_for), (None, None));
+    // Insert Link from the reply. OK puts the address in the reply, not in the forward.
+    let url = "https://reply-only.example/1712";
+    owner(&mut h, "compose.link", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), None);
+    type_text(&mut h, url);
+    h.key_press(Key::Enter);
+    h.run_steps(3);
+    assert!(linked(&h, reply, url), "the reply has the link");
+    assert!(!linked(&h, forward, url), "the forward has the link");
+}
+
 #[test]
 fn the_options_switch_opens_replies_and_forwards_in_a_window() {
     let mut h = window(app());
@@ -561,6 +678,34 @@ fn a_picked_file_is_attached_to_the_message_that_asked_for_it() {
     let attached = |c: u64| h.state().session.composing_by_id(c).map(|c| c.attachments.len()).unwrap_or_default();
     assert_eq!((attached(asking), attached(pane_message)), (1, 0));
     let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn the_window_that_asked_for_a_file_dialog_comes_forward_when_it_is_answered() {
+    let senders: std::sync::Arc<std::sync::Mutex<Vec<std::sync::mpsc::Sender<Option<Vec<String>>>>>> = std::sync::Arc::default();
+    let mut a = app();
+    let keep = senders.clone();
+    a.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        keep.lock().unwrap().push(tx);
+        rx
+    }));
+    let mut h = window(a);
+    let asking = new_window(&mut h);
+    let win = h.state().windows.of_compose(asking).unwrap();
+    // The pop-out has the keyboard when Attach File is pressed in it.
+    h.state_mut().windows.focused = Some(win);
+    owner(&mut h, "compose.attach", json!({}));
+    h.state_mut().windows.focused = None;
+    // (The dialog's parent is the main window, which the system brings forward on its close.)
+    senders.lock().unwrap()[0].send(None).unwrap();
+    let _ = crate::files::poll(h.state_mut());
+    assert_eq!(h.state().windows.refocus, Some(win));
+    let (viewport, command) = crate::windows::refocus_command(h.state(), win).unwrap();
+    assert_eq!(viewport, egui::ViewportId::from_hash_of(("mailcraft-window", win)));
+    assert!(matches!(command, egui::ViewportCommand::Focus));
+    // A window that closed meanwhile has nothing to come forward.
+    assert!(crate::windows::refocus_command(h.state(), win + 1000).is_none());
 }
 
 #[test]

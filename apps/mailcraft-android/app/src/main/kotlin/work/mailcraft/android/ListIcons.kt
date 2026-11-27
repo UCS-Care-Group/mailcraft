@@ -49,6 +49,37 @@ internal object ListIcons {
         }
     }
 
+    /** An exclamation mark: High importance. */
+    val Important: ImageVector by lazy {
+        icon("Important") {
+            line(12f, 3.5f, 12f, 15f)
+            circle(12f, 19.5f, 1.2f)
+        }
+    }
+
+    /** A down arrow: Low importance. */
+    val LowImportance: ImageVector by lazy {
+        icon("LowImportance") {
+            line(12f, 4f, 12f, 19f)
+            moveTo(6f, 13f)
+            lineTo(12f, 19f)
+            lineTo(18f, 13f)
+        }
+    }
+
+    /** A flag on a pole, filled: the mark of a flagged row. */
+    val FlagFilled: ImageVector by lazy {
+        icon("FlagFilled", filled = true) {
+            line(5.5f, 21f, 5.5f, 3.5f)
+            moveTo(5.5f, 4.5f)
+            lineTo(19f, 4.5f)
+            lineTo(15.5f, 9f)
+            lineTo(19f, 13.5f)
+            lineTo(5.5f, 13.5f)
+            close()
+        }
+    }
+
     /** A paperclip. */
     val Attachment: ImageVector by lazy {
         icon("Attachment") {
@@ -151,6 +182,35 @@ internal object ListIcons {
             lineTo(3.5f, 11f)
             close()
             circle(8f, 9f, 1.2f)
+        }
+    }
+
+    /** An arrow turning back: reply. */
+    val Reply: ImageVector by lazy {
+        icon("Reply") {
+            moveTo(10f, 6f)
+            lineTo(4f, 12f)
+            lineTo(10f, 18f)
+            moveTo(4f, 12f)
+            lineTo(14f, 12f)
+            arcTo(6f, 6f, 0f, false, true, 20f, 18f)
+        }
+    }
+
+    /** A page with lines and a folded corner: drafts. */
+    val Drafts: ImageVector by lazy {
+        icon("Drafts") {
+            moveTo(6f, 3f)
+            lineTo(14f, 3f)
+            lineTo(19f, 8f)
+            lineTo(19f, 21f)
+            lineTo(6f, 21f)
+            close()
+            moveTo(14f, 3f)
+            lineTo(14f, 8f)
+            lineTo(19f, 8f)
+            line(9f, 13f, 16f, 13f)
+            line(9f, 17f, 14f, 17f)
         }
     }
 }

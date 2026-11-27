@@ -84,7 +84,14 @@ pub(super) fn height(app: &MailApp, local: &HashSet<Id>, row_h: f32) -> f32 {
 pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f32, top: f32, width: f32, row_h: f32, viewport: Rect) {
     let t = Tokens::get(ui.ctx());
     let mut y = top;
+    // With View › Shade Alternate Rows, every other result wears the band, the first under the
+    // heading plain, as in the list above (#1657).
+    let mut nth = 0_usize;
     for line in lines(app, local) {
+        let shade = matches!(line, Line::Result(_)) && app.session.prefs.shade_rows && nth % 2 == 1;
+        if matches!(line, Line::Result(_)) {
+            nth = nth.wrapping_add(1);
+        }
         let h = line.height(row_h);
         let rect = Rect::from_min_size(pos2(left, y), vec2(width, h));
         y += h;
@@ -112,7 +119,7 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
                 }
                 app.hit.add("serverProblem", 0, rect);
             }
-            Line::Result(i) => result_row(app, ui, i, rect),
+            Line::Result(i) => result_row(app, ui, i, rect, shade),
         }
     }
 }
@@ -151,8 +158,8 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
     }
 }
 
-/// One server result, as a row of the list.
-fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
+/// One server result, as a row of the list; `shade`: whether it wears the shaded band.
+fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect, shade: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
     let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
@@ -161,11 +168,16 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let p = ui.painter();
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
     let selected = r.opened.is_some_and(|id| app.session.sel.messages.contains(&id));
-    if selected {
-        p.rect_filled(body, 0.0, t.selection);
-    } else if resp.hovered() {
-        p.rect_filled(body, 0.0, t.hover_subtle);
+    // Laid as a message row is ([`Tokens::list_row_layers`]), and its coloured text fitted to it.
+    let layers = t.list_row_layers(shade, false, selected.then_some(true), resp.hovered());
+    if let Some(band) = layers.band {
+        p.rect_filled(Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - 1.0)), 0.0, band);
+        app.hit.add("serverResultShade", index as u64, body);
     }
+    for fill in [layers.selection, layers.hover].into_iter().flatten() {
+        p.rect_filled(body, 0.0, fill);
+    }
+    let under = layers.under();
     let unread = !m.read;
     if unread {
         p.rect_filled(Rect::from_min_max(body.min, pos2(body.min.x + 4.0, body.max.y)), 0.0, t.accent);
@@ -200,7 +212,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     paint_clipped(p, pos2(left, line1), (text_end.min(x - 4.0) - left).max(0.0), &who, who_font, t.text);
     let date =
         crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-    let (font, color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
+    let (font, color) = if unread { (semibold(LIST_TEXT), t.text_ink_on(t.accent_text, under)) } else { (regular(LIST_TEXT), t.text) };
     let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, font.clone(), color).width();
     // In a search of every mailbox the folder it is in, under the time (or before it, with no
     // preview), then its categories; its preview before them.

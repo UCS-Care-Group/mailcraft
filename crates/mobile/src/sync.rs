@@ -33,7 +33,7 @@ use crate::events::{Event, EventSink};
 use crate::keep::Keep;
 use crate::platform::Platform;
 use crate::queue::{Queue, Shed, Weight};
-use crate::{NotificationRecord, NotificationTopic};
+use crate::{CoreError, NotificationRecord, NotificationTopic, NotifiedMessage};
 
 /// The application id the build was made with (`MAILCRAFT_MS_CLIENT_ID`): an identifier, not a secret.
 pub(crate) const MS_CLIENT_ID: &str = match option_env!("MAILCRAFT_MS_CLIENT_ID") {
@@ -105,6 +105,18 @@ const LONGEST_ERROR: usize = 200;
 const AT_ONCE: usize = 3;
 const NAME_CHARS: usize = 64;
 const SUBJECT_CHARS: usize = 120;
+/// The most pulls to refresh that wait for their mail at once; one past it is answered at once.
+const MOST_MAIL_WAITERS: usize = 16;
+
+/// Where a pull to refresh is told that the mail it asked for is in ([`crate::Core::mail_in`]).
+pub(crate) type MailReply = Arc<Queue<Result<(), CoreError>>>;
+
+/// A pull to refresh that waits for the mail runs of `accounts`.
+struct MailWaiter {
+    accounts: Vec<u64>,
+    since: Instant,
+    reply: MailReply,
+}
 
 /// What `sync_now` says: whether a round is under way, and if not, why, for the owner.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -228,6 +240,57 @@ pub(crate) struct Inner {
     /// A background run waits for the round: its end also brings the messages within Mail to
     /// keep offline whole (on a connection that isn't paid by the byte), within its time.
     tail_fetch: bool,
+    /// Pulls to refresh waiting for their mail, not for the round's end.
+    mail_waiters: Vec<MailWaiter>,
+    /// The core is closing: no pull to refresh waits any more.
+    closed: bool,
+    /// For the device's log: the run under way (its account, when it began, whether it reads every
+    /// folder), when the round under way began and how many runs it started.
+    run_began: Option<(u64, Instant, bool)>,
+    round_began: Option<Instant>,
+    runs: u32,
+    /// When the owner last asked (a pull to refresh), for the log of its wait.
+    pull_began: Option<Instant>,
+    /// The accounts a pull asked for whose mail is still to come (in line or running), from the
+    /// moment it was asked: a stop keeps them in line whether or not the pull waits for them yet.
+    pulled: BTreeSet<u64>,
+}
+
+/// Milliseconds since `since`, for the device's log.
+fn ms(since: Instant) -> u128 {
+    since.elapsed().as_millis()
+}
+
+/// Whether `account`'s mail is still to come in the round: its run is under way or it waits in
+/// line, and something can start (not Work Offline).
+fn mail_pending(session: &Session, running: Option<u64>, account: u64) -> bool {
+    !session.prefs.offline && (running == Some(account) || session.driver.round.is_queued(account))
+}
+
+/// The account a pull for `only` brings: that account; a shared mailbox's owner (the phone reads
+/// no shared mailbox of its own); every account (`None`) for one that is gone or of a kind the
+/// phone doesn't run, as a pull did before it could bring one account alone.
+fn pull_scope(session: &Session, only: Option<u64>) -> Option<u64> {
+    let account = session.mailbox.account(only?)?;
+    let own = session.mailbox.account(account.shared_of.unwrap_or(account.id))?;
+    (own.kind == AccountKind::Microsoft && !own.is_shared()).then_some(own.id)
+}
+
+/// The device's log line for a pull to refresh whose mail is in: the time since the owner asked.
+fn pull_line(since: Instant, accounts: usize) -> String {
+    format!("pull to refresh: mail in after {} ms, {accounts} accounts", ms(since))
+}
+
+/// The device's log line for an account's mail run: numbers, the account's number and fixed words
+/// only (the phases by their names in the code), never anything of the account's mail.
+pub(crate) fn run_line(account: u64, millis: u128, outcome: &str, full: bool, timings: &mailcraft_model::sync::Timings) -> String {
+    let phases: Vec<String> = timings.phases.iter().map(|p| format!("{:?} {} ms {} requests", p.phase, p.millis, p.requests)).collect();
+    format!(
+        "mail run: account {account}, {millis} ms, {outcome}, full sweep {}, phases [{}], {} folders unchanged",
+        if full { "yes" } else { "no" },
+        phases.join("; "),
+        timings.skipped
+    )
 }
 
 pub(crate) struct SyncHost {
@@ -245,7 +308,7 @@ pub(crate) struct SyncHost {
     notify_new_mail_only: AtomicBool,
     notify_primary_only: AtomicBool,
     pub(crate) tick_queued: AtomicBool,
-    pub(crate) pacer: Pacer,
+    pub(crate) pacer: Arc<Pacer>,
     /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
     pub(crate) fetch_busy: AtomicBool,
     /// How fetch jobs are run (the tests swap theirs in).
@@ -281,7 +344,7 @@ impl SyncHost {
             notify_new_mail_only: AtomicBool::new(false),
             notify_primary_only: AtomicBool::new(false),
             tick_queued: AtomicBool::new(false),
-            pacer: Pacer::default(),
+            pacer: Arc::default(),
             fetch_busy: AtomicBool::new(false),
             fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
             job_runners: Mutex::new(crate::jobs::default_runners()),
@@ -601,9 +664,16 @@ impl SyncHost {
         }
     }
 
-    /// The owner asked for a Send/Receive (or a background one does): start a round unless one is
-    /// under way, and say so. `waiter`, when given, is woken with the round's summary.
-    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>) -> SyncAnswer {
+    /// The owner asked for a Send/Receive (or a background one does, or the app for a new
+    /// account's first one): start a round unless one is under way, and say so. `waiter`, when
+    /// given, is woken with the round's summary. `release`: the owner asked (a pull to refresh),
+    /// which lets go of every account held back first; any other round leaves them out.
+    ///
+    /// `only`: the round is that account's alone (a pull to refresh in one of its folders; a shared
+    /// mailbox's owner, every account for one the phone doesn't run), and only its hold is let go
+    /// of. An ask while a round is under way puts what the round doesn't have yet in its line: the
+    /// owner's first, the rest at its end; the run under way isn't started twice.
+    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool, only: Option<u64>) -> SyncAnswer {
         let mut inner = self.lock();
         let lang = session.interface_language;
         let refused = |message: &str| SyncAnswer { started: false, message: lang.t(message).to_string() };
@@ -613,14 +683,19 @@ impl SyncHost {
         if matches!(self.host.platform().network(), NetworkState::Offline) {
             return refused("There is no network connection.");
         }
-        let accounts = server_accounts(session);
+        let only = pull_scope(session, only);
+        let accounts: Vec<u64> = server_accounts(session).into_iter().filter(|id| only.is_none_or(|a| a == *id)).collect();
         if accounts.is_empty() {
             return refused("There is no account to send and receive.");
         }
-        // The owner asking (no waiter: a pull to refresh) lets go of the accounts held back; a
-        // background run leaves them out.
-        if waiter.is_none() {
-            inner.sr.release_all();
+        // The owner asking (a pull to refresh) lets go of the accounts held back that it asks
+        // for; a background run, and a round the app starts by itself, leave them out.
+        if release {
+            inner.pull_began = Some(Instant::now());
+            match only {
+                Some(account) => inner.sr.hold(account, false),
+                None => inner.sr.release_all(),
+            }
         }
         let mut supported = Vec::new();
         let mut held = false;
@@ -653,8 +728,32 @@ impl SyncHost {
                 inner.ran = false;
                 inner.errors.clear();
                 inner.needs_sign_in.clear();
+                inner.round_began = Some(Instant::now());
             }
             inner.active = true;
+        } else {
+            // Asked while a round is under way: what the round doesn't have yet joins its line, so
+            // that a pull brings the mail asked for, a new account's first round isn't left for the
+            // next one and a background run covers what it would have alone. The owner's go first
+            // (and are asked as the owner asks: a sign-in that is needed is said); the rest go at
+            // the end, a background run's quietly. The run under way is never started twice.
+            let running = inner.sr.running_account();
+            let queue = &mut session.driver.round.queue;
+            if release {
+                queue.retain(|(a, _)| !supported.contains(a));
+                for id in supported.iter().rev().filter(|id| running != Some(**id)) {
+                    queue.push_front((*id, false));
+                }
+            } else {
+                for id in &supported {
+                    if running != Some(*id) && !queue.iter().any(|(a, _)| a == id) {
+                        queue.push_back((*id, waiter.is_some()));
+                    }
+                }
+            }
+        }
+        if release {
+            inner.pulled.extend(supported.iter().copied());
         }
         if let Some(waiter) = waiter {
             inner.waiters.push(waiter);
@@ -678,8 +777,16 @@ impl SyncHost {
     }
 
     fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
+        // A stop (a background run's time ran out, or its call was dropped): the accounts a pull
+        // asked for that still wait in line stay there, first, and go on after. The run under way
+        // is called off all the same, a pull's or not: a stop always ends it.
+        let round = &session.driver.round;
+        let kept: Vec<u64> = inner.pulled.iter().copied().filter(|a| round.is_queued(*a)).collect();
         inner.sr.stop(session);
         session.driver.round.queue.clear();
+        for a in kept.iter().rev() {
+            session.driver.round.queue.push_front((*a, false));
+        }
         let summary = self.finish_round(inner, session, false);
         // Pages the run brought before the stop stay: keep the mailbox within the limits.
         inner.trim.due = true;
@@ -742,9 +849,14 @@ impl SyncHost {
         } else {
             inner.sr.run_due(&self.host, session, &ctx)
         };
-        self.took(inner, taken);
+        self.took(inner, session, taken);
         self.stepped(inner, session, step);
         self.note_keys(inner);
+        // A pull to refresh is answered once none of its accounts runs or waits in line (or nothing
+        // can start: Work Offline), whatever the round's end still waits for.
+        let running = inner.sr.running_account();
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
+        inner.pulled.retain(|account| mail_pending(session, running, *account));
         let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
         self.busy.store(working, Ordering::Relaxed);
         // The round's mail is in, and its end is still to come.
@@ -786,24 +898,100 @@ impl SyncHost {
         self.pacer.poke();
     }
 
+    /// Let go of every account held back: the mailbox they were in is gone ([`crate::Core::delete_local_data`]).
+    pub(crate) fn release_holds(&self) {
+        self.lock().sr.release_all();
+    }
+
     /// Keep the mailbox within the phone's limits at the next wake (they were changed).
     pub(crate) fn trim_soon(&self) {
         self.lock().trim.due = true;
         self.pacer.poke();
     }
 
-    fn took(&self, inner: &mut Inner, taken: Taken) {
+    /// Tell `reply` once the mail of `only` (every account's, for `None`) is in: none of those
+    /// accounts runs or waits in line (or nothing can start: Work Offline). At once when that is so
+    /// already, else at the wake that finds it, or the round's end; never later than the core's
+    /// closing, which says `Cancelled`.
+    pub(crate) fn wait_mail(&self, session: &Session, only: Option<u64>, reply: MailReply) {
+        let mut inner = self.lock();
+        if inner.closed {
+            reply.push(Err(CoreError::Cancelled));
+            return;
+        }
+        let accounts = pull_scope(session, only).map_or_else(|| server_accounts(session), |a| vec![a]);
+        let running = inner.sr.running_account();
+        let since = inner.pull_began.unwrap_or_else(Instant::now);
+        if session.prefs.offline {
+            reply.push(Ok(()));
+        } else if !accounts.iter().any(|a| mail_pending(session, running, *a)) {
+            // In already (the run ended before the wait was asked for).
+            self.log(pull_line(since, accounts.len()));
+            reply.push(Ok(()));
+        } else if inner.mail_waiters.len() >= MOST_MAIL_WAITERS {
+            // lean: past the cap a pull is answered at once (its spinner stops early); no app asks that often.
+            reply.push(Ok(()));
+        } else {
+            inner.mail_waiters.push(MailWaiter { accounts, since, reply });
+        }
+    }
+
+    /// Tell the pulls to refresh whose accounts are no longer `pending` that their mail is in.
+    fn answer_mail_waiters(&self, inner: &mut Inner, pending: impl Fn(u64) -> bool) {
+        let (done, waiting): (Vec<MailWaiter>, Vec<MailWaiter>) =
+            std::mem::take(&mut inner.mail_waiters).into_iter().partition(|w| !w.accounts.iter().any(|a| pending(*a)));
+        inner.mail_waiters = waiting;
+        for w in done {
+            self.log(pull_line(w.since, w.accounts.len()));
+            w.reply.push(Ok(()));
+        }
+    }
+
+    /// The core is closing: every pull to refresh that waits is let go of, and none waits after.
+    pub(crate) fn close_waiters(&self) {
+        let mut inner = self.lock();
+        inner.closed = true;
+        for w in inner.mail_waiters.drain(..) {
+            w.reply.push(Err(CoreError::Cancelled));
+        }
+    }
+
+    /// How many pulls wait for their mail (the tests').
+    #[cfg(test)]
+    pub(crate) fn mail_waiting(&self) -> usize {
+        self.lock().mail_waiters.len()
+    }
+
+    /// A line for the device's log ([`Event::SyncLog`]).
+    pub(crate) fn log(&self, line: String) {
+        self.sink.push(Event::SyncLog { line });
+    }
+
+    /// The device's log line for the run of `account` that just ended.
+    fn log_run(&self, inner: &mut Inner, session: &Session, account: u64, outcome: &str) {
+        let Some((began_for, since, full)) = inner.run_began.take() else { return };
+        if began_for != account {
+            return;
+        }
+        let timings = session.sync_progress.accounts.iter().find(|r| r.account == account).map(|r| r.timings.clone()).unwrap_or_default();
+        self.log(run_line(account, ms(since), outcome, full, &timings));
+    }
+
+    fn took(&self, inner: &mut Inner, session: &Session, taken: Taken) {
         match taken {
-            Taken::Done { errors, .. } => {
+            Taken::Done { account, errors } => {
+                self.log_run(inner, session, account, if errors.is_empty() { "done" } else { "done with problems" });
                 for line in errors {
                     add_error(&mut inner.errors, line);
                 }
             }
             Taken::SignInAgain { account, .. } => {
+                self.log_run(inner, session, account, "sign-in needed");
                 inner.needs_sign_in.insert(account);
                 self.sink.push(Event::SignInNeeded { account });
             }
             Taken::WrongPerson { account } => {
+                self.log_run(inner, session, account, "somebody else's sign-in");
                 inner.needs_sign_in.insert(account);
                 add_error(&mut inner.errors, words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept.").to_string());
                 self.sink.push(Event::SignInNeeded { account });
@@ -814,7 +1002,11 @@ impl SyncHost {
 
     fn stepped(&self, inner: &mut Inner, session: &mut Session, step: Step) {
         match step {
-            Step::Started { .. } => {
+            Step::Started { account } => {
+                let full = inner.sr.running_full_sweep();
+                inner.run_began = Some((account, Instant::now(), full));
+                inner.runs = inner.runs.saturating_add(1);
+                inner.round_began.get_or_insert_with(Instant::now);
                 inner.ran = true;
                 inner.active = true;
                 if inner.run_mark.is_none() {
@@ -876,6 +1068,14 @@ impl SyncHost {
             errors,
             sign_in_needed: !inner.needs_sign_in.is_empty(),
         };
+        if let Some(since) = inner.round_began.take() {
+            self.log(format!("round: {} ms, {} mail runs, {}", ms(since), inner.runs, if finished { "finished" } else { "called off" }));
+        }
+        inner.runs = 0;
+        // The round is over: a pull is answered unless what it waits for is still in line (kept
+        // there by a stop, [`Self::stop_locked`]).
+        let running = inner.sr.running_account();
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
         inner.active = false;
         inner.ran = false;
         inner.tail_starts = 0;
@@ -932,12 +1132,19 @@ fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, 
             topic: NotificationTopic::Mail,
             title: lang.t("New mail").to_string(),
             body: String::new(),
+            message: None,
         }];
     }
     if found.len() > AT_ONCE {
         *next_key = next_key.wrapping_add(1);
         let body = mailcraft_i18n::fmt(lang.tn(found.len() as u64, "{n} new message", "{n} new messages"), &[("n", &found.len().to_string())]);
-        return vec![NotificationRecord { key: *next_key, topic: NotificationTopic::Mail, title: lang.t("New mail").to_string(), body }];
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body,
+            message: None,
+        }];
     }
     found
         .iter()
@@ -949,6 +1156,7 @@ fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, 
                 topic: NotificationTopic::Mail,
                 title: if sender.is_empty() { lang.t("New message").to_string() } else { sender },
                 body: if subject.is_empty() { lang.t("(no subject)").to_string() } else { subject },
+                message: Some(NotifiedMessage { id: a.message, folder: a.folder }),
             }
         })
         .collect()

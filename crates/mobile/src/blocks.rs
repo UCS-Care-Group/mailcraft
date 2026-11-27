@@ -5,12 +5,14 @@
 //! needs is carried; nothing is fetched, and a picture's bytes come through `Core::picture` by
 //! the reference a block names.
 
-use mailcraft_html::{Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, Marker, Rgb, Row, Sides, Span, Table, VAlign};
+use mailcraft_html::fonts::{self, Generic};
+use mailcraft_html::{
+    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Place, Rgb, Row, Sides, Span, Table, VAlign,
+    reading,
+};
 
 use crate::text::MAX_URL;
 
-/// Deepest nesting of tables that is carried (the parser keeps to 12).
-const MAX_DEPTH: usize = 16;
 /// Most blocks, cells and spans in one message's records: past it the rest is left out.
 const MAX_NODES: usize = 60_000;
 
@@ -18,6 +20,9 @@ const MAX_NODES: usize = 60_000;
 pub struct SpanView {
     pub text: String,
     pub bold: bool,
+    /// 1 to 1000: what the message asks for (700 for bold text that names no number, 400 for
+    /// the rest), or what the family's name says (`Segoe UI Light`) when it asks for neither.
+    pub weight: u16,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -30,8 +35,21 @@ pub struct SpanView {
     pub background: Option<u32>,
     /// CSS pixels.
     pub size: Option<u8>,
-    /// Font families asked for, lower case and comma-joined.
-    pub font: Option<String>,
+    /// The phone font the families asked for come to ([`mailcraft_html::fonts::stand_in`]).
+    pub face: FaceView,
+    /// A link drawn without its line: the message says so.
+    #[uniffi(default = false)]
+    pub bare: bool,
+}
+
+/// A kind of phone font.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum FaceView {
+    /// The phone's own sans-serif.
+    Own,
+    Serif,
+    Mono,
+    Condensed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -149,6 +167,10 @@ pub struct BlockView {
     pub inset_right: u8,
     pub image_padding: Option<InsetsView>,
     pub line: LineView,
+    /// The block reads from the right (its direction, not its side: `align` is that), as the
+    /// message's `dir` or `direction` says, or a plain-text paragraph's first strong letter.
+    #[uniffi(default = false)]
+    pub rtl: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -170,6 +192,13 @@ pub struct TableView {
     pub box_margin_left: u8,
     pub box_margin_right: u8,
     pub float: bool,
+    /// A layout table is stacked rather than given columns that hold something narrower than
+    /// this, in dp: the desktop's rule (`mailcraft_html::reading::MIN_LAYOUT_COLUMN`).
+    #[uniffi(default = 110)]
+    pub min_column: u8,
+    /// A box on a line: the gap in front of it when it follows another, in dp.
+    #[uniffi(default = 0)]
+    pub gap_before: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -191,6 +220,16 @@ pub struct CellView {
     pub padding: Option<InsetsView>,
     pub radius: u8,
     pub valign: Option<VAlignView>,
+    /// Its place in the table's grid, as the reading pane puts it (`mailcraft_html::grid`): its
+    /// first row and column and the rows and columns it covers. No two cells overlap.
+    #[uniffi(default = 0)]
+    pub row: u32,
+    #[uniffi(default = 0)]
+    pub col: u16,
+    #[uniffi(default = 1)]
+    pub rows: u32,
+    #[uniffi(default = 1)]
+    pub cols: u16,
 }
 
 fn rgb(c: Rgb) -> u32 {
@@ -221,9 +260,12 @@ fn length(l: Length) -> LengthView {
 }
 
 fn span(s: &Span) -> SpanView {
+    let (face, named) = s.font.as_deref().map_or((Generic::Own, 400), fonts::stand_in);
+    let weight = s.weight.unwrap_or(if s.bold { 700 } else { named });
     SpanView {
         text: s.text.clone(),
         bold: s.bold,
+        weight,
         italic: s.italic,
         underline: s.underline,
         strike: s.strike,
@@ -232,7 +274,13 @@ fn span(s: &Span) -> SpanView {
         color: s.color.map(rgb),
         background: s.background.map(rgb),
         size: s.size,
-        font: s.font.clone(),
+        face: match face {
+            Generic::Own => FaceView::Own,
+            Generic::Serif => FaceView::Serif,
+            Generic::Mono => FaceView::Mono,
+            Generic::Condensed => FaceView::Condensed,
+        },
+        bare: s.bare,
     }
 }
 
@@ -275,13 +323,120 @@ impl Budget {
     }
 }
 
+/// The most tables the phone draws inside one another (fewer than the parser keeps): each table asks
+/// what is in it of its size, so the phone's work grows with every level.
+/// lean: four, as mail rarely nests deeper; raise with care, as the work is per level.
+pub(crate) const PHONE_TABLE_DEPTH: usize = if MAX_TABLE_DEPTH < 4 { MAX_TABLE_DEPTH } else { 4 };
+
+/// The most characters one text block is sent with. The phone draws a block's text as one piece,
+/// which can be no taller than 2^24 px; at its largest (48 px text in lines of 255 px, a font scale
+/// of 2 and 4 px to the dp, a character to a line in a narrow cell) a line is about 2,040 px, so this
+/// many characters stay under half of that. A longer block goes as several, one under another, cut
+/// at a line break, else after a space, else between two characters: every character kept, in order.
+pub(crate) const MAX_BLOCK_CHARS: usize = 4_000;
+
+fn is_text(kind: &BlockKindView) -> bool {
+    matches!(kind, BlockKindView::Paragraph | BlockKindView::Heading { .. } | BlockKindView::ListItem { .. } | BlockKindView::Preformatted)
+}
+
+fn chars_of(v: &BlockView) -> usize {
+    v.spans.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()))
+}
+
+/// Where to end a piece within `head` (the most one may still take): the byte it ends at and the
+/// byte the next starts at. A line break goes (the next block starts the line); a space stays.
+fn cut_in(head: &str) -> (usize, usize) {
+    if let Some(i) = head.rfind('\n') {
+        return (i, i.saturating_add(1));
+    }
+    match head.char_indices().rev().find(|(_, c)| c.is_whitespace()) {
+        Some((i, c)) => (i.saturating_add(c.len_utf8()), i.saturating_add(c.len_utf8())),
+        None => (head.len(), head.len()),
+    }
+}
+
+/// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each (the first is `v`'s own), each piece
+/// after the first taken from `budget`: past it the rest is left out, as with any block.
+fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
+    if !is_text(&v.kind) || chars_of(&v) <= MAX_BLOCK_CHARS {
+        return vec![v];
+    }
+    // A piece after the first goes on under it: no room above, and a list item's marker only once.
+    let mut next = v.clone();
+    next.spans.clear();
+    next.space = 0;
+    next.gap = 0;
+    next.beside = false;
+    if let BlockKindView::ListItem { depth, .. } = next.kind {
+        next.kind = BlockKindView::ListItem { marker: MarkerView::Nothing, depth };
+    }
+    let mut out = Vec::new();
+    let mut piece = BlockView { spans: Vec::new(), ..v.clone() };
+    let mut room = MAX_BLOCK_CHARS;
+    for s in &v.spans {
+        let mut rest = s.text.as_str();
+        while !rest.is_empty() {
+            match rest.char_indices().nth(room).map(|(at, _)| at) {
+                None => {
+                    room = room.saturating_sub(rest.chars().count());
+                    piece.spans.push(SpanView { text: rest.to_string(), ..s.clone() });
+                    rest = "";
+                }
+                Some(at) => {
+                    let (end, resume) = rest.get(..at).map_or((at, at), cut_in);
+                    if let Some(text) = rest.get(..end).filter(|t| !t.is_empty()) {
+                        piece.spans.push(SpanView { text: text.to_string(), ..s.clone() });
+                    }
+                    if !piece.spans.is_empty() {
+                        out.push(std::mem::replace(&mut piece, next.clone()));
+                        if !budget.take() {
+                            return out;
+                        }
+                    }
+                    room = MAX_BLOCK_CHARS;
+                    rest = rest.get(resume..).unwrap_or_default();
+                }
+            }
+        }
+    }
+    if !piece.spans.is_empty() {
+        out.push(piece);
+    }
+    out
+}
+
 fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> Vec<BlockView> {
     let mut out = Vec::new();
+    // The characters of the text going on in one line so far: the phone draws such a run as one piece.
+    let mut run = 0usize;
     for b in blocks {
         if !budget.take() {
             break;
         }
-        out.push(block(b, pictures, budget, depth));
+        match &b.kind {
+            // Deeper than the phone lays out: the grid goes, its text stays, cell by cell in
+            // reading order, as the parser itself does past its own limit.
+            BlockKind::Table(t) if depth >= PHONE_TABLE_DEPTH => {
+                for c in t.rows.iter().flat_map(|r| &r.cells) {
+                    out.extend(blocks_of(&c.blocks, pictures, budget, depth));
+                }
+            }
+            _ => {
+                for mut v in pieces(block(b, pictures, budget, depth), budget) {
+                    if !is_text(&v.kind) {
+                        run = 0;
+                    } else {
+                        let n = chars_of(&v);
+                        // Text that would make its line's run longer than a block may be starts a line.
+                        if v.beside && run.saturating_add(n) > MAX_BLOCK_CHARS {
+                            v.beside = false;
+                        }
+                        run = if v.beside { run.saturating_add(n) } else { n };
+                    }
+                    out.push(v);
+                }
+            }
+        }
     }
     out
 }
@@ -320,9 +475,8 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
             };
             BlockKindView::Image { src: src.clone(), width: *width, height: *height, link: link(to.as_deref()), picture }
         }
-        BlockKind::Table(t) if depth < MAX_DEPTH => BlockKindView::Table { table: table(t, pictures, budget, depth + 1) },
-        // Nested deeper than any parser output: its text stays, its grid goes.
-        BlockKind::Table(_) => BlockKindView::Paragraph,
+        // `blocks_of` lays out a table past the phone's depth as its cells' blocks.
+        BlockKind::Table(t) => BlockKindView::Table { table: table(t, pictures, budget, depth.saturating_add(1)) },
     };
     BlockView {
         kind,
@@ -344,16 +498,18 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         inset_right: b.inset[1],
         image_padding: b.image_padding.map(insets),
         line: line(&b.line),
+        rtl: b.rtl,
     }
 }
 
 fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> TableView {
+    let mut places = mailcraft_html::grid(t).places.into_iter();
     let mut rows = Vec::new();
     for r in &t.rows {
         if !budget.take() {
             break;
         }
-        rows.push(row(r, pictures, budget, depth));
+        rows.push(row(r, &mut places, pictures, budget, depth));
     }
     TableView {
         rows,
@@ -371,21 +527,27 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         box_margin_left: t.box_margin[0],
         box_margin_right: t.box_margin[1],
         float: t.float,
+        min_column: reading::MIN_LAYOUT_COLUMN,
+        gap_before: reading::box_gap(t),
     }
 }
 
-fn row(r: &Row, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
+fn row(r: &Row, places: &mut impl Iterator<Item = Place>, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
     let mut cells = Vec::new();
     for c in &r.cells {
+        // Taken before the budget: once that runs out nothing after is kept, so places never slip.
+        let place = places.next().unwrap_or(Place { row: 0, col: 0, rows: 1, cols: 1 });
         if !budget.take() {
             break;
         }
-        cells.push(cell(c, pictures, budget, depth));
+        cells.push(cell(c, place, pictures, budget, depth));
     }
     RowView { cells }
 }
 
-fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+fn cell(c: &Cell, place: Place, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+    let wide = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+    let narrow = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     CellView {
         blocks: blocks_of(&c.blocks, pictures, budget, depth),
         header: c.header,
@@ -402,6 +564,10 @@ fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) ->
             VAlign::Middle => VAlignView::Middle,
             VAlign::Bottom => VAlignView::Bottom,
         }),
+        row: wide(place.row),
+        col: narrow(place.col),
+        rows: wide(place.rows),
+        cols: narrow(place.cols),
     }
 }
 
