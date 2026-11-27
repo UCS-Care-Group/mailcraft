@@ -32,6 +32,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use egui::{FontDefinitions, FontFamily};
+use mailcraft_html::fonts::{Generic, generic};
 use mailcraft_model::rich::Built;
 
 use crate::font_index::FontIndex;
@@ -73,23 +74,6 @@ pub enum Pick {
 /// The family a message font's face is registered under in egui.
 pub fn family_of(name: &str, bold: bool) -> FontFamily {
     FontFamily::Name(format!("{PREFIX}{name}{}", if bold { ":bold" } else { "" }).into())
-}
-
-enum Generic {
-    Serif,
-    Mono,
-    Own,
-}
-
-/// The generic families, and the keywords that stand for one.
-fn generic(name: &str) -> Option<Generic> {
-    Some(match name {
-        "serif" | "ui-serif" => Generic::Serif,
-        "monospace" | "ui-monospace" => Generic::Mono,
-        "sans-serif" | "ui-sans-serif" | "system-ui" | "-apple-system" | "blinkmacsystemfont" | "cursive" | "fantasy" | "emoji" | "math"
-        | "fangsong" | "ui-rounded" => Generic::Own,
-        _ => return None,
-    })
 }
 
 /// What is known of a name's face.
@@ -621,7 +605,8 @@ impl Chooser {
             }
             let lookup = match generic(name) {
                 Some(Generic::Mono) => Lookup::Found(Pick::Mono),
-                Some(Generic::Own) => Lookup::Found(Pick::Own),
+                // (A keyword is never a narrow face.)
+                Some(Generic::Own | Generic::Condensed) => Lookup::Found(Pick::Own),
                 Some(Generic::Serif) => {
                     let mut found = Lookup::Found(Pick::Own);
                     for serif in SERIF {

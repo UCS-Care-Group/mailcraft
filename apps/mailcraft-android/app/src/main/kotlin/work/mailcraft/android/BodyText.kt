@@ -20,12 +20,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.DeviceFontFamilyName
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import uniffi.mailcraft_mobile.FaceView
 import uniffi.mailcraft_mobile.SpanView
 
 /**
@@ -95,17 +98,28 @@ private const val RGB_MASK = 0xFFFFFF
 
 internal fun composeColor(rgb: Int): Color = Color(OPAQUE or (rgb and RGB_MASK))
 
-/** The family that a span asks for, as far as this phone has it: the generic ones only. */
-internal fun familyOf(font: String?, code: Boolean): FontFamily? {
-    if (code) return FontFamily.Monospace
-    val first = font?.split(',')?.firstOrNull()?.trim()?.lowercase()
-    return when (first) {
-        "serif" -> FontFamily.Serif
-        "monospace" -> FontFamily.Monospace
-        "sans-serif" -> FontFamily.SansSerif
-        "cursive" -> FontFamily.Cursive
-        else -> null
-    }
+/** Roboto's narrow cut, which Android has had since 4.1, in each weight and slant: a system font, nothing bundled. */
+private val Condensed = FontFamily(
+    listOf(
+        FontWeight.Thin, FontWeight.ExtraLight, FontWeight.Light, FontWeight.Normal, FontWeight.Medium,
+        FontWeight.SemiBold, FontWeight.Bold, FontWeight.ExtraBold, FontWeight.Black,
+    ).flatMap { weight ->
+        listOf(FontStyle.Normal, FontStyle.Italic).map {
+            Font(DeviceFontFamilyName("sans-serif-condensed"), weight, it)
+        }
+    },
+)
+
+/** The weights Compose draws. */
+private const val LIGHTEST = 1
+private const val HEAVIEST = 1000
+
+/** The phone font a span's families come to (the core walks the list), monospace for code; null: the body's own. */
+internal fun familyOf(face: FaceView, code: Boolean): FontFamily? = when {
+    code || face == FaceView.MONO -> FontFamily.Monospace
+    face == FaceView.SERIF -> FontFamily.Serif
+    face == FaceView.CONDENSED -> Condensed
+    else -> null
 }
 
 /** The colour of a span's text on [paper]: its own, adjusted to read, else the paper's ink (or the link colour). */
@@ -136,11 +150,12 @@ internal fun sizeOf(span: SpanView): Int? = span.size?.toInt()?.coerceIn(1, MAX_
 internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle = SpanStyle(
     color = composeColor(inkOf(span, paper, linked)),
     background = span.background?.let { composeColor(paper.back(it.rgb())) } ?: Color.Unspecified,
-    fontWeight = if (span.bold) FontWeight.Bold else null,
+    // Always said, regular too: a heading is bold by its spans, as the core reads it.
+    fontWeight = FontWeight(span.weight.toInt().coerceIn(LIGHTEST, HEAVIEST)),
     fontStyle = if (span.italic) FontStyle.Italic else null,
     textDecoration = decorationOf(span, linked),
     fontSize = sizeOf(span)?.sp ?: TextUnit.Unspecified,
-    fontFamily = familyOf(span.font, span.code),
+    fontFamily = familyOf(span.face, span.code),
 )
 
 /** The spans as styled text. A link that is not followable ([links] has no word of it) is plain text. */

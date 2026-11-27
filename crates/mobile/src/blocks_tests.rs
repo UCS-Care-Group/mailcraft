@@ -6,7 +6,7 @@ use mailcraft_html::{BlockKind, MAX_TABLE_DEPTH};
 
 use mailcraft_html::reading;
 
-use crate::blocks::{BlockKindView, BlockView, Pictures, views};
+use crate::blocks::{BlockKindView, BlockView, FaceView, Pictures, views};
 
 fn words(blocks: &[BlockView], out: &mut String) {
     for b in blocks {
@@ -159,4 +159,31 @@ fn spans_of(blocks: &[BlockView], out: &mut Vec<crate::blocks::SpanView>) {
             }
         }
     }
+}
+
+/// #1966: each span's phone font and weight, from the whole family list and the weight asked for.
+#[test]
+fn spans_carry_the_phone_face_and_weight() {
+    let html = "<p><span style=\"font-family:Aptos, Calibri, sans-serif;font-weight:300\">light</span> \
+        <span style=\"font-family:'Segoe UI Light'\">named</span> <b style=\"font-family:Georgia,serif\">serif</b> \
+        <code>code()</code> <span style=\"font-family:Brand, 'Courier New', monospace\">mono</span> \
+        <span style=\"font-family:'Arial Narrow'\">narrow</span> <i style=\"font-family:Unknown\">plain</i></p>";
+    let got: Vec<(String, FaceView, u16, bool)> = shown(&mailcraft_html::parse(html))
+        .iter()
+        .flat_map(|b| b.spans.iter())
+        .filter(|s| !s.text.trim().is_empty())
+        .map(|s| (s.text.trim().to_string(), s.face, s.weight, s.italic))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("light".to_string(), FaceView::Own, 300, false),
+            ("named".to_string(), FaceView::Own, 300, false),
+            ("serif".to_string(), FaceView::Serif, 700, false),
+            ("code()".to_string(), FaceView::Own, 400, false),
+            ("mono".to_string(), FaceView::Mono, 400, false),
+            ("narrow".to_string(), FaceView::Condensed, 400, false),
+            ("plain".to_string(), FaceView::Own, 400, true),
+        ]
+    );
 }
