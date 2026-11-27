@@ -96,31 +96,24 @@ impl Topics {
         self.0.get(share_of(*topic)).and_then(|share| share.get(topic))
     }
 
-    fn get_mut(&mut self, topic: &Topic) -> Option<&mut Vec<Id>> {
-        self.0.get_mut(share_of(*topic)).and_then(|share| share.get_mut(topic))
-    }
-
-    /// The ids of `topic`, which it is given when it has none.
-    fn insert_id(&mut self, topic: Topic, id: Id) {
+    /// Take the ids `gone` out of `topic` and put `came` in, keeping its ids in order and each
+    /// once; a topic left without one is forgotten.
+    fn change(&mut self, topic: Topic, gone: &HashSet<Id>, came: Vec<Id>) {
         if self.0.is_empty() {
             self.0 = (0..TOPIC_SHARES).map(|_| HashMap::default()).collect();
         }
-        if let Some(share) = self.0.get_mut(share_of(topic)) {
-            let ids = share.entry(topic).or_default();
-            if let Err(at) = ids.binary_search(&id) {
-                ids.insert(at, id);
-            }
+        let Some(share) = self.0.get_mut(share_of(topic)) else { return };
+        let ids = share.entry(topic).or_default();
+        if !gone.is_empty() {
+            ids.retain(|id| !gone.contains(id));
         }
-    }
-
-    /// Forget those of `topics` left without a message.
-    fn drop_empty<'a>(&mut self, topics: impl IntoIterator<Item = &'a Topic>) {
-        for topic in topics {
-            if let Some(share) = self.0.get_mut(share_of(*topic))
-                && share.get(topic).is_some_and(Vec::is_empty)
-            {
-                share.remove(topic);
-            }
+        if !came.is_empty() {
+            ids.extend(came);
+            ids.sort_unstable();
+            ids.dedup();
+        }
+        if ids.is_empty() {
+            share.remove(&topic);
         }
     }
 }
@@ -245,7 +238,7 @@ type Entry<'a> = (Topic, &'a Message, String);
 /// their order. An item whose thread can't be started is worked on this one (it is handed to its
 /// thread only once the thread runs, so it comes back when it doesn't); `None` when a thread
 /// gave no answer, its item then lost, for the caller to do it all again on one.
-fn on_threads<T: Send, R: Send>(items: Vec<T>, work: impl Fn(T) -> R + Sync) -> Option<Vec<R>> {
+pub(crate) fn on_threads<T: Send, R: Send>(items: Vec<T>, work: impl Fn(T) -> R + Sync) -> Option<Vec<R>> {
     let work = &work;
     std::thread::scope(|scope| {
         let mut items = items;
@@ -262,15 +255,21 @@ fn on_threads<T: Send, R: Send>(items: Vec<T>, work: impl Fn(T) -> R + Sync) -> 
             })
             .collect();
         let mine = last.map(work);
+        // Every thread is joined before the answer is given: one left to the scope would have its
+        // panic passed on.
         let mut done = Vec::with_capacity(started.len().saturating_add(1));
+        let mut lost = false;
         for started in started {
-            done.push(match started {
-                Ok(thread) => thread.join().ok().flatten()?,
-                Err(item) => work(item),
-            });
+            match started {
+                Ok(thread) => match thread.join().ok().flatten() {
+                    Some(r) => done.push(r),
+                    None => lost = true,
+                },
+                Err(item) => done.push(work(item)),
+            }
         }
         done.extend(mine);
-        Some(done)
+        (!lost).then_some(done)
     })
 }
 
@@ -469,17 +468,18 @@ fn bring_in_step(kept: &mut Kept, mailbox: &Mailbox) -> Option<bool> {
     // The topics touched, and every id they had.
     let touched: HashSet<Topic> = gone.iter().chain(&came).map(|(_, topic)| *topic).collect();
     let was: Vec<Id> = touched.iter().filter_map(|topic| kept.topics.get(topic)).flatten().copied().collect();
+    // Each topic's ids gone and come, taken out and put in with one pass over its list (one at a
+    // time, each would shift the rest of a large topic's list).
+    let mut changes: HashMap<Topic, (HashSet<Id>, Vec<Id>)> = HashMap::new();
     for (id, topic) in gone {
-        if let Some(ids) = kept.topics.get_mut(&topic)
-            && let Ok(at) = ids.binary_search(&id)
-        {
-            ids.remove(at);
-        }
+        changes.entry(topic).or_default().0.insert(id);
     }
     for (id, topic) in came {
-        kept.topics.insert_id(topic, id);
+        changes.entry(topic).or_default().1.push(id);
     }
-    kept.topics.drop_empty(&touched);
+    for (topic, (gone, came)) in changes {
+        kept.topics.change(topic, &gone, came);
+    }
     let mut topics: Vec<Vec<&Message>> = Vec::new();
     for ids in touched.iter().filter_map(|topic| kept.topics.get(topic)) {
         by_topic(ids.iter().filter_map(|id| mailbox.message(*id)).map(|m| (m, m.topic_key())).collect(), &mut topics);

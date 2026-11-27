@@ -283,3 +283,44 @@ fn conversations_worked_out_on_threads_are_those_built_on_one() {
         assert_eq!(conversations(&s, &on), conversations(&s, &afresh), "built on {threads} threads, then in step");
     }
 }
+
+/// A thread that gives no answer has the whole of the work done again on one: however many fail,
+/// none's panic is passed on.
+#[test]
+fn threads_that_fail_give_no_answer_rather_than_a_panic() {
+    let doubled = crate::conversations::on_threads(vec![1, 2, 3, 4], |n| n * 2);
+    assert_eq!(doubled, Some(vec![2, 4, 6, 8]), "in their order");
+    let failing = crate::conversations::on_threads(vec![1, 2, 3, 4], |n| {
+        assert!(n > 2, "a worker that fails");
+        n
+    });
+    assert_eq!(failing, None, "two threads failed, the last item (done here) didn't");
+}
+
+/// Many messages of one large topic gone at once are brought in step, not built afresh.
+#[test]
+fn many_messages_of_one_topic_gone_at_once_are_brought_in_step() {
+    let (mut s, inboxes) = mailbox();
+    for n in 0..3_000u32 {
+        let m = Message {
+            folder: inboxes[0],
+            subject: if n == 0 { "Weekly report".into() } else { "Re: Weekly report".into() },
+            message_id: format!("week{n}@example.org"),
+            in_reply_to: if n % 5 == 0 { String::new() } else { format!("week{}@example.org", n - 1) },
+            ..Default::default()
+        };
+        s.mailbox.add_message(m).unwrap();
+    }
+    s.mailbox_changed();
+    let _ = s.threads();
+    let gone: Vec<Id> = s.mailbox.messages.values().filter(|m| m.message_id.starts_with("week")).map(|m| m.id).step_by(4).collect();
+    assert!(gone.len() > 700, "{} gone", gone.len());
+    for id in gone {
+        s.mailbox.remove_message(id).unwrap();
+    }
+    s.mailbox_changed();
+    let kept = s.threads();
+    assert_eq!(s.threads_built(), 1, "brought in step");
+    let afresh = ThreadIndex::build(s.mailbox.messages.values().map(|m| m.as_ref()));
+    assert_eq!(conversations(&s, &kept), conversations(&s, &afresh));
+}
