@@ -3,12 +3,14 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,8 +31,6 @@ import uniffi.mailcraft_mobile.TableView
 import uniffi.mailcraft_mobile.VAlignView
 
 private val CellMinimum = 24.dp
-private const val DATA_SIDE = 8
-private const val DATA_TOP = 5
 
 /** The width a table takes of [room], where it says. */
 internal fun tableWidth(table: TableView, room: Dp): Dp = when (val w = table.width) {
@@ -52,7 +52,8 @@ internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper:
     val width = tableWidth(table, room)
     val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
-    val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own) else Modifier
+    // Over what is in it, as the desktop draws it: a cell's own colour never hides the table's frame.
+    val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own, over = true) else Modifier
     // A data table is as wide as its columns, which fit the room when their words let them.
     val box = (if (table.layout) Modifier.width(width) else Modifier.widthIn(max = width))
         .then(if (table.background != null) Modifier.background(composeColor(own.rgb), shape) else Modifier)
@@ -86,17 +87,18 @@ internal fun sectionsOf(grid: Grid): List<Grid> {
 @Composable
 private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp) {
     val grid = remember(table) { gridOf(table) }
-    val gap = (table.spacing?.toInt()?.toFloat() ?: DEFAULT_COLUMN_GAP)
+    val (gap, rowGap) = remember(table) { gapsOf(table) }
+    val ruled = remember(table) { ruled(table) }
     val sections = remember(table) { sectionsOf(grid) }
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
         sections.forEach { section ->
             val widths = remember(section, width) { planColumns(columnSpecs(section), width.value, gap) }
             if (widths == null) {
-                section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth()) }
+                section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth(), ruled) }
             } else {
                 val byRow = remember(section) { section.placed.groupBy { it.row } }
                 for (r in 0 until section.rows) {
-                    LayoutRow(table, byRow[r].orEmpty(), widths, gap, env, paper)
+                    LayoutRow(table, byRow[r].orEmpty(), widths, gap, env, paper, ruled)
                 }
             }
         }
@@ -112,15 +114,20 @@ private fun LayoutRow(
     gap: Float,
     env: BodyEnv,
     paper: Paper,
+    ruled: Boolean,
 ) {
     val cells = row.sortedBy { it.col }
+    // A row with colours or lines has every cell as tall as the row, as a table's are: a coloured
+    // bar beside a card reaches its foot.
     val tinted = cells.any { it.cell.background != null || it.cell.border.hasAny() }
+    val tall = if (tinted) Modifier.fillMaxHeight() else Modifier
     Row(modifier = if (tinted) Modifier.height(IntrinsicSize.Min) else Modifier) {
         var next = 0
         cells.forEach { p ->
             if (p.col > next) Spacer(Modifier.width(spanWidth(widths, next, p.col, gap).dp + gap.dp))
             val w = spanWidth(widths, p.col, p.col + p.cols, gap)
-            CellBox(table, p.cell, env, paper, w.dp, Modifier.alignIn(this, p.cell.valign).width(w.dp))
+            val place = Modifier.alignIn(this, p.cell.valign).then(tall).width(w.dp)
+            CellBox(table, p.cell, env, paper, w.dp, place, ruled)
             if (p.col + p.cols < widths.size) Spacer(Modifier.width(gap.dp))
             next = p.col + p.cols
         }
@@ -141,32 +148,37 @@ private fun Modifier.alignIn(row: RowScope, v: VAlignView?): Modifier = with(row
     }
 }
 
-/**
- * The room left and right of what a cell holds together, in dp. A cell of a data table that says
- * nothing of its padding has the grid's own.
- */
-internal fun cellSides(table: TableView, cell: CellView): Int {
-    val pad = cell.padding ?: return if (table.layout) 0 else 2 * DATA_SIDE
-    return pad.left.toInt() + pad.right.toInt()
-}
+/** The room left and right of what a cell of a data table holds together, in dp. */
+internal fun cellSides(table: TableView, cell: CellView): Int =
+    cellPadding(table, cell, ruled = false).let { it.left.toInt() + it.right.toInt() }
 
-/** One cell: its background, lines and padding, and its blocks in the room that is left. */
+/** One cell: its background, lines and padding, and its blocks in the room left; [ruled]: [ruled] of the table. */
 @Composable
-internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
+internal fun CellBox(
+    table: TableView,
+    cell: CellView,
+    env: BodyEnv,
+    paper: Paper,
+    width: Dp,
+    modifier: Modifier,
+    ruled: Boolean = false,
+) {
     val own = cell.background?.let { paper.inner(it.rgb()) } ?: paper
-    val pad = cell.padding
-    val roomy = !table.layout && pad == null
-    val left = pad?.left?.toInt() ?: if (roomy) DATA_SIDE else 0
-    val right = pad?.right?.toInt() ?: if (roomy) DATA_SIDE else 0
-    val top = pad?.top?.toInt() ?: if (roomy) DATA_TOP else 0
-    val bottom = pad?.bottom?.toInt() ?: if (roomy) DATA_TOP else 0
+    val pad = cellPadding(table, cell, ruled)
+    val left = pad.left.toInt()
+    val right = pad.right.toInt()
     val sides = if (table.border) ALL_SIDES else cell.border
     val shape = RoundedCornerShape(cell.radius.toInt().dp)
     Box(
         modifier = modifier
             .then(if (cell.background != null) Modifier.background(composeColor(own.rgb), shape) else Modifier)
             .frame(cell.lines, sides, env.rule, own)
-            .padding(start = left.dp, end = right.dp, top = top.dp, bottom = bottom.dp),
+            .padding(start = left.dp, end = right.dp, top = pad.top.toInt().dp, bottom = pad.bottom.toInt().dp),
+        contentAlignment = when (cell.valign) {
+            VAlignView.MIDDLE -> Alignment.CenterStart
+            VAlignView.BOTTOM -> Alignment.BottomStart
+            else -> Alignment.TopStart
+        },
     ) {
         BlockColumn(cell.blocks, env, own, (width - (left + right).dp).coerceAtLeast(CellMinimum))
     }

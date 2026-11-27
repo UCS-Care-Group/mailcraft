@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -38,6 +39,7 @@ import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.LineHeightView
 import uniffi.mailcraft_mobile.MarkerView
+import uniffi.mailcraft_mobile.TableView
 
 /** What the body of a message is drawn with and what it does. */
 internal class BodyEnv(
@@ -51,8 +53,11 @@ internal class BodyEnv(
     val onLinkDetails: (LinkInfo) -> Unit,
 )
 
-/** Blocks that stand in one line (a picture in a line of text, text after a picture), and those that stand alone. */
-internal class BodyLine(val blocks: List<BlockView>)
+/**
+ * Blocks that stand in one line (a picture in a line of text, text after a picture), and those that stand
+ * alone, with the blocks of the line [before] it (null for the first), for the room above it.
+ */
+internal class BodyLine(val blocks: List<BlockView>, val before: List<BlockView>?)
 
 /** The blocks grouped into lines: a block that goes on in the line of the one before joins it. */
 internal fun linesOf(blocks: List<BlockView>): List<BodyLine> {
@@ -60,17 +65,9 @@ internal fun linesOf(blocks: List<BlockView>): List<BodyLine> {
     for (block in blocks) {
         if (block.beside && lines.isNotEmpty()) lines.last().add(block) else lines.add(mutableListOf(block))
     }
-    return lines.map { BodyLine(it) }
+    return lines.mapIndexed { n, line -> BodyLine(line, lines.getOrNull(n - 1)) }
 }
 
-/** Blank space above a paragraph, in dp: the message's own gap when it says, else one step for each blank line. */
-internal fun spaceAbove(block: BlockView): Dp {
-    val steps = block.space.toInt().coerceIn(0, MAX_SPACE_STEPS)
-    return if (block.gap.toInt() > 0) block.gap.toInt().dp else (steps * SPACE_STEP).dp
-}
-
-private const val MAX_SPACE_STEPS = 3
-private const val SPACE_STEP = 10
 private const val QUOTE_INDENT = 12
 private const val MAX_QUOTE_LEVELS = 8
 private const val SPACE_FOR_QUOTE_BAR = 3
@@ -79,7 +76,7 @@ private const val SPACE_FOR_QUOTE_BAR = 3
 @Composable
 internal fun BodyLineView(line: BodyLine, env: BodyEnv, paper: Paper, width: Dp) {
     val first = line.blocks.first()
-    val pad = Modifier.padding(top = spaceAbove(first))
+    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current.fontScale))
     // A message is laid out from the left whichever way the phone reads, as on the desktop: only its
     // own right-to-left text and list items read from the right.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -100,7 +97,12 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
         .coerceAtLeast(MIN_ROOM)
     Box(modifier = inset.fillMaxWidth(), contentAlignment = alignment(block.align)) {
         when (val kind = block.kind) {
-            is BlockKindView.Table -> TableBlock(kind.table, block.align, env, paper, room)
+            is BlockKindView.Table ->
+                if (kind.table.inline) {
+                    BoxOnALine(kind.table, block.align, env, paper, room)
+                } else {
+                    TableBlock(kind.table, block.align, env, paper, room)
+                }
             is BlockKindView.Image -> PictureBlock(block, kind, env, paper, room)
             is BlockKindView.Rule -> RuleBlock(block, env, paper)
             is BlockKindView.ListItem -> ListItem(block, kind, env, paper)
@@ -111,7 +113,7 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
     }
 }
 
-private val MIN_ROOM = 40.dp
+internal val MIN_ROOM = 40.dp
 private val QuoteBar = 2.dp
 private val RunGap = 4.dp
 private val RunLineGap = 2.dp
@@ -156,10 +158,19 @@ private fun InlineRun(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width
         blocks.forEach { block ->
             when (val kind = block.kind) {
                 is BlockKindView.Image -> PictureBlock(block, kind, env, paper, width)
-                is BlockKindView.Table -> TableBlock(kind.table, block.align, env, paper, width)
+                is BlockKindView.Table -> BoxOnALine(kind.table, block.align, env, paper, width)
                 else -> TextBlock(block, env, paper, fill = false)
             }
         }
+    }
+}
+
+/** A table that is a box on a line, with the room its margins keep free left and right of it while there is room. */
+@Composable
+private fun BoxOnALine(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, width: Dp) {
+    val (left, right) = boxMargins(table, width)
+    Box(modifier = Modifier.padding(start = left, end = right)) {
+        TableBlock(table, align, env, paper, width - left - right)
     }
 }
 

@@ -1,0 +1,1 @@
+- On Android, a message's boxes keep their room: text no longer touches the edge of a bordered or coloured box, a framed button keeps its frame round its colour, a thin coloured bar beside a card reaches its foot, and blank lines between paragraphs are as tall as a line of text ([#1966](https://github.com/GITHUB_REPOSITORY/issues/1966)).

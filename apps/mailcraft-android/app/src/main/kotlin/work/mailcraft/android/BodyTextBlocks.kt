@@ -132,7 +132,7 @@ internal fun RuleBlock(block: BlockView, env: BodyEnv, paper: Paper) {
 
 private const val BULLET = "•"
 private const val HUNDRED = 100f
-private const val DEFAULT_LINE = 1.4f
+internal const val DEFAULT_LINE = 1.4f
 
 /** The least line height, in sizes of its text: room for the ascent and descent of the phone's fonts. */
 private const val MIN_LINE = 1.2f
