@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -50,9 +51,9 @@ internal class BodyEnv(
 
 /**
  * Blocks that stand in one line (a picture in a line of text, text after a picture), and those that stand
- * alone, with the room [above] the line.
+ * alone, with the blocks of the line [before] it (null for the first), for the room above it.
  */
-internal class BodyLine(val blocks: List<BlockView>, val above: Dp)
+internal class BodyLine(val blocks: List<BlockView>, val before: List<BlockView>?)
 
 /** The blocks grouped into lines: a block that goes on in the line of the one before joins it. */
 internal fun linesOf(blocks: List<BlockView>): List<BodyLine> {
@@ -60,7 +61,7 @@ internal fun linesOf(blocks: List<BlockView>): List<BodyLine> {
     for (block in blocks) {
         if (block.beside && lines.isNotEmpty()) lines.last().add(block) else lines.add(mutableListOf(block))
     }
-    return lines.mapIndexed { n, line -> BodyLine(line, spaceAbove(lines.getOrNull(n - 1), line.first())) }
+    return lines.mapIndexed { n, line -> BodyLine(line, lines.getOrNull(n - 1)) }
 }
 
 private const val QUOTE_INDENT = 12
@@ -71,7 +72,7 @@ private const val SPACE_FOR_QUOTE_BAR = 3
 @Composable
 internal fun BodyLineView(line: BodyLine, env: BodyEnv, paper: Paper, width: Dp) {
     val first = line.blocks.first()
-    val pad = Modifier.padding(top = line.above)
+    val pad = Modifier.padding(top = spaceAbove(line.before, first, LocalDensity.current.fontScale))
     Box(modifier = pad.quoted(first.quote.toInt(), env.rule)) {
         if (line.blocks.size == 1) {
             SingleBlock(first, env, paper, width)
@@ -88,7 +89,12 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
         .coerceAtLeast(MIN_ROOM)
     Box(modifier = inset.fillMaxWidth(), contentAlignment = alignment(block.align)) {
         when (val kind = block.kind) {
-            is BlockKindView.Table -> TableBlock(kind.table, block.align, env, paper, room)
+            is BlockKindView.Table ->
+                if (kind.table.inline) {
+                    BoxOnALine(kind.table, block.align, env, paper, room)
+                } else {
+                    TableBlock(kind.table, block.align, env, paper, room)
+                }
             is BlockKindView.Image -> PictureBlock(block, kind, env, paper, room)
             is BlockKindView.Rule -> RuleBlock(block, env, paper)
             is BlockKindView.ListItem -> ListItem(block, kind, env, paper)

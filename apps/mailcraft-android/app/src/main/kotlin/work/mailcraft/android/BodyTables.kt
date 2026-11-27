@@ -85,15 +85,16 @@ internal fun sectionsOf(grid: Grid): List<Grid> {
 private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp) {
     val grid = remember(table) { gridOf(table) }
     val (gap, rowGap) = remember(table) { gapsOf(table) }
+    val ruled = remember(table) { ruled(table) }
     val sections = remember(table) { sectionsOf(grid) }
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
         sections.forEach { section ->
             val widths = remember(section, width) { planColumns(columnSpecs(section), width.value, gap) }
             if (widths == null) {
-                section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth()) }
+                section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth(), ruled) }
             } else {
                 for (r in 0 until section.rows) {
-                    LayoutRow(table, section.placed.filter { it.row == r }, widths, gap, env, paper)
+                    LayoutRow(table, section.placed.filter { it.row == r }, widths, gap, env, paper, ruled)
                 }
             }
         }
@@ -109,6 +110,7 @@ private fun LayoutRow(
     gap: Float,
     env: BodyEnv,
     paper: Paper,
+    ruled: Boolean,
 ) {
     val cells = row.sortedBy { it.col }
     // A row with colours or lines has every cell as tall as the row, as a table's are: a coloured
@@ -120,7 +122,8 @@ private fun LayoutRow(
         cells.forEach { p ->
             if (p.col > next) Spacer(Modifier.width(spanWidth(widths, next, p.col, gap).dp + gap.dp))
             val w = spanWidth(widths, p.col, p.col + p.cols, gap)
-            CellBox(table, p.cell, env, paper, w.dp, Modifier.alignIn(this, p.cell.valign).then(tall).width(w.dp))
+            val place = Modifier.alignIn(this, p.cell.valign).then(tall).width(w.dp)
+            CellBox(table, p.cell, env, paper, w.dp, place, ruled)
             if (p.col + p.cols < widths.size) Spacer(Modifier.width(gap.dp))
             next = p.col + p.cols
         }
@@ -141,11 +144,19 @@ private fun Modifier.alignIn(row: RowScope, v: VAlignView?): Modifier = with(row
     }
 }
 
-/** One cell: its background, lines and padding, and its blocks in the room that is left. */
+/** One cell: its background, lines and padding, and its blocks in the room left; [ruled]: [ruled] of the table. */
 @Composable
-internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
+internal fun CellBox(
+    table: TableView,
+    cell: CellView,
+    env: BodyEnv,
+    paper: Paper,
+    width: Dp,
+    modifier: Modifier,
+    ruled: Boolean = false,
+) {
     val own = cell.background?.let { paper.inner(it.rgb()) } ?: paper
-    val pad = cellPadding(table, cell)
+    val pad = cellPadding(table, cell, ruled)
     val left = pad.left.toInt()
     val right = pad.right.toInt()
     val sides = if (table.border) ALL_SIDES else cell.border

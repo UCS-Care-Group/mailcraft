@@ -16,14 +16,16 @@ import uniffi.mailcraft_mobile.TableView
  * The room above [block] after the line [before] it, in dp, by the desktop's rule: the first blank line
  * is a paragraph's gap and each further one a line of body text, a margin the message gives in pixels
  * wins where it is more, and lists, headings, pictures and data tables keep a little room of their
- * own. The first block of a column has none.
+ * own. The blank lines grow with the text ([fontScale]); the room the message or a kind of block asks for
+ * in pixels does not. The first block of a column has none.
  */
-internal fun spaceAbove(before: List<BlockView>?, block: BlockView): Dp {
+internal fun spaceAbove(before: List<BlockView>?, block: BlockView, fontScale: Float = 1f): Dp {
     if (before.isNullOrEmpty()) return 0.dp
     // A line of pictures and text is text.
     val prev = before.singleOrNull()?.kind ?: BlockKindView.Paragraph
     val steps = block.space.toInt().coerceIn(0, MAX_SPACE_STEPS)
-    val asked = if (steps == 0) 0f else PARAGRAPH_GAP + (steps - 1) * BLANK_LINE
+    val text = fontScale.coerceIn(MIN_SCALE, MAX_SCALE)
+    val asked = if (steps == 0) 0f else (PARAGRAPH_GAP + (steps - 1) * BLANK_LINE) * text
     val kind = block.kind
     val least = when {
         kind is BlockKindView.ListItem && prev is BlockKindView.ListItem -> LIST_GAP
@@ -45,6 +47,8 @@ private const val HEADING_GAP = 4f
 private const val DATA_TABLE_GAP = 8f
 private const val PICTURE_GAP = 4f
 private const val MAX_SPACE_STEPS = 3
+private const val MIN_SCALE = 0.5f
+private const val MAX_SCALE = 4f
 
 /** The margins of a box on a line, scaled down to leave it at least [MIN_ROOM] of [width]. */
 internal fun boxMargins(table: TableView, width: Dp): Pair<Dp, Dp> {
@@ -72,7 +76,7 @@ private fun painted(table: TableView) = table.background != null || table.border
  * Whether a layout table is ruled: lines above or under some of its cells, and nothing else painted.
  * Every cell then has the same room round what it holds, as in a data table.
  */
-private fun ruled(table: TableView): Boolean {
+internal fun ruled(table: TableView): Boolean {
     if (!table.layout || painted(table)) return false
     val cells = table.rows.flatMap { it.cells }
     if (cells.any { it.background != null || it.border.left || it.border.right }) return false
@@ -82,12 +86,13 @@ private fun ruled(table: TableView): Boolean {
 /**
  * The room between a cell's edge and what it holds, by the desktop's rule: what the message says, else
  * a data table's grid room, a band's sliver for a cell that holds nothing, a box's room for a cell
- * with a colour or lines (its own or its table's), and none for a cell that only places things.
+ * with a colour or lines (its own or its table's), and none for a cell that only places things. [ruled]
+ * is [ruled] of the table, worked out once for all its cells.
  */
-internal fun cellPadding(table: TableView, cell: CellView): InsetsView = cell.padding ?: when {
+internal fun cellPadding(table: TableView, cell: CellView, ruled: Boolean): InsetsView = cell.padding ?: when {
     !table.layout -> DataPadding
     cell.blocks.isEmpty() -> BandPadding
-    ruled(table) || painted(table) || cell.background != null || cell.border.hasAny() -> BoxPadding
+    ruled || painted(table) || cell.background != null || cell.border.hasAny() -> BoxPadding
     else -> NoPadding
 }
 

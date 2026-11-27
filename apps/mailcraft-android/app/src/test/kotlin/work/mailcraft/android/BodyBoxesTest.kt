@@ -5,6 +5,7 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -17,12 +18,15 @@ import app.cash.paparazzi.SnapshotHandler
 import com.android.ide.common.rendering.api.SessionParams
 import java.lang.reflect.Proxy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import uniffi.mailcraft_mobile.AlignView
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.InsetsView
+import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 
 /** Spacing, padding and the boxes of a message, as the desktop draws them (#1966). */
@@ -51,12 +55,13 @@ class BodyBoxesTest {
     private val env = BodyEnv(EnglishTexts, emptyMap(), emptyMap(), Color.Gray, {}, {})
 
     /** [table] drawn 360 dp wide on white: where it is, in the screen's pixels, and the colour at a point of it. */
-    private fun drawTable(table: TableView): Pair<Rect, (Float, Float) -> Int> {
+    private fun drawTable(table: TableView) = draw { TableBlock(table, AlignView.LEFT, env, Paper.of(WHITE, LINK), 360.dp) }
+
+    /** [content] drawn: where it is, in the screen's pixels, and the colour at a point of it. */
+    private fun draw(content: @Composable () -> Unit): Pair<Rect, (Float, Float) -> Int> {
         var bounds = Rect.Zero
         paparazzi.snapshot {
-            Box(modifier = Modifier.onGloballyPositioned { bounds = it.boundsInRoot() }) {
-                TableBlock(table, AlignView.LEFT, env, Paper.of(WHITE, LINK), 360.dp)
-            }
+            Box(modifier = Modifier.onGloballyPositioned { bounds = it.boundsInRoot() }) { content() }
         }
         val image = drawn ?: error("nothing drawn")
         val width = image.javaClass.getMethod("getWidth").invoke(image) as Int
@@ -86,9 +91,19 @@ class BodyBoxesTest {
     }
 
     @Test
-    fun linesCarryTheRoomAboveThem() {
-        val lines = linesOf(listOf(B.p("Monthly news", 0u), B.p("Second part", 3u)))
-        assertEquals(listOf(0f, spaceAbove(listOf(B.p("x")), B.p("y", 3u)).value), lines.map { it.above.value })
+    fun eachLineKnowsTheLineBeforeIt() {
+        val first = B.p("Monthly news", 0u)
+        val lines = linesOf(listOf(first, B.p("Second part", 3u)))
+        assertEquals(listOf(null, listOf(first)), lines.map { it.before })
+    }
+
+    @Test
+    fun blankLinesGrowWithTheTextAndAMarginInPixelsDoesNot() {
+        val before = listOf(B.p("Monthly news", 0u))
+        val blank = B.p("Second part", 2u)
+        assertEquals(2 * spaceAbove(before, blank).value, spaceAbove(before, blank, fontScale = 2f).value, 0.1f)
+        val margin = B.p("Second part", 0u).copy(gap = 30u)
+        assertEquals(30f, spaceAbove(before, margin, fontScale = 2f).value, 0f)
     }
 
     private fun insets(top: Int, right: Int, bottom: Int, left: Int) = InsetsView(top.toUByte(), right.toUByte(), bottom.toUByte(), left.toUByte())
@@ -100,15 +115,26 @@ class BodyBoxesTest {
         val framed = plain.copy(outline = true)
         val data = B.table(layout = false, rows = listOf(listOf(B.cell(text))))
         // What the message says wins.
-        assertEquals(insets(16, 16, 16, 16), cellPadding(framed, B.cell(text, padding = 16u)))
+        assertEquals(insets(16, 16, 16, 16), cellPadding(framed, ruled = false, cell = B.cell(text, padding = 16u)))
         // A box: a framed or coloured table, or a coloured cell.
-        assertEquals(insets(9, 12, 9, 12), cellPadding(framed, B.cell(text)))
-        assertEquals(insets(9, 12, 9, 12), cellPadding(plain, B.cell(text, background = 0xF6F6F6u)))
-        assertEquals(insets(9, 12, 9, 12), cellPadding(plain.copy(background = 0xFFFFFFu), B.cell(text)))
+        assertEquals(insets(9, 12, 9, 12), cellPadding(framed, ruled = false, cell = B.cell(text)))
+        assertEquals(insets(9, 12, 9, 12), cellPadding(plain, ruled = false, cell = B.cell(text, background = 0xF6F6F6u)))
+        assertEquals(insets(9, 12, 9, 12), cellPadding(plain.copy(background = 0xFFFFFFu), ruled = false, cell = B.cell(text)))
         // A data table's grid, a band that holds nothing, and a cell that only places things.
-        assertEquals(insets(5, 8, 5, 8), cellPadding(data, B.cell(text)))
-        assertEquals(insets(3, 0, 3, 0), cellPadding(framed, B.cell(background = 0x2DA44Eu)))
-        assertEquals(insets(0, 0, 0, 0), cellPadding(plain, B.cell(text)))
+        assertEquals(insets(5, 8, 5, 8), cellPadding(data, ruled = false, cell = B.cell(text)))
+        assertEquals(insets(3, 0, 3, 0), cellPadding(framed, ruled = false, cell = B.cell(background = 0x2DA44Eu)))
+        assertEquals(insets(0, 0, 0, 0), cellPadding(plain, ruled = false, cell = B.cell(text)))
+    }
+
+    @Test
+    fun aRuledTableGivesEveryCellABoxsRoom() {
+        val text = B.p("Seed trays", 0u)
+        val line = B.noSides.copy(bottom = true)
+        val ruledTable = B.table(layout = true, rows = listOf(listOf(B.cell(text).copy(border = line), B.cell(text))))
+        assertTrue(ruled(ruledTable))
+        assertEquals(insets(9, 12, 9, 12), cellPadding(ruledTable, B.cell(text), ruled(ruledTable)))
+        assertFalse(ruled(ruledTable.copy(outline = true)))
+        assertFalse(ruled(B.table(layout = true, rows = listOf(listOf(B.cell(text).copy(border = B.noSides.copy(left = true)))))))
     }
 
     @Test
@@ -128,6 +154,17 @@ class BodyBoxesTest {
         assertEquals(10.dp to 20.dp, boxMargins(box, 300.dp))
         val (left, right) = boxMargins(box, 70.dp)
         assertEquals(30f, (left + right).value, 0.01f)
+    }
+
+    @Test
+    fun aBoxOnALineAloneKeepsItsMargins() {
+        val box = B.table(layout = true, width = LengthView.Px(100u), rows = listOf(listOf(B.cell(B.p("Status", 0u)))))
+            .copy(inline = true, background = ACCENT.toUInt(), boxMarginLeft = 10u, boxMarginRight = 20u)
+        val (bounds, at) = draw { BodyLineView(linesOf(listOf(B.tableBlock(box).copy(space = 0u))).first(), env, Paper.of(WHITE, LINK), 360.dp) }
+        val density = Shot.density.dpiValue / 160f
+        val middle = bounds.center.y
+        assertNotEquals("the margin is gone", ACCENT, at(bounds.left + 5f * density, middle))
+        assertEquals(ACCENT, at(bounds.left + 15f * density, middle))
     }
 
     @Test
