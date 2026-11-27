@@ -434,16 +434,25 @@ fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
         // After a space: not before a mark that belongs to it.
         Some((end, resume)) if end == resume => (whole_at(rest, end), whole_at(rest, end)),
         Some(cut) => cut,
-        None => (whole_at(rest, at), whole_at(rest, at)),
+        None => {
+            let cut = whole_at(rest, at);
+            // A line break right before the cut goes, as at any line break: the next block starts the line.
+            let end = if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) { cut.saturating_sub(1) } else { cut };
+            (end, cut)
+        }
     };
     Some((from.saturating_add(end), from.saturating_add(resume)))
 }
 
-/// What of `spans` (each starting at its byte of `starts` in the joined text) lies in `from..end`.
+/// What of `spans` (each starting at its byte of `starts` in the joined text) lies in `from..end`:
+/// only the spans from the one `from` falls in are looked at, so a block is cut in one pass.
 fn spans_in(spans: &[SpanView], starts: &[usize], from: usize, end: usize) -> Vec<SpanView> {
+    let first = starts.partition_point(|&start| start <= from).saturating_sub(1);
     spans
         .iter()
         .zip(starts)
+        .skip(first)
+        .take_while(|(_, start)| **start < end)
         .filter_map(|(s, &start)| {
             let a = from.max(start).saturating_sub(start);
             let b = end.min(start.saturating_add(s.text.len())).saturating_sub(start);

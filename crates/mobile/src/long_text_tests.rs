@@ -296,3 +296,20 @@ fn a_space_at_the_seam_of_two_spans_is_where_a_piece_ends() {
     let views = of(&[Block::new(BlockKind::Paragraph, vec![Span::plain(format!("{} ", "w".repeat(3_990))), bold])]);
     assert_eq!(texts(&views).get(1).map(String::len), Some(100));
 }
+
+#[test]
+fn a_line_break_at_a_cut_before_a_long_word_ends_no_piece() {
+    let text = format!("{}\n{}", "a".repeat(MAX_BLOCK_CHARS - 1), "x".repeat(MAX_BLOCK_CHARS + 1));
+    let all = texts(&of(&[paragraph(&text)]));
+    assert!(all.iter().all(|t| !t.ends_with('\n') && !t.starts_with('\n')), "{:?}", all.iter().map(|t| t.len()).collect::<Vec<_>>());
+    assert_eq!(all.concat(), text.replace('\n', ""));
+}
+
+#[test]
+fn a_block_of_many_short_spans_is_cut_in_one_pass() {
+    // 50,000 spans of 20 characters: every piece looks only at the spans it holds.
+    let spans: Vec<Span> = (0..50_000).map(|_| Span::plain("abcdefghij klmnopqrs")).collect();
+    let views = of(&[Block::new(BlockKind::Paragraph, spans)]);
+    assert!(views.iter().all(|v| chars(v) <= MAX_BLOCK_CHARS));
+    assert!(views.len() > 1);
+}
