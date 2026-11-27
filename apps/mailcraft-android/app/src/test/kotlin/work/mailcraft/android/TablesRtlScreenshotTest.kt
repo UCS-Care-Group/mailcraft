@@ -59,7 +59,7 @@ class TablesRtlScreenshotTest {
     @Test
     fun mixedDirectionTable() = shoot(TablesRtl.mixed)
 
-    /** A picture of its own size (96 by 48 dp) in a line of text that wraps beside and under it. */
+    /** A picture of its own size (96 by 48 dp) in a line with text too long to stand beside it: the text wraps under it. */
     @Test
     fun aPictureInALineOfText() {
         paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
