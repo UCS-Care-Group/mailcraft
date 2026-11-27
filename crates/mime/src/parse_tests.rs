@@ -216,6 +216,86 @@ fn mixed_inline_pictures_stand_between_text_parts_without_a_cid_reference() {
 }
 
 #[test]
+fn mixed_picture_cids_match_raw_or_percent_decoded_references() {
+    for (id, reference, count) in [
+        ("logo%25@example.org", "logo%25@example.org", 1),
+        ("logo%25@example.org", "logo%2525@example.org", 1),
+        ("logo@example.org", "logo%40example.org", 1),
+        ("logo%40example.org", "logo@example.org", 2),
+    ] {
+        let wire = format!(
+            "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <{id}>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--m\r\nContent-Type: text/html\r\n\r\n<p>Text<img src=\"cid:{reference}\"></p>\r\n--m--\r\n"
+        );
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), count, "{id} / {reference}: {html}");
+    }
+}
+
+#[test]
+fn generated_mixed_picture_cids_avoid_later_explicit_ids() {
+    let message = parse(&eml(&[
+        "Content-Type: multipart/mixed; boundary=m",
+        "",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "Before",
+        "--m",
+        "Content-Type: image/png",
+        "Content-Disposition: inline",
+        "Content-Transfer-Encoding: base64",
+        "",
+        "iVBORw0KGgo=",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "Between",
+        "--m",
+        "Content-Type: image/gif",
+        "Content-Disposition: inline",
+        "Content-ID: <MAILCRAFT-MIXED-3@INLINE.INVALID>",
+        "",
+        "GIF89a",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "After",
+        "--m--",
+    ]));
+    assert_eq!(message.attachments.len(), 2);
+    let first = &message.attachments[0];
+    let last = &message.attachments[1];
+    assert!(!first.content_id.eq_ignore_ascii_case(&last.content_id));
+    assert!(first.data.starts_with(b"\x89PNG"));
+    assert!(last.data.starts_with(b"GIF89a"));
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 2);
+    let first_at = html.find(&format!("cid:{}", first.content_id)).unwrap();
+    let last_at = html.find(&format!("cid:{}", last.content_id)).unwrap();
+    assert!(html.find("Before").unwrap() < first_at);
+    assert!(first_at < html.find("Between").unwrap());
+    assert!(html.find("Between").unwrap() < last_at);
+    assert!(last_at < html.find("After").unwrap());
+}
+
+#[test]
+fn mixed_picture_does_not_choose_the_following_html_alternative() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let alternatives = "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\nPlain alternative\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Selected <b>HTML alternative</b></p>\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Unselected alternative</p>\r\n--a--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, alternatives) } else { (alternatives, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert!(html.contains("<b>HTML alternative</b>"), "{html}");
+        assert!(!html.contains("Unselected alternative"), "{html}");
+        assert!(!html.contains("Plain alternative"), "{html}");
+        assert_eq!(html.find("<img").unwrap() < html.find("Selected").unwrap(), picture_first, "{html}");
+        assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+    }
+}
+
+#[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[
         "Subject: Files",

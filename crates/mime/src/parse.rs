@@ -269,7 +269,10 @@ struct Walk {
     /// TNEF streams opened so far ([`MAX_TNEF`]), and the text of the first that had one.
     tnef: usize,
     tnef_text: Option<String>,
-    mixed_pictures: Vec<(usize, String, String)>,
+    /// HTML insertion offset, attachment index, and candidate id (reserved after the walk).
+    mixed_pictures: Vec<(usize, usize, String)>,
+    /// HTML selected within the current alternative, separate from synthesized mixed HTML.
+    alternative_html: bool,
 }
 
 impl Walk {
@@ -291,17 +294,30 @@ impl Walk {
             .filter_map(|block| {
                 let mailcraft_html::BlockKind::Image { src, .. } = &block.kind else { return None };
                 src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:"))?;
-                Some(cid_key(src.get(4..)?))
+                Some([cid_raw_key(src.get(4..)?), cid_key(src.get(4..)?)])
             })
+            .flatten()
             .collect();
+        // Later explicit ids must also be reserved before any missing id is assigned.
+        let mut reserved: HashSet<Vec<u8>> =
+            self.attachments.iter().filter(|part| !part.content_id.is_empty()).map(|part| cid_raw_key(&part.content_id)).collect();
         let mut combined = String::new();
         let mut cursor = 0;
-        for (at, id, picture) in &self.mixed_pictures {
+        for (at, index, generated_id) in &self.mixed_pictures {
             let Some(before) = html.get(cursor..*at) else { continue };
             combined.push_str(before);
             cursor = *at;
-            if shown.insert(id.bytes().map(|byte| byte.to_ascii_lowercase()).collect()) {
-                combined.push_str(picture);
+            let Some(part) = self.attachments.get_mut(*index) else { continue };
+            if part.content_id.is_empty() {
+                let mut id = generated_id.clone();
+                while !reserved.insert(cid_raw_key(&id)) {
+                    id.insert(0, 'x');
+                }
+                part.content_id = id;
+            }
+            if shown.insert(cid_raw_key(&part.content_id)) {
+                let source = format!("cid:{}", part.content_id);
+                combined.push_str(&format!("<img src=\"{}\" alt=\"{}\">", mailcraft_html::escape(&source), mailcraft_html::escape(&part.name)));
             }
         }
         combined.push_str(html.get(cursor..).unwrap_or_default());
@@ -333,9 +349,16 @@ impl Walk {
                 "mixed" => Parent::Mixed,
                 _ => Parent::Other,
             };
+            let outer_alternative_html = self.alternative_html;
+            if kind == Parent::Alternative {
+                self.alternative_html = false;
+            }
             for piece in split_multipart(body, boundary, MAX_PARTS.saturating_sub(self.parts)) {
                 let (part_headers, part_body) = header::split(piece, false);
                 self.part(&part_headers, part_body, depth + 1, kind);
+            }
+            if kind == Parent::Alternative {
+                self.alternative_html = outer_alternative_html;
             }
             return;
         }
@@ -362,7 +385,7 @@ impl Walk {
             return;
         }
 
-        let mut content_id =
+        let content_id =
             headers.get("content-id").map(|v| v.trim().trim_start_matches('<').trim_end_matches('>').trim().to_string()).unwrap_or_default();
         let mime = match declared {
             Some(t) => t.to_string(),
@@ -375,19 +398,8 @@ impl Walk {
         // form for inline pictures between text parts, without an HTML img element.
         // Only an explicitly inline, locally carried picture becomes body content.
         if parent == Parent::Mixed && disposition.value == "inline" && supported_picture(&data) {
-            if content_id.is_empty() {
-                content_id = format!("mailcraft-mixed-{}@inline.invalid", self.parts);
-                while self.attachments.iter().any(|part| part.content_id.eq_ignore_ascii_case(&content_id)) {
-                    content_id.insert(0, 'x');
-                }
-            }
             let body = self.html.get_or_insert_with(|| self.text.as_deref().map(mailcraft_html::from_text).unwrap_or_default());
-            let source = format!("cid:{content_id}");
-            self.mixed_pictures.push((
-                body.len(),
-                content_id.clone(),
-                format!("<img src=\"{}\" alt=\"{}\">", mailcraft_html::escape(&source), mailcraft_html::escape(&name)),
-            ));
+            self.mixed_pictures.push((body.len(), self.attachments.len(), format!("mailcraft-mixed-{}@inline.invalid", self.parts)));
         }
         // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
         // stream itself, which keeps what of it isn't read here.
@@ -475,9 +487,12 @@ impl Walk {
     }
 
     fn add_html(&mut self, html: String, parent: Parent) {
+        if parent == Parent::Alternative && self.alternative_html {
+            return;
+        }
+        self.alternative_html |= parent == Parent::Alternative;
         match &mut self.html {
             None => self.html = Some(html),
-            Some(_) if parent == Parent::Alternative => {}
             Some(body) => {
                 body.push('\n');
                 body.push_str(&html);
@@ -497,6 +512,10 @@ fn supported_picture(data: &[u8]) -> bool {
         || data.starts_with(b"GIF87a")
         || data.starts_with(b"GIF89a")
         || (data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()))
+}
+
+fn cid_raw_key(value: &str) -> Vec<u8> {
+    value.trim().trim_matches(['<', '>']).bytes().map(|byte| byte.to_ascii_lowercase()).collect()
 }
 
 fn cid_key(value: &str) -> Vec<u8> {
