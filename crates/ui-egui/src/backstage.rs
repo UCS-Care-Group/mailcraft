@@ -742,6 +742,17 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let _ = app.run("ui.closeToTray", json!({"value": on}));
         }
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        {
+            let mut start_hidden = app.ui.start_to_tray;
+            let switch = ui.checkbox(&mut start_hidden, tl!("Start hidden in system tray")).on_hover_text(tl!(
+                "MailCraft starts with no window, only its icon beside the clock. Mail and reminders keep running. Click the icon to show the window again."
+            ));
+            app.hit.add("optionStartToTray", 0, switch.rect);
+            if switch.changed() {
+                let _ = app.run("ui.startToTray", json!({"value": start_hidden}));
+            }
+        }
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
     }
     row(ui, tl!("Clock"), |ui| {
