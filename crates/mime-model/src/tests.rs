@@ -202,9 +202,17 @@ fn an_inline_image_round_trips() {
     let names: Vec<&str> = back.attachments.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, ["logo.png", "second.gif", "notes.txt"]);
     round_trip(&m);
-    // Without HTML an inline picture is still marked inline, and the order stays.
+    // Without HTML, explicitly inline pictures become part of the reading body.
     m.body.html = None;
-    round_trip(&m);
+    let back = parse(&write(&m, &WriteOptions::default()));
+    assert_eq!(back.attachments, m.attachments, "attachment bytes, ids, flags and order survive");
+    assert_eq!(back.body.text, m.body.text);
+    let html = back.body.html.as_deref().unwrap();
+    assert!(html.contains("cid:logo@example.org") && html.contains("cid:second@example.org"));
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 2);
+    assert!(html.find("Ada").unwrap() < html.find("cid:logo@example.org").unwrap());
+    assert!(html.find("cid:logo@example.org").unwrap() < html.find("cid:second@example.org").unwrap());
+    round_trip(&back);
 }
 
 #[test]
