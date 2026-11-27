@@ -657,6 +657,8 @@ mod nested_align_tests;
 #[cfg(test)]
 mod rtl_tests;
 #[cfg(test)]
+mod spacing_tests;
+#[cfg(test)]
 mod text_link_tests;
 
 #[cfg(test)]

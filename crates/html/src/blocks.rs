@@ -632,6 +632,8 @@ struct BoxBuild {
     radius: u8,
     /// The room left and right of the box.
     margin: [u8; 2],
+    /// The height of a coloured bar, when the box holds nothing ([`bar_px`]).
+    bar: Option<u8>,
     /// `display: inline-block`: a box on a line.
     inline: bool,
     /// `display: table`: a block as wide as what it holds, which stands at the left (or in the
@@ -680,6 +682,8 @@ struct TableBuild {
     /// The row being read is the last one this table may have.
     last_row: bool,
     spacing: Option<u8>,
+    /// `cellpadding`: the room inside each of its cells on the sides they give none of their own.
+    cell_padding: Option<u8>,
     inline: bool,
     bg_picture: Option<Box<BgPicture>>,
     /// A box on a line floated to the side `align` says ([`Table::float`]).
@@ -711,6 +715,8 @@ struct CellBuild {
     radius: u8,
     valign: Option<VAlign>,
     bg_picture: Option<Box<BgPicture>>,
+    /// The height of a coloured bar, when the cell holds nothing ([`bar_px`]).
+    bar: Option<u8>,
 }
 
 /// What an open element is.
@@ -1901,17 +1907,12 @@ impl Builder {
 
     /// A block with a background or a frame of its own: one cell as wide as there is room.
     fn end_box(&mut self, boxed: BoxBuild, blocks: Vec<Block>) {
-        if blocks.is_empty() {
-            return;
-        }
-        let cell = Cell {
-            blocks,
-            background: boxed.background,
-            padding: boxed.padding,
-            radius: boxed.radius,
-            bg_picture: boxed.bg_picture,
-            ..Cell::default()
+        let (blocks, padding) = match boxed.bar {
+            Some(height) if blank(&blocks) => (Vec::new(), bar(boxed.padding, height)),
+            _ if blocks.is_empty() => return,
+            _ => (blocks, boxed.padding),
         };
+        let cell = Cell { blocks, background: boxed.background, padding, radius: boxed.radius, bg_picture: boxed.bg_picture, ..Cell::default() };
         let table = Table {
             rows: vec![Row { cells: vec![cell] }],
             columns: 1,
@@ -1943,6 +1944,10 @@ impl Builder {
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
+        let (blocks, padding) = match cell.bar {
+            Some(height) if blank(&blocks) => (Vec::new(), bar(cell.padding, height)),
+            _ => (blocks, cell.padding),
+        };
         let cell = Cell {
             blocks,
             header: cell.header,
@@ -1952,7 +1957,7 @@ impl Builder {
             width: cell.width,
             border: cell.border,
             lines: cell.lines,
-            padding: cell.padding,
+            padding,
             radius: cell.radius,
             valign: cell.valign,
             bg_picture: cell.bg_picture,
@@ -2166,6 +2171,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: None,
+            cell_padding: None,
             inline: false,
             bg_picture: None,
             float: false,
@@ -2219,6 +2225,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
+            cell_padding: tag.attr("cellpadding").and_then(|v| style::attr_px(&v)).map(|px| px.round().min(f32::from(MAX_BOX_PX)) as u8),
             inline,
             bg_picture,
             float: float.is_some(),
@@ -2331,21 +2338,32 @@ impl Builder {
         let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
         let span =
             |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
+        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        // `cellpadding` fills the sides the cell's own style leaves open.
+        let cell_padding = self.table_at(table).and_then(|t| t.cell_padding);
+        let mut padding = css.padding;
+        if let Some(px) = cell_padding {
+            padding.iter_mut().for_each(|side| *side = side.or(Some(px)));
+        }
         let build = CellBuild {
             header,
             colspan: span("colspan", 1, MAX_TABLE_COLUMNS as u16),
             rowspan: span("rowspan", u32::from(!grid), MAX_ROW_SPAN),
-            background: css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
+            background,
             width: sized(&css, attr("width").and_then(|w| style::attr_length(&w))),
             border: {
                 let [top, right, bottom, left] = css.borders;
                 Sides { top, right, bottom, left }
             },
             lines: css.lines,
-            padding: css.padding_insets(),
+            padding: padding.iter().any(Option::is_some).then(|| {
+                let [top, right, bottom, left] = padding.map(|side| side.unwrap_or(0));
+                Insets { top, right, bottom, left }
+            }),
             radius: css.radius,
             valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
             bg_picture,
+            bar: background.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
@@ -2588,6 +2606,7 @@ impl Builder {
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bar: None,
                 inline: true,
                 table: css.table,
                 parent,
@@ -2820,6 +2839,7 @@ impl Builder {
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || bg_picture.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
+                bar: background.and(bar_px(css.height)),
                 bg_picture,
             }),
         };
@@ -3215,6 +3235,30 @@ pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
     // (`dir` is a style a browser gives the element, which the message's own beats.)
     css.direction = css.direction.or_else(|| tag.attr("dir").as_deref().and_then(Dir::attr));
     css
+}
+
+/// The tallest coloured bar an empty block or cell may be, in pixels: an accent above a card or a
+/// divider is a few pixels, and past this a bar of nothing but colour would only push the message
+/// down the pane (a sender could fill the screen with it). The same as the room a box may have.
+const MAX_BAR_PX: u8 = MAX_BOX_PX;
+
+/// The height of a coloured bar: whole pixels of a `height` (a style's, or a cell's attribute), 1
+/// to [`MAX_BAR_PX`]; nothing for none, zero, a negative one or nonsense.
+fn bar_px(height: Option<f32>) -> Option<u8> {
+    height.filter(|h| h.is_finite() && *h >= 0.5).map(|h| h.round().min(f32::from(MAX_BAR_PX)) as u8)
+}
+
+/// Whether blocks hold nothing to see: no blocks, or only paragraphs of white space.
+fn blank(blocks: &[Block]) -> bool {
+    blocks.iter().all(|b| matches!(b.kind, BlockKind::Paragraph) && b.spans.iter().all(|s| s.text.trim().is_empty()))
+}
+
+/// The room inside a coloured bar: its height above, on top of its own padding.
+// lean: the height rides as room above in a cell that holds nothing, which both renderers draw
+// as they are; a `Cell::height` of its own if a cell with content ever needs one.
+fn bar(padding: Option<Insets>, height: u8) -> Option<Insets> {
+    let pad = padding.unwrap_or_default();
+    Some(Insets { top: pad.top.saturating_add(height).min(MAX_BOX_PX), ..pad })
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
