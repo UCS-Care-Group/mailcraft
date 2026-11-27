@@ -255,6 +255,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
     ("ui.closeToTray", r#"{"value": true}"#, Setup::None),
+    ("ui.startToTray", r#"{"value": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
     ("ui.attachmentPictures", "{}", Setup::None),
     ("ui.swipeAction", r#"{"direction": "left", "action": "archive"}"#, Setup::None),

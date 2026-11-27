@@ -147,8 +147,10 @@ struct App(
     tray::Tray,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
     #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     /// Whether MailCraft should start hidden in the system tray (Linux/FreeBSD only).
     bool,
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     /// After the first frame (which eframe forces visible), hide the window on the next frame.
     bool,
 );
@@ -1688,6 +1690,7 @@ fn main() -> eframe::Result {
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
     let (prefs, settings_unread) = load_prefs();
     let close_to_tray = prefs.as_ref().is_some_and(|ui| ui.close_to_tray);
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     let start_to_tray = prefs.as_ref().is_some_and(|ui| ui.start_to_tray);
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     let start_hidden = start_to_tray && tray::x11_reachable();
@@ -1827,6 +1830,10 @@ fn main() -> eframe::Result {
                 match prefs {
                     Some(ui) => app.apply_prefs(ui),
                     None => app.fresh_prefs(),
+                }
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+                if start_hidden {
+                    app.ui.close_to_tray = true;
                 }
                 app.settings_unread = settings_unread;
                 app.software_drawing = software;
