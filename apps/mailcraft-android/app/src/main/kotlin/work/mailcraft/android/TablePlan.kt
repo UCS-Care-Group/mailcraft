@@ -52,7 +52,8 @@ internal fun gridOf(table: TableView): Grid {
             columns = maxOf(columns, p.col + p.cols)
         }
     }
-    // A row span ends with the last row a cell starts in, as the core holds it.
+    // A row span ends with the last row a cell starts in. (The core holds it to its own last row, which
+    // can be an empty row below that: that row has no cells to draw here.)
     val held = placed.map {
         if (it.row + it.rows <= rows) it else PlacedCell(it.cell, it.row, it.col, it.cols, rows - it.row)
     }

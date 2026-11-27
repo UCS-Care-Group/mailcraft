@@ -48,11 +48,23 @@ private fun headerTint(paper: Paper): Color =
 
 private fun placeOf(m: Measurable): PlacedCell? = (m.layoutId as? CellPlace)?.placed
 
+/**
+ * What [ask] answers, or [fallback] when Compose can't: its own intrinsics throw for a cell taller than
+ * a measure's constraints can hold (about 262,000 px, a few thousand lines).
+ */
+private inline fun intrinsic(fallback: Int, ask: () -> Int): Int =
+    try {
+        ask()
+    } catch (_: IllegalArgumentException) {
+        fallback
+    }
+
 /** What the cell at [p] asks of its columns, measured as [m]: never narrower than its longest word, up to a point. */
 private fun Density.needOf(table: TableView, p: PlacedCell, m: Measurable): CellNeed {
     val pad = cellSides(table, p.cell).dp.toPx()
-    val most = m.maxIntrinsicWidth(Constraints.Infinity) + SLACK
-    val word = minOf(m.minIntrinsicWidth(Constraints.Infinity) + SLACK, DataMaxWord.toPx() * fontScale + pad)
+    val cap = DataMaxWord.toPx() * fontScale + pad
+    val most = intrinsic(cap.toInt()) { m.maxIntrinsicWidth(Constraints.Infinity) } + SLACK
+    val word = minOf(intrinsic(cap.toInt()) { m.minIntrinsicWidth(Constraints.Infinity) } + SLACK, cap)
     val floor = if (p.cell.blocks.isEmpty()) 0f else DataMinCell.toPx() + pad
     return CellNeed(
         p.col, p.cols, maxOf(minOf(word, most), floor), maxOf(most, floor),
@@ -95,7 +107,8 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
             val asked = if (table.width != null) room.toPx() else null
             val edges = edgesOf(dataColumnWidths(needs, grid.columns, room.toPx(), asked))
             fun wide(p: PlacedCell): Int = edges.between(p.col, p.col + p.cols)
-            val tops = dataRowTops(cells.map { (p, m) -> p to m.minIntrinsicHeight(wide(p)) }, grid.rows)
+            val heights = cells.map { (p, m) -> p to intrinsic(MAX_BOX_HEIGHT) { m.minIntrinsicHeight(wide(p)) } }
+            val tops = dataRowTops(heights, grid.rows)
             val placeables = cells.map { (p, m) ->
                 m.measure(Constraints.fixed(wide(p), tops.between(p.row, p.row + p.rows))) to p
             }

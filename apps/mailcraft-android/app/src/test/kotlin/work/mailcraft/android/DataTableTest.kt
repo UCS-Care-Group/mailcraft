@@ -4,6 +4,7 @@
 
 package work.mailcraft.android
 
+import androidx.compose.ui.unit.Constraints
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -52,6 +53,18 @@ class DataTableTest {
     fun aWidthOnACellOverColumnsIsLeftToItsWordsAsOnTheDesktop() {
         val widths = dataColumnWidths(listOf(need(0, 40f, 80f, cols = 2, px = 240f)), 2, room = 328f, asked = null)
         assertEquals(80f, widths.sum(), 0.01f)
+    }
+
+    @Test
+    fun aCellEverSoTallOrWideStillFitsWhatAMeasureTakes() {
+        // About 5,000 lines in one cell, a cell over 200 rows of 1,300 px, an Int's worth of height.
+        val tall = dataRowTops(listOf(placed(0, 1) to 310_000, placed(1, 200) to 260_000, placed(1, 1) to Int.MAX_VALUE), 201)
+        assertTrue(tall.all { it in 0..MAX_BOX_HEIGHT })
+        val wide = edgesOf(FloatArray(10) { 1_000f })
+        assertTrue(wide.all { it in 0..MAX_BOX_WIDTH })
+        for ((w, h) in listOf(wide.between(0, 10) to tall.between(0, 201), wide.between(0, 1) to tall.between(1, 201))) {
+            Constraints.fixed(w, h)
+        }
     }
 
     @Test

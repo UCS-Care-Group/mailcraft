@@ -91,26 +91,31 @@ internal fun dataColumnWidths(needs: List<CellNeed>, columns: Int, room: Float, 
 /**
  * The top of each of [rows] rows and the bottom of the last, in pixels, from the height each placed
  * cell needs ([heights], by cell): a row is as tall as the cells that end in it need, so a cell over
- * several rows makes only the last of them taller, as in the reading pane.
+ * several rows makes only the last of them taller, as in the reading pane. No top is past
+ * [MAX_BOX_HEIGHT], which a measure always takes.
  */
 internal fun dataRowTops(heights: List<Pair<PlacedCell, Int>>, rows: Int): IntArray {
     val n = rows.coerceAtLeast(0)
     val tops = IntArray(n + 1)
     val ending = heights.groupBy { (p, _) -> p.row + p.rows - 1 }
     for (r in 0 until n) {
-        val bottom = ending[r].orEmpty().maxOfOrNull { (p, h) -> tops.at(p.row) + h.coerceAtLeast(0) } ?: 0
-        tops[r + 1] = maxOf(tops[r], bottom)
+        val bottom = ending[r].orEmpty().maxOfOrNull { (p, h) -> tops.at(p.row) + h.coerceIn(0, MAX_BOX_HEIGHT) } ?: 0
+        // lean: a table taller than this is cut at its foot, as a picture is; drawn in pieces if one ever needs more.
+        tops[r + 1] = maxOf(tops[r], bottom).coerceAtMost(MAX_BOX_HEIGHT)
     }
     return tops
 }
 
-/** Where the column edges of [widths] lie, rounded: the left edge of each column, and the right edge of the last. */
+/**
+ * Where the column edges of [widths] lie, rounded: the left edge of each column, and the right edge of
+ * the last, never past [MAX_BOX_WIDTH].
+ */
 internal fun edgesOf(widths: FloatArray): IntArray {
     val edges = IntArray(widths.size + 1)
     var at = 0f
     widths.forEachIndexed { i, w ->
         at += w
-        edges[i + 1] = Math.round(at)
+        edges[i + 1] = Math.round(at).coerceIn(0, MAX_BOX_WIDTH)
     }
     return edges
 }

@@ -94,8 +94,9 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
             if (widths == null) {
                 section.placed.forEach { CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth()) }
             } else {
+                val byRow = remember(section) { section.placed.groupBy { it.row } }
                 for (r in 0 until section.rows) {
-                    LayoutRow(table, section.placed.filter { it.row == r }, widths, gap, env, paper)
+                    LayoutRow(table, byRow[r].orEmpty(), widths, gap, env, paper)
                 }
             }
         }

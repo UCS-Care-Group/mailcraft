@@ -8,6 +8,7 @@ import uniffi.mailcraft_mobile.AddressRecord
 import uniffi.mailcraft_mobile.AlignView
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
+import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.MessageView
 import uniffi.mailcraft_mobile.TableView
 
@@ -90,6 +91,37 @@ internal object TablesRtl {
                 B.block(BlockKindView.Paragraph, B.span("דנה"), align = AlignView.RIGHT, rtl = true),
                 B.block(BlockKindView.Paragraph, B.span("On Monday, Bo Example wrote:"), quote = 1u),
                 B.block(BlockKindView.Paragraph, B.span("Could you send the seed trays this week?"), quote = 1u, space = 0u),
+            ),
+        ),
+        emptyList(),
+    )
+
+    private fun lines(n: Int) = (1..n).joinToString("\n") { "Line $it of the delivery note" }
+
+    /** A cell of about 5,000 lines in a table of the phone's width: taller than a measure can pack beside its width. */
+    val tallNarrow = Corpus.Entry(
+        "tall_narrow",
+        view(14uL, "Delivery note", listOf(B.p("The full note:", 0u), B.tableBlock(B.table(layout = false, border = true, rows = listOf(listOf(td("Note", 0 to 0), td(lines(5_000), 0 to 1))))))),
+        emptyList(),
+    )
+
+    /** Three columns that ask for 1,000 dp each, and a footer over all of them of about 1,100 lines. */
+    val tallWide = Corpus.Entry(
+        "tall_wide",
+        view(
+            15uL, "Delivery note, wide",
+            listOf(
+                B.p("The full note:", 0u),
+                B.tableBlock(
+                    B.table(
+                        layout = false,
+                        border = true,
+                        rows = listOf(
+                            listOf("A", "B", "C").mapIndexed { c, t -> B.cell(B.p(t, 0u), width = LengthView.Px(1_000u), at = 0 to c) },
+                            listOf(td(lines(1_100), 1 to 0, colspan = 3u)),
+                        ),
+                    ),
+                ),
             ),
         ),
         emptyList(),

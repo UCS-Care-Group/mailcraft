@@ -47,4 +47,17 @@ class TablesRtlScreenshotTest {
 
     @Test
     fun mixedDirectionTable() = shoot(TablesRtl.mixed)
+
+    /** A cell too tall to measure beside its width is held to the most a measure takes, not a crash. */
+    @Test
+    fun aVeryTallCellInANarrowTable() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        paparazzi.snapshot("reading_${TablesRtl.tallNarrow.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallNarrow)) }
+    }
+
+    @Test
+    fun aVeryTallCellInAWideTable() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        paparazzi.snapshot("reading_${TablesRtl.tallWide.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallWide)) }
+    }
 }

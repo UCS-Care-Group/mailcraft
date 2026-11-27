@@ -16,18 +16,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uniffi.mailcraft_mobile.AlignView
@@ -77,11 +80,15 @@ private const val SPACE_FOR_QUOTE_BAR = 3
 internal fun BodyLineView(line: BodyLine, env: BodyEnv, paper: Paper, width: Dp) {
     val first = line.blocks.first()
     val pad = Modifier.padding(top = spaceAbove(first))
-    Box(modifier = pad.quoted(first.quote.toInt(), env.rule)) {
-        if (line.blocks.size == 1) {
-            SingleBlock(first, env, paper, width)
-        } else {
-            InlineRun(line.blocks, env, paper, width)
+    // A message is laid out from the left whichever way the phone reads, as on the desktop: only its
+    // own right-to-left text and list items read from the right.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Box(modifier = pad.quoted(first.quote.toInt(), env.rule)) {
+            if (line.blocks.size == 1) {
+                SingleBlock(first, env, paper, width)
+            } else {
+                InlineRun(line.blocks, env, paper, width)
+            }
         }
     }
 }
