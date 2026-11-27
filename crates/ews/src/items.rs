@@ -426,7 +426,9 @@ pub const MAX_LISTED_ASKED: usize = 100;
 /// What [`GetItemListed`] read: the messages the server answered for, and the ids it said are gone.
 #[derive(Default)]
 pub struct Listed {
+    /// The messages the server answered for, in the order asked.
     pub messages: Vec<GraphMessage>,
+    /// The ids it answered `ErrorItemNotFound` for: gone since they were listed.
     pub gone: Vec<String>,
 }
 
