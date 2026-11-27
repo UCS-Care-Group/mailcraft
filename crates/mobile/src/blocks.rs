@@ -5,12 +5,12 @@
 //! needs is carried; nothing is fetched, and a picture's bytes come through `Core::picture` by
 //! the reference a block names.
 
-use mailcraft_html::{Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, Marker, Rgb, Row, Sides, Span, Table, VAlign};
+use mailcraft_html::{
+    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Rgb, Row, Sides, Span, Table, VAlign,
+};
 
 use crate::text::MAX_URL;
 
-/// Deepest nesting of tables that is carried (the parser keeps to 12).
-const MAX_DEPTH: usize = 16;
 /// Most blocks, cells and spans in one message's records: past it the rest is left out.
 const MAX_NODES: usize = 60_000;
 
@@ -281,7 +281,16 @@ fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, dep
         if !budget.take() {
             break;
         }
-        out.push(block(b, pictures, budget, depth));
+        match &b.kind {
+            // Deeper than the parser nests: the grid goes, its text stays, cell by cell in
+            // reading order, as the parser itself does past its limit.
+            BlockKind::Table(t) if depth >= MAX_TABLE_DEPTH => {
+                for c in t.rows.iter().flat_map(|r| &r.cells) {
+                    out.extend(blocks_of(&c.blocks, pictures, budget, depth));
+                }
+            }
+            _ => out.push(block(b, pictures, budget, depth)),
+        }
     }
     out
 }
@@ -320,9 +329,8 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
             };
             BlockKindView::Image { src: src.clone(), width: *width, height: *height, link: link(to.as_deref()), picture }
         }
-        BlockKind::Table(t) if depth < MAX_DEPTH => BlockKindView::Table { table: table(t, pictures, budget, depth + 1) },
-        // Nested deeper than any parser output: its text stays, its grid goes.
-        BlockKind::Table(_) => BlockKindView::Paragraph,
+        // `blocks_of` lays out a table past the parser's depth as its cells' blocks.
+        BlockKind::Table(t) => BlockKindView::Table { table: table(t, pictures, budget, depth.saturating_add(1)) },
     };
     BlockView {
         kind,

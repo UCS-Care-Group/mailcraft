@@ -34,6 +34,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{FolderListing, GraphProgress, MessagePage, SendDone, SendUp, ThreadOf, is_false};
 use crate::Id;
+use crate::contact_sync::{ContactOp, ContactsUploaded, FolderOwner};
+use crate::remote::ContactsDownload;
 
 /// Most messages of one mailbox that a run reads (the newest ones): what [`JmapMailRequest::window`]
 /// is held to, here and by the host.
@@ -82,6 +84,38 @@ pub struct JmapMailRequest {
     /// asked for those ids after the rest of the run, at most [`super::MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// The account's contacts, kept in step after the mail (RFC 9610, #1068, #1076): what goes up,
+    /// and where each owner's address books were read up to. `None`: contacts are left alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts: Option<JmapContactsRequest>,
+}
+
+/// The contacts part of a JMAP run: the changes made here, then what changed on the server.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapContactsRequest {
+    /// What the server is to be told, oldest first (`sync.contactChanges`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ops: Vec<ContactOp>,
+    /// For each owner whose address books are here (the account's own, a person who shared some):
+    /// where they were read up to.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<JmapContactPlace>,
+}
+
+/// Where one owner's address books were read up to.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JmapContactPlace {
+    pub owner: FolderOwner,
+    /// The server's state of its contact cards that every one of them was read up to (JMAP keeps
+    /// one for the whole account); empty: they are read whole.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub state: String,
+    /// The address books here, by the server's ids (empty: the owner's default one). A run that
+    /// finds one the server lists that isn't here reads them all whole.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub books: Vec<String>,
 }
 
 /// Messages of a JMAP account to fetch whole (their raw octets, which an email's blob holds), by
@@ -273,6 +307,17 @@ pub struct JmapMailResult {
     /// owner is told to sign in again, and the run is not repeated by itself.
     #[serde(skip_serializing_if = "is_false")]
     pub auth_refused: bool,
+    /// What the server made of the changes of contacts sent ([`JmapMailRequest::contacts`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts_sent: Option<ContactsUploaded>,
+    /// The contacts read: one download for each address book the server lists.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub contacts: Vec<ContactsDownload>,
+    /// Each owner whose address books the server listed in full this run (no state): the books it
+    /// has, by id, the default one as empty. A contacts folder of that owner here whose book isn't
+    /// among them is gone from the server.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub contact_listed: Vec<JmapContactPlace>,
 }
 
 impl JmapMailResult {
@@ -300,6 +345,11 @@ impl JmapMailResult {
             self.progress = piece.progress;
         }
         self.auth_refused |= piece.auth_refused;
+        if piece.contacts_sent.is_some() {
+            self.contacts_sent = piece.contacts_sent;
+        }
+        self.contacts.extend(piece.contacts);
+        self.contact_listed.extend(piece.contact_listed);
     }
 }
 
@@ -319,6 +369,7 @@ impl std::fmt::Debug for JmapMailRequest {
             .field("changes", &self.changes.len())
             .field("sends", &self.sends.len())
             .field("background", &self.background)
+            .field("contact_ops", &self.contacts.as_ref().map(|c| c.ops.len()))
             .finish()
     }
 }
@@ -353,6 +404,8 @@ impl std::fmt::Debug for JmapMailResult {
             .field("stopped", &self.stopped)
             .field("progress", &self.progress.is_some())
             .field("auth_refused", &self.auth_refused)
+            .field("contacts_sent", &self.contacts_sent.as_ref().map(|c| c.outcomes.len()))
+            .field("contact_books", &self.contacts.len())
             .finish()
     }
 }

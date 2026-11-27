@@ -13,6 +13,7 @@ import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.CellView
 import uniffi.mailcraft_mobile.InsetsView
 import uniffi.mailcraft_mobile.LengthView
+import uniffi.mailcraft_mobile.LineHeightView
 import uniffi.mailcraft_mobile.LineStyleView
 import uniffi.mailcraft_mobile.LineView
 import uniffi.mailcraft_mobile.MarkerView
@@ -81,7 +82,7 @@ internal object Corpus {
 
     class Entry(val name: String, val view: MessageView, val links: List<String>)
 
-    private fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
+    fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
         MessageView(
             1uL, id, 1uL, 1uL, ada, listOf(me), emptyList(), subject, 1_730_000_000L, false, false, emptyList(),
             attachments, blocks, false, remote, true,
@@ -175,6 +176,28 @@ internal object Corpus {
         emptyList(),
     )
 
+    /** A table of ten columns, far wider than a phone: it scrolls sideways on its own, and a swipe must wait for its edge. */
+    val wideTable = Entry(
+        "wide",
+        view(
+            4uL, "Planting schedule, whole year",
+            listOf(
+                B.p("Every bed, every month.", 0u),
+                B.tableBlock(
+                    B.table(
+                        layout = false,
+                        border = true,
+                        rows = listOf(
+                            listOf("Bed", "January", "February", "March", "April", "May", "June", "July", "August", "September").map { B.cell(B.p(it, 0u), header = true) },
+                            listOf("North border", "Prune hedging", "Order seed", "Sow peas", "Plant out sweet peas", "Water weekly", "Pick first roses", "Deadhead", "Collect seed", "Divide perennials").map { B.cell(B.p(it, 0u)) },
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        emptyList(),
+    )
+
     val reply = Entry(
         "reply",
         view(
@@ -204,6 +227,28 @@ internal object Corpus {
             ),
         ),
         listOf(LONG, "https://evil.example/collect"),
+    )
+
+    private fun exact(px: UByte, size: UByte, vararg spans: Pair<String, String?>, space: UByte = 1u) = BlockView(
+        BlockKindView.Paragraph, spans.map { (text, link) -> B.span(text, link = link, size = size) },
+        0u, AlignView.CENTER, space, false, 0u, LineHeightView.Px(px), 0u, 0u, null, B.noLine,
+    )
+
+    /** An invoice's footer as the core reads `font-size:12px; line-height:10px; mso-line-height-rule:exactly` (#1967). */
+    val footer = Entry(
+        "footer",
+        view(
+            6uL, "Your invoice is ready",
+            listOf(
+                B.p("Thank you for your payment. Your invoice is attached.", 0u),
+                exact(
+                    10u, 12u, "visit our website" to "https://example.org/", " | " to null, "log in" to "https://example.org/login",
+                    " | " to null, "get support" to "https://example.org/help",
+                ),
+                exact(9u, 11u, "© 2026 Example Ltd. All rights reserved. Registered in England, company no. 00000000." to null, space = 0u),
+            ),
+        ),
+        listOf("https://example.org/", "https://example.org/login", "https://example.org/help"),
     )
 
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)

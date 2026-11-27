@@ -20,6 +20,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.AttachmentRecord
 import uniffi.mailcraft_mobile.OpenVerdict
 
 internal fun item(
@@ -73,6 +74,22 @@ internal class FakeDevice : AttachmentDevice {
         duringWrite()
         if (canWrite) written += target to bytes.size
         return canWrite
+    }
+}
+
+class ListedAttachmentsTest {
+    private fun record(index: UInt, name: String, inline: Boolean) = AttachmentRecord(index, name, "image/png", 2_048uL, inline)
+
+    @Test
+    fun picturesTheBodyShowsAreNeverListedEvenWithNoOtherFile() {
+        // Two signature pictures and nothing else: no attachment at all, as Outlook shows it.
+        assertTrue(listedRecords(listOf(record(0u, "image001.png", true), record(1u, "image002.png", true))).isEmpty())
+    }
+
+    @Test
+    fun aFileBesideThemIsListed() {
+        val listed = listedRecords(listOf(record(0u, "image001.png", true), record(1u, "photo.png", false)))
+        assertEquals(listOf("photo.png"), listed.map { it.name })
     }
 }
 

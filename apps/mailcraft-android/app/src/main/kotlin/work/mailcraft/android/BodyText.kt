@@ -28,8 +28,44 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import uniffi.mailcraft_mobile.SpanView
 
-/** The paper a piece of a message is drawn on and the ink that reads on it, as `0xRRGGBB`. */
-internal data class Paper(val rgb: Int, val ink: Int, val link: Int) {
+/**
+ * The paper a piece of a message is drawn on and the ink that reads on it, as `0xRRGGBB`. [turn] is the
+ * reader's dark paper when the message's own colours are recoloured for a dark reading (#1966), else null;
+ * [asked] the colour the message wrote for this paper (null for the reader's own page); [dark] whether
+ * the page is dark (the dark theme, its light page off), recoloured or not.
+ */
+internal data class Paper(
+    val rgb: Int,
+    val ink: Int,
+    val link: Int,
+    val turn: Int? = null,
+    val asked: Int? = null,
+    val dark: Boolean = false,
+) {
+    /** A background the message asks for, as it is painted here. */
+    fun back(asked: Int): Int = turn?.let { Readability.darkBackground(asked, it) } ?: asked
+
+    /**
+     * A line the message asks for, as it is painted on this paper (the desktop's rule): one in the very
+     * colour written for this paper stays unseen, as the sender meant; else turned like a background and
+     * brought to [Readability.LINE_CONTRAST].
+     */
+    fun line(asked: Int): Int {
+        val written = asked and RGB_MASK
+        if (this.asked == written) return rgb
+        return Readability.lineOn(back(written), rgb)
+    }
+
+    /** A horizontal rule the message colours: as written unless recoloured, then as [line]. */
+    fun rule(asked: Int): Int = if (turn == null) asked and RGB_MASK else line(asked)
+
+    /** The paper of a box of the message's own inside this one. */
+    fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn, asked = asked and RGB_MASK, dark = dark)
+
+    /** A text colour the message asks for, on [behind] (painted here), as it is drawn. */
+    fun inkOn(asked: Int, behind: Int): Int =
+        if (dark) Readability.darkInk(asked, behind) else Readability.adjust(asked, behind)
+
     companion object {
         /** A paper of [rgb] of the message's own, with the default ink for it. */
         fun of(rgb: Int, link: Int): Paper = Paper(rgb, Readability.plainInk(rgb), Readability.adjust(link, rgb))
@@ -74,10 +110,10 @@ internal fun familyOf(font: String?, code: Boolean): FontFamily? {
 
 /** The colour of a span's text on [paper]: its own, adjusted to read, else the paper's ink (or the link colour). */
 private fun inkOf(span: SpanView, paper: Paper, linked: Boolean): Int {
-    val behind = span.background?.rgb() ?: paper.rgb
+    val behind = span.background?.rgb()?.let(paper::back) ?: paper.rgb
     val own = span.color?.rgb()
     return when {
-        own != null -> Readability.adjust(own, behind)
+        own != null -> paper.inkOn(own, behind)
         linked -> Readability.adjust(paper.link, behind)
         span.background != null -> Readability.plainInk(behind)
         else -> paper.ink
@@ -92,14 +128,17 @@ private fun decorationOf(span: SpanView, linked: Boolean): TextDecoration? {
     return if (lines.isEmpty()) null else TextDecoration.combine(lines)
 }
 
+/** The size a span asks for, in sp, within [MAX_SIZE]; null when it asks for none. */
+internal fun sizeOf(span: SpanView): Int? = span.size?.toInt()?.coerceIn(1, MAX_SIZE)
+
 /** The style of one span on [paper]: what it asks for, with the colours adjusted to read. */
 internal fun styleOf(span: SpanView, paper: Paper, linked: Boolean): SpanStyle = SpanStyle(
     color = composeColor(inkOf(span, paper, linked)),
-    background = span.background?.let { composeColor(it.rgb()) } ?: Color.Unspecified,
+    background = span.background?.let { composeColor(paper.back(it.rgb())) } ?: Color.Unspecified,
     fontWeight = if (span.bold) FontWeight.Bold else null,
     fontStyle = if (span.italic) FontStyle.Italic else null,
     textDecoration = decorationOf(span, linked),
-    fontSize = span.size?.toInt()?.coerceIn(1, MAX_SIZE)?.sp ?: TextUnit.Unspecified,
+    fontSize = sizeOf(span)?.sp ?: TextUnit.Unspecified,
     fontFamily = familyOf(span.font, span.code),
 )
 

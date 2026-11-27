@@ -978,7 +978,7 @@ pub(crate) mod kit {
             let sheet = Rect::from_min_max(pos2(strip.min.x + SIDE, strip.min.y + OVER), pos2(strip.max.x - SIDE, strip.min.y + OVER + BAND_H));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
             let line = t.ribbon_edge;
-            ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
+            ui.painter().rect(sheet, t.sheet_radius, t.ribbon, line, egui::StrokeKind::Inside);
             let edge = (BAND_H - BUTTON_H) / 2.0;
             let area = Rect::from_min_max(pos2(sheet.min.x + SIDE, sheet.min.y + edge), pos2(sheet.max.x - SIDE, sheet.max.y - edge));
             let names: Vec<f32> = items
@@ -3473,6 +3473,60 @@ mod contact {
         });
     }
 
+    /// Where a new contact goes, `picked` or by itself: the folder (0: On this computer; `None`:
+    /// the account's main folder, made when the contact is) and its account (0: none).
+    pub(super) fn destination(s: &Session, picked: Option<Id>) -> (Option<Id>, Id) {
+        use mailcraft_engine::cmd::contacts_remote::{default_contact_folder, home};
+        let account_of = |f: Id| home(&s.mailbox, f).map_or(0, |f| f.account);
+        match picked.map(Ok).unwrap_or_else(|| default_contact_folder(s)) {
+            Ok(f) => (Some(f), account_of(f)),
+            Err(account) => (None, account),
+        }
+    }
+
+    /// The contacts folder a new contact goes in: those of each account it can go in, then On
+    /// this computer. Unpicked, it shows where `people.new` puts it by itself.
+    fn folder_combo(ui: &mut Ui, app: &MailApp, folder: &mut Option<Id>) {
+        let mailbox = &app.session.mailbox;
+        let name = |f: Id| crate::people_view::folder_name(mailbox, f);
+        let writable = |f: &Id| mailbox.contact_folder(*f).is_some_and(|f| f.writable);
+        let (current, account) = destination(&app.session, *folder);
+        // The main folder of the account a new contact goes to by itself, before it is made:
+        // offered as such (`None`), so it can be chosen again after another one was.
+        let unmade = match destination(&app.session, None) {
+            (None, account) => Some(account),
+            _ => None,
+        };
+        let label = |f: Option<Id>, account: Id| match f {
+            Some(f) => name(f),
+            None => {
+                crate::i18n::fmt(tl!("{folder} ({owner})"), &[("folder", tl!("Contacts")), ("owner", &crate::widgets::place_name(mailbox, account))])
+            }
+        };
+        let choices: Vec<Option<Id>> = unmade
+            .map(|_| None)
+            .into_iter()
+            .chain(
+                mailcraft_engine::cmd::people::contact_accounts(mailbox)
+                    .into_iter()
+                    .flat_map(|account| crate::address_book::contact_folders(mailbox, account))
+                    .filter(writable)
+                    .chain([0])
+                    .map(Some),
+            )
+            .collect();
+        egui::ComboBox::from_id_salt("contact_folder").width(ui.available_width()).selected_text(label(current, account)).truncate().show_ui(
+            ui,
+            |ui| {
+                for f in choices {
+                    if ui.selectable_label(current == f, label(f, unmade.unwrap_or(0))).clicked() {
+                        *folder = f;
+                    }
+                }
+            },
+        );
+    }
+
     /// The rows of e-mail addresses or phone numbers, with a button that adds one more.
     fn labeled_rows(ui: &mut Ui, pass: &mut Pass, title: &str, key: &'static str, rows: &mut Vec<Labeled>, labels: &[&str], more: &str) {
         let count = rows.len();
@@ -3518,6 +3572,9 @@ mod contact {
     pub struct ContactForm {
         /// The contact being edited; `None` for a new one.
         id: Option<Id>,
+        /// The contacts folder a new contact goes in, picked (0: On this computer); `None`: where
+        /// `people.new` puts it by itself, which the picker shows (#1917).
+        folder: Option<Id>,
         first: String,
         last: String,
         display: String,
@@ -3688,7 +3745,12 @@ mod contact {
                     m.insert("id".into(), json!(id));
                     ("people.edit", Value::Object(m))
                 }
-                None => ("people.new", Value::Object(m)),
+                None => {
+                    if let Some(folder) = self.folder {
+                        m.insert("folder".into(), json!(folder));
+                    }
+                    ("people.new", Value::Object(m))
+                }
             }
         }
 
@@ -3704,9 +3766,17 @@ mod contact {
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            // A new contact takes the categories of the account it goes to.
+            let account = match self.id {
+                Some(id) => app.session.mailbox.contact(id).map_or(0, |c| c.origin.account),
+                None => destination(&app.session, self.folder).1,
+            };
             let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
+                // Where a new contact goes, where there is more than one place (#1917).
+                if self.id.is_none() && !mailcraft_engine::cmd::people::contact_accounts(&app.session.mailbox).is_empty() {
+                    row(ui, tl!("Kept in"), |ui| folder_combo(ui, app, &mut self.folder));
+                }
                 row(ui, tl!("First name"), |ui| {
                     pass.text(ui, "first", &mut self.first, f32::INFINITY, "");
                 });

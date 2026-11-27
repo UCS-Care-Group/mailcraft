@@ -7,6 +7,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.ContactFolderRecord
+import uniffi.mailcraft_mobile.ContactFolders
 
 class PeopleTest {
     private fun row(id: ULong, name: String) = PersonRow(id, name, "")
@@ -87,5 +89,45 @@ class PeopleTest {
     fun aCardSaysWhoAPersonIsOnOneLine() {
         val card = PersonCard(1u, "Ada", "Example Ltd", "Engineer", "", emptyList(), emptyList(), emptyList())
         assertEquals("Engineer · Example Ltd", card.subtitle)
+    }
+
+    @Test
+    fun aCardSaysWhereThePersonIsKept() {
+        val card = PersonCard(1u, "Ada", "", "", "", emptyList(), emptyList(), emptyList())
+        assertEquals("Kept in: This phone", keptInLine(EnglishTexts, card))
+        val shared = card.copy(keptIn = "Contacts (sales@example.org)", readOnly = true)
+        assertEquals("Kept in: Contacts (sales@example.org) (read only)", keptInLine(EnglishTexts, shared))
+    }
+
+    private fun folder(id: ULong?, name: String) = ContactFolderRecord(id, 1u, name, "own")
+
+    @Test
+    fun aNewPersonIsOfferedThisPhoneAndTheFoldersWithTheCoresDefault() {
+        val two = listOf(folder(11u, "Contacts (ada@example.org)"), folder(12u, "Club (ada@example.org)"))
+        val places = personPlaces("This phone", ContactFolders(0u, two, 1u))
+        assertEquals(listOf(PHONE, 11uL, 12uL), places.places.map { it.folder })
+        assertEquals(12uL, places.default)
+        // No default named: this phone. A main folder not made yet has no id, and is the default.
+        assertEquals(PHONE, personPlaces("This phone", ContactFolders(0u, two, null)).default)
+        assertNull(personPlaces("This phone", ContactFolders(0u, listOf(folder(null, "Contacts")), 0u)).default)
+        // An index past the end is this phone, not a crash.
+        assertEquals(PHONE, personPlaces("This phone", ContactFolders(0u, two, 9u)).default)
+    }
+
+    @Test
+    fun aFormWithNoPlacePickedGoesWhereItShowedItWould() {
+        val places = PersonPlaces(emptyList(), 12u)
+        assertEquals(12uL, PersonDraft().placed(places).folder)
+        assertEquals(PHONE, PersonDraft(folder = PHONE).placed(places).folder)
+        assertNull(PersonDraft().placed(null).folder)
+    }
+
+    @Test
+    fun aPersonCanBeMovedEverywhereButWhereItIsAndAMainFolderNotMadeYet() {
+        val listed = listOf(folder(11u, "Contacts (ada@example.org)"), folder(null, "Contacts (bo@example.org)"))
+        val places = personPlaces("This phone", ContactFolders(0u, listed, null))
+        val card = PersonCard(1u, "Ada", "", "", "", emptyList(), emptyList(), emptyList(), folder = 11u)
+        assertEquals(listOf(PHONE), moveTargets(card, places).map { it.folder })
+        assertEquals(listOf(11uL), moveTargets(card.copy(folder = PHONE), places).map { it.folder })
     }
 }

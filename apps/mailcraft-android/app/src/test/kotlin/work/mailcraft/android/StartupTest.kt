@@ -23,7 +23,11 @@ import org.junit.Test
 
 /** Opening the core off the main thread: loading until it is open, and nothing reaches it before. */
 class StartupTest {
-    private val io = Executors.newSingleThreadExecutor { Thread(it, "test-io") }.asCoroutineDispatcher()
+    // Kept to compare by identity: with assertions on, coroutines debug mode renames a thread to
+    // "test-io @coroutine#1" while a coroutine runs on it, so its name is racy to read.
+    private val ioThread = AtomicReference<Thread?>(null)
+    private val io = Executors.newSingleThreadExecutor { Thread(it, "test-io").also(ioThread::set) }
+        .asCoroutineDispatcher()
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     private fun <T : Any> settled(startup: Startup<T>): Phase<T> = runBlocking {
@@ -60,7 +64,7 @@ class StartupTest {
         assertEquals("core", startup.readyOrNull())
         // Opened on the background thread, never the caller's.
         assertNotEquals(Thread.currentThread(), openedOn.get())
-        assertEquals("test-io", openedOn.get()?.name)
+        assertSame(ioThread.get(), openedOn.get())
         // Wired before it was said to be ready.
         assertEquals(listOf(true), wiredWhileLoading)
     }

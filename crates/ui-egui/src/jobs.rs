@@ -53,7 +53,7 @@ impl MailApp {
             free_busy: self.free_busy.busy(),
             graph: self.graph_rx.is_some(),
             mail_run: self.sync_rx.is_some(),
-            signing_in: self.signing_in.is_some(),
+            signing_in: self.signing_in.as_ref().map(|s| s.account),
             queued: !self.session.driver.round.queue.is_empty(),
             inbox_queued: !self.session.driver.round.inbox_queue.is_empty(),
             approving: self.approving(),
