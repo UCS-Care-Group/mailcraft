@@ -16,7 +16,7 @@ use crate::entities::unescape;
 use crate::look::{Holder, Look, is_box};
 use crate::media::Env;
 use crate::sheet;
-use crate::style::{self, Css, MsoList, Size, TableDisplay};
+use crate::style::{self, Css, MsoList, Size, TableDisplay, Weight};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
     Align, BgPicture, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT,
@@ -358,6 +358,8 @@ fn box_holder(builder: &Builder, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<u
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Style {
     bold: bool,
+    /// The weight, when it is neither 400 nor (bold) 700 ([`Span::weight`]).
+    weight: Option<u16>,
     italic: bool,
     underline: bool,
     strike: bool,
@@ -398,6 +400,7 @@ impl Style {
         Span {
             text,
             bold: self.bold,
+            weight: self.weight,
             italic: self.italic,
             underline: self.underline,
             strike: self.strike,
@@ -413,6 +416,7 @@ impl Style {
 
     fn matches(&self, span: &Span) -> bool {
         self.bold == span.bold
+            && self.weight == span.weight
             && self.italic == span.italic
             && self.underline == span.underline
             && self.strike == span.strike
@@ -447,6 +451,8 @@ impl Style {
 #[derive(Clone, Debug, Default)]
 struct Delta {
     bold: Option<bool>,
+    /// A `font-weight`, which `bold` stands in for where it is not read against the weight around.
+    weight: Option<Weight>,
     italic: Option<bool>,
     underline: Option<bool>,
     strike: Option<bool>,
@@ -486,6 +492,7 @@ impl Delta {
     fn of(css: &Css) -> Delta {
         Delta {
             bold: css.bold,
+            weight: css.weight,
             italic: css.italic,
             underline: css.underline,
             strike: css.strike,
@@ -529,13 +536,21 @@ impl Delta {
         style.tiny_hooked = false;
         if self.cell {
             style.bold = false;
+            style.weight = None;
             style.italic = false;
             style.underline = false;
             style.strike = false;
             style.code = false;
             style.background = None;
         }
-        style.bold = self.bold.unwrap_or(style.bold);
+        if let Some(weight) = self.weight {
+            let n = weight.within(style.weight.unwrap_or(if style.bold { 700 } else { 400 }));
+            style.bold = n >= 600;
+            style.weight = Some(n).filter(|n| *n != 400 && *n != 700);
+        } else if let Some(bold) = self.bold {
+            style.bold = bold;
+            style.weight = None;
+        }
         style.italic = self.italic.unwrap_or(style.italic);
         style.underline = self.underline.unwrap_or(style.underline);
         style.strike = self.strike.unwrap_or(style.strike);
@@ -2576,6 +2591,7 @@ impl Builder {
         let css = css_of(tag);
         let own = Delta::of(&css);
         delta.bold = own.bold.or(delta.bold);
+        delta.weight = own.weight.or(delta.weight);
         delta.italic = own.italic.or(delta.italic);
         delta.underline = own.underline.or(delta.underline);
         delta.strike = own.strike.or(delta.strike);
