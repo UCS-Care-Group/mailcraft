@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.IntrinsicMeasurable
 import androidx.compose.ui.layout.IntrinsicMeasureScope
@@ -93,23 +94,6 @@ internal fun placeBoxes(
 
 private fun BlockView.box(): TableView? = (kind as? BlockKindView.Table)?.table
 
-/** The tops of lines of boxes [heights] high, [between] apart, and the height of them all. */
-internal fun lineTops(heights: IntArray, between: Int): Pair<IntArray, Int> {
-    val tops = IntArray(heights.size)
-    for (l in 1 until heights.size) {
-        tops[l] = (tops[l - 1] + heights[l - 1].coerceIn(0, MAX_BOX_HEIGHT) + between).coerceAtMost(MAX_BOX_HEIGHT)
-    }
-    val all = if (heights.isEmpty()) 0 else tops.last() + heights.last()
-    return tops to all.coerceIn(0, MAX_BOX_HEIGHT)
-}
-
-/** The height of each line of boxes placed at [spots] that are [heights] high. */
-internal fun lineHeights(spots: List<Pair<Int, Int>>, heights: List<Int>): IntArray {
-    val lines = IntArray((spots.maxOfOrNull { it.second } ?: -1) + 1)
-    spots.forEachIndexed { n, (_, l) -> lines[l] = maxOf(lines[l], heights.getOrElse(n) { 0 }) }
-    return lines
-}
-
 /**
  * How boxes on a line are measured and placed: by [placeBoxes]. Asked for its height at a width (a row
  * of a table with colour sizes its cells so), it answers from the boxes' own widths, not the whole
@@ -124,8 +108,9 @@ private class BoxesPolicy(
     override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
         val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
         val widths = placeables.map { it.width }
-        val room = (if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()).coerceIn(0, MAX_BOX_WIDTH)
-        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
+        val gaps = gapsDp.map { it.dp.roundToPx() }
+        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else boxesWidth(widths, gaps)
+        val spots = placeBoxes(widths, gaps, right, room, align, floats)
         val (tops, height) = lineTops(lineHeights(spots, placeables.map { it.height }), RUN_GAP.dp.roundToPx())
         val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
         return layout(w, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
@@ -134,15 +119,22 @@ private class BoxesPolicy(
     }
 
     private fun IntrinsicMeasureScope.heightAt(measurables: List<IntrinsicMeasurable>, width: Int, max: Boolean): Int {
-        val room = width.coerceIn(0, MAX_BOX_WIDTH)
+        val room = width.coerceIn(0, MAX_LAYOUT_SIZE)
         val widths = measurables.map { it.maxIntrinsicWidth(MAX_BOX_HEIGHT).coerceIn(0, room) }
         val heights = measurables.mapIndexed { n, m ->
             val h = if (max) m.maxIntrinsicHeight(widths[n]) else m.minIntrinsicHeight(widths[n])
-            h.coerceIn(0, MAX_BOX_HEIGHT)
+            h.coerceIn(0, MAX_LAYOUT_SIZE)
         }
         val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
         return lineTops(lineHeights(spots, heights), RUN_GAP.dp.roundToPx()).second
     }
+
+    // Side by side they are as wide as all of them and the gaps; wrapped, as the widest.
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
+        boxesWidth(measurables.map { it.maxIntrinsicWidth(MAX_BOX_HEIGHT) }, gapsDp.map { it.dp.roundToPx() })
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
+        measurables.maxOfOrNull { it.minIntrinsicWidth(MAX_BOX_HEIGHT).coerceIn(0, MAX_LAYOUT_SIZE) } ?: 0
 
     override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
         heightAt(measurables, width, max = false)
@@ -154,13 +146,15 @@ private class BoxesPolicy(
 /** Boxes on a line (tables the message lays out `inline-block`, or floats to a side), placed by [placeBoxes]. */
 @Composable
 internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
-    val boxes = blocks.mapNotNull { b -> b.box()?.let { b to it } }
-    val policy = BoxesPolicy(
-        gapsDp = boxes.map { it.second.gapBefore.toInt() },
-        right = boxes.map { (b, t) -> t.float && b.align == AlignView.RIGHT },
-        align = blocks.first().align,
-        floats = boxes.any { it.second.float },
-    )
+    val boxes = remember(blocks) { blocks.mapNotNull { b -> b.box()?.let { b to it } } }
+    val policy = remember(blocks) {
+        BoxesPolicy(
+            gapsDp = boxes.map { it.second.gapBefore.toInt() },
+            right = boxes.map { (b, t) -> t.float && b.align == AlignView.RIGHT },
+            align = blocks.first().align,
+            floats = boxes.any { it.second.float },
+        )
+    }
     Layout(
         modifier = Modifier.fillMaxWidth(),
         content = { boxes.forEach { (b, t) -> BoxOnALine(t, b.align, env, paper, width) } },

@@ -123,13 +123,16 @@ internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
  * `Constraints.fixed` always takes. (It throws past what it can pack: a width under 8192 px leaves room
  * for a height of 262143 px. A message's picture can be 1 by 40 million pixels.)
  */
-internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int): IntSize {
+internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int, keepShape: Boolean = false): IntSize {
     val w = wanted.coerceAtMost(room).coerceIn(1, MAX_BOX_WIDTH)
     val h = (w * tall.toDouble()).takeUnless { it.isNaN() } ?: 1.0
-    return IntSize(w, h.coerceIn(1.0, cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()).roundToInt())
+    val most = cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()
+    // A picture drawn to fill its box is narrowed as far as it is held lower, so it is not stretched.
+    val narrowed = if (keepShape && h > most) (w * most / h).roundToInt().coerceIn(1, w) else w
+    return IntSize(narrowed, h.coerceIn(1.0, most).roundToInt())
 }
 
-internal const val MAX_BOX_WIDTH = 8_000
+private const val MAX_BOX_WIDTH = 8_000
 internal const val MAX_BOX_HEIGHT = 200_000
 
 /**
@@ -139,7 +142,8 @@ internal const val MAX_BOX_HEIGHT = 200_000
  * answers what it draws.
  */
 private fun Modifier.pictureBox(wanted: Dp, tall: Float, cap: Dp?): Modifier = layout { measurable, constraints ->
-    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, cap?.roundToPx() ?: Int.MAX_VALUE)
+    val most = cap?.roundToPx() ?: Int.MAX_VALUE
+    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, most, keepShape = cap == null)
     val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
     layout(size.width, size.height) { placeable.place(0, 0) }
 }

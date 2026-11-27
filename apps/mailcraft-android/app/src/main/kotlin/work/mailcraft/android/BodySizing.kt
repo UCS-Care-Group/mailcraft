@@ -18,11 +18,14 @@ internal fun picturesWidth(cell: CellView, padding: InsetsView? = cell.padding):
     if (cell.blocks.isEmpty()) return null
     val lines = linesOf(cell.blocks).map { line ->
         val each = line.blocks.map { pictureWidth(it) ?: return null }
-        each.sum() + RUN_GAP * (each.size - 1)
+        each.sum() + PICTURE_GAP * (each.size - 1)
     }
     val pad = padding?.let { it.left.toFloat() + it.right.toFloat() } ?: 0f
     return lines.maxOrNull()?.plus(pad)
 }
+
+/** The gap between pictures side by side in a cell, in dp: the desktop's. */
+private const val PICTURE_GAP = 6f
 
 /** What a column asks for, in dp, when each of its own cells that holds anything holds only pictures of a set width. */
 internal fun picturesColumn(own: List<PlacedCell>, padding: (CellView) -> InsetsView?): Float? {

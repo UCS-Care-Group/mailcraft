@@ -55,11 +55,17 @@ internal class BodyEnv(
  */
 internal class BodyLine(val blocks: List<BlockView>, val before: List<BlockView>?)
 
-/** The blocks grouped into lines: a block that goes on in the line of the one before joins it. */
+/**
+ * The blocks grouped into lines: a block that goes on in the line of the one before joins it. A run of
+ * boxes on a line parts where floated and unfloated boxes meet, and after [MAX_BOX_RUN] (the desktop's
+ * `box_run`), so a centred button keeps its line beside an icon floated away.
+ */
 internal fun linesOf(blocks: List<BlockView>): List<BodyLine> {
     val lines = ArrayList<MutableList<BlockView>>()
     for (block in blocks) {
-        if (block.beside && lines.isNotEmpty()) lines.last().add(block) else lines.add(mutableListOf(block))
+        val last = lines.lastOrNull()
+        val joins = block.beside && last != null && !partsBoxes(last, block)
+        if (joins && last != null) last.add(block) else lines.add(mutableListOf(block))
     }
     return lines.mapIndexed { n, line -> BodyLine(line, lines.getOrNull(n - 1)) }
 }

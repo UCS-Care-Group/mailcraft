@@ -1,1 +1,1 @@
-| 2026-11-27 | minor | #1966: row 19, the Android reading view lays out the `inline-block` and floated boxes of a layout |
+| 2026-11-27 | minor | #1966: row 19, the Android reading view lays out the `inline-block` and floated boxes of a layout; still not: boxes and layout tables without a width drawn as narrow as what they hold, and stacking by the widths of the words |
