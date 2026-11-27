@@ -335,28 +335,129 @@ pub(crate) const PHONE_TABLE_DEPTH: usize = if MAX_TABLE_DEPTH < 4 { MAX_TABLE_D
 /// at a line break, else after a space, else between two characters: every character kept, in order.
 pub(crate) const MAX_BLOCK_CHARS: usize = 4_000;
 
+/// Text, as the phone joins it into one piece when it goes on in a line: anything not a picture or a table.
 fn is_text(kind: &BlockKindView) -> bool {
-    matches!(kind, BlockKindView::Paragraph | BlockKindView::Heading { .. } | BlockKindView::ListItem { .. } | BlockKindView::Preformatted)
+    !matches!(kind, BlockKindView::Image { .. } | BlockKindView::Table { .. })
 }
 
 fn chars_of(v: &BlockView) -> usize {
     v.spans.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()))
 }
 
-/// Where to end a piece within `head` (the most one may still take): the byte it ends at and the
-/// byte the next starts at. A line break goes (the next block starts the line); a space stays.
-fn cut_in(head: &str) -> (usize, usize) {
+/// Where to end a piece within `head` (the most one may still take), at a line break or after a
+/// space: the byte it ends at and the byte the next starts at. A line break goes (the next block
+/// starts the line); a space stays. None when `head` has neither.
+fn break_in(head: &str) -> Option<(usize, usize)> {
     if let Some(i) = head.rfind('\n') {
-        return (i, i.saturating_add(1));
+        return Some((i, i.saturating_add(1)));
     }
-    match head.char_indices().rev().find(|(_, c)| c.is_whitespace()) {
-        Some((i, c)) => (i.saturating_add(c.len_utf8()), i.saturating_add(c.len_utf8())),
-        None => (head.len(), head.len()),
+    head.char_indices().rev().find(|(_, c)| c.is_whitespace()).map(|(i, c)| {
+        let at = i.saturating_add(c.len_utf8());
+        (at, at)
+    })
+}
+
+/// A character that belongs with the one before it: a combining mark (Latin, Greek, Cyrillic,
+/// Hebrew, Arabic and the general blocks), a joiner, a variation selector, a skin tone or a tag.
+fn extends(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0x0300..=0x036F
+            | 0x0483..=0x0489
+            | 0x0591..=0x05BD
+            | 0x05BF
+            | 0x05C1..=0x05C2
+            | 0x05C4..=0x05C5
+            | 0x05C7
+            | 0x0610..=0x061A
+            | 0x064B..=0x065F
+            | 0x0670
+            | 0x06D6..=0x06DC
+            | 0x06DF..=0x06E4
+            | 0x06E7..=0x06E8
+            | 0x06EA..=0x06ED
+            | 0x1AB0..=0x1AFF
+            | 0x1DC0..=0x1DFF
+            | 0x200C..=0x200D
+            | 0x20D0..=0x20FF
+            | 0xFE00..=0xFE0F
+            | 0xFE20..=0xFE2F
+            | 0x1F3FB..=0x1F3FF
+            | 0xE0020..=0xE007F
+            | 0xE0100..=0xE01EF
+    )
+}
+
+fn regional(c: char) -> bool {
+    matches!(u32::from(c), 0x1F1E6..=0x1F1FF)
+}
+
+/// `at` (a character boundary of `text`) moved back to the nearest boundary between two letters
+/// as one sees them: not before a mark or joiner, not after a joiner, not inside a flag's pair.
+/// `at` itself when there is none before it (a run of marks as long as a block).
+// lean: the common clusters only, not all of UAX #29 (Indic conjuncts, Hangul syllables in jamo).
+fn whole_at(text: &str, at: usize) -> usize {
+    let mut cut = at;
+    loop {
+        let before = text.get(..cut).and_then(|t| t.chars().next_back());
+        let after = text.get(cut..).and_then(|t| t.chars().next());
+        let inside = match (before, after) {
+            (Some(b), Some(a)) => {
+                extends(a)
+                    || b == '\u{200D}'
+                    || (regional(b) && regional(a) && text.get(..cut).is_some_and(|t| t.chars().rev().take_while(|c| regional(*c)).count() % 2 == 1))
+            }
+            _ => false,
+        };
+        match before {
+            Some(b) if inside && cut > b.len_utf8() => cut -= b.len_utf8(),
+            _ if inside => return at,
+            _ => return cut,
+        }
     }
 }
 
+/// The spans of `piece` after its last line break or space, taken off it to go on in the next piece
+/// (a line break goes); None when it has none with something before it.
+fn word_left_in(piece: &mut BlockView) -> Option<Vec<SpanView>> {
+    let mut before = 0usize;
+    let mut found = None;
+    for (k, s) in piece.spans.iter().enumerate() {
+        if let Some((end, resume)) = break_in(&s.text)
+            && before.saturating_add(end) > 0
+        {
+            found = Some((k, end, resume));
+        }
+        before = before.saturating_add(s.text.len());
+    }
+    let (k, end, resume) = found?;
+    let mut carried: Vec<SpanView> = piece.spans.split_off(k);
+    let span = carried.first_mut()?;
+    let kept = span.text.get(..end).unwrap_or_default().to_string();
+    span.text = span.text.get(resume..).unwrap_or_default().to_string();
+    if !kept.is_empty() {
+        piece.spans.push(SpanView { text: kept, ..span.clone() });
+    }
+    carried.retain(|s| !s.text.is_empty());
+    Some(carried)
+}
+
+/// Ends `piece`, which starts a fresh one like `next`: kept unless it is empty or only line breaks
+/// after the first (the block's own break stands for them). False once `budget` is spent.
+fn end_piece(out: &mut Vec<BlockView>, piece: &mut BlockView, next: &BlockView, budget: &mut Budget) -> bool {
+    let done = std::mem::replace(piece, next.clone());
+    let blank = done.spans.iter().all(|s| s.text.chars().all(|c| c == '\n'));
+    if done.spans.is_empty() || (blank && !out.is_empty()) {
+        return true;
+    }
+    out.push(done);
+    budget.take()
+}
+
 /// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each (the first is `v`'s own), each piece
-/// after the first taken from `budget`: past it the rest is left out, as with any block.
+/// after the first taken from `budget`: past it the rest is left out, as with any block. A piece
+/// ends at its last line break or space; only a word longer than a block is cut inside, between
+/// two letters as one sees them.
 fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
     if !is_text(&v.kind) || chars_of(&v) <= MAX_BLOCK_CHARS {
         return vec![v];
@@ -376,32 +477,39 @@ fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
     for s in &v.spans {
         let mut rest = s.text.as_str();
         while !rest.is_empty() {
-            match rest.char_indices().nth(room).map(|(at, _)| at) {
-                None => {
-                    room = room.saturating_sub(rest.chars().count());
-                    piece.spans.push(SpanView { text: rest.to_string(), ..s.clone() });
-                    rest = "";
-                }
-                Some(at) => {
-                    let (end, resume) = rest.get(..at).map_or((at, at), cut_in);
+            let Some(at) = rest.char_indices().nth(room).map(|(at, _)| at) else {
+                room = room.saturating_sub(rest.chars().count());
+                piece.spans.push(SpanView { text: rest.to_string(), ..s.clone() });
+                break;
+            };
+            // Where it ends: a break in what still fits of this span, else the last one before it
+            // (what follows that goes on), else, a word longer than a block, between two letters.
+            let carried = match rest.get(..at).and_then(break_in) {
+                Some((end, resume)) => {
                     if let Some(text) = rest.get(..end).filter(|t| !t.is_empty()) {
                         piece.spans.push(SpanView { text: text.to_string(), ..s.clone() });
                     }
-                    if !piece.spans.is_empty() {
-                        out.push(std::mem::replace(&mut piece, next.clone()));
-                        if !budget.take() {
-                            return out;
-                        }
-                    }
-                    room = MAX_BLOCK_CHARS;
                     rest = rest.get(resume..).unwrap_or_default();
+                    Vec::new()
                 }
+                None => word_left_in(&mut piece).unwrap_or_else(|| {
+                    let cut = whole_at(rest, at);
+                    if let Some(text) = rest.get(..cut).filter(|t| !t.is_empty()) {
+                        piece.spans.push(SpanView { text: text.to_string(), ..s.clone() });
+                    }
+                    rest = rest.get(cut..).unwrap_or_default();
+                    Vec::new()
+                }),
+            };
+            if !end_piece(&mut out, &mut piece, &next, budget) {
+                return out;
             }
+            let held = carried.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()));
+            room = MAX_BLOCK_CHARS.saturating_sub(held);
+            piece.spans = carried;
         }
     }
-    if !piece.spans.is_empty() {
-        out.push(piece);
-    }
+    end_piece(&mut out, &mut piece, &next, budget);
     out
 }
 
@@ -420,6 +528,8 @@ fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, dep
                 for c in t.rows.iter().flat_map(|r| &r.cells) {
                     out.extend(blocks_of(&c.blocks, pictures, budget, depth));
                 }
+                // Its cells' text stands in lines of its own: what follows starts a run of its own.
+                run = 0;
             }
             _ => {
                 for mut v in pieces(block(b, pictures, budget, depth), budget) {
