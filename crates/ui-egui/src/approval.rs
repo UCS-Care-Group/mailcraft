@@ -55,6 +55,25 @@ pub const GOOGLE_REAUTH_REQUIRED: &str = "Google sign-in expired or was revoked.
 pub const GOOGLE_SIGN_IN_BLOCKED: &str = "Google blocked MailCraft sign-in for this account";
 /// No browser could be started for the page.
 pub const NO_BROWSER: &str = "MailCraft couldn't open your browser";
+/// A sign-in nobody asked for (a round by itself) needs Google's page: it has none to renew, or
+/// Google no longer takes the one it has.
+pub const GOOGLE_NEEDS_SIGN_IN: &str = "Google needs a new sign-in. Use Send/Receive to reconnect.";
+
+/// What a sign-in nobody asked for says when Microsoft no longer takes the account's sign-in
+/// and only its page would do.
+pub fn sign_in_run_out(email: &str) -> String {
+    format!("The sign-in for {email} has run out. Use Send/Receive to sign in again.")
+}
+
+/// Whether a sign-in of the account at `email` that ended with `error` says the account has to
+/// be signed in again (#1556): one nobody asked for that only the provider's page would do
+/// (`quiet`), or one that went with a refresh token (`renewing`) and ended on the page, which
+/// it only goes to when the token was turned down. Not trouble reaching the provider.
+pub(crate) fn needs_sign_in(error: &str, email: &str, quiet: bool, renewing: bool) -> bool {
+    let ran_out = error == GOOGLE_REAUTH_REQUIRED || error == GOOGLE_NEEDS_SIGN_IN || error == sign_in_run_out(email);
+    let page = matches!(SignInEnd::of(error), SignInEnd::Declined | SignInEnd::TimedOut | SignInEnd::NoBrowser);
+    (quiet && ran_out) || (renewing && page)
+}
 
 /// How a sign-in ended without tokens, as the window tells the ways apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

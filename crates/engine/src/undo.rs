@@ -474,6 +474,17 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // Reminders kept for a sent copy to come down are what was learnt of the server, not the owner's
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
+    // Whether an account has to be signed in again is its server's word, not the owner's change
+    // (#1556): an undo leaves it as it is now. An account the undo brings back keeps the mark it
+    // had when it went, the last its server said of it. One the undo makes an account with no
+    // server again has nothing to sign in to.
+    for a in &mut out.accounts {
+        if !a.kind.has_server() {
+            a.sign_in_needed = false;
+        } else if let Some(is) = now.account(a.id) {
+            a.sign_in_needed = is.sign_in_needed;
+        }
+    }
     returned(&mut out, now);
     events_stay(&mut out, touched, now);
     subscribed_stay(&mut out, now);

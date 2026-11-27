@@ -948,6 +948,12 @@ msgstr ""
 "Paramètres\n"
 "du compte"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "Problèmes de compte"
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8839,6 +8845,12 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "Le courrier arrive au fil de la lecture. Annuler conserve ce qui est entré ; réimporter le fichier apporte le reste."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "Le courrier de ces comptes n'arrive plus tant que vous ne vous reconnectez pas."
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Mail folder"
@@ -15987,7 +15999,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Se reconnecter pour les réponses automatiques"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Se reconnecter"
@@ -19276,6 +19288,12 @@ msgstr "Ce compte n'a pas de serveur de messagerie par lequel envoyer la répons
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Ce compte n'a pas de connexion Microsoft"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "Ce compte doit être reconnecté : son courrier n'arrive plus tant que vous ne l'avez pas fait. Cliquez pour vous connecter."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -26453,6 +26471,14 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "{n} compte en a une"
 msgstr[1] "{n} comptes en ont une"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} compte doit être reconnecté"
+msgstr[1] "{n} comptes doivent être reconnectés"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

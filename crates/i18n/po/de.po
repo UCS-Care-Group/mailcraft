@@ -893,6 +893,12 @@ msgstr ""
 "Konto-\n"
 "einstellungen"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "Kontoprobleme"
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8349,6 +8355,12 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "E-Mails werden während des Einlesens importiert. Beim Abbrechen bleiben die bereits importierten E-Mails erhalten. Wenn Sie die Datei erneut importieren, werden die restlichen E-Mails übernommen."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "Für diese Konten kommen keine E-Mails an, bis Sie sich erneut anmelden."
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
 msgstr "E-Mail-Ordner"
@@ -15130,7 +15142,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Erneut anmelden, um automatische Antworten einzurichten"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Erneut anmelden"
@@ -18218,6 +18230,12 @@ msgstr "Dieses Konto hat keinen Mailserver, über den die Antwort gesendet werde
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Dieses Konto hat keine Microsoft-Anmeldung"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "Dieses Konto muss erneut angemeldet werden: Seine E-Mails kommen erst an, wenn Sie das tun. Zum Anmelden klicken."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -25060,6 +25078,14 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "{n} Konto hat eine"
 msgstr[1] "{n} Konten haben eine"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} Konto muss erneut angemeldet werden"
+msgstr[1] "{n} Konten müssen erneut angemeldet werden"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

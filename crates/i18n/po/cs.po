@@ -951,6 +951,12 @@ msgstr ""
 "Nastavení\n"
 "účtu"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "Problémy s účty"
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8895,6 +8901,12 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "Pošta přibývá, jak se čte. Zrušit ponechá, co už je načteno; opětovný import souboru přinese zbytek."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "Pošta pro tyto účty nepřichází, dokud se znovu nepřihlásíte."
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Mail folder"
@@ -16083,7 +16095,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Znovu se přihlásit kvůli automatickým odpovědím"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Znovu se přihlásit"
@@ -19393,6 +19405,12 @@ msgstr "Tento účet nemá poštovní server, přes který by odpověď odeslal.
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Tento účet nemá přihlášení přes Microsoft"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "Tento účet je třeba znovu přihlásit: jeho pošta nepřichází, dokud to neuděláte. Klikněte pro přihlášení."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -26615,6 +26633,15 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "{n} účet ho má"
 msgstr[1] "{n} účty ho mají"
 msgstr[2] "{n} účtů ho má"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} účet je třeba znovu přihlásit"
+msgstr[1] "{n} účty je třeba znovu přihlásit"
+msgstr[2] "{n} účtů je třeba znovu přihlásit"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

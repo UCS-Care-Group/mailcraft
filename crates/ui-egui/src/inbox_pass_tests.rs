@@ -415,6 +415,24 @@ fn a_send_receive_asked_for_during_a_check_goes_ahead() {
     assert_eq!((count_hello(&app, owner), count_hello(&app, shared)), (1, 1));
 }
 
+/// A check whose sign-in is turned down marks the account (#1556), as a whole run's would, and
+/// stays quiet; one that only wants a permission given doesn't mark it.
+#[test]
+fn a_check_whose_sign_in_is_turned_down_marks_the_account() {
+    for (consent, marked) in [(false, true), (true, false)] {
+        let (mut app, owner, _, host) = checked_window();
+        host.lock().unwrap().hold = true;
+        at(&mut app, T0 + 60);
+        assert_eq!(app.inbox_check_tick(), Some(owner));
+        let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+        drop(pieces);
+        answer.send(GraphResult { account: owner, sign_in_refused: true, consent_needed: consent, ..Default::default() }).unwrap();
+        settle(&mut app);
+        assert_eq!(app.session.mailbox.account(owner).unwrap().sign_in_needed, marked, "consent: {consent}");
+        assert!(app.dialog.is_none() && app.signing_in.is_none() && app.sync_panel.is_none(), "still quiet");
+    }
+}
+
 #[test]
 fn a_check_that_fails_is_tried_again_next_minute_without_a_word() {
     let (mut app, owner, _, host) = checked_window();

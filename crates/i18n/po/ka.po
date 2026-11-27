@@ -948,6 +948,12 @@ msgstr ""
 "ანგარიშის\n"
 "პარამეტრები"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "ანგარიშის პრობლემები"
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8854,6 +8860,12 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "ფოსტა წაკითხვისთანავე შემოდის. „გაუქმება“ უკვე შემოსულს ინახავს; ფაილის ხელახალი იმპორტი დანარჩენს მოიტანს."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "ამ ანგარიშებზე ფოსტა არ მოვა, სანამ ხელახლა არ შეხვალთ."
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Mail folder"
@@ -15995,7 +16007,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "ხელახლა შესვლა ავტომატური პასუხებისთვის"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "ხელახლა შესვლა"
@@ -19285,6 +19297,12 @@ msgstr "ამ ანგარიშს არ აქვს ფოსტის �
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "ამ ანგარიშს Microsoft-ით შესვლა არ აქვს"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "ამ ანგარიშში ხელახლა უნდა შეხვიდეთ: მისი ფოსტა არ მოვა, სანამ ამას არ გააკეთებთ. დააწკაპუნეთ შესასვლელად."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -26464,6 +26482,14 @@ msgid "{n} account has one"
 msgid_plural "{n} accounts have one"
 msgstr[0] "ხელმოწერა აქვს {n} ანგარიშს"
 msgstr[1] "ხელმოწერა აქვს {n} ანგარიშს"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} ანგარიშში ხელახლა უნდა შეხვიდეთ"
+msgstr[1] "{n} ანგარიშში ხელახლა უნდა შეხვიდეთ"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

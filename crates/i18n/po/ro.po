@@ -952,6 +952,12 @@ msgstr ""
 "Setări\n"
 "cont"
 
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Account Problems"
+msgstr "Probleme cu conturile"
+
 #. command label, interface, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/senders.rs crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8906,6 +8912,12 @@ msgid "Mail comes in as it is read. Cancel keeps what is in; importing the file 
 msgstr "E-mailurile apar pe măsură ce sunt citite. Anulare păstrează ce a intrat deja; importul din nou al fișierului aduce restul."
 
 #. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "Mail doesn't arrive for these accounts until you sign in again."
+msgstr "E-mailurile acestor conturi nu sosesc până nu vă conectați din nou."
+
+#. interface
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Mail folder"
@@ -16105,7 +16117,7 @@ msgid "Sign In Again for Automatic Replies"
 msgstr "Conectare din nou pentru răspunsuri automate"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/sign_in_needed.rs
 #, fuzzy
 msgid "Sign in again"
 msgstr "Conectați-vă din nou"
@@ -19417,6 +19429,12 @@ msgstr "Acest cont nu are un server de e-mail prin care să trimită răspunsul.
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Acest cont nu are conectare cu Microsoft"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "This account has to be signed in again: its mail doesn't arrive until you do. Click to sign in."
+msgstr "Acest cont trebuie conectat din nou: e-mailurile lui nu sosesc până nu faceți asta. Faceți clic pentru a vă conecta."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -26640,6 +26658,15 @@ msgid_plural "{n} accounts have one"
 msgstr[0] "{n} cont are una"
 msgstr[1] "{n} conturi au una"
 msgstr[2] "{n} de conturi au una"
+
+#. interface
+#: crates/ui-egui/src/sign_in_needed.rs
+#, fuzzy
+msgid "{n} account has to be signed in again"
+msgid_plural "{n} accounts have to be signed in again"
+msgstr[0] "{n} cont trebuie conectat din nou"
+msgstr[1] "{n} conturi trebuie conectate din nou"
+msgstr[2] "{n} de conturi trebuie conectate din nou"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

@@ -282,6 +282,9 @@ mod shared_mailboxes;
 mod shared_permission;
 #[cfg(test)]
 mod shared_permission_tests;
+mod sign_in_needed;
+#[cfg(test)]
+mod sign_in_needed_tests;
 #[cfg(test)]
 mod signature_close_tests;
 #[cfg(test)]
@@ -4484,8 +4487,16 @@ impl MailApp {
             // No token for the mail: Microsoft wants the owner's say-so for it, or the sign-in has
             // run out. There is no IMAP leg to ask instead, so the owner is asked here (#124).
             if result.mail.is_none() && (result.consent_needed || result.sign_in_refused) {
+                // (A permission still to be given is no sign-in that ran out.)
+                if !result.consent_needed {
+                    self.note_sign_in_needed(account, true);
+                }
                 self.graph_mail_needs_sign_in(account, quiet, after_sign_in, result.consent_needed);
                 return;
+            }
+            // The mail came: the sign-in went through (#1556).
+            if result.mail.is_some() || streamed {
+                self.note_sign_in_needed(account, false);
             }
             let status = self.session.sync_status.clone();
             match result.mail.take() {
@@ -4646,6 +4657,8 @@ impl MailApp {
             // "Connect calendar and contacts": the token is Graph's; the next run uses it.
             match answer {
                 Ok(tokens) => {
+                    // Signed in on the page: the account is (#1556).
+                    self.note_sign_in_needed(account, false);
                     if !tokens.refresh.is_empty() {
                         self.remember("refresh", account, &tokens.refresh);
                         if let Some(mail) = self.tokens.get_mut(&account) {
@@ -4691,6 +4704,7 @@ impl MailApp {
         }
         match answer {
             Ok(tokens) => {
+                self.note_sign_in_needed(account, false);
                 self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
                 if let Err(e) = self.start_sync(&json!({"account": account})) {
@@ -4712,6 +4726,12 @@ impl MailApp {
                     // A retry may renew the otherwise usable refresh grant. Never erase it
                     // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
+                }
+                // The provider no longer takes the account's sign-in: said until one goes
+                // through (#1556). (Not a page closed by itself, nor the provider out of reach.)
+                let email = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
+                if approval::needs_sign_in(&e, &email, !asked_for, !on_the_page) {
+                    self.note_sign_in_needed(account, true);
                 }
                 self.session.sync_status.clear();
                 self.note_sync_problems(account, std::slice::from_ref(&e), false);
@@ -4944,9 +4964,15 @@ impl MailApp {
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                     log::warn!("send/receive: the run stopped without an answer (its thread ended early)");
-                    self.logged_problems.end_run(*whose, "mail");
-                    self.session.end_run_unfinished(*whose);
+                    let whose = *whose;
+                    self.logged_problems.end_run(whose, "mail");
+                    self.session.end_run_unfinished(whose);
                     (self.sync_rx, self.sync_password) = (None, None);
+                    // A piece said the sign-in was turned down before it stopped (#1556): the
+                    // password goes as at a run's end, so the next try asks again.
+                    if std::mem::take(&mut self.sync_refused) {
+                        self.forget_refused_sign_in(whose);
+                    }
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
@@ -4967,14 +4993,30 @@ impl MailApp {
             let last = pieces.last().is_some_and(|piece| !piece.partial);
             let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
             let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
-            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
-                let e = e.to_lowercase();
-                // Microsoft's word for a token that ran out during the run.
-                e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
-            });
+            // (Pieces of a run for the address the account had before, edited while the run was
+            // under way, say nothing of its sign-in: the engine doesn't take them in either.)
+            let ours = self
+                .session
+                .mailbox
+                .account(account)
+                .is_some_and(|a| pieces.iter().all(|piece| piece.email.is_empty() || a.email.trim().eq_ignore_ascii_case(piece.email.trim())));
+            let refused = ours
+                && pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
+                    let e = e.to_lowercase();
+                    // Microsoft's word for a token that ran out during the run.
+                    e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
+                });
             self.sync_refused |= refused;
+            // Said as soon as it is known, even when the run ends without its last piece (#1556).
+            if refused {
+                self.note_sign_in_needed(account, true);
+            }
             if signed_in {
                 self.keep_accepted_password(account);
+                // The server let the run in: the sign-in went through (#1556).
+                if ours && !self.sync_refused {
+                    self.note_sign_in_needed(account, false);
+                }
             }
             for piece in &pieces {
                 self.note_said_problems(account, piece.problems(), false);
@@ -5017,17 +5059,7 @@ impl MailApp {
             }
             let totals = std::mem::take(&mut self.sync_totals);
             if std::mem::take(&mut self.sync_refused) {
-                // Forget the password so the next try asks again, and the access token so the
-                // next try renews it (the refresh token stays for that).
-                self.passwords.remove(&account);
-                if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
-                    let key = Self::secret_key("password", a);
-                    store.delete(&key);
-                    self.secret_cache.remove(&key);
-                }
-                if let Some(tokens) = self.tokens.get_mut(&account) {
-                    tokens.access.clear();
-                }
+                self.forget_refused_sign_in(account);
             } else if totals.errors.is_empty() {
                 // It went through: this password is worth remembering, if no piece said so before
                 // (a run called off may have been before it signed in, and proves nothing).
@@ -5043,6 +5075,22 @@ impl MailApp {
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
             return;
+        }
+    }
+
+    /// A run of `account` was turned down: said until a sign-in goes through (#1556), and the
+    /// password is forgotten so the next try asks again, and the access token so the next try
+    /// renews it (the refresh token stays for that).
+    fn forget_refused_sign_in(&mut self, account: Id) {
+        self.note_sign_in_needed(account, true);
+        self.passwords.remove(&account);
+        if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
+            let key = Self::secret_key("password", a);
+            store.delete(&key);
+            self.secret_cache.remove(&key);
+        }
+        if let Some(tokens) = self.tokens.get_mut(&account) {
+            tokens.access.clear();
         }
     }
 
