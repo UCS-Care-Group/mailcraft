@@ -363,7 +363,7 @@ impl State {
             }
         };
         // Those of `uris` that are asked for.
-        let asked = |xml: &mut String, uris: &[&str]| uris.iter().copied().filter(|uri| wants(*uri)).for_each(|uri| xml.push_str(&named(uri)));
+        let asked = |xml: &mut String, uris: &[&str]| uris.iter().copied().filter(|uri| wants(uri)).for_each(|uri| xml.push_str(&named(uri)));
         if shape != "IdOnly" && element != "Message" {
             // A meeting's message, as Exchange Server 2019 gives it in the `Default` shape: its
             // times, size, sender, importance and `Message-ID` only when they are asked for.
@@ -659,7 +659,7 @@ impl State {
             From::Listing { done, rev } => {
                 let page: Vec<&&Item> = in_folder.iter().skip(done).take(max).collect();
                 for item in &page {
-                    changes.push_str(&format!("<t:Create>{}</t:Create>", item_xml(**item)));
+                    changes.push_str(&format!("<t:Create>{}</t:Create>", item_xml(item)));
                 }
                 let reached = done.saturating_add(page.len());
                 if reached >= in_folder.len() {
