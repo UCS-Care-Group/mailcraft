@@ -1,22 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-@file:OptIn(ExperimentalLayoutApi::class)
-
 package work.mailcraft.android
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AlignView
 import uniffi.mailcraft_mobile.BlockKindView
@@ -25,54 +15,105 @@ import uniffi.mailcraft_mobile.TableView
 
 // Boxes on a line: tables a message lays out `inline-block` or floats to a side, as the desktop does (#1966).
 
-/** The boxes of a line apart: those that stand from the left, and those floated right, each in source order. */
-internal fun boxSides(blocks: List<BlockView>): Pair<List<BlockView>, List<BlockView>> =
-    blocks.partition { (it.kind as? BlockKindView.Table)?.table?.float != true || it.align != AlignView.RIGHT }
-
-/**
- * Boxes on a line (tables the message lays out `inline-block`, or floats to a side), as the desktop
- * lays them out: side by side at the top of the line, each as wide as it asks, with the gap the
- * message has before it, wrapping when the line is full. Those floated right stand from the right
- * edge in, the first outermost, and wrap in source order: laid out right to left.
- */
-@Composable
-internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
-    val (left, right) = boxSides(blocks)
-    val first = blocks.first()
-    val floats = blocks.any { (it.kind as? BlockKindView.Table)?.table?.float == true }
-    val arrange = when {
-        floats || first.align == AlignView.LEFT -> Arrangement.Start
-        first.align == AlignView.CENTER -> Arrangement.Center
-        else -> Arrangement.End
+/** How many boxes from [start] stand in one line [room] wide: as many as fit, at least one. */
+private fun lineEnd(widths: List<Int>, gaps: List<Int>, start: Int, room: Int): Pair<Int, Int> {
+    var end = start
+    var used = 0
+    while (end < widths.size) {
+        val next = used + (if (end > start) gaps.getOrElse(end) { 0 } else 0) + widths[end]
+        if (end > start && next > room) break
+        used = next
+        end++
     }
-    val lines = Arrangement.spacedBy(RUN_GAP.dp)
-    val ltr = LocalLayoutDirection.current
-    Row(modifier = Modifier.fillMaxWidth()) {
-        if (left.isNotEmpty()) {
-            FlowRow(Modifier.weight(1f), horizontalArrangement = arrange, verticalArrangement = lines) {
-                left.forEachIndexed { n, block -> BoxOnLine(block, n == 0, env, paper, width) }
-            }
-        }
-        if (right.isNotEmpty()) {
-            val rest = if (left.isEmpty()) Modifier.weight(1f) else Modifier
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                FlowRow(rest, verticalArrangement = lines) {
-                    right.forEach { block ->
-                        CompositionLocalProvider(LocalLayoutDirection provides ltr) {
-                            BoxOnLine(block, true, env, paper, width)
-                        }
-                    }
-                }
-            }
+    return end to used
+}
+
+/** The left edges of boxes [range] in one line: from [from] on, those floated [right] from [room] in. */
+@Suppress("LongParameterList")
+private fun placeLine(
+    widths: List<Int>,
+    gaps: List<Int>,
+    right: List<Boolean>,
+    range: IntRange,
+    from: Int,
+    room: Int,
+): List<Int> {
+    var at = from
+    var rightAt = room
+    return range.map { n ->
+        if (right.getOrElse(n) { false }) {
+            rightAt -= widths[n]
+            rightAt.coerceAtLeast(0)
+        } else {
+            if (n > range.first) at += gaps.getOrElse(n) { 0 }
+            at.also { at += widths[n] }
         }
     }
 }
 
+/**
+ * Where boxes [widths] wide stand in a line [room] wide, as the desktop places them: each its left edge
+ * and its line (the first is 0). In source order, as many to a line as fit (at least one), each after
+ * the first with its gap ([gaps]) before it. Those floated [right] stand from the right edge of their
+ * line in, the first outermost; the others from the left, or where [align] puts the line when none of
+ * the run [floats].
+ */
+@Suppress("LongParameterList")
+internal fun placeBoxes(
+    widths: List<Int>,
+    gaps: List<Int>,
+    right: List<Boolean>,
+    room: Int,
+    align: AlignView,
+    floats: Boolean,
+): List<Pair<Int, Int>> {
+    val out = ArrayList<Pair<Int, Int>>(widths.size)
+    var start = 0
+    var line = 0
+    while (start < widths.size) {
+        val (end, used) = lineEnd(widths, gaps, start, room)
+        val at = when {
+            floats || align == AlignView.LEFT -> 0
+            align == AlignView.CENTER -> ((room - used) / 2).coerceAtLeast(0)
+            else -> (room - used).coerceAtLeast(0)
+        }
+        placeLine(widths, gaps, right, start until end, at, room).forEach { out += it to line }
+        line++
+        start = end
+    }
+    return out
+}
+
+private fun BlockView.box(): TableView? = (kind as? BlockKindView.Table)?.table
+
+/** Boxes on a line (tables the message lays out `inline-block`, or floats to a side), placed by [placeBoxes]. */
 @Composable
-private fun BoxOnLine(block: BlockView, first: Boolean, env: BodyEnv, paper: Paper, width: Dp) {
-    val table = (block.kind as? BlockKindView.Table)?.table ?: return
-    val gap = if (first) 0 else table.gapBefore.toInt()
-    Box(Modifier.padding(start = gap.dp)) { TableBlock(table, block.align, env, paper, width) }
+internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
+    val boxes = blocks.mapNotNull { b -> b.box()?.let { b to it } }
+    val right = boxes.map { (b, t) -> t.float && b.align == AlignView.RIGHT }
+    val floats = boxes.any { it.second.float }
+    val align = blocks.first().align
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = { boxes.forEach { (b, t) -> TableBlock(t, b.align, env, paper, width) } },
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val widths = placeables.map { it.width }
+        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val gaps = boxes.map { it.second.gapBefore.toInt().dp.roundToPx() }
+        val spots = placeBoxes(widths, gaps, right, room, align, floats)
+        val lines = (spots.maxOfOrNull { it.second } ?: -1) + 1
+        val heights = IntArray(lines)
+        spots.forEachIndexed { n, (_, l) -> heights[l] = maxOf(heights[l], placeables[n].height) }
+        val between = RUN_GAP.dp.roundToPx()
+        val tops = IntArray(lines)
+        for (l in 1 until lines) tops[l] = tops[l - 1] + heights[l - 1] + between
+        val height = if (lines == 0) 0 else tops[lines - 1] + heights[lines - 1]
+        val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
+        layout(w, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            spots.forEachIndexed { n, (x, l) -> placeables[n].place(x, tops[l]) }
+        }
+    }
 }
 
 /** The gap in dp between the columns of [table]: its own, or the reader's. */

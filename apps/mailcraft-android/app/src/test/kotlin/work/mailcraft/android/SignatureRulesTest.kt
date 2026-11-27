@@ -82,15 +82,31 @@ class SignatureRulesTest {
         assertEquals(120.dp, drawnWidth(text.copy(width = LengthView.Px(120u)), 300.dp))
     }
 
+    @Suppress("LongParameterList")
+    private fun spots(widths: List<Int>, right: List<Boolean>, room: Int, gaps: List<Int> = widths.map { 0 }, floats: Boolean = true, align: AlignView = AlignView.LEFT) =
+        placeBoxes(widths, gaps, right, room, align, floats)
+
     @Test
-    fun boxesFloatedRightAreKeptApartInSourceOrder() {
-        val left = B.tableBlock(B.table(layout = true, rows = emptyList()).copy(inline = true, float = true))
-        val r1 = left.copy(align = AlignView.RIGHT, gap = 1u)
-        val r2 = left.copy(align = AlignView.RIGHT, gap = 2u)
-        val inline = left.copy(kind = BlockKindView.Table(B.table(layout = true, rows = emptyList()).copy(inline = true)), align = AlignView.RIGHT)
-        val (lefts, rights) = boxSides(listOf(r1, left, r2, inline))
-        assertEquals(listOf(left, inline), lefts)
-        assertEquals(listOf(r1, r2), rights)
+    fun boxesFloatedRightStandFromTheRightEdgeTheFirstOutermost() {
+        assertEquals(listOf(220 to 0, 140 to 0), spots(listOf(80, 80), listOf(true, true), room = 300))
+        // Too many for a line: they wrap in source order, each line from the right edge.
+        assertEquals(listOf(100 to 0, 100 to 1), spots(listOf(200, 200), listOf(true, true), room = 300))
+    }
+
+    @Test
+    fun leftAndRightFloatsShareALineOnlyWhenBothFit() {
+        assertEquals(listOf(0 to 0, 200 to 0), spots(listOf(120, 100), listOf(false, true), room = 300))
+        // A right float as wide as the line goes on in a line below the left one.
+        assertEquals(listOf(0 to 0, 0 to 1), spots(listOf(120, 300), listOf(false, true), room = 300))
+    }
+
+    @Test
+    fun inlineBoxesKeepTheirGapsAndTheLinesAlignment() {
+        // The gap stands before a box that follows another in its line, not before the first of a line.
+        assertEquals(listOf(0 to 0, 124 to 0, 0 to 1), spots(listOf(120, 120, 120), listOf(false, false, false), room = 300, gaps = listOf(0, 4, 4), floats = false))
+        assertEquals(listOf(45 to 0, 145 to 0), spots(listOf(100, 110), listOf(false, false), room = 300, floats = false, align = AlignView.CENTER))
+        assertEquals(listOf(90 to 0, 190 to 0), spots(listOf(100, 110), listOf(false, false), room = 300, floats = false, align = AlignView.RIGHT))
+        assertEquals(emptyList<Pair<Int, Int>>(), spots(emptyList(), emptyList(), room = 300))
     }
 
     @Test
