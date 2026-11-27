@@ -14,7 +14,7 @@
 use mailcraft_model::sync::FlagUp;
 use mailcraft_model::{Address, FlagStatus, Importance};
 
-use crate::error::Error;
+use crate::error::{Error, ResponseCode};
 use crate::folder::valid_id;
 use crate::reply::Reply;
 use crate::soap::{Element, MESSAGES, TYPES};
@@ -291,7 +291,7 @@ impl UpdateItem {
 /// `MoveItem` of one message into a folder.
 #[derive(Clone, PartialEq, Eq)]
 pub struct MoveItem {
-    id: String,
+    ids: Vec<String>,
     to: String,
     copy: bool,
 }
@@ -305,19 +305,25 @@ impl std::fmt::Debug for MoveItem {
 impl MoveItem {
     /// Moves item `id` into the folder `to` (a server id).
     pub fn new(id: &str, to: &str) -> Self {
-        Self { id: id.to_owned(), to: to.to_owned(), copy: false }
+        Self { ids: vec![id.to_owned()], to: to.to_owned(), copy: false }
+    }
+
+    /// Moves all of `ids` into the folder `to` in one request: a server answers once for each.
+    pub fn many(ids: &[&str], to: &str) -> Self {
+        Self { ids: ids.iter().map(|id| (*id).to_owned()).collect(), to: to.to_owned(), copy: false }
     }
 
     /// Copies item `id` into the folder `to` instead (`CopyItem`: the same shape and answer).
     pub fn copy(id: &str, to: &str) -> Self {
-        Self { id: id.to_owned(), to: to.to_owned(), copy: true }
+        Self { ids: vec![id.to_owned()], to: to.to_owned(), copy: true }
     }
 
     /// The operation: `ToFolderId`, `ItemIds`, `ReturnNewItemIds`.
     pub fn element(&self) -> Element {
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |list, id| list.child(id_element("t:ItemId", id, None)));
         Element::new(if self.copy { "m:CopyItem" } else { "m:MoveItem" })
             .child(Element::new("m:ToFolderId").child(id_element("t:FolderId", &self.to, None)))
-            .child(Element::new("m:ItemIds").child(id_element("t:ItemId", &self.id, None)))
+            .child(ids)
             .child(Element::new("m:ReturnNewItemIds").text("true"))
     }
 
@@ -327,14 +333,33 @@ impl MoveItem {
         let [message] = messages.as_slice() else { return Err(Error::Unexpected) };
         // (A server that doesn't say the new id leaves the old one: it is found again by the next read.)
         let node = message.ok()?;
-        Ok(first_item(node).unwrap_or_else(|| Saved { id: self.id.clone(), change_key: String::new() }))
+        Ok(first_item(node).unwrap_or_else(|| Saved { id: self.ids.first().cloned().unwrap_or_default(), change_key: String::new() }))
+    }
+
+    /// What became of each item asked for, in the order asked: where it went, or the code the
+    /// server refused it with. A busy server, or an answer that isn't one for each, is the whole
+    /// request's.
+    pub fn answers(&self, reply: &Reply) -> Result<Vec<Result<Saved, ResponseCode>>, Error> {
+        let messages = reply.messages(if self.copy { "CopyItem" } else { "MoveItem" })?;
+        if messages.len() != self.ids.len() {
+            return Err(Error::Unexpected);
+        }
+        messages
+            .iter()
+            .zip(&self.ids)
+            .map(|(message, id)| match message.ok() {
+                Ok(node) => Ok(Ok(first_item(node).unwrap_or_else(|| Saved { id: id.clone(), change_key: String::new() }))),
+                Err(Error::Server(code)) => Ok(Err(code)),
+                Err(other) => Err(other),
+            })
+            .collect()
     }
 }
 
 /// `DeleteItem` of one message.
 #[derive(Clone, PartialEq, Eq)]
 pub struct DeleteItem {
-    id: String,
+    ids: Vec<String>,
     mode: DeleteMode,
 }
 
@@ -347,14 +372,36 @@ impl std::fmt::Debug for DeleteItem {
 impl DeleteItem {
     /// Deletes item `id` the way `mode` says.
     pub fn new(id: &str, mode: DeleteMode) -> Self {
-        Self { id: id.to_owned(), mode }
+        Self { ids: vec![id.to_owned()], mode }
+    }
+
+    /// Deletes all of `ids` in one request: a server answers once for each.
+    pub fn many(ids: &[&str], mode: DeleteMode) -> Self {
+        Self { ids: ids.iter().map(|id| (*id).to_owned()).collect(), mode }
     }
 
     /// The operation: `DeleteType` and `ItemIds`.
     pub fn element(&self) -> Element {
-        Element::new("m:DeleteItem")
-            .attr("DeleteType", self.mode.name())
-            .child(Element::new("m:ItemIds").child(id_element("t:ItemId", &self.id, None)))
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |list, id| list.child(id_element("t:ItemId", id, None)));
+        Element::new("m:DeleteItem").attr("DeleteType", self.mode.name()).child(ids)
+    }
+
+    /// What became of each item asked for, in the order asked: done, or the code the server
+    /// refused it with. A busy server, or an answer that isn't one for each, is the whole
+    /// request's.
+    pub fn answers(&self, reply: &Reply) -> Result<Vec<Result<(), ResponseCode>>, Error> {
+        let messages = reply.messages("DeleteItem")?;
+        if messages.len() != self.ids.len() {
+            return Err(Error::Unexpected);
+        }
+        messages
+            .iter()
+            .map(|message| match message.ok() {
+                Ok(_) => Ok(Ok(())),
+                Err(Error::Server(code)) => Ok(Err(code)),
+                Err(other) => Err(other),
+            })
+            .collect()
     }
 
     /// Whether it was done.
