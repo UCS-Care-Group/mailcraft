@@ -47,17 +47,24 @@ class FirstSyncHoldTest {
     @Test
     fun nothingHeldTellsTheCoreNothing() = runBlocking {
         assertNull(holds.reapply())
-        holds.ownerRound { SyncAnswer(started = true, message = "") }
+        holds.ownerRound(null) { SyncAnswer(started = true, message = "") }
         assertTrue(told.isEmpty())
     }
 
     @Test
     fun aRoundTheOwnerAskedForForgetsEveryHold() = runBlocking {
         kept.save(setOf(7uL, 8uL))
-        holds.ownerRound { SyncAnswer(started = true, message = "") }
+        holds.ownerRound(null) { SyncAnswer(started = true, message = "") }
         assertTrue(kept.load().isEmpty())
         holds.reapply()
         assertTrue(told.isEmpty())
+    }
+
+    @Test
+    fun aRoundOfOneAccountForgetsThatAccountsHoldAlone() = runBlocking {
+        kept.save(setOf(7uL, 8uL))
+        holds.ownerRound(7u) { SyncAnswer(started = true, message = "") }
+        assertEquals(setOf(8uL), kept.load())
     }
 
     @Test
@@ -82,7 +89,7 @@ class FirstSyncHoldTest {
     @Test
     fun aRoundThatDidNotStartKeepsEveryHold() = runBlocking {
         kept.save(setOf(7uL))
-        val answer = holds.ownerRound { SyncAnswer(started = false, message = "No network") }
+        val answer = holds.ownerRound(null) { SyncAnswer(started = false, message = "No network") }
         assertFalse(answer.started)
         assertEquals(setOf(7uL), kept.load())
     }
@@ -92,7 +99,7 @@ class FirstSyncHoldTest {
         val asking = CompletableDeferred<Unit>()
         val begun = CompletableDeferred<Unit>()
         val round = launch {
-            holds.ownerRound {
+            holds.ownerRound(null) {
                 asking.complete(Unit)
                 begun.await()
                 SyncAnswer(started = true, message = "")

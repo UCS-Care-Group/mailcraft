@@ -199,6 +199,30 @@ fn a_listed_mailbox_without_a_usable_saved_server_is_not_pointed_at_one() {
 }
 
 #[test]
+fn a_listed_mailbox_keeps_its_server_written_in_another_case() {
+    let mut s = switched_on();
+    let id = s
+        .run("account.add", &json!({"email":"ada@example.org","kind":"zimbra","zimbra":{"url":format!("{URL}/zimbra"),"username":"ada"}}))
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let inbox = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(mailcraft_model::ServerFolder { id: "2".into(), ..Default::default() });
+    s.mailbox.account_mut(id).unwrap().zimbra.as_mut().unwrap().token = "42".into();
+    // The same server, as a settings form may send it back: nothing of the mailbox's changes.
+    for same in ["HTTPS://ZIMBRA.EXAMPLE.ORG/zimbra", "https://Zimbra.Example.org/zimbra/"] {
+        s.run("account.edit", &json!({"id":id,"zimbra":{"url":same}})).unwrap();
+        let server = s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap();
+        assert_eq!((server.url.as_str(), server.token.as_str()), (same, "42"));
+    }
+    // Another path, port or host is another mailbox's server, however alike it is written.
+    for other in ["https://zimbra.example.org/ZIMBRA", "https://zimbra.example.org", "https://zimbra.example.org:8443/zimbra"] {
+        assert!(said(s.run("account.edit", &json!({"id":id,"zimbra":{"url":other}}))).contains("can't be changed once its mail is here"), "{other}");
+        assert_eq!(s.mailbox.account(id).unwrap().zimbra.as_ref().unwrap().token, "42");
+    }
+}
+
+#[test]
 fn identity_edits_with_the_switch_off_leave_zimbra_unchanged() {
     let mut s = switched_on();
     let id = s.run("account.add", &zimbra("ada@example.org")).unwrap()["id"].as_u64().unwrap();
@@ -240,6 +264,7 @@ fn display_trust_and_equivalent_identity_edits_keep_zimbra_checkpoints() {
         json!({"zimbra":{"trusted":"a".repeat(64)}}),
         json!({"zimbra":{"username":"ADA"}}),
         json!({"zimbra":{"url":format!("{URL}/")}}),
+        json!({"zimbra":{"url":"HTTPS://ZIMBRA.EXAMPLE.ORG"}}),
         json!({"email":"ADA@example.org"}),
     ] {
         let mut s = switched_on();

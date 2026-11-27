@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The contrast of the colours the interface sets against each other (WCAG 2.x relative
-//! luminance): text 4.5:1, icons and the outlines of controls 3:1. Disabled controls are exempt
+//! luminance), in every palette and accent: text 4.5:1, icons and the outlines of controls 3:1. Disabled controls are exempt
 //! from the rule (checked at 3:1 so that they stay legible).
 
 use egui::Color32;
@@ -99,7 +99,24 @@ const STRONG_PAIRS: &[Pair] = &[
     ("text on pill_quiet", |t| t.text, |t| t.pill_quiet, TEXT),
 ];
 
-/// Every accent, light and dark (in both its styles, #1384), with high contrast off and on.
+/// What Classic Light promises on top (#1203): the edge of a selected row is seen on its wash,
+/// with the keyboard's focus in the list and without it.
+const CLASSIC_PAIRS: &[Pair] = &[
+    ("selection_edge on selection", |t| t.selection_edge, |t| t.selection, GRAPHIC),
+    ("selection_edge_unfocused on selection_unfocused", |t| t.selection_edge_unfocused, |t| t.selection_unfocused, GRAPHIC),
+];
+
+/// What a theme that fills the status bar with the accent promises (#1203): its words and the
+/// pointer's shade on it read, and so does the File tab filled with the accent under the pointer.
+const BAND_PAIRS: &[Pair] = &[
+    ("text on the status band", |t| t.on_band(t.accent).text, |t| t.on_band(t.accent).status_bar, TEXT),
+    ("text on the status band's hover", |t| t.on_band(t.accent).text, |t| t.on_band(t.accent).hover, TEXT),
+    ("text on the status band pressed", |t| t.on_band(t.accent).text, |t| t.on_band(t.accent).pressed, TEXT),
+    ("on_accent on the File tab under the pointer", |t| t.on_accent, |t| t.accent.lerp_to_gamma(Tokens::away_from(t.on_accent), 0.12), TEXT),
+];
+
+/// Every accent, light and dark (in both its styles, #1384) and Classic Light (#1203), with high
+/// contrast off and on.
 fn every_theme() -> Vec<(String, Tokens, bool)> {
     let mut all = Vec::new();
     for accent in Accent::ALL {
@@ -110,6 +127,9 @@ fn every_theme() -> Vec<(String, Tokens, bool)> {
                 if dark {
                     let name = format!("{} blue dark {}", accent.code(), if high { "high contrast" } else { "normal" });
                     all.push((name, Tokens::build_dark(super::DarkStyle::Blue, accent, high), high));
+                } else {
+                    let name = format!("{} classic light {}", accent.code(), if high { "high contrast" } else { "normal" });
+                    all.push((name, Tokens::build_classic(accent, None, high), high));
                 }
             }
         }
@@ -127,12 +147,15 @@ fn blue_normal_is_the_look_that_shipped() {
 }
 
 /// The pairs of one palette that fall short, with the mode named: the rules of `PAIRS` and, in
-/// high contrast, of `STRONG_PAIRS` (disabled controls are exempt: they stay at 3:1 in both; in
-/// high contrast text and outlines need 7:1, icons stay at 3:1).
+/// high contrast, of `STRONG_PAIRS`, with Classic Light's own (`CLASSIC_PAIRS`, and `BAND_PAIRS`
+/// where the status bar is filled with the accent, #1203) (disabled controls are exempt: they stay
+/// at 3:1 in both; in high contrast text and outlines need 7:1, icons stay at 3:1).
 fn wrong_pairs(mode: &str, t: &Tokens, high: bool) -> Vec<String> {
     let mut wrong = Vec::new();
     let extra: &[Pair] = if high { STRONG_PAIRS } else { &[] };
-    for (name, fg, bg, min) in PAIRS.iter().chain(extra) {
+    let classic: &[Pair] = if t.dense { CLASSIC_PAIRS } else { &[] };
+    let band: &[Pair] = if t.status_band { BAND_PAIRS } else { &[] };
+    for (name, fg, bg, min) in PAIRS.iter().chain(extra).chain(classic).chain(band) {
         let outline = name.contains("border") || name.contains("edge") || name.starts_with("accent on");
         let min = if !high || name.contains("disabled") {
             *min
@@ -204,7 +227,7 @@ fn the_tick_on_a_chosen_colour_is_the_better_of_black_and_white() {
 
 /// A custom accent: whatever colour the owner picks — the extremes of the cube and a
 /// deterministic sweep of it — is fitted so the same pairs pass as for the presets, in the light
-/// theme and in both greys of the dark one, with high contrast off and on.
+/// theme, in Classic Light (#1203) and in both greys of the dark one, with high contrast off and on.
 #[test]
 fn custom_accent_colours_meet_their_contrast() {
     let mut colors = vec![
@@ -241,6 +264,9 @@ fn custom_accent_colours_meet_their_contrast() {
             for high in [false, true] {
                 let hc = if high { "high contrast" } else { "normal" };
                 let mut modes = vec![(format!("custom {hex} light {hc}"), Tokens::build_choice(false, Accent::Custom, Some(c), high))];
+                if !dark {
+                    modes.push((format!("custom {hex} classic light {hc}"), Tokens::build_classic(Accent::Custom, Some(c), high)));
+                }
                 if dark {
                     modes.push((format!("custom {hex} dark {hc}"), Tokens::build_choice(true, Accent::Custom, Some(c), high)));
                     modes.push((
@@ -292,6 +318,7 @@ fn a_list_rows_text_reads_on_whatever_is_under_it() {
         let hex = super::hex_string(c);
         for high in [false, true] {
             themes.push((format!("custom {hex} light {high}"), Tokens::build_choice(false, Accent::Custom, Some(c), high), high));
+            themes.push((format!("custom {hex} classic light {high}"), Tokens::build_classic(Accent::Custom, Some(c), high), high));
             themes.push((format!("custom {hex} dark {high}"), Tokens::build_choice(true, Accent::Custom, Some(c), high), high));
             let blue = Tokens::build_dark_choice(super::DarkStyle::Blue, Accent::Custom, Some(c), high);
             themes.push((format!("custom {hex} blue dark {high}"), blue, high));

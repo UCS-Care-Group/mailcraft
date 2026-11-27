@@ -256,7 +256,11 @@ internal data class DayLayout(
     val hours: List<HourMark>,
 )
 
-/** A shown block is at least this long, so that a short event can be read and touched. */
+/**
+ * A shown block is at least this long, so that a short event can be read and touched. The screen
+ * raises it to what the block's drawn minimum height is worth at the owner's font size, so that
+ * [placeColumns] keeps a column until the block really ends.
+ */
 internal const val MIN_BLOCK_MINUTES = 30
 
 /** How long [date] is by the clocks of [zone] (23, 24 or 25 hours where the clocks change), in minutes. */
@@ -289,14 +293,19 @@ internal fun hourMarks(date: LocalDate, zone: ZoneId): List<HourMark> {
 }
 
 /** The day view of [date]: [events] that are on it, placed side by side where they overlap. */
-internal fun dayLayout(events: List<CalendarEvent>, date: LocalDate, zone: ZoneId): DayLayout {
+internal fun dayLayout(
+    events: List<CalendarEvent>,
+    date: LocalDate,
+    zone: ZoneId,
+    minMinutes: Int = MIN_BLOCK_MINUTES,
+): DayLayout {
     val here = events.filter { it.isOn(date) }.sortedWith(eventOrder)
     val (whole, timed) = here.partition { it.allDay }
     val total = dayMinutes(date, zone)
     val spans = timed.map { e ->
         val from = if (e.firstDay.isBefore(date)) 0 else minuteOfDay(e.start, date, zone)
         val to = if (e.lastDay.isAfter(date)) total else minuteOfDay(e.end, date, zone)
-        Triple(e, from, maxOf(to, minOf(from + MIN_BLOCK_MINUTES, total)))
+        Triple(e, from, maxOf(to, minOf(from + minMinutes, total)))
     }
     return DayLayout(whole, placeColumns(spans), total, hourMarks(date, zone))
 }
