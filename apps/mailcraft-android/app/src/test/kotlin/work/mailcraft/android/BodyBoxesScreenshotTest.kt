@@ -136,9 +136,12 @@ class BodyBoxesScreenshotTest {
         maxPercentDifference = TOLERANCE,
     )
 
+    /** In the dark theme the light page is off: the boxes are recoloured dark, and their frames must still show. */
+    private val darkPage = ReadingTools(null, { _, _ -> }, {}, ReadingPrefs(lightMessages = false), {})
+
     private fun shoot(entry: Corpus.Entry, name: String, night: Boolean) {
         paparazzi.unsafeUpdateConfig(Shot.copy(nightMode = if (night) NightMode.NIGHT else NightMode.NOTNIGHT))
-        paparazzi.snapshot(name) { ReadingShots.Pane(ReadingShots.ui(entry)) }
+        paparazzi.snapshot(name) { ReadingShots.Pane(ReadingShots.ui(entry), if (night) darkPage else ReadingTools.None) }
     }
 
     @Test
