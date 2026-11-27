@@ -84,17 +84,21 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     read_headers(&headers, &mut message);
     let mut walk = Walk { opaque_limit, ..Walk::default() };
     walk.part(&headers, body, 0, Parent::None);
+    // A winmail.dat's text, when there is no source text or HTML. Picture-only
+    // synthesized HTML must not make an otherwise eligible fallback disappear.
+    if !walk.body.source_html
+        && walk.body.text.as_deref().is_none_or(|t| t.trim().is_empty())
+        && let Some(text) = walk.tnef_text.take()
+    {
+        if let Some(html) = &mut walk.body.html {
+            html.push_str(&mailcraft_html::from_text(&text));
+        }
+        walk.body.text = Some(text);
+    }
     walk.finish_mixed_pictures();
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.body.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
     message.hidden_text = hidden.unwrap_or_default();
-    // A winmail.dat's text, for a message with no text or HTML of its own.
-    if walk.body.html.is_none()
-        && walk.body.text.as_deref().is_none_or(|t| t.trim().is_empty())
-        && let Some(text) = walk.tnef_text.take()
-    {
-        walk.body.text = Some(text);
-    }
     message.body.text = match (walk.body.text, html_text) {
         (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
@@ -522,7 +526,7 @@ impl Walk {
     fn add_text(&mut self, text: String, parent: Parent) {
         match &mut self.body.text {
             None => {
-                if parent == Parent::Mixed
+                if (parent == Parent::Mixed || (parent == Parent::Related && !self.body.source_html))
                     && let Some(html) = &mut self.body.html
                 {
                     html.push_str(&mailcraft_html::from_text(&text));

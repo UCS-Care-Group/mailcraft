@@ -75,6 +75,44 @@ fn its_text_is_the_body_only_when_the_message_has_none() {
 }
 
 #[test]
+fn inline_picture_does_not_suppress_tnef_plain_fallback() {
+    let stream = Writer::new().message_props(&[Prop::Unicode(0x1000, "Caption".into())]).finish();
+    let picture = "--b\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n";
+    for picture_first in [true, false] {
+        for source in [None, Some("Source plain"), Some(" \t")] {
+            let original = String::from_utf8(message(source, "application/ms-tnef", "winmail.dat", &stream)).unwrap();
+            let wire = if picture_first {
+                original.replacen("--b\r\n", &format!("{picture}--b\r\n"), 1)
+            } else {
+                original.replace("--b--", &format!("{picture}--b--"))
+            };
+            let message = parse(wire.as_bytes());
+            let own_text = source.filter(|text| !text.trim().is_empty());
+            let expected = own_text.unwrap_or("Caption");
+            assert_eq!(message.body.text, expected);
+            // Without synthesized HTML, the pre-feature reader displayed the plain body.
+            let visible = message.body.html.as_deref().map(mailcraft_html::to_text).unwrap_or_else(|| message.body.text.clone());
+            assert!(visible.contains(expected), "{visible}");
+            if let Some(html) = &message.body.html {
+                assert_eq!(html.matches(expected).count(), 1, "{html}");
+                if own_text.is_some() {
+                    assert!(!html.contains("Caption"), "{html}");
+                }
+                assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+            }
+            assert!(message.attachments.iter().any(|part| part.data.as_slice() == stream.as_slice()));
+        }
+    }
+    let wire = String::from_utf8(message(None, "application/ms-tnef", "winmail.dat", &stream)).unwrap();
+    let source = "--b\r\nContent-Type: text/html\r\n\r\n<p>Source HTML</p>\r\n";
+    let wire = wire.replace("--b--", &format!("{picture}{source}--b--"));
+    let message = parse(wire.as_bytes());
+    assert!(message.body.text.contains("Source HTML"));
+    assert!(!message.body.text.contains("Caption"));
+    assert!(!message.body.html.as_deref().unwrap().contains("Caption"));
+}
+
+#[test]
 fn a_streams_file_keeps_no_content_id_and_is_not_inline() {
     let stream = Writer::new()
         .attachment(

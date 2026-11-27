@@ -460,6 +460,33 @@ fn sibling_alternative_picture_offsets_are_rebased_independently() {
 }
 
 #[test]
+fn related_plain_root_remains_visible_beside_a_synthesized_picture() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let related = "Content-Type: multipart/related; boundary=r\r\n\r\n--r\r\nContent-Type: text/plain\r\n\r\nCaption\r\n--r--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, related) } else { (related, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        assert_eq!(message.body.text, "Caption");
+        // Preserve the reader-visible body whether pictures synthesize HTML or not.
+        let visible = message.body.html.as_deref().map(mailcraft_html::to_text).unwrap_or_else(|| message.body.text.clone());
+        assert!(visible.contains("Caption"), "{visible}");
+        if let Some(html) = &message.body.html {
+            assert_eq!(html.matches("Caption").count(), 1, "{html}");
+            assert_eq!(html.find("<img").unwrap() < html.find("Caption").unwrap(), picture_first, "{html}");
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+        }
+    }
+    let alternative = format!(
+        "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{related}\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Chosen HTML</p>\r\n--a--"
+    );
+    let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{picture}\r\n--m\r\n{alternative}\r\n--m--\r\n").as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert!(html.contains("Chosen HTML"));
+    assert!(!html.contains("Caption"), "plain alternative remains a separate rendering: {html}");
+    assert_eq!(message.body.text, "Caption");
+}
+
+#[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[
         "Subject: Files",
