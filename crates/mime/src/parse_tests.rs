@@ -296,6 +296,59 @@ fn mixed_picture_does_not_choose_the_following_html_alternative() {
 }
 
 #[test]
+fn one_cid_reference_shows_only_one_of_two_distinct_attachment_ids() {
+    for reversed in [false, true] {
+        for reference in ["logo%40example.org", "LOGO%40EXAMPLE.ORG", "logo@example.org"] {
+            let mut ids = ["logo%40example.org", "logo@example.org"];
+            if reversed {
+                ids.reverse();
+            }
+            let picture = |id| {
+                format!(
+                    "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <{id}>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo="
+                )
+            };
+            let wire = format!(
+                "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: text/html\r\n\r\n<p>Both<img src=\"cid:{reference}\"></p>\r\n--m\r\n{}\r\n--m\r\n{}\r\n--m--\r\n",
+                picture(ids[0]),
+                picture(ids[1])
+            );
+            let message = parse(wire.as_bytes());
+            let html = message.body.html.as_deref().unwrap();
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 2, "{html}");
+            assert_eq!(message.attachments.iter().map(|part| part.content_id.as_str()).collect::<Vec<_>>(), ids);
+        }
+    }
+}
+
+#[test]
+fn mixed_pictures_keep_plain_only_alternatives_in_either_order() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let alternative = "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\nChosen plain\r\n--a\r\nContent-Type: text/plain\r\n\r\nOther plain\r\n--a--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, alternative) } else { (alternative, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert_eq!(html.matches("Chosen plain").count(), 1, "{html}");
+        assert!(!html.contains("Other plain"), "{html}");
+        assert_eq!(message.body.text, "Chosen plain");
+        assert_eq!(html.find("<img").unwrap() < html.find("Chosen plain").unwrap(), picture_first, "{html}");
+    }
+}
+
+#[test]
+fn related_html_selects_its_enclosing_alternative_without_duplicate_renderings() {
+    for chosen_related in [true, false] {
+        let related = "Content-Type: multipart/related; boundary=r\r\n\r\n--r\r\nContent-Type: text/html\r\n\r\n<p>Related</p>\r\n--r--";
+        let direct = "Content-Type: text/html\r\n\r\n<p>Direct</p>";
+        let (first, last) = if chosen_related { (related, direct) } else { (direct, related) };
+        let message =
+            parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{first}\r\n--a\r\n{last}\r\n--a--\r\n").as_bytes());
+        assert_eq!(message.body.html.as_deref(), Some(if chosen_related { "<p>Related</p>" } else { "<p>Direct</p>" }));
+    }
+}
+
+#[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[
         "Subject: Files",

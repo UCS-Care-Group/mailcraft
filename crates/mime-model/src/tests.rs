@@ -216,6 +216,43 @@ fn an_inline_image_round_trips() {
 }
 
 #[test]
+fn mixed_cid_fallbacks_resolve_each_distinct_picture_in_the_reader() {
+    for reversed in [false, true] {
+        for reference in ["logo%40example.org", "LOGO%40EXAMPLE.ORG", "logo@example.org"] {
+            let mut ids = ["logo%40example.org", "logo@example.org"];
+            if reversed {
+                ids.reverse();
+            }
+            let picture = |id| {
+                format!(
+                    "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <{id}>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo="
+                )
+            };
+            let wire = format!(
+                "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: text/html\r\n\r\n<p>Both<img src=\"cid:{reference}\"></p>\r\n--m\r\n{}\r\n--m\r\n{}\r\n--m--\r\n",
+                picture(ids[0]),
+                picture(ids[1])
+            );
+            let message = parse(wire.as_bytes());
+            let html = message.body.html.as_deref().unwrap();
+            let blocks = mailcraft_html::parse(html);
+            let images = mailcraft_html::images(&blocks);
+            assert_eq!(images.len(), 2, "{html}");
+            let mut resolved = images
+                .iter()
+                .filter_map(|image| {
+                    let mailcraft_html::BlockKind::Image { src, .. } = &image.kind else { return None };
+                    Some(mailcraft_model::shown::part_for(&message.attachments, src).unwrap().0)
+                })
+                .collect::<Vec<_>>();
+            resolved.sort_unstable();
+            assert_eq!(resolved, [0, 1], "{reference}: {html}");
+            assert_eq!(message.attachments.iter().map(|part| part.content_id.as_str()).collect::<Vec<_>>(), ids);
+        }
+    }
+}
+
+#[test]
 fn attachments_round_trip() {
     let mut m = base();
     let big: Vec<u8> = (0..5000u32).map(|i| (i * 7 % 256) as u8).collect();

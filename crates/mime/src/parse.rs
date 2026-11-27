@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Internet messages (RFC 5322 + MIME) to [`Message`].
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::{AUTH_AS, DIRECTIONALITY, MAX_AUTH_AS};
@@ -271,8 +271,17 @@ struct Walk {
     tnef_text: Option<String>,
     /// HTML insertion offset, attachment index, and candidate id (reserved after the walk).
     mixed_pictures: Vec<(usize, usize, String)>,
-    /// HTML selected within the current alternative, separate from synthesized mixed HTML.
-    alternative_html: bool,
+    /// Selection belongs to the enclosing alternative, including its related wrappers.
+    alternative: Option<Alternative>,
+}
+
+/// Only the selected branch contributes HTML; plain text waits until all branches are known.
+#[derive(Default)]
+struct Alternative {
+    html: bool,
+    skip_html: bool,
+    inherited_skip: bool,
+    plain: Option<String>,
 }
 
 impl Walk {
@@ -289,24 +298,10 @@ impl Walk {
             self.html = Some(html);
             return;
         }
-        let mut shown: HashSet<Vec<u8>> = images
-            .iter()
-            .filter_map(|block| {
-                let mailcraft_html::BlockKind::Image { src, .. } = &block.kind else { return None };
-                src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:"))?;
-                Some([cid_raw_key(src.get(4..)?), cid_key(src.get(4..)?)])
-            })
-            .flatten()
-            .collect();
         // Later explicit ids must also be reserved before any missing id is assigned.
         let mut reserved: HashSet<Vec<u8>> =
             self.attachments.iter().filter(|part| !part.content_id.is_empty()).map(|part| cid_raw_key(&part.content_id)).collect();
-        let mut combined = String::new();
-        let mut cursor = 0;
-        for (at, index, generated_id) in &self.mixed_pictures {
-            let Some(before) = html.get(cursor..*at) else { continue };
-            combined.push_str(before);
-            cursor = *at;
+        for (_, index, generated_id) in &self.mixed_pictures {
             let Some(part) = self.attachments.get_mut(*index) else { continue };
             if part.content_id.is_empty() {
                 let mut id = generated_id.clone();
@@ -315,7 +310,31 @@ impl Walk {
                 }
                 part.content_id = id;
             }
-            if shown.insert(cid_raw_key(&part.content_id)) {
+        }
+        // Match the model reader's PartIndex precedence: exact raw, exact decoded,
+        // then the earliest case-insensitive raw-or-decoded match. One img shows one part.
+        let mut exact = HashMap::new();
+        let mut folded = HashMap::new();
+        for (index, part) in self.attachments.iter().enumerate().filter(|(_, part)| !part.content_id.is_empty()) {
+            exact.entry(part.content_id.as_str()).or_insert(index);
+            folded.entry(cid_raw_key(&part.content_id)).or_insert(index);
+        }
+        let mut shown: HashSet<usize> = images
+            .iter()
+            .filter_map(|block| {
+                let mailcraft_html::BlockKind::Image { src, .. } = &block.kind else { return None };
+                cid_attachment_index(src, &exact, &folded)
+            })
+            .collect();
+        let mut combined = String::new();
+        let mut cursor = 0;
+        for (at, index, _) in &self.mixed_pictures {
+            let Some(before) = html.get(cursor..*at) else { continue };
+            combined.push_str(before);
+            cursor = *at;
+            let Some(part) = self.attachments.get(*index) else { continue };
+            let identity = exact.get(part.content_id.as_str()).copied().unwrap_or(*index);
+            if shown.insert(identity) {
                 let source = format!("cid:{}", part.content_id);
                 combined.push_str(&format!("<img src=\"{}\" alt=\"{}\">", mailcraft_html::escape(&source), mailcraft_html::escape(&part.name)));
             }
@@ -349,16 +368,34 @@ impl Walk {
                 "mixed" => Parent::Mixed,
                 _ => Parent::Other,
             };
-            let outer_alternative_html = self.alternative_html;
+            let outer_alternative = if kind == Parent::Alternative { self.alternative.take() } else { None };
             if kind == Parent::Alternative {
-                self.alternative_html = false;
+                self.alternative =
+                    Some(Alternative { inherited_skip: outer_alternative.as_ref().is_some_and(|outer| outer.skip_html), ..Alternative::default() });
             }
             for piece in split_multipart(body, boundary, MAX_PARTS.saturating_sub(self.parts)) {
+                if kind == Parent::Alternative
+                    && let Some(choice) = &mut self.alternative
+                {
+                    choice.skip_html = choice.inherited_skip || choice.html;
+                }
                 let (part_headers, part_body) = header::split(piece, false);
                 self.part(&part_headers, part_body, depth + 1, kind);
             }
             if kind == Parent::Alternative {
-                self.alternative_html = outer_alternative_html;
+                let choice = self.alternative.take().unwrap_or_default();
+                self.alternative = outer_alternative;
+                if let Some(outer) = &mut self.alternative {
+                    outer.html |= choice.html;
+                    if outer.plain.is_none() {
+                        outer.plain = choice.plain;
+                    }
+                } else if !choice.html
+                    && !choice.inherited_skip
+                    && let (Some(html), Some(plain)) = (&mut self.html, choice.plain)
+                {
+                    html.push_str(&mailcraft_html::from_text(&plain));
+                }
             }
             return;
         }
@@ -374,7 +411,7 @@ impl Walk {
             let text = charset::decode(&decode(raw, &encoding), content_type.get("charset").unwrap_or(""));
             let text = charset::unix_lines(text.trim_start_matches('\u{feff}'));
             if media_type == "text/html" {
-                self.add_html(text, parent)
+                self.add_html(text)
             } else {
                 self.add_text(text, parent)
             }
@@ -462,6 +499,14 @@ impl Walk {
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {
+        let parent = if let Some(choice) = &mut self.alternative {
+            if choice.plain.is_none() {
+                choice.plain = Some(text.clone());
+            }
+            Parent::Alternative
+        } else {
+            parent
+        };
         match &mut self.text {
             None => {
                 if parent == Parent::Mixed
@@ -486,11 +531,13 @@ impl Walk {
         }
     }
 
-    fn add_html(&mut self, html: String, parent: Parent) {
-        if parent == Parent::Alternative && self.alternative_html {
-            return;
+    fn add_html(&mut self, html: String) {
+        if let Some(choice) = &mut self.alternative {
+            if choice.skip_html {
+                return;
+            }
+            choice.html = true;
         }
-        self.alternative_html |= parent == Parent::Alternative;
         match &mut self.html {
             None => self.html = Some(html),
             Some(body) => {
@@ -514,11 +561,26 @@ fn supported_picture(data: &[u8]) -> bool {
         || (data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()))
 }
 
+fn cid_attachment_index(src: &str, exact: &HashMap<&str, usize>, folded: &HashMap<Vec<u8>, usize>) -> Option<usize> {
+    let src = src.trim();
+    src.get(..4).filter(|scheme| scheme.eq_ignore_ascii_case("cid:"))?;
+    let raw = src.get(4..)?.trim().trim_start_matches('<').trim_end_matches('>');
+    if raw.is_empty() || raw.len() > 998 {
+        return None;
+    }
+    let decoded = cid_decoded(raw);
+    exact
+        .get(raw)
+        .or_else(|| exact.get(decoded.as_str()))
+        .copied()
+        .or_else(|| [folded.get(&cid_raw_key(raw)), folded.get(&cid_raw_key(&decoded))].into_iter().flatten().min().copied())
+}
+
 fn cid_raw_key(value: &str) -> Vec<u8> {
     value.trim().trim_matches(['<', '>']).bytes().map(|byte| byte.to_ascii_lowercase()).collect()
 }
 
-fn cid_key(value: &str) -> Vec<u8> {
+fn cid_decoded(value: &str) -> String {
     let value = value.trim().trim_matches(['<', '>']);
     let mut decoded = Vec::with_capacity(value.len());
     let mut bytes = value.as_bytes().iter().copied();
@@ -528,14 +590,14 @@ fn cid_key(value: &str) -> Vec<u8> {
             if let (Some(hi), Some(lo)) = (pair.next(), pair.next())
                 && let (Some(hi), Some(lo)) = (char::from(hi).to_digit(16), char::from(lo).to_digit(16))
             {
-                decoded.push(((hi * 16 + lo) as u8).to_ascii_lowercase());
+                decoded.push((hi * 16 + lo) as u8);
                 bytes = pair;
                 continue;
             }
         }
-        decoded.push(byte.to_ascii_lowercase());
+        decoded.push(byte);
     }
-    decoded
+    String::from_utf8(decoded).unwrap_or_else(|_| value.to_string())
 }
 
 /// Undo a content transfer encoding; `7bit`, `8bit`, `binary` and anything unknown are the bytes themselves.
