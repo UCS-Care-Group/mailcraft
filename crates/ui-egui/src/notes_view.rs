@@ -2425,7 +2425,9 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
                     .hint_text("Peça algo à IA sobre esta nota... (Ex: 'cite três lições', 'resuma')")
                     .desired_width(input_width);
                 let resp = ui.add_enabled_ui(!app.notes.gemini_loading, |ui| ui.add_sized([input_width, 26.0], input)).inner;
-                ui.add_space(spacing);
+                // `ui.horizontal` already inserts one item gap; `gemini_input_layout`
+                // reserves it in the widths, so adding another space here clips Enviar.
+                let _ = spacing;
                 let send_clicked = ui.add_enabled_ui(!app.notes.gemini_loading, |ui| {
                     ui.add_sized([btn_width, 26.0], send_btn)
                 }).inner.clicked();
@@ -2544,7 +2546,9 @@ fn call_gemini_api_direct(prompt: &str, context: &str, api_key: &str) -> Option<
         },
         "contents": [{
             "parts": [{ "text": full_prompt }]
-        }]
+        }],
+        // Keep a looping model response bounded instead of letting it flood the note.
+        "generationConfig": { "maxOutputTokens": 2048 }
     }).to_string();
 
     #[cfg(target_os = "windows")]
