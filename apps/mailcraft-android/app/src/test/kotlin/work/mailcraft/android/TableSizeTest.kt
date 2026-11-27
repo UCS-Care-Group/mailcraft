@@ -8,6 +8,7 @@ package work.mailcraft.android
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,7 +66,8 @@ class TableSizeTest {
                     if (root != null) cut = cutTexts(root, box.size.height)
                 },
             ) {
-                Probe(listOf(w), out) { content(room) }
+                // A loaded picture is decoded at once, so it is drawn at its size in every pass.
+                CompositionLocalProvider(LocalDecodeInPlace provides true) { Probe(listOf(w), out) { content(room) } }
             }
         }
         val (_, said, drawn) = out.last()

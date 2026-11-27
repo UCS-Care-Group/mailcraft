@@ -68,7 +68,10 @@ class TablesRtlScreenshotTest {
         val text = "Here is the seed tray we spoke of on Tuesday. It holds forty cells and stacks with the others, so the north bed can be sown in one go."
         val line = listOf(B.image(src, "Seed tray", 96u, 48u), B.p(text, 0u).copy(beside = true))
         paparazzi.snapshot("reading_picture_line_light_100") {
-            Box(modifier = Modifier.background(Color.White).padding(16.dp)) { BlockColumn(line, env, Paper.of(0xFFFFFF, 0x0645AD), 360.dp) }
+            // Decoded at once, as the other shots do: a picture decoded in the background may come after the shot.
+            CompositionLocalProvider(LocalDecodeInPlace provides true) {
+                Box(modifier = Modifier.background(Color.White).padding(16.dp)) { BlockColumn(line, env, Paper.of(0xFFFFFF, 0x0645AD), 360.dp) }
+            }
         }
     }
 
