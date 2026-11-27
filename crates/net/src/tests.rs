@@ -1186,6 +1186,22 @@ fn a_move_is_one_step_on_a_server_that_can() {
 }
 
 #[test]
+fn a_move_that_keeps_the_original_marks_it_deleted() {
+    // A server that says MOVE but only copies the message.
+    let imap = two_way(true, false);
+    imap.world().move_keeps_source = true;
+    let folders = without(synced_folders(&imap), "INBOX", &[1]);
+    let result = sync(&pushing(&imap, &folders, vec![moving(901, "INBOX", 1, "Projects", PROJECTS)]));
+    assert_eq!(result.errors, Vec::<String>::new());
+    assert_eq!(result.moved, [moved(901, "INBOX", 1, PROJECTS, 0, 0)]);
+    assert_eq!(changes(&imap), ["UID MOVE 1 \"Projects\"", "UID STORE 1 +FLAGS.SILENT (\\Deleted)"]);
+    assert!(on_server(&imap, "INBOX").into_iter().any(|(uid, flags)| uid == 1 && flags.contains("\\Deleted")));
+    // The next run doesn't bring it back.
+    let again = sync(&pushing(&imap, &applied(&folders, &result), Vec::new()));
+    assert_eq!((again.errors.len(), again.new_count()), (0, 0));
+}
+
+#[test]
 fn a_moved_message_comes_down_to_be_matched_when_the_server_does_not_say_where_it_went() {
     // MOVE, but no word about the new UID.
     let imap = two_way(true, false);
