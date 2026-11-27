@@ -328,8 +328,87 @@ impl Budget {
 /// lean: four, as mail rarely nests deeper; raise with care, as the work is per level.
 pub(crate) const PHONE_TABLE_DEPTH: usize = if MAX_TABLE_DEPTH < 4 { MAX_TABLE_DEPTH } else { 4 };
 
+/// The most characters one text block is sent with. The phone draws a block's text as one piece,
+/// which can be no taller than 2^24 px; at its largest (48 px text in lines of 255 px, a font scale
+/// of 2 and 4 px to the dp, a character to a line in a narrow cell) a line is about 2,040 px, so this
+/// many characters stay under half of that. A longer block goes as several, one under another, cut
+/// at a line break, else after a space, else between two characters: every character kept, in order.
+pub(crate) const MAX_BLOCK_CHARS: usize = 4_000;
+
+fn is_text(kind: &BlockKindView) -> bool {
+    matches!(kind, BlockKindView::Paragraph | BlockKindView::Heading { .. } | BlockKindView::ListItem { .. } | BlockKindView::Preformatted)
+}
+
+fn chars_of(v: &BlockView) -> usize {
+    v.spans.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()))
+}
+
+/// Where to end a piece within `head` (the most one may still take): the byte it ends at and the
+/// byte the next starts at. A line break goes (the next block starts the line); a space stays.
+fn cut_in(head: &str) -> (usize, usize) {
+    if let Some(i) = head.rfind('\n') {
+        return (i, i.saturating_add(1));
+    }
+    match head.char_indices().rev().find(|(_, c)| c.is_whitespace()) {
+        Some((i, c)) => (i.saturating_add(c.len_utf8()), i.saturating_add(c.len_utf8())),
+        None => (head.len(), head.len()),
+    }
+}
+
+/// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each (the first is `v`'s own), each piece
+/// after the first taken from `budget`: past it the rest is left out, as with any block.
+fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
+    if !is_text(&v.kind) || chars_of(&v) <= MAX_BLOCK_CHARS {
+        return vec![v];
+    }
+    // A piece after the first goes on under it: no room above, and a list item's marker only once.
+    let mut next = v.clone();
+    next.spans.clear();
+    next.space = 0;
+    next.gap = 0;
+    next.beside = false;
+    if let BlockKindView::ListItem { depth, .. } = next.kind {
+        next.kind = BlockKindView::ListItem { marker: MarkerView::Nothing, depth };
+    }
+    let mut out = Vec::new();
+    let mut piece = BlockView { spans: Vec::new(), ..v.clone() };
+    let mut room = MAX_BLOCK_CHARS;
+    for s in &v.spans {
+        let mut rest = s.text.as_str();
+        while !rest.is_empty() {
+            match rest.char_indices().nth(room).map(|(at, _)| at) {
+                None => {
+                    room = room.saturating_sub(rest.chars().count());
+                    piece.spans.push(SpanView { text: rest.to_string(), ..s.clone() });
+                    rest = "";
+                }
+                Some(at) => {
+                    let (end, resume) = rest.get(..at).map_or((at, at), cut_in);
+                    if let Some(text) = rest.get(..end).filter(|t| !t.is_empty()) {
+                        piece.spans.push(SpanView { text: text.to_string(), ..s.clone() });
+                    }
+                    if !piece.spans.is_empty() {
+                        out.push(std::mem::replace(&mut piece, next.clone()));
+                        if !budget.take() {
+                            return out;
+                        }
+                    }
+                    room = MAX_BLOCK_CHARS;
+                    rest = rest.get(resume..).unwrap_or_default();
+                }
+            }
+        }
+    }
+    if !piece.spans.is_empty() {
+        out.push(piece);
+    }
+    out
+}
+
 fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> Vec<BlockView> {
     let mut out = Vec::new();
+    // The characters of the text going on in one line so far: the phone draws such a run as one piece.
+    let mut run = 0usize;
     for b in blocks {
         if !budget.take() {
             break;
@@ -342,7 +421,21 @@ fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, dep
                     out.extend(blocks_of(&c.blocks, pictures, budget, depth));
                 }
             }
-            _ => out.push(block(b, pictures, budget, depth)),
+            _ => {
+                for mut v in pieces(block(b, pictures, budget, depth), budget) {
+                    if !is_text(&v.kind) {
+                        run = 0;
+                    } else {
+                        let n = chars_of(&v);
+                        // Text that would make its line's run longer than a block may be starts a line.
+                        if v.beside && run.saturating_add(n) > MAX_BLOCK_CHARS {
+                            v.beside = false;
+                        }
+                        run = if v.beside { run.saturating_add(n) } else { n };
+                    }
+                    out.push(v);
+                }
+            }
         }
     }
     out

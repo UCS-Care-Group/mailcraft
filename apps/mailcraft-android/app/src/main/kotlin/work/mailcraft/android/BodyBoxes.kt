@@ -146,7 +146,7 @@ internal class BoxesPolicy(
         val heights = measurables.mapIndexed { n, m ->
             val w = widths.getOrElse(n) { 0 }
             intrinsic(MAX_BOX_HEIGHT) { if (max) m.maxIntrinsicHeight(w) else m.minIntrinsicHeight(w) }
-                .coerceIn(0, MAX_LAYOUT_SIZE)
+                .coerceIn(0, MAX_STACK)
         }
         return lines(placeBoxes(widths, gaps(), right, room, align, floats), heights).second
     }

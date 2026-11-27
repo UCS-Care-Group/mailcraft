@@ -103,7 +103,8 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
         when (val kind = block.kind) {
             is BlockKindView.Table ->
                 if (kind.table.inline) {
-                    BoxOnALine(kind.table, block.align, env, paper, room)
+                    // A box alone in its line is as wide as it says it is, as one among others is.
+                    BoxesLine(listOf(block), env, paper, room)
                 } else {
                     TableBlock(kind.table, block.align, env, paper, room)
                 }
@@ -196,7 +197,12 @@ internal fun BoxOnALine(table: TableView, align: AlignView, env: BodyEnv, paper:
 /** Blocks one under another: the cells of a table and the like. */
 @Composable
 internal fun BlockColumn(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
-    androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxWidth()) {
-        linesOf(blocks).forEach { BodyLineView(it, env, paper, width) }
-    }
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = { linesOf(blocks).forEach { BodyLineView(it, env, paper, width) } },
+        measurePolicy = OneUnderAnother,
+    )
 }
+
+/** Blocks one under another, held to [MAX_STACK] (I3). */
+private val OneUnderAnother = StackPolicy(0f)

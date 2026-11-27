@@ -9,13 +9,17 @@ import uniffi.mailcraft_mobile.TableView
 // The arithmetic of boxes on a line, held to what Compose can lay out (#1966).
 
 /**
- * The most a side of a layout can be, in px: what Compose takes (2^24 - 1). Boxes on a line are placed,
- * never measured with `Constraints.fixed`, so they are held to this, not to a picture's [MAX_BOX_HEIGHT].
+ * I3: no layout of a message's body is taller than Compose takes ([MAX_LAYOUT], 2^24 - 1 px), in a
+ * measure or in an intrinsic, whatever the message holds (#1966). What stacks the body's blocks (a
+ * cell's blocks: [StackPolicy]; a table's sections and rows: [SectionPolicy]; lines of boxes:
+ * [lineTops]) is held to this, which leaves 2^20 px for what wraps it four tables deep (a cell's
+ * padding and lines, a box's margins), and the bridge sends no text block that one piece of text could
+ * draw taller than half of it (`MAX_BLOCK_CHARS`).
  */
-// lean: lines past this overlap at its edge; a message that tall is hostile, and nothing crashes.
-internal const val MAX_LAYOUT_SIZE = (1 shl 24) - 1
+// lean: past it the rest is not drawn (the foot is cut, as a picture's is); a message that tall is hostile.
+internal const val MAX_STACK = MAX_LAYOUT - (1 shl 20)
 
-private fun sum(a: Int, b: Int): Int = (a.toLong() + b).coerceIn(0, MAX_LAYOUT_SIZE.toLong()).toInt()
+private fun sum(a: Int, b: Int): Int = (a.toLong() + b).coerceIn(0, MAX_STACK.toLong()).toInt()
 
 /** The tops of lines of boxes [heights] high, [between] apart, and the height of them all. */
 internal fun lineTops(heights: IntArray, between: Int): Pair<IntArray, Int> {

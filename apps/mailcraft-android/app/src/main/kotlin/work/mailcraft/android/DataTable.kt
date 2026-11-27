@@ -50,12 +50,15 @@ private fun headerTint(paper: Paper): Color =
 
 /**
  * What [ask] answers, or [fallback] when Compose can't: its own intrinsics throw for a cell taller than
- * a measure's constraints can hold (about 262,000 px, a few thousand lines).
+ * a measure's constraints can hold (about 262,000 px, a few thousand lines), and a size past 2^24 px
+ * throws where it is laid out. A last net under I3 ([MAX_STACK]), which keeps the sizes from getting there.
  */
 internal inline fun intrinsic(fallback: Int, ask: () -> Int): Int =
     try {
         ask()
     } catch (_: IllegalArgumentException) {
+        fallback
+    } catch (_: IllegalStateException) {
         fallback
     }
 

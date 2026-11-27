@@ -65,7 +65,7 @@ internal class Arranged(
  * - I2, bounded work. A measure, or any one intrinsic, asks each cell each intrinsic at most once.
  * - No measure throws: a cell's height is asked with a fallback, a cell that fills a row with colour
  *   is held to [MAX_BOX_HEIGHT] (as a picture's foot is cut), a cell's width to [MAX_BOX_WIDTH], and the
- *   section to [MAX_LAYOUT].
+ *   section to [MAX_STACK] (I3).
  */
 internal class SectionPolicy(
     private val cells: List<PlacedCell>,
@@ -111,7 +111,7 @@ internal class SectionPolicy(
         val room = roomOf(given, needs)
         val (stacked, lefts, wides) = across(room)
         val heights = IntArray(cells.size) {
-            heightOf(it, wides[it], !stacked && cells[it].row in tinted).coerceIn(0, MAX_LAYOUT)
+            heightOf(it, wides[it], !stacked && cells[it].row in tinted).coerceIn(0, MAX_STACK)
         }
         val between = rowGap.dp.roundToPx()
         val tops = IntArray(cells.size)
@@ -119,15 +119,15 @@ internal class SectionPolicy(
         var y = 0
         if (stacked) {
             cells.indices.forEach { i ->
-                if (i > 0) y = (y + between).coerceAtMost(MAX_LAYOUT)
+                if (i > 0) y = (y + between).coerceAtMost(MAX_STACK)
                 tops[i] = y
                 slots[i] = heights[i]
-                y = (y + heights[i]).coerceAtMost(MAX_LAYOUT)
+                y = (y + heights[i]).coerceAtMost(MAX_STACK)
             }
         } else {
             val byRow = cells.indices.groupBy { cells[it].row }
             byRow.keys.sorted().forEachIndexed { n, r ->
-                if (n > 0) y = (y + between).coerceAtMost(MAX_LAYOUT)
+                if (n > 0) y = (y + between).coerceAtMost(MAX_STACK)
                 val row = byRow[r].orEmpty()
                 val tall = row.maxOfOrNull { heights[it] } ?: 0
                 // Each cell's slot is the row: a tinted one fills it, any other stands in it by its valign.
@@ -135,7 +135,7 @@ internal class SectionPolicy(
                     tops[i] = y
                     slots[i] = tall
                 }
-                y = (y + tall).coerceAtMost(MAX_LAYOUT)
+                y = (y + tall).coerceAtMost(MAX_STACK)
             }
         }
         return Arranged(stacked, lefts, wides, tops, slots, room, y)
@@ -143,7 +143,7 @@ internal class SectionPolicy(
 
     /** A cell's height at [width]: held to [MAX_BOX_HEIGHT] where it [fills] its row, a fixed measure. */
     private fun IntrinsicMeasurable.heightAt(width: Int, fills: Boolean): Int =
-        intrinsic(MAX_BOX_HEIGHT) { minIntrinsicHeight(width) }.coerceAtMost(if (fills) MAX_BOX_HEIGHT else MAX_LAYOUT)
+        intrinsic(MAX_BOX_HEIGHT) { minIntrinsicHeight(width) }.coerceAtMost(if (fills) MAX_BOX_HEIGHT else MAX_STACK)
 
     private fun needsOf(measurables: List<IntrinsicMeasurable>): () -> Int =
         { minIntrinsicWidthOf(measurables, Constraints.Infinity) }
@@ -209,4 +209,61 @@ internal fun valignOf(v: VAlignView?): Alignment.Vertical = when (v) {
     VAlignView.MIDDLE -> Alignment.CenterVertically
     VAlignView.BOTTOM -> Alignment.Bottom
     else -> Alignment.Top
+}
+
+/**
+ * Blocks one under another, [gapDp] apart (a cell's blocks, a layout table's sections), as a column
+ * held to [MAX_STACK] (I3): each is measured with what room is left of a bounded height, and none is
+ * measured or drawn once the stack is that tall, so the rest of a hostile message is cut at its foot,
+ * never a throw. Its intrinsic height adds up what its blocks say the same way.
+ */
+internal class StackPolicy(private val gapDp: Float) : MeasurePolicy {
+    override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
+        val gap = gapDp.dp.roundToPx()
+        val placeables = ArrayList<Placeable>(measurables.size)
+        val tops = ArrayList<Int>(measurables.size)
+        var y = 0
+        for (m in measurables) {
+            if (y >= MAX_STACK) break
+            val top = if (placeables.isEmpty()) 0 else (y + gap).coerceAtMost(MAX_STACK)
+            val left = if (constraints.hasBoundedHeight) {
+                (constraints.maxHeight - top).coerceAtLeast(0)
+            } else {
+                Constraints.Infinity
+            }
+            val pl = m.measure(constraints.copy(minWidth = 0, minHeight = 0, maxHeight = left))
+            placeables += pl
+            tops += top
+            y = (top.toLong() + pl.height).coerceAtMost(MAX_STACK.toLong()).toInt()
+        }
+        val width = (placeables.maxOfOrNull { it.width } ?: 0).coerceIn(constraints.minWidth, constraints.maxWidth)
+        return layout(width, y.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            placeables.forEachIndexed { i, pl -> pl.place(0, tops.getOrElse(i) { 0 }) }
+        }
+    }
+
+    private fun IntrinsicMeasureScope.heightOf(
+        measurables: List<IntrinsicMeasurable>,
+        ask: (IntrinsicMeasurable) -> Int,
+    ): Int {
+        val gap = gapDp.dp.roundToPx()
+        var y = 0L
+        for ((i, m) in measurables.withIndex()) {
+            if (y >= MAX_STACK) break
+            y += (if (i > 0) gap else 0) + intrinsic(MAX_STACK) { ask(m) }.coerceIn(0, MAX_STACK)
+        }
+        return y.coerceAtMost(MAX_STACK.toLong()).toInt()
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
+        heightOf(measurables) { it.minIntrinsicHeight(width) }
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
+        heightOf(measurables) { it.maxIntrinsicHeight(width) }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+        measurables.maxOfOrNull { m -> intrinsic(0) { m.minIntrinsicWidth(height) }.coerceIn(0, MAX_BOX_WIDTH) } ?: 0
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+        measurables.maxOfOrNull { m -> intrinsic(0) { m.maxIntrinsicWidth(height) }.coerceIn(0, MAX_BOX_WIDTH) } ?: 0
 }

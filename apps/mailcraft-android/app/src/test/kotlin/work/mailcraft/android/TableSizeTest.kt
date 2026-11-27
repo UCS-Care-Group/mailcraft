@@ -48,7 +48,7 @@ class TableSizeTest {
         snapshotHandler = noPictures(),
     )
 
-    private val env = BodyEnv(EnglishTexts, emptyMap(), emptyMap(), Color.Gray, {}, {})
+    private val env = BodyEnv(EnglishTexts, emptyMap(), mapOf(LOADED to PictureState.Ready(B.png)), Color.Gray, {}, {})
 
     /** What [content] drawn in [w] px says and does: the height it said, the height drawn, what is cut. */
     private class Seen(val said: Int, val drawn: Int, val cut: List<String>)
@@ -162,6 +162,8 @@ class TableSizeTest {
         "percent table" to listOf(inner(LengthView.Percent(60u))),
         "table" to listOf(inner(null)),
         "picture" to listOf(picture),
+        "loaded picture and text" to listOf(B.image(LOADED, "Twine", 96u, 48u), B.p(words, 0u).copy(beside = true)),
+        "data table" to listOf(B.tableBlock(B.table(layout = false, border = true, rows = listOf(listOf(B.cell(B.p(words, 0u)), B.cell(B.p("Twine", 0u))))))),
     )
 
     /** [blocks] in a cell, beside a short one, of the kinds of table a cell can be in, by name. */
@@ -204,9 +206,40 @@ class TableSizeTest {
 
     @Test
     fun buttonsOnALineInAColouredOrDataCellAreDrawnWhole() {
-        val held = holders(children.getValue("boxes on a line")).filterKeys { it != "untinted layout cell" }
+        val held = holders(children.getValue("boxes on a line"))
         val wrong = held.flatMap { (holder, table) -> faultsOf("in a $holder", table, WIDTHS + 550) }
         assertTrue(wrong.joinToString("\n"), wrong.isEmpty())
+    }
+
+    /** How far in from the left the text [word] is drawn when [content] is drawn in [w] px. */
+    private fun leftOf(word: String, w: Int, content: @Composable (Dp) -> Unit): Float {
+        var left = -1f
+        paparazzi.snapshot {
+            val view = LocalView.current
+            val room = with(LocalDensity.current) { w.toDp() }
+            Box(
+                modifier = Modifier.onGloballyPositioned {
+                    val root = (view as? RootForTest)?.semanticsOwner?.unmergedRootSemanticsNode
+                    fun walk(n: SemanticsNode) {
+                        val text = n.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
+                        if (text == word) left = n.boundsInRoot.left
+                        n.children.forEach(::walk)
+                    }
+                    if (root != null) walk(root)
+                },
+            ) {
+                content(room)
+            }
+        }
+        return left
+    }
+
+    @Test
+    fun aBoxAloneInItsLineIsAsWideAsItSays() {
+        // Centred in its line: as wide as the line, its word would stand at its left padding.
+        val box = button("Register", false).copy(align = AlignView.CENTER)
+        val left = leftOf("Register", 990) { room -> BlockColumn(listOf(box), env, Paper.of(WHITE, LINK), room) }
+        assertTrue("Register at $left px", left > 990 / 4)
     }
 
     /** [n] bordered tables one inside the next, the innermost with a sentence. */
@@ -229,6 +262,7 @@ class TableSizeTest {
         const val DEEP = 20
         const val SHOWN = 24
         const val ALT = "Seed tray"
+        const val LOADED = "https://cdn-images.example/twine.png"
         const val TINT = 0xFFF4D6u
         const val NAVY = 0x1F3864u
         val WIDTHS = listOf(300, 450, 700, 990)

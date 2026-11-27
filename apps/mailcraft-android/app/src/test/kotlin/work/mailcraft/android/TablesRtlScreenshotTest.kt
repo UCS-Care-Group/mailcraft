@@ -4,9 +4,15 @@
 
 package work.mailcraft.android
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -52,6 +58,19 @@ class TablesRtlScreenshotTest {
 
     @Test
     fun mixedDirectionTable() = shoot(TablesRtl.mixed)
+
+    /** A picture of its own size (96 by 48 dp) in a line of text that wraps beside and under it. */
+    @Test
+    fun aPictureInALineOfText() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        val src = "https://cdn-images.example/tray.png"
+        val env = BodyEnv(EnglishTexts, emptyMap(), mapOf(src to PictureState.Ready(B.png)), Color.Gray, {}, {})
+        val text = "Here is the seed tray we spoke of on Tuesday. It holds forty cells and stacks with the others, so the north bed can be sown in one go."
+        val line = listOf(B.image(src, "Seed tray", 96u, 48u), B.p(text, 0u).copy(beside = true))
+        paparazzi.snapshot("reading_picture_line_light_100") {
+            Box(modifier = Modifier.background(Color.White).padding(16.dp)) { BlockColumn(line, env, Paper.of(0xFFFFFF, 0x0645AD), 360.dp) }
+        }
+    }
 
     /** A cell too tall to measure beside its width is held to the most a measure takes, not a crash. */
     @Test

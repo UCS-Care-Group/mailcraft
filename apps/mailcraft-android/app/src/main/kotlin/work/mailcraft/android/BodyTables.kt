@@ -3,9 +3,7 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -85,9 +83,10 @@ internal const val MAX_PHONE_TABLE_DEPTH = 4
 
 @Composable
 private fun FlatTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
-    Column {
-        table.rows.forEach { r -> r.cells.forEach { c -> BlockColumn(c.blocks, env, paper, room) } }
-    }
+    Layout(
+        content = { table.rows.forEach { r -> r.cells.forEach { c -> BlockColumn(c.blocks, env, paper, room) } } },
+        measurePolicy = remember { StackPolicy(0f) },
+    )
 }
 
 // The side the message names, whichever way the phone reads.
@@ -122,7 +121,9 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
     val (gap, rowGap) = remember(table) { gapsOf(table) }
     val ruled = remember(table) { ruled(table) }
     val sections = remember(table) { sectionsOf(grid) }
-    Column(verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
+    val stack = remember(rowGap) { StackPolicy(rowGap) }
+    // Its sections one under another, held to MAX_STACK (I3).
+    Layout(measurePolicy = stack, content = {
         sections.forEach { section ->
             val cells = remember(section) { section.placed.sortedWith(compareBy({ it.row }, { it.col })) }
             val specs = remember(section) { columnSpecs(section, table) }
@@ -149,7 +150,7 @@ private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp)
                 measurePolicy = policy,
             )
         }
-    }
+    })
 }
 
 /** The width in dp of columns [from] until [until] with the gaps between them. */

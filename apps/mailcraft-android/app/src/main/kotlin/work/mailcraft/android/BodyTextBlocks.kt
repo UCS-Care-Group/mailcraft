@@ -81,7 +81,7 @@ internal fun TextBlock(
  */
 internal fun lineHeightOf(block: BlockView, size: Int): TextUnit {
     val asked = when (val h = block.lineHeight) {
-        is LineHeightView.Scale -> size * h.hundredths.toInt() / HUNDRED
+        is LineHeightView.Scale -> size * h.hundredths.toInt().coerceAtMost(MAX_LINE_SCALE) / HUNDRED
         is LineHeightView.Px -> h.px.toFloat()
         null -> size * DEFAULT_LINE
     }
@@ -130,6 +130,9 @@ internal fun RuleBlock(block: BlockView, env: BodyEnv, paper: Paper) {
 
 private const val BULLET = "•"
 private const val HUNDRED = 100f
+
+/** The tallest line for its size, in hundredths: the parser's `MAX_LINE_HEIGHT`, held here too (I3). */
+private const val MAX_LINE_SCALE = 250
 internal const val DEFAULT_LINE = 1.4f
 
 /** The least line height, in sizes of its text: room for the ascent and descent of the phone's fonts. */
