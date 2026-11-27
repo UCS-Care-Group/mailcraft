@@ -10325,8 +10325,9 @@ msgstr "Volgende afspraken"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "Volgend bericht"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12623,8 +12624,9 @@ msgstr "Vorige pagina"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "Vorig bericht"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
