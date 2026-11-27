@@ -234,6 +234,11 @@ fn a_piece_never_ends_at_a_no_break_space() {
     for nbsp in ['\u{A0}', '\u{2007}', '\u{202F}'] {
         let all = texts(&of(&[paragraph(&format!("{}{nbsp}{}", "a".repeat(3_000), "b".repeat(2_000)))]));
         assert!(all.len() > 1 && all.iter().all(|t| !t.ends_with(nbsp)), "{nbsp:?}");
+        // Where the room ends right after it, or right before it, the cut moves before the word it holds.
+        for before in [MAX_BLOCK_CHARS - 1, MAX_BLOCK_CHARS] {
+            let all = texts(&of(&[paragraph(&format!("{}{nbsp}{}", "a".repeat(before), "b".repeat(MAX_BLOCK_CHARS + 1)))]));
+            assert!(all.iter().all(|t| !t.ends_with(nbsp) && !t.starts_with(nbsp)), "{nbsp:?} after {before}");
+        }
     }
 }
 

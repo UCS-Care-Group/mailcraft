@@ -346,7 +346,7 @@ fn chars_of(v: &BlockView) -> usize {
 
 /// A space a piece may end after: not a line break (a break of its own) nor a no-break space.
 fn breaks_line(c: char) -> bool {
-    c.is_whitespace() && !matches!(c, '\n' | '\u{A0}' | '\u{2007}' | '\u{202F}')
+    c.is_whitespace() && c != '\n' && !no_break(c)
 }
 
 /// Where to end a piece within `head` (the most one may still take), at a line break or after a
@@ -394,12 +394,18 @@ fn extends(c: char) -> bool {
     )
 }
 
+/// A space that holds the words either side of it together.
+fn no_break(c: char) -> bool {
+    matches!(c, '\u{A0}' | '\u{2007}' | '\u{202F}')
+}
+
 fn regional(c: char) -> bool {
     matches!(u32::from(c), 0x1F1E6..=0x1F1FF)
 }
 
 /// `at` (a character boundary of `text`) moved back to the nearest boundary between two letters
-/// as one sees them: not before a mark or joiner, not after a joiner, not inside a flag's pair.
+/// as one sees them: not before a mark or joiner, not after a joiner, not inside a flag's pair, not
+/// either side of a no-break space.
 /// `at` itself when there is none before it (a run of marks as long as a block).
 // lean: the common clusters only, not all of UAX #29 (Indic conjuncts, Hangul syllables in jamo).
 fn whole_at(text: &str, at: usize) -> usize {
@@ -411,6 +417,8 @@ fn whole_at(text: &str, at: usize) -> usize {
             (Some(b), Some(a)) => {
                 extends(a)
                     || b == '\u{200D}'
+                    || no_break(b)
+                    || no_break(a)
                     || (regional(b) && regional(a) && text.get(..cut).is_some_and(|t| t.chars().rev().take_while(|c| regional(*c)).count() % 2 == 1))
             }
             _ => false,
