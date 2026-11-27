@@ -15,8 +15,13 @@ import uniffi.mailcraft_mobile.LengthView
 class TablePlanTest {
     private fun spec(holds: Boolean = true, fixed: Float? = null, percent: Int? = null) = ColumnSpec(holds, fixed, percent)
 
+    /** The desktop's least column, as the bridge sends it with every table. */
+    private val least = B.table(layout = true, rows = emptyList()).minColumn.toFloat()
+
+    private fun planColumns(specs: List<ColumnSpec>, room: Float, gap: Float) = planColumns(specs, room, gap, least)
+
     @Test
-    fun twoHalvesStandSideBySideWhereEachIsAboutOneFortyDpOrMore() {
+    fun twoHalvesStandSideBySideWhereEachIsAboutOneTenDpOrMore() {
         val widths = requireNotNull(planColumns(listOf(spec(percent = 50), spec(percent = 50)), room = 328f, gap = 12f))
         assertEquals(158f, widths[0], 0.01f)
     }
@@ -29,16 +34,16 @@ class TablePlanTest {
     }
 
     @Test
-    fun theRuleIsOneFortyDpExactly() {
-        assertEquals(140f, MIN_LAYOUT_COLUMN, 0f)
+    fun theRuleIsTheDesktopsOneTenDpExactly() {
+        assertEquals(110f, least, 0f)
         val two = listOf(spec(), spec())
-        assertNotNull(planColumns(two, room = 2 * 140f + 12f, gap = 12f))
-        assertNull(planColumns(two, room = 2 * 140f + 11f, gap = 12f))
+        assertNotNull(planColumns(two, room = 2 * 110f + 12f, gap = 12f))
+        assertNull(planColumns(two, room = 2 * 110f + 11f, gap = 12f))
     }
 
     @Test
     fun aRowOfIconsIsNotSqueezedIntoAStack() {
-        // Four 32 dp icons and gaps fit in 328 dp: they stay a row though each is far under 140.
+        // Four 32 dp icons and gaps fit in 328 dp: they stay a row though each is far under 110.
         val icons = List(4) { spec(fixed = 32f) }
         assertEquals(List(4) { 32f }, planColumns(icons, 328f, 12f))
         // But fixed widths that do not fit stack.

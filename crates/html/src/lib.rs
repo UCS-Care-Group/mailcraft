@@ -623,6 +623,23 @@ pub fn is_safe_url(url: &str) -> bool {
     true
 }
 
+/// How a reader lays out the blocks of this crate, in points (dp on a phone): one set of rules for
+/// the desktop and the phone, so that a message looks alike on both (#1966).
+pub mod reading {
+    use super::Table;
+
+    /// A layout table is stacked rather than given columns that hold something narrower than this.
+    pub const MIN_LAYOUT_COLUMN: u8 = 110;
+    /// The gap in front of a box on a line that the source parts from the box before it by white
+    /// space ([`Table::spaced`]), and the gap between the lines of such boxes.
+    pub const BOX_GAP: u8 = 4;
+
+    /// The gap in front of `table` when it is a box on a line after another.
+    pub fn box_gap(table: &Table) -> u8 {
+        if table.spaced { BOX_GAP } else { 0 }
+    }
+}
+
 /// Unicode's format characters (general category Cf): the one list, in `mailcraft-names` (#454).
 pub use mailcraft_names::is_format;
 
