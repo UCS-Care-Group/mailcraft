@@ -1478,13 +1478,13 @@ msgstr "כל התנאים חייבים להתקיים"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt crates/ui-egui/src/agent_gate.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Allow"
-msgstr "אפשר"
+msgstr "אישור"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Changing Automatic Replies"
-msgstr "אפשר שינוי של תשובות אוטומטיות"
+msgstr "התרת שינוי של תשובות אוטומטיות"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -1514,19 +1514,19 @@ msgstr "יש לאפשר ל־MailCraft לקרוא תיבות דואר משותפ�
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Allow New Time Proposals"
-msgstr "אפשר להציע מועדים חדשים"
+msgstr "התרת הצעות למועדים חדשים"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Reading Other People's Calendars"
-msgstr "אפשר קריאת יומנים של אנשים אחרים"
+msgstr "התרת קריאת יומנים של אנשים אחרים"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Allow Sending from Shared Mailboxes"
-msgstr "אפשר שליחה מתיבות דואר משותפות"
+msgstr "התרת שליחה מתיבות דואר משותפות"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
@@ -3185,7 +3185,7 @@ msgid ""
 "Change\n"
 "View"
 msgstr ""
-"שנה\n"
+"שינוי\n"
 "תצוגה"
 
 #. command label
@@ -3772,7 +3772,7 @@ msgstr "סגירת חלון זה. דבר לא יישמר."
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Collapse Conversation"
-msgstr "כווץ שיחה"
+msgstr "כיווץ שיחה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3874,13 +3874,13 @@ msgstr "התחברות"
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Connect Calendar and Contacts"
-msgstr "חבר לוח שנה ואנשי קשר"
+msgstr "חיבור לוח שנה ואנשי קשר"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "Connect Outlook's Favorites"
-msgstr "חבר את המועדפים של Outlook"
+msgstr "חיבור המועדפים של Outlook"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3962,13 +3962,13 @@ msgstr "המשך"
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Continue editing"
-msgstr "המשך בעריכה"
+msgstr "המשך עריכה"
 
 #. interface
 #: crates/ui-egui/src/close_to_tray.rs
 #, fuzzy
 msgid "Continue in tray"
-msgstr "המשך במגש המערכת"
+msgstr "המשך עבודה במגש המערכת"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt
@@ -4019,7 +4019,7 @@ msgid ""
 "Copy\n"
 "Diagnostics"
 msgstr ""
-"העתק\n"
+"העתקת\n"
 "נתוני אבחון"
 
 #. command label, interface
@@ -4534,7 +4534,7 @@ msgstr "דצמבר"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Decline"
-msgstr "דחה"
+msgstr "דחייה"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -4996,13 +4996,13 @@ msgstr "פעולה"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Do not deliver before a date and time"
-msgstr "אל תמסור לפני תאריך ושעה"
+msgstr "לא למסור לפני תאריך ושעה"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Do not deliver before:"
-msgstr "אל תמסור לפני:"
+msgstr "לא למסור לפני:"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -5014,7 +5014,7 @@ msgstr "ללא חזרה"
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Don't Allow"
-msgstr "אל תאפשר"
+msgstr "לא לאפשר"
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -5032,7 +5032,7 @@ msgstr "לא לשמור"
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "Don't Send"
-msgstr "אל תשלח"
+msgstr "לא לשלוח"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/invitation.rs
@@ -5068,13 +5068,13 @@ msgstr "לא לשלוח"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
 msgid "Don't send a response"
-msgstr "אל תשלח תגובה"
+msgstr "לא לשלוח תגובה"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Don't send automatic replies"
-msgstr "אל תשלח תשובות אוטומטיות"
+msgstr "לא לשלוח תשובות אוטומטיות"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -5832,13 +5832,13 @@ msgstr "שרת Exchange · אין כתובת שרת שמישה"
 #: crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "Expand Conversation"
-msgstr "הרחב שיחה"
+msgstr "הרחבת שיחה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Expand or Collapse Calendar Group"
-msgstr "הרחב או כווץ קבוצת לוחות שנה"
+msgstr "הרחבה או כיווץ של קבוצת לוחות שנה"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -6447,7 +6447,7 @@ msgid ""
 "Forward\n"
 "Contact"
 msgstr ""
-"העבר\n"
+"העברת\n"
 "איש קשר"
 
 #. command label
@@ -8232,7 +8232,7 @@ msgstr "שמירת כלל בשרת"
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Keep Waiting"
-msgstr "המשך להמתין"
+msgstr "המשך המתנה"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -9320,7 +9320,7 @@ msgstr "יוצר פגישת בדיקה אחת בעוד שנה מהיום בלו�
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Manage Calendars"
-msgstr "נהל לוחות שנה"
+msgstr "ניהול לוחות שנה"
 
 #. command label, interface
 #: crates/engine/src/cmd/rules.rs crates/ui-egui/src/backstage.rs
@@ -9332,7 +9332,7 @@ msgstr "ניהול כללים"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Manage Rules…"
-msgstr "נהל כללים…"
+msgstr "ניהול כללים…"
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
@@ -9371,7 +9371,7 @@ msgid ""
 "Mark\n"
 "Complete"
 msgstr ""
-"סמן\n"
+"סימון\n"
 "כהושלמה"
 
 #. ribbon
@@ -10392,7 +10392,7 @@ msgstr "לעולם לא בדואר זבל. כשחיסכון בנתונים פע�
 #: crates/ui-egui/src/motion.rs
 #, fuzzy
 msgid "Never play"
-msgstr "לעולם לא להשמיע"
+msgstr "לעולם לא להפעיל"
 
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
@@ -12828,7 +12828,7 @@ msgstr "תמונות: {n} ק״ב מתוך {max} ק״ב"
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pin"
-msgstr "הצמד"
+msgstr "הצמדה"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -13911,7 +13911,7 @@ msgid ""
 "Reply\n"
 "All"
 msgstr ""
-"השב\n"
+"תשובה\n"
 "לכולם"
 
 #. command label, interface
@@ -15213,7 +15213,7 @@ msgid ""
 "Send/Receive\n"
 "All Folders"
 msgstr ""
-"שלח/קבל\n"
+"שליחה/קבלה\n"
 "בכל התיקיות"
 
 #. command label, interface
@@ -15775,7 +15775,7 @@ msgid ""
 "Show as\n"
 "Conversations"
 msgstr ""
-"הצג\n"
+"הצגה\n"
 "כשיחות"
 
 #. command label, interface
@@ -16362,19 +16362,19 @@ msgstr "כרטיס חכם {label}"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReminderScheduler.kt crates/engine/src/cmd/snooze.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Snooze"
-msgstr "דחה"
+msgstr "נודניק"
 
 #. command label
 #: crates/engine/src/cmd/followup.rs
 #, fuzzy
 msgid "Snooze Reminder"
-msgstr "דחה תזכורת"
+msgstr "דחיית תזכורת"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Snooze Reminders"
-msgstr "דחה תזכורות"
+msgstr "דחיית תזכורות"
 
 #. what a command says
 #: crates/engine/src/cmd/snooze.rs
@@ -16542,7 +16542,7 @@ msgstr "תאריך התחלה:"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Start over"
-msgstr "התחל מחדש"
+msgstr "התחלה מחדש"
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -16602,7 +16602,7 @@ msgstr "יצירת האינדקס נמשכת: החיפוש בהודעות ישנ
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop"
-msgstr "עצור"
+msgstr "עצירה"
 
 #. command label
 #: crates/engine/src/cmd/dav_account.rs
@@ -16614,7 +16614,7 @@ msgstr "הפסק להשתמש בשרת לוחות השנה ואנשי הקשר"
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Stop keeping this Public key"
-msgstr "הפסק לשמור מפתח ציבורי זה"
+msgstr "הפסקת שמירת מפתח ציבורי זה"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -16626,7 +16626,7 @@ msgstr "עצור את הפתיחה; תיבת הדואר הפתוחה תישאר 
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Stop processing more rules"
-msgstr "הפסק לעבד כללים נוספים"
+msgstr "הפסקת עיבוד כללים נוספים"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/sync_panel.rs
@@ -16734,13 +16734,13 @@ msgstr "נושא:"
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Subscribe"
-msgstr "הירשם כמנוי"
+msgstr "הרשמה כמנוי"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_subscribed.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Subscribe to Internet Calendar"
-msgstr "הירשם כמנוי ללוח שנה באינטרנט"
+msgstr "הרשמה כמנוי ללוח שנה באינטרנט"
 
 #. command label
 #: crates/engine/src/cmd/calendar_subscribed.rs
@@ -21046,7 +21046,7 @@ msgstr "שימוש בהגדרת המערכת"
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Use system setting follows Animation effects in Windows' settings. Where MailCraft can't read the system's setting yet, animations play until you choose Never play."
-msgstr "״השתמש בהגדרת המערכת״ פועל לפי ״אפקטי הנפשה״ בהגדרות של Windows. במקום שבו MailCraft עדיין אינו יכול לקרוא את הגדרת המערכת, ההנפשות פועלות עד שתבחר ״אל תפעיל לעולם״."
+msgstr "״שימוש בהגדרת המערכת״ פועל לפי ״אפקטי הנפשה״ בהגדרות של Windows. במקום שבו MailCraft עדיין אינו יכול לקרוא את הגדרת המערכת, ההנפשות פועלות עד לבחירה ב״לעולם לא להשמיע״."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -22112,13 +22112,13 @@ msgstr "שינוי גודל תצוגה"
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "Zoom In"
-msgstr "הגדל תצוגה"
+msgstr "הגדלת תצוגה"
 
 #. command label, interface
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/ribbon/view_menus.rs
 #, fuzzy
 msgid "Zoom Out"
-msgstr "הקטן תצוגה"
+msgstr "הקטנת תצוגה"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -24021,7 +24021,7 @@ msgstr "היכנס תחילה לחשבון"
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "sign in to {who} first"
-msgstr "היכנס תחילה אל {who}"
+msgstr "יש להתחבר תחילה אל {who}"
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs
