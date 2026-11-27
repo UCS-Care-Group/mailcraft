@@ -5,7 +5,6 @@
 package work.mailcraft.android
 
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -94,20 +93,14 @@ class DataTableTest {
         val sized = B.cell(B.image("https://cdn-images.example/tray.png", "Seed tray", 200u, 100u))
         val small = B.cell(B.image("https://cdn-images.example/dot.png", "Dot", 30u, 30u))
         val unsized = B.cell(B.image("https://cdn-images.example/fern.png", "Fern"))
-        assertEquals(160f, picturesLeast(sized) { true } ?: -1f, 0.01f)
-        assertEquals(48f, picturesLeast(sized) { false } ?: -1f, 0.01f)
-        assertEquals(30f, picturesLeast(small) { true } ?: -1f, 0.01f)
-        assertEquals(48f, picturesLeast(unsized) { true } ?: -1f, 0.01f)
-        assertNull(picturesLeast(B.cell(B.p("Tray", 0u))) { true })
-    }
-
-    @Test
-    fun aCellPlansWhatItHoldsInItsShareOfTheTable() {
-        // Two halves of a 328 dp table: a layout table inside one plans in 164 dp, so it stacks.
-        assertEquals(164f, cellRoom(328.dp, 1, 2).value, 0.01f)
-        assertEquals(328f, cellRoom(328.dp, 2, 2).value, 0.01f)
-        assertEquals(328f, cellRoom(328.dp, 9, 0).value, 0.01f)
-        assertNull(planColumns(listOf(ColumnSpec(true, null, null), ColumnSpec(true, null, null)), cellRoom(328.dp, 1, 2).value - 16f, 12f))
+        assertEquals(160f, picturesLeast(sized.blocks) { true } ?: -1f, 0.01f)
+        assertEquals(48f, picturesLeast(sized.blocks) { false } ?: -1f, 0.01f)
+        assertEquals(30f, picturesLeast(small.blocks) { true } ?: -1f, 0.01f)
+        assertEquals(48f, picturesLeast(unsized.blocks) { true } ?: -1f, 0.01f)
+        assertNull(picturesLeast(B.cell(B.p("Tray", 0u)).blocks) { true })
+        // A picture in a table in the cell counts too.
+        val nested = B.cell(B.tableBlock(B.table(layout = true, rows = listOf(listOf(sized)))))
+        assertEquals(160f, picturesLeast(nested.blocks) { true } ?: -1f, 0.01f)
     }
 
     @Test

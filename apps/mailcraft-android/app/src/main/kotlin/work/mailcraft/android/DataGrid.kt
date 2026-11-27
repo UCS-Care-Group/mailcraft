@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
-import androidx.compose.ui.unit.Dp
 import uniffi.mailcraft_mobile.BlockKindView
-import uniffi.mailcraft_mobile.CellView
+import uniffi.mailcraft_mobile.BlockView
 
 private const val PERCENT = 100f
 private const val TINY = 1e-3f
@@ -139,24 +138,23 @@ internal fun edgesOf(widths: FloatArray): IntArray {
 }
 
 /**
- * The room a cell over [cols] of [columns] columns plans a layout table in (whether its columns stack):
- * its even share of [room], all of it for a cell across the table. Pictures and the rest keep [room].
- * lean: an even share, as the columns' own widths are known only once measured; plan by those
- * (measure, then compose again) if a table in a data table ever needs it.
+ * The most the least width a picture of [blocks] asks of its column can be, in dp, as on the desktop:
+ * one that came ([shown]) and says its width keeps up to [PICTURE_KEEPS] dp of it, any other gives way
+ * to [PICTURE_LEAST] (its own width when narrower, which what it is measured at tells). Pictures in a
+ * table in it count too. Null when it holds none.
  */
-internal fun cellRoom(room: Dp, cols: Int, columns: Int): Dp =
-    room * cols.coerceIn(1, columns.coerceAtLeast(1)) / columns.coerceAtLeast(1)
-
-/**
- * The least width in dp the pictures of [cell] ask of its column, as on the desktop: one that came
- * ([shown]) and says its width keeps up to [PICTURE_KEEPS] dp of it, any other gives way to [PICTURE_LEAST];
- * null when the cell holds no picture.
- */
-internal fun picturesLeast(cell: CellView, shown: (BlockKindView.Image) -> Boolean): Float? =
-    cell.blocks.mapNotNull { it.kind as? BlockKindView.Image }.maxOfOrNull { k ->
-        val wanted = k.width?.toFloat() ?: PICTURE_LEAST
-        wanted.coerceAtMost(if (k.width != null && shown(k)) PICTURE_KEEPS else PICTURE_LEAST)
-    }
+internal fun picturesLeast(blocks: List<BlockView>, shown: (BlockKindView.Image) -> Boolean): Float? =
+    blocks.mapNotNull { b ->
+        when (val k = b.kind) {
+            is BlockKindView.Image -> {
+                val wanted = k.width?.toFloat() ?: PICTURE_LEAST
+                wanted.coerceAtMost(if (k.width != null && shown(k)) PICTURE_KEEPS else PICTURE_LEAST)
+            }
+            is BlockKindView.Table ->
+                k.table.rows.flatMap { it.cells }.mapNotNull { picturesLeast(it.blocks, shown) }.maxOrNull()
+            else -> null
+        }
+    }.maxOrNull()
 
 private const val PICTURE_KEEPS = 160f
 private const val PICTURE_LEAST = 48f

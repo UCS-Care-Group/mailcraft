@@ -14,9 +14,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
@@ -62,15 +64,20 @@ class NestedTablesTest {
 
     private fun texts(root: SemanticsNode, density: Float): Map<String, Rect> {
         val out = HashMap<String, Rect>()
+        val cuts = HashMap<String, Boolean>()
         fun walk(n: SemanticsNode) {
             val text = n.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }
             if (!text.isNullOrBlank()) {
+                val layouts = ArrayList<TextLayoutResult>()
+                n.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
+                cuts[text.substringBefore(' ')] = layouts.any { it.didOverflowHeight }
                 val b = n.boundsInRoot
                 out[text.substringBefore(' ')] = Rect(b.left / density, b.top / density, b.right / density, b.bottom / density)
             }
             n.children.forEach(::walk)
         }
         walk(root)
+        cut = cuts
         return out
     }
 
@@ -109,7 +116,39 @@ class NestedTablesTest {
         val inner = B.table(layout = true, width = LengthView.Px(380u), rows = listOf(listOf(half("Echo"), half("Foxtrot"))))
         val table = B.table(layout = false, border = true, rows = listOf(listOf(B.cell(B.tableBlock(inner)), B.cell(B.p("Golf", 0u)))))
         val at = boundsOf(table, 800.dp)
-        assertEquals("stacked", at.getValue("Echo").top, at.getValue("Foxtrot").top, 0.5f)
+        assertEquals("its two columns were stacked", at.getValue("Echo").top, at.getValue("Foxtrot").top, 0.5f)
+    }
+
+    /** Whether the text that starts with [word] was drawn whole (none of its lines cut at the foot). */
+    private var cut = emptyMap<String, Boolean>()
+
+    @Test
+    fun aNoteOfItsOwnWidthInAWiderColumnIsDrawnWhole() {
+        // A coloured note 150 px wide in a column wider than that: it is measured as it is drawn.
+        val words = "Hotel " + "the delivery leaves the shop on Tuesday morning ".repeat(3) + "Zulu"
+        val note = B.cell(B.tableBlock(B.table(layout = true, width = LengthView.Px(150u), rows = listOf(listOf(B.cell(B.p(words, 0u), background = 0xFFF4D6u))))))
+        val table = B.table(
+            layout = false,
+            border = true,
+            rows = listOf(listOf(B.cell(B.p("India " + "seed trays and twine ".repeat(6), 0u)), note), listOf(B.cell(B.p("Juliet", 0u)), B.cell(B.p("Kilo " + "pots and twine ".repeat(8), 0u)))),
+        )
+        // The second column is made wider than the note by the row under it.
+        val at = boundsOf(table, 360.dp)
+        assertTrue("the note (${at.getValue("Hotel")}) runs into the next row (${at.getValue("Kilo")})", at.getValue("Hotel").bottom <= at.getValue("Kilo").top)
+        assertEquals("the note's last lines were cut", false, cut["Hotel"])
+    }
+
+    @Test
+    fun aRowThatDoesNotFitItsCellIsStackedThere() {
+        // Two columns planned side by side in the 800 dp the table is composed in, in a cell much narrower.
+        val inner = B.table(layout = true, rows = listOf(listOf(B.cell(B.p("Lima " + "plants for the shade ".repeat(3), 0u)), B.cell(B.p("Mike " + "ferns and hostas ".repeat(3), 0u)))))
+        val wide = "November " + "seed trays, pots and twine for the north bed ".repeat(6)
+        val table = B.table(layout = false, border = true, rows = listOf(listOf(B.cell(B.p(wide, 0u)), B.cell(B.tableBlock(inner)))))
+        val at = boundsOf(table, 800.dp)
+        val second = at.getValue("Mike")
+        val stacked = second.top >= at.getValue("Lima").bottom
+        assertTrue("the second cell was squeezed to ${second.width} dp beside the first", stacked || second.width >= 100f)
+        assertEquals("a cell's last lines were cut", false, cut["Mike"])
     }
 
     private companion object {

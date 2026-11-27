@@ -18,17 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.IntrinsicMeasurable
-import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.constrainHeight
-import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AlignView
@@ -38,13 +28,6 @@ import uniffi.mailcraft_mobile.TableView
 import uniffi.mailcraft_mobile.VAlignView
 
 private val CellMinimum = 24.dp
-
-/**
- * How much less than its room a layout table plans its columns in: in a cell of a data table, the room
- * past the cell's share of the table ([cellRoom]), so that a table there stacks when the cell is narrow;
- * none anywhere else.
- */
-internal val LocalTableShortfall = compositionLocalOf { 0.dp }
 
 /** The width a table takes of [room], where it says. */
 internal fun tableWidth(table: TableView, room: Dp): Dp = when (val w = table.width) {
@@ -63,28 +46,45 @@ private const val PERCENT = 100
  */
 @Composable
 internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, room: Dp) {
+    val depth = LocalTableDepth.current
+    if (depth >= MAX_PHONE_TABLE_DEPTH) {
+        FlatTable(table, env, paper, room)
+        return
+    }
     val width = tableWidth(table, room)
     val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     // Over what is in it, as the desktop draws it: a cell's own colour never hides the table's frame.
     val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own, over = true) else Modifier
     // A data table is as wide as its columns, which fit the room when their words let them. A layout
-    // table fills the room it is given, and asks of a cell it stands in what it holds (its own width in
-    // pixels where it gives one; a share never makes it ask for more), as on the desktop.
-    val fixed = table.layout && table.width is LengthView.Px
-    val box = (if (fixed) Modifier.width(width) else Modifier.widthIn(max = width))
+    // table takes its own width itself, of the room it is really given ([SectionPolicy]).
+    val box = (if (table.layout) Modifier else Modifier.widthIn(max = width))
         .then(if (table.background != null) Modifier.background(composeColor(own.rgb), shape) else Modifier)
         .then(outline)
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignOf(align)) {
         Box(modifier = box) {
-            if (table.layout) {
-                // In a cell of a data table its columns stand side by side or not by the cell's share of it.
-                val plan = minOf(width, (room - LocalTableShortfall.current).coerceAtLeast(CellMinimum))
-                LayoutTable(table, env, own, width, plan)
-            } else {
-                DataTable(table, env, own, width)
+            CompositionLocalProvider(LocalTableDepth provides depth + 1) {
+                if (table.layout) LayoutTable(table, env, own, width) else DataTable(table, env, own, width)
             }
         }
+    }
+}
+
+/** How many tables stand around what is drawn. */
+private val LocalTableDepth = compositionLocalOf { 0 }
+
+/**
+ * The most tables the phone draws inside one another; one deeper is drawn as its cells' blocks one
+ * under another, as the bridge sends it. Every table asks what is in it of its size, and the work
+ * grows with each table inside another.
+ * lean: four, as most mail nests a table or two; raise with care, as the work is per level.
+ */
+internal const val MAX_PHONE_TABLE_DEPTH = 4
+
+@Composable
+private fun FlatTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
+    Column {
+        table.rows.forEach { r -> r.cells.forEach { c -> BlockColumn(c.blocks, env, paper, room) } }
     }
 }
 
@@ -107,152 +107,38 @@ internal fun sectionsOf(grid: Grid): List<Grid> {
     }
 }
 
+/**
+ * A layout table: its sections ([sectionsOf]) one under another, each laid out by [SectionPolicy] in
+ * the width it is really given. A cell is composed for the width its columns are planned at in [width],
+ * the room the table is composed in, and measured at the width it really gets: only what reads the
+ * composed width tells the difference (a data table in it fits that room and scrolls in its own box
+ * when the cell is narrower; a picture is held to it as well as to the cell).
+ */
 @Composable
-private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp, plan: Dp) {
+private fun LayoutTable(table: TableView, env: BodyEnv, paper: Paper, width: Dp) {
     val grid = remember(table) { gridOf(table) }
     val (gap, rowGap) = remember(table) { gapsOf(table) }
     val ruled = remember(table) { ruled(table) }
     val sections = remember(table) { sectionsOf(grid) }
-    // What its own cells hold plans in their own widths.
-    CompositionLocalProvider(LocalTableShortfall provides 0.dp) {
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
-            sections.forEach { section ->
-                val specs = remember(section) { columnSpecs(section) }
-                val widths = remember(specs, plan) { planColumns(specs, plan.value, gap) }
-                if (widths == null) {
-                    section.placed.forEach {
-                        CellBox(table, it.cell, env, paper, width, Modifier.fillMaxWidth(), ruled)
+    Column(verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
+        sections.forEach { section ->
+            val cells = remember(section) { section.placed.sortedWith(compareBy({ it.row }, { it.col })) }
+            val specs = remember(section) { columnSpecs(section) }
+            val planned = remember(specs, width) { planColumns(specs, width.value, gap) }
+            val policy = remember(cells, specs, table) {
+                val tinted = cells.filter { table.border || it.cell.background != null || it.cell.border.hasAny() }
+                SectionPolicy(cells, specs, gap, rowGap, tinted.map { it.row }.toSet(), table.width)
+            }
+            Layout(
+                content = {
+                    cells.forEach { p ->
+                        val w = planned?.let { spanWidth(it, p.col, p.col + p.cols, gap).dp } ?: width
+                        CellBox(table, p.cell, env, paper, w, Modifier, ruled)
                     }
-                } else {
-                    val byRow = remember(section) { section.placed.groupBy { it.row } }
-                    for (r in 0 until section.rows) {
-                        LayoutRow(table, byRow[r].orEmpty(), Plan(specs, widths, gap), env, paper, ruled)
-                    }
-                }
-            }
+                },
+                measurePolicy = policy,
+            )
         }
-    }
-}
-
-/** A section of a layout table: what its columns ask for, their [widths] as planned, the [gap] between. */
-private class Plan(val specs: List<ColumnSpec>, val widths: List<Float>, val gap: Float)
-
-/**
- * One row of a layout table, its cells side by side in the columns of [plan], each at its own height
- * and the side it asks for. A row with colours or lines (its cells' or the table's grid) has every cell
- * as tall as the row, as a table's are: a coloured bar beside a card reaches its foot, a cell's lines
- * meet the row's; and no taller than the tallest cell's content (#2006).
- *
- * Its own layout, not a Row of `height(IntrinsicSize.Min)`: that throws for a cell taller than a
- * measure holds (about 262,000 px: a digest of a few thousand lines in a coloured `<div>`, which is a
- * one-cell layout table). Here a tinted row asks each cell's height with a fallback and holds it to
- * [MAX_BOX_HEIGHT] (the rest is cut, as a picture's foot is) before it measures the cells. The columns
- * are planned again in the width the row is really given (a cell of a data table is known only then),
- * and its sizes asked of it (a data table asks them) are those it is drawn at.
- */
-@Composable
-private fun LayoutRow(table: TableView, row: List<PlacedCell>, plan: Plan, env: BodyEnv, paper: Paper, ruled: Boolean) {
-    val cells = row.sortedBy { it.col }
-    val tinted = table.border || cells.any { it.cell.background != null || it.cell.border.hasAny() }
-    val policy = remember(cells, plan, tinted) { LayoutRowPolicy(cells, plan, tinted) }
-    Layout(
-        content = {
-            cells.forEach { p ->
-                val w = spanWidth(plan.widths, p.col, p.col + p.cols, plan.gap)
-                CellBox(table, p.cell, env, paper, w.dp, Modifier, ruled)
-            }
-        },
-        measurePolicy = policy,
-    )
-}
-
-/** The most a layout is, in pixels (Compose packs a size into 24 bits). */
-private const val MAX_LAYOUT = (1 shl 24) - 1
-
-/** How [LayoutRow] measures and places its [cells] (one child each, in order). */
-private class LayoutRowPolicy(
-    private val cells: List<PlacedCell>,
-    private val plan: Plan,
-    private val tinted: Boolean,
-) : MeasurePolicy {
-    /** The columns' widths in dp in [room] pixels: planned again there, else as planned. */
-    private fun Density.widthsIn(room: Int): List<Float> {
-        val planned = spanWidth(plan.widths, 0, plan.widths.size, plan.gap).dp.roundToPx()
-        if (room == Constraints.Infinity || kotlin.math.abs(room - planned) <= 1) return plan.widths
-        return planColumns(plan.specs, room.toDp().value, plan.gap) ?: plan.widths
-    }
-
-    /** Each cell's left edge and width, and the row's width, in pixels, each width and gap rounded as it stands. */
-    private fun Density.edges(widths: List<Float>, room: Int): Triple<List<Int>, List<Int>, Int> {
-        var x = 0
-        var next = 0
-        val wide = ArrayList<Int>(cells.size)
-        val lefts = cells.map { p ->
-            if (p.col > next) x += (spanWidth(widths, next, p.col, plan.gap) + plan.gap).dp.roundToPx()
-            val left = x
-            val w = spanWidth(widths, p.col, p.col + p.cols, plan.gap).dp.roundToPx().coerceIn(0, MAX_BOX_WIDTH)
-            // As a Row would: a cell is no wider than the room left of the row's own.
-            wide += w.coerceAtMost((room - left).coerceAtLeast(0))
-            x += w
-            if (p.col + p.cols < widths.size) x += plan.gap.dp.roundToPx()
-            next = p.col + p.cols
-            left
-        }
-        return Triple(lefts, wide, x)
-    }
-
-    /**
-     * The row's height, its cells [wide] as given: its tallest cell's, held to [MAX_BOX_HEIGHT]. A cell
-     * whose height Compose can't tell (it throws) is past what it can pack, about 262,000 px, so it is
-     * held to the most there too.
-     */
-    private fun heightOf(measurables: List<IntrinsicMeasurable>, wide: List<Int>): Int =
-        measurables.zip(wide).maxOfOrNull { (m, w) ->
-            intrinsic(MAX_BOX_HEIGHT) { m.minIntrinsicHeight(w) }.coerceIn(0, MAX_BOX_HEIGHT)
-        } ?: 0
-
-    private fun Density.heightIn(measurables: List<IntrinsicMeasurable>, room: Int): Int =
-        heightOf(measurables, edges(widthsIn(room), room).second)
-
-    override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
-        val (lefts, wide, width) = edges(widthsIn(constraints.maxWidth), constraints.maxWidth)
-        val row = if (tinted) heightOf(measurables, wide).coerceAtMost(constraints.maxHeight) else 0
-        val placeables = measurables.zip(wide).map { (m, w) ->
-            m.measure(if (tinted) Constraints.fixed(w, row) else Constraints(w, w, 0, constraints.maxHeight))
-        }
-        val tallest = placeables.maxOfOrNull { it.height } ?: 0
-        val height = constraints.constrainHeight(if (tinted) row else tallest.coerceAtMost(MAX_LAYOUT))
-        return layout(constraints.constrainWidth(width), height) {
-            placeables.zip(cells).zip(lefts).forEach { (pair, x) ->
-                val (pl, p) = pair
-                pl.place(x, valignOf(p.cell.valign).align(pl.height, height))
-            }
-        }
-    }
-
-    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
-        heightIn(measurables, width)
-
-    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
-        heightIn(measurables, width)
-
-    /** What a cell holds at its widest, or the width in pixels its columns are told if more. */
-    private fun Density.widest(m: IntrinsicMeasurable, p: PlacedCell, height: Int): Int {
-        val told = (p.col until p.col + p.cols).sumOf { c -> plan.specs.getOrNull(c)?.fixed?.dp?.roundToPx() ?: 0 }
-        return maxOf(intrinsic(MAX_BOX_WIDTH) { m.maxIntrinsicWidth(height) }, told)
-    }
-
-    // What a row asks of a cell it stands in is what its cells hold, as the desktop measures one: at
-    // most all of them side by side with the gaps; at least its widest cell's least, as it can be stacked.
-    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int {
-        val gaps = plan.gap.dp.roundToPx() * (plan.widths.size - 1).coerceAtLeast(0)
-        return (measurables.zip(cells).sumOf { (m, p) -> widest(m, p, height) } + gaps).coerceIn(0, MAX_BOX_WIDTH)
-    }
-
-    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int {
-        val least = measurables.map { intrinsic(MAX_BOX_WIDTH) { it.minIntrinsicWidth(height) } }
-        val stacks = plan.widths.size > 1
-        return (if (stacks) least.maxOrNull() ?: 0 else least.sum()).coerceIn(0, MAX_BOX_WIDTH)
     }
 }
 
@@ -260,13 +146,6 @@ private class LayoutRowPolicy(
 internal fun spanWidth(widths: List<Float>, from: Int, until: Int, gap: Float): Float {
     val columns = widths.subList(from.coerceIn(0, widths.size), until.coerceIn(0, widths.size))
     return columns.sum() + gap * (columns.size - 1).coerceAtLeast(0)
-}
-
-/** Where a cell that is shorter than its row stands in it. */
-internal fun valignOf(v: VAlignView?): Alignment.Vertical = when (v) {
-    VAlignView.MIDDLE -> Alignment.CenterVertically
-    VAlignView.BOTTOM -> Alignment.Bottom
-    else -> Alignment.Top
 }
 
 /** The room left and right of what a cell of a data table holds together, in dp. */

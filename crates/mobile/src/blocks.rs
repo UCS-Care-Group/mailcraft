@@ -289,6 +289,11 @@ impl Budget {
     }
 }
 
+/// The most tables the phone draws inside one another (fewer than the parser keeps): each table asks
+/// what is in it of its size, so the phone's work grows with every level.
+/// lean: four, as mail rarely nests deeper; raise with care, as the work is per level.
+pub(crate) const PHONE_TABLE_DEPTH: usize = if MAX_TABLE_DEPTH < 4 { MAX_TABLE_DEPTH } else { 4 };
+
 fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> Vec<BlockView> {
     let mut out = Vec::new();
     for b in blocks {
@@ -296,9 +301,9 @@ fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, dep
             break;
         }
         match &b.kind {
-            // Deeper than the parser nests: the grid goes, its text stays, cell by cell in
-            // reading order, as the parser itself does past its limit.
-            BlockKind::Table(t) if depth >= MAX_TABLE_DEPTH => {
+            // Deeper than the phone lays out: the grid goes, its text stays, cell by cell in
+            // reading order, as the parser itself does past its own limit.
+            BlockKind::Table(t) if depth >= PHONE_TABLE_DEPTH => {
                 for c in t.rows.iter().flat_map(|r| &r.cells) {
                     out.extend(blocks_of(&c.blocks, pictures, budget, depth));
                 }
@@ -343,7 +348,7 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
             };
             BlockKindView::Image { src: src.clone(), width: *width, height: *height, link: link(to.as_deref()), picture }
         }
-        // `blocks_of` lays out a table past the parser's depth as its cells' blocks.
+        // `blocks_of` lays out a table past the phone's depth as its cells' blocks.
         BlockKind::Table(t) => BlockKindView::Table { table: table(t, pictures, budget, depth.saturating_add(1)) },
     };
     BlockView {

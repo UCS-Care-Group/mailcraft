@@ -4,7 +4,7 @@
 
 use mailcraft_html::{BlockKind, MAX_TABLE_DEPTH};
 
-use crate::blocks::{BlockKindView, BlockView, Pictures, views};
+use crate::blocks::{BlockKindView, BlockView, PHONE_TABLE_DEPTH, Pictures, views};
 
 fn words(blocks: &[BlockView], out: &mut String) {
     for b in blocks {
@@ -57,12 +57,13 @@ fn tables_nested_18_and_25_deep_keep_every_word() {
             assert!(text.contains(&format!("level{i} ")), "{n} deep: level{i} lost in {text:?}");
         }
         assert!(text.contains("the bottom line of the message"), "{n} deep: {text:?}");
-        assert_eq!(depth(&shown), n.min(MAX_TABLE_DEPTH), "{n} deep");
+        // Deeper than the phone lays out, the grids go and the words stay.
+        assert_eq!(depth(&shown), n.min(PHONE_TABLE_DEPTH), "{n} deep");
     }
 }
 
 #[test]
-fn a_table_past_the_parsers_depth_becomes_its_cells_text_in_order() {
+fn tables_past_the_phones_depth_become_their_cells_text_in_order() {
     // Wrap the parser's deepest output in one more table: the innermost grid goes, its words stay.
     let mut blocks = mailcraft_html::parse(&nested(MAX_TABLE_DEPTH));
     let mut outer = mailcraft_html::parse("<table border=1><tr><td>outer</td></tr></table>");
@@ -72,7 +73,7 @@ fn a_table_past_the_parsers_depth_becomes_its_cells_text_in_order() {
         cell.blocks.append(&mut blocks);
     }
     let shown = shown(&outer);
-    assert_eq!(depth(&shown), MAX_TABLE_DEPTH);
+    assert_eq!(depth(&shown), PHONE_TABLE_DEPTH);
     let mut text = String::new();
     words(&shown, &mut text);
     let order: Vec<usize> = ["outer", "level0 ", "level19 ", "the bottom line"].iter().filter_map(|w| text.find(w)).collect();
