@@ -78,7 +78,6 @@ Agreement](../CLA.md).
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-27 | minor | Korean as a preview language (`ko.po`, `한국어 (미리 보기)`), a machine-assisted draft. |
 | 2026-11-20 | minor | New texts in a pull request: a draft translation in every catalogue, marked `#, fuzzy`; empty ones don't block a review |
 | 2026-11-16 | minor | added the Czech preview catalogue (`cs.po`), with its three plural forms. |
 | 2026-11-15 | minor | #1357: added the Polish preview catalogue (`pl.po`), with its three plural forms. |

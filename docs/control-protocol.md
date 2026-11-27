@@ -305,7 +305,6 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-11-27 | minor | `ui.language` takes `ko`; Korean is a preview, and Automatic follows `ko-KR`. |
 | 2026-11-19 | minor | #1737: `ui.accent` also takes `custom` with `color` (`"#rrggbb"` or `[r, g, b]`, kept in `ui.json` as `customAccent`), or a `"#rrggbb"` as `accent` itself |
 | 2026-11-19 | patch | #1721: Paste Text Only, in the right-click menu of a message's body and a signature, does nothing when chosen with `ui.click`, as Cut, Copy and Paste |
 | 2026-11-19 | minor | #1514: `folder.reorder` and `folder.reorderFavorite` put folders and Favorites in the owner's order |
