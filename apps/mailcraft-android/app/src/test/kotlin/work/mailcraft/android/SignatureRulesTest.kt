@@ -117,6 +117,8 @@ class SignatureRulesTest {
         assertEquals(listOf(0, 24, 58), tops.toList())
         assertEquals(68, all)
         assertEquals(0, lineTops(IntArray(0), 4).second)
+        // A line taller than any box can be is held to the most a box may be.
+        assertEquals(MAX_BOX_HEIGHT, lineTops(intArrayOf(MAX_BOX_HEIGHT, MAX_BOX_HEIGHT), 4).second)
     }
 
     @Test

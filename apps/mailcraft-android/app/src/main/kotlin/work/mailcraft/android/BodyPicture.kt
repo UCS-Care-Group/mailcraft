@@ -129,8 +129,8 @@ internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int): IntSize {
     return IntSize(w, h.coerceIn(1.0, cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()).roundToInt())
 }
 
-private const val MAX_BOX_WIDTH = 8_000
-private const val MAX_BOX_HEIGHT = 200_000
+internal const val MAX_BOX_WIDTH = 8_000
+internal const val MAX_BOX_HEIGHT = 200_000
 
 /**
  * A picture's box sized from the width there really is, unlike `width().aspectRatio()`: a tinted row

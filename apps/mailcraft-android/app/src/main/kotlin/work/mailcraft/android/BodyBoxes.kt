@@ -96,9 +96,11 @@ private fun BlockView.box(): TableView? = (kind as? BlockKindView.Table)?.table
 /** The tops of lines of boxes [heights] high, [between] apart, and the height of them all. */
 internal fun lineTops(heights: IntArray, between: Int): Pair<IntArray, Int> {
     val tops = IntArray(heights.size)
-    for (l in 1 until heights.size) tops[l] = tops[l - 1] + heights[l - 1] + between
+    for (l in 1 until heights.size) {
+        tops[l] = (tops[l - 1] + heights[l - 1].coerceIn(0, MAX_BOX_HEIGHT) + between).coerceAtMost(MAX_BOX_HEIGHT)
+    }
     val all = if (heights.isEmpty()) 0 else tops.last() + heights.last()
-    return tops to all
+    return tops to all.coerceIn(0, MAX_BOX_HEIGHT)
 }
 
 /** The height of each line of boxes placed at [spots] that are [heights] high. */
@@ -122,7 +124,7 @@ private class BoxesPolicy(
     override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
         val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
         val widths = placeables.map { it.width }
-        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val room = (if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()).coerceIn(0, MAX_BOX_WIDTH)
         val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
         val (tops, height) = lineTops(lineHeights(spots, placeables.map { it.height }), RUN_GAP.dp.roundToPx())
         val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
@@ -132,11 +134,13 @@ private class BoxesPolicy(
     }
 
     private fun IntrinsicMeasureScope.heightAt(measurables: List<IntrinsicMeasurable>, width: Int, max: Boolean): Int {
-        val widths = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(width) }
+        val room = width.coerceIn(0, MAX_BOX_WIDTH)
+        val widths = measurables.map { it.maxIntrinsicWidth(MAX_BOX_HEIGHT).coerceIn(0, room) }
         val heights = measurables.mapIndexed { n, m ->
-            if (max) m.maxIntrinsicHeight(widths[n]) else m.minIntrinsicHeight(widths[n])
+            val h = if (max) m.maxIntrinsicHeight(widths[n]) else m.minIntrinsicHeight(widths[n])
+            h.coerceIn(0, MAX_BOX_HEIGHT)
         }
-        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, width, align, floats)
+        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
         return lineTops(lineHeights(spots, heights), RUN_GAP.dp.roundToPx()).second
     }
 
