@@ -133,6 +133,7 @@ impl MailApp {
     /// run sent is found held at its file's next run ([`crate::sending`]).
     pub(crate) fn forget_mail_runs(&mut self) {
         self.services.sync_cancel.store(true, Ordering::Relaxed);
+        self.call_off_ews_extras();
         self.inbox_check.forget();
         // The watches on the Inboxes belong to the mailbox that was open (#276).
         self.idle.stop_all();

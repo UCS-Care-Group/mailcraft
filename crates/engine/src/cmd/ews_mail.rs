@@ -59,7 +59,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("sync.ewsRequest", "Send/Receive with Exchange Web Services", "Send / Receive", request)
             .pure()
-            .params(r#"{"account"?: number, "light"?: bool (the Inbox and the folder on screen only), "inboxPass"?: bool (the Inbox alone), "background"?: bool} — for an Exchange server account: answers what a host should read there."#)
+            .params(r#"{"account"?: number, "light"?: bool (the Inbox and the folder on screen only), "inboxPass"?: bool (the Inbox alone), "pushOnly"?: bool (only what was done here goes up, nothing is read), "background"?: bool} — for an Exchange server account: answers what a host should read there."#)
             .when(available),
         CommandSpec::new("sync.applyEws", "Apply Send/Receive with Exchange Web Services", "Send / Receive", apply)
             .pure()
@@ -183,16 +183,35 @@ pub fn ews_inbox_request(s: &Session, account: Id) -> Option<EwsMailRequest> {
     Some(request)
 }
 
+/// The run that only takes up what was done here to `account`'s server and reads nothing: the
+/// request of a Send/Receive for the Inbox and the folder on screen, less everything it reads. None
+/// until the account's folders are the server's (a run that lists them is a whole one).
+pub fn ews_push_request(s: &Session, account: Id) -> Option<EwsMailRequest> {
+    let mut request = ews_mail_request(s, account, true).ok()?;
+    if request.list_folders {
+        return None;
+    }
+    request.push_only = true;
+    request.states.clear();
+    request.threads.clear();
+    request.hierarchy.clear();
+    Some(request)
+}
+
 fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = named_account(s, v)?;
-    let mut request = if p::bool(v, "inboxPass").unwrap_or(false) {
+    let push_only = p::bool(v, "pushOnly").unwrap_or(false);
+    let mut request = if push_only {
+        ews_push_request(s, account).ok_or_else(|| fail("the folders of this account haven't been read yet"))?
+    } else if p::bool(v, "inboxPass").unwrap_or(false) {
         ews_inbox_request(s, account).ok_or_else(|| fail("the Inbox of this account hasn't been read yet"))?
     } else {
         ews_mail_request(s, account, p::bool(v, "light").unwrap_or(false))?
     };
     request.background = p::bool(v, "background").unwrap_or(false);
-    // A run begins: nothing lost in an earlier one is held against it.
-    if !request.inbox_pass {
+    // A run begins: nothing lost in an earlier one is held against it (one that reads nothing
+    // doesn't begin a read).
+    if !request.inbox_pass && !request.push_only {
         s.ews_run_cut.remove(&account);
     }
     serde_json::to_value(request).map_err(|e| fail(e.to_string()))

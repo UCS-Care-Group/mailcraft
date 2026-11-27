@@ -173,6 +173,11 @@ pub struct EwsMailRequest {
     /// Nobody is waiting for this run: it gets the share of requests background work has.
     #[serde(skip_serializing_if = "is_false")]
     pub background: bool,
+    /// Only what was done here goes up (changes, drafts, what waits in the Outbox): nothing is read
+    /// afterwards. A run of this kind goes beside a long read of another account's mail, so that
+    /// a message deleted or sent meanwhile doesn't wait for it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub push_only: bool,
     /// Messages listed before their conversation ids were asked for, by server id: the server is
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]

@@ -94,6 +94,10 @@ impl MailApp {
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
+        // What was done to it is going up beside another run: never two runs for one account at once.
+        if self.ews_extra_for(account) {
+            return Err(tl!("Send/Receive is already running").to_string());
+        }
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
             self.passwords.insert(account, typed.to_string());
         }
@@ -129,6 +133,24 @@ impl MailApp {
         self.session.sync_progress.phase(account, if inbox_pass { SyncPhase::Inbox } else { SyncPhase::Folders });
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "ews": true}))
+    }
+
+    /// What the engine said of a piece of a run of `account` that it took in: at the end of a run
+    /// that read, the folders it could not read (File › Info names them until the next run), and the
+    /// problems it had, each said once. (Also for a run beside the first, [`crate::ews_push_lane`].)
+    pub(crate) fn note_ews_answer(&mut self, account: Id, said: &Value, run_ended: bool) {
+        let lines = |key: &str| -> Vec<String> {
+            said[key].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
+        };
+        if run_ended {
+            let folders = lines("unreadableFolders");
+            if folders.is_empty() {
+                self.ews_unreadable.remove(&account);
+            } else {
+                self.ews_unreadable.insert(account, folders);
+            }
+        }
+        self.note_sync_problems(account, &lines("errors"), false);
     }
 
     /// Take in what the Exchange run under way has brought so far, a few pieces a frame (each one
@@ -180,22 +202,7 @@ impl MailApp {
                 self.ews_certificate.insert(account, piece.untrusted.clone());
             }
             match apply_ews_mail(&mut self.session, piece) {
-                Ok(said) => {
-                    // The folders the run could not read: File › Info names them until the next run.
-                    if last {
-                        let folders: Vec<String> = said["unreadableFolders"]
-                            .as_array()
-                            .map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect())
-                            .unwrap_or_default();
-                        if folders.is_empty() {
-                            self.ews_unreadable.remove(&account);
-                        } else {
-                            self.ews_unreadable.insert(account, folders);
-                        }
-                    }
-                    let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
-                    self.note_sync_problems(account, &errors.unwrap_or_default(), false);
-                }
+                Ok(said) => self.note_ews_answer(account, &said, last),
                 Err(e) => {
                     self.status(e.to_string());
                     self.session.driver.sending.doubted();

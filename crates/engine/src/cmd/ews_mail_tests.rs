@@ -104,6 +104,26 @@ fn the_first_request_reads_everything_from_the_start() {
     assert!(!format!("{request:?}").contains("exchange.example.org"));
 }
 
+/// The run that goes up beside a long read of another account's mail only takes up what was done
+/// here: no folder is listed or read, and nothing of the read's state is asked for.
+#[test]
+fn a_push_only_request_reads_nothing_and_waits_for_the_folders_to_be_the_servers() {
+    let (mut s, account) = session();
+    // Until the folders are the server's, a run lists them: it is a whole one.
+    let ask = json!({"account": account, "pushOnly": true});
+    assert!(s.run("sync.ewsRequest", &ask).is_err());
+    assert!(ews_push_request(&s, account).is_none());
+    list(&mut s, account);
+    read(&mut s, account, page("F1", vec![mail("M1", "Hello", 1_700_000_000)], true, true), "S1");
+    end(&mut s, account, true);
+    let request: EwsMailRequest = serde_json::from_value(s.run("sync.ewsRequest", &ask).unwrap()).unwrap();
+    assert!(request.push_only);
+    assert!(!request.list_folders && request.states.is_empty() && request.threads.is_empty() && request.hierarchy.is_empty());
+    // A run that reads is never one that only goes up.
+    let reading = ews_mail_request(&s, account, true).unwrap();
+    assert!(!reading.push_only && !reading.states.is_empty());
+}
+
 #[test]
 fn the_folders_and_the_first_pages_come_in_with_the_states_that_go_on_from_them() {
     let (mut s, account) = session();
