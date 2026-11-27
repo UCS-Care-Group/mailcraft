@@ -516,28 +516,44 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         unsubscribe::bar(app, ui, m, place, &t);
         // What checking its Digital signature found (#30).
         signature::bar(app, ui, m, place, &t);
-        // Subject, with the actions on the right (a window has them in its toolbar).
-        ui.horizontal(|ui| {
-            let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
-                if place == Place::Pane {
-                    for (icon, tip, id) in ACTIONS.iter().rev() {
-                        let sc = crate::widgets::shortcut_text(app, id);
-                        if crate::widgets::icon_button(ui, icon, &format!("{} ({sc})", tl!(tip)), 17.0, true).clicked() {
-                            let _ = app.run(id, json!({}));
-                        }
-                        // React sits between Forward and Delete (#1544).
-                        if *id == "mail.delete" {
-                            ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
-                        }
+        let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+        let mut show_subject = |ui: &mut Ui| {
+            fields.add(ui, select::Field::Subject, egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap());
+        };
+        if place == Place::Pane {
+            let spacing = 4.0;
+            let buttons = ACTIONS.iter().map(|(_, label, _)| crate::widgets::icon_text_width(ui, tl!(label))).sum::<f32>()
+                + if m.id == 0 { 3.0 * spacing } else { crate::widgets::icon_text_width(ui, react::label()) + 4.0 * spacing };
+            let show_actions = |ui: &mut Ui| {
+                ui.spacing_mut().item_spacing.x = spacing;
+                for (icon, label, id) in ACTIONS {
+                    if id == "mail.delete" {
+                        ui.push_id(("react", m.id), |ui| react::button(app, ui, m));
+                    }
+                    let label = tl!(label);
+                    let key = crate::widgets::shortcut_text(app, id);
+                    let button = crate::widgets::icon_text_button(ui, icon, label, true);
+                    button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+                    let button = if key.is_empty() { button } else { button.on_hover_text(format!("{label} ({key})")) };
+                    if button.clicked() {
+                        let _ = app.run(id, json!({}));
                     }
                 }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                    fields.add(ui, select::Field::Subject, egui::Label::new(egui::RichText::new(subject).font(semibold(17.0)).color(t.text)).wrap());
+            };
+            if ui.available_width() >= buttons + 180.0 {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        ui.allocate_ui_with_layout(vec2(buttons, 24.0), egui::Layout::left_to_right(egui::Align::Center), show_actions);
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), &mut show_subject);
+                    })
                 });
-            });
-        });
+            } else {
+                show_subject(ui);
+                ui.horizontal_wrapped(show_actions);
+            }
+        } else {
+            show_subject(ui);
+        }
         ui.add_space(4.0);
         // Who and when.
         ui.horizontal(|ui| {
