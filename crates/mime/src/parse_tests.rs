@@ -162,6 +162,60 @@ fn html_with_an_inline_image() {
 }
 
 #[test]
+fn mixed_inline_pictures_stand_between_text_parts_without_a_cid_reference() {
+    for (kind, before, after) in [("text/plain", "Before", "After"), ("text/html", "<p>Before</p>", "<p>After</p>")] {
+        let content_type = format!("Content-Type: {kind}");
+        let wire = eml(&[
+            "Content-Type: multipart/mixed; boundary=m",
+            "",
+            "--m",
+            &content_type,
+            "",
+            before,
+            "--m",
+            "Content-Type: image/png; name=logo.png",
+            "Content-Disposition: inline; filename=logo.png",
+            "Content-Transfer-Encoding: base64",
+            "",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwSDjwHwAEZAJQVm34EgAAAABJRU5ErkJggg==",
+            "--m",
+            &content_type,
+            "",
+            after,
+            "--m--",
+        ]);
+        let wire = String::from_utf8(wire).unwrap();
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert!(html.find("Before").unwrap() < html.find("<img").unwrap());
+        assert!(html.find("<img").unwrap() < html.find("After").unwrap());
+        assert!(html.contains(&format!("cid:{}", message.attachments[0].content_id)));
+        assert!(message.attachments[0].inline);
+        assert!(message.attachments[0].data.starts_with(b"\x89PNG\r\n\x1a\n"));
+
+        let ordinary = parse(wire.replace("Content-Disposition: inline", "Content-Disposition: attachment").as_bytes());
+        assert!(!ordinary.body.html.as_deref().unwrap_or("").contains("<img"));
+        let invalid = parse(
+            wire.replace("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwSDjwHwAEZAJQVm34EgAAAABJRU5ErkJggg==", "bm90IGEgcGljdHVyZQ==")
+                .as_bytes(),
+        );
+        assert!(!invalid.body.html.as_deref().unwrap_or("").contains("<img"));
+        if kind == "text/html" {
+            let identified = wire.replace("Content-Disposition: inline", "Content-ID: <logo@example.org>\r\nContent-Disposition: inline");
+            for place in [before, after] {
+                let explicit = identified.replace(place, &format!("{place}<img src=\"CID:LOGO%40EXAMPLE.ORG\">"));
+                let message = parse(explicit.as_bytes());
+                let html = message.body.html.as_deref().unwrap();
+                assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+            }
+            let named_in_text = identified.replace(before, "<p>Before cid:logo@example.org</p>");
+            let message = parse(named_in_text.as_bytes());
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(message.body.html.as_deref().unwrap())).len(), 1);
+        }
+    }
+}
+
+#[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[
         "Subject: Files",
