@@ -174,6 +174,8 @@ pub mod menubar;
 mod merge_contacts;
 #[cfg(test)]
 mod module_foot_tests;
+#[cfg(test)]
+mod notes_view_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;

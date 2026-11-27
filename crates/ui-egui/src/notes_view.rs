@@ -58,6 +58,9 @@ pub struct Note {
     pub reminder_title: Option<String>,
     #[serde(default)]
     pub gemini_chat: Option<Value>,
+    /// Persistent deletion marker so a stale cloud pull cannot restore this note.
+    #[serde(default)]
+    pub is_deleted: bool,
 }
 
 impl Default for Note {
@@ -82,6 +85,7 @@ impl Default for Note {
             reminder_time: None,
             reminder_title: None,
             gemini_chat: None,
+            is_deleted: false,
         }
     }
 }
@@ -207,7 +211,8 @@ pub fn smart_merge_notes(local_notes: &mut Vec<Note>, cloud_notes: Vec<Note>) ->
         if let Some(existing) = local_notes.iter_mut().find(|n| n.id == c_note.id) {
             let c_mod = c_note.modified_date.as_deref().unwrap_or("");
             let l_mod = existing.modified_date.as_deref().unwrap_or("");
-            if c_mod > l_mod {
+            // A stale active copy must never overwrite a local deletion marker.
+            if c_note.is_deleted || (!existing.is_deleted && c_mod > l_mod) {
                 *existing = c_note;
                 updated += 1;
             }
@@ -251,7 +256,38 @@ fn now_iso() -> String {
     let hours = (secs_of_day / 3600) % 24;
     let minutes = (secs_of_day % 3600) / 60;
     let seconds = secs_of_day % 60;
-    format!("2026-11-19T{hours:02}:{minutes:02}:{seconds:02}Z")
+    let days = since_epoch / 86400;
+    // Date conversion uses a civil-from-days algorithm (UTC).
+    let z = days as i64 + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let mut year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    year += if month <= 2 { 1 } else { 0 };
+    format!("{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}Z")
+}
+
+fn normalize_ai_text(text: &str) -> String {
+    html_to_plain_text(text)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub fn ai_reply_already_embedded(content_html: &str, reply: &str) -> bool {
+    let normalized_reply = normalize_ai_text(reply);
+    !normalized_reply.is_empty() && normalize_ai_text(content_html).contains(&normalized_reply)
+}
+
+pub fn gemini_input_layout(available: f32, spacing: f32) -> (f32, f32, f32) {
+    let button = available.min(85.0).max(0.0);
+    let gap = spacing.min((available - button).max(0.0));
+    let input = (available - button - gap).max(0.0);
+    (input, button, gap)
 }
 
 fn current_time_hh_mm_ss() -> String {
@@ -316,7 +352,7 @@ impl NotesState {
             }
         }
 
-        let first_id = notes.first().map(|n| n.id.clone());
+        let first_id = notes.iter().find(|n| !n.is_deleted).map(|n| n.id.clone());
         let sync_time = current_time_hh_mm_ss();
 
         let default_custom = vec![
@@ -341,7 +377,7 @@ impl NotesState {
                 }
             }
         }
-        for n in &notes {
+        for n in notes.iter().filter(|n| !n.is_deleted) {
             let nb = n.notebook.trim();
             if !nb.is_empty() && !custom_notebooks.iter().any(|x| x == nb) {
                 custom_notebooks.push(nb.to_string());
@@ -391,14 +427,19 @@ impl NotesState {
                     if let Ok(serialized) = serde_json::to_string_pretty(&self.notes) {
                         let _ = fs::write(&self.file_path, serialized);
                     }
-                    if self.selected_note_id.is_none() && !self.notes.is_empty() {
-                        self.selected_note_id = self.notes.first().map(|n| n.id.clone());
+                    if self.selected_note_id.as_ref().is_none_or(|id| self.notes.iter().all(|n| &n.id != id || n.is_deleted)) {
+                        self.selected_note_id = self.notes.iter().find(|n| !n.is_deleted).map(|n| n.id.clone());
                         self.sync_editing_buffer();
                     }
                 }
+                // Always publish the merged state: it includes deletion tombstones
+                // that must replace an older active copy in the cloud.
+                if self.notes.iter().any(|note| note.is_deleted) {
+                    trigger_cloud_push(self.notes.clone());
+                }
                 self.last_sync_time = current_time_hh_mm_ss();
                 self.cloud_syncing = false;
-                self.status_msg = Some(format!("● Sincronizado com o Google Drive ({} notas)", self.notes.len()));
+                self.status_msg = Some(format!("● Sincronizado com o Google Drive ({} notas)", self.notes.iter().filter(|n| !n.is_deleted).count()));
                 self.cloud_rx = None;
             }
         }
@@ -444,7 +485,7 @@ impl NotesState {
                 }
             }
         }
-        for n in &self.notes {
+        for n in self.notes.iter().filter(|n| !n.is_deleted) {
             let nb = n.notebook.trim();
             if !nb.is_empty() && !self.custom_notebooks.iter().any(|x| x == nb) {
                 self.custom_notebooks.push(nb.to_string());
@@ -456,15 +497,17 @@ impl NotesState {
     pub fn migrate_existing_chat_comments(&mut self) {
         let mut changed_any = false;
         for note in &mut self.notes {
-            if let Some(Value::Array(messages)) = &note.gemini_chat {
+            if !note.is_deleted && let Some(Value::Array(messages)) = &note.gemini_chat {
                 let current_html = note.content_html.clone().unwrap_or_default();
                 let mut to_append = Vec::new();
+                let mut accumulated = current_html.clone();
                 for m in messages {
                     if m.get("role").and_then(Value::as_str) == Some("ai") {
                         if let Some(text) = m.get("text").and_then(Value::as_str) {
                             let clean = text.trim();
-                            if !clean.is_empty() && clean != "Pensando..." && !current_html.contains(clean) {
+                            if !clean.is_empty() && clean != "Pensando..." && !ai_reply_already_embedded(&accumulated, clean) {
                                 to_append.push(clean.to_string());
+                                accumulated.push_str(&clean.replace('\n', "<br/>"));
                             }
                         }
                     }
@@ -494,8 +537,11 @@ impl NotesState {
             return;
         }
 
-        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id) {
+        if let Some(note) = self.notes.iter_mut().find(|n| n.id == note_id && !n.is_deleted) {
             let mut html = note.content_html.clone().unwrap_or_default();
+            if ai_reply_already_embedded(&html, clean_reply) {
+                return;
+            }
             let comment_block = format!(
                 "<br/><br/><div style=\"margin-top: 14px; padding: 10px 14px; border-left: 4px solid #4285F4; background: rgba(66, 133, 244, 0.08); border-radius: 4px;\"><b>🤖 Resposta do Assistente IA:</b><br/>{}</div>",
                 clean_reply.replace('\n', "<br/>")
@@ -539,7 +585,7 @@ impl NotesState {
 
     pub fn sync_editing_buffer(&mut self) {
         if let Some(sel_id) = &self.selected_note_id {
-            if let Some(note) = self.notes.iter().find(|n| &n.id == sel_id) {
+            if let Some(note) = self.notes.iter().find(|n| &n.id == sel_id && !n.is_deleted) {
                 self.editing_id = Some(sel_id.clone());
                 self.editing_title = note.title.clone();
                 let html = note.content_html.clone().unwrap_or_default();
@@ -563,12 +609,19 @@ impl NotesState {
     }
 
     pub fn delete_selected(&mut self) {
-        if let Some(sel_id) = self.selected_note_id.take() {
+        if let Some(sel_id) = self.selected_note_id.clone() {
             if let Some(pos) = self.notes.iter().position(|n| n.id == sel_id) {
-                self.notes.remove(pos);
-                if !self.notes.is_empty() {
-                    let next_pos = pos.min(self.notes.len() - 1);
-                    self.selected_note_id = Some(self.notes[next_pos].id.clone());
+                self.notes[pos].is_deleted = true;
+                self.notes[pos].modified_date = Some(now_iso());
+                let active: Vec<_> = self.notes.iter().filter(|n| !n.is_deleted).collect();
+                if !active.is_empty() {
+                    let next_pos = pos.min(active.len() - 1);
+                    self.selected_note_id = Some(active[next_pos].id.clone());
+                } else {
+                    self.selected_note_id = None;
+                    self.editing_id = None;
+                    self.editing_title.clear();
+                    self.editing_content.clear();
                 }
                 self.sync_editing_buffer();
                 self.save();
@@ -606,7 +659,7 @@ impl NotesState {
     }
 
     pub fn copy_note_to_notebook(&mut self, note_id: &str, target_notebook: &str) -> Option<String> {
-        let note = self.notes.iter().find(|n| n.id == note_id)?.clone();
+        let note = self.notes.iter().find(|n| n.id == note_id && !n.is_deleted)?.clone();
         let mut copy = note;
         let now_ms = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -904,14 +957,19 @@ impl NotesState {
         }
     }
 
-    pub fn update_last_gemini_ai_message(&mut self, text: &str) {
-        if let Some(sel_id) = &self.selected_note_id {
-            if let Some(note) = self.notes.iter_mut().find(|n| &n.id == sel_id) {
-                let mut list = match &note.gemini_chat {
+    pub fn update_last_gemini_ai_message(&mut self, note_id: &str, text: &str) {
+        update_gemini_ai_message(&mut self.notes, note_id, text);
+        self.save();
+    }
+}
+
+pub fn update_gemini_ai_message(notes: &mut [Note], note_id: &str, text: &str) {
+    if let Some(note) = notes.iter_mut().find(|n| n.id == note_id && !n.is_deleted) {
+        let mut list = match &note.gemini_chat {
                     Some(Value::Array(arr)) => arr.clone(),
                     _ => Vec::new(),
                 };
-                if let Some(last) = list.last_mut() {
+        if let Some(last) = list.last_mut() {
                     if last.get("role").and_then(Value::as_str) == Some("ai") {
                         *last = json!({
                             "role": "ai",
@@ -935,7 +993,7 @@ impl NotesState {
                             }
                         }));
                     }
-                } else {
+        } else {
                     list.push(json!({
                         "role": "ai",
                         "text": text,
@@ -946,11 +1004,8 @@ impl NotesState {
                             "pdfContent": ""
                         }
                     }));
-                }
-                note.gemini_chat = Some(Value::Array(list));
-                self.save();
-            }
         }
+        note.gemini_chat = Some(Value::Array(list));
     }
 }
 
@@ -1200,14 +1255,22 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 
     // Check background Gemini AI response channel
     let received_gemini = if let Some(rx) = &app.notes.gemini_rx {
-        rx.try_recv().ok()
+        match rx.try_recv() {
+            Ok(reply) => Some(reply),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                app.notes.gemini_loading = false;
+                app.notes.gemini_rx = None;
+                None
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+        }
     } else {
         None
     };
 
     if let Some((note_id, reply)) = received_gemini {
         app.notes.gemini_loading = false;
-        app.notes.update_last_gemini_ai_message(&reply);
+        app.notes.update_last_gemini_ai_message(&note_id, &reply);
         app.notes.append_ai_comment_to_note(&note_id, &reply);
         ui.ctx().request_repaint();
     }
@@ -1324,13 +1387,13 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.separator();
 
     // Standard Views Counters
-    let unorganized_count = app.notes.notes.iter().filter(|n| {
+    let unorganized_count = app.notes.notes.iter().filter(|n| !n.is_deleted && ({
         n.notebook.trim().is_empty()
             || n.notebook == "Meus blocos de anotações"
             || n.notebook == "Sem caderno"
-    }).count();
-    let fav_count = app.notes.notes.iter().filter(|n| n.is_favorite == Some(true)).count();
-    let reminders_count = app.notes.notes.iter().filter(|n| n.reminder_date.is_some()).count();
+    })).count();
+    let fav_count = app.notes.notes.iter().filter(|n| !n.is_deleted && n.is_favorite == Some(true)).count();
+    let reminders_count = app.notes.notes.iter().filter(|n| !n.is_deleted && n.reminder_date.is_some()).count();
 
     egui::ScrollArea::vertical().show(ui, |ui| {
         // "Todas as Notas"
@@ -1476,7 +1539,7 @@ fn render_sidebar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let mut note_dropped_on_nb: Option<(String, String, bool)> = None;
 
         for nb in all_notebooks {
-            let count = app.notes.notes.iter().filter(|n| n.notebook == nb).count();
+            let count = app.notes.notes.iter().filter(|n| !n.is_deleted && n.notebook == nb).count();
             let is_sel = app.notes.selected_notebook.as_deref() == Some(&nb);
             let (clicked, delete_clicked, dropped_note) = nav_notebook_item(ui, "📁", &nb, count, is_sel, t);
             if clicked {
@@ -1642,12 +1705,12 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
     });
 
     // Counts & Filter Tabs: [ Pendentes (29) ] [ Todas (108) ]
-    let total_all = app.notes.notes.len();
-    let unorganized = app.notes.notes.iter().filter(|n| {
+    let total_all = app.notes.notes.iter().filter(|n| !n.is_deleted).count();
+    let unorganized = app.notes.notes.iter().filter(|n| !n.is_deleted && ({
         n.notebook.trim().is_empty()
             || n.notebook == "Meus blocos de anotações"
             || n.notebook == "Sem caderno"
-    }).count();
+    })).count();
 
     ui.horizontal(|ui| {
         ui.add_space(8.0);
@@ -1683,7 +1746,7 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
     let selected_nb = app.notes.selected_notebook.clone();
     let unorganized_only = app.notes.filter_unorganized_only;
 
-    let filtered_ids: Vec<String> = app.notes.notes.iter().filter(|n| {
+    let filtered_ids: Vec<String> = app.notes.notes.iter().filter(|n| !n.is_deleted && ({
         if unorganized_only {
             let is_unorg = n.notebook.trim().is_empty()
                 || n.notebook == "Meus blocos de anotações"
@@ -1714,7 +1777,7 @@ fn render_cards_list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, is_dark: bool) 
             }
         }
         true
-    }).map(|n| n.id.clone()).collect();
+    })).map(|n| n.id.clone()).collect();
 
     // Scrollable Cards List
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -2074,7 +2137,7 @@ fn render_note_details(app: &mut MailApp, ui: &mut Ui, t: &Tokens, _is_dark: boo
     ui.add_space(6.0);
 
     // Note content area
-    let content_area_height = (ui.available_height() - 85.0).max(120.0);
+    let content_area_height = (ui.available_height() - 112.0).max(0.0);
     ui.allocate_ui(vec2(ui.available_width(), content_area_height), |ui| {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
@@ -2354,16 +2417,18 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
                 .fill(Color32::from_rgb(66, 133, 244))
                 .corner_radius(6.0);
 
-                let btn_width = 85.0;
                 let spacing = ui.spacing().item_spacing.x;
                 let avail = ui.available_width();
-                let input_width = (avail - btn_width - spacing - 4.0).max(100.0);
+                let (input_width, btn_width, spacing) = gemini_input_layout(avail, spacing);
 
                 let input = egui::TextEdit::singleline(&mut app.notes.gemini_prompt)
                     .hint_text("Peça algo à IA sobre esta nota... (Ex: 'cite três lições', 'resuma')")
                     .desired_width(input_width);
-                let resp = ui.add(input);
-                let send_clicked = ui.add_sized([btn_width, 26.0], send_btn).clicked();
+                let resp = ui.add_enabled_ui(!app.notes.gemini_loading, |ui| ui.add_sized([input_width, 26.0], input)).inner;
+                ui.add_space(spacing);
+                let send_clicked = ui.add_enabled_ui(!app.notes.gemini_loading, |ui| {
+                    ui.add_sized([btn_width, 26.0], send_btn)
+                }).inner.clicked();
                 let enter_pressed = (resp.has_focus() || resp.lost_focus()) && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                 if (send_clicked || enter_pressed) && !app.notes.gemini_prompt.trim().is_empty() {
@@ -2376,6 +2441,9 @@ fn render_gemini_chat_section(app: &mut MailApp, ui: &mut Ui, note: &Note, t: &T
 }
 
 fn send_gemini_prompt(app: &mut MailApp, note: &Note, prompt: &str) {
+    if app.notes.gemini_loading || note.is_deleted {
+        return;
+    }
     let note_id = note.id.clone();
     let prompt_text = prompt.to_string();
     let note_context = format!(
