@@ -109,6 +109,18 @@ fn a_bar_is_capped_and_a_height_without_colour_makes_no_room() {
         bar_of("<table><tr><td height='-9' bgcolor='#c00030'>x</td><td height=99999 bgcolor='#c00030'></td></tr></table>").map(|(p, ..)| p),
         Some(None)
     );
+    // Nothing hidden makes a bar, or a band of colour: not under a hidden element, not a hidden cell.
+    for hidden in [
+        "<div hidden><div style='height:64px;background:#c00030'></div></div>",
+        "<div style='display:none'><div style='height:64px;background:#c00030'></div></div>",
+        "<div style='display:none'><table><tr><td height=9 bgcolor='#c00030'></td><td>x</td></tr></table></div>",
+        "<table><tr><td bgcolor='#c00030' hidden></td></tr></table>",
+        "<table><tr><td hidden height=9 bgcolor='#c00030'></td></tr></table>",
+        "<table><tr><td style='display:none;height:9px;background:#c00030'></td></tr></table>",
+    ] {
+        let blocks = parse(&format!("{hidden}<p>Visible</p>"));
+        assert_eq!(blocks.iter().map(Block::text).collect::<Vec<_>>(), ["Visible"], "{hidden}: {blocks:?}");
+    }
     // No colour: no bar, and no room beyond the blank lines there were.
     assert_eq!(parse("<div style='height:40px'></div>"), Vec::new());
     let blocks = parse("<p>One</p><div style='height:40px'></div><p>Two</p>");
@@ -152,6 +164,10 @@ fn outlooks_margins_stand_in_where_the_plain_ones_are_missing() {
     assert_eq!(margins("margin-top:0;mso-margin-top-alt:24px"), (Some(0), None, Some(true), None));
     assert_eq!(margins("mso-margin-bottom-alt:24px;margin-bottom:2px").1, Some(2));
     assert_eq!(margins("margin:0;mso-margin-top-alt:30px;mso-margin-bottom-alt:30px"), (Some(0), Some(0), Some(true), Some(true)));
+    // A plain `auto` is a margin written too.
+    assert_eq!(margins("margin-top:auto;mso-margin-top-alt:24px").0, None);
+    assert_eq!(margins("margin:auto;mso-margin-top-alt:24px;mso-margin-bottom-alt:24px"), (None, None, None, None));
+    assert_eq!(margins("mso-margin-bottom-alt:24px;margin-bottom:auto").1, None);
     // `auto` (Word's own paragraph spacing), nonsense and the hostile ask nothing; huge is capped, negative is none.
     for junk in ["auto", "calc(9px)", "10", "NaN", "bogus", ""] {
         assert_eq!(margins(&format!("mso-margin-top-alt:{junk}")), (None, None, None, None), "{junk}");

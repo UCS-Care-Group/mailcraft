@@ -208,6 +208,8 @@ impl Css {
         // Outlook's own spacing, for where the plain property says nothing (after the loop).
         let mut mso_padding = [None; 4];
         let (mut mso_top, mut mso_bottom) = (None, None);
+        // Whether a plain margin above (below) is written, `auto` too: Outlook's then says nothing.
+        let mut plain_margin = [false; 2];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
             if property.len() > 32 {
                 continue;
@@ -335,6 +337,7 @@ impl Css {
                     css.margin_top_zero = top.or(css.margin_top_zero);
                     css.margin_bottom_zero = bottom.or(css.margin_bottom_zero);
                     if let Some(sides) = sides4(value, margin_px) {
+                        plain_margin = [true; 2];
                         for (slot, side) in css.margin.iter_mut().zip(sides) {
                             *slot = side;
                         }
@@ -349,10 +352,12 @@ impl Css {
                     set_side(&mut css.margin, 1, margin_px(value));
                 }
                 "margin-top" | "margin-block-start" => {
+                    plain_margin[0] |= margin_px(value).is_some();
                     css.margin_top_zero = is_slight(value).or(css.margin_top_zero);
                     set_side(&mut css.margin, 0, margin_px(value));
                 }
                 "margin-bottom" | "margin-block-end" => {
+                    plain_margin[1] |= margin_px(value).is_some();
                     css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero);
                     set_side(&mut css.margin, 2, margin_px(value));
                 }
@@ -455,8 +460,9 @@ impl Css {
         for (side, alt) in css.padding.iter_mut().zip(mso_padding) {
             *side = side.or(alt);
         }
-        for ((zero, px), alt) in [(&mut css.margin_top_zero, 0), (&mut css.margin_bottom_zero, 2)].into_iter().zip([mso_top, mso_bottom]) {
-            if let (None, Some((slight, alt))) = (*zero, alt)
+        let sides = [(&mut css.margin_top_zero, 0), (&mut css.margin_bottom_zero, 2)];
+        for (((zero, px), alt), plain) in sides.into_iter().zip([mso_top, mso_bottom]).zip(plain_margin) {
+            if let (false, None, Some((slight, alt))) = (plain, *zero, alt)
                 && css.margin.get(px).is_some_and(Option::is_none)
             {
                 *zero = Some(slight);

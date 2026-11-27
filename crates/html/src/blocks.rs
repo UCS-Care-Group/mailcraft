@@ -2338,7 +2338,10 @@ impl Builder {
         let grid = self.table_at(table).is_some_and(|t| t.compose_grid);
         let span =
             |name: &str, min: u32, max: u16| attr(name).and_then(|v| v.trim().parse::<u32>().ok()).map_or(1, |n| n.clamp(min, u32::from(max)) as u16);
-        let background = css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
+        // (A cell that is hidden, or inside what is, shows no colour: as a band or a bar it would be seen.)
+        let unseen = self.hidden > 0 || css.hidden || tag.has("hidden");
+        let background =
+            css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
         // `cellpadding` fills the sides the cell's own style leaves open.
         let cell_padding = self.table_at(table).and_then(|t| t.cell_padding);
         let mut padding = css.padding;
@@ -2839,7 +2842,7 @@ impl Builder {
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || bg_picture.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
-                bar: background.and(bar_px(css.height)),
+                bar: background.filter(|_| self.hidden == 0).and(bar_px(css.height)),
                 bg_picture,
             }),
         };
