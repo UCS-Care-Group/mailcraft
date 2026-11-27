@@ -26,7 +26,8 @@ private const val BOTTOM = 2
 
 /**
  * The lines on [sides] of a box (all of them for null), as the message draws them, thin and in the
- * reader's own colour where it says nothing; a colour that would not be seen on [paper] is the reader's.
+ * reader's own colour where it says nothing. A coloured line goes through [Paper.line]: one in its paper's
+ * own colour stays unseen, a faint one is moved to the line contrast the desktop keeps.
  */
 internal fun Modifier.frame(lines: List<LineView>, sides: SidesView?, fallback: Color, paper: Paper): Modifier {
     val wanted = sides ?: ALL_SIDES
