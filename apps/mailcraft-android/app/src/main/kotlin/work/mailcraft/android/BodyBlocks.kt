@@ -102,7 +102,7 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
         when (val kind = block.kind) {
             is BlockKindView.Table -> TableBlock(kind.table, block.align, env, paper, room)
             is BlockKindView.Image -> PictureBlock(block, kind, env, paper, room)
-            is BlockKindView.Rule -> RuleBlock(block, env)
+            is BlockKindView.Rule -> RuleBlock(block, env, paper)
             is BlockKindView.ListItem -> ListItem(block, kind, env, paper)
             is BlockKindView.Heading -> TextBlock(block, env, paper, heading = kind.level.toInt())
             is BlockKindView.Preformatted -> TextBlock(block, env, paper, mono = true)

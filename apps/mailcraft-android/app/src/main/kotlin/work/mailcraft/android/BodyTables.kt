@@ -50,7 +50,7 @@ private const val PERCENT = 100
 @Composable
 internal fun TableBlock(table: TableView, align: AlignView, env: BodyEnv, paper: Paper, room: Dp) {
     val width = tableWidth(table, room)
-    val own = table.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = table.background?.let { paper.inner(it.rgb()) } ?: paper
     val shape = RoundedCornerShape(table.radius.toInt().dp)
     val outline = if (table.outline) Modifier.frame(table.lines, null, env.rule, own) else Modifier
     // A data table is as wide as its columns, which fit the room when their words let them.
@@ -153,7 +153,7 @@ internal fun cellSides(table: TableView, cell: CellView): Int {
 /** One cell: its background, lines and padding, and its blocks in the room that is left. */
 @Composable
 internal fun CellBox(table: TableView, cell: CellView, env: BodyEnv, paper: Paper, width: Dp, modifier: Modifier) {
-    val own = cell.background?.let { Paper.of(it.rgb(), paper.link) } ?: paper
+    val own = cell.background?.let { paper.inner(it.rgb()) } ?: paper
     val pad = cell.padding
     val roomy = !table.layout && pad == null
     val left = pad?.left?.toInt() ?: if (roomy) DATA_SIDE else 0
