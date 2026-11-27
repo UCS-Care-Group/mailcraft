@@ -52,7 +52,10 @@ use crate::error::{Error, ResponseCode};
 use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
-use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_RECIPIENTS_ASKED, Shape, SyncFolderItems};
+use crate::items::{
+    GetItemConversations, GetItemListed, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_LISTED_ASKED, MAX_RECIPIENTS_ASKED, Shape,
+    SyncFolderItems,
+};
 use crate::reply::Reply;
 use crate::soap::Element;
 
@@ -648,7 +651,7 @@ impl<E: HttpExchange> Run<'_, E> {
         let (mut state, mut afresh, mut lost) = (state.to_owned(), state.is_empty(), false);
         let mut read = 0u32;
         // (A server older than Exchange 2013 is asked for what its schema has from the start, #1349.)
-        if self.shape != Shape::Bare && !self.client.version().has_preview() {
+        if !matches!(self.shape, Shape::Bare | Shape::Ids) && !self.client.version().has_preview() {
             self.shape = Shape::Bare;
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
@@ -663,6 +666,14 @@ impl<E: HttpExchange> Run<'_, E> {
                     page
                 }
                 Err(Asked::Code(ResponseCode::FolderNotFound)) => return Ok(false),
+                // A page whose items came without their ids (Zimbra's EWS leaves `ItemId` out when
+                // anything else is asked for with it): the ids alone, then each item's list fields.
+                // Nothing of the page was taken in, so the same state is asked again.
+                Err(Asked::Unreadable) if self.shape != Shape::Ids => {
+                    self.shape = Shape::Ids;
+                    log::info!("ews mail: a folder's changes came without their ids; asking for the ids, then each message");
+                    continue;
+                }
                 Err(Asked::Code(ResponseCode::InvalidSyncState)) if !lost => {
                     (state, afresh, lost) = (String::new(), true, true);
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
@@ -688,6 +699,9 @@ impl<E: HttpExchange> Run<'_, E> {
             };
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
+            if self.shape == Shape::Ids {
+                self.listed(&mut messages).await?;
+            }
             self.recipients(&mut messages).await?;
             messages.iter_mut().for_each(|m| m.server.folder = folder.to_owned());
             let last = page.last;
@@ -720,6 +734,46 @@ impl<E: HttpExchange> Run<'_, E> {
 }
 
 impl<E: HttpExchange> Run<'_, E> {
+    /// What a list shows of `messages` that came as ids alone ([`Shape::Ids`]), asked with
+    /// `GetItem` ([`GetItemListed`]) and put in their place. What stops the run stops it here too
+    /// (the page is then not taken in, and is read again); a message the server didn't answer for
+    /// stays as its id, marked as cut ([`GraphMessage::cut`]), and is read whole when opened.
+    async fn listed(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
+        let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
+        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
+        let mut answered = vec![false; messages.len()];
+        for some in ids.chunks(MAX_LISTED_ASKED) {
+            let op = GetItemListed::new(some);
+            if op.is_empty() {
+                continue;
+            }
+            match self.ask(&op.element(), &|reply| op.answer(reply)).await {
+                Ok(found) => {
+                    for one in found {
+                        let Some(&n) = at.get(&one.server.id) else { continue };
+                        if let Some(message) = messages.get_mut(n) {
+                            *message = one;
+                        }
+                        if let Some(answer) = answered.get_mut(n) {
+                            *answer = true;
+                        }
+                    }
+                }
+                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                Err(_) => {}
+            }
+        }
+        let mut short = false;
+        for (message, _) in messages.iter_mut().zip(&answered).filter(|(_, answered)| !**answered) {
+            message.cut = true;
+            short = true;
+        }
+        if short {
+            log::info!("ews mail: the server didn't give what a list shows of some messages; they are listed by their ids");
+        }
+        Ok(())
+    }
+
     /// The recipients of the `messages` that came without any, asked with `GetItem`
     /// ([`GetItemRecipients`]): every message of a server whose `SyncFolderItems` won't give them
     /// ([`Shape::Bare`]), and those a server left them out of (#1151). What stops the run stops it

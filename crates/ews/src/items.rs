@@ -57,6 +57,11 @@ pub enum Shape {
     /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
     /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
     Bare,
+    /// The ids alone: for a server whose `SyncFolderItems` leaves an item's `ItemId` out when any
+    /// other property is asked for (Zimbra's EWS does, in the `Default` and `AllProperties`
+    /// shapes; it gives the id in `IdOnly`, with nothing else asked). What a list shows is then
+    /// asked item by item with `GetItem` ([`GetItemListed`]).
+    Ids,
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -124,7 +129,11 @@ impl SyncFolderItems {
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
+        let shape = if self.shape == Shape::Ids {
+            Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly"))
+        } else {
+            Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra)
+        };
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {
@@ -234,9 +243,15 @@ pub(crate) fn conversation_of(item: &Node) -> String {
 
 /// The message in an item element, when it has an id.
 fn read_item(item: &Node) -> Option<GraphMessage> {
-    let id_node = item.child_in(TYPES, "ItemId")?;
-    let id = id_node.attribute("Id").filter(|id| valid_id(id))?;
-    let change_key = id_node.attribute("ChangeKey").filter(|key| valid_id(key)).unwrap_or_default();
+    read_item_as(item, None)
+}
+
+/// [`read_item`], the item taken to be `known` when it doesn't say its own id: one asked for by
+/// that id with `GetItem`, answered in the order asked ([`GetItemListed`]).
+fn read_item_as(item: &Node, known: Option<&str>) -> Option<GraphMessage> {
+    let id_node = item.child_in(TYPES, "ItemId");
+    let id = id_node.and_then(|n| n.attribute("Id")).filter(|id| valid_id(id)).or(known.filter(|id| valid_id(id)))?;
+    let change_key = id_node.and_then(|n| n.attribute("ChangeKey")).filter(|key| valid_id(key)).unwrap_or_default();
     let importance = match item.child_in(TYPES, "Importance").map_or("", |n| n.text.trim()) {
         "Low" => Importance::Low,
         "High" => Importance::High,
@@ -367,6 +382,67 @@ impl GetItemRecipients {
                     let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
                     let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
                     out.push(Recipients { id: id.clone(), to, cc, cut });
+                }
+                Err(busy @ Error::Busy { .. }) => return Err(busy),
+                Err(_) => {}
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Most items one `GetItem` asks for what a list shows of ([`GetItemListed`]).
+pub const MAX_LISTED_ASKED: usize = 100;
+
+/// The request `GetItem` for what a list shows of several items (their subject, sender, times,
+/// size, read state, recipients and categories): for a server that gives only their ids in a
+/// folder's changes ([`Shape::Ids`]). `IdOnly` and the properties by name, so that no body comes
+/// with them, and only what Exchange 2010's schema has (no preview, no flag).
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemListed {
+    ids: Vec<String>,
+}
+
+impl std::fmt::Debug for GetItemListed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemListed").field("ids", &self.ids.len()).finish()
+    }
+}
+
+impl GetItemListed {
+    /// Asks for the items with these ids, the first [`MAX_LISTED_ASKED`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_LISTED_ASKED).cloned().collect() }
+    }
+
+    /// Whether there is nothing to ask.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and what a list shows), `ItemIds`.
+    pub fn element(&self) -> Element {
+        let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
+        let named = ["item:Subject", "message:IsRead", "item:HasAttachments", "message:ToRecipients", "message:CcRecipients", "item:Categories"];
+        let extra = LISTED.iter().chain(named.iter()).fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+        Element::new("m:GetItem").child(shape).child(ids)
+    }
+
+    /// The messages the server answered for, in the order asked, each by the id it was asked by
+    /// when it doesn't say its own; one it answered with an error of its own (gone since, say) is
+    /// left out. A busy server is [`Error::Busy`] for the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Vec<GraphMessage>, Error> {
+        let messages = reply.messages("GetItem")?;
+        let mut out = Vec::with_capacity(self.ids.len());
+        for (id, message) in self.ids.iter().zip(&messages) {
+            match message.ok() {
+                Ok(node) => {
+                    let item = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES));
+                    if let Some(found) = item.and_then(|item| read_item_as(item, Some(id))) {
+                        out.push(found);
+                    }
                 }
                 Err(busy @ Error::Busy { .. }) => return Err(busy),
                 Err(_) => {}

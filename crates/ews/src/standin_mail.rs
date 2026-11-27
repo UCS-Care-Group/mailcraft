@@ -387,6 +387,35 @@ impl State {
             ));
             xml.push_str(&people("From", std::slice::from_ref(&item.from)));
             xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId><t:IsRead>{}</t:IsRead>", escape(&item.message_id), item.read));
+        } else {
+            // `IdOnly`: what is asked for by name, and nothing else.
+            if wants("item:Subject") {
+                xml.push_str(&format!("<t:Subject>{}</t:Subject>", escape(&item.subject)));
+            }
+            if wants("item:DateTimeReceived") {
+                xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
+            }
+            if wants("item:Size") {
+                xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
+            }
+            if wants("item:Importance") {
+                xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
+            }
+            if wants("item:DateTimeSent") {
+                xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
+            }
+            if wants("item:HasAttachments") {
+                xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments>", item.attachments));
+            }
+            if wants("message:From") {
+                xml.push_str(&people("From", std::slice::from_ref(&item.from)));
+            }
+            if wants("message:InternetMessageId") {
+                xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+            }
+            if wants("message:IsRead") {
+                xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+            }
         }
         if wants("message:ToRecipients") {
             xml.push_str(&people("ToRecipients", &item.to));
@@ -628,12 +657,18 @@ impl State {
             }
         };
         let in_folder: Vec<&Item> = self.items.iter().filter(|i| i.folder == folder.id).collect();
+        // Zimbra's: an item's id only in the `IdOnly` shape with nothing else asked for.
+        let drops_ids = self.zimbra_ids && (base != "IdOnly" || !extra.is_empty());
+        let item_xml = |item: &Item| {
+            let xml = self.message_xml(item, &base, &extra);
+            if drops_ids { without_item_id(&xml) } else { xml }
+        };
         let mut changes = String::new();
         let (state, last) = match from {
             From::Listing { done, rev } => {
                 let page: Vec<&&Item> = in_folder.iter().skip(done).take(max).collect();
                 for item in &page {
-                    changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)));
+                    changes.push_str(&format!("<t:Create>{}</t:Create>", item_xml(**item)));
                 }
                 let reached = done.saturating_add(page.len());
                 if reached >= in_folder.len() {
@@ -658,12 +693,8 @@ impl State {
                             escape(&item.change_key),
                             item.read
                         )),
-                        (ItemChange::Create, Some(item)) => {
-                            changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)))
-                        }
-                        (ItemChange::Update, Some(item)) => {
-                            changes.push_str(&format!("<t:Update>{}</t:Update>", self.message_xml(item, &base, &extra)))
-                        }
+                        (ItemChange::Create, Some(item)) => changes.push_str(&format!("<t:Create>{}</t:Create>", item_xml(item))),
+                        (ItemChange::Update, Some(item)) => changes.push_str(&format!("<t:Update>{}</t:Update>", item_xml(item))),
                         _ => {}
                     }
                 }
@@ -720,5 +751,18 @@ impl State {
             }
         }
         Ok((200, first, response("GetItem", &messages)))
+    }
+}
+
+/// An item's XML without its `ItemId` element, as Zimbra's `SyncFolderItems` gives it.
+fn without_item_id(xml: &str) -> String {
+    match xml.find("<t:ItemId ") {
+        Some(start) => match xml.get(start..).and_then(|rest| rest.find("/>")) {
+            Some(len) => {
+                format!("{}{}", xml.get(..start).unwrap_or_default(), xml.get(start.saturating_add(len).saturating_add(2)..).unwrap_or_default())
+            }
+            None => xml.to_owned(),
+        },
+        None => xml.to_owned(),
     }
 }
