@@ -198,3 +198,101 @@ fn hostile_runs_of_marks_joiners_and_flags_are_sent_whole() {
         assert_eq!(ink_of(&views), ink(&text));
     }
 }
+
+fn texts(views: &[BlockView]) -> Vec<String> {
+    views.iter().map(|v| v.spans.iter().map(|s| s.text.as_str()).collect()).collect()
+}
+
+#[test]
+fn blank_lines_the_sender_wrote_between_pieces_are_kept() {
+    for kind in [BlockKind::Paragraph, BlockKind::Preformatted] {
+        let text = format!("{}\n\n\n{}", "a".repeat(MAX_BLOCK_CHARS - 1), "word ".repeat(1_000));
+        let joined = texts(&of(&[Block::new(kind.clone(), vec![Span::plain(&text)])])).join("\n");
+        // A piece's own break stands for one line break; the other two are kept.
+        assert!(joined.starts_with(&format!("{}\n\n\nword", "a".repeat(MAX_BLOCK_CHARS - 1))), "{kind:?}");
+    }
+}
+
+#[test]
+fn the_first_piece_keeps_the_blocks_room_above_and_its_marker() {
+    // The block starts with a line break: the first piece's text is past it.
+    let text = format!("\n{}", "x".repeat(4_500));
+    let mut p = paragraph(&text);
+    p.space = 1;
+    let views = of(&[p]);
+    assert_eq!(views.first().map(|v| v.space), Some(1));
+    let item = Block::new(BlockKind::ListItem { marker: Marker::Bullet, depth: 0 }, vec![Span::plain(&text)]);
+    let views = of(&[item]);
+    assert!(matches!(views.first().map(|v| &v.kind), Some(BlockKindView::ListItem { marker: MarkerView::Bullet, .. })));
+    assert_eq!(views.iter().filter(|v| matches!(v.kind, BlockKindView::ListItem { marker: MarkerView::Bullet, .. })).count(), 1);
+}
+
+#[test]
+fn a_letter_split_between_two_spans_is_kept_whole() {
+    let bold = |text: &str| {
+        let mut s = Span::plain(text);
+        s.bold = true;
+        s
+    };
+    // The accent in the next span, with room for one more character, and with none.
+    for (plain, styled) in
+        [("a".repeat(MAX_BLOCK_CHARS - 1), "e\u{301}bbbbbbbbbb"), (format!("{}e", "a".repeat(MAX_BLOCK_CHARS - 1)), "\u{301}bbbbbbbbbb")]
+    {
+        let views = of(&[Block::new(BlockKind::Paragraph, vec![Span::plain(&plain), bold(styled)])]);
+        let all = texts(&views);
+        assert!(all.get(1).is_some_and(|t| t.starts_with("e\u{301}")), "{:?}", all.get(1).map(|t| t.chars().take(3).collect::<String>()));
+        assert_eq!(ink_of(&views), format!("{plain}{styled}"));
+    }
+}
+
+#[test]
+fn a_split_block_takes_no_more_of_the_budget_than_its_pieces() {
+    // A block of two spans cut in two takes 4 nodes (itself, its spans, its second piece); then as
+    // many one-span paragraphs (2 each) as fill the rest exactly: the last keeps its text.
+    let long = Block::new(BlockKind::Paragraph, vec![Span::plain("x".repeat(MAX_BLOCK_CHARS)), Span::plain("y")]);
+    let rest = (crate::blocks::MAX_NODES - 4) / 2;
+    let blocks: Vec<Block> = std::iter::once(long).chain((0..rest).map(|_| paragraph("z"))).collect();
+    let views = of(&blocks);
+    assert_eq!(views.len(), rest + 2);
+    assert_eq!(views.last().map(chars), Some(1));
+}
+
+#[test]
+fn a_flattened_tables_last_line_counts_in_the_run_after_it() {
+    let mut after = paragraph(&"y".repeat(1_500));
+    after.beside = true;
+    // The table's last cell holds a block of the most characters; the text after it can't join it.
+    let mut table = table_of(Vec::new());
+    if let BlockKind::Table(t) = &mut table.kind
+        && let Some(cell) = t.rows.first_mut().and_then(|r| r.cells.last_mut())
+    {
+        cell.blocks = vec![paragraph(&"d".repeat(MAX_BLOCK_CHARS))];
+    }
+    let mut blocks = vec![table, after];
+    for _ in 0..crate::blocks::PHONE_TABLE_DEPTH {
+        blocks = vec![table_of(blocks)];
+    }
+    let mut cell = of(&blocks);
+    for _ in 0..crate::blocks::PHONE_TABLE_DEPTH {
+        cell = match cell.first().map(|v| &v.kind) {
+            Some(BlockKindView::Table { table }) => table.rows.first().and_then(|r| r.cells.first()).map(|c| c.blocks.clone()).unwrap_or_default(),
+            _ => Vec::new(),
+        };
+    }
+    assert_eq!(cell.last().map(chars), Some(1_500));
+    assert_eq!(cell.last().map(|v| v.beside), Some(false));
+}
+
+#[test]
+fn a_short_start_before_a_word_longer_than_a_block_is_not_a_block_alone() {
+    let views = of(&[paragraph(&format!("c d e {}", "x".repeat(5_000)))]);
+    assert_eq!(views.first().map(chars), Some(MAX_BLOCK_CHARS));
+}
+
+#[test]
+fn a_space_at_the_seam_of_two_spans_is_where_a_piece_ends() {
+    let mut bold = Span::plain("y".repeat(100));
+    bold.bold = true;
+    let views = of(&[Block::new(BlockKind::Paragraph, vec![Span::plain(format!("{} ", "w".repeat(3_990))), bold])]);
+    assert_eq!(texts(&views).get(1).map(String::len), Some(100));
+}
