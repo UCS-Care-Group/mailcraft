@@ -146,6 +146,29 @@ fn a_window_closed_while_opening_writes_no_settings() {
     assert!(file.exists(), "a window with its mailbox writes them");
 }
 
+/// A choice made in the window is on disk without the window being closed, so a window that
+/// stops any other way doesn't lose it; and nothing is written while nothing changed.
+#[test]
+fn a_changed_setting_is_written_while_the_window_is_open() {
+    let tmp = Temp::new("prefs-changed");
+    let file = tmp.0.join("ui.json");
+    let mut app = mailcraft_ui_egui::MailApp::new(mailcraft_engine::Session::new(mailbox(1)), Default::default());
+    let mut seen = None;
+    let now = std::time::Duration::ZERO;
+    assert!(!crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), "the first look only notes the settings");
+    assert!(!file.exists());
+    assert!(!crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), "nothing changed, nothing written");
+    app.session.prefs.preview_lines = if app.session.prefs.preview_lines == 0 { 3 } else { 0 };
+    let chosen = app.session.prefs.preview_lines;
+    assert!(crate::save_prefs_when_changed_at(&app, &file, &mut seen, now));
+    let written: serde_json::Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    assert_eq!(written["options"]["previewLines"], chosen, "{written}");
+    assert!(!crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), "written once");
+    // Looked at again only after the time given.
+    app.session.prefs.preview_lines = 2;
+    assert!(!crate::save_prefs_when_changed_at(&app, &file, &mut seen, std::time::Duration::from_secs(3600)));
+}
+
 /// A mailbox file whose presence can't be told is no first start: nothing is kept in its place,
 /// so nothing can be saved over it (#1425). (A file standing where its folder should be makes
 /// the look fail on Unix; Windows says "not found" for that.)

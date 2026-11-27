@@ -202,6 +202,7 @@ impl eframe::App for App {
         {
             guard.follow(self.0.session.path.as_deref());
         }
+        save_prefs_when_changed(&self.0);
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
@@ -452,6 +453,37 @@ fn write_prefs(path: &std::path::Path, ui: &UiState) -> std::io::Result<()> {
         mailcraft_engine::store::create_private_dir_all(dir)?;
     }
     mailcraft_engine::store::write_atomic(path, &serde_json::to_vec_pretty(ui).map_err(std::io::Error::other)?)
+}
+
+/// What the settings said when they were last looked at, and when.
+struct PrefsSeen {
+    at: std::time::Instant,
+    text: Vec<u8>,
+}
+
+/// The settings are also written while the window is in use, not only when it is closed: a
+/// choice made in a window that then stops without closing properly (killed, crashed, the
+/// computer switched off) is not lost. At most every two seconds, and only when they changed.
+fn save_prefs_when_changed(app: &MailApp) {
+    static SEEN: std::sync::Mutex<Option<PrefsSeen>> = std::sync::Mutex::new(None);
+    if let (Some(path), Ok(mut seen)) = (prefs_path(), SEEN.lock()) {
+        save_prefs_when_changed_at(app, &path, &mut seen, std::time::Duration::from_secs(2));
+    }
+}
+
+/// [`save_prefs_when_changed`] to `path`, looking again after `every`. True when they were written.
+fn save_prefs_when_changed_at(app: &MailApp, path: &std::path::Path, seen: &mut Option<PrefsSeen>, every: std::time::Duration) -> bool {
+    if app.is_opening() || seen.as_ref().is_some_and(|s| s.at.elapsed() < every) {
+        return false;
+    }
+    let Ok(text) = serde_json::to_vec(&app.prefs()) else { return false };
+    // The first look only notes what the settings are: they were just read.
+    let changed = seen.as_ref().is_some_and(|s| s.text != text);
+    if changed {
+        save_prefs_at(app, path);
+    }
+    *seen = Some(PrefsSeen { at: std::time::Instant::now(), text });
+    changed
 }
 
 fn save_prefs(app: &MailApp) {
