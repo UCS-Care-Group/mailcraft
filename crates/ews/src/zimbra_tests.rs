@@ -7,7 +7,8 @@
 
 use std::sync::atomic::AtomicBool;
 
-use mailcraft_model::sync::{EwsMailRequest, EwsMailResult};
+use mailcraft_model::FlagStatus;
+use mailcraft_model::sync::{EwsFolderState, EwsMailRequest, EwsMailResult};
 
 use crate::standin::{AUTHORIZATION, Hostile, StandIn, block_on};
 use crate::*;
@@ -22,11 +23,32 @@ fn request() -> EwsMailRequest {
     EwsMailRequest { email: "ada@example.org".into(), url: URL.into(), list_folders: true, ..Default::default() }
 }
 
-fn run(standin: &StandIn) -> EwsMailResult {
+fn pieces(standin: &StandIn, request: &EwsMailRequest) -> Vec<EwsMailResult> {
     let cancel = AtomicBool::new(false);
+    let mut pieces = Vec::new();
+    block_on(sync_mail(&client(), standin, request, &cancel, &mut |_| true, &mut |piece| pieces.push(piece))).unwrap();
+    pieces
+}
+
+fn whole(pieces: Vec<EwsMailResult>) -> EwsMailResult {
     let mut all = EwsMailResult::default();
-    block_on(sync_mail(&client(), standin, &request(), &cancel, &mut |_| true, &mut |piece| all.absorb(piece))).unwrap();
+    pieces.into_iter().for_each(|piece| all.absorb(piece));
     all
+}
+
+fn run(standin: &StandIn) -> EwsMailResult {
+    whole(pieces(standin, &request()))
+}
+
+/// The run that goes on from where `first` left each folder.
+fn from(first: &[EwsMailResult]) -> EwsMailRequest {
+    let hierarchy = first.iter().find_map(|p| (!p.hierarchy.is_empty()).then(|| p.hierarchy.clone())).unwrap_or_default();
+    let mut states: Vec<EwsFolderState> = Vec::new();
+    for page in first.iter().flat_map(|p| &p.pages) {
+        states.retain(|s| s.folder != page.folder);
+        states.push(EwsFolderState { folder: page.folder.clone(), state: page.state.clone() });
+    }
+    EwsMailRequest { hierarchy, states, ..request() }
 }
 
 #[test]
@@ -110,6 +132,11 @@ fn a_folder_the_ids_alone_dont_make_readable_leaves_the_others_as_they_were() {
         let mut s = standin.state();
         let bad = s.add_folder("Box");
         s.deliver(&bad, "In the box", false);
+        // A folder read after the blocked one: its message comes with its preview and flag.
+        let after = s.add_folder("After");
+        let id = s.deliver(&after, "Agenda", false);
+        let item = s.items.iter_mut().find(|i| i.id == id).unwrap();
+        (item.preview, item.flagged, item.flag) = ("Items to go over".into(), true, "Flagged".into());
         s.deliver("inbox", "Kickoff", false);
         s.hostile = Some(Hostile::BadItems);
         s.bad_items_in = bad.clone();
@@ -117,9 +144,39 @@ fn a_folder_the_ids_alone_dont_make_readable_leaves_the_others_as_they_were() {
     };
     let result = run(&standin);
     assert_eq!(result.blocked, vec![bad]);
-    assert!(result.pages.iter().flat_map(|p| &p.messages).any(|m| m.subject == "Kickoff"));
+    let messages: Vec<_> = result.pages.iter().flat_map(|p| &p.messages).collect();
+    assert!(messages.iter().any(|m| m.subject == "Kickoff"));
+    let agenda = messages.iter().find(|m| m.subject == "Agenda").unwrap();
+    assert_eq!((agenda.preview.as_str(), agenda.server.flag), ("Items to go over", FlagStatus::Flagged));
     let state = standin.state();
     assert!(!state.requests.iter().any(|r| r.operation == "GetItem" && r.body.contains("item:IsDraft")), "no folder was listed item by item");
+}
+
+/// An item changed twice since the folder was last read is named twice in one page: it is asked
+/// for once, and both changes take what was found of it (the second didn't find it, and held the
+/// folder back on every run).
+#[test]
+fn an_item_changed_twice_since_the_last_read_is_asked_once_and_taken_in() {
+    let standin = StandIn::new();
+    let id = {
+        let mut s = standin.state();
+        s.zimbra_ids = true;
+        s.deliver("inbox", "Plan", false)
+    };
+    let first = pieces(&standin, &request());
+    {
+        let mut s = standin.state();
+        s.edit_subject(&id, "Plan, again");
+        s.edit_subject(&id, "Plan, at last");
+        s.requests.clear();
+    }
+    let again = whole(pieces(&standin, &from(&first)));
+    assert!(again.whole, "{:?}", again.errors);
+    let changed: Vec<_> = again.pages.iter().flat_map(|p| &p.messages).collect();
+    assert!(!changed.is_empty() && changed.iter().all(|m| m.server.id == id && m.subject == "Plan, at last"));
+    let state = standin.state();
+    let listed: Vec<_> = state.requests.iter().filter(|r| r.operation == "GetItem" && r.body.contains("item:IsDraft")).collect();
+    assert!(listed.iter().all(|r| r.body.matches("<t:ItemId ").count() == 1), "asked once");
 }
 
 #[test]

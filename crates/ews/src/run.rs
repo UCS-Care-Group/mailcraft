@@ -754,7 +754,10 @@ impl<E: HttpExchange> Run<'_, E> {
     /// alone, it would read as a message with nothing set, over what is kept of it (its read state,
     /// flag, categories). What stops the run stops it here too.
     async fn listed(&mut self, messages: &mut Vec<GraphMessage>) -> Result<(), Asked> {
-        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
+        // Each id asked once: a page can name an item more than once (two changes to it since the
+        // last read), and each of them takes what was found of it.
+        let mut asked = HashSet::new();
+        let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).filter(|id| asked.insert(id.clone())).collect();
         let mut found: HashMap<String, GraphMessage> = HashMap::new();
         let mut gone: HashSet<String> = HashSet::new();
         for some in ids.chunks(MAX_LISTED_ASKED) {
@@ -768,7 +771,7 @@ impl<E: HttpExchange> Run<'_, E> {
         }
         messages.retain(|m| !gone.contains(&m.server.id));
         for message in messages.iter_mut() {
-            let Some(whole) = found.remove(&message.server.id) else {
+            let Some(whole) = found.get(&message.server.id).cloned() else {
                 log::info!("ews mail: the server didn't give what a list shows of a message; the folder is read again later");
                 return Err(Asked::Bad);
             };
