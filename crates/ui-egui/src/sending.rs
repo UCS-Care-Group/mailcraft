@@ -191,6 +191,10 @@ impl MailApp {
                 {
                     *pieces = run(*job);
                     true
+                } else if let (Some(run), Some(beside)) = (&self.services.ews, self.ews_extra.iter_mut().find(|beside| beside.account == account)) {
+                    // (A run beside the Send/Receive waited for its marks too.)
+                    beside.pieces = run(*job);
+                    true
                 } else {
                     false
                 }

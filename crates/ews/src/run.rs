@@ -501,7 +501,8 @@ pub async fn sync_mail<E: HttpExchange>(
         errors: out.errors.clone(),
         busy_for: out.busy_for,
         // (Only a run of every folder is the end of a read that may take away what the server lacks.)
-        whole: out.clean() && !request.inbox_pass && request.scope == EwsScope::All,
+        // (A run that reads nothing has seen nothing the server lacks, whatever scope it was given.)
+        whole: out.clean() && !request.inbox_pass && !request.push_only && request.scope == EwsScope::All,
         stopped: out.stopped,
         auth_refused: out.auth_refused,
         blocked: out.blocked,
@@ -557,6 +558,10 @@ impl<E: HttpExchange> Run<'_, E> {
         // What was changed, written and sent here goes first (not in the Inbox pass).
         if !request.inbox_pass {
             self.push(request, emit).await?;
+        }
+        // A run that only takes up what was done here reads nothing after it.
+        if request.push_only {
+            return Ok(());
         }
         // What the server calls its special folders: the Inbox first, and what each folder is.
         let specials = self.specials().await?;

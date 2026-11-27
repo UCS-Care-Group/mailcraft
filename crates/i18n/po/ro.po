@@ -15320,7 +15320,7 @@ msgid "Send/Receive couldn't start. Try again."
 msgstr "Trimiterea/primirea nu a putut porni. Încercați din nou."
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/ews_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send/Receive is already running"
 msgstr "Trimitere/primire rulează deja"
@@ -24621,6 +24621,11 @@ msgstr "dosarul în care este acest mesaj nu mai este pe acest computer"
 #, fuzzy
 msgid "the folder was numbered anew while it was being read"
 msgstr "dosarul a fost renumerotat în timpul citirii"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the folders of this account haven't been read yet"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/import_pst.rs
