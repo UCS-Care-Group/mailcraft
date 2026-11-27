@@ -104,6 +104,29 @@ internal object TablesRtl {
         emptyList(),
     )
 
+    /** A note of [n] lines in a coloured box: a layout table of one tinted cell, as a coloured `<div>` becomes. */
+    fun tintedNote(n: Int): TableView = B.table(layout = true, rows = listOf(listOf(B.cell(B.p(lines(n), 0u), background = 0xFFF4D6u))))
+
+    /** A digest of about 6,000 lines in a coloured box. */
+    val tallTinted = Corpus.Entry(
+        "tall_tinted",
+        view(16uL, "Weekly digest", listOf(B.p("This week:", 0u), B.tableBlock(tintedNote(6_000)))),
+        emptyList(),
+    )
+
+    /** The same coloured box inside a cell of a data table. */
+    val tallNested = Corpus.Entry(
+        "tall_nested",
+        view(
+            17uL, "Weekly digest, filed",
+            listOf(
+                B.p("This week:", 0u),
+                B.tableBlock(B.table(layout = false, border = true, rows = listOf(listOf(td("Digest", 0 to 0), B.cell(B.tableBlock(tintedNote(6_000)), at = 0 to 1))))),
+            ),
+        ),
+        emptyList(),
+    )
+
     /** Thirty columns of long words, wider than a measure takes (about 10,000 px), and a footer over all of them of about 1,100 lines. */
     val tallWide = Corpus.Entry(
         "tall_wide",

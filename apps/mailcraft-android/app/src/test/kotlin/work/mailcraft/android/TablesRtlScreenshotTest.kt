@@ -66,6 +66,19 @@ class TablesRtlScreenshotTest {
         paparazzi.snapshot("reading_${TablesRtl.tallWide.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallWide)) }
     }
 
+    /** A coloured box of about 6,000 lines is held to the most a measure takes, not a crash. */
+    @Test
+    fun aVeryTallColouredBox() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        paparazzi.snapshot("reading_${TablesRtl.tallTinted.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallTinted)) }
+    }
+
+    @Test
+    fun aVeryTallColouredBoxInADataCell() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        paparazzi.snapshot("reading_${TablesRtl.tallNested.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallNested)) }
+    }
+
     /** On a phone that reads from the right, the message still lays out from the left: only its own Hebrew reads from the right. */
     @Test
     fun aRightToLeftPhoneDoesNotMirrorTheMessage() {

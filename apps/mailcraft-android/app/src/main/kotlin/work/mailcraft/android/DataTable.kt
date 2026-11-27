@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,18 +53,21 @@ private fun placeOf(m: Measurable): PlacedCell? = (m.layoutId as? CellPlace)?.pl
  * What [ask] answers, or [fallback] when Compose can't: its own intrinsics throw for a cell taller than
  * a measure's constraints can hold (about 262,000 px, a few thousand lines).
  */
-private inline fun intrinsic(fallback: Int, ask: () -> Int): Int =
+internal inline fun intrinsic(fallback: Int, ask: () -> Int): Int =
     try {
         ask()
     } catch (_: IllegalArgumentException) {
         fallback
     }
 
-/** What the cell at [p] asks of its columns, measured as [m]: never narrower than its longest word, up to a point. */
-private fun Density.needOf(table: TableView, p: PlacedCell, m: Measurable): CellNeed {
+/**
+ * What the cell at [p] asks of its columns, measured as [m]: never narrower than its longest word, up
+ * to a point; all of [room] (pixels) at most when Compose can't tell.
+ */
+private fun Density.needOf(table: TableView, p: PlacedCell, m: Measurable, room: Float): CellNeed {
     val pad = cellSides(table, p.cell).dp.toPx()
     val cap = DataMaxWord.toPx() * fontScale + pad
-    val most = intrinsic(cap.toInt()) { m.maxIntrinsicWidth(Constraints.Infinity) } + SLACK
+    val most = intrinsic(room.toInt()) { m.maxIntrinsicWidth(Constraints.Infinity) } + SLACK
     val word = minOf(intrinsic(cap.toInt()) { m.minIntrinsicWidth(Constraints.Infinity) } + SLACK, cap)
     val floor = if (p.cell.blocks.isEmpty()) 0f else DataMinCell.toPx() + pad
     return CellNeed(
@@ -96,22 +100,27 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
                             if (head) heading()
                         },
                     ) {
-                        CellBox(table, p.cell, env, paper, cellRoom(room, p.cols, grid.columns), Modifier.fillMaxSize())
+                        // A layout table in it plans its columns in the cell's share; pictures keep the room.
+                        val short = room - cellRoom(room, p.cols, grid.columns)
+                        CompositionLocalProvider(LocalTableShortfall provides short) {
+                            CellBox(table, p.cell, env, paper, room, Modifier.fillMaxSize())
+                        }
                     }
                 }
             },
             modifier = Modifier.semantics { collectionInfo = CollectionInfo(grid.rows, grid.columns) },
         ) { measurables, _ ->
             val cells = measurables.mapNotNull { m -> placeOf(m)?.let { it to m } }
-            val needs = cells.map { (p, m) -> needOf(table, p, m) }
+            val needs = cells.map { (p, m) -> needOf(table, p, m, room.toPx()) }
             val asked = if (table.width != null) room.toPx() else null
             val edges = edgesOf(dataColumnWidths(needs, grid.columns, room.toPx(), asked))
             fun wide(p: PlacedCell): Int = edges.between(p.col, p.col + p.cols)
+            val tallest = tallestFor(edges.last())
             // A cell past the widest a measure takes has no room, and asks for none down the page either.
             fun tall(p: PlacedCell, m: Measurable): Int =
-                if (wide(p) == 0) 0 else intrinsic(MAX_BOX_HEIGHT) { m.minIntrinsicHeight(wide(p)) }
+                if (wide(p) == 0) 0 else intrinsic(tallest) { m.minIntrinsicHeight(wide(p)) }
             val heights = cells.map { (p, m) -> p to tall(p, m) }
-            val tops = dataRowTops(heights, grid.rows)
+            val tops = dataRowTops(heights, grid.rows, tallest)
             val placeables = cells.map { (p, m) ->
                 m.measure(Constraints.fixed(wide(p), tops.between(p.row, p.row + p.rows))) to p
             }

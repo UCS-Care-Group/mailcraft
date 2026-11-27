@@ -62,14 +62,31 @@ class DataTableTest {
         // About 5,000 lines in one cell, a cell over 200 rows of 1,300 px, an Int's worth of height.
         val tall = dataRowTops(listOf(placed(0, 1) to 310_000, placed(1, 200) to 260_000, placed(1, 1) to Int.MAX_VALUE), 201)
         assertTrue(tall.all { it in 0..MAX_BOX_HEIGHT })
-        val wide = edgesOf(FloatArray(10) { 1_000f })
-        assertTrue(wide.all { it in 0..MAX_BOX_WIDTH })
-        // The ninth column would end past the limit: it and the tenth are left out whole.
-        assertEquals(listOf(8_000, 8_000, 8_000), wide.takeLast(3).toList())
-        assertEquals(1_000, wide.between(7, 8))
-        for ((w, h) in listOf(wide.between(0, 10) to tall.between(0, 201), wide.between(0, 1) to tall.between(1, 201))) {
+        val wide = edgesOf(FloatArray(40) { 1_000f })
+        assertTrue(wide.all { it in 0..WIDE_TABLE_WIDTH })
+        // The 33rd column would end past the limit: it and those after it are left out whole.
+        assertEquals(32_000, wide.last())
+        assertEquals(1_000, wide.between(31, 32))
+        assertEquals(0, wide.between(32, 33))
+        val wideTall = dataRowTops(listOf(placed(0, 1) to 310_000), 1, tallestFor(wide.last()))
+        assertTrue(wideTall.all { it in 0..WIDE_TABLE_HEIGHT })
+        for ((w, h) in listOf(
+            wide.between(0, 40) to wideTall.last(),
+            wide.between(0, 8) to tall.between(0, 201),
+            wide.between(0, 1) to tall.between(1, 201),
+        )) {
             Constraints.fixed(w, h)
         }
+    }
+
+    @Test
+    fun aTableOfThirtyLongColumnsKeepsEveryOne() {
+        // Large text: thirty columns of about 350 px, 10,500 px in all, wider than a tall table may be.
+        val edges = edgesOf(FloatArray(30) { 350f })
+        assertTrue((0 until 30).all { edges.between(it, it + 1) == 350 })
+        assertEquals(WIDE_TABLE_HEIGHT, tallestFor(edges.last()))
+        assertEquals(MAX_BOX_HEIGHT, tallestFor(MAX_BOX_WIDTH))
+        Constraints.fixed(edges.last(), tallestFor(edges.last()))
     }
 
     @Test
