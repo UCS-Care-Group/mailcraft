@@ -290,12 +290,13 @@ fn a_row_that_is_not_there_is_gone_and_one_hidden_in_place_shows_nothing() {
     // A table section that is not there takes its rows with it, and no further than its table.
     for section in ["<tbody style='display:none'>", "<thead hidden>", "<tfoot style='display:none'>"] {
         let html = format!(
-            "<table border=1><tr><td>a</td><td>1</td></tr>{section}<tr><td>b</td><td>2</td></tr></table><table border=1><tr><td>c</td><td>3</td></tr></table>"
+            "<table border=1><tr><td>a</td><td>1</td></tr>{section}<tr><td>Gone</td><td>2</td></tr></table><table border=1><tr><td>c</td><td>3</td></tr></table>"
         );
         let blocks = parse(&html);
         assert_eq!(blocks.iter().filter(|b| matches!(b.kind, BlockKind::Table(_))).count(), 2, "{section}");
         assert_eq!(grid(&html), [vec!["a", "1"]], "{section}");
-        assert!(!crate::to_text(&html).contains('b'), "{section}");
+        let (shown, hidden) = crate::text_and_hidden(&html);
+        assert!(!shown.contains("Gone") && hidden.contains("Gone"), "{section}: {shown:?} {hidden:?}");
     }
     let html =
         "<table border=1><tbody style='display:none'><tr><td>b</td><td>2</td></tr></tbody><tbody><tr><td>c</td><td>3</td></tr></tbody></table>";
@@ -315,4 +316,18 @@ fn white_space_written_as_a_reference_is_no_divider_either() {
     let grey = Some(Rgb(0xcc, 0xcc, 0xcc));
     let html = "<table><tr><td bgcolor=#ccc style='font-size:1px;padding:0'>&#32;&Tab;&#10;</td><td>x</td></tr></table>";
     assert_eq!(bar_of(html), Some((top(0), grey, 0)));
+}
+
+#[test]
+fn a_section_tag_inside_a_cell_changes_nothing() {
+    // A stray section tag in a cell neither ends a hidden section ...
+    for stray in ["<tbody>", "</tbody>", "<thead>", "</tfoot>"] {
+        let html = format!(
+            "<table border=1><tbody hidden><tr><td>a{stray}</td><td>1</td></tr><tr><td>SECRET</td><td>2</td></tr></tbody></table><p>After</p>"
+        );
+        assert!(!crate::to_text(&html).contains("SECRET"), "{stray}");
+    }
+    // ... nor starts one.
+    let html = "<table border=1><tr><td>a<tbody hidden></td><td>1</td></tr><tr><td>Shown</td><td>2</td></tr></table>";
+    assert!(crate::to_text(html).contains("Shown"));
 }

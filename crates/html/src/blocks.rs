@@ -2500,7 +2500,11 @@ impl Builder {
     }
 
     fn table_row_group(&mut self, data: bool, gone: bool) {
-        if let Some(table) = self.table_index().and_then(|index| self.table_at(index)) {
+        // (A section tag inside a cell is ignored, as in a browser: it neither starts nor ends one.)
+        if let Some(index) = self.table_index()
+            && !self.nodes.iter().skip(index.saturating_add(1)).any(|n| matches!(n.kind, Kind::Cell(_)))
+            && let Some(table) = self.table_at(index)
+        {
             table.section_gone = gone;
         }
         let grid =
