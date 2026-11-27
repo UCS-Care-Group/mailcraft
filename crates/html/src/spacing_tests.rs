@@ -180,6 +180,9 @@ fn outlooks_margins_stand_in_where_the_plain_ones_are_missing() {
     assert_eq!(margins("mso-margin-top-alt:99999px").0, Some(MAX_BOX_PX));
     assert_eq!(margins("mso-margin-top-alt:-40px"), (Some(0), None, Some(true), None));
     assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:auto").0, None);
+    // A plain margin that cannot be read says nothing: Outlook's stands in.
+    assert_eq!(margins("margin-top:10;mso-margin-top-alt:24px"), (Some(24), None, Some(false), None));
+    assert_eq!(margins("mso-margin-bottom-alt:2px;margin-bottom:calc(9px)").1, Some(2));
     assert_eq!(margins("mso-margin-top-alt:8px;mso-margin-top-alt:bogus").0, Some(8));
 }
 
@@ -233,6 +236,15 @@ fn a_cell_hidden_but_in_its_place_keeps_its_column() {
             "{how}: {hidden:?}"
         );
     }
+    // Its row's colour does not paint it either.
+    let blocks = parse("<table border=1><tr bgcolor=red><td style='visibility:hidden'>x</td><td>C</td></tr></table>");
+    let colours: Vec<_> = cells(table(&blocks)).iter().map(|c| c.background).collect();
+    assert_eq!(colours, [None, Some(Rgb(255, 0, 0))]);
+    // A layout table keeps its column too, rather than giving it to the next cell.
+    let html = "<table role=presentation width=400><tr><td width=200 style='visibility:hidden'>x</td><td>C</td></tr></table>";
+    assert_eq!(grid(html), [vec!["-", "C"]]);
+    // A table all of whose cells are hidden shows nothing.
+    assert_eq!(parse("<table><tr><td style='visibility:hidden'>x</td></tr></table><p>After</p>").len(), 1);
     // A row span keeps its rows too.
     let html =
         "<table border=1><tr><td rowspan=2 style='visibility:hidden'>x</td><td>A</td></tr><tr><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>";

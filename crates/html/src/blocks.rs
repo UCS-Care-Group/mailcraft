@@ -743,6 +743,8 @@ struct CellBuild {
     bar: Option<u8>,
     /// Not there at all (`display: none`, `hidden`): it is left out of its row, as in a browser.
     gone: bool,
+    /// Hidden in its place ([`Cell::held`]).
+    held: bool,
     /// It held text of a size more than nothing that was too small to keep ([`Style::tiny_some`]).
     faint: bool,
 }
@@ -2003,6 +2005,7 @@ impl Builder {
             radius: cell.radius,
             valign: cell.valign,
             bg_picture: cell.bg_picture,
+            held: cell.held,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
@@ -2037,7 +2040,7 @@ impl Builder {
             return;
         }
         let mut cells = row.cells;
-        for cell in &mut cells {
+        for cell in cells.iter_mut().filter(|c| !c.held) {
             cell.background = cell.background.or(row.background);
         }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
@@ -2070,10 +2073,12 @@ impl Builder {
         for cell in rows.iter_mut().flat_map(|r| &mut r.cells) {
             cell.bg_picture = self.bg_decoded(cell.bg_picture.take());
         }
-        let empty = |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any();
+        // (A cell hidden in its place holds its column, but a row of nothing else shows nothing.)
+        let empty =
+            |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any() && !cell.held;
         // Rows and columns that only make room make none here.
         if !table.compose_grid {
-            rows.retain(|r| !r.cells.iter().all(empty));
+            rows.retain(|r| !r.cells.iter().all(|c| empty(c) || c.held));
         }
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
         let layout = if table.compose_grid {
@@ -2428,11 +2433,12 @@ impl Builder {
             bg_picture,
             bar: colour.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
             gone: css.display_none || tag.has("hidden"),
+            held: self.hidden > 0 || css.hidden,
             faint: false,
         };
         // A cell hidden in its place (`visibility: hidden` and the like, its own or round it) keeps
         // its room and shows nothing: no colour, picture, lines or bar.
-        let build = if self.hidden > 0 || css.hidden {
+        let build = if build.held {
             CellBuild { background: None, bg_picture: None, border: Sides::default(), lines: [Line::default(); 4], bar: None, ..build }
         } else {
             build

@@ -474,7 +474,8 @@ impl Css {
         }
         let sides = [(&mut css.margin_top_zero, 0), (&mut css.margin_bottom_zero, 2)];
         for (((zero, px), alt), plain) in sides.into_iter().zip([mso_top, mso_bottom]).zip(plain_margin) {
-            if let (false, None, Some((slight, alt))) = (plain, *zero, alt)
+            // (A plain margin that could not be read says nothing, whatever it set aside.)
+            if let (false, Some((slight, alt))) = (plain, alt)
                 && css.margin.get(px).is_some_and(Option::is_none)
             {
                 *zero = Some(slight);

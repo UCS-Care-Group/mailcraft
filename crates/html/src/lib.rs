@@ -530,6 +530,10 @@ pub struct Cell {
     /// A picture behind what it holds, over its background colour (#601).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bg_picture: Option<Box<BgPicture>>,
+    /// Hidden in its place (`visibility: hidden` and the like): it keeps its slot in the grid and
+    /// shows nothing, not even its row's colour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
 }
 
 impl Default for Cell {
@@ -547,6 +551,7 @@ impl Default for Cell {
             radius: 0,
             valign: None,
             bg_picture: None,
+            held: false,
         }
     }
 }
