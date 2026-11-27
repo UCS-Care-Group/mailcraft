@@ -8465,7 +8465,7 @@ msgstr "Depois"
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Later keeps this account on IMAP for now. You can switch whenever you like: search the commands for \"Switch to Microsoft Graph\"."
-msgstr "Mais tarde mantém esta conta em IMAP por agora. Você pode trocar quando quiser: pesquise os comandos por \"Mudar para Microsoft Graph\"."
+msgstr "Mais tarde mantém esta conta em IMAP por agora. Você pode trocar quando quiser: pesquise os comandos por \"Alternar para Microsoft Graph\"."
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -25780,7 +25780,7 @@ msgstr[1] "{account} agora usa o Microsoft Graph, e o email está baixando de no
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "{account} stays on IMAP for now. To switch later, search the commands for \"Switch to Microsoft Graph\"."
-msgstr "{account} fica em IMAP por agora. Para trocar depois, pesquise os comandos por \"Mudar para Microsoft Graph\"."
+msgstr "{account} fica em IMAP por agora. Para trocar depois, pesquise os comandos por \"Alternar para Microsoft Graph\"."
 
 #. interface
 #: crates/ui-egui/src/nav.rs
