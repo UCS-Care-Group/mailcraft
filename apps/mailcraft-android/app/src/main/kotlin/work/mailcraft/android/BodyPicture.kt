@@ -69,25 +69,28 @@ internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: Body
         Modifier.semantics { contentDescription = alt }
     }
     val decoded = rememberDecoded((state as? PictureState.Ready)?.bytes)
-    Box(modifier = tap.then(described)) {
+    val density = LocalDensity.current.density
+    val wanted = decoded?.let { shownWidth(ref, it.width / density, it.height / density) }
+        ?: ref.width?.toFloat() ?: 0f
+    val pad = paddingAround(block.imagePadding, wanted, room.value)
+    val inner = (room - (pad.left + pad.right).dp).coerceAtLeast(1.dp)
+    Box(modifier = tap.then(described).padding(pad.left.dp, pad.top.dp, pad.right.dp, pad.bottom.dp)) {
         if (decoded != null) {
-            ShownPicture(decoded, ref, room, alt)
+            ShownPicture(decoded, wanted.dp, shownTall(ref, decoded.width, decoded.height), inner, alt)
         } else {
-            Placeholder(ref, alt, room, paper)
+            Placeholder(ref, alt, inner, paper)
         }
     }
 }
 
 @Composable
-private fun ShownPicture(decoded: Decoded, ref: PictureRef, room: Dp, alt: String) {
-    val density = LocalDensity.current.density
-    val natural = (decoded.width / density).dp
-    val wanted = (ref.width?.dp ?: natural).coerceAtMost(room).coerceAtLeast(1.dp)
+private fun ShownPicture(decoded: Decoded, width: Dp, tall: Float, room: Dp, alt: String) {
+    val wanted = width.coerceAtMost(room).coerceAtLeast(1.dp)
     Image(
         bitmap = decoded.bitmap,
         contentDescription = alt.ifBlank { null },
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.pictureBox(wanted, decoded.height.toFloat() / decoded.width.coerceAtLeast(1), null),
+        contentScale = ContentScale.FillBounds,
+        modifier = Modifier.pictureBox(wanted, tall, null),
     )
 }
 

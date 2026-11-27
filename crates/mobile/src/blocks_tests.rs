@@ -4,7 +4,9 @@
 
 use mailcraft_html::{BlockKind, MAX_TABLE_DEPTH};
 
-use crate::blocks::{BlockKindView, BlockView, Pictures, views};
+use mailcraft_html::reading;
+
+use crate::blocks::{BlockKindView, BlockView, InsetsView, Pictures, views};
 
 fn words(blocks: &[BlockView], out: &mut String) {
     for b in blocks {
@@ -78,4 +80,88 @@ fn a_table_past_the_parsers_depth_becomes_its_cells_text_in_order() {
     let order: Vec<usize> = ["outer", "level0 ", "level19 ", "the bottom line"].iter().filter_map(|w| text.find(w)).collect();
     assert_eq!(order.len(), 4, "{text:?}");
     assert!(order.windows(2).all(|w| w[0] < w[1]), "{text:?}");
+}
+
+/// A reply's signature as a typical mail program writes it (invented people, example.org): a logo,
+/// a thin bar of colour, the name and numbers, a row of small icons floated left, a link drawn
+/// without its line (#1966).
+const SIGNATURE: &str = r##"<p>Thanks, see you Thursday.</p>
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+<tr>
+<td width="96" valign="top"><img src="cid:logo@example.org" width="88" height="88" alt="Fern Hollow"></td>
+<td width="3" style="background-color:#2e7d32"></td>
+<td style="padding-left:12px" valign="top">
+<p><b>Ada Example</b><br>Head gardener</p>
+<p>T: <a href="tel:+441632960000" style="text-decoration:none">01632 960000</a></p>
+<div>
+<table align="left" cellpadding="0" cellspacing="0"><tr><td style="padding-right:6px"><a href="https://social.example/a"><img src="https://img.example.org/a.png" width="20" height="20" alt="A"></a></td></tr></table>
+<table align="left" cellpadding="0" cellspacing="0"><tr><td style="padding-right:6px"><a href="https://social.example/b"><img src="https://img.example.org/b.png" width="20" height="20" alt="B"></a></td></tr></table>
+<table align="left" cellpadding="0" cellspacing="0"><tr><td style="padding-right:6px"><a href="https://social.example/c"><img src="https://img.example.org/c.png" width="20" height="20" alt="C"></a></td></tr></table>
+<table align="left" cellpadding="0" cellspacing="0"><tr><td style="padding-right:6px"><a href="https://social.example/d"><img src="https://img.example.org/d.png" width="20" height="20" alt="D"></a></td></tr></table>
+</div>
+</td>
+</tr>
+</table>"##;
+
+fn tables(blocks: &[BlockView], out: &mut Vec<crate::blocks::TableView>) {
+    for b in blocks {
+        if let BlockKindView::Table { table } = &b.kind {
+            out.push(table.clone());
+            for c in table.rows.iter().flat_map(|r| &r.cells) {
+                tables(&c.blocks, out);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_signature_carries_the_desktops_rules_for_its_bar_its_icons_and_its_links() {
+    let shown = shown(&mailcraft_html::parse(SIGNATURE));
+    let mut all = Vec::new();
+    tables(&shown, &mut all);
+    assert_eq!(all.len(), 5, "the signature and its four icon boxes");
+    // Every table is stacked below the desktop's least column, not a rule of the phone's own.
+    assert!(all.iter().all(|t| t.min_column == reading::MIN_LAYOUT_COLUMN));
+    let Some(sig) = all.first() else { return };
+    let cells: Vec<_> = sig.rows.iter().flat_map(|r| &r.cells).collect();
+    // The bar holds nothing: it keeps its colour, its width and the desktop's room above and below.
+    let bar = cells.get(1).copied();
+    assert_eq!(bar.map(|c| c.blocks.len()), Some(0));
+    assert_eq!(bar.and_then(|c| c.background), Some(0x2e7d32));
+    assert_eq!(bar.and_then(|c| c.padding), Some(InsetsView { top: reading::BAND_PADDING, right: 0, bottom: reading::BAND_PADDING, left: 0 }));
+    // A cell that holds something keeps the padding it says, or none.
+    assert_eq!(cells.first().and_then(|c| c.padding), None);
+    // The icons are floated boxes on one line, touching.
+    let icons = all.get(1..).unwrap_or_default();
+    assert!(icons.iter().all(|t| t.inline && t.float && t.gap_before == 0));
+    // The number is a link drawn without its line.
+    let mut bare = Vec::new();
+    spans_of(&shown, &mut bare);
+    assert!(bare.iter().any(|s| s.text.contains("01632 960000") && s.bare));
+    assert!(bare.iter().any(|s| s.text.contains("Thanks") && !s.bare));
+}
+
+#[test]
+fn boxes_parted_by_white_space_have_the_desktops_gap_and_a_band_only_in_a_layout_table() {
+    let html = r#"<div><div style="display:inline-block;width:120px">Ada Example</div> <div style="display:inline-block;width:120px">Bo Example</div></div>
+<table border=1><tr><td>Name</td><td style="background:#eee"></td></tr></table>"#;
+    let shown = shown(&mailcraft_html::parse(html));
+    let mut all = Vec::new();
+    tables(&shown, &mut all);
+    let gaps: Vec<u8> = all.iter().filter(|t| t.inline).map(|t| t.gap_before).collect();
+    assert_eq!(gaps, vec![0, reading::BOX_GAP]);
+    // A data table's empty cell is a cell of the grid: it keeps the grid's own padding.
+    let data = all.iter().find(|t| !t.layout);
+    assert!(data.is_some_and(|t| t.rows.iter().flat_map(|r| &r.cells).all(|c| c.padding.is_none())));
+}
+
+fn spans_of(blocks: &[BlockView], out: &mut Vec<crate::blocks::SpanView>) {
+    for b in blocks {
+        out.extend(b.spans.iter().cloned());
+        if let BlockKindView::Table { table } = &b.kind {
+            for c in table.rows.iter().flat_map(|r| &r.cells) {
+                spans_of(&c.blocks, out);
+            }
+        }
+    }
 }

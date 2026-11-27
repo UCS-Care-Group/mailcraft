@@ -67,7 +67,7 @@ const BOX_PADDING: Vec2 = vec2(12.0, 9.0);
 const COLUMN_GAP: f32 = 16.0;
 const ROW_GAP: f32 = 6.0;
 /// A layout table is stacked rather than given columns narrower than this.
-const MIN_LAYOUT_COLUMN: f32 = 110.0;
+const MIN_LAYOUT_COLUMN: f32 = mailcraft_html::reading::MIN_LAYOUT_COLUMN as f32;
 /// Nothing is laid out narrower than this, however little room there is.
 const MIN_WIDTH: f32 = 40.0;
 /// What is in a table cell is given at least this much room, and a column is at least this wide
@@ -88,7 +88,7 @@ const MAX_NESTING: usize = 24;
 /// Most pictures that stand in one line run.
 const MAX_RUN: usize = 64;
 /// The space between boxes on a line, and between their lines.
-const BOX_GAP: f32 = 4.0;
+const BOX_GAP: f32 = mailcraft_html::reading::BOX_GAP as f32;
 /// The space between the wrapped lines of pictures and text.
 const WRAP_GAP: f32 = 2.0;
 /// The least room a text that is longer than the line needs beside what is before it to start there.
@@ -1307,7 +1307,7 @@ fn box_margins(table: &Table) -> f32 {
 /// The gap in front of a box on a line, when it stands after another: the one the source has,
 /// white space (none where the columns are written touching, or at a size of nothing).
 fn box_gap(table: &Table) -> f32 {
-    if table.spaced { BOX_GAP } else { 0.0 }
+    f32::from(mailcraft_html::reading::box_gap(table))
 }
 
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
@@ -1657,7 +1657,7 @@ fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
         DATA_PADDING
     } else if cell.blocks.is_empty() {
         // A cell that is only a colour or a line: a band or a divider.
-        vec2(0.0, 3.0)
+        vec2(0.0, f32::from(mailcraft_html::reading::BAND_PADDING))
     } else if ruled || painted(table) || cell.background.is_some() || cell.bg_picture.is_some() || cell.border.any() {
         BOX_PADDING
     } else {

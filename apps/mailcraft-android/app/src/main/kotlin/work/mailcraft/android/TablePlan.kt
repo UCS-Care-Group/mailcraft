@@ -6,9 +6,6 @@ import uniffi.mailcraft_mobile.CellView
 import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 
-/** A layout table is stacked rather than given columns narrower than this, in dp (about 140). */
-internal const val MIN_LAYOUT_COLUMN = 140f
-
 /** The gap between the columns of a layout table that says none, in dp. */
 internal const val DEFAULT_COLUMN_GAP = 12f
 
@@ -68,7 +65,12 @@ internal class ColumnSpec(
     val fixed: Float?,
     /** A share of the table's width the cells ask for. */
     val percent: Int?,
-)
+    /** What its cells' pictures ask for, in dp, when they hold only pictures of a set width ([picturesWidth]). */
+    val pictures: Float? = null,
+) {
+    /** The width in dp it asks for beside other columns: its own, or its pictures'. */
+    val asks: Float? get() = fixed ?: pictures
+}
 
 internal fun columnSpecs(grid: Grid): List<ColumnSpec> = (0 until grid.columns).map { c ->
     val own = grid.placed.filter { it.col == c && it.cols == 1 }
@@ -79,6 +81,7 @@ internal fun columnSpecs(grid: Grid): List<ColumnSpec> = (0 until grid.columns).
         holds = spanned || own.any { it.cell.blocks.isNotEmpty() },
         fixed = widths.filterIsInstance<LengthView.Px>().maxOfOrNull { it.px.toFloat() },
         percent = widths.filterIsInstance<LengthView.Percent>().maxOfOrNull { it.percent.toInt() },
+        pictures = picturesColumn(own).takeIf { widths.isEmpty() },
     )
 }
 
@@ -86,26 +89,27 @@ internal fun columnSpecs(grid: Grid): List<ColumnSpec> = (0 until grid.columns).
  * The widths in dp of the columns of a layout table in [room] dp, with [gap] between them, or null
  * when the table is to be stacked: its cells one under the other in reading order. It is stacked when
  * what has a width of its own does not fit, or when a column that holds something (one that asks for a
- * share of the width, or takes what is left) would be narrower than [MIN_LAYOUT_COLUMN]. A column
+ * share of the width, or takes what is left) would be narrower than [least] (the desktop's rule, which
+ * the bridge sends with the table: `TableView.minColumn`). A column
  * that asks for a width in pixels is not squeezed (a row of icons stays a row), and one that holds
  * nothing takes what it asks for. A share is a share of what the gaps leave.
  */
-internal fun planColumns(specs: List<ColumnSpec>, room: Float, gap: Float): List<Float>? {
+internal fun planColumns(specs: List<ColumnSpec>, room: Float, gap: Float, least: Float): List<Float>? {
     val n = specs.size
     if (n <= 1) return specs.map { it.fixed?.coerceAtMost(room) ?: room }
     val gaps = gap * (n - 1)
     val widths = declaredWidths(specs, (room - gaps).coerceAtLeast(0f)).toMutableList()
-    val auto = specs.indices.filter { specs[it].fixed == null && specs[it].percent == null && specs[it].holds }
+    val auto = specs.indices.filter { specs[it].asks == null && specs[it].percent == null && specs[it].holds }
     val left = (room - gaps - widths.sum()).coerceAtLeast(0f)
     auto.forEach { widths[it] = left / auto.size }
-    val squeezed = specs.indices.any { specs[it].holds && specs[it].fixed == null && widths[it] < MIN_LAYOUT_COLUMN }
+    val squeezed = specs.indices.any { specs[it].holds && specs[it].asks == null && widths[it] < least }
     val over = widths.sum() + gaps > room + HALF
     return if (squeezed || over) null else widths
 }
 
 /** What the columns ask for, in dp: a width, or a share of [inner]; 0 for those that take what is left. */
 private fun declaredWidths(specs: List<ColumnSpec>, inner: Float): List<Float> = specs.map { c ->
-    c.fixed ?: c.percent?.let { inner * it.coerceIn(0, PERCENT_MAX) / PERCENT_MAX } ?: 0f
+    c.asks ?: c.percent?.let { inner * it.coerceIn(0, PERCENT_MAX) / PERCENT_MAX } ?: 0f
 }
 
 private const val PERCENT_MAX = 100

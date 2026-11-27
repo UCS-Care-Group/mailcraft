@@ -6,7 +6,7 @@
 //! the reference a block names.
 
 use mailcraft_html::{
-    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Rgb, Row, Sides, Span, Table, VAlign,
+    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Rgb, Row, Sides, Span, Table, VAlign, reading,
 };
 
 use crate::text::MAX_URL;
@@ -32,6 +32,9 @@ pub struct SpanView {
     pub size: Option<u8>,
     /// Font families asked for, lower case and comma-joined.
     pub font: Option<String>,
+    /// A link drawn without its line: the message says so.
+    #[uniffi(default = false)]
+    pub bare: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -170,6 +173,13 @@ pub struct TableView {
     pub box_margin_left: u8,
     pub box_margin_right: u8,
     pub float: bool,
+    /// A layout table is stacked rather than given columns that hold something narrower than
+    /// this, in dp: the desktop's rule (`mailcraft_html::reading::MIN_LAYOUT_COLUMN`).
+    #[uniffi(default = 110)]
+    pub min_column: u8,
+    /// A box on a line: the gap in front of it when it follows another, in dp.
+    #[uniffi(default = 0)]
+    pub gap_before: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -233,6 +243,7 @@ fn span(s: &Span) -> SpanView {
         background: s.background.map(rgb),
         size: s.size,
         font: s.font.clone(),
+        bare: s.bare,
     }
 }
 
@@ -361,7 +372,7 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         if !budget.take() {
             break;
         }
-        rows.push(row(r, pictures, budget, depth));
+        rows.push(row(r, t.layout, pictures, budget, depth));
     }
     TableView {
         rows,
@@ -379,21 +390,26 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         box_margin_left: t.box_margin[0],
         box_margin_right: t.box_margin[1],
         float: t.float,
+        min_column: reading::MIN_LAYOUT_COLUMN,
+        gap_before: reading::box_gap(t),
     }
 }
 
-fn row(r: &Row, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
+fn row(r: &Row, layout: bool, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
     let mut cells = Vec::new();
     for c in &r.cells {
         if !budget.take() {
             break;
         }
-        cells.push(cell(c, pictures, budget, depth));
+        cells.push(cell(c, layout, pictures, budget, depth));
     }
     RowView { cells }
 }
 
-fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+fn cell(c: &Cell, layout: bool, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+    // A layout cell that holds nothing and says nothing of its padding is a band: the desktop
+    // gives it a little height, so that a bar of colour beside a signature is seen.
+    let band = (layout && c.blocks.is_empty()).then_some(Insets { top: reading::BAND_PADDING, right: 0, bottom: reading::BAND_PADDING, left: 0 });
     CellView {
         blocks: blocks_of(&c.blocks, pictures, budget, depth),
         header: c.header,
@@ -403,7 +419,7 @@ fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) ->
         width: c.width.map(length),
         border: sides(c.border),
         lines: c.lines.iter().map(line).collect(),
-        padding: c.padding.map(insets),
+        padding: c.padding.or(band).map(insets),
         radius: c.radius,
         valign: c.valign.map(|v| match v {
             VAlign::Top => VAlignView::Top,

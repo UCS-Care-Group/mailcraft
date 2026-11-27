@@ -105,7 +105,9 @@ private fun SingleBlock(block: BlockView, env: BodyEnv, paper: Paper, width: Dp)
 
 private val MIN_ROOM = 40.dp
 private val QuoteBar = 2.dp
-private val RunGap = 4.dp
+/** The gap between the things in one line (text, pictures), and between boxes' lines, in dp. */
+internal const val RUN_GAP = 4f
+private val RunGap = RUN_GAP.dp
 private val RunLineGap = 2.dp
 
 internal fun quoteWidth(levels: Int): Dp = (levels.coerceIn(0, MAX_QUOTE_LEVELS) * QUOTE_INDENT).dp
@@ -142,6 +144,10 @@ private fun InlineRun(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width
             )
         }
         SingleBlock(merged, env, paper, width)
+        return
+    }
+    if (blocks.all { it.kind is BlockKindView.Table }) {
+        BoxesLine(blocks, env, paper, width)
         return
     }
     FlowRow(
