@@ -94,3 +94,15 @@ fn weights_are_kept_and_stepped_from_the_weight_around() {
     let got = weights("<h1 style=\"font-weight:300\">head</h1><p style=\"font-weight:300\"><b>strong</b></p>");
     assert_eq!(got, [("head".into(), false, Some(300)), ("strong".into(), true, None)]);
 }
+
+/// CSS Fonts 4: `lighter` below 100 and `bolder` from 900 leave the weight as it is.
+#[test]
+fn a_step_past_the_ends_changes_nothing() {
+    use crate::style::Weight;
+    assert_eq!(Weight::Lighter.within(50), 50);
+    assert_eq!(Weight::Lighter.within(100), 100);
+    assert_eq!(Weight::Bolder.within(950), 950);
+    assert_eq!(Weight::Bolder.within(900), 900);
+    assert_eq!(Weight::Bolder.within(800), 900);
+    assert_eq!(Weight::Lighter.within(600), 400);
+}

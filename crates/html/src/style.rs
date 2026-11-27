@@ -942,6 +942,9 @@ impl Weight {
     pub(crate) fn within(self, around: u16) -> u16 {
         match self {
             Weight::Is(n) => n,
+            // Past the ends of the steps, a step changes nothing.
+            Weight::Lighter if around < 100 => around,
+            Weight::Bolder if around >= 900 => around,
             Weight::Lighter if around < 550 => 100,
             Weight::Lighter if around < 750 => 400,
             Weight::Lighter => 700,
