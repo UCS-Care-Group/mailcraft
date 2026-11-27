@@ -62,6 +62,9 @@ class DataTableTest {
         assertTrue(tall.all { it in 0..MAX_BOX_HEIGHT })
         val wide = edgesOf(FloatArray(10) { 1_000f })
         assertTrue(wide.all { it in 0..MAX_BOX_WIDTH })
+        // The ninth column would end past the limit: it and the tenth are left out whole.
+        assertEquals(listOf(8_000, 8_000, 8_000), wide.takeLast(3).toList())
+        assertEquals(1_000, wide.between(7, 8))
         for ((w, h) in listOf(wide.between(0, 10) to tall.between(0, 201), wide.between(0, 1) to tall.between(1, 201))) {
             Constraints.fixed(w, h)
         }

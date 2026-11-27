@@ -8,7 +8,6 @@ import uniffi.mailcraft_mobile.AddressRecord
 import uniffi.mailcraft_mobile.AlignView
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
-import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.MessageView
 import uniffi.mailcraft_mobile.TableView
 
@@ -105,7 +104,7 @@ internal object TablesRtl {
         emptyList(),
     )
 
-    /** Three columns that ask for 1,000 dp each, and a footer over all of them of about 1,100 lines. */
+    /** Thirty columns of long words, wider than a measure takes (about 10,000 px), and a footer over all of them of about 1,100 lines. */
     val tallWide = Corpus.Entry(
         "tall_wide",
         view(
@@ -117,8 +116,8 @@ internal object TablesRtl {
                         layout = false,
                         border = true,
                         rows = listOf(
-                            listOf("A", "B", "C").mapIndexed { c, t -> B.cell(B.p(t, 0u), width = LengthView.Px(1_000u), at = 0 to c) },
-                            listOf(td(lines(1_100), 1 to 0, colspan = 3u)),
+                            (0 until 30).map { c -> td("Reference_number_of_column_$c", 0 to c) },
+                            listOf(td(lines(1_100), 1 to 0, colspan = 30u)),
                         ),
                     ),
                 ),

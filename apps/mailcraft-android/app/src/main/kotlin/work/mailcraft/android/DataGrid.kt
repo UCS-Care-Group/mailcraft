@@ -115,7 +115,8 @@ internal fun edgesOf(widths: FloatArray): IntArray {
     var at = 0f
     widths.forEachIndexed { i, w ->
         at += w
-        edges[i + 1] = Math.round(at).coerceIn(0, MAX_BOX_WIDTH)
+        // A column that would end past it is left out whole, not drawn as a sliver.
+        edges[i + 1] = Math.round(at).takeIf { it in 0..MAX_BOX_WIDTH } ?: edges[i]
     }
     return edges
 }

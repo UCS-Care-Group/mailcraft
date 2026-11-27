@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
+@file:Suppress("MaxLineLength")
+
 package work.mailcraft.android
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.ide.common.rendering.api.SessionParams
@@ -59,5 +64,14 @@ class TablesRtlScreenshotTest {
     fun aVeryTallCellInAWideTable() {
         paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
         paparazzi.snapshot("reading_${TablesRtl.tallWide.name}_light_100") { ReadingShots.Pane(ReadingShots.ui(TablesRtl.tallWide)) }
+    }
+
+    /** On a phone that reads from the right, the message still lays out from the left: only its own Hebrew reads from the right. */
+    @Test
+    fun aRightToLeftPhoneDoesNotMirrorTheMessage() {
+        paparazzi.unsafeUpdateConfig(phone.copy(nightMode = NightMode.NOTNIGHT))
+        paparazzi.snapshot("reading_rtl_phone_light_100") {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) { ReadingShots.Pane(ReadingShots.ui(TablesRtl.mixed)) }
+        }
     }
 }

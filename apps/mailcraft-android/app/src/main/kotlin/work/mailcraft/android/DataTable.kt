@@ -107,7 +107,10 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
             val asked = if (table.width != null) room.toPx() else null
             val edges = edgesOf(dataColumnWidths(needs, grid.columns, room.toPx(), asked))
             fun wide(p: PlacedCell): Int = edges.between(p.col, p.col + p.cols)
-            val heights = cells.map { (p, m) -> p to intrinsic(MAX_BOX_HEIGHT) { m.minIntrinsicHeight(wide(p)) } }
+            // A cell past the widest a measure takes has no room, and asks for none down the page either.
+            fun tall(p: PlacedCell, m: Measurable): Int =
+                if (wide(p) == 0) 0 else intrinsic(MAX_BOX_HEIGHT) { m.minIntrinsicHeight(wide(p)) }
+            val heights = cells.map { (p, m) -> p to tall(p, m) }
             val tops = dataRowTops(heights, grid.rows)
             val placeables = cells.map { (p, m) ->
                 m.measure(Constraints.fixed(wide(p), tops.between(p.row, p.row + p.rows))) to p
