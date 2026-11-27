@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 package work.mailcraft.android
 
+import androidx.compose.ui.unit.Dp
+
 private const val PERCENT = 100f
 private const val TINY = 1e-3f
 
@@ -120,6 +122,15 @@ internal fun edgesOf(widths: FloatArray): IntArray {
     }
     return edges
 }
+
+/**
+ * The room a cell over [cols] of [columns] columns plans what it holds in (a table inside it stacks
+ * or not by it): its even share of [room], all of it for a cell across the table.
+ * lean: an even share, as the columns' own widths are known only once measured; plan by those
+ * (measure, then compose again) if a table in a data table ever needs it.
+ */
+internal fun cellRoom(room: Dp, cols: Int, columns: Int): Dp =
+    room * cols.coerceIn(1, columns.coerceAtLeast(1)) / columns.coerceAtLeast(1)
 
 /** The value at [i], or 0 past the ends. */
 internal fun IntArray.at(i: Int): Int = getOrNull(i) ?: 0

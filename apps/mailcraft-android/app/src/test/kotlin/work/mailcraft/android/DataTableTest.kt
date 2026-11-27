@@ -5,8 +5,10 @@
 package work.mailcraft.android
 
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -68,6 +70,15 @@ class DataTableTest {
         for ((w, h) in listOf(wide.between(0, 10) to tall.between(0, 201), wide.between(0, 1) to tall.between(1, 201))) {
             Constraints.fixed(w, h)
         }
+    }
+
+    @Test
+    fun aCellPlansWhatItHoldsInItsShareOfTheTable() {
+        // Two halves of a 328 dp table: a layout table inside one plans in 164 dp, so it stacks.
+        assertEquals(164f, cellRoom(328.dp, 1, 2).value, 0.01f)
+        assertEquals(328f, cellRoom(328.dp, 2, 2).value, 0.01f)
+        assertEquals(328f, cellRoom(328.dp, 9, 0).value, 0.01f)
+        assertNull(planColumns(listOf(ColumnSpec(true, null, null), ColumnSpec(true, null, null)), cellRoom(328.dp, 1, 2).value - 16f, 12f))
     }
 
     @Test

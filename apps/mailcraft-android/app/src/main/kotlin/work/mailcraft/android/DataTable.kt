@@ -96,7 +96,7 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
                             if (head) heading()
                         },
                     ) {
-                        CellBox(table, p.cell, env, paper, room, Modifier.fillMaxSize())
+                        CellBox(table, p.cell, env, paper, cellRoom(room, p.cols, grid.columns), Modifier.fillMaxSize())
                     }
                 }
             },
