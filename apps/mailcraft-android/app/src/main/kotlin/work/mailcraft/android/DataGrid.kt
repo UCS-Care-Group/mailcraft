@@ -3,6 +3,8 @@
 package work.mailcraft.android
 
 import androidx.compose.ui.unit.Dp
+import uniffi.mailcraft_mobile.BlockKindView
+import uniffi.mailcraft_mobile.CellView
 
 private const val PERCENT = 100f
 private const val TINY = 1e-3f
@@ -144,6 +146,20 @@ internal fun edgesOf(widths: FloatArray): IntArray {
  */
 internal fun cellRoom(room: Dp, cols: Int, columns: Int): Dp =
     room * cols.coerceIn(1, columns.coerceAtLeast(1)) / columns.coerceAtLeast(1)
+
+/**
+ * The least width in dp the pictures of [cell] ask of its column, as on the desktop: one that came
+ * ([shown]) and says its width keeps up to [PICTURE_KEEPS] dp of it, any other gives way to [PICTURE_LEAST];
+ * null when the cell holds no picture.
+ */
+internal fun picturesLeast(cell: CellView, shown: (BlockKindView.Image) -> Boolean): Float? =
+    cell.blocks.mapNotNull { it.kind as? BlockKindView.Image }.maxOfOrNull { k ->
+        val wanted = k.width?.toFloat() ?: PICTURE_LEAST
+        wanted.coerceAtMost(if (k.width != null && shown(k)) PICTURE_KEEPS else PICTURE_LEAST)
+    }
+
+private const val PICTURE_KEEPS = 160f
+private const val PICTURE_LEAST = 48f
 
 /** The value at [i], or 0 past the ends. */
 internal fun IntArray.at(i: Int): Int = getOrNull(i) ?: 0

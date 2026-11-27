@@ -90,6 +90,18 @@ class DataTableTest {
     }
 
     @Test
+    fun aPictureAsksForItsLeastAsOnTheDesktop() {
+        val sized = B.cell(B.image("https://cdn-images.example/tray.png", "Seed tray", 200u, 100u))
+        val small = B.cell(B.image("https://cdn-images.example/dot.png", "Dot", 30u, 30u))
+        val unsized = B.cell(B.image("https://cdn-images.example/fern.png", "Fern"))
+        assertEquals(160f, picturesLeast(sized) { true } ?: -1f, 0.01f)
+        assertEquals(48f, picturesLeast(sized) { false } ?: -1f, 0.01f)
+        assertEquals(30f, picturesLeast(small) { true } ?: -1f, 0.01f)
+        assertEquals(48f, picturesLeast(unsized) { true } ?: -1f, 0.01f)
+        assertNull(picturesLeast(B.cell(B.p("Tray", 0u))) { true })
+    }
+
+    @Test
     fun aCellPlansWhatItHoldsInItsShareOfTheTable() {
         // Two halves of a 328 dp table: a layout table inside one plans in 164 dp, so it stacks.
         assertEquals(164f, cellRoom(328.dp, 1, 2).value, 0.01f)

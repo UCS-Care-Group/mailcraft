@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.TableView
 
@@ -62,13 +63,27 @@ internal inline fun intrinsic(fallback: Int, ask: () -> Int): Int =
 
 /**
  * What the cell at [p] asks of its columns, measured as [m]: never narrower than its longest word, up
- * to a point; all of [room] (pixels) at most when Compose can't tell.
+ * to a point, nor than its pictures' [picturesLeast] ([shown]: those that came); all of [room] (pixels)
+ * at most when Compose can't tell.
  */
-private fun Density.needOf(table: TableView, p: PlacedCell, m: Measurable, room: Float): CellNeed {
+private fun Density.needOf(
+    table: TableView,
+    p: PlacedCell,
+    m: Measurable,
+    room: Float,
+    shown: (BlockKindView.Image) -> Boolean,
+): CellNeed {
     val pad = cellSides(table, p.cell).dp.toPx()
     val cap = DataMaxWord.toPx() * fontScale + pad
     val most = intrinsic(room.toInt()) { m.maxIntrinsicWidth(Constraints.Infinity) } + SLACK
-    val word = minOf(intrinsic(cap.toInt()) { m.minIntrinsicWidth(Constraints.Infinity) } + SLACK, cap)
+    val words = minOf(intrinsic(cap.toInt()) { m.minIntrinsicWidth(Constraints.Infinity) } + SLACK, cap)
+    val pictures = picturesLeast(p.cell, shown)?.dp?.toPx()?.plus(pad)
+    // Only text is held to the cap: a cell of pictures alone asks what they do, as on the desktop.
+    val word = when {
+        pictures == null -> words
+        p.cell.blocks.all { it.kind is BlockKindView.Image } -> pictures
+        else -> maxOf(words, pictures)
+    }
     val floor = if (p.cell.blocks.isEmpty()) 0f else DataMinCell.toPx() + pad
     return CellNeed(
         p.col, p.cols, maxOf(minOf(word, most), floor), maxOf(most, floor),
@@ -111,7 +126,8 @@ internal fun DataTable(table: TableView, env: BodyEnv, paper: Paper, room: Dp) {
             modifier = Modifier.semantics { collectionInfo = CollectionInfo(grid.rows, grid.columns) },
         ) { measurables, _ ->
             val cells = measurables.mapNotNull { m -> placeOf(m)?.let { it to m } }
-            val needs = cells.map { (p, m) -> needOf(table, p, m, room.toPx()) }
+            val shown = { k: BlockKindView.Image -> env.stateOf(k) is PictureState.Ready }
+            val needs = cells.map { (p, m) -> needOf(table, p, m, room.toPx(), shown) }
             val asked = if (table.width != null) room.toPx() else null
             val edges = edgesOf(dataColumnWidths(needs, grid.columns, room.toPx(), asked))
             fun wide(p: PlacedCell): Int = edges.between(p.col, p.col + p.cols)
