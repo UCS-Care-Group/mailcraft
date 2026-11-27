@@ -741,7 +741,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if switch.changed() {
             let _ = app.run("ui.closeToTray", json!({"value": on}));
         }
-        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
         {
             let mut start_hidden = app.ui.start_to_tray;
             let switch = ui.checkbox(&mut start_hidden, tl!("Start hidden in system tray")).on_hover_text(tl!(

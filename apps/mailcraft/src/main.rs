@@ -185,7 +185,7 @@ impl eframe::App for App {
         // Start hidden in the system tray: eframe forces the window visible on the first
         // rendered frame (post_rendering), overriding with_visible(false). Hide it on the
         // next frame instead, and keep it hidden. Only done once.
-        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
         if self.7 {
             if self.8 {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -1688,27 +1688,28 @@ fn main() -> eframe::Result {
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
     let (prefs, settings_unread) = load_prefs();
     let close_to_tray = prefs.as_ref().is_some_and(|ui| ui.close_to_tray);
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     let start_to_tray = prefs.as_ref().is_some_and(|ui| ui.start_to_tray);
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     let start_hidden = start_to_tray && tray::x11_reachable();
-    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+    #[cfg(target_os = "windows")]
+    let start_hidden = start_to_tray;
+    #[cfg(target_os = "macos")]
     let start_hidden = false;
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     let close_to_tray = close_to_tray || start_hidden;
     let restored = if start_hidden { None } else { prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized) };
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
     }
     // Start hidden in the system tray: the window exists but is never shown;
-    // only the tray icon is visible. Requires a reachable X11/XWayland server
-    // and a system tray; otherwise the window shows as normal so the owner is
-    // not left with no way to reach us.
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    // only the tray icon is visible. Requires a reachable tray; otherwise the
+    // window shows as normal so the owner is not left with no way to reach us.
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     if start_hidden {
         log::info!("starting hidden in the system tray: no window will be shown");
         options.viewport = options.viewport.with_visible(false);
     } else if start_to_tray {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         log::warn!("start hidden in system tray was requested but no X11/XWayland server is reachable: showing the window instead");
     }
     // Registered before the event loop starts, so it catches the Finder event that launched us as
@@ -1853,7 +1854,7 @@ fn main() -> eframe::Result {
             }
             // Start hidden in the tray requires the tray backend to run, so force
             // close_to_tray on: otherwise there would be no tray icon to show the window again.
-            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
             if start_hidden {
                 app.ui.close_to_tray = true;
             }
@@ -1884,9 +1885,9 @@ fn main() -> eframe::Result {
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]
                 menu_bar,
-                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
                 start_hidden,
-                #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+                #[cfg(target_os = "macos")]
                 false,
                 false,
             )))
