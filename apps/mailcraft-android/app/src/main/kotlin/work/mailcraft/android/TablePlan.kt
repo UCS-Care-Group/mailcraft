@@ -103,8 +103,8 @@ private fun columnSpec(grid: Grid, c: Int, padding: (CellView) -> InsetsView?): 
  * share of the width, or takes what is left) would be narrower than [least] (the desktop's rule, which
  * the bridge sends with the table: `TableView.minColumn`). A column
  * that asks for a width in pixels is not squeezed (a row of icons stays a row), and one that holds
- * nothing takes what it asks for. A share is a share of what the gaps leave. Room no column takes goes
- * as the desktop gives it ([spare]); to columns told their widths only when the table is [told] its own.
+ * nothing takes what it asks for. A share is a share of what the gaps leave. In a table [told] its own
+ * width, room no column takes goes as the desktop gives it ([spare]); one that is not has none to spare.
  */
 internal fun planColumns(
     specs: List<ColumnSpec>,
@@ -120,19 +120,21 @@ internal fun planColumns(
     val auto = specs.indices.filter { specs[it].asks == null && specs[it].percent == null && specs[it].holds }
     val left = (room - gaps - widths.sum()).coerceAtLeast(0f)
     auto.forEach { widths[it] = left / auto.size }
-    if (auto.isEmpty() && specs.none { it.holds && it.percent != null }) spare(specs, widths, left, told)
+    if (auto.isEmpty() && told) spare(specs, widths, left)
     val squeezed = specs.indices.any { specs[it].holds && specs[it].asks == null && widths[it] < least }
     val over = widths.sum() + gaps > room + HALF
     return if (squeezed || over) null else widths
 }
 
 /**
- * Gives [left] dp to the columns of [widths], by what each has: to those whose pictures ask for their
- * width, else (in a table [told] its width) to them all. The desktop's room to spare (#1966).
+ * Gives [left] dp, the room a table told its width has to spare, to the columns of [widths] by what each
+ * has: to those whose pictures ask for their width (a column the message gives a width or a share keeps
+ * it; [ColumnSpec.pictures] is only set where it gives none), else
+ * to them all. The desktop's room to spare (#1966).
  */
-private fun spare(specs: List<ColumnSpec>, widths: MutableList<Float>, left: Float, told: Boolean) {
-    val pictures = specs.indices.filter { specs[it].fixed == null && specs[it].pictures != null }
-    val takers = if (pictures.isNotEmpty()) pictures else if (told) specs.indices.toList() else return
+private fun spare(specs: List<ColumnSpec>, widths: MutableList<Float>, left: Float) {
+    val pictures = specs.indices.filter { specs[it].pictures != null }
+    val takers = pictures.ifEmpty { specs.indices.toList() }
     val by = takers.sumOf { widths[it].toDouble() }.toFloat()
     if (by <= 0f) return
     takers.forEach { widths[it] += left * widths[it] / by }

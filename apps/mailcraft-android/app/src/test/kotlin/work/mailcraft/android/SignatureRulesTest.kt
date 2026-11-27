@@ -174,10 +174,16 @@ class SignatureRulesTest {
         val widths = requireNotNull(plan(table, room = 336f))
         assertEquals(336f, widths.sum(), 0.01f)
         assertEquals(5f, widths[0] / widths[1], 0.001f)
-        // Beside a column told its width, the room left goes to the column of pictures alone.
+        // A table that does not say its width has no room to spare (the desktop's): its columns sit tight.
         val told = B.cell(B.p("Ada Example"), width = LengthView.Px(100u))
         val mixed = B.table(layout = true, rows = listOf(listOf(told, icon))).copy(spacing = 0u)
-        assertEquals(listOf(100f, 236f), plan(mixed, room = 336f))
+        assertEquals(listOf(100f, 24f), plan(mixed, room = 336f))
+        val social = B.table(layout = true, rows = listOf(List(3) { icon })).copy(spacing = 0u)
+        assertEquals(listOf(24f, 24f, 24f), plan(social, room = 336f))
+        // Beside a column told its share, the room left goes to the column of pictures.
+        val half = B.cell(B.p("Ada Example"), width = LengthView.Percent(50u))
+        val shared = B.table(layout = true, rows = listOf(listOf(half, icon)), width = LengthView.Percent(100u)).copy(spacing = 0u)
+        assertEquals(listOf(168f, 168f), plan(shared, room = 336f))
         // Columns all told their widths share what is left by what they ask for, in a table told its
         // width; one that is not keeps them as they are (the desktop draws it no wider than they).
         val a = B.cell(B.p("A"), width = LengthView.Px(100u))
