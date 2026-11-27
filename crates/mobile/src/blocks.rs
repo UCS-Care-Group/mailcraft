@@ -5,6 +5,7 @@
 //! needs is carried; nothing is fetched, and a picture's bytes come through `Core::picture` by
 //! the reference a block names.
 
+use mailcraft_html::fonts::{self, Generic};
 use mailcraft_html::{
     Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Place, Rgb, Row, Sides, Span, Table, VAlign,
 };
@@ -18,6 +19,9 @@ const MAX_NODES: usize = 60_000;
 pub struct SpanView {
     pub text: String,
     pub bold: bool,
+    /// 1 to 1000: what the message asks for (700 for bold text that names no number, 400 for
+    /// the rest), or what the family's name says (`Segoe UI Light`) when it asks for neither.
+    pub weight: u16,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -30,8 +34,18 @@ pub struct SpanView {
     pub background: Option<u32>,
     /// CSS pixels.
     pub size: Option<u8>,
-    /// Font families asked for, lower case and comma-joined.
-    pub font: Option<String>,
+    /// The phone font the families asked for come to ([`mailcraft_html::fonts::stand_in`]).
+    pub face: FaceView,
+}
+
+/// A kind of phone font.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum FaceView {
+    /// The phone's own sans-serif.
+    Own,
+    Serif,
+    Mono,
+    Condensed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -235,9 +249,12 @@ fn length(l: Length) -> LengthView {
 }
 
 fn span(s: &Span) -> SpanView {
+    let (face, named) = s.font.as_deref().map_or((Generic::Own, 400), fonts::stand_in);
+    let weight = s.weight.unwrap_or(if s.bold { 700 } else { named });
     SpanView {
         text: s.text.clone(),
         bold: s.bold,
+        weight,
         italic: s.italic,
         underline: s.underline,
         strike: s.strike,
@@ -246,7 +263,12 @@ fn span(s: &Span) -> SpanView {
         color: s.color.map(rgb),
         background: s.background.map(rgb),
         size: s.size,
-        font: s.font.clone(),
+        face: match face {
+            Generic::Own => FaceView::Own,
+            Generic::Serif => FaceView::Serif,
+            Generic::Mono => FaceView::Mono,
+            Generic::Condensed => FaceView::Condensed,
+        },
     }
 }
 

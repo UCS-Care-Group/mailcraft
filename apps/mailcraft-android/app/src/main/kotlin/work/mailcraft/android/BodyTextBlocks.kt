@@ -20,7 +20,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -67,7 +66,6 @@ internal fun TextBlock(
     val style = TextStyle(
         color = composeColor(paper.ink),
         fontSize = base.sp,
-        fontWeight = if (heading > 0) FontWeight.Bold else null,
         textAlign = textAlign(block.align),
         textDirection = textDirection(block),
         lineHeight = lineHeightOf(block, base),
