@@ -315,12 +315,14 @@ const READS_ITS_OWN: &[(&str, &str)] = &[
     ("engine/src/import_pst/item.rs", "m.headers.iter().map(|(k, v)| text(k)"),
 ];
 
-/// Lookups that are an HTTP request's or answer's, not a message's (a file, and what the line says).
+/// Lookups that are an HTTP request's or answer's, or a D-Bus signal's, not a message's (a file,
+/// and what the line says).
 const NOT_A_MESSAGE: &[(&str, &str)] = &[
     ("ews/src/autodiscover.rs", "response.header("),
     // A calendar server's answer (#209): HTTP's `Location` and `ETag`.
     ("net/src/dav.rs", "response.header("),
     ("apps/mailcraft/src/graph_folders_flow.rs", "asked.header("),
+    ("apps/mailcraft/src/alerts.rs", "signal.header("),
 ];
 
 #[test]
