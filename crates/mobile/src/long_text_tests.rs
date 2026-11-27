@@ -239,6 +239,13 @@ fn a_piece_never_ends_at_a_no_break_space() {
             let all = texts(&of(&[paragraph(&format!("{}{nbsp}{}", "a".repeat(before), "b".repeat(MAX_BLOCK_CHARS + 1)))]));
             assert!(all.iter().all(|t| !t.ends_with(nbsp) && !t.starts_with(nbsp)), "{nbsp:?} after {before}");
         }
+        // A space right before it is no place to cut either: the cut is made in the word instead.
+        let all = texts(&of(&[paragraph(&format!(" {nbsp}{}", "b".repeat(MAX_BLOCK_CHARS - 1)))]));
+        assert!(
+            all.iter().all(|t| !t.trim().is_empty() && !t.starts_with(nbsp)),
+            "{nbsp:?} after a space: {:?}",
+            all.iter().map(|t| t.chars().take(3).collect::<String>()).collect::<Vec<_>>()
+        );
     }
 }
 

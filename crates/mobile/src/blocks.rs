@@ -406,9 +406,9 @@ fn regional(c: char) -> bool {
 /// `at` (a character boundary of `text`) moved back to the nearest boundary between two letters
 /// as one sees them: not before a mark or joiner, not after a joiner, not inside a flag's pair, not
 /// either side of a no-break space.
-/// `at` itself when there is none before it (a run of marks as long as a block).
+/// None when there is none before it (a run of marks as long as a block).
 // lean: the common clusters only, not all of UAX #29 (Indic conjuncts, Hangul syllables in jamo).
-fn whole_at(text: &str, at: usize) -> usize {
+fn whole_at(text: &str, at: usize) -> Option<usize> {
     let mut cut = at;
     loop {
         let before = text.get(..cut).and_then(|t| t.chars().next_back());
@@ -425,8 +425,8 @@ fn whole_at(text: &str, at: usize) -> usize {
         };
         match before {
             Some(b) if inside && cut > b.len_utf8() => cut -= b.len_utf8(),
-            _ if inside => return at,
-            _ => return cut,
+            _ if inside => return None,
+            _ => return Some(cut),
         }
     }
 }
@@ -449,7 +449,13 @@ fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
         Some((end, resume)) if end < resume => (end, resume),
         // After a space, or between two letters: not before a mark that belongs to the letter before.
         found => {
-            let cut = whole_at(rest, found.map_or(at, |(end, _)| end));
+            // After the space where that is whole and leaves more than spaces before it; else where the
+            // room ends, between two letters; else (no such place) there.
+            let cut = found
+                .and_then(|(end, _)| whole_at(rest, end))
+                .filter(|&cut| rest.get(..cut).is_some_and(|t| !t.trim().is_empty()))
+                .or_else(|| whole_at(rest, at))
+                .unwrap_or(at);
             // A line break right at the cut goes, as at any line break: the next block starts the line.
             if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) && cut > 1 {
                 (cut.saturating_sub(1), cut)
