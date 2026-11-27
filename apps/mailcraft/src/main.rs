@@ -1698,6 +1698,8 @@ fn main() -> eframe::Result {
     let start_hidden = start_to_tray;
     #[cfg(target_os = "macos")]
     let start_hidden = false;
+    #[cfg(any(target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+    let start_hidden = false;
     #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
     let close_to_tray = close_to_tray || start_hidden;
     let restored = if start_hidden { None } else { prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized) };
@@ -1894,8 +1896,7 @@ fn main() -> eframe::Result {
                 menu_bar,
                 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
                 start_hidden,
-                #[cfg(target_os = "macos")]
-                false,
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
                 false,
             )))
         }),
