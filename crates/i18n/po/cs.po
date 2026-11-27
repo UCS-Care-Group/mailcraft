@@ -477,6 +477,12 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Změnu kalendáře zatím nebylo možné odeslat, zkusí se znovu: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer."
+msgstr "Kalendář na kalendářovém serveru odsud přijímá schůzky, zatím ne porady: server by mohl sám rozesílat pozvánky. Ponechte poradu v kalendáři v tomto počítači."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
@@ -638,6 +644,12 @@ msgstr "Schůzku nelze přesunout do kalendáře jiné poštovní schránky: vš
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Schůzka se najednou přeposílá nejvýše {n} lidem."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."
+msgstr "Poradu na kalendářovém serveru zatím odsud nelze smazat: server by mohl sám rozesílat zrušení."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -781,6 +793,12 @@ msgstr "Zabezpečené připojení k serveru se nepodařilo navázat. Zadejte adr
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
 msgstr "Je uvedena řada i jeden z jejích dnů; nic se nezměnilo."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "A series or a meeting on a calendar server can't be changed from here yet: change it on the server."
+msgstr "Opakovanou událost nebo poradu na kalendářovém serveru zatím odsud nelze změnit: změňte ji na serveru."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1685,6 +1703,12 @@ msgstr "ID aplikace tvoří písmena, číslice, tečky a pomlčky"
 #, fuzzy
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
 msgstr "Událost označená jako soukromá ukazuje jen, že jste zaneprázdněni. Nikdo pozvaný se nejmenuje."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "An appointment on a calendar server can't be moved to another calendar from here yet."
+msgstr "Schůzku na kalendářovém serveru zatím odsud nelze přesunout do jiného kalendáře."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11750,6 +11774,12 @@ msgstr "Zapnuto"
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "Ve Waylandu po zapnutí této možnosti MailCraft restartujte. Je nutný dostupný server X11/XWayland a oznamovací oblast."
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server."
+msgstr "Na kalendářovém serveru lze odsud zatím měnit jen název, čas, místo, popis, připomenutí, kategorie a soukromí schůzky: zbytek změňte na serveru."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11857,6 +11887,12 @@ msgstr "Až to správce schválí, zkuste to znovu: přihlášení pak projde."
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Jakmile to bude fungovat, úložiště přihlašovacích údajů systému si ho uchová pro příště. Nikdy se nezapisuje do poštovní schránky."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server."
+msgstr "Jeden den opakované události na kalendářovém serveru zatím odsud nelze smazat: smažte celou řadu, nebo ten den na serveru."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -17595,8 +17631,14 @@ msgstr "Kalendář „{name}“ je kopie kalendáře na webu: zde ho lze jen č�
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
-msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
-msgstr "Kalendář \"{name}\" je na kalendářovém serveru: tato verze ho čte, ale zatím do něj nemůže odesílat změny."
+msgid "The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet."
+msgstr "Kalendář \"{name}\" je na kalendářovém serveru: tato verze mu zatím nemůže tuto změnu odeslat."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it."
+msgstr "Kalendář \"{name}\" na kalendářovém serveru je jen pro čtení: server tomuto účtu změny nedovoluje."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -17735,6 +17777,24 @@ msgstr ""
 "Kalendář uživatele {name} je teď ve vašem seznamu kalendářů, protože byl s vámi sdílen a přijali jste ho. Otevřeli jste ho také podle adresy, takže je tam dvakrát.\n"
 "\n"
 "Odebrat kopii otevřenou podle adresy? Druhá zůstane a na serveru se nic nezmění."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server didn't take \"{title}\": it is kept in a calendar on this computer."
+msgid_plural "The calendar server didn't take {n} new events: they are kept in a calendar on this computer."
+msgstr[0] "Kalendářový server nepřijal \"{title}\": zůstává v kalendáři v tomto počítači."
+msgstr[1] "Kalendářový server nepřijal {n} nové události: zůstávají v kalendáři v tomto počítači."
+msgstr[2] "Kalendářový server nepřijal {n} nových událostí: zůstávají v kalendáři v tomto počítači."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server kept \"{title}\": it was changed there, or can't be deleted from here. It is shown again."
+msgid_plural "The calendar server kept {n} events: they were changed there, or can't be deleted from here. They are shown again."
+msgstr[0] "Kalendářový server ponechal \"{title}\": byla tam změněna, nebo ji odsud nelze smazat. Znovu se zobrazuje."
+msgstr[1] "Kalendářový server ponechal {n} události: byly tam změněny, nebo je odsud nelze smazat. Znovu se zobrazují."
+msgstr[2] "Kalendářový server ponechal {n} událostí: byly tam změněny, nebo je odsud nelze smazat. Znovu se zobrazují."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -28035,6 +28095,10 @@ msgstr "−Binární"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Řádky"
+
+#, fuzzy
+#~ msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+#~ msgstr "Kalendář \"{name}\" je na kalendářovém serveru: tato verze ho čte, ale zatím do něj nemůže odesílat změny."
 
 #, fuzzy
 #~ msgid "Read-only"

@@ -230,7 +230,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         let c = s.mailbox.calendar(*id)?;
         Some(json!({
             "id": c.id, "name": c.name, "color": c.shown_color().hex(), "ownColor": c.own_color.is_some(),
-            "visible": c.visible, "readOnly": remote::writable(&s.mailbox, c.id).is_err(), "current": c.id == current,
+            "visible": c.visible, "readOnly": remote::writable_for_new(&s.mailbox, c.id).is_err(), "current": c.id == current,
             "rights": c.rights, "owner": c.owner, "subscription": c.subscription.as_ref().map(subscription_json),
         }))
     };
@@ -318,7 +318,7 @@ fn overlay(s: &mut Session, v: &Value) -> CmdResult {
                 }
                 // It lies in front, and is the one being worked in (unless it can only be read).
                 s.view.overlay_front = id;
-                if remote::writable(&s.mailbox, id).is_ok() {
+                if remote::writable_for_new(&s.mailbox, id).is_ok() {
                     s.view.in_calendar = id;
                 }
             } else {
@@ -347,7 +347,7 @@ fn front(s: &mut Session, v: &Value) -> CmdResult {
     let id = calendar_named(s, v, "calendar")?;
     s.view.overlay_front = id;
     // It is the one being worked in too, unless it can only be read.
-    if remote::writable(&s.mailbox, id).is_ok() {
+    if remote::writable_for_new(&s.mailbox, id).is_ok() {
         s.view.in_calendar = id;
     }
     Ok(panes_json(s))

@@ -1238,3 +1238,106 @@ fn r6_the_generation_asked_under_comes_back_with_the_download() {
     let x = Scripted::new(|_| multistatus(""));
     assert_eq!(run(&ask, &Held::new(Some(PASSWORD)).lookup(), &x, NOW, &Limits::default()).generation, 3);
 }
+
+/// An event made here (#209 D6), to be put as `name` in `collection`.
+fn create(event: u64, collection: String, name: &str) -> mailcraft_model::DavCreate {
+    mailcraft_model::DavCreate { event, collection, name: name.into(), body: event_doc(name) }
+}
+
+fn event_doc(uid: &str) -> String {
+    event(uid, "20261202T090000Z")
+}
+
+#[test]
+fn a_new_event_is_put_before_the_read_and_comes_down_in_the_same_run() {
+    let s = server();
+    let work = s.collection_url("work");
+    let mut asked = ask(&s, true, Vec::new());
+    asked.creates = vec![create(41, work.clone(), "new-1")];
+    let out = read(&s, &asked);
+    assert_eq!(out.created.len(), 1);
+    let made = &out.created[0];
+    assert_eq!((made.event, made.outcome), (41, mailcraft_model::DavPut::Created));
+    assert_eq!(made.href, format!("{work}new-1.ics"));
+    assert_eq!(Some(made.etag.as_str()), s.etag_of("work", "new-1.ics").as_deref());
+    assert!(s.body_of("work", "new-1.ics").is_some_and(|b| b.contains("UID:new-1")));
+    // The read that followed brought it.
+    let read = out.collections.iter().find(|r| r.href == work).expect("the calendar was read");
+    assert!(names(read).contains(&"new-1.ics".to_string()), "{:?}", names(read));
+}
+
+#[test]
+fn a_name_the_server_has_already_is_never_overwritten_and_a_read_only_calendar_refuses() {
+    let s = server();
+    let (work, shared) = (s.collection_url("work"), s.collection_url("shared"));
+    s.put_directly("work", "taken.ics", &event("someone-else", "20261203T090000Z")).unwrap();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.creates = vec![create(1, work.clone(), "taken"), create(2, shared, "nope")];
+    let out = read(&s, &asked);
+    let outcome = |id: u64| out.created.iter().find(|c| c.event == id).map(|c| c.outcome);
+    assert_eq!(outcome(1), Some(mailcraft_model::DavPut::Exists));
+    assert_eq!(outcome(2), Some(mailcraft_model::DavPut::Refused));
+    assert!(s.body_of("work", "taken.ics").is_some_and(|b| b.contains("UID:someone-else")), "what was there stays");
+    assert_eq!(s.count("shared"), 0);
+}
+
+#[test]
+fn a_new_event_for_an_address_off_the_homes_is_never_sent() {
+    let s = server();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.creates = vec![create(5, "https://elsewhere.example.net/cal/".into(), "x")];
+    let out = read(&s, &asked);
+    assert_eq!(out.created.first().map(|c| c.outcome), Some(mailcraft_model::DavPut::NotNow));
+    assert!(s.seen().iter().all(|r| r.method != "PUT"));
+}
+
+#[test]
+fn a_deleted_event_goes_only_while_the_server_has_it_as_it_was_read() {
+    let s = server();
+    s.put_directly("work", "a.ics", &event("a", "20261204T090000Z")).unwrap();
+    s.put_directly("work", "b.ics", &event("b", "20261205T090000Z")).unwrap();
+    let work = s.collection_url("work");
+    let etag_a = s.etag_of("work", "a.ics").unwrap();
+    let mut asked = ask(&s, false, Vec::new());
+    asked.deletes = vec![
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}a.ics"), etag: etag_a },
+        // Changed there since it was read: its ETag is another now.
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}b.ics"), etag: "\"stale\"".into() },
+        // Gone already.
+        mailcraft_model::DavDelete { collection: work.clone(), href: format!("{work}c.ics"), etag: "\"1\"".into() },
+    ];
+    let out = read(&s, &asked);
+    let outcome = |name: &str| out.deleted.iter().find(|d| d.href.ends_with(name)).map(|d| d.outcome);
+    assert_eq!(outcome("a.ics"), Some(mailcraft_model::DavGone::Deleted));
+    assert_eq!(outcome("b.ics"), Some(mailcraft_model::DavGone::Changed));
+    assert_eq!(outcome("c.ics"), Some(mailcraft_model::DavGone::Deleted));
+    assert!(s.body_of("work", "a.ics").is_none());
+    assert!(s.body_of("work", "b.ics").is_some(), "what changed there stays");
+}
+
+#[test]
+fn a_changed_event_is_put_over_only_while_the_server_has_it_as_it_was_read() {
+    let s = server();
+    s.put_directly("work", "a.ics", &event("a", "20261204T090000Z")).unwrap();
+    s.put_directly("work", "b.ics", &event("b", "20261205T090000Z")).unwrap();
+    let work = s.collection_url("work");
+    let etag_a = s.etag_of("work", "a.ics").unwrap();
+    let changed = event("a", "20261204T100000Z").replace("SUMMARY:a", "SUMMARY:geändert");
+    let mut asked = ask(&s, false, Vec::new());
+    asked.updates = vec![
+        mailcraft_model::DavUpdate { collection: work.clone(), href: format!("{work}a.ics"), etag: etag_a.clone(), body: changed },
+        mailcraft_model::DavUpdate {
+            collection: work.clone(),
+            href: format!("{work}b.ics"),
+            etag: "\"stale\"".into(),
+            body: event("b", "20261206T090000Z"),
+        },
+    ];
+    let out = read(&s, &asked);
+    let outcome = |name: &str| out.updated.iter().find(|u| u.href.ends_with(name)).map(|u| u.outcome);
+    assert_eq!(outcome("a.ics"), Some(mailcraft_model::DavPutOver::Done));
+    assert_eq!(outcome("b.ics"), Some(mailcraft_model::DavPutOver::Conflict));
+    assert!(s.body_of("work", "a.ics").is_some_and(|b| b.contains("SUMMARY:geändert")));
+    assert_ne!(s.etag_of("work", "a.ics"), Some(etag_a));
+    assert!(s.body_of("work", "b.ics").is_some_and(|b| b.contains("20261205T090000Z")), "what changed there stays");
+}

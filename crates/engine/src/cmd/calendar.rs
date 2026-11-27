@@ -125,9 +125,30 @@ fn changing(s: &Session, v: &Value) -> Result<Event, CmdError> {
 fn may_alter(s: &Session, e: &Event) -> Result<(), CmdError> {
     // (A copy of a calendar on the web is read here, as one the account may only read is.)
     if kept_by(s, e).is_some() || s.mailbox.calendar(e.calendar).is_some_and(|c| c.is_subscribed()) {
-        writable(s, e.calendar)?;
+        // (A calendar server's event is checked for what may change when it is noted.)
+        remote::writable_for_new(&s.mailbox, e.calendar)?;
+        if remote::dav_addable(&s.mailbox, e.calendar) && !e.origin.id.is_empty() {
+            remote::dav_changeable(e, e)?;
+        }
     }
     Ok(())
+}
+
+/// The event to delete when it is in a calendar of a calendar server that may be written to (#209
+/// D6): a whole event or series, not one day of it, and not a meeting (its server could send the
+/// cancellations by itself). `None` for any other event, which [`changing`] looks at.
+fn dav_deleting(s: &Session, v: &Value) -> Result<Option<Event>, CmdError> {
+    let id = target(s, v)?;
+    let Some(e) = s.mailbox.event(id).filter(|e| remote::dav_addable(&s.mailbox, e.calendar)).cloned() else { return Ok(None) };
+    if p::date(v, "occurrence")?.is_some() || !e.origin.series.is_empty() {
+        return Err(fail(
+            "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server.",
+        ));
+    }
+    if !e.attendees.is_empty() || e.origin.guest {
+        return Err(fail("A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."));
+    }
+    Ok(Some(e))
 }
 
 /// The change to an event that was `before` is made: its server is told, when it has one.
@@ -508,7 +529,14 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
             "{who} invited to this meeting, and {TELLS_INVITE} Nothing was made. Say \"send\": true to invite them, or \"send\": false to keep the meeting on this computer and invite nobody."
         )));
     }
-    if served(s, e.calendar) {
+    if remote::dav_addable(&s.mailbox, e.calendar) {
+        // A calendar server may send invitations by itself: a meeting isn't made there from here.
+        if !e.attendees.is_empty() || e.online.is_some() {
+            return Err(fail(
+                "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer.",
+            ));
+        }
+    } else if served(s, e.calendar) {
         fits_server(s, &e)?;
         // The account whose calendar it is organizes it.
         let owner = s.mailbox.calendar(e.calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address());
@@ -551,7 +579,8 @@ fn new_meeting(s: &mut Session, v: &Value) -> CmdResult {
 /// Whether the owner said yes to that mail.
 fn may_change(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool, CmdError> {
     let Some(who) = kept_by(s, before) else { return Ok(false) };
-    writable(s, before.calendar)?;
+    // (What a calendar server's event may change is checked when the change is noted.)
+    remote::writable_for_new(&s.mailbox, before.calendar)?;
     let fields = remote::changed_fields(before, e, &remote::offset_of(s));
     if before.origin.guest {
         let why = if fields.attendees.is_some() {
@@ -785,6 +814,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let kept = kept_by(s, &before);
     let moved = e.calendar != before.calendar;
+    if moved && remote::dav_addable(&s.mailbox, before.calendar) && !before.origin.id.is_empty() {
+        return Err(fail("An appointment on a calendar server can't be moved to another calendar from here yet."));
+    }
     let mut send = false;
     meeting::online_fits(s, &e, Some(&before))?;
     if let Some(who) = &kept {
@@ -895,14 +927,17 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     if delete_form(&s.sel, v)? == DeleteForm::Batch {
         return selection::delete_selected(s, v);
     }
-    let before = changing(s, v)?;
+    let before = match dav_deleting(s, v)? {
+        Some(event) => event,
+        None => changing(s, v)?,
+    };
     let id = before.id;
     if p::date(v, "occurrence")?.is_some() && before.recurrence.is_none() {
         return Err(fail("that event doesn't repeat"));
     }
     let kept = kept_by(s, &before).is_some();
     if kept {
-        writable(s, before.calendar)?;
+        remote::writable_for_new(&s.mailbox, before.calendar)?;
     }
     // Somebody else's meeting can be declined rather than only taken out of the calendar.
     let decline = p::bool(v, "decline") == Some(true) && kept && before.origin.guest && !before.origin.id.is_empty();

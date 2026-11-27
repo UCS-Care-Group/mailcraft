@@ -476,6 +476,12 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "კალენდრის ცვლილება ჯერ ვერ გაიგზავნა და ხელახლა ვცდით: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer."
+msgstr "კალენდრის სერვერის კალენდარი აქედან იღებს შეხვედრებს, მაგრამ ჯერ არა თათბირებს: სერვერს შეუძლია თავად გაგზავნოს მოწვევები. შეინახეთ თათბირი ამ კომპიუტერის კალენდარში."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
@@ -637,6 +643,12 @@ msgstr "შეხვედრის სხვა საფოსტო ყუთ
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "შეხვედრა ერთდროულად მაქსიმუმ {n} ადამიანს გადაეგზავნება."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."
+msgstr "კალენდრის სერვერზე არსებული თათბირის წაშლა აქედან ჯერ შეუძლებელია: სერვერს შეუძლია თავად გაგზავნოს გაუქმებები."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -779,6 +791,12 @@ msgstr "სერვერთან დაცული კავშირი ვ
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
 msgstr "მითითებულია როგორც სერია, ისე მისი ერთ-ერთი დღე; არაფერი შეცვლილა."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "A series or a meeting on a calendar server can't be changed from here yet: change it on the server."
+msgstr "კალენდრის სერვერზე არსებული სერიის ან თათბირის შეცვლა აქედან ჯერ შეუძლებელია: შეცვალეთ სერვერზე."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1690,6 +1708,12 @@ msgstr "აპლიკაციის ID შედგება ასოებ�
 #, fuzzy
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
 msgstr "პირადად მონიშნული ჩანაწერი მხოლოდ იმას აჩვენებს, რომ დაკავებული ხართ. მოწვეულთა სახელები არ ჩანს."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "An appointment on a calendar server can't be moved to another calendar from here yet."
+msgstr "კალენდრის სერვერზე არსებული შეხვედრის სხვა კალენდარში გადატანა აქედან ჯერ შეუძლებელია."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11698,6 +11722,12 @@ msgstr "თარიღი"
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "Wayland-ზე ამ პარამეტრის ჩართვის შემდეგ MailCraft ხელახლა გაუშვით. საჭიროა ხელმისაწვდომი X11/XWayland სერვერი და სისტემური უჯრა."
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server."
+msgstr "კალენდრის სერვერზე აქედან ჯერჯერობით მხოლოდ შეხვედრის სათაური, დრო, ადგილი, აღწერა, შეხსენება, კატეგორიები და კონფიდენციალურობა იცვლება: დანარჩენი შეცვალეთ სერვერზე."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -11805,6 +11835,12 @@ msgstr "ადმინისტრატორის დამტკიცე�
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "როგორც კი იმუშავებს, თქვენი სისტემის ავტორიზაციის მონაცემების საცავი მას შემდეგი ჯერისთვის შეინახავს. საფოსტო ყუთში ის არასოდეს იწერება."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server."
+msgstr "კალენდრის სერვერზე არსებული სერიის ერთი დღის წაშლა აქედან ჯერ შეუძლებელია: წაშალეთ მთელი სერია, ან ეს დღე სერვერზე."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -17503,8 +17539,14 @@ msgstr "კალენდარი „{name}“ ინტერნეტში 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
-msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
-msgstr "კალენდარი \"{name}\" კალენდრის სერვერზეა: ეს ვერსია მას კითხულობს, მაგრამ ცვლილებების გაგზავნა ჯერ არ შეუძლია."
+msgid "The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet."
+msgstr "კალენდარი \"{name}\" კალენდრის სერვერზეა: ამ ვერსიას ჯერ არ შეუძლია მისთვის ამ ცვლილების გაგზავნა."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it."
+msgstr "კალენდრის სერვერზე არსებული კალენდარი \"{name}\" მხოლოდ წასაკითხია: სერვერი ამ ანგარიშს მისი შეცვლის უფლებას არ აძლევს."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -17643,6 +17685,22 @@ msgstr ""
 "კალენდარი ({name}) ახლა თქვენი კალენდრების სიაშია, რადგან გაგიზიარეს და მიიღეთ. თქვენ ის მისამართითაც გახსენით, ამიტომ ორჯერ ჩანს.\n"
 "\n"
 "წაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server didn't take \"{title}\": it is kept in a calendar on this computer."
+msgid_plural "The calendar server didn't take {n} new events: they are kept in a calendar on this computer."
+msgstr[0] "კალენდრის სერვერმა არ მიიღო \"{title}\": ის რჩება ამ კომპიუტერის კალენდარში."
+msgstr[1] "კალენდრის სერვერმა არ მიიღო {n} ახალი მოვლენა: ისინი რჩება ამ კომპიუტერის კალენდარში."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server kept \"{title}\": it was changed there, or can't be deleted from here. It is shown again."
+msgid_plural "The calendar server kept {n} events: they were changed there, or can't be deleted from here. They are shown again."
+msgstr[0] "კალენდრის სერვერმა შეინარჩუნა \"{title}\": ის იქ შეიცვალა, ან აქედან ვერ წაიშლება. ის კვლავ ჩანს."
+msgstr[1] "კალენდრის სერვერმა შეინარჩუნა {n} მოვლენა: ისინი იქ შეიცვალა, ან აქედან ვერ წაიშლება. ისინი კვლავ ჩანს."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -27757,6 +27815,10 @@ msgstr ""
 #: crates/ui-egui/src/credits.rs
 msgid "−Lines"
 msgstr ""
+
+#, fuzzy
+#~ msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+#~ msgstr "კალენდარი \"{name}\" კალენდრის სერვერზეა: ეს ვერსია მას კითხულობს, მაგრამ ცვლილებების გაგზავნა ჯერ არ შეუძლია."
 
 #, fuzzy
 #~ msgid "Read-only"

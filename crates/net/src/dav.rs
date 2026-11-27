@@ -57,7 +57,10 @@ use mailcraft_dav::http::{HttpExchange, HttpRequest, HttpResponse, Secret, Trans
 use mailcraft_dav::request::{Endpoint, Kind, MAX_MULTIGET, MAX_PAGE, RequestError};
 use mailcraft_dav::status::{self, Verdict};
 use mailcraft_model::dav_down::{MAX_CHANGES, MAX_READ, MAX_RESOURCES};
-use mailcraft_model::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavListing, DavProblem, DavRead, DavReadState, DavServer, Rgb};
+use mailcraft_model::{
+    DavAsk, DavAskCollection, DavCalendar, DavChange, DavCreated, DavDeleted, DavDownload, DavGone, DavListing, DavProblem, DavPut, DavPutOver,
+    DavRead, DavReadState, DavServer, DavUpdated, Rgb,
+};
 
 use crate::NetError;
 use crate::cert::CertificateProblem;
@@ -325,7 +328,143 @@ impl Run<'_> {
         self.skipped = self.skipped.saturating_add(u32::try_from(count).unwrap_or(u32::MAX));
     }
 
+    /// The events made here, put into their collections before anything is read (#209 D6): each
+    /// with `If-None-Match: *`, so that nothing the server has is overwritten, and never through a
+    /// redirect. The read that follows brings what the server made of them.
+    fn put_creates(&mut self, ask: &DavAsk, out: &mut DavDownload) -> Result<(), Fail> {
+        for create in ask.creates.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
+            let mut answer = DavCreated { event: create.event, ..Default::default() };
+            let (collection, name, body) = (create.collection.as_str(), create.name.as_str(), create.body.as_str());
+            let Some(site) = self.site_of(collection) else {
+                // (Off every origin of the homes: nothing goes there.)
+                self.skip(1);
+                out.created.push(answer);
+                continue;
+            };
+            let url = match self.sites.get(site).map(|s| s.anon.put_create(Kind::Calendar, collection, name, body)) {
+                Some(Ok((url, _))) => url,
+                // A name or a document no server would take as it is: it stays on this computer.
+                _ => {
+                    answer.outcome = DavPut::Refused;
+                    out.created.push(answer);
+                    continue;
+                }
+            };
+            let build = |e: &Endpoint, target: &str| {
+                if target != url {
+                    return Err(RequestError::Invalid);
+                }
+                e.put_create(Kind::Calendar, collection, name, body).map(|(_, request)| request)
+            };
+            match self.call(site, &url, &build) {
+                Ok(response) => {
+                    answer.outcome = match status::classify(&response, self.now) {
+                        Verdict::Done => DavPut::Created,
+                        Verdict::PreconditionFailed => DavPut::Exists,
+                        Verdict::Forbidden | Verdict::InsufficientStorage | Verdict::PreconditionRequired => DavPut::Refused,
+                        Verdict::Other(code) if (400..500).contains(&code) => DavPut::Refused,
+                        _ => DavPut::NotNow,
+                    };
+                    if answer.outcome == DavPut::Created {
+                        answer.etag = usable(response.header("etag"));
+                    }
+                    if matches!(answer.outcome, DavPut::Created | DavPut::Exists) {
+                        answer.href = url.clone();
+                    }
+                    out.created.push(answer);
+                }
+                Err(Fail::Stop(problem)) => {
+                    out.created.push(answer);
+                    return Err(Fail::Stop(problem));
+                }
+                Err(_) => out.created.push(answer),
+            }
+        }
+        Ok(())
+    }
+
+    /// The resources of events deleted here, deleted on the server after the creates and before
+    /// the read (#209 D6): each only while it has the ETag it was read with (`If-Match`), never
+    /// through a redirect.
+    fn deletes(&mut self, ask: &DavAsk, out: &mut DavDownload) -> Result<(), Fail> {
+        for delete in ask.deletes.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
+            let mut answer = DavDeleted { href: delete.href.clone(), ..Default::default() };
+            let (collection, href, etag) = (delete.collection.as_str(), delete.href.as_str(), delete.etag.as_str());
+            let Some(site) = self.site_of(href) else {
+                self.skip(1);
+                out.deleted.push(answer);
+                continue;
+            };
+            let build = |e: &Endpoint, target: &str| {
+                if target != href {
+                    return Err(RequestError::Invalid);
+                }
+                e.delete(collection, href, etag)
+            };
+            match self.call(site, href, &build) {
+                Ok(response) => {
+                    answer.outcome = match status::classify(&response, self.now) {
+                        Verdict::Done | Verdict::Gone => DavGone::Deleted,
+                        Verdict::PreconditionFailed => DavGone::Changed,
+                        Verdict::Forbidden | Verdict::PreconditionRequired => DavGone::Refused,
+                        Verdict::Other(code) if (400..500).contains(&code) => DavGone::Refused,
+                        _ => DavGone::NotNow,
+                    };
+                    out.deleted.push(answer);
+                }
+                Err(Fail::Stop(problem)) => {
+                    out.deleted.push(answer);
+                    return Err(Fail::Stop(problem));
+                }
+                Err(_) => out.deleted.push(answer),
+            }
+        }
+        Ok(())
+    }
+
+    /// The documents of events changed here, put over their resources after the deletes and before
+    /// the read (#209 D6): each only while it has the ETag it was read with (`If-Match`), never
+    /// through a redirect.
+    fn updates(&mut self, ask: &DavAsk, out: &mut DavDownload) -> Result<(), Fail> {
+        for update in ask.updates.iter().take(mailcraft_model::remote::MAX_EVENT_OPS) {
+            let mut answer = DavUpdated { href: update.href.clone(), ..Default::default() };
+            let (collection, href, etag, body) = (update.collection.as_str(), update.href.as_str(), update.etag.as_str(), update.body.as_str());
+            let Some(site) = self.site_of(href) else {
+                self.skip(1);
+                out.updated.push(answer);
+                continue;
+            };
+            let build = |e: &Endpoint, target: &str| {
+                if target != href {
+                    return Err(RequestError::Invalid);
+                }
+                e.put_change(Kind::Calendar, collection, href, etag, body)
+            };
+            match self.call(site, href, &build) {
+                Ok(response) => {
+                    answer.outcome = match status::classify(&response, self.now) {
+                        Verdict::Done => DavPutOver::Done,
+                        Verdict::PreconditionFailed | Verdict::Gone => DavPutOver::Conflict,
+                        Verdict::Forbidden | Verdict::InsufficientStorage | Verdict::PreconditionRequired => DavPutOver::Refused,
+                        Verdict::Other(code) if (400..500).contains(&code) => DavPutOver::Refused,
+                        _ => DavPutOver::NotNow,
+                    };
+                    out.updated.push(answer);
+                }
+                Err(Fail::Stop(problem)) => {
+                    out.updated.push(answer);
+                    return Err(Fail::Stop(problem));
+                }
+                Err(_) => out.updated.push(answer),
+            }
+        }
+        Ok(())
+    }
+
     fn work(&mut self, ask: &DavAsk, homes: &[&String], left_out: bool, out: &mut DavDownload) -> Result<(), Fail> {
+        self.put_creates(ask, out)?;
+        self.deletes(ask, out)?;
+        self.updates(ask, out)?;
         // The calendars of the homes, when they are to be listed.
         let mut found: Vec<Found> = Vec::new();
         let mut stopped = None;

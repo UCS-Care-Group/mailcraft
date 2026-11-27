@@ -828,12 +828,14 @@ fn pane_of(panes: &[PaneView], calendar: Id) -> usize {
     panes.iter().position(|pane| pane.tabs.iter().any(|tab| tab.id == calendar)).unwrap_or(0)
 }
 
-/// Whether a calendar is one the account may read and not change.
+/// Whether a calendar is one the account may read and not change. (A calendar server's calendar
+/// that takes new events is written to from here, although it is kept as read: #209 D6.)
 pub(crate) fn read_only(app: &MailApp, calendar: Id) -> bool {
+    use mailcraft_engine::cmd::remote::{dav_addable, keeper};
     let mailbox = &app.session.mailbox;
     mailbox
         .calendar(calendar)
-        .is_some_and(|c| c.is_subscribed() || (!c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some()))
+        .is_some_and(|c| c.is_subscribed() || (!c.can_edit() && keeper(mailbox, &c.origin).is_some() && !dav_addable(mailbox, calendar)))
 }
 
 /// Working in a block makes its calendar the one being worked in (where the ribbon's New

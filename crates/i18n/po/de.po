@@ -442,6 +442,12 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr "Eine Kalenderänderung konnte noch nicht gesendet werden und wird erneut versucht: {error}"
 
 #. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A calendar server's calendar takes appointments from here, not meetings yet: the server could send invitations by itself. Keep the meeting in a calendar on this computer."
+msgstr "Ein Kalender auf einem Kalenderserver nimmt von hier aus Termine an, aber noch keine Besprechungen: Der Server könnte selbst Einladungen verschicken. Legen Sie die Besprechung in einem Kalender auf diesem Computer an."
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar_extra.rs
 #, fuzzy
 msgid "A calendar that only shows when people are busy has no appointment to copy: open one of the calendars that can be read."
@@ -593,6 +599,12 @@ msgstr "Eine Besprechung kann nicht in den Kalender eines anderen Postfachs vers
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Eine Besprechung wird an höchstens {n} Personen gleichzeitig weitergeleitet."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "A meeting on a calendar server can't be deleted from here yet: the server could send cancellations by itself."
+msgstr "Eine Besprechung auf einem Kalenderserver kann von hier aus noch nicht gelöscht werden: Der Server könnte selbst Absagen verschicken."
+
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
@@ -731,6 +743,12 @@ msgstr "Es konnte keine sichere Verbindung zum Server hergestellt werden. Geben 
 #, fuzzy
 msgid "A series and one of its days are both named; nothing was changed."
 msgstr "Eine Serie und einer ihrer Tage sind beide angegeben; es wurde nichts geändert."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "A series or a meeting on a calendar server can't be changed from here yet: change it on the server."
+msgstr "Eine Serie oder Besprechung auf einem Kalenderserver kann von hier aus noch nicht geändert werden: Ändern Sie sie auf dem Server."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -1610,6 +1628,12 @@ msgstr "Eine Anwendungs-ID besteht aus Buchstaben, Ziffern, Punkten und Bindestr
 #: crates/ui-egui/src/meeting_dialogs/share.rs
 msgid "An appointment marked private shows only that you are busy. Nobody invited to anything is named."
 msgstr "Bei einem als privat gekennzeichneten Termin wird nur angezeigt, dass Sie beschäftigt sind. Es werden keine eingeladenen Personen namentlich genannt."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "An appointment on a calendar server can't be moved to another calendar from here yet."
+msgstr "Ein Termin auf einem Kalenderserver kann von hier aus noch nicht in einen anderen Kalender verschoben werden."
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -11037,6 +11061,12 @@ msgstr "Am"
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "Starten Sie MailCraft unter Wayland nach dem Aktivieren dieser Option neu. Ein erreichbarer X11-/XWayland-Server und ein Infobereich sind erforderlich."
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "On a calendar server only an appointment's title, time, location, description, reminder, categories and privacy can be changed from here yet: change the rest on the server."
+msgstr "Auf einem Kalenderserver lassen sich von hier aus bisher nur Titel, Zeit, Ort, Beschreibung, Erinnerung, Kategorien und Vertraulichkeit eines Termins ändern: Ändern Sie den Rest auf dem Server."
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "On the"
@@ -11138,6 +11168,12 @@ msgstr "Sobald ein Administrator genehmigt hat, versuchen Sie es erneut: Dann kl
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Sobald es funktioniert hat, bewahrt der Anmeldeinformationsspeicher Ihres Systems es für das nächste Mal auf. Es wird nie in das Postfach geschrieben."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar.rs
+#, fuzzy
+msgid "One day of a series on a calendar server can't be deleted from here yet: delete the whole series, or that day on the server."
+msgstr "Ein einzelner Tag einer Serie auf einem Kalenderserver kann von hier aus noch nicht gelöscht werden: Löschen Sie die ganze Serie oder diesen Tag auf dem Server."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -16553,8 +16589,14 @@ msgstr "Der Kalender „{name}“ ist eine Kopie eines Kalenders im Web: Er kann
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
-msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
-msgstr "Der Kalender \"{name}\" liegt auf einem Kalenderserver: Diese Version liest ihn, kann aber noch keine Änderungen an ihn senden."
+msgid "The calendar \"{name}\" is on a calendar server: this version can't send that change to it yet."
+msgstr "Der Kalender \"{name}\" liegt auf einem Kalenderserver: Diese Version kann ihm diese Änderung noch nicht senden."
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+#, fuzzy
+msgid "The calendar \"{name}\" on the calendar server can only be read: the server doesn't let this account change it."
+msgstr "Der Kalender \"{name}\" auf dem Kalenderserver kann nur gelesen werden: Der Server erlaubt diesem Konto keine Änderungen."
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -16685,6 +16727,22 @@ msgstr ""
 "Der Kalender von {name} ist jetzt in Ihrer Kalenderliste enthalten, weil er für Sie freigegeben und von Ihnen angenommen wurde. Sie haben ihn außerdem über seine Adresse geöffnet, sodass er doppelt vorhanden ist.\n"
 "\n"
 "Die über die Adresse geöffnete Kopie entfernen? Der andere Kalender bleibt erhalten und auf dem Server wird nichts geändert."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server didn't take \"{title}\": it is kept in a calendar on this computer."
+msgid_plural "The calendar server didn't take {n} new events: they are kept in a calendar on this computer."
+msgstr[0] "Der Kalenderserver hat \"{title}\" nicht angenommen: Der Termin bleibt in einem Kalender auf diesem Computer."
+msgstr[1] "Der Kalenderserver hat {n} neue Termine nicht angenommen: Sie bleiben in einem Kalender auf diesem Computer."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "The calendar server kept \"{title}\": it was changed there, or can't be deleted from here. It is shown again."
+msgid_plural "The calendar server kept {n} events: they were changed there, or can't be deleted from here. They are shown again."
+msgstr[0] "Der Kalenderserver hat \"{title}\" behalten: Der Termin wurde dort geändert oder kann von hier aus nicht gelöscht werden. Er wird wieder angezeigt."
+msgstr[1] "Der Kalenderserver hat {n} Termine behalten: Sie wurden dort geändert oder können von hier aus nicht gelöscht werden. Sie werden wieder angezeigt."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -26293,6 +26351,10 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Zeilen"
+
+#, fuzzy
+#~ msgid "The calendar \"{name}\" is on a calendar server: this version reads it but can't send changes to it yet."
+#~ msgstr "Der Kalender \"{name}\" liegt auf einem Kalenderserver: Diese Version liest ihn, kann aber noch keine Änderungen an ihn senden."
 
 #, fuzzy
 #~ msgid "Read-only"

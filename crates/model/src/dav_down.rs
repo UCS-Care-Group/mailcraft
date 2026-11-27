@@ -89,6 +89,154 @@ pub struct DavAsk {
     /// The account's settings were put away or changed this many times this session: handed
     /// back in the download, so that one read before an off and on again is not taken in.
     pub generation: u64,
+    /// Events made here that the server is to be given, before anything is read (D6): each is
+    /// put with `If-None-Match: *`, so that one the server has already is never overwritten.
+    pub creates: Vec<DavCreate>,
+    /// Events deleted here that the server is to delete too, after the creates and before the
+    /// read: each only while it is as it was last read (`If-Match`).
+    pub deletes: Vec<DavDelete>,
+    /// Events changed here: each document put over the resource only while it still has the
+    /// ETag it was read with (`If-Match`), after the creates and before the read.
+    pub updates: Vec<DavUpdate>,
+}
+
+/// A resource to put `body` over, only while it still has the ETag `etag`. Its `Debug` shows
+/// neither address nor document.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavUpdate {
+    pub collection: String,
+    pub href: String,
+    pub etag: String,
+    pub body: String,
+}
+
+impl std::fmt::Debug for DavUpdate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DavUpdate")
+    }
+}
+
+/// What a server made of a [`DavUpdate`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavPutOver {
+    /// It took the document.
+    Done,
+    /// It changed there since it was read (412), or is gone: the server's stays, and is read again.
+    Conflict,
+    /// It won't take it (403 and the like): the server's stays, and is read again.
+    Refused,
+    /// Not now: asked again at the next run.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavUpdate`], by its address. Its `Debug` shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavUpdated {
+    pub href: String,
+    pub outcome: DavPutOver,
+}
+
+impl std::fmt::Debug for DavUpdated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavUpdated").field("outcome", &self.outcome).finish()
+    }
+}
+
+/// A resource to delete from `collection`, only while it still has the ETag `etag`. Its `Debug`
+/// shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavDelete {
+    pub collection: String,
+    pub href: String,
+    pub etag: String,
+}
+
+impl std::fmt::Debug for DavDelete {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DavDelete")
+    }
+}
+
+/// What a server made of a [`DavDelete`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavGone {
+    /// Deleted (or it was gone already: 404, 410).
+    Deleted,
+    /// It changed there since it was read (412): it stays, and is read again.
+    Changed,
+    /// It won't delete it (403 and the like): it stays, and is read again.
+    Refused,
+    /// Not now: asked again at the next run.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavDelete`], by its address. Its `Debug` shows no address.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavDeleted {
+    pub href: String,
+    pub outcome: DavGone,
+}
+
+impl std::fmt::Debug for DavDeleted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavDeleted").field("outcome", &self.outcome).finish()
+    }
+}
+
+/// One event made here, for its calendar server: the document to put as `name` (`<name>.ics`)
+/// in `collection`. Its `Debug` shows neither address nor document.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavCreate {
+    pub event: Id,
+    pub collection: String,
+    pub name: String,
+    pub body: String,
+}
+
+impl std::fmt::Debug for DavCreate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavCreate").field("event", &self.event).finish()
+    }
+}
+
+/// What a server made of a [`DavCreate`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DavPut {
+    /// It took the document (201, 204).
+    Created,
+    /// It has one under that name already (412): a put of this event that went before.
+    Exists,
+    /// It won't take it (403, 409, 413, 507 and the like): asking again won't help.
+    Refused,
+    /// Not now (no answer, a server error, the run's limits): it is asked again.
+    #[default]
+    NotNow,
+}
+
+/// The answer to one [`DavCreate`]: where the resource is and its ETag (empty: none given).
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DavCreated {
+    pub event: Id,
+    pub href: String,
+    pub etag: String,
+    pub outcome: DavPut,
+}
+
+impl std::fmt::Debug for DavCreated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DavCreated").field("event", &self.event).field("outcome", &self.outcome).finish()
+    }
 }
 
 impl std::fmt::Debug for DavAsk {
@@ -238,6 +386,12 @@ pub struct DavDownload {
     /// Addresses of the server's that were left unread: off its origin, or not inside the
     /// collection they were named under.
     pub skipped: u32,
+    /// What became of the events the request gave to be made there ([`DavAsk::creates`]).
+    pub created: Vec<DavCreated>,
+    /// What became of the resources the request gave to be deleted ([`DavAsk::deletes`]).
+    pub deleted: Vec<DavDeleted>,
+    /// What became of the documents the request gave to be put over ([`DavAsk::updates`]).
+    pub updated: Vec<DavUpdated>,
 }
 
 impl std::fmt::Debug for DavDownload {
