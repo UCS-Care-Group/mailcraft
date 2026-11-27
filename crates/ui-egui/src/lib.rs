@@ -1664,6 +1664,8 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The owner opened this forward and has yet to type its recipients.
+    pub(crate) recipient_focus_wanted: Option<u64>,
     /// The signature open in File › Signatures is to take the keyboard back at its next frame,
     /// after its formatting bar or the Link dialog changed its text (#1552).
     pub(crate) signature_focus_wanted: bool,
@@ -2055,6 +2057,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            recipient_focus_wanted: None,
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
@@ -2548,6 +2551,15 @@ impl MailApp {
         // And closing a conversation, which may select its row (#503).
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
+        }
+        // The owner's forward is ready for its recipients, including when the
+        // control that opened it still has the keyboard.
+        if !self.driven
+            && self.session.agent.is_none()
+            && matches!(id, "mail.forward" | "mail.forwardAsAttachment")
+            && let Ok(answer) = &r
+        {
+            self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()

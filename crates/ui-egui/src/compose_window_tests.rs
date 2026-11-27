@@ -868,3 +868,42 @@ fn an_agents_pop_out_opens_behind() {
     assert_ne!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(w));
     assert_eq!(h.state().session.compose_id(), Some(mine));
 }
+
+#[test]
+fn forwarding_starts_with_the_keyboard_in_to_inline_and_in_its_own_window() {
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        for own_window in [false, true] {
+            let mut a = app();
+            a.execute("ui.theme", json!({"value": if own_window { "dark" } else { "light" }})).unwrap();
+            a.ui.replies_in_window = own_window;
+            let message = a.session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+            let mut h = window(a);
+            // Search can still own focus when a ribbon or reading-pane control opens a forward.
+            owner(&mut h, "ui.focusSearch", json!({}));
+            let compose = owner(&mut h, command, json!({"id": message}))["compose"].as_u64().unwrap();
+            type_text(&mut h, "forward-recipient@example.org");
+            let c = h.state().session.composing_by_id(compose).unwrap();
+            assert_eq!(c.to, "forward-recipient@example.org", "{command}, own window: {own_window}");
+            assert!(!c.body.plain().contains("forward-recipient@example.org"));
+            // The initial request is consumed, so choosing the body keeps typing there.
+            into_body(&mut h, compose);
+            type_text(&mut h, "Body text");
+            assert_eq!(h.state().session.composing_by_id(compose).unwrap().to, "forward-recipient@example.org");
+            assert!(text_of(&h, compose).contains("Body text"));
+            if let Ok(dir) = std::env::var("MAILCRAFT_SHOTS_DIR") {
+                h.render().unwrap().save(std::path::Path::new(&dir).join(format!("forward-to-{command}-{own_window}.png"))).unwrap();
+            }
+        }
+    }
+}
+#[test]
+fn forwarding_from_a_message_window_starts_with_the_keyboard_in_to() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let compose = h.state().session.all_composing().find(|compose| compose.source == Some(message)).unwrap().id;
+    type_text(&mut h, "forward-recipient@example.org");
+    assert_eq!(h.state().session.composing_by_id(compose).unwrap().to, "forward-recipient@example.org");
+}
