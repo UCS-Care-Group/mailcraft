@@ -344,14 +344,20 @@ fn chars_of(v: &BlockView) -> usize {
     v.spans.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()))
 }
 
+/// A space a piece may end after: not a line break (a break of its own) nor a no-break space.
+fn breaks_line(c: char) -> bool {
+    c.is_whitespace() && !matches!(c, '\n' | '\u{A0}' | '\u{2007}' | '\u{202F}')
+}
+
 /// Where to end a piece within `head` (the most one may still take), at a line break or after a
 /// space: the byte it ends at and the byte the next starts at. A line break goes (the next block
-/// starts the line); a space stays. None when `head` has neither.
+/// starts the line); a space stays. A line break `head` starts with is not one: it is the blank
+/// line the piece starts with. None when `head` has neither.
 fn break_in(head: &str) -> Option<(usize, usize)> {
-    if let Some(i) = head.rfind('\n') {
+    if let Some(i) = head.rfind('\n').filter(|&i| i > 0) {
         return Some((i, i.saturating_add(1)));
     }
-    head.char_indices().rev().find(|(_, c)| c.is_whitespace()).map(|(i, c)| {
+    head.char_indices().rev().find(|(_, c)| breaks_line(*c)).map(|(i, c)| {
         let at = i.saturating_add(c.len_utf8());
         (at, at)
     })
@@ -420,28 +426,39 @@ fn whole_at(text: &str, at: usize) -> usize {
 /// Where the piece that starts at byte `from` of `text` (the block's spans joined) ends, and where
 /// the next starts; None when the rest is one piece. At its last line break or space, unless what
 /// follows that is a word longer than a piece (that word is cut where the room ends, rather than
-/// leave a few words alone); else, a word longer than a piece, between two letters.
+/// leave a few words alone); else, a word longer than a piece, between two letters. One line break
+/// at the cut goes with it (the next block starts the line); a piece may start with others.
 fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
     let rest = text.get(from..)?;
     let at = rest.char_indices().nth(MAX_BLOCK_CHARS)?.0;
-    let broken = rest.get(..at).and_then(break_in).filter(|&(_, resume)| {
-        rest.get(resume..).is_some_and(|after| match after.char_indices().nth(MAX_BLOCK_CHARS) {
-            None => true,
-            Some((n, _)) => after.get(..n).and_then(break_in).is_some(),
-        })
-    });
+    // Whether a piece from `after` on finds a break: a word of a whole piece, and the space after it.
+    let breaks = |after: &str| match after.char_indices().nth(MAX_BLOCK_CHARS.saturating_add(1)) {
+        None => true,
+        Some((n, _)) => after.get(..n).and_then(break_in).is_some(),
+    };
+    let broken = rest.get(..at).and_then(break_in).filter(|&(_, resume)| rest.get(resume..).is_some_and(breaks));
     let (end, resume) = match broken {
-        // After a space: not before a mark that belongs to it.
-        Some((end, resume)) if end == resume => (whole_at(rest, end), whole_at(rest, end)),
-        Some(cut) => cut,
-        None => {
-            let cut = whole_at(rest, at);
-            // A line break right before the cut goes, as at any line break: the next block starts the line.
-            let end = if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) { cut.saturating_sub(1) } else { cut };
-            (end, cut)
+        Some((end, resume)) if end < resume => (end, resume),
+        // After a space, or between two letters: not before a mark that belongs to the letter before.
+        found => {
+            let cut = whole_at(rest, found.map_or(at, |(end, _)| end));
+            // A line break right at the cut goes, as at any line break: the next block starts the line.
+            if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) && cut > 1 {
+                (cut.saturating_sub(1), cut)
+            } else if rest.get(cut..).is_some_and(|t| t.starts_with('\n')) {
+                (cut, cut.saturating_add(1))
+            } else {
+                (cut, cut)
+            }
         }
     };
     Some((from.saturating_add(end), from.saturating_add(resume)))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many spans [`spans_in`] has looked at: what pins its one pass in a test.
+    pub(crate) static SPANS_LOOKED_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// What of `spans` (each starting at its byte of `starts` in the joined text) lies in `from..end`:
@@ -452,7 +469,11 @@ fn spans_in(spans: &[SpanView], starts: &[usize], from: usize, end: usize) -> Ve
         .iter()
         .zip(starts)
         .skip(first)
-        .take_while(|(_, start)| **start < end)
+        .take_while(|(_, start)| {
+            #[cfg(test)]
+            SPANS_LOOKED_AT.with(|n| n.set(n.get().saturating_add(1)));
+            **start < end
+        })
         .filter_map(|(s, &start)| {
             let a = from.max(start).saturating_sub(start);
             let b = end.min(start.saturating_add(s.text.len())).saturating_sub(start);
@@ -464,8 +485,8 @@ fn spans_in(spans: &[SpanView], starts: &[usize], from: usize, end: usize) -> Ve
 /// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each, cut where [`next_cut`] says, the
 /// cuts seen across its spans; each piece after the first taken from `budget` (past it the rest is
 /// left out, as with any block). The first piece with text is `v`'s own, with its room above and its
-/// marker; the others go on under it. A line break the block ends with makes no piece of its own
-/// (the block's own break stands for it); blank lines between pieces are kept.
+/// marker; the others go on under it. Of the line breaks, only one at a cut goes (the break between
+/// two blocks stands for it); every other is kept, blank lines between pieces and at either end.
 fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
     if !is_text(&v.kind) || chars_of(&v) <= MAX_BLOCK_CHARS {
         return vec![v];
@@ -494,8 +515,7 @@ fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
     while from < text.len() {
         let (end, resume) = next_cut(&text, from).unwrap_or((text.len(), text.len()));
         let piece = spans_in(&spans, &starts, from, end);
-        let trailing = resume >= text.len() && piece.iter().all(|s| s.text.chars().all(|c| c == '\n'));
-        if !piece.is_empty() && !(trailing && !out.is_empty()) {
+        if !piece.is_empty() {
             if !out.is_empty() && !budget.take() {
                 return out;
             }

@@ -205,11 +205,35 @@ fn texts(views: &[BlockView]) -> Vec<String> {
 
 #[test]
 fn blank_lines_the_sender_wrote_between_pieces_are_kept() {
+    let a = "a".repeat(MAX_BLOCK_CHARS - 1);
+    let words = "word ".repeat(1_000);
     for kind in [BlockKind::Paragraph, BlockKind::Preformatted] {
-        let text = format!("{}\n\n\n{}", "a".repeat(MAX_BLOCK_CHARS - 1), "word ".repeat(1_000));
-        let joined = texts(&of(&[Block::new(kind.clone(), vec![Span::plain(&text)])])).join("\n");
-        // A piece's own break stands for one line break; the other two are kept.
-        assert!(joined.starts_with(&format!("{}\n\n\nword", "a".repeat(MAX_BLOCK_CHARS - 1))), "{kind:?}");
+        let of_text = |text: String| texts(&of(&[Block::new(kind.clone(), vec![Span::plain(&text)])]));
+        // A piece's own break stands for one line break at a cut there; the others are kept.
+        for breaks in ["\n\n\n", "\n\n"] {
+            let joined = of_text(format!("{a}{breaks}{words}")).join("\n");
+            assert!(joined.starts_with(&format!("{a}{breaks}word")), "{kind:?} {breaks:?}");
+        }
+        // A block that starts with a blank line keeps it.
+        assert!(of_text(format!("\n{words}")).first().is_some_and(|t| t.starts_with("\nword")), "{kind:?}");
+        // Of the line breaks a block ends with, the cut takes one; the rest stand.
+        let all = of_text(format!("{}\n\n\n", "a".repeat(MAX_BLOCK_CHARS)));
+        assert_eq!(all.iter().map(String::as_str).collect::<Vec<_>>(), [&"a".repeat(MAX_BLOCK_CHARS) as &str, "\n\n"], "{kind:?}");
+    }
+}
+
+#[test]
+fn a_word_of_exactly_a_block_is_kept_whole() {
+    let x = "x".repeat(MAX_BLOCK_CHARS);
+    let all = texts(&of(&[paragraph(&format!("c d e {x} {}", "word ".repeat(10)))]));
+    assert!(all.iter().any(|t| t.trim() == x), "{:?}", all.iter().map(String::len).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_piece_never_ends_at_a_no_break_space() {
+    for nbsp in ['\u{A0}', '\u{2007}', '\u{202F}'] {
+        let all = texts(&of(&[paragraph(&format!("{}{nbsp}{}", "a".repeat(3_000), "b".repeat(2_000)))]));
+        assert!(all.len() > 1 && all.iter().all(|t| !t.ends_with(nbsp)), "{nbsp:?}");
     }
 }
 
@@ -307,9 +331,13 @@ fn a_line_break_at_a_cut_before_a_long_word_ends_no_piece() {
 
 #[test]
 fn a_block_of_many_short_spans_is_cut_in_one_pass() {
-    // 50,000 spans of 20 characters: every piece looks only at the spans it holds.
+    // 50,000 spans of 20 characters: every piece looks only at the spans it holds, so the spans
+    // looked at are about as many as there are, not as many for each piece.
     let spans: Vec<Span> = (0..50_000).map(|_| Span::plain("abcdefghij klmnopqrs")).collect();
+    crate::blocks::SPANS_LOOKED_AT.with(|n| n.set(0));
     let views = of(&[Block::new(BlockKind::Paragraph, spans)]);
+    let looked = crate::blocks::SPANS_LOOKED_AT.with(std::cell::Cell::get);
     assert!(views.iter().all(|v| chars(v) <= MAX_BLOCK_CHARS));
     assert!(views.len() > 1);
+    assert!(looked <= 50_000 + 2 * views.len(), "{looked} spans looked at for {} pieces", views.len());
 }
