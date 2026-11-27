@@ -34,6 +34,7 @@ const FIELD_URIS: &[&str] = &[
     "item:Size",
     "message:InternetMessageId",
     "item:HasAttachments",
+    "item:IsDraft",
     "item:Attachments",
 ];
 
@@ -345,29 +346,31 @@ impl State {
         let element = item.element.as_str();
         let mut xml = format!("<t:{element}><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/>", escape(id), escape(&item.change_key));
         let wants = |uri: &str| extra.iter().any(|e| e == uri);
+        // A property as its element, by the name it is asked for by.
+        let named = |uri: &str| -> String {
+            match uri {
+                "item:Subject" => format!("<t:Subject>{}</t:Subject>", escape(&item.subject)),
+                "item:DateTimeReceived" => format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received),
+                "item:Size" => format!("<t:Size>{}</t:Size>", item.mime.len()),
+                "item:Importance" => format!("<t:Importance>{}</t:Importance>", item.importance),
+                "item:DateTimeSent" => format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent),
+                "item:HasAttachments" => format!("<t:HasAttachments>{}</t:HasAttachments>", item.attachments),
+                "item:IsDraft" => format!("<t:IsDraft>{}</t:IsDraft>", item.draft),
+                "message:From" => people("From", std::slice::from_ref(&item.from)),
+                "message:InternetMessageId" => format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)),
+                "message:IsRead" => format!("<t:IsRead>{}</t:IsRead>", item.read),
+                _ => String::new(),
+            }
+        };
+        // Those of `uris` that are asked for.
+        let asked = |xml: &mut String, uris: &[&str]| uris.iter().copied().filter(|uri| wants(*uri)).for_each(|uri| xml.push_str(&named(uri)));
         if shape != "IdOnly" && element != "Message" {
             // A meeting's message, as Exchange Server 2019 gives it in the `Default` shape: its
             // times, size, sender, importance and `Message-ID` only when they are asked for.
             xml.push_str(&format!("<t:Subject>{}</t:Subject><t:Sensitivity>Normal</t:Sensitivity>", escape(&item.subject)));
-            if wants("item:DateTimeReceived") {
-                xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
-            }
-            if wants("item:Size") {
-                xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
-            }
-            if wants("item:Importance") {
-                xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
-            }
-            if wants("item:DateTimeSent") {
-                xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
-            }
+            asked(&mut xml, &["item:DateTimeReceived", "item:Size", "item:Importance", "item:DateTimeSent"]);
             xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments><t:IsAssociated>false</t:IsAssociated>", item.attachments));
-            if wants("message:From") {
-                xml.push_str(&people("From", std::slice::from_ref(&item.from)));
-            }
-            if wants("message:InternetMessageId") {
-                xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
-            }
+            asked(&mut xml, &["message:From", "message:InternetMessageId"]);
             xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
             if element == "MeetingRequest" {
                 xml.push_str(&people("Organizer", std::slice::from_ref(&item.from)));
@@ -389,33 +392,21 @@ impl State {
             xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId><t:IsRead>{}</t:IsRead>", escape(&item.message_id), item.read));
         } else {
             // `IdOnly`: what is asked for by name, and nothing else.
-            if wants("item:Subject") {
-                xml.push_str(&format!("<t:Subject>{}</t:Subject>", escape(&item.subject)));
-            }
-            if wants("item:DateTimeReceived") {
-                xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
-            }
-            if wants("item:Size") {
-                xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
-            }
-            if wants("item:Importance") {
-                xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
-            }
-            if wants("item:DateTimeSent") {
-                xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
-            }
-            if wants("item:HasAttachments") {
-                xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments>", item.attachments));
-            }
-            if wants("message:From") {
-                xml.push_str(&people("From", std::slice::from_ref(&item.from)));
-            }
-            if wants("message:InternetMessageId") {
-                xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
-            }
-            if wants("message:IsRead") {
-                xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
-            }
+            asked(
+                &mut xml,
+                &[
+                    "item:Subject",
+                    "item:DateTimeReceived",
+                    "item:Size",
+                    "item:Importance",
+                    "item:DateTimeSent",
+                    "item:HasAttachments",
+                    "item:IsDraft",
+                    "message:From",
+                    "message:InternetMessageId",
+                    "message:IsRead",
+                ],
+            );
         }
         if wants("message:ToRecipients") {
             xml.push_str(&people("ToRecipients", &item.to));

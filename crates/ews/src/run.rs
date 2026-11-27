@@ -655,6 +655,9 @@ impl<E: HttpExchange> Run<'_, E> {
             self.shape = Shape::Bare;
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
+        // The shape this folder's listing stepped down from to the ids alone, until a page is read
+        // so: a page that can't be taken in that way either goes back to it.
+        let mut stepped_from: Option<Shape> = None;
         for _ in 0..MAX_PAGES {
             let op = SyncFolderItems::new(folder, &state, PAGE, self.shape);
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
@@ -670,9 +673,18 @@ impl<E: HttpExchange> Run<'_, E> {
                 // anything else is asked for with it): the ids alone, then each item's list fields.
                 // Nothing of the page was taken in, so the same state is asked again.
                 Err(Asked::Unreadable) if self.shape != Shape::Ids => {
+                    stepped_from = Some(self.shape);
                     self.shape = Shape::Ids;
                     log::info!("ews mail: a folder's changes came without their ids; asking for the ids, then each message");
                     continue;
+                }
+                // The ids alone didn't make the page readable either (a page larger than is taken
+                // in, say): the other folders are read in the shape they were.
+                Err(Asked::Unreadable) if stepped_from.is_some() => {
+                    if let Some(before) = stepped_from.take() {
+                        self.shape = before;
+                    }
+                    return Err(Asked::Unreadable);
                 }
                 Err(Asked::Code(ResponseCode::InvalidSyncState)) if !lost => {
                     (state, afresh, lost) = (String::new(), true, true);
@@ -701,6 +713,7 @@ impl<E: HttpExchange> Run<'_, E> {
             let mut messages = page.messages;
             if self.shape == Shape::Ids {
                 self.listed(&mut messages).await?;
+                stepped_from = None;
             }
             self.recipients(&mut messages).await?;
             messages.iter_mut().for_each(|m| m.server.folder = folder.to_owned());
@@ -735,41 +748,31 @@ impl<E: HttpExchange> Run<'_, E> {
 
 impl<E: HttpExchange> Run<'_, E> {
     /// What a list shows of `messages` that came as ids alone ([`Shape::Ids`]), asked with
-    /// `GetItem` ([`GetItemListed`]) and put in their place. What stops the run stops it here too
-    /// (the page is then not taken in, and is read again); a message the server didn't answer for
-    /// stays as its id, marked as cut ([`GraphMessage::cut`]), and is read whole when opened.
-    async fn listed(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
-        let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
+    /// `GetItem` ([`GetItemListed`]) and put in their place. A message the server says is gone
+    /// since it was listed is left out (the folder's next changes say it is deleted). Any other the
+    /// server didn't answer for holds the page back, so that it is read again: kept as its id
+    /// alone, it would read as a message with nothing set, over what is kept of it (its read state,
+    /// flag, categories). What stops the run stops it here too.
+    async fn listed(&mut self, messages: &mut Vec<GraphMessage>) -> Result<(), Asked> {
         let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).collect();
-        let mut answered = vec![false; messages.len()];
+        let mut found: HashMap<String, GraphMessage> = HashMap::new();
+        let mut gone: HashSet<String> = HashSet::new();
         for some in ids.chunks(MAX_LISTED_ASKED) {
             let op = GetItemListed::new(some);
             if op.is_empty() {
                 continue;
             }
-            match self.ask(&op.element(), &|reply| op.answer(reply)).await {
-                Ok(found) => {
-                    for one in found {
-                        let Some(&n) = at.get(&one.server.id) else { continue };
-                        if let Some(message) = messages.get_mut(n) {
-                            *message = one;
-                        }
-                        if let Some(answer) = answered.get_mut(n) {
-                            *answer = true;
-                        }
-                    }
-                }
-                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
-                Err(_) => {}
-            }
+            let listed = self.ask(&op.element(), &|reply| op.answer(reply)).await?;
+            gone.extend(listed.gone);
+            found.extend(listed.messages.into_iter().map(|m| (m.server.id.clone(), m)));
         }
-        let mut short = false;
-        for (message, _) in messages.iter_mut().zip(&answered).filter(|(_, answered)| !**answered) {
-            message.cut = true;
-            short = true;
-        }
-        if short {
-            log::info!("ews mail: the server didn't give what a list shows of some messages; they are listed by their ids");
+        messages.retain(|m| !gone.contains(&m.server.id));
+        for message in messages.iter_mut() {
+            let Some(whole) = found.remove(&message.server.id) else {
+                log::info!("ews mail: the server didn't give what a list shows of a message; the folder is read again later");
+                return Err(Asked::Bad);
+            };
+            *message = whole;
         }
         Ok(())
     }

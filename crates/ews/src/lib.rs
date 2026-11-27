@@ -140,7 +140,7 @@ pub use error::{Error, PolicyReason, ResponseClass, ResponseCode};
 pub use folder::{DistinguishedFolder, FolderId, FolderInfo, GetFolder};
 pub use hierarchy::{HierarchyPage, SyncFolderHierarchy};
 pub use http::{EndpointError, HttpExchange, HttpRequest, HttpResponse, Method, Secret, TransportError};
-pub use items::{GetItemListed, GetItemMime, GetItemRecipients, ItemsPage, Recipients, Shape, SyncFolderItems};
+pub use items::{GetItemListed, GetItemMime, GetItemRecipients, ItemsPage, Listed, Recipients, Shape, SyncFolderItems};
 pub use ntlm::{Credentials as NtlmCredentials, NtlmError};
 pub use reply::{Message, Reply};
 pub use resolve::{Candidate, RecipientKind, ResolveNames, Resolved};
