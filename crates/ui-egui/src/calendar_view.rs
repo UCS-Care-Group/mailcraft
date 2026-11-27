@@ -115,7 +115,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     if app.session.view.folder_pane {
         side_pane(app, ui);
     }
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
+    let main = egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(true))).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         let mut frame = Frame::begin(ui);
         header(app, ui);
@@ -157,6 +157,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             d.insert_temp(egui::Id::unique(KEYS_ID), free);
         });
     });
+    crate::nav::sheet_right(ui.painter(), main.response.rect, &t, true);
 }
 
 // ---- pure parts ----
@@ -1144,14 +1145,9 @@ impl Blocks {
 
 fn side_pane(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let width = if app.ui.folder_pane_width.is_finite() { app.ui.folder_pane_width.clamp(200.0, 360.0) } else { 230.0 };
-    let panel = egui::Panel::left("calendar_side")
-        .default_size(width)
-        .size_range(200.0..=360.0)
-        .resizable(true)
-        .frame(egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)));
-    panel.show(ui, |ui| {
-        crate::nav::module_foot(app, ui);
+    let panel = crate::nav::side_panel(app).show_separator_line(t.pane_rule).frame(egui::Frame::NONE.fill(t.canvas));
+    let shown = panel.show(ui, |ui| {
+        crate::nav::left_sheet(app, ui, &t, t.panel);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         // As many months as the pane has room for over the list of calendars; one at the least.
         let groups = calendar_groups(app);
@@ -1174,6 +1170,7 @@ fn side_pane(app: &mut MailApp, ui: &mut Ui) {
             ui.add_space(8.0);
         });
     });
+    crate::nav::keep_side_width(app, shown.response.rect);
 }
 
 /// Days being dragged over in the date navigator: from the one the drag began on to the one

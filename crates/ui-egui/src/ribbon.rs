@@ -2795,7 +2795,8 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
         Mode::Classic => (CONTENT_H + LABEL_H + 10.0, 4.0),
         Mode::Simplified => (sizes.band, (sizes.band - sizes.button) / 2.0),
     };
-    let margin = egui::Margin { left: 8, right: (16.0 + MODE_W) as i8, top: (edge + sizes.top_gap) as i8, bottom: (edge + sizes.sheet_gap) as i8 };
+    // (The sheet keeps the same gap from the window's edge at the left as at the right: 8.)
+    let margin = egui::Margin { left: 16, right: (16.0 + MODE_W) as i8, top: (edge + sizes.top_gap) as i8, bottom: (edge + sizes.sheet_gap) as i8 };
     egui::Panel::top(id)
         .exact_size(height + sizes.top_gap + sizes.sheet_gap)
         .show_separator_line(false)

@@ -40,13 +40,15 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
     keep_picked(app);
-    let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
-    let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
-        crate::nav::module_foot(app, ui);
+    let side = crate::nav::side_panel(app).show_separator_line(t.pane_rule).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+        crate::nav::left_sheet(app, ui, &t, t.surface);
         list(app, ui, &layout);
     });
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui, layout.total));
+    crate::nav::keep_side_width(app, side.response.rect);
+    let shown = egui::CentralPanel::default()
+        .frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(true)))
+        .show(ui, |ui| card(app, ui, layout.total));
+    crate::nav::sheet_right(ui.painter(), shown.response.rect, &t, true);
 }
 
 /// The contacts picked together are those still there and in the list, and only while the
