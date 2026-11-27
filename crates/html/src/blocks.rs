@@ -722,8 +722,9 @@ struct RowBuild {
     valign: Option<VAlign>,
     /// At [`MAX_TABLE_COLUMNS`]: the last cell takes what follows.
     full: bool,
-    /// Hidden, or inside what is: left out, with its cells.
-    unseen: bool,
+    /// Not there at all (`display: none`, `hidden`): left out, with its cells. A row hidden in
+    /// its place keeps it, its cells held ([`Cell::held`]).
+    gone: bool,
 }
 
 #[derive(Debug)]
@@ -1152,7 +1153,8 @@ impl Builder {
             return;
         }
         if self.style().tiny {
-            if self.style().tiny_some {
+            // (White space alone draws no line in a browser; a no-break space does.)
+            if self.style().tiny_some && raw.chars().any(|c| !c.is_ascii_whitespace()) {
                 // (The cell it is in is a divider of a pixel, when it holds nothing else.)
                 let cell = self.nodes.iter_mut().rev().take_while(|n| !matches!(n.kind, Kind::Table(_))).find_map(|n| match &mut n.kind {
                     Kind::Cell(cell) => Some(cell),
@@ -2035,8 +2037,9 @@ impl Builder {
     }
 
     fn end_row(&mut self, row: RowBuild) {
-        // (A hidden row shows nothing: not even its place in a grid kept for the composer.)
-        if row.unseen {
+        // (A row that is not there shows nothing, not even its place in a grid kept for the
+        // composer; one hidden in its place keeps it, its cells held.)
+        if row.gone {
             return;
         }
         let mut cells = row.cells;
@@ -2344,7 +2347,7 @@ impl Builder {
         let background =
             css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
-        let row = RowBuild { cells: Vec::new(), background, valign, full: false, unseen };
+        let row = RowBuild { cells: Vec::new(), background, valign, full: false, gone: css.display_none || tag.has("hidden") };
         if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -2375,7 +2378,7 @@ impl Builder {
                 }
                 if !self.push_node(
                     "",
-                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false, unseen: false }),
+                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false, gone: false }),
                     Delta::default(),
                     false,
                 ) {

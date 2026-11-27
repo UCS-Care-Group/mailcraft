@@ -206,6 +206,9 @@ fn a_divider_cell_given_no_room_is_still_a_pixel() {
     assert_eq!(bar_of("<table><tr bgcolor=#ccc><td style='padding:0'></td><td>x</td></tr></table>"), Some((top(0), grey, 0)));
     let none = "<table cellpadding=0><tr><td bgcolor=#ccc style='font-size:0;line-height:0'>&nbsp;</td><td>x</td></tr></table>";
     assert_eq!(bar_of(none), Some((top(0), grey, 0)));
+    // Only white space at a size of some: a browser draws no line for it either.
+    let space = "<table><tr><td bgcolor=#ccc style='font-size:1px;padding:0'>\n \t</td><td>x</td></tr></table>";
+    assert_eq!(bar_of(space), Some((top(0), grey, 0)));
     // Room given, or none said (the reader's own band): as it was.
     assert_eq!(bar_of("<table cellpadding=2><tr><td bgcolor=#ccc></td></tr></table>"), Some((all(2), grey, 0)));
     assert_eq!(bar_of("<table><tr><td bgcolor=#ccc></td></tr></table>"), Some((None, grey, 0)));
@@ -247,6 +250,14 @@ fn a_cell_hidden_but_in_its_place_keeps_its_column() {
     let html =
         "<table border=1><tr><td rowspan=2>A</td><td>B</td></tr><tr><td style='visibility:hidden'>X</td></tr><tr><td>C</td><td>D</td></tr></table>";
     assert_eq!(grid(html), [vec!["A", "B"], vec!["-"], vec!["C", "D"]]);
+    // A row hidden in its place keeps it too, under a row span and with one of its own.
+    let html =
+        "<table border=1><tr><td rowspan=2>N</td><td>a</td></tr><tr style='visibility:hidden'><td>b</td></tr><tr><td>X</td><td>Y</td></tr></table>";
+    assert_eq!(grid(html), [vec!["N", "a"], vec!["-"], vec!["X", "Y"]]);
+    let html = "<table border=1><tr><td>a</td><td>b</td></tr><tr style='opacity:0'><td rowspan=2>h</td><td>c</td></tr><tr><td>X</td></tr></table>";
+    assert_eq!(grid(html), [vec!["a", "b"], vec!["-", "-"], vec!["X"]]);
+    let blocks = parse(html);
+    assert_eq!(table(&blocks).rows.get(1).and_then(|r| r.cells.first()).map(|c| (c.rowspan, c.held)), Some((2, true)));
     // A table all of whose cells are hidden shows nothing.
     assert_eq!(parse("<table><tr><td style='visibility:hidden'>x</td></tr></table><p>After</p>").len(), 1);
     // A row span keeps its rows too.
