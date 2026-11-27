@@ -95,46 +95,69 @@ internal fun placeBoxes(
 private fun BlockView.box(): TableView? = (kind as? BlockKindView.Table)?.table
 
 /**
- * How boxes on a line are measured and placed: by [placeBoxes]. Asked for its height at a width (a row
- * of a table with colour sizes its cells so), it answers from the boxes' own widths, not the whole
- * width a stand-in for each would report.
+ * How boxes on a line, or the pictures and text of one line, are measured and placed: by [placeBoxes],
+ * each [gapsDp] after the one before it and [lineGapDp] between lines. Each is as wide as it says it
+ * is at most, within the line, as the desktop's `boxes_line` draws a box that does not say its width,
+ * and is placed by that width: so asked for its height at a width (a row of a table with colour sizes
+ * its cells so), it answers with the lines the measure makes there (#1966).
  */
-private class BoxesPolicy(
-    val gapsDp: List<Int>,
-    val right: List<Boolean>,
-    val align: AlignView,
-    val floats: Boolean,
+internal class BoxesPolicy(
+    private val gapsDp: List<Int>,
+    private val right: List<Boolean>,
+    private val align: AlignView,
+    private val floats: Boolean,
+    private val lineGapDp: Float = RUN_GAP,
 ) : MeasurePolicy {
+    /** How wide each of [measurables] stands in a line [room] px wide: what it says, within the line. */
+    private fun widthsIn(measurables: List<IntrinsicMeasurable>, room: Int): List<Int> =
+        measurables.map { intrinsic(room) { it.maxIntrinsicWidth(MAX_BOX_HEIGHT) }.coerceIn(0, room) }
+
+    /** The room of a line [given] px wide: past the most a box is, or unbounded, the boxes side by side. */
+    private fun IntrinsicMeasureScope.roomOf(measurables: List<IntrinsicMeasurable>, given: Int): Int =
+        if (given in 0..MAX_BOX_WIDTH) {
+            given
+        } else {
+            boxesWidth(widthsIn(measurables, MAX_BOX_WIDTH), gaps()).coerceAtMost(MAX_BOX_WIDTH)
+        }
+
+    private fun IntrinsicMeasureScope.gaps() = gapsDp.map { it.dp.roundToPx() }
+
+    /** The tops of the lines of boxes at [spots], [heights] high, and the height of them all. */
+    private fun IntrinsicMeasureScope.lines(spots: List<Pair<Int, Int>>, heights: List<Int>) =
+        lineTops(lineHeights(spots, heights), lineGapDp.dp.roundToPx())
+
     override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
-        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
-        val widths = placeables.map { it.width }
-        val gaps = gapsDp.map { it.dp.roundToPx() }
-        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else boxesWidth(widths, gaps)
-        val spots = placeBoxes(widths, gaps, right, room, align, floats)
-        val (tops, height) = lineTops(lineHeights(spots, placeables.map { it.height }), RUN_GAP.dp.roundToPx())
+        val room = roomOf(measurables, if (constraints.hasBoundedWidth) constraints.maxWidth else -1)
+        val widths = widthsIn(measurables, room)
+        val placeables = measurables.mapIndexed { n, m ->
+            m.measure(Constraints(0, widths.getOrElse(n) { 0 }, 0, constraints.maxHeight))
+        }
+        val spots = placeBoxes(widths, gaps(), right, room, align, floats)
+        val (tops, height) = lines(spots, placeables.map { it.height })
         val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
         return layout(w, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
-            spots.forEachIndexed { n, (x, l) -> placeables[n].place(x, tops[l]) }
+            spots.forEachIndexed { n, (x, l) -> placeables.getOrNull(n)?.place(x, tops.getOrElse(l) { 0 }) }
         }
     }
 
     private fun IntrinsicMeasureScope.heightAt(measurables: List<IntrinsicMeasurable>, width: Int, max: Boolean): Int {
-        val room = width.coerceIn(0, MAX_LAYOUT_SIZE)
-        val widths = measurables.map { it.maxIntrinsicWidth(MAX_BOX_HEIGHT).coerceIn(0, room) }
+        val room = roomOf(measurables, width)
+        val widths = widthsIn(measurables, room)
         val heights = measurables.mapIndexed { n, m ->
-            val h = if (max) m.maxIntrinsicHeight(widths[n]) else m.minIntrinsicHeight(widths[n])
-            h.coerceIn(0, MAX_LAYOUT_SIZE)
+            val w = widths.getOrElse(n) { 0 }
+            intrinsic(MAX_BOX_HEIGHT) { if (max) m.maxIntrinsicHeight(w) else m.minIntrinsicHeight(w) }
+                .coerceIn(0, MAX_STACK)
         }
-        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
-        return lineTops(lineHeights(spots, heights), RUN_GAP.dp.roundToPx()).second
+        return lines(placeBoxes(widths, gaps(), right, room, align, floats), heights).second
     }
 
     // Side by side they are as wide as all of them and the gaps; wrapped, as the widest.
     override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
-        boxesWidth(measurables.map { it.maxIntrinsicWidth(MAX_BOX_HEIGHT) }, gapsDp.map { it.dp.roundToPx() })
+        boxesWidth(widthsIn(measurables, MAX_BOX_WIDTH), gaps()).coerceAtMost(MAX_BOX_WIDTH)
 
     override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int) =
-        measurables.maxOfOrNull { it.minIntrinsicWidth(MAX_BOX_HEIGHT).coerceIn(0, MAX_LAYOUT_SIZE) } ?: 0
+        measurables.maxOfOrNull { m -> intrinsic(0) { m.minIntrinsicWidth(MAX_BOX_HEIGHT) }.coerceIn(0, MAX_BOX_WIDTH) }
+            ?: 0
 
     override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
         heightAt(measurables, width, max = false)

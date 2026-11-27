@@ -88,6 +88,8 @@ mod links_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
+mod long_text_tests;
+#[cfg(test)]
 mod people_tasks_tests;
 #[cfg(test)]
 mod pictures_tests;
@@ -111,6 +113,8 @@ mod spacing_tests;
 mod sync_stop_tests;
 #[cfg(test)]
 mod sync_tests;
+#[cfg(test)]
+mod tables_rtl_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

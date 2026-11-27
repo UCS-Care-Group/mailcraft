@@ -117,10 +117,10 @@ class SignatureRulesTest {
         assertEquals(listOf(0, 24, 58), tops.toList())
         assertEquals(68, all)
         assertEquals(0, lineTops(IntArray(0), 4).second)
-        // Lines taller than Compose can lay out are held to the most it can; the tops stay below that too.
-        val (high, most) = lineTops(intArrayOf(MAX_LAYOUT_SIZE, MAX_LAYOUT_SIZE), 4)
-        assertEquals(MAX_LAYOUT_SIZE, most)
-        assertEquals(MAX_LAYOUT_SIZE, high[1])
+        // Lines taller than a stack may be (I3) are held to it; the tops stay below that too.
+        val (high, most) = lineTops(intArrayOf(MAX_STACK, MAX_STACK), 4)
+        assertEquals(MAX_STACK, most)
+        assertEquals(MAX_STACK, high[1])
         // A tall line of boxes is placed where it is: not held to a picture's most.
         assertEquals(MAX_BOX_HEIGHT + 4, lineTops(intArrayOf(MAX_BOX_HEIGHT, 10), 4).first[1])
     }
@@ -201,7 +201,7 @@ class SignatureRulesTest {
     fun boxesOnALineAreAsWideAsTheyAndTheGapsBetweenThem() {
         assertEquals(68, boxesWidth(listOf(10, 20, 30), listOf(4, 4, 4)))
         assertEquals(0, boxesWidth(emptyList(), emptyList()))
-        assertEquals(MAX_LAYOUT_SIZE, boxesWidth(listOf(MAX_LAYOUT_SIZE, MAX_LAYOUT_SIZE), listOf(0, 0)))
+        assertEquals(MAX_STACK, boxesWidth(listOf(MAX_STACK, MAX_STACK), listOf(0, 0)))
     }
 
     private fun box(float: Boolean, beside: Boolean, align: AlignView = AlignView.LEFT) =

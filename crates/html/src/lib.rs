@@ -33,6 +33,7 @@ pub mod corpus;
 mod data;
 mod entities;
 pub mod fonts;
+mod grid;
 mod look;
 mod media;
 mod preview;
@@ -49,6 +50,7 @@ pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZ
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use grid::{Grid, Place, grid};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
 /// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
@@ -673,6 +675,8 @@ mod bg_tests;
 mod data_tests;
 #[cfg(test)]
 mod float_tests;
+#[cfg(test)]
+mod grid_tests;
 #[cfg(test)]
 mod inline_tests;
 #[cfg(test)]

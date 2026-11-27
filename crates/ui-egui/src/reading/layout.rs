@@ -1556,48 +1556,17 @@ struct Grid<'a> {
     rows: usize,
 }
 
-/// Give every cell its place, minding the cells that span rows and columns. A cell that finds no
-/// room left in its row goes on in a new one: nothing is ever dropped or laid over another.
+/// Give every cell its place by [`mailcraft_html::grid`], the rule the phone draws by too.
 fn grid(table: &Table) -> Grid<'_> {
-    let columns = usize::from(table.columns).clamp(1, mailcraft_html::MAX_TABLE_COLUMNS);
-    // Per column, how many rows a cell from above still covers.
-    let mut covered = vec![0usize; columns];
-    let mut cells = Vec::new();
-    let mut row = 0usize;
-    for source in &table.rows {
-        let mut col = 0usize;
-        for cell in &source.cells {
-            loop {
-                while covered.get(col).is_some_and(|c| *c > 0) {
-                    col += 1;
-                }
-                if col < columns {
-                    break;
-                }
-                for c in &mut covered {
-                    *c = c.saturating_sub(1);
-                }
-                row += 1;
-                col = 0;
-            }
-            let wanted = usize::from(cell.colspan).clamp(1, columns - col);
-            let cols = covered.iter().skip(col).take(wanted).take_while(|c| **c == 0).count().max(1);
-            let rows = usize::from(cell.rowspan).max(1);
-            for c in covered.iter_mut().skip(col).take(cols) {
-                *c = rows;
-            }
-            cells.push(Placed { cell, row, col, cols, rows });
-            col += cols;
-        }
-        for c in &mut covered {
-            *c = c.saturating_sub(1);
-        }
-        row += 1;
-    }
-    for placed in &mut cells {
-        placed.rows = placed.rows.min(row.saturating_sub(placed.row)).max(1);
-    }
-    Grid { cells, columns, rows: row }
+    let laid = mailcraft_html::grid(table);
+    let cells = table
+        .rows
+        .iter()
+        .flat_map(|r| &r.cells)
+        .zip(laid.places)
+        .map(|(cell, p)| Placed { cell, row: p.row, col: p.col, cols: p.cols, rows: p.rows })
+        .collect();
+    Grid { cells, columns: laid.columns, rows: laid.rows }
 }
 
 /// Whether the table itself is painted: a background, or lines.
