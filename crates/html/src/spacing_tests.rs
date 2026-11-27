@@ -243,6 +243,10 @@ fn a_cell_hidden_but_in_its_place_keeps_its_column() {
     // A layout table keeps its column too, rather than giving it to the next cell.
     let html = "<table role=presentation width=400><tr><td width=200 style='visibility:hidden'>x</td><td>C</td></tr></table>";
     assert_eq!(grid(html), [vec!["-", "C"]]);
+    // A row whose cells are all hidden in place keeps its place under a row span.
+    let html =
+        "<table border=1><tr><td rowspan=2>A</td><td>B</td></tr><tr><td style='visibility:hidden'>X</td></tr><tr><td>C</td><td>D</td></tr></table>";
+    assert_eq!(grid(html), [vec!["A", "B"], vec!["-"], vec!["C", "D"]]);
     // A table all of whose cells are hidden shows nothing.
     assert_eq!(parse("<table><tr><td style='visibility:hidden'>x</td></tr></table><p>After</p>").len(), 1);
     // A row span keeps its rows too.

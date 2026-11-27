@@ -2073,12 +2073,16 @@ impl Builder {
         for cell in rows.iter_mut().flat_map(|r| &mut r.cells) {
             cell.bg_picture = self.bg_decoded(cell.bg_picture.take());
         }
-        // (A cell hidden in its place holds its column, but a row of nothing else shows nothing.)
+        // (A cell hidden in its place holds its column.)
         let empty =
             |cell: &Cell| cell.blocks.is_empty() && cell.background.is_none() && cell.bg_picture.is_none() && !cell.border.any() && !cell.held;
-        // Rows and columns that only make room make none here.
+        // Rows and columns that only make room make none here. (A row of cells hidden in their
+        // places keeps its place, under a row span too; a table of nothing else shows nothing.)
         if !table.compose_grid {
-            rows.retain(|r| !r.cells.iter().all(|c| empty(c) || c.held));
+            if rows.iter().flat_map(|r| &r.cells).all(|c| empty(c) || c.held) {
+                return;
+            }
+            rows.retain(|r| !r.cells.iter().all(empty));
         }
         let nested = rows.iter().flat_map(|r| &r.cells).any(|c| c.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_))));
         let layout = if table.compose_grid {
