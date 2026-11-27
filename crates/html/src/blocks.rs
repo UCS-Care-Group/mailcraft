@@ -390,6 +390,9 @@ struct Style {
     /// newsletters set a size of nothing around their pictures and columns to close the gaps
     /// between them.
     tiny: bool,
+    /// That size is more than nothing (`1px`, not `0`): its text, though not shown, still takes a
+    /// line of a pixel or so, as a divider's `&nbsp;` does in a browser.
+    tiny_some: bool,
     /// The element that asked for that size carries a class or an id itself: what is in the
     /// elements inside it is not held to it.
     tiny_hooked: bool,
@@ -596,6 +599,10 @@ impl Delta {
                     style.tiny = false;
                 }
                 None => {
+                    style.tiny_some = match size {
+                        Size::Px(px) => px > 0.0,
+                        Size::Scale(scale) => scale > 0.0 && (!parent.tiny || parent.tiny_some),
+                    };
                     style.tiny = true;
                     style.tiny_hooked = self.hooked;
                 }
@@ -715,6 +722,8 @@ struct RowBuild {
     valign: Option<VAlign>,
     /// At [`MAX_TABLE_COLUMNS`]: the last cell takes what follows.
     full: bool,
+    /// Hidden, or inside what is: left out, with its cells.
+    unseen: bool,
 }
 
 #[derive(Debug)]
@@ -732,8 +741,10 @@ struct CellBuild {
     bg_picture: Option<Box<BgPicture>>,
     /// The height of a coloured bar, when the cell holds nothing ([`bar_px`]).
     bar: Option<u8>,
-    /// Hidden, or inside what is: it is left out, colour, lines and all.
-    unseen: bool,
+    /// Not there at all (`display: none`, `hidden`): it is left out of its row, as in a browser.
+    gone: bool,
+    /// It held text of a size more than nothing that was too small to keep ([`Style::tiny_some`]).
+    faint: bool,
 }
 
 /// What an open element is.
@@ -1139,6 +1150,16 @@ impl Builder {
             return;
         }
         if self.style().tiny {
+            if self.style().tiny_some {
+                // (The cell it is in is a divider of a pixel, when it holds nothing else.)
+                let cell = self.nodes.iter_mut().rev().take_while(|n| !matches!(n.kind, Kind::Table(_))).find_map(|n| match &mut n.kind {
+                    Kind::Cell(cell) => Some(cell),
+                    _ => None,
+                });
+                if let Some(cell) = cell {
+                    cell.faint = true;
+                }
+            }
             self.note_unseen(raw);
             return;
         }
@@ -1961,9 +1982,10 @@ impl Builder {
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
-        if cell.unseen {
+        if cell.gone {
             return;
         }
+        let faint = cell.faint;
         let (blocks, padding) = match cell.bar {
             Some(height) if blank(&blocks) => (Vec::new(), bar(cell.padding, height)),
             _ => (blocks, cell.padding),
@@ -1986,6 +2008,19 @@ impl Builder {
         for node in self.nodes.iter_mut().rev() {
             match &mut node.kind {
                 Kind::Row(row) => {
+                    let mut cell = cell;
+                    // A cell of colour that holds nothing but text too small to keep, and is given
+                    // no room, is a divider: a pixel, as a browser draws it. (Nothing at all in it,
+                    // or text of no size, is nothing.)
+                    if faint
+                        && cell.blocks.is_empty()
+                        && cell.background.or(row.background).is_some()
+                        && let Some(pad) = cell.padding.as_mut()
+                        && pad.top == 0
+                        && pad.bottom == 0
+                    {
+                        pad.top = 1;
+                    }
                     row.cells.push(cell);
                     return;
                 }
@@ -1997,19 +2032,13 @@ impl Builder {
     }
 
     fn end_row(&mut self, row: RowBuild) {
+        // (A hidden row shows nothing: not even its place in a grid kept for the composer.)
+        if row.unseen {
+            return;
+        }
         let mut cells = row.cells;
         for cell in &mut cells {
             cell.background = cell.background.or(row.background);
-            // A cell of colour that holds nothing and is given no room is a divider: a pixel, as a
-            // browser draws one whose text is too small to keep, not nothing.
-            if cell.blocks.is_empty()
-                && cell.background.is_some()
-                && let Some(pad) = cell.padding.as_mut()
-                && pad.top == 0
-                && pad.bottom == 0
-            {
-                pad.top = 1;
-            }
         }
         let table = self.nodes.iter_mut().rev().find_map(|n| match &mut n.kind {
             Kind::Table(table) => Some(table),
@@ -2302,12 +2331,11 @@ impl Builder {
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.or_attr_align(attr("align").as_deref());
         let hidden = css.hidden || tag.has("hidden");
-        let background = css
-            .background
-            .or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c)))
-            .filter(|bg| self.hidden == 0 && !hidden && Some(*bg) != self.backdrop());
+        let unseen = self.hidden > 0 || hidden;
+        let background =
+            css.background.or_else(|| attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| !unseen && Some(*bg) != self.backdrop());
         let valign = css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v)));
-        let row = RowBuild { cells: Vec::new(), background, valign, full: false };
+        let row = RowBuild { cells: Vec::new(), background, valign, full: false, unseen };
         if !self.push_node(name, Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -2338,7 +2366,7 @@ impl Builder {
                 }
                 if !self.push_node(
                     "",
-                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false }),
+                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false, unseen: false }),
                     Delta::default(),
                     false,
                 ) {
@@ -2399,8 +2427,15 @@ impl Builder {
             valign: css.valign.or_else(|| attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
             bg_picture,
             bar: colour.and(bar_px(css.height.or_else(|| attr("height").and_then(|h| style::attr_px(&h))))),
-            // (A cell that is hidden, or inside what is, is left out: its colour or lines would be seen.)
-            unseen: self.hidden > 0 || css.hidden || tag.has("hidden"),
+            gone: css.display_none || tag.has("hidden"),
+            faint: false,
+        };
+        // A cell hidden in its place (`visibility: hidden` and the like, its own or round it) keeps
+        // its room and shows nothing: no colour, picture, lines or bar.
+        let build = if self.hidden > 0 || css.hidden {
+            CellBuild { background: None, bg_picture: None, border: Sides::default(), lines: [Line::default(); 4], bar: None, ..build }
+        } else {
+            build
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;

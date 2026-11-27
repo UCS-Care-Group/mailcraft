@@ -144,6 +144,9 @@ pub(crate) struct Css {
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
     pub hidden: bool,
+    /// Hidden by `display: none` in particular: the element is not there at all, where the other
+    /// ways of hiding keep its room (a table cell its place in its row).
+    pub display_none: bool,
     /// Whether the margin above (below) is given, and given as none to speak of: zero, or a
     /// few pixels (a line's own leading is more than that).
     pub margin_top_zero: Option<bool>,
@@ -465,6 +468,7 @@ impl Css {
             || opacity_zero
             || display_none
             || visibility_hidden;
+        css.display_none = display_none;
         for (side, alt) in css.padding.iter_mut().zip(mso_padding) {
             *side = side.or(alt);
         }

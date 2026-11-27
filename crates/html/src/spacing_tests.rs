@@ -199,8 +199,58 @@ fn a_divider_cell_given_no_room_is_still_a_pixel() {
     // Its text too small to keep: a pixel, as a browser draws it, not nothing.
     let html = "<table cellpadding=0 cellspacing=0 width=600><tr><td bgcolor=#ccc style='font-size:1px;line-height:1px'>&nbsp;</td></tr></table>";
     assert_eq!(bar_of(html), Some((top(1), grey, 0)));
-    assert_eq!(bar_of("<table><tr bgcolor=#ccc><td style='padding:0'></td></tr></table>"), Some((top(1), grey, 0)));
+    // Nothing in it, or text of no size at all: no pixel, as in a browser.
+    assert_eq!(bar_of("<table><tr bgcolor=#ccc><td style='padding:0'></td><td>x</td></tr></table>"), Some((top(0), grey, 0)));
+    let none = "<table cellpadding=0><tr><td bgcolor=#ccc style='font-size:0;line-height:0'>&nbsp;</td><td>x</td></tr></table>";
+    assert_eq!(bar_of(none), Some((top(0), grey, 0)));
     // Room given, or none said (the reader's own band): as it was.
     assert_eq!(bar_of("<table cellpadding=2><tr><td bgcolor=#ccc></td></tr></table>"), Some((all(2), grey, 0)));
     assert_eq!(bar_of("<table><tr><td bgcolor=#ccc></td></tr></table>"), Some((None, grey, 0)));
+}
+
+/// The texts of each row's cells, `-` for one that holds none.
+fn grid(html: &str) -> Vec<Vec<String>> {
+    let blocks = parse(html);
+    table(&blocks)
+        .rows
+        .iter()
+        .map(|r| r.cells.iter().map(|c| if c.blocks.is_empty() { "-".to_string() } else { c.blocks.iter().map(Block::text).collect() }).collect())
+        .collect()
+}
+
+#[test]
+fn a_cell_hidden_but_in_its_place_keeps_its_column() {
+    // `visibility:hidden` and the like keep the cell's room, as in a browser: C stays under B.
+    for how in ["visibility:hidden", "opacity:0", "max-height:0", "max-width:0", "visibility:collapse"] {
+        let html = format!(
+            "<table border=1><tr><td>A</td><td>B</td></tr><tr><td style='{how};background:#c00030;border:2px solid red'>x</td><td>C</td></tr></table>"
+        );
+        assert_eq!(grid(&html), [vec!["A", "B"], vec!["-", "C"]], "{how}");
+        let blocks = parse(&html);
+        let hidden = table(&blocks).rows.get(1).and_then(|r| r.cells.first());
+        assert!(
+            hidden.is_some_and(|c| c.background.is_none() && !c.border.any() && c.lines.iter().all(|l| !l.is_set()) && c.padding.is_none()),
+            "{how}: {hidden:?}"
+        );
+    }
+    // A row span keeps its rows too.
+    let html =
+        "<table border=1><tr><td rowspan=2 style='visibility:hidden'>x</td><td>A</td></tr><tr><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>";
+    let blocks = parse(html);
+    let first = table(&blocks).rows.first().map(|r| r.cells.iter().map(|c| c.rowspan).collect::<Vec<_>>());
+    assert_eq!(first, Some(vec![2, 1]));
+    assert_eq!(grid(html), [vec!["-", "A"], vec!["B"], vec!["C", "D"]]);
+    // A cell that is not there (`display:none`, `hidden`) is gone, as in a browser.
+    assert_eq!(
+        grid("<table border=1><tr><td>A</td><td>B</td></tr><tr><td style='display:none'>x</td><td>C</td></tr></table>"),
+        [vec!["A", "B"], vec!["C"]]
+    );
+    assert_eq!(grid("<table border=1><tr><td>A</td><td>B</td></tr><tr><td hidden>x</td><td>C</td></tr></table>"), [vec!["A", "B"], vec!["C"]]);
+}
+
+#[test]
+fn a_hidden_row_of_a_composed_grid_is_left_out() {
+    let blocks = crate::parse_text_with_tables("<table><tr><td>A</td></tr><tr style='display:none'><td>B</td></tr><tr><td>C</td></tr></table>", None);
+    let rows = table(&blocks).rows.len();
+    assert_eq!(rows, 2, "{blocks:?}");
 }
