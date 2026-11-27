@@ -30,33 +30,47 @@ import uniffi.mailcraft_mobile.SpanView
 
 /**
  * The paper a piece of a message is drawn on and the ink that reads on it, as `0xRRGGBB`. [turn] is the
- * reader's dark paper when the message's own colours are recoloured for a dark reading (#1966), else null.
+ * reader's dark paper when the message's own colours are recoloured for a dark reading (#1966), else null;
+ * [asked] the colour the message wrote for this paper (null for the reader's own page); [dark] whether
+ * the page is dark (the dark theme, its light page off), recoloured or not.
  */
-internal data class Paper(val rgb: Int, val ink: Int, val link: Int, val turn: Int? = null) {
+internal data class Paper(
+    val rgb: Int,
+    val ink: Int,
+    val link: Int,
+    val turn: Int? = null,
+    val asked: Int? = null,
+    val dark: Boolean = false,
+) {
     /** A background the message asks for, as it is painted here. */
     fun back(asked: Int): Int = turn?.let { Readability.darkBackground(asked, it) } ?: asked
 
-    /** A line the message asks for, as it is painted on this paper; null when it would not be seen. */
-    fun line(asked: Int): Int? = back(asked).takeIf { Readability.contrast(it, rgb) >= INVISIBLE_CONTRAST }
+    /**
+     * A line the message asks for, as it is painted on this paper (the desktop's rule): one in the very
+     * colour written for this paper stays unseen, as the sender meant; else turned like a background and
+     * brought to [Readability.LINE_CONTRAST].
+     */
+    fun line(asked: Int): Int {
+        val written = asked and RGB_MASK
+        if (this.asked == written) return rgb
+        return Readability.lineOn(back(written), rgb)
+    }
 
     /** A horizontal rule the message colours: as written unless recoloured, then as [line]. */
-    fun rule(asked: Int): Int? = if (turn == null) asked else line(asked)
+    fun rule(asked: Int): Int = if (turn == null) asked and RGB_MASK else line(asked)
 
     /** The paper of a box of the message's own inside this one. */
-    fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn)
+    fun inner(asked: Int): Paper = of(back(asked), link).copy(turn = turn, asked = asked and RGB_MASK, dark = dark)
 
     /** A text colour the message asks for, on [behind] (painted here), as it is drawn. */
     fun inkOn(asked: Int, behind: Int): Int =
-        if (turn != null) Readability.darkInk(asked, behind) else Readability.adjust(asked, behind)
+        if (dark) Readability.darkInk(asked, behind) else Readability.adjust(asked, behind)
 
     companion object {
         /** A paper of [rgb] of the message's own, with the default ink for it. */
         fun of(rgb: Int, link: Int): Paper = Paper(rgb, Readability.plainInk(rgb), Readability.adjust(link, rgb))
     }
 }
-
-/** The least contrast at which a line the message colours is drawn in its own colour. */
-private const val INVISIBLE_CONTRAST = 1.2
 
 /** A link's place in a text. */
 internal class LinkRange(val start: Int, val end: Int, val link: LinkInfo)

@@ -19,6 +19,11 @@ internal object Readability {
     /** The contrast ratio a text colour must have against its paper (WCAG's AA for body text). */
     const val MIN_CONTRAST = 4.5
 
+    /** The least contrast a line round a box keeps with its paper: not text, but never invisible (the desktop's). */
+    const val LINE_CONTRAST = 1.5
+
+    private const val LINE_STEPS = 16
+
     private const val BYTE = 255
     private const val RED_SHIFT = 16
     private const val GREEN_SHIFT = 8
@@ -72,7 +77,7 @@ internal object Readability {
         if (contrast(ink, paper) >= MIN_CONTRAST) return ink
         val target = targetFor(paper)
         for (step in 1..STEPS) {
-            val mixed = mix(ink, target, step / STEPS.toDouble())
+            val mixed = mixRgb(ink, target, step / STEPS.toDouble())
             if (contrast(mixed, paper) >= MIN_CONTRAST) return mixed
         }
         return target
@@ -83,15 +88,6 @@ internal object Readability {
         val soft = if (contrast(NEAR_BLACK, paper) >= contrast(NEAR_WHITE, paper)) NEAR_BLACK else NEAR_WHITE
         if (contrast(soft, paper) >= MIN_CONTRAST) return soft
         return if (contrast(BLACK, paper) >= contrast(WHITE, paper)) BLACK else WHITE
-    }
-
-    private fun mix(from: Int, to: Int, amount: Double): Int {
-        fun part(shift: Int): Int {
-            val a = from shr shift and BYTE
-            val b = to shr shift and BYTE
-            return (a + (b - a) * amount + MIDDLE).toInt().coerceIn(0, BYTE)
-        }
-        return (part(RED_SHIFT) shl RED_SHIFT) or (part(GREEN_SHIFT) shl GREEN_SHIFT) or part(0)
     }
 
     private const val RGB = 0xFFFFFF
@@ -109,6 +105,23 @@ internal object Readability {
         if (l <= MIDDLE) return rgb and RGB
         val floor = hsl(surface).third.coerceIn(0.0, MAX_FLOOR)
         return fromHsl(h, s * MUTE, floor + (1.0 - l) * (1.0 - TWO * floor))
+    }
+
+    /**
+     * [line] on [paper]: itself when it is seen, else moved towards black or white just until it is
+     * (the least move, found by halving, so a lighter colour never lands past a darker one).
+     */
+    fun lineOn(line: Int, paper: Int): Int {
+        val own = line and RGB
+        if (contrast(own, paper) >= LINE_CONTRAST) return own
+        val end = if (contrast(BLACK, paper) >= contrast(WHITE, paper)) BLACK else WHITE
+        var low = 0.0
+        var high = 1.0
+        repeat(LINE_STEPS) {
+            val middle = (low + high) / 2
+            if (contrast(mixRgb(own, end, middle), paper) >= LINE_CONTRAST) high = middle else low = middle
+        }
+        return mixRgb(own, end, high)
     }
 
     /**
@@ -168,4 +181,14 @@ internal fun fromHsl(h: Double, s: Double, l: Double): Int {
     val m = l - c / TWO
     fun byte(v: Double): Int = ((v + m) * HSL_BYTE + HSL_ROUND).toInt().coerceIn(0, HSL_BYTE)
     return (byte(r) shl HSL_RED) or (byte(g) shl HSL_GREEN) or byte(b)
+}
+
+/** [from] moved [amount] (0 to 1) of the way to [to], channel by channel. */
+internal fun mixRgb(from: Int, to: Int, amount: Double): Int {
+    fun part(shift: Int): Int {
+        val a = from shr shift and HSL_BYTE
+        val b = to shr shift and HSL_BYTE
+        return (a + (b - a) * amount + HSL_ROUND).toInt().coerceIn(0, HSL_BYTE)
+    }
+    return (part(HSL_RED) shl HSL_RED) or (part(HSL_GREEN) shl HSL_GREEN) or part(0)
 }

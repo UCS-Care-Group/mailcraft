@@ -8,6 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private const val ROUNDING = 0.002
+
 class ReadabilityTest {
     private val white = 0xFFFFFF
     private val black = 0x000000
@@ -144,7 +146,7 @@ class ReadabilityTest {
         assertEquals(white, light.inner(white).rgb)
         assertEquals(0xFFF59D, light.back(0xFFF59D))
         assertEquals(black, light.inkOn(black, white))
-        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper)
+        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper, dark = true)
         val box = dark.inner(white)
         assertTrue(box.rgb.toString(16), Readability.contrast(box.rgb, darkPaper) < 1.05)
         assertEquals("a box inside a box is turned too", darkPaper, box.turn)
@@ -152,16 +154,43 @@ class ReadabilityTest {
         assertEquals(white, box.inkOn(black, box.rgb))
     }
     @Test
-    fun aLineThatWouldVanishIsLeftToTheReader() {
-        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper)
-        // A white rule on the dark page turns dark too, and would not be seen: the reader's own line colour is used.
-        assertEquals(null, dark.line(white))
-        // An orange line is darkened a little and still seen.
-        assertTrue(dark.line(0xF7A136) != null)
-        // Without a dark reading a white rule on the dark page is drawn as written.
+    fun aWeakLineIsMovedTowardsBlackOrWhiteUntilItIsSeen() {
+        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper, dark = true)
+        // Light greys turn dark and then are brought to the line contrast; none is dropped.
+        val shown = listOf(0xEEEEEE, 0xE0E0E0, 0xDDDDDD, 0x2A2A2A).map { dark.line(it) }
+        for ((asked, line) in listOf(0xEEEEEE, 0xE0E0E0, 0xDDDDDD, 0x2A2A2A).zip(shown)) {
+            assertTrue("${asked.toString(16)}: ${line.toString(16)}", Readability.contrast(line, darkPaper) >= Readability.LINE_CONTRAST)
+        }
+        // The lighter a grey was written, the darker it is drawn (never lighter than a darker one).
+        val lum = shown.map { Readability.luminance(it) }
+        assertTrue(lum.toString(), lum[0] <= lum[1] + ROUNDING && lum[1] <= lum[2] + ROUNDING)
+        // An orange line is darkened a little and kept in its hue.
+        val orange = dark.line(0xF7A136)
+        assertTrue(orange.toString(16), (orange shr 16 and 0xFF) > (orange and 0xFF))
+        // Without a dark reading a white line on the dark page is drawn as written.
         assertEquals(white, Paper.of(darkPaper, 0x9CCAFF).line(white))
+    }
+
+    @Test
+    fun aLineInItsOwnPapersColourStaysUnseen() {
+        val dark = Paper.of(darkPaper, 0x9CCAFF).copy(turn = darkPaper, dark = true)
+        // A white card with `border:1px solid #fff`, and a #fff <hr> in a #fff table, in dark.
+        val card = dark.inner(white)
+        assertEquals(card.rgb, card.line(white))
+        assertEquals(card.rgb, card.rule(white))
+        // On the reader's own page (not a colour of the message's) a white rule is brought to be seen.
+        assertTrue(Readability.contrast(dark.rule(white), darkPaper) >= Readability.LINE_CONTRAST)
         // A rule is drawn as written unless recoloured, even one the sender hid in its paper's colour.
         assertEquals(white, Paper.of(white, 0x1B5E8C).rule(white))
-        assertEquals(null, dark.rule(white))
+    }
+
+    @Test
+    fun anOwnDarkDesignInTheDarkThemeTurnsBlackTextWhite() {
+        // Not recoloured (turn null), but a dark reading: the desktop's lightness turn, not a mid grey.
+        val own = Paper.of(darkPaper, 0x9CCAFF).copy(dark = true)
+        assertEquals(white, own.inkOn(black, darkPaper))
+        assertEquals(white, own.inner(white).rgb)
+        // The light theme keeps the gentle adjustment.
+        assertEquals(Readability.adjust(0xEEEEEE, white), Paper.of(white, 0x1B5E8C).inkOn(0xEEEEEE, white))
     }
 }
