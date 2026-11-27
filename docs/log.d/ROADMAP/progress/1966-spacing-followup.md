@@ -1,0 +1,1 @@
+| 2026-11-27 | MR5: Android reading view spacing follows the desktop more closely: a run of pictures or of boxes counts as such for the room below it, every cell of a bordered table is as tall as its row, a box's margins give way left last, and blank lines grow with large text by the phone's own curve (#1966) |

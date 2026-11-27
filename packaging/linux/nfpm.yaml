@@ -14,7 +14,7 @@ section: mail
 priority: optional
 maintainer: ${MAILCRAFT_MAINTAINER}
 vendor: MailCraft contributors
-homepage: https://github.com/UCS-Care-Group/mailcraft
+homepage: https://github.com/UCSLabs/mailcraft
 license: MIT OR Apache-2.0
 description: |-
   Open-source, native mail, calendar, contacts and tasks program that works the way Outlook users expect.

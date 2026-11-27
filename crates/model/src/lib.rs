@@ -15,7 +15,11 @@ pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
+pub mod contact_sync;
+#[cfg(test)]
+mod contact_sync_tests;
 pub mod dav;
+pub mod dav_down;
 mod dav_server;
 pub mod device_limits;
 #[cfg(test)]
@@ -74,6 +78,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use dav_down::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};
@@ -104,7 +109,7 @@ pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
     Action, Condition, FlagDue, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting,
-    ServerRule, Words, fold_exceptions, same_word,
+    ServerRule, Words, fold_exceptions, said, same_word,
 };
 pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;

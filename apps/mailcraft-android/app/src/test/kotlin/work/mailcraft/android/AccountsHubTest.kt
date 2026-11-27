@@ -193,25 +193,57 @@ class AccountsHubTest {
     }
 
     @Test
-    fun syncNowSpinsUntilTheCoreSaysTheRoundIsOver() {
-        var asked = 0
+    fun aPullSpinsUntilTheMailOfTheAccountOnScreenIsInAndNotUntilTheRoundsEnd() {
+        val asked = mutableListOf<ULong?>()
+        val waited = mutableListOf<ULong?>()
+        val mail = CompletableDeferred<Unit>()
         val hub = AccountsHub(
             api = HubApi(gate),
             texts = EnglishTexts,
             scope = app,
             save = {},
             copy = {},
-            sync = {
-                asked++
+            sync = { account ->
+                asked.add(account)
                 SyncAnswer(started = true, message = "")
             },
+            mailIn = { account ->
+                waited.add(account)
+                mail.await()
+            },
         )
-        hub.syncNow()
+        hub.syncNow(7u)
         assertTrue(hub.syncing.value)
-        // A second pull while the round runs asks for nothing more.
-        hub.syncNow()
-        assertEquals(1, asked)
+        assertEquals(listOf<ULong?>(7u), asked)
+        assertEquals(listOf<ULong?>(7u), waited)
+        // A second pull while the mail comes asks for nothing more.
+        hub.syncNow(7u)
+        assertEquals(1, asked.size)
+        // An earlier round's end (its calendar's, say) doesn't stop the spinner of this pull.
         hub.handle(Event.SyncFinished(newMail = 0u, finished = true))
+        assertTrue(hub.syncing.value)
+        // The mail asked for is in: the spinner stops, whatever the round still does.
+        mail.complete(Unit)
+        assertFalse(hub.syncing.value)
+        assertEquals(null, hub.syncNotice.value)
+        // A pull across accounts asks for every account (null).
+        hub.syncNow(null)
+        assertEquals(listOf<ULong?>(7u, null), asked)
+        assertFalse(hub.syncing.value)
+    }
+
+    @Test
+    fun aPullWhoseWaitFailsStillStopsSpinning() {
+        val hub = AccountsHub(
+            api = HubApi(gate),
+            texts = EnglishTexts,
+            scope = app,
+            save = {},
+            copy = {},
+            sync = { SyncAnswer(started = true, message = "") },
+            mailIn = { throw CoreException.Cancelled() },
+        )
+        hub.syncNow(7u)
         assertFalse(hub.syncing.value)
         assertEquals(null, hub.syncNotice.value)
     }

@@ -147,7 +147,8 @@ impl MailApp {
         if self.services.graph.is_none() {
             return Err(tl!("This build can't reach the account's calendar.").to_string());
         }
-        let busy = self.job_busy().blocks(Start::CalendarAround);
+        let signer = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+        let busy = self.job_busy().blocks(Start::CalendarAround, signer);
         let plan = match self.session.calendar_around(account, day, busy) {
             Ok(plan) => plan,
             Err(AroundRefused::Busy) => return Err(tl!("The calendar is being updated already.").to_string()),
@@ -258,6 +259,11 @@ impl MailApp {
         if result.shared_calendars_consent_needed {
             self.shared_calendars_consent(account);
         }
+        // Contact changes that the sign-in doesn't let go up wait, and say why; the owner is asked
+        // the one question (#1917), unless a dialog is up or it went unanswered already.
+        if result.contacts_consent_needed && self.dialog.is_none() && self.signing_in.is_none() {
+            self.ask_sync(account);
+        }
         self.say_calendar_taken(account, taken, &mut errors);
         self.note_problems_from("calendar", account, &errors, None, false);
     }
@@ -357,7 +363,7 @@ impl MailApp {
         let Some(oauth) = owner.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft) else {
             return Err(tl!("This account doesn't sign in with Microsoft").to_string());
         };
-        if self.job_busy().blocks(Start::CalendarCheck) {
+        if self.job_busy().blocks(Start::CalendarCheck, owner.id) {
             return Err(tl!("The calendar is being updated: try again in a moment.").to_string());
         }
         let account = owner.id;

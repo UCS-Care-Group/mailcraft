@@ -6,6 +6,7 @@ use mailcraft_model::{AccountChoice, Address, Contact, Id, Labeled, Mailbox, Pos
 use mailcraft_time::Date;
 use serde_json::{Value, json};
 
+use super::contacts_remote;
 use super::tasks::kept_at;
 use super::{bad, done, fail, needs_message};
 use crate::session::parse_enum;
@@ -16,6 +17,8 @@ mod account_tests;
 #[cfg(test)]
 mod address_book_tests;
 #[cfg(test)]
+mod folder_tests;
+#[cfg(test)]
 mod share_tests;
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -23,8 +26,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.new", "New Contact", "Home › New", new).key("Mod+Shift+C").params(CONTACT),
         CommandSpec::new("people.edit", "Edit Contact", "Contact", edit)
             .params(r#"{"id"?: number, …the fields of people.new}"#)
-            .selection(needs_contact),
-        CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_contact),
+            .selection(needs_changeable_contact),
+        CommandSpec::new("people.delete", "Delete", "Home › Delete", delete).params(ONE).selection(needs_changeable_contact),
         CommandSpec::new("people.select", "Select Contact", "People", select).pure().params(r#"{"id": number | null} (null selects nothing; anything else that isn't an id is refused)"#),
         CommandSpec::new("people.get", "Get Contact", "People", get).pure().params(ONE),
         CommandSpec::new("people.list", "List Contacts", "People", list)
@@ -36,7 +39,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_contact),
         CommandSpec::new("people.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
-            .selection(needs_contact),
+            .selection(needs_changeable_contact),
         CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
         CommandSpec::new("people.email", "Email", "Home › Communicate", email)
             .pure()
@@ -60,15 +63,28 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes)} — it is kept on this computer; the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: the folder the list shows alone (view.peopleFolder); else with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
 }
 
-/// Whether the account's contacts are read from its server.
+/// [`needs_contact`], for a command that changes the contact: off for one of a contacts folder
+/// the account may only read (#1917).
+fn needs_changeable_contact(s: &Session) -> Option<&'static str> {
+    let read_only = s.sel.contact.and_then(|id| s.mailbox.contact(id)).is_some_and(|c| contacts_remote::read_only(&s.mailbox, c));
+    if read_only { Some("this contacts folder can only be read") } else { needs_contact(s) }
+}
+
+/// Whether the account's contacts are read from its server: a Microsoft account's, and a JMAP
+/// account's once its server has listed an address book (one that keeps none has nowhere to put
+/// a contact).
 pub fn keeps_contacts(mailbox: &Mailbox, account: Id) -> bool {
-    mailbox.account(account).is_some_and(|a| a.keeps_contacts())
+    mailbox.account(account).is_some_and(|a| kept(mailbox, a))
+}
+
+fn kept(mailbox: &Mailbox, a: &mailcraft_model::Account) -> bool {
+    a.keeps_contacts() || (a.kind == mailcraft_model::AccountKind::Jmap && mailbox.contact_folders.iter().any(|f| f.account == a.id))
 }
 
 /// The Exchange server accounts whose organisation's address list can be searched (#1262).
@@ -102,7 +118,7 @@ fn address_book(s: &mut Session, v: &Value) -> CmdResult {
 
 /// The accounts whose contacts are read from their servers.
 pub fn contact_accounts(mailbox: &Mailbox) -> Vec<Id> {
-    mailbox.accounts.iter().filter(|a| a.keeps_contacts()).map(|a| a.id).collect()
+    mailbox.accounts.iter().filter(|a| kept(mailbox, a)).map(|a| a.id).collect()
 }
 
 /// Whose contacts the list shows: what the owner chose, while it means something. With no account
@@ -116,16 +132,28 @@ pub fn shown_account(s: &Session) -> AccountChoice {
     }
 }
 
+/// The contacts folder the list shows alone (`view.peopleFolder`), while it is one of the shown
+/// account's that a server keeps.
+pub fn shown_folder(s: &Session) -> Option<Id> {
+    let AccountChoice::Account(account) = shown_account(s) else { return None };
+    s.view.people_folder.filter(|f| contacts_remote::home(&s.mailbox, *f).is_some_and(|f| f.account == account))
+}
+
+/// Whether the People list shows contact `c`: of the account in view, and of its folder when
+/// one is chosen.
+pub fn shows(s: &Session, c: &Contact) -> bool {
+    shown_account(s).shows(&c.origin) && shown_folder(s).is_none_or(|f| c.folder == f)
+}
+
 /// A contact just made or picked is in view: People shows the contacts (not an address list),
 /// where the list doesn't show it, the list moves to it, and a search that would leave it out is
 /// cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
-    let shown = shown_account(s);
     let Some(c) = s.mailbox.contact(id) else { return };
+    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shows(s, c), !c.matches(&s.view.people_search));
     s.view.people_book = None;
-    let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shown.shows(&c.origin), !c.matches(&s.view.people_search));
     if hidden {
-        s.view.people_account = choice;
+        (s.view.people_account, s.view.people_folder) = (choice, None);
     }
     if unmatched {
         s.view.people_search.clear();
@@ -145,13 +173,13 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
-/// [`target`] for a command that changes or deletes the contact. A contact that an account's
-/// server keeps is refused: changes are not sent back yet, and the next download would undo
-/// them. (Its categories and whether it is a favourite are kept here, so those don't ask.)
+/// [`target`] for a command that changes or deletes the contact: refused for one in a contacts
+/// folder the account may only read. (What goes to a server is noted by the command,
+/// [`contacts_remote::note_contact`].)
 fn own_target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = target(s, v)?;
     if let Some(c) = s.mailbox.contact(id) {
-        super::remote::changeable(&s.mailbox, &c.origin, "contact")?;
+        contacts_remote::changeable(&s.mailbox, c)?;
     }
     Ok(id)
 }
@@ -263,19 +291,25 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     if c.name().is_empty() {
         return Err(bad("a contact needs a name, a company or an e-mail address"));
     }
+    let folder = contacts_remote::new_contact_folder(s, v)?;
+    c.folder = folder;
+    c.origin.account = contacts_remote::home(&s.mailbox, folder).map_or(0, |f| f.account);
     // Its categories take the spelling of the list its account's items use (one made here is
     // this computer's: the shared list); a new name joins it.
     if p::strings(v, "categories").is_some() {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &[], c.origin.account)?;
     }
     let id = s.mailbox.add_contact(c);
+    contacts_remote::note_contact(&mut s.mailbox, id, None)?;
+    s.mailbox.contact_place = Some(folder);
     s.sel.contact = Some(id);
     reveal(s, id);
-    Ok(json!({"id": id}))
+    Ok(json!({"id": id, "folder": folder}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = own_target(s, v)?;
+    let server = contacts_remote::server_copy(&s.mailbox, id);
     let mut c = s.mailbox.contact(id).cloned().ok_or_else(|| fail("the contact is gone"))?;
     let had = c.categories.clone();
     apply(&mut c, v)?;
@@ -286,13 +320,18 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         c.categories = super::category::spelled_all(s, c.origin.account, &c.categories, &had, c.origin.account)?;
     }
     *s.mailbox.contact_mut(id)? = c;
+    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
     Ok(json!({"id": id}))
 }
 
 /// The contacts the People list shows, in its order ([`sorted_of`]): `people.list` and the
 /// neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
-    sorted_of(s, query, shown_account(s))
+    let mut ids = sorted_of(s, query, shown_account(s));
+    if let Some(folder) = shown_folder(s) {
+        ids.retain(|id| s.mailbox.contact(*id).is_some_and(|c| c.folder == folder));
+    }
+    ids
 }
 
 /// Contacts of `account` in the People list's order: by name, favourites first; arranged by
@@ -319,7 +358,9 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     // The selection moves to the neighbour in the list.
     let order = sorted(s, &s.view.people_search);
     let at = order.iter().position(|x| *x == id);
+    let server = contacts_remote::server_copy(&s.mailbox, id);
     s.mailbox.remove_contact(id)?;
+    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
     if s.sel.contact == Some(id) {
         s.sel.contact = at.and_then(|i| order.get(i + 1).or_else(|| i.checked_sub(1).and_then(|j| order.get(j)))).copied();
     }
@@ -340,14 +381,22 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn contact_json(mailbox: &Mailbox, c: &Contact) -> Value {
-    json!({
+    let mut out = json!({
         "id": c.id, "name": c.name(), "fileAs": c.file_as(), "first": c.first, "middle": c.middle, "last": c.last, "displayName": c.display_name,
         "nickname": c.nickname, "company": c.company, "title": c.title, "department": c.department,
         "emails": c.emails, "phones": c.phones, "addresses": c.addresses, "websites": c.websites,
         "birthday": c.birthday.map(Date::iso), "notes": c.notes, "categories": c.categories, "favorite": c.favorite,
         "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at(mailbox, &c.origin),
+        "folder": c.folder, "notSent": contacts_remote::not_sent(mailbox, c.id),
+        "readOnly": contacts_remote::home(mailbox, c.folder).is_some_and(|f| !f.writable),
         "keys": c.keys.iter().map(|k| json!({"kind": k.kind.name(), "fingerprint": super::keys::card_key_facts(k).fingerprint, "uri": k.uri})).collect::<Vec<_>>(),
-    })
+    });
+    // What the folder's server has no place for: said only when there is some (#1917).
+    let local = mailcraft_model::contact_sync::local_only(mailbox, c);
+    if let (false, Some(map)) = (local.is_empty(), out.as_object_mut()) {
+        map.insert("localOnly".into(), json!(local));
+    }
+    out
 }
 
 fn get(s: &mut Session, v: &Value) -> CmdResult {
@@ -370,7 +419,9 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         let kept_at = kept_at(&s.mailbox, &c.origin);
         json!({"id": c.id, "name": c.name(), "email": c.primary_email(), "company": c.company, "favorite": c.favorite, "importedFrom": c.imported_from, "account": c.origin.account, "keptAt": kept_at})
     };
-    let items: Vec<Value> = sorted_of(s, &query, account).into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
+    // Without an account, the list as People shows it, of the folder in view.
+    let ids = if v.get("account").is_some() { sorted_of(s, &query, account) } else { sorted(s, &query) };
+    let items: Vec<Value> = ids.into_iter().filter_map(|id| s.mailbox.contact(id)).map(row).collect();
     Ok(json!({"account": account.code(), "contacts": items}))
 }
 
@@ -399,6 +450,8 @@ pub(crate) fn categorizing(s: &Session, v: &Value) -> Result<(Id, String, Id, bo
 
 fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     let (id, name, account, on) = categorizing(s, v)?;
+    own_target(s, &json!({"id": id}))?;
+    let server = contacts_remote::server_copy(&s.mailbox, id);
     // The contact takes the spelling of its account's list; a new name joins that list.
     let spelling = super::category::spelled(s, account, &name, on)?;
     let c = s.mailbox.contact_mut(id)?;
@@ -406,7 +459,9 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
     if on {
         c.categories.push(spelling);
     }
-    Ok(json!({"id": id, "categories": c.categories}))
+    let categories = c.categories.clone();
+    contacts_remote::note_contact(&mut s.mailbox, id, server)?;
+    Ok(json!({"id": id, "categories": categories}))
 }
 
 fn email(s: &mut Session, v: &Value) -> CmdResult {

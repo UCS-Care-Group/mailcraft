@@ -33,7 +33,7 @@ fn from_server(s: &mut Session, account: Id, id: &str, name: &str) -> Id {
         emails: vec![Labeled::new("work", format!("{id}@example.org"))],
         ..Default::default()
     };
-    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, contacts: vec![contact] }).unwrap();
+    merge_contacts(&mut s.mailbox, &ContactsDownload { account, email, complete: true, contacts: vec![contact], ..Default::default() }).unwrap();
     s.mailbox.contacts.values().find(|c| c.display_name == name).unwrap().id
 }
 
@@ -133,17 +133,35 @@ fn the_selected_contact_stays_selected_only_where_it_is_listed() {
 }
 
 #[test]
-fn a_new_contact_stays_on_this_computer_and_the_list_moves_to_show_it() {
-    let (mut s, work, ..) = session();
+fn a_new_contact_goes_where_the_list_is_or_where_it_is_told_and_the_list_shows_it() {
+    let (mut s, work, home, ..) = session();
+    let main = |s: &Session, account: Id| s.mailbox.main_contact_folder(account).unwrap();
+    // The account the list shows (#1917, C8).
     run(&mut s, "view.peopleAccount", json!({"value": work}));
     let made = run(&mut s, "people.new", json!({"first": "Noor", "email": "noor@example.org"}))["id"].as_u64().unwrap();
-    assert!(s.mailbox.contact(made).unwrap().origin.is_local());
-    assert_eq!((shown_account(&s), s.sel.contact), (AccountChoice::Here, Some(made)));
-    assert!(sorted(&s, "").contains(&made));
-    // With every account shown, it is in the list already.
+    let c = s.mailbox.contact(made).unwrap();
+    assert_eq!((c.folder, c.origin.account), (main(&s, work), work));
+    assert_eq!((shown_account(&s), s.sel.contact), (AccountChoice::Account(work), Some(made)));
+    // With every account shown, the folder last used; it is in the list already.
     run(&mut s, "view.peopleAccount", json!({"value": "all"}));
-    run(&mut s, "people.new", json!({"first": "Oren"}));
-    assert_eq!(shown_account(&s), AccountChoice::All);
+    let oren = run(&mut s, "people.new", json!({"first": "Oren"}))["id"].as_u64().unwrap();
+    assert_eq!((s.mailbox.contact(oren).unwrap().folder, shown_account(&s)), (main(&s, work), AccountChoice::All));
+    // Told: another account's, or this computer, and the list moves to show it.
+    let homes = main(&s, home);
+    let there = run(&mut s, "people.new", json!({"first": "Pia", "folder": homes}))["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.contact(there).unwrap().origin.account, home);
+    let local = run(&mut s, "people.new", json!({"first": "Quin", "folder": 0}))["id"].as_u64().unwrap();
+    assert!(s.mailbox.contact(local).unwrap().origin.is_local());
+    assert_eq!((shown_account(&s), s.sel.contact), (AccountChoice::All, Some(local)));
+    run(&mut s, "view.peopleAccount", json!({"value": work}));
+    run(&mut s, "people.new", json!({"first": "Rae", "folder": 0}));
+    assert_eq!(shown_account(&s), AccountChoice::Here);
+    // The list on this computer: a new one is kept here.
+    let kept = run(&mut s, "people.new", json!({"first": "Sol"}))["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.contact(kept).unwrap().folder, 0);
+    for wrong in [json!(-1), json!("x"), json!(987_654), json!(1.5)] {
+        assert!(s.run("people.new", &json!({"first": "T", "folder": wrong})).is_err(), "{wrong}");
+    }
 }
 
 #[test]
@@ -179,8 +197,9 @@ fn an_imported_card_is_shown_on_this_computer() {
 #[test]
 fn a_merge_shows_the_contact_it_keeps() {
     let (mut s, work, ..) = session();
-    let one = run(&mut s, "people.new", json!({"first": "Rowan", "email": "rowan@example.org"}))["id"].as_u64().unwrap();
-    let two = run(&mut s, "people.new", json!({"first": "Rowan", "last": "Twice", "email": "rowan@example.org"}))["id"].as_u64().unwrap();
+    let one = run(&mut s, "people.new", json!({"first": "Rowan", "email": "rowan@example.org", "folder": 0}))["id"].as_u64().unwrap();
+    let two =
+        run(&mut s, "people.new", json!({"first": "Rowan", "last": "Twice", "email": "rowan@example.org", "folder": 0}))["id"].as_u64().unwrap();
     run(&mut s, "people.select", json!({"id": null}));
     run(&mut s, "view.peopleAccount", json!({"value": work}));
     run(&mut s, "people.merge", json!({"keep": one, "others": [two]}));
@@ -300,7 +319,7 @@ fn undoing_a_new_contact_puts_the_list_back_on_the_account() {
     let (mut s, work, _, at_work, _) = session();
     run(&mut s, "view.peopleAccount", json!({"value": work}));
     run(&mut s, "people.select", json!({"id": at_work}));
-    let made = run(&mut s, "people.new", json!({"first": "Noor"}))["id"].as_u64().unwrap();
+    let made = run(&mut s, "people.new", json!({"first": "Noor", "folder": 0}))["id"].as_u64().unwrap();
     assert_eq!(shown_account(&s), AccountChoice::Here);
     run(&mut s, "edit.undo", json!({}));
     assert!(s.mailbox.contact(made).is_none());

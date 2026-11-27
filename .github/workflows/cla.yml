@@ -58,7 +58,7 @@ jobs:
           COMMENTER_ID: ${{ github.event.comment.user.id }}
           # UCS's own maintainers, whose work is UCS's already.
           EXEMPT: benandez
-          VERSION: "1.0"
+          VERSION: "1.1"
           SENTENCE: I have read the MailCraft CLA and I agree to it
         run: |
           set -euo pipefail

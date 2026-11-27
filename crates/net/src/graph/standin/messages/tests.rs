@@ -259,3 +259,40 @@ fn a_delta_that_expands_the_size_is_refused_as_exchange_online_refuses_it() {
     assert_eq!(error["code"], "BadRequest");
     assert_eq!(error["message"], "Parsing OData Select and Expand failed: Value cannot be null. (Parameter 'initialState')");
 }
+
+#[test]
+fn a_signature_picture_graph_calls_no_inline_one_is_shown_in_place_when_the_html_asks_for_it() {
+    use crate::graph::standin::Attached;
+    const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+    let server = StandIn::start().unwrap();
+    let inbox = inbox(&server);
+    let id = server.state().mailbox.add(&inbox, "Signature", NOW);
+    let picture = |n: u32, cid: &str| Attached {
+        id: format!("att{n}"),
+        name: format!("image00{n}.png"),
+        content_type: "image/png".into(),
+        bytes: PNG.to_vec(),
+        inline: false,
+        content_id: cid.into(),
+    };
+    server.state().mailbox.update(&id, |m| {
+        m.html = true;
+        m.body = "<p>Regards</p><img src=\"cid:image001.png@01DB0000.0000AAAA\"><img src=\"CID:<IMAGE002.PNG@01db0000.0000aaaa>\">".into();
+        m.attachments = vec![
+            picture(1, "image001.png@01DB0000.0000AAAA"),
+            picture(2, "image002.png@01DB0000.0000AAAA"),
+            picture(3, "image003.png@01DB0000.0000AAAA"),
+        ];
+    });
+    // Graph calls none of them inline.
+    let (_, _, body) = get(&server, &format!("/v1.0/me/messages/{id}/attachments"), "");
+    assert!(json(&body)["value"].as_array().unwrap().iter().all(|a| a["isInline"] == false), "{body}");
+    let (status, _, mime) = get(&server, &format!("/v1.0/me/messages/{id}/$value"), "");
+    assert_eq!(status, 200);
+    let m = mailcraft_mime_model::parse(mime.as_bytes());
+    assert_eq!(m.attachments.len(), 3, "{mime}");
+    // The two the HTML shows are part of the body; the one it doesn't ask for is a file.
+    let listed: Vec<&str> = m.listed_attachments().map(|(_, a)| a.name.as_str()).collect();
+    assert_eq!(listed, ["image003.png"]);
+    assert!(m.has_attachments());
+}

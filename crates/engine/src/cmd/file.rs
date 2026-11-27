@@ -36,7 +36,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("file.exportContacts", "Export Contacts", "File › Open & Export", export_contacts).pure().params(r#"{"ids"?: [number], "path"?: string} — .vcf"#),
         CommandSpec::new("file.info", "Info", "File › Info", info).pure(),
         CommandSpec::new("file.options", "Options", "File", options).pure().params(
-            r#"{"twelveHour"?: bool, "weekStart"?: "sun"|"mon"|…, "workDays"?: ["mon",…], "workStart"?: 0-23, "workEnd"?: 1-24, "markReadOnOpen"?: bool, "defaultReminder"?: minutes | null, "quoteOnReply"?: bool, "autoLists"?: bool, "previewLines"?: 0-3, "syncLimit"?: number, "syncMinutes"?: 0-1440 (0: only when asked)}"#,
+            r#"{"clock"?: "auto" (the interface language's) | "12" | "24" (independent of the language), "twelveHour"?: bool, "weekStart"?: "sun"|"mon"|…, "workDays"?: ["mon",…], "workStart"?: 0-23, "workEnd"?: 1-24, "markReadOnOpen"?: bool, "defaultReminder"?: minutes | null, "quoteOnReply"?: bool, "autoLists"?: bool, "previewLines"?: 0-3, "syncLimit"?: number, "syncMinutes"?: 0-1440 (0: only when asked)}"#,
         ),
     ]
 }
@@ -494,6 +494,13 @@ fn options(s: &mut Session, v: &Value) -> CmdResult {
     let mut prefs = s.prefs.clone();
     if let Some(b) = p::bool(v, "twelveHour") {
         (prefs.twelve_hour, prefs.clock_chosen) = (b, Some(true));
+    }
+    if let Some(c) = p::str(v, "clock") {
+        match c {
+            "auto" => (prefs.twelve_hour, prefs.clock_chosen) = (s.dated().conventions.twelve_hour, Some(false)),
+            "12" | "24" => (prefs.twelve_hour, prefs.clock_chosen) = (c == "12", Some(true)),
+            _ => return Err(bad("`clock` is \"auto\", \"12\" or \"24\"")),
+        }
     }
     if let Some(d) = p::str(v, "weekStart") {
         (prefs.week_start, prefs.week_start_chosen) = (weekday(d)?, Some(true));

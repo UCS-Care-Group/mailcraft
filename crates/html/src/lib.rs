@@ -32,6 +32,7 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+pub mod fonts;
 mod look;
 mod media;
 mod preview;
@@ -249,6 +250,10 @@ impl Sides {
 pub struct Span {
     pub text: String,
     pub bold: bool,
+    /// The weight, from 1 to 1000, when the message asks for one that is neither 400 nor 700
+    /// (`bold` is set from 600); `None` is 700 for bold text and 400 for the rest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u16>,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -295,6 +300,7 @@ impl Span {
     /// Whether two spans look the same, whatever their text.
     pub fn same_format(&self, other: &Span) -> bool {
         self.bold == other.bold
+            && self.weight == other.weight
             && self.italic == other.italic
             && self.underline == other.underline
             && self.strike == other.strike
