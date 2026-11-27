@@ -1,0 +1,1 @@
+| 2026-11-27 | MR6: Android reading view: a message's font list comes to the phone's sans-serif, serif, monospace or narrow face, and weights from 100 to 900 (and `lighter`, `bolder`) are kept (#1966) |

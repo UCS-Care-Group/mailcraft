@@ -11,6 +11,7 @@ import uniffi.mailcraft_mobile.AttachmentRecord
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.CellView
+import uniffi.mailcraft_mobile.FaceView
 import uniffi.mailcraft_mobile.InsetsView
 import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.LineHeightView
@@ -36,7 +37,10 @@ internal object B {
         color: UInt? = null,
         background: UInt? = null,
         size: UByte? = null,
-    ) = SpanView(text, bold, italic, false, false, false, link, color, background, size, null)
+        face: FaceView = FaceView.OWN,
+        weight: UShort = if (bold) 700u else 400u,
+        code: Boolean = false,
+    ) = SpanView(text, bold, weight, italic, false, false, code, link, color, background, size, face)
 
     fun block(
         kind: BlockKindView,
@@ -249,6 +253,35 @@ internal object Corpus {
             ),
         ),
         listOf("https://example.org/", "https://example.org/login", "https://example.org/help"),
+    )
+
+    /**
+     * Fonts and weights as the core sends them (#1966): light, regular and bold sans text (Aptos, Calibri, sans-serif),
+     * a serif newsletter (Georgia), a monospace code block (Consolas) and a narrow heading (Arial Narrow).
+     */
+    val fonts = Entry(
+        "fonts",
+        view(
+            7uL, "Weights and faces",
+            listOf(
+                B.block(BlockKindView.Heading(2u), B.span("Spring at Fern Hollow", face = FaceView.CONDENSED, size = 24u)),
+                B.block(
+                    BlockKindView.Paragraph,
+                    B.span("Light 300, ", weight = 300u), B.span("regular 400, "), B.span("semibold 600, ", bold = true, weight = 600u),
+                    B.span("bold 700, ", bold = true), B.span("black 900, ", bold = true, weight = 900u),
+                    B.span("thin 100 and light italic.", italic = true, weight = 100u),
+                ),
+                B.block(
+                    BlockKindView.Paragraph,
+                    B.span("The garden opens on Saturday. ", face = FaceView.SERIF),
+                    B.span("Bring your own cup", face = FaceView.SERIF, bold = true),
+                    B.span(", and the tea is on us.", face = FaceView.SERIF, italic = true),
+                ),
+                B.block(BlockKindView.Preformatted, B.span("let shed = plans.first()\nshed.build(\"Saturday\")", face = FaceView.MONO, code = true)),
+                B.block(BlockKindView.Paragraph, B.span("Inline ", face = FaceView.OWN), B.span("Consolas", face = FaceView.MONO), B.span(" in a line.")),
+            ),
+        ),
+        emptyList(),
     )
 
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)

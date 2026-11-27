@@ -14,7 +14,7 @@
 //! | text colour | `color` |
 //! | background colour | `background-color`, the colour in `background` (also in one too long for the picture written into it) |
 //! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): only one that is attached to the message or written into it, never one on the web |
-//! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
+//! | weight, italic | `font-weight` (1 to 1000, `lighter`, `bolder`), `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
 //! | alignment | `text-align`; `start`, `end` and `justify` follow the paragraph's direction, the sides don't |
 //! | direction | `direction` (`ltr`, `rtl`) and the `dir` attribute (`ltr`, `rtl`, `auto`): a paragraph that reads from the right stands at the right; one with none reads left to right, as in a browser, and only `dir=auto` takes it from its first letter that has a direction (`bidi.rs`) |
@@ -128,6 +128,8 @@ pub(crate) struct Css {
     pub color: Option<Rgb>,
     pub background: Option<Rgb>,
     pub bold: Option<bool>,
+    /// The weight `font-weight` gives, which `bold` rounds to bold or not.
+    pub weight: Option<Weight>,
     pub italic: Option<bool>,
     pub underline: Option<bool>,
     pub strike: Option<bool>,
@@ -235,12 +237,16 @@ impl Css {
                 }
                 "background-color" => css.background = color(value),
                 "background" => css.background = tokens(value).find_map(color),
-                "font-weight" => css.bold = weight(value).or(css.bold),
+                "font-weight" => {
+                    css.bold = weight(value).or(css.bold);
+                    css.weight = Weight::of(value).or(css.weight);
+                }
                 "font-style" => css.italic = slant(value).or(css.italic),
                 "font" => {
                     for token in tokens(value) {
                         if let Some(bold) = weight(token).filter(|_| token != "normal") {
                             css.bold = Some(bold);
+                            css.weight = Weight::of(token);
                         } else if let Some(italic) = slant(token).filter(|_| token != "normal") {
                             css.italic = Some(italic);
                         } else if let Some(size) = font_size(token.split('/').next().unwrap_or("")) {
@@ -909,6 +915,40 @@ fn weight(value: &str) -> Option<bool> {
         "bold" | "bolder" => Some(true),
         "normal" | "lighter" => Some(false),
         _ => value.parse::<u16>().ok().filter(|n| (1..=1000).contains(n)).map(|n| n >= 600),
+    }
+}
+
+/// A `font-weight`: a number from 1 to 1000 (`normal` is 400, `bold` 700), or a step from the
+/// weight of what the text is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Weight {
+    Is(u16),
+    Lighter,
+    Bolder,
+}
+
+impl Weight {
+    fn of(value: &str) -> Option<Weight> {
+        Some(match value {
+            "normal" => Weight::Is(400),
+            "bold" => Weight::Is(700),
+            "lighter" => Weight::Lighter,
+            "bolder" => Weight::Bolder,
+            _ => Weight::Is(value.parse::<u16>().ok().filter(|n| (1..=1000).contains(n))?),
+        })
+    }
+
+    /// The weight inside text of weight `around`; the steps are CSS Fonts 4's.
+    pub(crate) fn within(self, around: u16) -> u16 {
+        match self {
+            Weight::Is(n) => n,
+            Weight::Lighter if around < 550 => 100,
+            Weight::Lighter if around < 750 => 400,
+            Weight::Lighter => 700,
+            Weight::Bolder if around < 350 => 400,
+            Weight::Bolder if around < 550 => 700,
+            Weight::Bolder => 900,
+        }
     }
 }
 
