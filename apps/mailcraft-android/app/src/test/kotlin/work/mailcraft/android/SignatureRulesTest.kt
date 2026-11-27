@@ -83,13 +83,14 @@ class SignatureRulesTest {
     }
 
     @Test
-    fun boxesFloatedRightStandLastTheFirstOutermost() {
+    fun boxesFloatedRightAreKeptApartInSourceOrder() {
         val left = B.tableBlock(B.table(layout = true, rows = emptyList()).copy(inline = true, float = true))
         val r1 = left.copy(align = AlignView.RIGHT, gap = 1u)
         val r2 = left.copy(align = AlignView.RIGHT, gap = 2u)
-        val (lefts, rights) = boxOrder(listOf(r1, left, r2))
-        assertEquals(listOf(left), lefts)
-        assertEquals(listOf(r2, r1), rights)
+        val inline = left.copy(kind = BlockKindView.Table(B.table(layout = true, rows = emptyList()).copy(inline = true)), align = AlignView.RIGHT)
+        val (lefts, rights) = boxSides(listOf(r1, left, r2, inline))
+        assertEquals(listOf(left, inline), lefts)
+        assertEquals(listOf(r1, r2), rights)
     }
 
     @Test

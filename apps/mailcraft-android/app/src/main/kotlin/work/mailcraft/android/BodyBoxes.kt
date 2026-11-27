@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AlignView
 import uniffi.mailcraft_mobile.BlockKindView
@@ -22,20 +25,19 @@ import uniffi.mailcraft_mobile.TableView
 
 // Boxes on a line: tables a message lays out `inline-block` or floats to a side, as the desktop does (#1966).
 
-/** The boxes of a line in the order they stand: those floated right last, the first of them outermost. */
-internal fun boxOrder(blocks: List<BlockView>): Pair<List<BlockView>, List<BlockView>> {
-    val right = { b: BlockView -> (b.kind as? BlockKindView.Table)?.table?.float == true && b.align == AlignView.RIGHT }
-    return blocks.filterNot(right) to blocks.filter(right).reversed()
-}
+/** The boxes of a line apart: those that stand from the left, and those floated right, each in source order. */
+internal fun boxSides(blocks: List<BlockView>): Pair<List<BlockView>, List<BlockView>> =
+    blocks.partition { (it.kind as? BlockKindView.Table)?.table?.float != true || it.align != AlignView.RIGHT }
 
 /**
  * Boxes on a line (tables the message lays out `inline-block`, or floats to a side), as the desktop
  * lays them out: side by side at the top of the line, each as wide as it asks, with the gap the
- * message has before it, wrapping when the line is full; those floated right from the right edge in.
+ * message has before it, wrapping when the line is full. Those floated right stand from the right
+ * edge in, the first outermost, and wrap in source order: laid out right to left.
  */
 @Composable
 internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
-    val (left, right) = boxOrder(blocks)
+    val (left, right) = boxSides(blocks)
     val first = blocks.first()
     val floats = blocks.any { (it.kind as? BlockKindView.Table)?.table?.float == true }
     val arrange = when {
@@ -43,15 +45,25 @@ internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, widt
         first.align == AlignView.CENTER -> Arrangement.Center
         else -> Arrangement.End
     }
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = arrange,
-        verticalArrangement = Arrangement.spacedBy(RUN_GAP.dp),
-    ) {
-        left.forEachIndexed { n, block -> BoxOnLine(block, n == 0, env, paper, width) }
+    val lines = Arrangement.spacedBy(RUN_GAP.dp)
+    val ltr = LocalLayoutDirection.current
+    Row(modifier = Modifier.fillMaxWidth()) {
+        if (left.isNotEmpty()) {
+            FlowRow(Modifier.weight(1f), horizontalArrangement = arrange, verticalArrangement = lines) {
+                left.forEachIndexed { n, block -> BoxOnLine(block, n == 0, env, paper, width) }
+            }
+        }
         if (right.isNotEmpty()) {
-            if (left.isNotEmpty()) Spacer(Modifier.weight(1f))
-            right.forEach { block -> BoxOnLine(block, true, env, paper, width) }
+            val rest = if (left.isEmpty()) Modifier.weight(1f) else Modifier
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                FlowRow(rest, verticalArrangement = lines) {
+                    right.forEach { block ->
+                        CompositionLocalProvider(LocalLayoutDirection provides ltr) {
+                            BoxOnLine(block, true, env, paper, width)
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -63,6 +63,13 @@ internal object SignatureCorpus {
     private val links = listOf("tel:+441632960000", "tel:+447700900123", "https://fernhollow.example/", "https://voice.example/play/1") +
         icons.map { "https://social.example/$it" } + listOf("https://social.example/fh", "https://video.example/fh")
 
+    /** The four icons floated right, under a line of text: they stand at the right edge, the first outermost. */
+    val floatedRight = Corpus.Entry(
+        "floated_right",
+        view(53uL, "Follow us", listOf(B.p("Find us here:", 0u)) + icons().map { it.copy(align = uniffi.mailcraft_mobile.AlignView.RIGHT) }),
+        links,
+    )
+
     /** Logo, bar, text: the logo's cell says no width, its picture does. */
     val logoBar = Corpus.Entry(
         "signature",
@@ -188,6 +195,9 @@ class SignatureScreenshotTest {
 
     @Test
     fun wordSignedReplyNotDownloaded() = shoot("signature_word_waiting", SignatureCorpus.wordSigned)
+
+    @Test
+    fun iconsFloatedRight() = shoot("signature_floated_right", SignatureCorpus.floatedRight)
 
     @Test
     fun voicemailNotice() = shoot("signature_voicemail", SignatureCorpus.voicemail)
