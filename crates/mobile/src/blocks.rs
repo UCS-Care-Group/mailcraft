@@ -372,7 +372,7 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         if !budget.take() {
             break;
         }
-        rows.push(row(r, t.layout, pictures, budget, depth));
+        rows.push(row(r, pictures, budget, depth));
     }
     TableView {
         rows,
@@ -395,21 +395,18 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
     }
 }
 
-fn row(r: &Row, layout: bool, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
+fn row(r: &Row, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
     let mut cells = Vec::new();
     for c in &r.cells {
         if !budget.take() {
             break;
         }
-        cells.push(cell(c, layout, pictures, budget, depth));
+        cells.push(cell(c, pictures, budget, depth));
     }
     RowView { cells }
 }
 
-fn cell(c: &Cell, layout: bool, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
-    // A layout cell that holds nothing and says nothing of its padding is a band: the desktop
-    // gives it a little height, so that a bar of colour beside a signature is seen.
-    let band = (layout && c.blocks.is_empty()).then_some(Insets { top: reading::BAND_PADDING, right: 0, bottom: reading::BAND_PADDING, left: 0 });
+fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
     CellView {
         blocks: blocks_of(&c.blocks, pictures, budget, depth),
         header: c.header,
@@ -419,7 +416,7 @@ fn cell(c: &Cell, layout: bool, pictures: &Pictures<'_>, budget: &mut Budget, de
         width: c.width.map(length),
         border: sides(c.border),
         lines: c.lines.iter().map(line).collect(),
-        padding: c.padding.or(band).map(insets),
+        padding: c.padding.map(insets),
         radius: c.radius,
         valign: c.valign.map(|v| match v {
             VAlign::Top => VAlignView::Top,

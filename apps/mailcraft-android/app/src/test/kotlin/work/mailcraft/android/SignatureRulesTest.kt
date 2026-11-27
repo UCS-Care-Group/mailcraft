@@ -19,7 +19,7 @@ class SignatureRulesTest {
     private fun inset(left: Int, right: Int, top: Int = 0, bottom: Int = 0) = InsetsView(top.toUByte(), right.toUByte(), bottom.toUByte(), left.toUByte())
 
     private fun plan(table: uniffi.mailcraft_mobile.TableView, room: Float) =
-        planColumns(columnSpecs(gridOf(table)), room, columnGap(table), table.minColumn.toFloat())
+        planColumns(columnSpecs(gridOf(table)), room, gapsOf(table).first, table.minColumn.toFloat())
 
     @Test
     fun aLogoBarAndTextSignatureStaysSideBySideOnAPhone() {
@@ -73,7 +73,7 @@ class SignatureRulesTest {
     fun aSocialIconBoxIsAsWideAsItsIconAndPadding() {
         val icons = SignatureCorpus.icons()
         val table = (icons.first().kind as BlockKindView.Table).table
-        assertEquals(26f, boxWidth(table, columnGap(table)))
+        assertEquals(26f, boxWidth(table, gapsOf(table).first))
         assertEquals(26.dp, drawnWidth(table, 300.dp))
         // A box that holds text takes the line; one that says its width has it.
         val text = B.table(layout = true, rows = listOf(listOf(B.cell(B.p("Ada"))))).copy(inline = true)
@@ -101,21 +101,20 @@ class SignatureRulesTest {
     }
 
     @Test
+    fun linesOfBoxesStandOneUnderAnotherWithTheGapBetween() {
+        val (tops, all) = lineTops(intArrayOf(20, 30, 10), between = 4)
+        assertEquals(listOf(0, 24, 58), tops.toList())
+        assertEquals(68, all)
+        assertEquals(0, lineTops(IntArray(0), 4).second)
+    }
+
+    @Test
     fun inlineBoxesKeepTheirGapsAndTheLinesAlignment() {
         // The gap stands before a box that follows another in its line, not before the first of a line.
         assertEquals(listOf(0 to 0, 124 to 0, 0 to 1), spots(listOf(120, 120, 120), listOf(false, false, false), room = 300, gaps = listOf(0, 4, 4), floats = false))
         assertEquals(listOf(45 to 0, 145 to 0), spots(listOf(100, 110), listOf(false, false), room = 300, floats = false, align = AlignView.CENTER))
         assertEquals(listOf(90 to 0, 190 to 0), spots(listOf(100, 110), listOf(false, false), room = 300, floats = false, align = AlignView.RIGHT))
         assertEquals(emptyList<Pair<Int, Int>>(), spots(emptyList(), emptyList(), room = 300))
-    }
-
-    @Test
-    fun boxMarginsGiveWayWhenTheLineIsShort() {
-        val t = B.table(layout = true, rows = emptyList()).copy(inline = true, boxMarginLeft = 10u, boxMarginRight = 30u)
-        assertEquals(10f to 30f, boxMargins(t, 200f))
-        val (l, r) = boxMargins(t, 44f)
-        assertEquals(20f, l + r, 0.01f)
-        assertEquals(3f, r / l, 0.01f)
     }
 
     @Test

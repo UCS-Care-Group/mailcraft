@@ -6,7 +6,7 @@ use mailcraft_html::{BlockKind, MAX_TABLE_DEPTH};
 
 use mailcraft_html::reading;
 
-use crate::blocks::{BlockKindView, BlockView, InsetsView, Pictures, views};
+use crate::blocks::{BlockKindView, BlockView, Pictures, views};
 
 fn words(blocks: &[BlockView], out: &mut String) {
     for b in blocks {
@@ -124,13 +124,12 @@ fn a_signature_carries_the_desktops_rules_for_its_bar_its_icons_and_its_links() 
     assert!(all.iter().all(|t| t.min_column == reading::MIN_LAYOUT_COLUMN));
     let Some(sig) = all.first() else { return };
     let cells: Vec<_> = sig.rows.iter().flat_map(|r| &r.cells).collect();
-    // The bar holds nothing: it keeps its colour, its width and the desktop's room above and below.
+    // The bar holds nothing: it keeps its colour and its width (its band of room is the phone's
+    // cell rule, as on the desktop).
     let bar = cells.get(1).copied();
     assert_eq!(bar.map(|c| c.blocks.len()), Some(0));
     assert_eq!(bar.and_then(|c| c.background), Some(0x2e7d32));
-    assert_eq!(bar.and_then(|c| c.padding), Some(InsetsView { top: reading::BAND_PADDING, right: 0, bottom: reading::BAND_PADDING, left: 0 }));
-    // A cell that holds something keeps the padding it says, or none.
-    assert_eq!(cells.first().and_then(|c| c.padding), None);
+    assert_eq!(bar.and_then(|c| c.width), Some(crate::blocks::LengthView::Px { px: 3 }));
     // The icons are floated boxes on one line, touching.
     let icons = all.get(1..).unwrap_or_default();
     assert!(icons.iter().all(|t| t.inline && t.float && t.gap_before == 0));
@@ -142,17 +141,13 @@ fn a_signature_carries_the_desktops_rules_for_its_bar_its_icons_and_its_links() 
 }
 
 #[test]
-fn boxes_parted_by_white_space_have_the_desktops_gap_and_a_band_only_in_a_layout_table() {
-    let html = r#"<div><div style="display:inline-block;width:120px">Ada Example</div> <div style="display:inline-block;width:120px">Bo Example</div></div>
-<table border=1><tr><td>Name</td><td style="background:#eee"></td></tr></table>"#;
+fn boxes_parted_by_white_space_have_the_desktops_gap() {
+    let html = r#"<div><div style="display:inline-block;width:120px">Ada Example</div> <div style="display:inline-block;width:120px">Bo Example</div></div>"#;
     let shown = shown(&mailcraft_html::parse(html));
     let mut all = Vec::new();
     tables(&shown, &mut all);
     let gaps: Vec<u8> = all.iter().filter(|t| t.inline).map(|t| t.gap_before).collect();
     assert_eq!(gaps, vec![0, reading::BOX_GAP]);
-    // A data table's empty cell is a cell of the grid: it keeps the grid's own padding.
-    let data = all.iter().find(|t| !t.layout);
-    assert!(data.is_some_and(|t| t.rows.iter().flat_map(|r| &r.cells).all(|c| c.padding.is_none())));
 }
 
 fn spans_of(blocks: &[BlockView], out: &mut Vec<crate::blocks::SpanView>) {

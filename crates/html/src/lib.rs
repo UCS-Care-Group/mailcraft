@@ -627,9 +627,6 @@ pub mod reading {
     /// The gap in front of a box on a line that the source parts from the box before it by white
     /// space ([`Table::spaced`]), and the gap between the lines of such boxes.
     pub const BOX_GAP: u8 = 4;
-    /// The room above and below a layout cell that holds nothing and says nothing of its padding:
-    /// a band of colour, a bar, a divider.
-    pub const BAND_PADDING: u8 = 3;
 
     /// The gap in front of `table` when it is a box on a line after another.
     pub fn box_gap(table: &Table) -> u8 {

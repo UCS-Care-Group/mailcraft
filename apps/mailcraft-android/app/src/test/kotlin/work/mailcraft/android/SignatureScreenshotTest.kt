@@ -38,8 +38,8 @@ internal object SignatureCorpus {
 
     private fun row(vararg cells: CellView): TableView = B.table(layout = true, rows = listOf(cells.toList())).copy(spacing = 0u)
 
-    /** A cell that holds nothing but a colour: the band the bridge gives three dp above and below. */
-    private fun bar(width: Int, tint: UInt) = B.cell(width = LengthView.Px(width.toUShort()), background = tint).copy(padding = inset(3, 0, 3, 0))
+    /** A cell that holds nothing but a colour: a band, as the bridge hands it over (no padding of its own). */
+    private fun bar(width: Int, tint: UInt) = B.cell(width = LengthView.Px(width.toUShort()), background = tint)
 
     private fun bareLink(text: String, to: String) = B.span(text, link = to).copy(bare = true)
 

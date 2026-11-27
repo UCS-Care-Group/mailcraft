@@ -5,7 +5,14 @@ package work.mailcraft.android
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.AlignView
@@ -86,49 +93,75 @@ internal fun placeBoxes(
 
 private fun BlockView.box(): TableView? = (kind as? BlockKindView.Table)?.table
 
+/** The tops of lines of boxes [heights] high, [between] apart, and the height of them all. */
+internal fun lineTops(heights: IntArray, between: Int): Pair<IntArray, Int> {
+    val tops = IntArray(heights.size)
+    for (l in 1 until heights.size) tops[l] = tops[l - 1] + heights[l - 1] + between
+    val all = if (heights.isEmpty()) 0 else tops.last() + heights.last()
+    return tops to all
+}
+
+/** The height of each line of boxes placed at [spots] that are [heights] high. */
+internal fun lineHeights(spots: List<Pair<Int, Int>>, heights: List<Int>): IntArray {
+    val lines = IntArray((spots.maxOfOrNull { it.second } ?: -1) + 1)
+    spots.forEachIndexed { n, (_, l) -> lines[l] = maxOf(lines[l], heights.getOrElse(n) { 0 }) }
+    return lines
+}
+
+/**
+ * How boxes on a line are measured and placed: by [placeBoxes]. Asked for its height at a width (a row
+ * of a table with colour sizes its cells so), it answers from the boxes' own widths, not the whole
+ * width a stand-in for each would report.
+ */
+private class BoxesPolicy(
+    val gapsDp: List<Int>,
+    val right: List<Boolean>,
+    val align: AlignView,
+    val floats: Boolean,
+) : MeasurePolicy {
+    override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val widths = placeables.map { it.width }
+        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, room, align, floats)
+        val (tops, height) = lineTops(lineHeights(spots, placeables.map { it.height }), RUN_GAP.dp.roundToPx())
+        val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
+        return layout(w, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            spots.forEachIndexed { n, (x, l) -> placeables[n].place(x, tops[l]) }
+        }
+    }
+
+    private fun IntrinsicMeasureScope.heightAt(measurables: List<IntrinsicMeasurable>, width: Int, max: Boolean): Int {
+        val widths = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity).coerceAtMost(width) }
+        val heights = measurables.mapIndexed { n, m ->
+            if (max) m.maxIntrinsicHeight(widths[n]) else m.minIntrinsicHeight(widths[n])
+        }
+        val spots = placeBoxes(widths, gapsDp.map { it.dp.roundToPx() }, right, width, align, floats)
+        return lineTops(lineHeights(spots, heights), RUN_GAP.dp.roundToPx()).second
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
+        heightAt(measurables, width, max = false)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int) =
+        heightAt(measurables, width, max = true)
+}
+
 /** Boxes on a line (tables the message lays out `inline-block`, or floats to a side), placed by [placeBoxes]. */
 @Composable
 internal fun BoxesLine(blocks: List<BlockView>, env: BodyEnv, paper: Paper, width: Dp) {
     val boxes = blocks.mapNotNull { b -> b.box()?.let { b to it } }
-    val right = boxes.map { (b, t) -> t.float && b.align == AlignView.RIGHT }
-    val floats = boxes.any { it.second.float }
-    val align = blocks.first().align
+    val policy = BoxesPolicy(
+        gapsDp = boxes.map { it.second.gapBefore.toInt() },
+        right = boxes.map { (b, t) -> t.float && b.align == AlignView.RIGHT },
+        align = blocks.first().align,
+        floats = boxes.any { it.second.float },
+    )
     Layout(
         modifier = Modifier.fillMaxWidth(),
-        content = { boxes.forEach { (b, t) -> TableBlock(t, b.align, env, paper, width) } },
-    ) { measurables, constraints ->
-        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
-        val widths = placeables.map { it.width }
-        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
-        val gaps = boxes.map { it.second.gapBefore.toInt().dp.roundToPx() }
-        val spots = placeBoxes(widths, gaps, right, room, align, floats)
-        val lines = (spots.maxOfOrNull { it.second } ?: -1) + 1
-        val heights = IntArray(lines)
-        spots.forEachIndexed { n, (_, l) -> heights[l] = maxOf(heights[l], placeables[n].height) }
-        val between = RUN_GAP.dp.roundToPx()
-        val tops = IntArray(lines)
-        for (l in 1 until lines) tops[l] = tops[l - 1] + heights[l - 1] + between
-        val height = if (lines == 0) 0 else tops[lines - 1] + heights[lines - 1]
-        val w = room.coerceIn(constraints.minWidth, constraints.maxWidth)
-        layout(w, height.coerceIn(constraints.minHeight, constraints.maxHeight)) {
-            spots.forEachIndexed { n, (x, l) -> placeables[n].place(x, tops[l]) }
-        }
-    }
-}
-
-/** The gap in dp between the columns of [table]: its own, or the reader's. */
-internal fun columnGap(table: TableView): Float = table.spacing?.toInt()?.toFloat() ?: DEFAULT_COLUMN_GAP
-
-/**
- * The room in dp a box on a line keeps free left and right of it (its margins), within [room]: at
- * least [CellMinimum] is left for the box, as on the desktop.
- */
-internal fun boxMargins(table: TableView, room: Float): Pair<Float, Float> {
-    val left = table.boxMarginLeft.toFloat()
-    val right = table.boxMarginRight.toFloat()
-    val most = (room - CellMinimum.value).coerceAtLeast(0f)
-    val scale = if (left + right > most && left + right > 0f) most / (left + right) else 1f
-    return left * scale to right * scale
+        content = { boxes.forEach { (b, t) -> BoxOnALine(t, b.align, env, paper, width) } },
+        measurePolicy = policy,
+    )
 }
 
 /**
@@ -137,7 +170,7 @@ internal fun boxMargins(table: TableView, room: Float): Pair<Float, Float> {
  */
 internal fun drawnWidth(table: TableView, room: Dp): Dp {
     if (!table.inline || table.width != null) return tableWidth(table, room)
-    return boxWidth(table, columnGap(table))?.dp?.coerceIn(CellMinimum.coerceAtMost(room), room) ?: room
+    return boxWidth(table, gapsOf(table).first)?.dp?.coerceIn(CellMinimum.coerceAtMost(room), room) ?: room
 }
 
 /**

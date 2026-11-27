@@ -1657,7 +1657,7 @@ fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
         DATA_PADDING
     } else if cell.blocks.is_empty() {
         // A cell that is only a colour or a line: a band or a divider.
-        vec2(0.0, f32::from(mailcraft_html::reading::BAND_PADDING))
+        vec2(0.0, 3.0)
     } else if ruled || painted(table) || cell.background.is_some() || cell.bg_picture.is_some() || cell.border.any() {
         BOX_PADDING
     } else {
