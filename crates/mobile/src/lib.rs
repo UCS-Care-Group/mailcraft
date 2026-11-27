@@ -106,6 +106,8 @@ mod review_tests;
 #[cfg(test)]
 mod settings_tests;
 #[cfg(test)]
+mod spacing_tests;
+#[cfg(test)]
 mod sync_stop_tests;
 #[cfg(test)]
 mod sync_tests;

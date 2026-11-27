@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -29,13 +30,21 @@ private const val BOTTOM = 2
  * The lines on [sides] of a box (all of them for null), as the message draws them, thin and in the
  * reader's own colour where it says nothing; a colour that would not be seen on [paper] is the reader's.
  */
-internal fun Modifier.frame(lines: List<LineView>, sides: SidesView?, fallback: Color, paper: Paper): Modifier {
+internal fun Modifier.frame(
+    lines: List<LineView>,
+    sides: SidesView?,
+    fallback: Color,
+    paper: Paper,
+    over: Boolean = false,
+): Modifier {
     val wanted = sides ?: ALL_SIDES
     if (!wanted.hasAny()) return this
     val flags = booleanArrayOf(wanted.top, wanted.right, wanted.bottom, wanted.left)
-    return drawBehind {
+    val draw: DrawScope.() -> Unit = {
         flags.forEachIndexed { side, on -> if (on) drawSide(side, lines.getOrNull(side), fallback, paper) }
     }
+    // [over]: drawn over what the box holds (a table's frame over its cells' colours), else behind it.
+    return if (over) drawWithContent { drawContent(); draw() } else drawBehind(draw)
 }
 
 private fun DrawScope.drawSide(side: Int, line: LineView?, fallback: Color, paper: Paper) {
