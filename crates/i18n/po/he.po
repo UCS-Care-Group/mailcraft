@@ -6908,7 +6908,7 @@ msgstr "Google לא החזירה אותך אל MailCraft. אם הופיעה שג
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Google didn't accept the password. An account with 2-Step Verification needs an app password: make one on Google's App passwords page, then paste it here in place of your usual password."
-msgstr "Google לא קיבלה את הסיסמה. חשבון עם אימות דו־שלבי דורש סיסמה לאפליקציה: צור סיסמה בדף ״סיסמאות לאפליקציות״ של Google, ולאחר מכן הדבק אותה כאן במקום הסיסמה הרגילה שלך."
+msgstr "Google לא קיבלה את הסיסמה. חשבון עם אימות דו־שלבי דורש סיסמה לאפליקציה: יש ליצור סיסמה בדף ״סיסמאות לאפליקציות״ של Google, ולאחר מכן להדביק אותה כאן במקום הסיסמה הרגילה."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -17646,7 +17646,7 @@ msgid ""
 msgstr ""
 "לוח השנה של תיבת הדואר המשותפת {address} מוצג פעמיים: תחת \"לוחות השנה שלי\" עם תיבת הדואר המשותפת, ותחת \"לוחות שנה משותפים\" בשם \"{name}\", מפני שהוא גם שותף איתך ואישרת אותו.\n"
 "\n"
-"להסתיר את העותק תחת \"לוחות שנה משותפים\"? לוח השנה של תיבת הדואר המשותפת יישאר, ויאפשר לך לערוך אירועים, להשיב להזמנות לפגישות ולשלוח מתיבת הדואר כאשר יש לך הרשאה לכך. דבר אינו משתנה בשרת: לחץ לחיצה ימנית על לוח השנה של תיבת הדואר המשותפת כדי להציג את העותק שוב."
+"להסתיר את העותק תחת \"לוחות שנה משותפים\"? לוח השנה של תיבת הדואר המשותפת יישאר, ויאפשר לך לערוך אירועים, להשיב להזמנות לפגישות ולשלוח מתיבת הדואר כאשר יש לך הרשאה לכך. דבר אינו משתנה בשרת: יש ללחוץ לחיצה ימנית על לוח השנה של תיבת הדואר המשותפת כדי להציג את העותק שוב."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -17968,7 +17968,7 @@ msgstr "בקובץ יש יותר אירועים מכמות האירועים שנ
 #: crates/engine/src/private_keys.rs
 #, fuzzy
 msgid "The file holds more than one key, or something besides the key: export only the one secret key to import (gpg --armor --export-secret-keys <key>)."
-msgstr "הקובץ מכיל יותר ממפתח אחד, או תוכן נוסף מלבד המפתח: ייצא לייבוא רק את המפתח הסודי האחד (gpg --armor --export-secret-keys <key>)."
+msgstr "הקובץ מכיל יותר ממפתח אחד, או תוכן נוסף מלבד המפתח: יש לייצא לייבוא רק את המפתח הסודי האחד (gpg --armor --export-secret-keys <key>)."
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18444,7 +18444,7 @@ msgstr "היציאה; השאר ריק לשימוש ביציאה הרגילה"
 #: crates/engine/src/private_keys.rs
 #, fuzzy
 msgid "The private key in this file isn't encrypted, so MailCraft doesn't keep it: export it again with its key encrypted (AES), protected by a passphrase."
-msgstr "המפתח הפרטי בקובץ זה אינו מוצפן, ולכן MailCraft אינו שומר אותו: ייצא אותו מחדש כשהמפתח מוצפן (AES) ומוגן בביטוי סיסמה."
+msgstr "המפתח הפרטי בקובץ זה אינו מוצפן, ולכן MailCraft אינו שומר אותו: יש לייצא אותו מחדש כשהמפתח מוצפן (AES) ומוגן בביטוי סיסמה."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -26329,7 +26329,7 @@ msgstr "{name} אינו חשבון Microsoft או שרת Exchange"
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{name} isn't a mailbox; bring it in with File › Import"
-msgstr "{name} אינו תיבת דואר; ייבא אותו דרך קובץ › ייבוא"
+msgstr "{name} אינו תיבת דואר; יש לייבא אותו דרך קובץ › ייבוא"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
@@ -27565,7 +27565,7 @@ msgstr "{path} גדול מ־{mb} MB"
 #: crates/engine/src/cmd/file.rs
 #, fuzzy
 msgid "{path} isn't a mailbox; bring it in with File › Import"
-msgstr "{path} אינו תיבת דואר; ייבא אותו דרך קובץ › ייבוא"
+msgstr "{path} אינו תיבת דואר; יש לייבא אותו דרך קובץ › ייבוא"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
