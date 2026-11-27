@@ -115,7 +115,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     if app.session.view.folder_pane {
         side_pane(app, ui);
     }
-    let main = egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(true))).show(ui, |ui| {
+    let main = egui::CentralPanel::default().frame(crate::nav::right_frame(&t, true)).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         let mut frame = Frame::begin(ui);
         header(app, ui);

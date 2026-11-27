@@ -45,9 +45,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         list(app, ui, &layout);
     });
     crate::nav::keep_side_width(app, side.response.rect);
-    let shown = egui::CentralPanel::default()
-        .frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(true)))
-        .show(ui, |ui| card(app, ui, layout.total));
+    let shown = egui::CentralPanel::default().frame(crate::nav::right_frame(&t, true)).show(ui, |ui| card(app, ui, layout.total));
     crate::nav::sheet_right(ui.painter(), shown.response.rect, &t, true);
 }
 

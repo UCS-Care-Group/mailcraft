@@ -52,13 +52,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .default_size(340.0f32.min(max))
             .size_range(260.0..=max)
             .resizable(true)
-            .frame(frame.corner_radius(crate::nav::right_corner(true)))
+            .frame(
+                frame
+                    .corner_radius(crate::nav::right_corner(true))
+                    .inner_margin(egui::Margin { bottom: crate::nav::SHEET_CORNER as i8, ..Default::default() }),
+            )
             .show(ui, |ui| details(app, ui, &task));
         details_shown = Some(shown.response.rect);
     }
-    let corner = if details_shown.is_some() { egui::CornerRadius::ZERO } else { crate::nav::right_corner(true) };
-    let list_shown =
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface).corner_radius(corner)).show(ui, |ui| list(app, ui, &lists));
+    // (The list's own corners are square beside the details.)
+    let central = if details_shown.is_some() { egui::Frame::NONE.fill(t.surface) } else { crate::nav::right_frame(&t, true) };
+    let list_shown = egui::CentralPanel::default().frame(central).show(ui, |ui| list(app, ui, &lists));
     crate::nav::sheet_right(ui.painter(), details_shown.unwrap_or(list_shown.response.rect), &t, true);
 }
 

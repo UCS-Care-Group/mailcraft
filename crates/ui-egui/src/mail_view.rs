@@ -123,9 +123,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let pane = app.session.view.reading_pane;
     // The list takes the whole width when the reading pane is off, unless a message is being written.
     if pane == Pane::Off && !composing {
-        let shown = egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(true)))
-            .show(ui, |ui| list(app, ui));
+        let shown = egui::CentralPanel::default().frame(crate::nav::right_frame(&t, true)).show(ui, |ui| list(app, ui));
         crate::nav::sheet_right(ui.painter(), shown.response.rect, &t, true);
         return;
     }
@@ -139,7 +137,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .default_size(h.min(max))
             .size_range(120.0..=max)
             .resizable(true)
-            .frame(frame)
+            // (The list is at the window's top right here, so its corner there is rounded; the
+            // reading pane under it has the bottom one.)
+            .frame(frame.corner_radius(egui::CornerRadius { nw: 0, ne: crate::nav::SHEET_CORNER, sw: 0, se: 0 }))
             .show(ui, |ui| list(app, ui));
         app.hit.add("messageList", 0, shown.response.rect);
         // Only the owner's resize of the splitter changes the height kept, by a drag (its last frame
@@ -162,7 +162,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // The pane is the window's right edge: rounded at its corners, like the folder pane at the left
     // (under the list it is the lower pane: its top corners stay square).
     let top = pane != Pane::Bottom;
-    let shown = egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface).corner_radius(crate::nav::right_corner(top))).show(ui, |ui| {
+    let shown = egui::CentralPanel::default().frame(crate::nav::right_frame(&t, top)).show(ui, |ui| {
         if composing {
             // Each message being written has fields of its own (#286): two never share a caret.
             let compose = app.session.compose_id();

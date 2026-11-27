@@ -1065,6 +1065,13 @@ pub(crate) fn right_corner(top: bool) -> CornerRadius {
     CornerRadius { nw: 0, ne: if top { SHEET_CORNER } else { 0 }, sw: 0, se: SHEET_CORNER }
 }
 
+/// The frame of the pane at the window's right: its colour, its rounded corners, and the room of a
+/// corner at its foot, so that what is drawn to the edge of the pane (a scroll bar, the last cell
+/// of the month, a row's fill) ends inside the curve instead of over it.
+pub(crate) fn right_frame(t: &Tokens, top: bool) -> egui::Frame {
+    egui::Frame::NONE.fill(t.surface).corner_radius(right_corner(top)).inner_margin(egui::Margin { bottom: SHEET_CORNER as i8, ..Default::default() })
+}
+
 /// The top of the pane: the button that puts the pane away.
 fn pane_top(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     // The line along the pane's top, and a little air under it.
@@ -1088,7 +1095,10 @@ fn pane_top(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::left("folders_hidden").exact_size(STRIP_W).resizable(false).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
-        sheet(ui.painter(), ui.max_rect(), &t, t.panel);
+        let whole = ui.max_rect();
+        sheet(ui.painter(), whole, &t, t.panel);
+        // (No module bar at its foot: the line along the bottom is the strip's own.)
+        sheet_foot(ui.painter(), whole, &t, 0.0);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(4.0);
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
