@@ -14,7 +14,10 @@
 //! Under Wayland in the Flatpak neither of those is there (no data-control protocol, no X11), so
 //! HTML, pictures and text are read through winit's own `wl_data_device`, the one the window
 //! already uses for its text and file drops: the types asked for and the caps are in
-//! `clipboard_mime`. `arboard` is the way back when that has nothing to say (#1217).
+//! `clipboard_mime`. Text is written through that same device when `arboard` cannot open a
+//! clipboard; an in-process HTML copy is retained for a matching text paste (#1217). A successful
+//! native HTML read invalidates that copy, since another application has replaced the clipboard's
+//! HTML offer.
 //!
 //! One clipboard is opened at the first copy or paste and kept: on X11 and Wayland what was
 //! copied is served from this program for as long as it holds the clipboard.
@@ -54,12 +57,42 @@ pub fn wayland_display(window: &impl winit::raw_window_handle::HasDisplayHandle)
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
+#[derive(Default)]
+struct FallbackHtml(RefCell<Option<(String, String)>>);
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
+impl FallbackHtml {
+    fn remember(&self, text: &str, html: &str) {
+        *self.0.borrow_mut() = Some((text.to_string(), html.to_string()));
+    }
+
+    fn matching(&self, text: &str) -> Option<String> {
+        let cached = self.0.borrow().clone();
+        match cached {
+            Some((cached_text, html)) if cached_text == text => Some(html),
+            Some(_) => {
+                self.clear();
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn clear(&self) {
+        *self.0.borrow_mut() = None;
+    }
+}
+
 #[derive(Default)]
 struct Board {
     open: RefCell<Option<arboard::Clipboard>>,
     /// Winit's clipboard on the compositor's `wl_data_device`, under Wayland.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     wayland: Option<WaylandBoard>,
+    /// HTML accompanying text written through winit, whose Wayland API only writes text.
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    fallback_html: FallbackHtml,
 }
 
 impl Board {
@@ -73,13 +106,48 @@ impl Board {
             None => Err("no clipboard".into()),
         }
     }
+
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    fn write(&self, primary: Result<(), String>, text: &str) -> (Result<(), String>, bool) {
+        let Some(wayland) = &self.wayland else { return (primary, false) };
+        let fallback_used = primary.is_err() && !text.is_empty();
+        (finish_wayland_write(primary, text, |text| wayland.store_text(text.to_owned()).map_err(|e| e.to_string())), fallback_used)
+    }
 }
 
 impl RichClipboard for Board {
     fn put(&self, html: &str, text: &str) -> Result<(), String> {
-        let r = self.with(|b| b.set().html(html, Some(text)));
+        let primary = self.with(|b| b.set().html(html, Some(text)));
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        let (r, fallback_used) = self.write(primary, text);
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+        let r = primary;
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if r.is_ok() && self.wayland.is_some() {
+            if fallback_used {
+                self.fallback_html.remember(text, html);
+            } else {
+                self.fallback_html.clear();
+            }
+        }
         if let Err(e) = &r {
-            log::warn!("the clipboard took no HTML: {e}");
+            log::warn!("the clipboard took no HTML or text: {e}");
+        }
+        r
+    }
+
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        let primary = self.with(|b| b.set_text(text.to_owned()));
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        let (r, _) = self.write(primary, text);
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+        let r = primary;
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if r.is_ok() {
+            self.fallback_html.clear();
+        }
+        if let Err(e) = &r {
+            log::warn!("the clipboard took no text: {e}");
         }
         r
     }
@@ -88,12 +156,24 @@ impl RichClipboard for Board {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if let Some(wayland) = &self.wayland {
             match wayland.load_mime(&HTML_MIMES, MAX_HTML_BYTES) {
-                Ok((_, bytes)) => return html_of(&decode_html(&bytes)),
+                Ok((_, bytes)) => {
+                    self.fallback_html.clear();
+                    return html_of(&decode_html(&bytes));
+                }
                 // Nothing of that kind offered: `arboard` may still have some.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 // The owner didn't answer in time: asking it again through `arboard` would wait as long.
                 Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                 Err(e) => log::debug!("the Wayland clipboard gave no HTML: {e}"),
+            }
+            match wayland.load_text() {
+                Ok(text) => {
+                    if let Some(html) = self.fallback_html.matching(&text) {
+                        return html_of(&html);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                Err(_) => {}
             }
         }
         let html = self.with(|b| b.get().html()).ok()?;
@@ -131,9 +211,9 @@ impl RichClipboard for Board {
     }
 
     fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
-        // Wayland in the Flatpak has neither data-control nor X11. The window's Wayland
-        // clipboard can store text only, so a picture still goes through `arboard` and that
-        // write fails there. The same gap as copying HTML (#1217).
+        // A picture is written through `arboard`. Under Wayland in the Flatpak, which has
+        // neither data-control nor X11, the window's clipboard can store text only, so this
+        // write fails there. A picture already on that clipboard is read through it (#1217).
         let (width, height, pixels) = pixels(bytes)?;
         let image = arboard::ImageData { width, height, bytes: std::borrow::Cow::Owned(pixels) };
         let r = self.with(|b| b.set_image(image));
@@ -152,6 +232,15 @@ impl RichClipboard for Board {
             return true;
         }
         self.image().is_some()
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn finish_wayland_write(primary: Result<(), String>, text: &str, fallback: impl FnOnce(&str) -> Result<(), String>) -> Result<(), String> {
+    match primary {
+        Ok(()) => Ok(()),
+        Err(primary) if !text.is_empty() => fallback(text).map_err(|fallback| format!("{primary}; Wayland text fallback failed: {fallback}")),
+        Err(primary) => Err(primary),
     }
 }
 
@@ -182,7 +271,7 @@ fn fragment(html: &str) -> &str {
 /// The picture's pixels, RGBA, for the system clipboard. A side longer than the clipboard takes
 /// is scaled down; the file a Save writes stays the original bytes.
 fn pixels(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
-    if bytes.is_empty() || bytes.len() > mailcraft_ui_egui::reading::images::MAX_PICTURE_BYTES {
+    if bytes.is_empty() || bytes.len() > mailcraft_ui_egui::reading::MAX_PICTURE_BYTES {
         return Err("that is not a picture that can be shown".into());
     }
     let rgba = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| rgba_of(bytes)))
@@ -221,51 +310,5 @@ fn rgba_of(bytes: &[u8]) -> Option<image::RgbaImage> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use mailcraft_ui_egui::MAX_PICTURE_SIDE as MAX_SIDE;
-
-    #[test]
-    fn a_picture_on_the_clipboard_is_kept_as_png() {
-        let png = png(2, 1, &[255, 0, 0, 255, 0, 0, 255, 255]).unwrap();
-        assert!(png.starts_with(b"\x89PNG"));
-        assert_eq!(super::png(2, 2, &[0; 8]), None);
-        assert_eq!(super::png(0, 0, &[]), None);
-        assert_eq!(super::png(MAX_SIDE + 1, 1, &[0; 4 * (MAX_SIDE + 1)]), None);
-        let mut png_bytes = Vec::new();
-        image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(2, 1, image::Rgba([255, 0, 0, 255])))
-            .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-            .unwrap();
-        let (w, h, rgba) = pixels(&png_bytes).unwrap();
-        assert_eq!((w, h, rgba.as_slice()), (2, 1, [255, 0, 0, 255, 255, 0, 0, 255].as_slice()));
-        assert!(pixels(b"<html></html>").is_err());
-    }
-
-    #[test]
-    fn the_html_is_taken_out_of_what_windows_hands_over() {
-        assert_eq!(fragment("<b>x</b>"), "<b>x</b>");
-        let windows = "Version:0.9\r\nStartHTML:00000097\r\nEndHTML:00000170\r\n<html><body>\r\n<!--StartFragment--><ul><li>a</li></ul><!--EndFragment-->\r\n</body></html>";
-        assert_eq!(fragment(windows), "<ul><li>a</li></ul>");
-        assert_eq!(fragment("Version:0.9\r\nStartHTML:1\r\n<p>y</p>"), "<p>y</p>");
-        assert_eq!(fragment("Version:0.9\r\n<!--StartFragment-->no end"), "<!--StartFragment-->no end");
-        assert_eq!(fragment("Version:"), "");
-    }
-
-    /// The real clipboard of the machine the test runs on: HTML put there comes back, and its
-    /// text is there for programs that take text. Run by hand, in each kind of session
-    /// (`WAYLAND_DISPLAY` unset for X11): `cargo test -p mailcraft clipboard -- --ignored`.
-    #[test]
-    #[ignore = "uses the system's clipboard"]
-    fn html_goes_on_the_system_clipboard_and_comes_back() {
-        let board = Board::default();
-        board.put("<ul><li>one<ul><li>two</li></ul></li></ul>", "- one\n   - two").unwrap();
-        // Another clipboard of this program reads it through the system.
-        let other = Board::default();
-        assert_eq!(other.html().as_deref(), Some("<ul><li>one<ul><li>two</li></ul></li></ul>"));
-        let text = arboard::Clipboard::new().unwrap().get_text().unwrap();
-        assert_eq!(text, "- one\n   - two");
-        // Text alone on the clipboard: no HTML to paste.
-        arboard::Clipboard::new().unwrap().set_text("plain").unwrap();
-        assert_eq!(other.html(), None);
-    }
-}
+#[path = "clipboard_tests.rs"]
+mod clipboard_tests;

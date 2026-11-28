@@ -1012,7 +1012,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         let html = got.get("html").and_then(Value::as_str);
                         let put = match (&app.services.clipboard, html) {
                             (Some(board), Some(html)) => board.put(html, &text),
-                            _ => Err(String::new()),
+                            (Some(board), None) => board.put_text(&text),
+                            (None, _) => Err(String::new()),
                         };
                         if put.is_err() {
                             ctx.copy_text(text);

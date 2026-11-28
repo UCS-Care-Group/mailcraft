@@ -73,6 +73,7 @@ use mailcraft_html::Block;
 use mailcraft_model::{FlagStatus, Importance, Message, format_list_capped};
 use serde_json::json;
 
+pub use images::MAX_PICTURE_BYTES;
 pub(crate) use invitation::{list_marks, options as invitation_options, question as invitation_question};
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
