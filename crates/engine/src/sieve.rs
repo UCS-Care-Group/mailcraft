@@ -476,13 +476,34 @@ fn vacation_section(vacation: &Vacation, owner: &Owner, scheduled: bool) -> Stri
             quoted(&utc(start)),
             quoted(&utc(end))
         ));
-        for line in body.split_inclusive("\r\n") {
-            out.push_str("    ");
-            out.push_str(line);
-        }
+        out.push_str(&indented(&body));
         out.push_str("}\r\n");
     } else {
         out.push_str(&body);
+    }
+    out
+}
+
+/// `body` (Sieve MailCraft wrote, with no comments) with each line that starts outside a quoted
+/// string indented by four spaces: a line of a reply's text, inside its string, is the reply's
+/// own and stays as it is (#2058).
+fn indented(body: &str) -> String {
+    let mut out = String::with_capacity(body.len().saturating_add(body.len() / 8));
+    let mut in_string = false;
+    for line in body.split_inclusive("\r\n") {
+        if !in_string {
+            out.push_str("    ");
+        }
+        out.push_str(line);
+        let mut escaped = false;
+        for c in line.chars() {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' if in_string => escaped = true,
+                '"' => in_string = !in_string,
+                _ => {}
+            }
+        }
     }
     out
 }

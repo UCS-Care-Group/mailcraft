@@ -61,6 +61,21 @@ fn a_time_range_is_a_currentdate_test_in_utc() {
     assert_eq!(read_vacation(&script), Some(vacation));
 }
 
+/// Text of several lines in a reply sent during a time range is the reply's own, line for line:
+/// the block's indentation stays out of its string (#2058).
+#[test]
+fn a_reply_of_several_lines_during_a_time_range_keeps_its_lines() {
+    let text = "First\nSecond\n  indented \"quoted\" \\ end";
+    let always = on(text, "Out\nthere");
+    let ranged = Vacation { status: AutoReplyStatus::Scheduled, start: Some(START), end: Some(END), ..always.clone() };
+    let script = vacation_script(&ranged, &owner());
+    assert!(!script.contains("    Second") && !script.contains("    there"), "{script}");
+    let read = read_vacation(&script).unwrap();
+    assert_eq!((read.internal.as_str(), read.external.as_str()), (text, "Out\nthere"));
+    assert_eq!(read, ranged);
+    assert_eq!(read_vacation(&vacation_script(&always, &owner())).unwrap().internal, read.internal);
+}
+
 #[test]
 fn nobody_outside_gets_no_reply_outside() {
     let vacation = Vacation { audience: ExternalAudience::None, external: String::new(), ..on("in", "") };
