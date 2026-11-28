@@ -4,6 +4,7 @@ package work.mailcraft.android
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 
 /** What the owner chose about reading, kept on this phone only. */
 internal data class ReadingPrefs(
@@ -15,7 +16,40 @@ internal data class ReadingPrefs(
     val foldAttachments: Boolean = true,
     /** When an opened message counts as read. */
     val markRead: MarkRead = MarkRead.WhenOpened,
+    /** Light, dark, or the phone's setting. */
+    val theme: ThemeChoice = ThemeChoice.System,
 )
+
+/** The reading prefs the window holds, and how it changes them (kept by the window: the theme is outside the shell). */
+/** One field changed on the choices as stored now, so another window's newer save is kept. */
+internal typealias ReadingEdit = (ReadingPrefs) -> ReadingPrefs
+
+internal class ReadingChoice(val prefs: ReadingPrefs, val onChange: (ReadingEdit) -> Unit)
+
+/** The app's theme: its own light or dark, or whatever the phone is set to. */
+internal enum class ThemeChoice(val code: String) {
+    System("system"),
+    Light("light"),
+    Dark("dark"),
+    ;
+
+    /** Whether the app is dark, given whether the phone is. */
+    fun dark(system: Boolean): Boolean = when (this) {
+        System -> system
+        Light -> false
+        Dark -> true
+    }
+
+    fun label(texts: Texts): String = when (this) {
+        System -> texts.t("Follow system")
+        Light -> texts.t("Light")
+        Dark -> texts.t("Dark")
+    }
+
+    companion object {
+        fun fromCode(code: String?): ThemeChoice = entries.firstOrNull { it.code == code } ?: System
+    }
+}
 
 /** When a message that was opened is marked read. */
 @Suppress("MagicNumber")
@@ -58,6 +92,7 @@ internal fun readingPrefsFrom(
     headerOpen = get("header_open", false),
     foldAttachments = get("fold_attachments", true),
     markRead = MarkRead.fromCode(text("mark_read")),
+    theme = ThemeChoice.fromCode(text("theme")),
 )
 
 /** [ReadingPrefs] in the app's private preferences. A store that cannot be read gives the defaults. */
@@ -77,8 +112,17 @@ internal class DeviceReadingPrefs(context: Context) {
                 ?.putBoolean(HEADER, value.headerOpen)
                 ?.putBoolean(FOLD, value.foldAttachments)
                 ?.putString(MARK, value.markRead.code)
+                ?.putString(THEME, value.theme.code)
                 ?.apply()
         }
+    }
+
+    /** Calls [onChange] whenever any window saves; returns the call that stops watching. */
+    fun watch(onChange: () -> Unit): () -> Unit {
+        // Held here: the preferences keep only a weak reference to a listener.
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> onChange() }
+        prefs?.registerOnSharedPreferenceChangeListener(listener)
+        return { prefs?.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     private companion object {
@@ -87,5 +131,6 @@ internal class DeviceReadingPrefs(context: Context) {
         const val HEADER = "header_open"
         const val FOLD = "fold_attachments"
         const val MARK = "mark_read"
+        const val THEME = "theme"
     }
 }

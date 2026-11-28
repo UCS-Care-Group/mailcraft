@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 @file:OptIn(ExperimentalMaterial3Api::class)
+@file:Suppress("TooManyFunctions")
 
 package work.mailcraft.android
 
@@ -79,7 +80,8 @@ internal fun SettingsScreen(
 }
 
 @Composable
-@Suppress("LongParameterList")
+// One flat arm per page: the exhaustive `when` is the clearest form.
+@Suppress("LongParameterList", "CyclomaticComplexMethod")
 private fun SettingsBody(
     texts: Texts,
     page: SettingsPage?,
@@ -96,6 +98,8 @@ private fun SettingsBody(
             AccountsPage(texts, data.accounts, data.accountsUi, actions.accounts, onAddAccount)
         SettingsPage.Language -> LanguagePage(texts, data.chosenLanguage, actions.onLanguage)
         SettingsPage.SwipeActions -> SwipePage(texts, data.swipe, actions.onSwipe)
+        SettingsPage.NotificationButtons -> NoticeButtonsPage(texts, data.noticeButtons, actions.onNoticeButtons)
+        SettingsPage.Appearance -> AppearancePage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.Reading -> ReadingPage(texts, data.readingPrefs, actions.onReadingPrefs)
         SettingsPage.RemoveData -> RemoveDataPage(texts, data.settingsUi.removal, actions.settings)
         SettingsPage.About -> AboutScreenPage(texts, data.version, actions.settings, licences, onLicences)
@@ -108,12 +112,15 @@ private fun SettingsBody(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod") // one flat arm per page, as in SettingsBody
 private fun SettingsRows(texts: Texts, data: ShellData, onOpen: (SettingsPage) -> Unit) {
     SettingsPage.entries.forEach { entry ->
         val summary = when (entry) {
             SettingsPage.Accounts -> accountsSummary(texts, data.accounts.size)
             SettingsPage.Language -> languageName(texts, data.chosenLanguage)
             SettingsPage.SwipeActions -> "${data.swipe.start.label(texts)} · ${data.swipe.end.label(texts)}"
+            SettingsPage.NotificationButtons -> noticeButtonsSummary(texts, data.noticeButtons)
+            SettingsPage.Appearance -> data.readingPrefs.theme.label(texts)
             SettingsPage.Reading -> readingSummary(texts, data.readingPrefs)
             SettingsPage.About -> data.version
             SettingsPage.RemoveData -> removeDataSummary(texts)
@@ -202,28 +209,35 @@ private fun ChoiceRow(name: String, selected: Boolean, onClick: () -> Unit) {
     HorizontalDivider()
 }
 
+@Composable
+private fun AppearancePage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingEdit) -> Unit) {
+    ThemeChoice.entries.forEach { choice ->
+        ChoiceRow(choice.label(texts), selected = prefs.theme == choice) { onPrefs { it.copy(theme = choice) } }
+    }
+}
+
 /** The summary under the Reading row. */
 private fun readingSummary(texts: Texts, prefs: ReadingPrefs): String =
     if (prefs.lightMessages) texts.t("Light page in the dark theme") else texts.t("Dark page in the dark theme")
 
 @Composable
 @Suppress("MaxLineLength")
-private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPrefs) -> Unit) {
+private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingEdit) -> Unit) {
     SwitchRow(
         texts.t("Show messages on a light background in the dark theme"),
         texts.t(
             "The message body is drawn on a light page, as its sender made it. The header stays dark. You can change it for one message in its menu.",
         ),
         prefs.lightMessages,
-    ) { onPrefs(prefs.copy(lightMessages = it)) }
+    ) { onPrefs { p -> p.copy(lightMessages = it) } }
     Text(
         texts.t("Attachments"),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(Gutter),
     )
-    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = false)) }
-    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs(prefs.copy(foldAttachments = true)) }
+    ChoiceRow(texts.t("Show"), selected = !prefs.foldAttachments) { onPrefs { it.copy(foldAttachments = false) } }
+    ChoiceRow(texts.t("Fold"), selected = prefs.foldAttachments) { onPrefs { it.copy(foldAttachments = true) } }
     Text(
         texts.t("Mark as read"),
         style = MaterialTheme.typography.labelLarge,
@@ -231,6 +245,6 @@ private fun ReadingPage(texts: Texts, prefs: ReadingPrefs, onPrefs: (ReadingPref
         modifier = Modifier.padding(Gutter),
     )
     MarkRead.entries.forEach { choice ->
-        ChoiceRow(choice.label(texts), selected = prefs.markRead == choice) { onPrefs(prefs.copy(markRead = choice)) }
+        ChoiceRow(choice.label(texts), selected = prefs.markRead == choice) { onPrefs { it.copy(markRead = choice) } }
     }
 }

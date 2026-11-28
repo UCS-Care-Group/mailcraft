@@ -202,6 +202,7 @@ impl eframe::App for App {
         {
             guard.follow(self.0.session.path.as_deref());
         }
+        save_prefs_when_changed(&self.0, ctx);
         self.3.show(frame);
         let prev = self.0.ui.window;
         self.0.ui.window = ctx.input(|i| WindowGeometry::track(prev, i.viewport(), i.viewport_rect().size()));
@@ -454,6 +455,60 @@ fn write_prefs(path: &std::path::Path, ui: &UiState) -> std::io::Result<()> {
     mailcraft_engine::store::write_atomic(path, &serde_json::to_vec_pretty(ui).map_err(std::io::Error::other)?)
 }
 
+/// What the settings said when they were last looked at, and when.
+struct PrefsSeen {
+    at: std::time::Instant,
+    text: Vec<u8>,
+}
+
+/// The settings are also written while the window is in use, not only when it is closed: a
+/// choice made in a window that then stops without closing properly (killed, crashed, the
+/// computer switched off) is not lost. At most every two seconds, and only when they changed.
+fn save_prefs_when_changed(app: &MailApp, ctx: &egui::Context) {
+    const EVERY: std::time::Duration = std::time::Duration::from_secs(2);
+    static SEEN: std::sync::Mutex<Option<PrefsSeen>> = std::sync::Mutex::new(None);
+    if let (Some(path), Ok(mut seen)) = (prefs_path(), SEEN.lock())
+        && let Look::Wait(left) = save_prefs_when_changed_at(app, &path, &mut seen, EVERY)
+    {
+        // A change made in the wait is looked at when it is over, even if the window is idle.
+        ctx.request_repaint_after(left);
+    }
+}
+
+/// What [`save_prefs_when_changed_at`] did.
+#[derive(Debug, PartialEq)]
+enum Look {
+    /// Looked at too lately: the time left before the next look.
+    Wait(std::time::Duration),
+    /// Looked at, nothing to write (or the first look, or nothing may be written).
+    Same,
+    /// The settings changed and were written.
+    Saved,
+    /// The settings changed and could not be written: the next look tries again.
+    Failed,
+}
+
+/// [`save_prefs_when_changed`] to `path`, looking again after `every`.
+fn save_prefs_when_changed_at(app: &MailApp, path: &std::path::Path, seen: &mut Option<PrefsSeen>, every: std::time::Duration) -> Look {
+    if app.is_opening() {
+        return Look::Same;
+    }
+    if let Some(left) = seen.as_ref().and_then(|s| every.checked_sub(s.at.elapsed())).filter(|left| !left.is_zero()) {
+        return Look::Wait(left);
+    }
+    let Ok(text) = serde_json::to_vec(&app.prefs()) else { return Look::Same };
+    // The first look only notes what the settings are: they were just read.
+    if seen.as_ref().is_none_or(|s| s.text == text) {
+        *seen = Some(PrefsSeen { at: std::time::Instant::now(), text });
+        return Look::Same;
+    }
+    let written = try_save_prefs_at(app, path);
+    // What could not be written stays what was last written: it is tried again at the next look.
+    let kept = if written.is_ok() { text } else { seen.take().map(|s| s.text).unwrap_or_default() };
+    *seen = Some(PrefsSeen { at: std::time::Instant::now(), text: kept });
+    if written.is_ok() { Look::Saved } else { Look::Failed }
+}
+
 fn save_prefs(app: &MailApp) {
     if let Some(p) = prefs_path() {
         save_prefs_at(app, &p);
@@ -462,12 +517,17 @@ fn save_prefs(app: &MailApp) {
 
 /// [`save_prefs`] to `path`.
 fn save_prefs_at(app: &MailApp, path: &std::path::Path) {
+    let _ = try_save_prefs_at(app, path);
+}
+
+/// [`save_prefs_at`], saying whether the file could not be written (nothing to write is no failure).
+fn try_save_prefs_at(app: &MailApp, path: &std::path::Path) -> std::io::Result<()> {
     // Its data was removed from this computer (File › Info): nothing is written back. Nor is
     // anything of a window closed while its mailbox was still opening (#519).
     if !prefs_enabled() || app.data_removed || app.is_opening() || PREFS_LEFT_IN_PLACE.load(std::sync::atomic::Ordering::Relaxed) {
-        return;
+        return Ok(());
     }
-    let _ = write_prefs(path, &app.prefs());
+    write_prefs(path, &app.prefs())
 }
 
 /// Run `work` on a background thread of its own; the answer comes back through the channel and

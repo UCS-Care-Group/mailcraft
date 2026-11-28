@@ -11,6 +11,7 @@ import uniffi.mailcraft_mobile.AttachmentRecord
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.CellView
+import uniffi.mailcraft_mobile.FaceView
 import uniffi.mailcraft_mobile.InsetsView
 import uniffi.mailcraft_mobile.LengthView
 import uniffi.mailcraft_mobile.LineHeightView
@@ -36,7 +37,10 @@ internal object B {
         color: UInt? = null,
         background: UInt? = null,
         size: UByte? = null,
-    ) = SpanView(text, bold, italic, false, false, false, link, color, background, size, null)
+        face: FaceView = FaceView.OWN,
+        weight: UShort = if (bold) 700u else 400u,
+        code: Boolean = false,
+    ) = SpanView(text, bold, weight, italic, false, false, code, link, color, background, size, face)
 
     fun block(
         kind: BlockKindView,
@@ -45,7 +49,8 @@ internal object B {
         align: AlignView = AlignView.LEFT,
         space: UByte = 1u,
         beside: Boolean = false,
-    ) = BlockView(kind, spans.toList(), quote, align, space, beside, 0u, null, 0u, 0u, null, noLine)
+        rtl: Boolean = false,
+    ) = BlockView(kind, spans.toList(), quote, align, space, beside, 0u, null, 0u, 0u, null, noLine, rtl = rtl)
 
     fun p(text: String, space: UByte = 1u) = block(BlockKindView.Paragraph, span(text), space = space)
 
@@ -56,14 +61,31 @@ internal object B {
     fun image(src: String, alt: String, width: UShort? = null, height: UShort? = null, picture: String? = null, link: String? = null) =
         block(BlockKindView.Image(src, width, height, link, picture), span(alt), space = 0u)
 
-    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u, rowspan: UShort = 1u) =
+    /** A cell; [at] is its row and column in the grid, as the core places it, where a test gives one. */
+    fun cell(vararg blocks: BlockView, header: Boolean = false, width: LengthView? = null, background: UInt? = null, padding: UByte? = null, colspan: UShort = 1u, rowspan: UShort = 1u, at: Pair<Int, Int>? = null) =
         CellView(
             blocks.toList(), header, colspan, rowspan, background, width, noSides, emptyList(),
             padding?.let { InsetsView(it, it, it, it) }, 0u, null,
+            row = (at?.first ?: -1).toUInt(), col = (at?.second ?: -1).toUShort(), rows = rowspan.toUInt(), cols = colspan,
         )
 
+    private fun placed(rows: List<List<CellView>>): List<List<CellView>> = rows.mapIndexed { r, cells ->
+        var col = 0
+        cells.map { c ->
+            val given = c.row != UInt.MAX_VALUE
+            val at = if (given) c else c.copy(row = r.toUInt(), col = col.toUShort())
+            col = at.col.toInt() + at.cols.toInt()
+            at
+        }
+    }
+
+    /**
+     * A table of [rows]. The core gives each cell its place in the grid; here a cell that gives none
+     * ([at] of [cell] left out) is put in its row after the cells before it, which is that place for
+     * a table with no row spans.
+     */
     fun table(layout: Boolean, rows: List<List<CellView>>, width: LengthView? = null, border: Boolean = false) = TableView(
-        rows.map { RowView(it) }, (rows.maxOfOrNull { r -> r.sumOf { it.colspan.toInt() } } ?: 0).toUShort(), layout, border, false, width, null,
+        placed(rows).map { RowView(it) }, (rows.maxOfOrNull { r -> r.sumOf { it.colspan.toInt() } } ?: 0).toUShort(), layout, border, false, width, null,
         emptyList(), 0u, null, inline = false, spaced = false, boxMarginLeft = 0u, boxMarginRight = 0u, float = false,
     )
 
@@ -82,7 +104,7 @@ internal object Corpus {
 
     class Entry(val name: String, val view: MessageView, val links: List<String>)
 
-    private fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
+    fun view(id: ULong, subject: String, blocks: List<BlockView>, remote: UInt = 0u, attachments: List<AttachmentRecord> = emptyList()) =
         MessageView(
             1uL, id, 1uL, 1uL, ada, listOf(me), emptyList(), subject, 1_730_000_000L, false, false, emptyList(),
             attachments, blocks, false, remote, true,
@@ -249,6 +271,35 @@ internal object Corpus {
             ),
         ),
         listOf("https://example.org/", "https://example.org/login", "https://example.org/help"),
+    )
+
+    /**
+     * Fonts and weights as the core sends them (#1966): light, regular and bold sans text (Aptos, Calibri, sans-serif),
+     * a serif newsletter (Georgia), a monospace code block (Consolas) and a narrow heading (Arial Narrow).
+     */
+    val fonts = Entry(
+        "fonts",
+        view(
+            7uL, "Weights and faces",
+            listOf(
+                B.block(BlockKindView.Heading(2u), B.span("Spring at Fern Hollow", bold = true, face = FaceView.CONDENSED, size = 24u)),
+                B.block(
+                    BlockKindView.Paragraph,
+                    B.span("Light 300, ", weight = 300u), B.span("regular 400, "), B.span("semibold 600, ", bold = true, weight = 600u),
+                    B.span("bold 700, ", bold = true), B.span("black 900, ", bold = true, weight = 900u),
+                    B.span("thin 100 and light italic.", italic = true, weight = 100u),
+                ),
+                B.block(
+                    BlockKindView.Paragraph,
+                    B.span("The garden opens on Saturday. ", face = FaceView.SERIF),
+                    B.span("Bring your own cup", face = FaceView.SERIF, bold = true),
+                    B.span(", and the tea is on us.", face = FaceView.SERIF, italic = true),
+                ),
+                B.block(BlockKindView.Preformatted, B.span("let shed = plans.first()\nshed.build(\"Saturday\")", face = FaceView.MONO, code = true)),
+                B.block(BlockKindView.Paragraph, B.span("Inline ", face = FaceView.OWN), B.span("Consolas", face = FaceView.MONO), B.span(" in a line.")),
+            ),
+        ),
+        emptyList(),
     )
 
     val all = listOf(plain, newsletter, dataTable, reply, longLinks)

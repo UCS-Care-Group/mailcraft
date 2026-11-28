@@ -1,0 +1,1 @@
+- On Android, a newsletter whose pictures were not downloaded no longer shows a large empty space where a row of small pictures (such as a "follow us" row) stands, and a tall picture that was not downloaded is a box of limited height ([#1966](https://github.com/GITHUB_REPOSITORY/issues/1966)).

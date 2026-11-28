@@ -19,8 +19,10 @@ fn turkish_is_offered_by_its_own_name_and_chosen_for_its_locales() {
 
 #[test]
 fn turkish_plurals_and_dates() {
-    let tr = Rule::from_header("nplurals=2; plural=(n != 1);");
-    assert_eq!(tr, Rule::NotOne);
+    let tr = Rule::from_header("nplurals=2; plural=(n > 1);");
+    assert_eq!(tr, Rule::AboveOne);
+    assert_eq!((tr.index(0), tr.index(1), tr.index(2)), (0, 0, 1));
+    assert_eq!(Lang::Turkish.tn(0, "{n} message", "{n} messages"), "{n} ileti");
     assert_eq!(Lang::Turkish.tn(1, "{n} message", "{n} messages"), "{n} ileti");
     assert_eq!(Lang::Turkish.tn(5, "{n} message", "{n} messages"), "{n} ileti");
 

@@ -4,6 +4,7 @@
 
 package work.mailcraft.android
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -29,7 +30,7 @@ internal object SettingsShots {
         ),
     )
 
-    private fun data(settings: SettingsUi = ui) = ShellData(
+    private fun data(settings: SettingsUi = ui, theme: ThemeChoice = ThemeChoice.System) = ShellData(
         accounts = listOf(ada, bo),
         folderName = "Inbox",
         folderId = 1uL,
@@ -37,18 +38,19 @@ internal object SettingsShots {
         version = "0.12.0",
         chosenLanguage = "",
         settingsUi = settings,
+        readingPrefs = ReadingPrefs(theme = theme),
     )
 
     @Composable
-    private fun Themed(content: @Composable () -> Unit) {
-        MailCraftTheme { Surface(modifier = Modifier.fillMaxSize()) { content() } }
+    private fun Themed(theme: ThemeChoice = ThemeChoice.System, content: @Composable () -> Unit) {
+        MailCraftTheme(theme.dark(isSystemInDarkTheme())) { Surface(modifier = Modifier.fillMaxSize()) { content() } }
     }
 
     @Composable
-    fun Page(page: SettingsPage?, settings: SettingsUi = ui) = Themed {
+    fun Page(page: SettingsPage?, settings: SettingsUi = ui, theme: ThemeChoice = ThemeChoice.System) = Themed(theme) {
         AppShell(
             EnglishTexts,
-            data(settings),
+            data(settings, theme),
             ShellActions(onFolder = { _, _ -> }, onLanguage = {}),
             initialNav = page?.let { NavState().openPage(it) } ?: NavState().openSettings(),
         )
