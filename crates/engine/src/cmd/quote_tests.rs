@@ -308,6 +308,7 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         (Lang::Dutch, "-----Oorspronkelijk bericht-----", "Van: "),
         (Lang::Romanian, "-----Mesaj original-----", "De la: "),
         (Lang::Polish, "-----Oryginalna wiadomość-----", "Od: "),
+        (Lang::Slovenian, "-----Izvirno sporočilo-----", "Od: "),
         (Lang::Czech, "-----Původní zpráva-----", "Od: "),
         (Lang::Portuguese, "-----Mensagem original-----", "De: "),
         (Lang::Hungarian, "-----Eredeti üzenet-----", "Feladó: "),

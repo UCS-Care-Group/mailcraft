@@ -35,10 +35,11 @@ fn listed(mb: &mut Mailbox, inbox: Id) -> Id {
     mb.add_message(m).unwrap()
 }
 
-/// The fetch: the text, and it is whole.
+/// The fetch: the text, the header's lines as they came, and it is whole.
 fn fetched(mb: &mut Mailbox, id: Id, text: &str) {
     let m = mb.message_mut(id).unwrap();
     m.body.text = text.into();
+    m.read_header = "From: Zoe <zoe@example.org>\nSubject: Report\n".into();
     m.unfetched = false;
 }
 
@@ -201,6 +202,24 @@ fn the_waiting_rules_let_alone_a_message_moved_away_and_back_before_it_was_fetch
     assert!(got.folder == inbox && got.rules_waiting.is_none());
 }
 
+/// Mail whose header lines weren't kept as they came (downloaded before a header rule, or by
+/// 0.15.0 and earlier): an exception that looks for a word in the header can't be told, and the
+/// rule doesn't act (#566).
+#[test]
+fn a_header_exception_on_mail_read_before_the_lines_were_kept_cant_be_told() {
+    let rule = Rule {
+        enabled: true,
+        conditions: vec![Condition::SubjectContains(words("report"))],
+        exceptions: vec![Condition::HeaderContains(words("x-keep"))],
+        actions: vec![Action::Delete],
+        ..Default::default()
+    };
+    let m = Message { subject: "Report".into(), headers: vec![("X-Mailer".into(), "Harbor".into())], ..Default::default() };
+    assert!(m.read_header.is_empty());
+    assert!(!rule.matches(&m), "acts past an exception it can't tell");
+    assert!(rule.undecided_in(&m, &crate::Matching::default()));
+}
+
 /// A rule copies new mail into another account's folder and waits for the message to be here
 /// whole. Meanwhile the owner renames a category the message carries: the copy is still made once
 /// it is here, as without the rename. The rename is the owner's, not a change the rules that acted
@@ -250,6 +269,30 @@ fn a_message_whose_server_has_another_version_of_it_says_so_in_the_file() {
     assert!(!serde_json::to_string(&Message::default()).unwrap().contains("stale"));
 }
 
+/// A message whose header lines kept as they came ran past 64 KB says so in the file, beside the
+/// lines ([`Message::read_header_cut`]); a file from before has none.
+#[test]
+fn a_message_whose_lines_kept_as_they_came_were_cut_says_so_in_the_file() {
+    let m = Message { id: 3, read_header: "To: a@example.org\n".into(), read_header_cut: true, ..Default::default() };
+    let json = serde_json::to_string(&m).unwrap();
+    assert!(json.contains(r#""readHeaderCut":true"#), "{json}");
+    assert!(serde_json::from_str::<Message>(&json).unwrap().read_header_cut);
+    assert!(!serde_json::from_str::<Message>(r#"{"id": 3, "readHeader": "To: a@example.org\n"}"#).unwrap().read_header_cut);
+    assert!(!serde_json::to_string(&Message::default()).unwrap().contains("readHeaderCut"));
+}
+
+/// The mark goes with the lines: mail that comes to an account no header rule is for keeps
+/// neither, also when none of its lines fitted.
+#[test]
+fn the_mark_that_the_lines_were_cut_goes_with_them() {
+    let (mut mb, inbox, _) = mailbox(vec![]);
+    for lines in ["To: a@example.org\n", ""] {
+        let id = mb.add_message(Message { folder: inbox, read_header: lines.into(), read_header_cut: true, ..Default::default() }).unwrap();
+        let m = mb.message(id).unwrap();
+        assert!(m.read_header.is_empty() && !m.read_header_cut, "{lines:?}");
+    }
+}
+
 /// A copy of a message waiting for its server's other version ([`Message::stale`]) has no server's
 /// version of its own to wait for: the rules read it as it is here, as they read any copy (#566).
 #[test]
@@ -264,4 +307,33 @@ fn a_copy_of_a_message_waiting_for_its_new_version_doesnt_wait() {
     assert!(!copy.stale && mb.message(id).unwrap().stale);
     let how = Matching { me: "ada@example.org", ..Default::default() };
     assert!(mb.rules[0].matches_in(copy, &how) && !mb.rules[0].undecided_in(copy, &how));
+}
+
+/// A hostile file's header lines kept as they came are cut when it opens, after the last whole
+/// line that fits, and said to be cut: a rule with words in the header can't tell of a word it
+/// doesn't find in them. Lines that fit are left as they are.
+#[test]
+fn a_hostile_file_cannot_load_too_many_header_lines() {
+    let line = "X-Filler: ééééééééééééééééééééééééééééééé\n";
+    let lines = line.repeat(MAX_READ_HEADER / line.len() + 2);
+    let json = serde_json::json!({
+        "accounts": [{"id": 1, "name": "A"}],
+        "folders": [{"id": 5, "account": 1, "name": "Inbox", "kind": "inbox"}],
+        "messages": {
+            "3": {"id": 3, "folder": 5, "subject": "ok", "readHeader": lines},
+            "4": {"id": 4, "folder": 5, "readHeader": "To: a@example.org\n"}
+        },
+        "nextId": 9
+    });
+    let mut mb: Mailbox = serde_json::from_value(json).unwrap();
+    let fixed = mb.repair();
+    assert!(fixed.iter().any(|f| f.contains("header lines")), "{fixed:?}");
+    let m = mb.message(3).unwrap();
+    assert!(m.read_header.len() <= MAX_READ_HEADER && m.read_header.len() > MAX_READ_HEADER - line.len(), "{}", m.read_header.len());
+    assert!(m.read_header.ends_with('\n') && m.read_header.lines().all(|l| format!("{l}\n") == line));
+    assert!(m.read_header_cut);
+    let rule = Rule { enabled: true, conditions: vec![Condition::HeaderContains(words("no-such-word"))], ..Default::default() };
+    assert!(rule.undecided_in(m, &Matching { me: "a@example.org", ..Default::default() }));
+    let short = mb.message(4).unwrap();
+    assert!(short.read_header == "To: a@example.org\n" && !short.read_header_cut);
 }

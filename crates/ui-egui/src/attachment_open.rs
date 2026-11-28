@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! `mail.openAttachment` in the window (#126): an attachment opened with the computer's own
-//! program for that kind of file, as Outlook's double-click and Open do.
+//! Attachments opened with the computer's own program for that kind of file, from a received
+//! message (#126) or from the message being written.
 //!
 //! What the sender chose is never trusted: the kind of file decides first
 //! ([`mailcraft_engine::opening::verdict`]): programs, scripts, shortcuts, installers, disk
@@ -12,12 +12,14 @@
 //! file is downloaded instead. Agents can't ask for any of it (`agent::access`).
 
 use mailcraft_engine::opening::{self, Verdict};
-use mailcraft_model::Id;
+use mailcraft_model::{Attachment, Id};
 use serde_json::{Value, json};
+use sha2::{Digest as _, Sha256};
 
 use crate::MailApp;
 
 pub(crate) const OPEN: &str = "mail.openAttachment";
+pub(crate) const OPEN_DRAFT: &str = "ui.openDraftAttachment";
 
 /// The attachment the params name: its message, its index and its name.
 fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
@@ -38,8 +40,12 @@ fn target(app: &MailApp, p: &Value) -> Result<(Id, usize, String), String> {
 /// for everything else (it opens, or it is refused, without a question).
 pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, String)> {
     let (_, _, name) = target(app, p).ok()?;
-    let shown = opening::file_name(&name);
-    let why = match opening::verdict(&name) {
+    warning(&name)
+}
+
+fn warning(name: &str) -> Option<(String, String, String)> {
+    let shown = opening::file_name(name);
+    let why = match opening::verdict(name) {
         Verdict::Macros => tl!("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it."),
         Verdict::Scripts => {
             tl!("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
@@ -51,6 +57,37 @@ pub(crate) fn question(app: &MailApp, p: &Value) -> Option<(String, String, Stri
     };
     let text = crate::i18n::fmt(tl!("Open {name}? {why}"), &[("name", &shown), ("why", why)]);
     Some((tl!("Opening Mail Attachment").to_string(), text, tl!("Open").to_string()))
+}
+
+fn draft_target<'a>(app: &'a MailApp, p: &Value) -> Result<&'a Attachment, String> {
+    let id = mailcraft_engine::p::id_strict(p, "compose")
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "bad parameters: `compose` (number) is required".to_string())?;
+    let index = p.get("index").and_then(Value::as_u64).ok_or_else(|| "bad parameters: `index` (number) is required".to_string())?;
+    let draft = app.session.composing_by_id(id).ok_or_else(|| tl!("The draft isn't open any more").to_string())?;
+    let index = usize::try_from(index).ok();
+    index.and_then(|index| draft.attachments.get(index)).ok_or_else(|| tl!("The message has no such attachment").to_string())
+}
+
+/// Bind the question to the name and bytes it asked about, even if the draft is edited while
+/// the question is open. A stored attachment already has the digest of its bytes.
+fn draft_attachment_identity(attachment: &Attachment) -> Value {
+    let digest = match attachment.kept.filter(|_| attachment.data.is_empty()) {
+        Some(reference) => reference.sha256,
+        None => Sha256::digest(attachment.data.as_slice()).into(),
+    };
+    json!([attachment.name, digest])
+}
+
+pub(crate) fn draft_question(app: &MailApp, p: &Value) -> Option<crate::dialogs::Question> {
+    let attachment = draft_target(app, p).ok()?;
+    let (title, text, action) = warning(&attachment.name)?;
+    Some(crate::dialogs::Question::new(
+        &title,
+        text,
+        &action,
+        json!({"confirmed": true, "draftAttachmentAsked": draft_attachment_identity(attachment)}),
+    ))
 }
 
 /// What the owner is told when an attachment isn't opened on Linux or a BSD because neither
@@ -69,36 +106,61 @@ pub fn sandbox_kind_text() -> String {
 
 /// `mail.openAttachment` from the window, the control channel or a test.
 pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
-    if id != OPEN {
-        return None;
+    match id {
+        OPEN => Some(open(app, p)),
+        OPEN_DRAFT => Some(open_draft(app, p)),
+        _ => None,
     }
-    Some(open(app, p))
 }
 
 fn open(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let (message, index, name) = target(app, p)?;
-    let verdict = opening::verdict(&name);
+    let file = checked_file(&name, p, false)?;
+    let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;
+    handoff(app, file, &bytes, false)
+}
+
+fn open_draft(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let attachment = draft_target(app, p)?;
+    let file = checked_file(&attachment.name, p, true)?;
+    if p.get("draftAttachmentAsked").is_some_and(|asked| *asked != draft_attachment_identity(attachment)) {
+        return Err(tl!("Nothing was done: what you were asked about has changed since. Ask again.").into());
+    }
+    let read = app.session.attachment_reader(attachment).map_err(|e| e.to_string())?;
+    let bytes = read().map_err(|e| e.to_string())?;
+    handoff(app, file, &bytes, true)
+}
+
+fn checked_file(name: &str, p: &Value, draft: bool) -> Result<String, String> {
+    let verdict = opening::verdict(name);
     if verdict == Verdict::Blocked {
-        return Err(opening::blocked_message(&name));
+        return Err(if draft {
+            let shown: String = opening::file_name(name).chars().take(60).collect();
+            crate::i18n::fmt(tl!("MailCraft can't open {name} because of its file type."), &[("name", &shown)])
+        } else {
+            opening::blocked_message(name)
+        });
     }
     // The window asks first ([`question`]) and its yes says so; any other caller says so itself.
     if verdict.asks() && p.get("confirmed").and_then(Value::as_bool) != Some(true) {
         return Err("bad parameters: this kind of file is asked about first; `\"confirmed\": true` says the owner said yes".into());
     }
-    let file = opening::file_name(&name);
-    let bytes = app.session.content(message, mailcraft_engine::Part::Attachment(index)).map_err(|e| e.to_string())?;
+    Ok(opening::file_name(name))
+}
+
+fn handoff(app: &mut MailApp, file: String, bytes: &[u8], draft: bool) -> Result<Value, String> {
     if let Some(open_file) = &app.services.open_file {
-        open_file(&file, bytes.as_slice())?;
+        open_file(&file, bytes)?;
         app.status(crate::i18n::fmt(tl!("Opening {name}"), &[("name", &file)]));
         return Ok(json!({"name": file, "opened": true}));
     }
     // The browser opens nothing of the computer's: the file is downloaded instead.
     if let Some(download) = &app.services.download {
-        download(&file, bytes.as_slice())?;
+        download(&file, bytes)?;
         app.status(crate::i18n::fmt(tl!("Downloaded {name}"), &[("name", &file)]));
         return Ok(json!({"name": file, "downloaded": true}));
     }
-    Err(tl!("Attachments can't be opened here: save it with Save As instead.").to_string())
+    Err(if draft { tl!("Attachments can't be opened here.") } else { tl!("Attachments can't be opened here: save it with Save As instead.") }.into())
 }
 
 #[cfg(test)]

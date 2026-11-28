@@ -131,8 +131,16 @@ impl HitMap {
         std::mem::replace(&mut self.scope, window)
     }
 
+    /// The window currently being laid out (0: the main window).
     pub(crate) fn window(&self) -> u64 {
         self.scope
+    }
+
+    /// Whether a control of one of these kinds in the current window is at `pos`.
+    pub(crate) fn contains(&self, kinds: &[&str], pos: egui::Pos2) -> bool {
+        self.items
+            .iter()
+            .any(|(kind, _, rect, window)| *window == self.scope && kinds.iter().any(|candidate| kind.is(candidate)) && rect.contains(pos))
     }
 
     /// Where `kind` with `id` is: in the main window when it is there, else in a window of its own.

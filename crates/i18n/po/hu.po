@@ -823,6 +823,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Rövid üzenet az oldal hivatkozásával, e-mailbe vagy csevegésbe illesztéshez. A MailCraft maga nem küld semmit."
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "A text signature file is at most 10,000 characters."
+msgstr "A szöveges aláírásfájl legfeljebb 10 000 karakter lehet."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -1553,7 +1559,7 @@ msgid "Allowed"
 msgstr "Engedélyezve"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Már a kapcsolataidban is."
@@ -1617,6 +1623,12 @@ msgstr "Egy ügynök kérdezi"
 #, fuzzy
 msgid "An Exchange server or IMAP?"
 msgstr "Egy csere szerver vagy IMAP?"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "An HTML signature file is at most 64 KB."
+msgstr "A HTML aláírásfájl legfeljebb 64 KB lehet."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2336,8 +2348,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Fájl csatolása"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "A tétel csatolása"
@@ -2391,6 +2403,12 @@ msgstr "A(z) „{name}” melléklet beállításai"
 #, fuzzy
 msgid "Attachments"
 msgstr "Mellékletek"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Attachments can't be opened here."
+msgstr "Itt nem lehet megnyitni a mellékleteket."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3195,7 +3213,7 @@ msgid "Celebrate"
 msgstr "Ünneplés"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Tanúsítványok"
@@ -3518,6 +3536,12 @@ msgstr "Az alapértelmezett aláírás kiválasztása"
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr "Válassza ki a Google-bejelentkezést, vagy válassza ki az alkalmazás jelszójának használatát."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Choose Signature File"
+msgstr "Aláírásfájl kiválasztása"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3541,6 +3565,24 @@ msgstr "Válasszon egy első és utolsó napot, legfeljebb egy év különbségg
 #, fuzzy
 msgid "Choose a folder"
 msgstr "Válasszon egy mappát"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose a signature file"
+msgstr "Aláírásfájl kiválasztása"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr "Válasszon szöveges, HTML, PNG, JPEG vagy GIF aláírásfájlt."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose an absolute local path for the signature file."
+msgstr "Adjon meg abszolút helyi útvonalat az aláírásfájlhoz."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3571,6 +3613,12 @@ msgstr "Válassza ki, hogy ezeket a feladatokat elküldték-e a Microsoft To Do 
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Válassza ki, kinek a nevében küldi"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose…"
+msgstr "Kiválasztás…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5106,8 +5154,20 @@ msgstr "Kész: naprakész"
 msgid "Done: {n} new"
 msgstr "Kész: {n} új"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to download {name}"
+msgstr "Kattintson duplán a letöltéshez: {name}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to open {name}"
+msgstr "Kattintson duplán a megnyitáshoz: {name}"
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "Letöltés"
@@ -5223,6 +5283,12 @@ msgid "Downloading pictures…"
 msgstr "Képek letöltése…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "A címjegyzék letöltése váratlanul leállt"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5233,6 +5299,12 @@ msgstr "Az üzenet letöltése először…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Az üzenetek letöltése először…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "A szervezet címjegyzékének letöltése…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5976,8 +6048,8 @@ msgstr "Visszajelzés"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "File"
 msgstr "Fájl"
@@ -5987,6 +6059,12 @@ msgstr "Fájl"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Fájlablakok nem érhetők el itt"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "File signature"
+msgstr "Fájlaláírás"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6581,6 +6659,12 @@ msgstr "A szervezeteden kívülről."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "A(z) {account} szervezetének címjegyzékéből; csak a memóriában tárolódik, amíg a MailCraft fut, és sosem kerül mentésre: a „Hozzáadás a névjegyekhez” másolatot ment erre a számítógépre."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "A(z) {account} szervezetének címlistájából. Csak keresés közben látható, és nem tárolódik: a „Hozzáadás a névjegyekhez” másolatot ment erre a számítógépre."
 
@@ -7061,6 +7145,12 @@ msgstr "Küldjenek választ a"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "A fejléc tartalmazza"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -7693,6 +7783,12 @@ msgstr "A kiválasztásban"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "Ebben a naptárban:"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "A névjegyei között"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -8985,6 +9081,12 @@ msgstr "MailCraft most tartsa {account} lépést Microsoft keresztül Microsoft 
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "A MailCraft nem tudja a fiók szabályait a kiszolgálón tárolni"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "MailCraft can't open {name} because of its file type."
+msgstr "A MailCraft nem tudja megnyitni ezt a fájlt a típusa miatt: {name}"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11194,6 +11296,12 @@ msgstr "Senki sem kérte meg a kezét máskor."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "Senki sem egyezik a címjegyzékben"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Senki sem egyezik a címlistában"
 
@@ -11370,6 +11478,12 @@ msgstr "Nem minden szervert találtak: a többi csak találgatás a domainről. 
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Nem sikerült mindent eltávolítani. Egy része még megvan. Próbálja újra."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "Nem levelezéshez való, vagy egy hitelesítésszolgáltatóé: a „Hozzáadás a névjegyekhez” kihagyja."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11600,7 +11714,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "Semmi sem történt: amit az ügynök kérdezett, megváltozott, miután téged megkérdeztek."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "Semmi sem történt: amire rákérdeztünk, azóta megváltozott. Próbálja újra."
@@ -12038,7 +12152,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Csak akkor, amikor a MailCraft ablaka nincs előtérben, és csak a saját fiókok Beérkezett üzenetek mappáihoz."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "Megnyitás"
@@ -12071,6 +12185,12 @@ msgstr "A csatolás megnyitása"
 msgid "Open Calendar"
 msgstr "Naptár megnyitása"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "Névjegy megnyitása"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -12088,6 +12208,12 @@ msgstr "A párbeszédablak megnyitása"
 #, fuzzy
 msgid "Open Draft"
 msgstr "A tervezet megnyitása"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Open Draft Attachment"
+msgstr "Piszkozat mellékletének megnyitása"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12667,8 +12793,9 @@ msgstr "Kép beillesztése"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Csak a szöveg beillesztése"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -12819,6 +12946,12 @@ msgstr "Képek"
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "A képek mindig letölthetők ({n}):"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr "A képek nem szerepelnek az egyszerű szöveges üzenetekben. Váltson HTML-re a felvételükhöz."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13272,6 +13405,12 @@ msgid "Read Invitation"
 msgstr "Meghívó elolvasása"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr "Minden új üzenetnél újra beolvassa. Ha nem érhető el, a szokásos aláírás lesz használatban."
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Read status"
@@ -13493,6 +13632,12 @@ msgstr "Újra: {what}"
 msgid "Refresh"
 msgstr "Frissítés"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Refresh Preview"
+msgstr "Előnézet frissítése"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -13596,7 +13741,7 @@ msgid "Remove Account"
 msgstr "Fiók törlése"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Melléklet eltávolítása"
@@ -15773,7 +15918,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Asztali értesítés az emlékeztetőkről"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Asztali értesítés új levél érkezésekor"
@@ -16194,8 +16339,8 @@ msgstr "Jelentkezz be a Küldés/Elfogadásnál, hogy mikor vannak mások elfogl
 msgid "Sign-in cancelled"
 msgstr "A bejelentkezés törlése"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 #, fuzzy
 msgid "Signature"
 msgstr "Aláírás"
@@ -16206,8 +16351,20 @@ msgstr "Aláírás"
 msgid "Signature file:"
 msgstr "Aláírási fájl:"
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr "Az aláírásfájlokat csak a tulajdonos állíthatja be az asztali alkalmazásban."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Signature from File"
+msgstr "Aláírás fájlból"
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Aláírások"
@@ -16859,6 +17016,12 @@ msgstr "Kapcsolás"
 #, fuzzy
 msgid "Switch to Google sign-in"
 msgstr "Átváltás a Google-bejelentkezésre"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Switch to HTML"
+msgstr "Váltás HTML-re"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -17945,6 +18108,12 @@ msgid "The download was called off."
 msgstr "A letöltés megszakadt."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "The draft isn't open any more"
+msgstr "A piszkozat már nincs megnyitva"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The e-mail address of the person whose calendar you want to open"
@@ -18391,6 +18560,12 @@ msgid "The one this build came with"
 msgstr "A programhoz mellékelt azonosító"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "A szervezet címjegyzéke üres"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18769,6 +18944,12 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr "A szerver vagy a szervezet nem adta meg a beállításokat. Kérje meg az adminisztrátort a szerver címére, és írja be a szerver beállításaiba."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "A kiszolgáló nem küldött címjegyzéket"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
@@ -18991,9 +19172,45 @@ msgid "The sign-in was declined."
 msgstr "A beiratkozást elutasították."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "The signature changed while the signature file picker was open."
+msgstr "Az aláírás megváltozott, miközben az aláírásfájl-választó nyitva volt."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file could not be read."
+msgstr "Az aláírásfájl nem olvasható."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file is too large."
+msgstr "Az aláírásfájl túl nagy."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr "Az aláírásfájlnak legfeljebb 256 KB méretű, szabályos fájlnak kell lennie."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must contain UTF-8 text."
+msgstr "Az aláírásfájlnak UTF-8 szöveget kell tartalmaznia."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature image could not be decoded."
+msgstr "Az aláírás képe nem dekódolható."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -22943,6 +23160,12 @@ msgstr "túl sok fájlja van: a többit nem távolították el"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "header contains {words}"
+msgstr "a fejléc tartalmazza: {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "magas"
 
@@ -26299,6 +26522,12 @@ msgid "{name} is already in {folder}."
 msgstr "{name} már itt van: {folder}."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} csatolva lett: nem lehet a szövegbe beszúrni ({why})"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."
@@ -27631,6 +27860,12 @@ msgstr "A {provider} bejelentkezési oldala nyitva van a böngészőjében"
 #, fuzzy
 msgid "{read} of {total} MB"
 msgstr "{read} / {total} MB"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "{reason} Using the account's usual signature instead."
+msgstr "{reason} Helyette a fiók szokásos aláírása lesz használatban."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

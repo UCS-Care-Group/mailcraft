@@ -42,6 +42,8 @@ mod czech_tests;
 mod polish_tests;
 #[cfg(test)]
 mod said_tests;
+#[cfg(test)]
+mod slovenian_tests;
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -71,6 +73,7 @@ pub enum Lang {
     Romanian,
     Hungarian,
     Polish,
+    Slovenian,
     Czech,
     Portuguese,
     ChineseSimplified,
@@ -82,7 +85,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 14] = [
+    pub const ALL: [Lang; 15] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -92,6 +95,7 @@ impl Lang {
         Lang::Romanian,
         Lang::Hungarian,
         Lang::Polish,
+        Lang::Slovenian,
         Lang::Czech,
         Lang::Portuguese,
         Lang::ChineseSimplified,
@@ -111,6 +115,7 @@ impl Lang {
             Lang::Romanian => "ro",
             Lang::Hungarian => "hu",
             Lang::Polish => "pl",
+            Lang::Slovenian => "sl",
             Lang::Czech => "cs",
             Lang::Portuguese => "pt",
             Lang::ChineseSimplified => "zh_CN",
@@ -154,6 +159,7 @@ impl Lang {
             "ro" => Some(Lang::Romanian),
             "hu" => Some(Lang::Hungarian),
             "pl" => Some(Lang::Polish),
+            "sl" => Some(Lang::Slovenian),
             "cs" => Some(Lang::Czech),
             "pt" => Some(Lang::Portuguese),
             "ka" => Some(Lang::Georgian),
@@ -173,6 +179,7 @@ impl Lang {
             Lang::Romanian => "Română",
             Lang::Hungarian => "Magyar",
             Lang::Polish => "Polski",
+            Lang::Slovenian => "Slovenščina",
             Lang::Czech => "Čeština",
             Lang::Portuguese => "Português",
             Lang::ChineseSimplified => "简体中文",
@@ -193,6 +200,7 @@ impl Lang {
                 | Lang::Romanian
                 | Lang::Hungarian
                 | Lang::Polish
+                | Lang::Slovenian
                 | Lang::Czech
                 | Lang::Portuguese
                 | Lang::ChineseSimplified
@@ -503,6 +511,7 @@ mod tests {
             "Română (previzualizare)",
             "Magyar (előzetes)",
             "Polski (wersja zapoznawcza)",
+            "Slovenščina (predogled)",
             "Čeština (náhled)",
             "Português (prévia)",
         ];
@@ -521,6 +530,8 @@ mod tests {
         assert_eq!(Lang::from_pref("ro", None), Lang::Romanian);
         assert_eq!(Lang::from_pref("auto", Some("hu_HU.UTF-8")), Lang::Hungarian);
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
+        assert_eq!(Lang::from_pref("auto", Some("sl_SI.UTF-8")), Lang::Slovenian);
+        assert_eq!(Lang::from_pref("sl", None), Lang::Slovenian);
         assert_eq!(Lang::from_pref("auto", Some("pt-BR")), Lang::Portuguese);
         assert_eq!(Lang::from_pref("pt", None), Lang::Portuguese);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);

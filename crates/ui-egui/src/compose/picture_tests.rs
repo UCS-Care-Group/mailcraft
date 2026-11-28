@@ -404,3 +404,299 @@ fn a_picture_is_drawn_in_the_body() {
     // (The test PNG has no pixels to decode: it is drawn as a frame, and laying it out did not fail.)
     assert_eq!(pictures(&h), 1);
 }
+
+/// The corner `name` of the selected (first) picture, where it is drawn.
+fn corner(h: &Window, name: &str) -> egui::Pos2 {
+    h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID)).expect("a selected picture has four corners").center()
+}
+
+#[test]
+fn every_corner_sizes_the_picture_from_the_one_opposite() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    // (Without pixels to read, the test picture is shown 120 wide.) A left corner makes it wider
+    // going left, a right one going right.
+    let at = corner(&h, "pictureCornerTopLeft");
+    drag(&mut h, at, egui::vec2(-30.0, -10.0));
+    assert_eq!(width(&h), Some(150));
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(170));
+    let at = corner(&h, "pictureCornerBottomLeft");
+    drag(&mut h, at, egui::vec2(20.0, 5.0));
+    assert_eq!(width(&h), Some(150));
+    assert_eq!(plain(&h), OBJECT.to_string(), "dragging a corner selects no text and moves nothing");
+    let s = sel(&h);
+    assert_eq!((s.start(), s.end()), (0, 1), "the picture is still what is selected");
+    // One step of the message's undo for each drag.
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), Some(170));
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), Some(150));
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
+fn a_picture_not_selected_has_no_corners() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    let names = ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"];
+    for name in names {
+        assert!(h.state().hit.rect(name, u64::from(mailcraft_model::pictures::FIRST_ID)).is_none(), "{name}");
+    }
+    // Selected, it has all four, at its corners.
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let [tl, tr, bl, br] = names.map(|name| corner(&h, name));
+    assert!(tl.x < tr.x && bl.x < br.x && tl.y < bl.y && tr.y < br.y, "{tl:?} {tr:?} {bl:?} {br:?}");
+    assert!((tl.x - bl.x).abs() < 0.5 && (tr.x - br.x).abs() < 0.5 && (tl.y - tr.y).abs() < 0.5 && (bl.y - br.y).abs() < 0.5);
+}
+
+#[test]
+fn the_outline_while_dragging_keeps_the_opposite_corner_where_it_is() {
+    let r = egui::Rect::from_min_max(egui::pos2(10.0, 20.0), egui::pos2(130.0, 60.0));
+    // Top left held, 150 wide: the bottom right stays.
+    let shown = super::editor::sized_from(r, 0, 150.0);
+    assert_eq!((shown.max, shown.width(), shown.height()), (r.max, 150.0, 50.0));
+    // Top right: the bottom left stays.
+    let shown = super::editor::sized_from(r, 1, 60.0);
+    assert_eq!((shown.left_bottom(), shown.width(), shown.height()), (r.left_bottom(), 60.0, 20.0));
+    // Bottom left: the top right stays.
+    let shown = super::editor::sized_from(r, 2, 60.0);
+    assert_eq!((shown.right_top(), shown.width()), (r.right_top(), 60.0));
+    // Bottom right: the top left stays, as before.
+    let shown = super::editor::sized_from(r, 3, 240.0);
+    assert_eq!((shown.min, shown.width(), shown.height()), (r.min, 240.0, 80.0));
+}
+
+#[test]
+fn escape_while_a_corner_is_held_puts_the_picture_back_and_does_nothing_else() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    key(&mut h, Key::Escape);
+    // A second Escape, and one held until it repeats, with the button still down: the drag's
+    // too, so the message stays open and the body keeps the keyboard.
+    key(&mut h, Key::Escape);
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    for _ in 0..3 {
+        h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: true, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    assert!(super::editor::has_focus(&h.ctx), "the body keeps the keyboard while the button is down");
+    // The button is still down and the pointer goes on moving: the drag stays given up.
+    let to = from + egui::vec2(60.0, 0.0);
+    h.event(Event::PointerMoved(to));
+    h.step();
+    h.event(button(to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None, "nothing is set");
+    assert!(h.state().session.compose.is_some(), "the message is still open");
+    assert!(super::editor::has_focus(&h.ctx), "the keys are still the body's");
+    assert_eq!(plain(&h), OBJECT.to_string());
+    let s = sel(&h);
+    assert_eq!((s.start(), s.end()), (0, 1), "the picture is still what is selected");
+    // The next drag sizes it as ever.
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(140));
+    // And Escape once the button is up is the body's as before: it lets go of the keyboard.
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!super::editor::has_focus(&h.ctx), "Escape after the drag lets the body go");
+    assert_eq!(width(&h), Some(140));
+}
+
+/// A PNG `w` by `h` pixels that can be read.
+fn real_png(w: u32, h: u32) -> Vec<u8> {
+    use image::ImageEncoder as _;
+    let rgb: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 90, 160]).collect();
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    out
+}
+
+#[test]
+fn a_signature_s_picture_in_file_signatures_has_four_corners_and_escape_is_the_drag_s() {
+    let mut a = app();
+    a.execute("signature.set", json!({"name": "Standard", "text": "Avery"})).unwrap();
+    a.execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    a.execute("signature.open", json!({"name": "Standard"})).unwrap();
+    a.execute("compose.select", json!({"from": 0})).unwrap();
+    a.execute("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&real_png(200, 100)), "file": "logo.png"})).unwrap();
+    a.execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    let mut h = window(a);
+    h.run_steps(6);
+    let picture = |h: &Window| h.state().session.signature_edit.as_ref().unwrap().signature.pictures().first().map(|p| (p.id, p.width)).unwrap();
+    let (id, before) = picture(&h);
+    assert_eq!(before, None);
+    let at = |h: &Window, name: &str| h.state().hit.rect(name, u64::from(id)).expect("the signature's picture has four corners").center();
+    // The top left corner, 20 to the left: 20 wider.
+    let from = at(&h, "pictureCornerTopLeft");
+    drag(&mut h, from, egui::vec2(-20.0, 0.0));
+    assert_eq!(picture(&h).1, Some(220));
+    // Escape while the bottom left corner is held: nothing set, and File is still open.
+    let from = at(&h, "pictureCornerBottomLeft");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    h.event(Event::PointerMoved(from + egui::vec2(30.0, 0.0)));
+    h.step();
+    key(&mut h, Key::Escape);
+    // Escape again, and held until it repeats, with the button still down: still the drag's.
+    key(&mut h, Key::Escape);
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    for _ in 0..3 {
+        h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: true, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
+    h.step();
+    assert!(h.state().ui.backstage, "File is still open while the button is down");
+    h.event(button(from + egui::vec2(30.0, 0.0), false));
+    h.step();
+    assert_eq!(picture(&h).1, Some(220));
+    assert!(h.state().ui.backstage, "File is still open");
+    // With the button up, Escape closes File as ever, even in the very next frame.
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!h.state().ui.backstage, "Escape after the drag closes File");
+}
+
+#[test]
+fn a_corner_dragged_with_the_secondary_button_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    h.event(button(from + egui::vec2(40.0, 0.0), false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
+fn a_corner_dragged_with_the_secondary_button_and_then_the_primary_too_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let press = |button, pos, pressed| Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE };
+    let (primary, secondary) = (egui::PointerButton::Primary, egui::PointerButton::Secondary);
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(press(secondary, from, true));
+    h.step();
+    h.event(Event::PointerMoved(from + egui::vec2(10.0, 0.0)));
+    h.step();
+    // The primary button pressed as well, away from the corner, and both moved on.
+    h.event(press(primary, from + egui::vec2(10.0, 0.0), true));
+    h.step();
+    for n in 2..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    // The primary button let go first (that ends the drag), then the other: the drag was never
+    // the primary button's, so nothing is set.
+    let to = from + egui::vec2(40.0, 0.0);
+    h.event(press(primary, to, false));
+    h.event(press(secondary, to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
+    // (The primary button pressed off the corner was the text's: it selected from there.) The
+    // picture selected again, the next drag, the primary button's alone, sizes it as ever.
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 1})).unwrap();
+    h.run_steps(2);
+    let at = corner(&h, "pictureCornerTopRight");
+    drag(&mut h, at, egui::vec2(20.0, 0.0));
+    assert_eq!(width(&h), Some(140));
+}
+
+#[test]
+fn a_corner_dragged_with_the_secondary_button_while_the_primary_is_held_from_elsewhere_sizes_nothing() {
+    let board = PictureBoard::default();
+    let mut h = selected_picture(&board);
+    let from = corner(&h, "pictureCornerTopRight");
+    let press = |button, pos, pressed| Event::PointerButton { pos, button, pressed, modifiers: Modifiers::NONE };
+    let (primary, secondary) = (egui::PointerButton::Primary, egui::PointerButton::Secondary);
+    // The primary button pressed where nothing is dragged, and carried down onto the corner.
+    let away = egui::pos2(1.0, 1.0);
+    h.event(Event::PointerMoved(away));
+    h.step();
+    h.event(press(primary, away, true));
+    h.step();
+    assert_eq!(h.ctx.dragged_id(), None, "the primary button drags nothing out there");
+    h.event(Event::PointerMoved(from));
+    h.step();
+    // The secondary button pressed on it starts a drag of the corner, with the primary down.
+    h.event(press(secondary, from, true));
+    h.step();
+    assert!(h.ctx.dragged_id().is_some(), "the corner is dragged");
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    let to = from + egui::vec2(40.0, 0.0);
+    h.event(press(primary, to, false));
+    h.event(press(secondary, to, false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None);
+}
+
+#[test]
+fn a_drag_ended_by_shift_escape_is_let_go_of() {
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    type_in(&mut h, "ab");
+    key(&mut h, Key::ArrowLeft);
+    *board.0.borrow_mut() = (Some(png(40)), None);
+    paste(&mut h);
+    key_with(&mut h, Modifiers::SHIFT, Key::ArrowLeft);
+    h.run_steps(2);
+    let from = corner(&h, "pictureCornerTopRight");
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=4 {
+        h.event(Event::PointerMoved(from + egui::vec2(10.0 * n as f32, 0.0)));
+        h.step();
+    }
+    // egui ends the drag on Escape with Shift too; the window's keys don't take that one.
+    key_with(&mut h, Modifiers::SHIFT, Key::Escape);
+    h.event(button(from + egui::vec2(40.0, 0.0), false));
+    h.run_steps(3);
+    assert_eq!(width(&h), None, "nothing is set");
+    // Nothing is left of the drag: a click places the caret, and Escape is the body's as ever.
+    let body = h.state().hit.rect("composeBody", 0).expect("the body");
+    click(&mut h, body.min + egui::vec2(2.0, 8.0));
+    assert_eq!(sel(&h).head, 0, "a click places the caret");
+    key(&mut h, Key::Escape);
+    h.run_steps(2);
+    assert!(!super::editor::has_focus(&h.ctx), "Escape lets the body go");
+}

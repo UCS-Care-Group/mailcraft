@@ -107,8 +107,7 @@ impl Lang {
             }
             // Brazil and Portugal both start the week on Sunday (CLDR).
             Lang::Portuguese => Conventions { twelve_hour: false, week_start: 6, pad_numeric: true, day_first: true },
-            Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
-            Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            Lang::Polish | Lang::Slovenian | Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }

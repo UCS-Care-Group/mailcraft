@@ -1866,6 +1866,7 @@ mod tests {
             ("nl", include_str!("../../i18n/po/nl.po")),
             ("ro", include_str!("../../i18n/po/ro.po")),
             ("pl", include_str!("../../i18n/po/pl.po")),
+            ("sl", include_str!("../../i18n/po/sl.po")),
             ("cs", include_str!("../../i18n/po/cs.po")),
             ("pt", include_str!("../../i18n/po/pt.po")),
             // Not ka.po: no bundled font has Georgian. It is drawn by the system's Georgian face
