@@ -34,6 +34,17 @@ fn the_same_server_is_told_whatever_the_case_of_its_name() {
     }
     let plain = ZimbraServer { url: "https://mail.example.org".into(), ..Default::default() };
     assert!(plain.same_server("HTTPS://MAIL.EXAMPLE.ORG/") && !plain.same_server("https://mail.example.org/zimbra"));
+    // The port a scheme goes to anyway names nothing either; any other port is another service.
+    for (address, same, other) in [
+        ("https://mail.example.org/zimbra", "HTTPS://MAIL.EXAMPLE.ORG:443/zimbra/", "https://mail.example.org:80/zimbra"),
+        ("https://mail.example.org:443", "https://mail.example.org", "https://mail.example.org:4430"),
+        ("http://localhost:80/zimbra", "http://LOCALHOST/zimbra", "http://localhost:443/zimbra"),
+        ("https://[2001:db8::20]:443", "https://[2001:DB8::20]/", "https://[2001:db8::20]:8443"),
+    ] {
+        let server = ZimbraServer { url: address.into(), ..Default::default() };
+        assert!(server.same_server(same) && server.same_server(address), "{address} and {same}");
+        assert!(!server.same_server(other), "{address} and {other}");
+    }
     // No address is no server: it is the same as none, not even as another empty one.
     assert!(!ZimbraServer::default().same_server("") && !ZimbraServer::default().same_server("https://mail.example.org"));
     // (Text of any kind is compared, never sliced inside a character.)
