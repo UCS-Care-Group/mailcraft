@@ -1406,6 +1406,13 @@ pub struct Mailbox {
     /// same Message-ID that another account receives is never taken for it. Not in the file.
     #[serde(skip)]
     pub tasks_awaiting_message: BTreeMap<(Id, String), Vec<Id>>,
+    /// The messages moved into another mailbox of the owner's whose server gave them no new id
+    /// (between a mailbox and its online archive, #1834 review), by the account each went into
+    /// and its Internet Message-ID: the id each had here. The copy a later read of that account
+    /// brings is the same message, not new mail: it takes that id back, and no rule or junk list
+    /// sorts it ([`Mailbox::take_moved_across`]). Not in the file.
+    #[serde(skip)]
+    pub moved_across: BTreeMap<(Id, String), Id>,
     /// The renames of each Microsoft account's list of categories that its server hasn't the new
     /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
     /// When the server won't make the new name, its old one is kept there; any other deletion
@@ -1502,6 +1509,7 @@ impl Default for Mailbox {
             category_sweeps: BTreeMap::new(),
             category_stamp: 0,
             tasks_awaiting_message: BTreeMap::new(),
+            moved_across: BTreeMap::new(),
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
@@ -1627,6 +1635,12 @@ impl Mailbox {
     /// older mailbox brought back by Undo, beside mail that came since).
     pub fn ids_after(&mut self, other: &Mailbox) {
         self.next_id = self.next_id.max(other.next_id);
+    }
+
+    /// The highest id handed out so far: one given to a message added from now on is higher
+    /// (also when the message that had this one is gone since).
+    pub fn last_id_handed_out(&self) -> Id {
+        self.next_id.saturating_sub(1)
     }
 
     pub fn alloc_id(&mut self) -> Id {
@@ -3264,7 +3278,21 @@ impl Mailbox {
         if !tasks.is_empty() && !m.message_id.is_empty() && self.tasks_awaiting_message.len() < MAX_TASKS_AWAITING {
             self.tasks_awaiting_message.entry((into, m.message_id.clone())).or_default().extend(tasks);
         }
+        if !m.message_id.is_empty() && self.moved_across.len() < MAX_TASKS_AWAITING {
+            self.moved_across.insert((into, m.message_id.clone()), m.id);
+        }
         Ok(m)
+    }
+
+    /// Whether a message of `account` with the Internet Message-ID `message_id` that a read brings
+    /// as new is one moved into that account from another mailbox of the owner's
+    /// ([`Mailbox::moved_across`]): the id it had here, once (and only while no message has it).
+    pub fn take_moved_across(&mut self, account: Id, message_id: &str) -> Option<Id> {
+        if message_id.is_empty() || self.moved_across.is_empty() {
+            return None;
+        }
+        let id = self.moved_across.remove(&(account, message_id.to_owned()))?;
+        (!self.messages.contains_key(&id)).then_some(id)
     }
 
     pub fn forget_message(&mut self, id: Id) -> Result<Message, ModelError> {

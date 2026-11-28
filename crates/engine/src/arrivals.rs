@@ -65,7 +65,9 @@ pub const MOST: usize = 1_000;
 
 /// Mark the mailbox before a run.
 pub fn mark(mailbox: &Mailbox) -> InboxMark {
-    let last_id = mailbox.messages.keys().next_back().copied().unwrap_or(0);
+    // (Handed out, not only held: a message forgotten since that comes back under its own id, as
+    // mail moved between a mailbox and its online archive does, is no new mail, #1834 review.)
+    let last_id = mailbox.messages.keys().next_back().copied().unwrap_or(0).max(mailbox.last_id_handed_out());
     let inboxes = mailbox
         .folders
         .iter()

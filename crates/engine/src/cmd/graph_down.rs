@@ -152,7 +152,9 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // earlier version kept: a JMAP server's Sent folder is read through here too.)
     let in_sent = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Sent);
     let sent_items = in_sent && mb.keeps_drafts_on_server(account);
-    let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
+    // (Nor in an online archive, which only holds mail moved there, #1834 review.)
+    let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared() && !a.is_archive());
+    let archive = mb.account(account).is_some_and(mailcraft_model::Account::is_archive);
     // The server's copies of messages being moved out of the account are not new mail.
     let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
@@ -245,14 +247,22 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 // where an Exchange server gives it a new id: the lists sort it as any new mail,
                 // and the rules file it as found (#566).
                 let moved_in = sorting && (inbox || junk) && down.had(mb, account, &message.message_id);
+                // Moved here from the owner's other mailbox (between a mailbox and its online
+                // archive) by a move whose new id the server didn't say: the same message, under the
+                // id it had, which no list or rule sorts, as the owner put it there (#1834 review).
+                let moved_across = mb.take_moved_across(account, &message.message_id);
+                if let Some(id) = moved_across {
+                    message.id = id;
+                }
                 if let Ok(m) = mb.add_message(message) {
                     index.note(mb, account, &there.server.id, m);
                     // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
                     // list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken
                     // out of Junk E-mail goes through them as any mail arriving in the Inbox does.
-                    // A move goes up as the owner's own does (R3.3).
-                    let sorted = sorting && mb.sort_junk(m);
-                    if ruling && inbox != sorted {
+                    // A move goes up as the owner's own does (R3.3). (Never in an online archive.)
+                    let sorts = sorting && !archive && moved_across.is_none();
+                    let sorted = sorts && mb.sort_junk(m);
+                    if ruling && sorts && inbox != sorted {
                         if moved_in {
                             mb.apply_rules_found(m, &down.rule_clock());
                         } else {

@@ -1323,3 +1323,46 @@ fn mail_in_the_archive_is_answered_from_its_owner() {
         s.run("compose.close", &json!({"discard": true})).unwrap();
     }
 }
+
+/// Mail moved out of the archive into its owner's Inbox, which the server moves without saying
+/// its new id, is the same message when the owner's read brings it: it takes back the id it had,
+/// so it is no new mail to tell of, and no rule sorts it (#1834 review).
+#[test]
+fn mail_moved_back_from_the_archive_is_no_new_mail() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    read(&mut s, account, page("F1", vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    end(&mut s, account, true);
+    // A rule that would flag what arrives in the Inbox from that sender, kept here.
+    let rule = json!({"name": "Flag", "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "flag"}], "account": account, "server": false});
+    s.run("rules.add", &rule).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("AM1", "Budget 2019", 1_600_000_000)], true, true), "AS1");
+    let m = here(&s, archive, "AM1").unwrap().id;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": inbox})).unwrap();
+    // The move goes up from the owner's run, the account it is in now.
+    let request = ews_mail_request(&s, account, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "F1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(account) }).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "no copy with the old id is kept");
+    // The owner's next read lists it in the Inbox under its new id.
+    let mark = crate::arrivals::mark(&s.mailbox);
+    let mut back = mail("M5", "Budget 2019", 1_600_000_000);
+    back.message_id = "AM1@example.org".into();
+    read(&mut s, account, page("F1", vec![back], false, true), "S2");
+    let copy = here(&s, account, "M5").unwrap();
+    assert_eq!(copy.id, m, "the same message, under the id it had");
+    assert_eq!(copy.folder, inbox);
+    assert_eq!(copy.flag, FlagStatus::None, "no rule acted on it");
+    assert!(crate::arrivals::arrivals(&s.mailbox, &mark).is_empty(), "no new mail to tell of");
+    assert!(s.mailbox.moved_across.is_empty());
+}
