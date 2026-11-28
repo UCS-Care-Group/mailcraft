@@ -9164,6 +9164,11 @@ msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
 msgstr "MailCraft démarre avec une boîte aux lettres vide et laisse le fichier tel quel."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "MailCraft starts with no window, only its icon beside the clock. Mail and reminders keep running. Click the icon to show the window again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft stopped reading it before it was done."
@@ -16524,6 +16529,11 @@ msgstr "Date de début"
 #, fuzzy
 msgid "Start date:"
 msgstr "Date de début :"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Start hidden in system tray"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs

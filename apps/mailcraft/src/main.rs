@@ -147,6 +147,12 @@ struct App(
     tray::Tray,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
     #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+    /// Whether MailCraft should start hidden in the system tray (Linux/FreeBSD only).
+    bool,
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+    /// After the first frame (which eframe forces visible), hide the window on the next frame.
+    bool,
 );
 
 /// A copy that updates itself (`self_update`): where it keeps what it needs, what it is, and what
@@ -187,6 +193,18 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
         apple_events::poll(&self.7, &mut self.0, ctx);
+        // Start hidden in the system tray: eframe forces the window visible on the first
+        // rendered frame (post_rendering), overriding with_visible(false). Hide it on the
+        // next frame instead, and keep it hidden. Only done once.
+        #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+        if self.7 {
+            if self.8 {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                self.7 = false;
+            } else {
+                self.8 = true;
+            }
+        }
         // MailCraft was started again (the shortcut, a `mailto:` link, a file opened from the
         // file manager): what it was started with opens here, and the window comes forward.
         if let Some(asked) = self.4.as_ref().and_then(single_instance::Guard::handed_over) {
@@ -1743,9 +1761,32 @@ fn main() -> eframe::Result {
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env(), eframe::wgpu::Dx12SwapchainKind::from_env());
     let (prefs, settings_unread) = load_prefs();
     let close_to_tray = prefs.as_ref().is_some_and(|ui| ui.close_to_tray);
-    let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+    let start_to_tray = prefs.as_ref().is_some_and(|ui| ui.start_to_tray);
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    let start_hidden = start_to_tray && tray::x11_reachable();
+    #[cfg(target_os = "windows")]
+    let start_hidden = start_to_tray;
+    #[cfg(target_os = "macos")]
+    let start_hidden = false;
+    #[cfg(any(target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
+    let start_hidden = false;
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+    let close_to_tray = close_to_tray || start_hidden;
+    let restored = if start_hidden { None } else { prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized) };
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
+    }
+    // Start hidden in the system tray: the window exists but is never shown;
+    // only the tray icon is visible. Requires a reachable tray; otherwise the
+    // window shows as normal so the owner is not left with no way to reach us.
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+    if start_hidden {
+        log::info!("starting hidden in the system tray: no window will be shown");
+        options.viewport = options.viewport.with_visible(false);
+    } else if start_to_tray {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        log::warn!("start hidden in system tray was requested but no X11/XWayland server is reachable: showing the window instead");
     }
     // Registered before the event loop starts, so it catches the Finder event that launched us as
     // well as later ones. Lives until the event loop returns; the app creator only borrows it.
@@ -1863,6 +1904,10 @@ fn main() -> eframe::Result {
                     Some(ui) => app.apply_prefs(ui),
                     None => app.fresh_prefs(),
                 }
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+                if start_hidden {
+                    app.ui.close_to_tray = true;
+                }
                 app.settings_unread = settings_unread;
                 app.software_drawing = software;
                 app.ui.window = restored;
@@ -1886,6 +1931,12 @@ fn main() -> eframe::Result {
             }
             if let Some(guard) = &guard {
                 guard.wake(&cc.egui_ctx);
+            }
+            // Start hidden in the tray requires the tray backend to run, so force
+            // close_to_tray on: otherwise there would be no tray icon to show the window again.
+            #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+            if start_hidden {
+                app.ui.close_to_tray = true;
             }
             // macOS: the menu bar (File, Edit, View, Folder, Message, Window, Help; every item a
             // command), whose app menu's Quit (Cmd+Q) asks the window to close, so a message being
@@ -1914,6 +1965,10 @@ fn main() -> eframe::Result {
                 apple_events.connect(&cc.egui_ctx),
                 #[cfg(target_os = "macos")]
                 menu_bar,
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+                start_hidden,
+                #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
+                false,
             )))
         }),
         close_to_tray,

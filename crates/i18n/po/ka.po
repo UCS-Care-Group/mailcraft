@@ -9180,6 +9180,11 @@ msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
 msgstr "MailCraft ცარიელი საფოსტო ყუთით იწყებს და ფაილს უცვლელად ტოვებს."
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "MailCraft starts with no window, only its icon beside the clock. Mail and reminders keep running. Click the icon to show the window again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/opening.rs
 #, fuzzy
 msgid "MailCraft stopped reading it before it was done."
@@ -16532,6 +16537,11 @@ msgstr "დაწყების თარიღი"
 #, fuzzy
 msgid "Start date:"
 msgstr "დაწყების თარიღი:"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Start hidden in system tray"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
