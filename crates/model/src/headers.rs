@@ -272,6 +272,9 @@ pub fn split(all: Vec<(String, String)>) -> (Vec<(String, String)>, HeaderBlock)
     // The topmost `Received` hops stay, down to the one at which the receiving server took the
     // mail in (the first that is no hop to the mailbox store): the server's own verdict is read by
     // where it stands among them (`auth_results`). The ones below are anybody's to write.
+    // lean: kept for every account (one or two lines, ~250 B each, per message in memory), though
+    // only one at a server of its own reads them; keep them only for such an account's mail if a
+    // large mailbox's memory (mailbox_bench) says it matters.
     let mut intake = false;
     for (at, (name, value)) in all.into_iter().enumerate() {
         let one = serde_json::to_vec(&(at, &name, &value)).map_or(usize::MAX, |b| b.len()).saturating_add(1);

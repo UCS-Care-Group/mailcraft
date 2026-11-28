@@ -665,3 +665,74 @@ fn the_hops_a_verdict_is_read_by_stay_on_the_message() {
     let (kept, block) = crate::headers::split(forged);
     assert!(!vouched(Some(&own_server()), &Message { headers: kept, header_block: block, ..bank(Vec::new()) }));
 }
+
+#[test]
+fn older_mail_kept_with_only_a_hop_at_exchange_onlines_edge_does_not_vouch() {
+    // An earlier version put every `Received` but one at Exchange Online's edge in the block. Mail
+    // it kept for an account at a server of its own, whose server wrote no verdict, has the
+    // sender's verdict with that server's id on top, and a hop the sender wrote "at the edge"
+    // below it: the server's own intake hop is in the block, and nothing splits it again.
+    let fake_edge = EDGE.replace("mail.example.org", "mail.bank.example");
+    let all = [
+        h("Received", DELIVERY),
+        h("Received", INTAKE),
+        h("Authentication-Results", SELF_PASS),
+        h("Received", &fake_edge),
+        h("DKIM-Signature", "v=1; a=rsa-sha256; d=bank.example; s=s1; b=AbCd"),
+        h("From", "Bank <alerts@bank.example>"),
+        h("Subject", "Your statement"),
+    ];
+    let (working, block): (Vec<_>, Vec<_>) = all.into_iter().enumerate().partition(|(at, _)| ![0, 1].contains(at));
+    let block: Vec<crate::headers::HeaderLine> =
+        block.into_iter().map(|(at, (name, value))| crate::headers::HeaderLine { at, name, value }).collect();
+    let m = Message {
+        headers: working.into_iter().map(|(_, line)| line).collect(),
+        header_block: crate::headers::HeaderBlock::of(&block),
+        ..bank(Vec::new())
+    };
+    assert!(!trusted(&own_server(), &m));
+    // Nor does new mail with such a hop as the topmost below the verdict.
+    let mut headers = vec![h("Received", DELIVERY), h("Authentication-Results", SELF_PASS), h("Received", &fake_edge)];
+    headers.extend(sent(Vec::new()));
+    assert!(!trusted(&own_server(), &bank(headers)));
+    // A server of its own behind Exchange Online's edge keeps its hop above the edge's.
+    let mut headers = vec![h("Authentication-Results", SELF_PASS), h("Received", INTAKE), h("Received", &fake_edge)];
+    headers.extend(sent(Vec::new()));
+    assert!(vouched(Some(&own_server()), &bank(headers)));
+}
+
+#[test]
+fn a_comment_that_swallows_the_servers_own_by_is_not_looked_past() {
+    // A HELO that opens a comment the server's `(using …` skip would read to the envelope
+    // address, where the sender wrote a `by … with LMTP` of its own.
+    for hop in [
+        "from a.example (using ( (unknown [192.0.2.1]) by mx.example.org (Postfix) with ESMTP id 1 \
+         for <\"ada+)) by h.example with LMTP x\"@example.org>; Tue, 3 Nov 2026 10:00:01 +0000",
+        "from a.example ([192.0.2.1]) (using ( by mx.example.org (Postfix) with ESMTPS id 1 \
+         for <\"ada+)) by h.example with LMTPS x\"@example.org>; Tue, 3 Nov 2026 10:00:01 +0000",
+        "from a.example (using (( by mx.example.org with ESMTP id 1 for <\"x)))) by h.example with LMTPA\"@example.org>",
+        // A comment holding the server's `by` and closing before a `by` of the sender's.
+        "from a.example (using by mx.example.org with ESMTP id 1 for <x@example.org>) by h.example with LMTP id 2",
+        // Quotes or an address inside it: no TLS comment holds one.
+        "from a.example (using \"x\") by imap.example.org with LMTP id 1",
+        "from a.example (using <x@example.org>) by imap.example.org with LMTP id 1",
+    ] {
+        let mut headers = vec![h("Received", hop), h("Authentication-Results", SELF_PASS)];
+        headers.extend(sent(Vec::new()));
+        assert!(!trusted(&own_server(), &bank(headers)), "{hop}");
+    }
+}
+
+#[test]
+fn a_verdict_below_too_many_hops_to_the_store_is_not_read() {
+    // Each hop is read whole, and `vouched` may be asked often: past a few, nothing more is read.
+    let with = |n: usize| {
+        let mut headers = vec![h("Received", DELIVERY); n];
+        headers.extend([h("Authentication-Results", SELF_PASS), h("Received", INTAKE)]);
+        headers.extend(sent(Vec::new()));
+        bank(headers)
+    };
+    assert!(vouched(Some(&own_server()), &with(8)));
+    assert!(!trusted(&own_server(), &with(9)));
+    assert!(!trusted(&own_server(), &with(1_000)));
+}

@@ -259,7 +259,9 @@ proptest! {
         let hops: Vec<&String> = all.iter().filter(|(n, _)| n == "Received").map(|(_, v)| v).collect();
         let down_to = hops.iter().position(|v| !crate::auth_results::is_delivery_hop(v)).map_or(hops.len(), |at| at + 1);
         let kept: Vec<&String> = working.iter().filter(|(n, _)| n == "Received").map(|(_, v)| v).collect();
-        prop_assert_eq!(kept, hops.get(..down_to).unwrap_or_default().to_vec());
+        let expected: Vec<&String> =
+            hops.iter().enumerate().filter(|(at, v)| *at < down_to || crate::auth_results::is_exchange_online_edge(v)).map(|(_, v)| *v).collect();
+        prop_assert_eq!(kept, expected);
         prop_assert_eq!(merge(&working, &block.lines()), all);
     }
 }

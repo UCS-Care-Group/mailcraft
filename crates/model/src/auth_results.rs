@@ -32,6 +32,9 @@ use crate::{Account, AccountKind, Message, provider, sender_warnings};
 pub(crate) const MAX_HEADERS_READ: usize = 2_000;
 const MAX_TOKENS: usize = 200;
 const MAX_HEADER_CHARS: usize = 4_000;
+/// The most hops to the mailbox store looked past, above the one at which a server took mail in:
+/// a store or two in a real system, and each is read whole.
+const MAX_DELIVERY_HOPS: usize = 8;
 /// The header Exchange writes on every message it delivers, saying whether the sender signed in
 /// inside the organisation (`Internal`) or came from outside (`Anonymous`).
 pub const AUTH_AS: &str = "X-MS-Exchange-Organization-AuthAs";
@@ -203,13 +206,27 @@ fn from_own_domain(account: &Account, value: &str) -> bool {
 /// rests on the server keeping its own hop: one that drops it and keeps only a hop to the store
 /// can't be told from a message whose sender wrote the hop below (a server that drops every
 /// `Received` as it takes mail in drops the sender's too, and its message has none to go by).
+/// A hop at Exchange Online's edge ([`is_exchange_online_edge`]) is never that hop: the account
+/// is not on Exchange Online (else [`exchange_online_results`] reads it), so a server of its own
+/// behind that edge writes its hop above it, and a version before this one kept such a hop on
+/// the message and put the server's own in the block, where nothing reads it. Past
+/// [`MAX_DELIVERY_HOPS`] hops to the store nothing more is read: each is read whole.
 fn above_intake(m: &Message) -> bool {
-    let mut seen = false;
+    let (mut seen, mut stores) = (false, 0usize);
     for (name, value) in m.headers.iter().take(MAX_HEADERS_READ) {
         if name.eq_ignore_ascii_case(RESULTS) {
             seen = true;
-        } else if name.eq_ignore_ascii_case("Received") && !is_delivery_hop(value) {
-            return seen;
+        } else if name.eq_ignore_ascii_case("Received") {
+            if is_exchange_online_edge(value) {
+                return false;
+            }
+            if !is_delivery_hop(value) {
+                return seen;
+            }
+            stores = stores.saturating_add(1);
+            if stores > MAX_DELIVERY_HOPS {
+                return false;
+            }
         }
     }
     false
@@ -218,9 +235,11 @@ fn above_intake(m: &Message) -> bool {
 /// Whether a `Received` value is a hop to the mailbox store inside the receiving system, in the
 /// one plain shape a store writes it: `from <host> [([<address>])] [(using …)] by <host> with
 /// LMTP…` (RFC 2033; LMTPA, LMTPS, LMTPSA: RFC 3848), its only `by` and its only `with` outside
-/// that comment, read whole. The words up to `with` are the store's own (a sender's HELO is one
-/// word and stands where a host does, and its envelope address comes after), so no hop at which
-/// the mail came in from outside, which says `SMTP` or `ESMTP…` there, is ever taken for one.
+/// that comment (which holds no `by` either), read whole. The words up to `with` are the store's
+/// own (a sender's HELO is one word and stands where a host does, and its envelope address comes
+/// after), so no hop at which the mail came in from outside, which says `SMTP` or `ESMTP…` there,
+/// is ever taken for one. A store that names its software there (Cyrus's `by store (Cyrus …)`) or
+/// took the mail over a socket (`([unix socket])`) is not: its mail never vouches.
 pub(crate) fn is_delivery_hop(value: &str) -> bool {
     if value.chars().nth(MAX_HEADER_CHARS).is_some() {
         return false;
@@ -262,7 +281,13 @@ pub(crate) fn is_delivery_hop(value: &str) -> bool {
     }
     let Some(rest) = rest.get(tls..) else { return false };
     let once = |keyword: &str| words.iter().take(head).chain(rest).filter(|word| word.eq_ignore_ascii_case(keyword)).count() == 1;
-    once("by")
+    // No TLS comment holds a `by`, a quote or an address: one that does was opened by a sender
+    // (its HELO) to hide the server's own `by … with` and show its own, written further on. So
+    // `by` is counted over every word, the comment's too.
+    let comment = words.get(head..head.saturating_add(tls)).unwrap_or_default();
+    comment.iter().all(|word| !word.contains(['"', '@', '<', '>']))
+        && words.iter().filter(|word| word.eq_ignore_ascii_case("by")).count() == 1
+        && once("by")
         && once("with")
         && matches!(rest, [by, name, with, protocol, ..] if by.eq_ignore_ascii_case("by") && host(name) && with.eq_ignore_ascii_case("with")
             && ["lmtp", "lmtpa", "lmtps", "lmtpsa"].contains(&protocol.trim_end_matches(';').to_ascii_lowercase().as_str()))
