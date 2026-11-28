@@ -461,7 +461,7 @@ fn a_read_of_the_server_before_is_dropped_once_another_is_named() {
     app.execute("account.edit", json!({"id": account, "sieve": {"host": "sieve.example.org", "port": 4191}})).unwrap();
     tx.send(SieveResult { account, state: Some(state(&ALL, None, None)), ..Default::default() }).unwrap();
     app.poll_sieve();
-    assert!(app.session.sieve.get(&account).is_none(), "the server before's answer isn't the account's");
+    assert!(!app.session.sieve.contains_key(&account), "the server before's answer isn't the account's");
     drop(answers);
 }
 
