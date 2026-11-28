@@ -374,3 +374,20 @@ fn an_agent_is_shown_a_built_in_providers_sign_in_moved_to_another_client() {
         assert!(!said.contains("client"), "{provider}: {said}");
     }
 }
+
+/// `provider` microsoft or google on an account that signs in with a password is ignored, as it
+/// always was (like `clientId` and `tenant`); an own identity provider is refused there, since it
+/// is only ever a sign-in on its page (#1844 review).
+#[test]
+fn a_built_in_provider_on_a_password_account_is_ignored_and_an_own_one_refused() {
+    let mut s = Session::empty();
+    let v = json!({"email": "ada@example.org", "incoming": {"host": "mail.example.org"}, "auth": "password", "provider": "google"});
+    let id = add(&mut s, &v);
+    assert!(s.mailbox.account(id).unwrap().oauth.is_none());
+    s.run("account.edit", &json!({"id": id, "provider": "microsoft"})).unwrap();
+    s.run("account.edit", &json!({"id": id, "auth": "password", "provider": "google", "clientId": "x"})).unwrap();
+    assert!(s.mailbox.account(id).unwrap().oauth.is_none());
+    assert!(s.run("account.edit", &json!({"id": id, "provider": "custom"})).is_err());
+    assert!(s.run("account.edit", &json!({"id": id, "auth": "password", "provider": "custom"})).is_err());
+    assert!(s.mailbox.account(id).unwrap().oauth.is_none());
+}
