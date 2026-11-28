@@ -3859,8 +3859,9 @@ msgstr "Koppelingsadres kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Afbeelding kopiëren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13683,8 +13684,9 @@ msgstr "Berichtbestand opslaan als"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Afbeelding opslaan als…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -16435,8 +16437,9 @@ msgstr "Dat plakken is net gebeurd, dus er is niets opnieuw geplakt"
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Deze afbeelding kan niet worden gekopieerd"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

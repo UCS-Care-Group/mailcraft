@@ -4837,9 +4837,12 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
 fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
     let shot = png(20, 12);
     let chart = png(8, 8);
+    // A PNG whose header still names a size, with the pixels cut off.
+    let mut torn = png(16, 10);
+    torn.truncate(48);
     let chart_b64 = mailcraft_engine::cmd::base64_encode(&chart);
     let html = format!(
-        "<p>Hello</p><img src=\"cid:shot@example\" alt=\"ridge\"><p>After</p><img src=\"data:image/png;base64,{chart_b64}\" alt=\"chart\"><p>End</p><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\"><img src=\"https://img.example/blocked.png\" alt=\"blocked\">"
+        "<p>Hello</p><img src=\"cid:shot@example\" alt=\"ridge\"><p>After</p><img src=\"data:image/png;base64,{chart_b64}\" alt=\"chart\"><p>End</p><img src=\"cid:torn@example\" alt=\"torn\"><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\"><img src=\"https://img.example/blocked.png\" alt=\"blocked\">"
     );
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
     let inbox = mailbox.inbox().unwrap();
@@ -4850,11 +4853,10 @@ fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
             subject: "A picture".into(),
             read: true,
             body: Body { html: Some(html), text: "Hello".into() },
-            attachments: vec![Attachment {
-                content_id: "shot@example".into(),
-                inline: true,
-                ..Attachment::new("ridge.png", "image/png", shot.clone())
-            }],
+            attachments: vec![
+                Attachment { content_id: "shot@example".into(), inline: true, ..Attachment::new("ridge.png", "image/png", shot.clone()) },
+                Attachment { content_id: "torn@example".into(), inline: true, ..Attachment::new("torn.png", "image/png", torn) },
+            ],
             ..Message::default()
         })
         .unwrap();
@@ -4879,19 +4881,27 @@ fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
     select(&mut harness, id);
 
     let ctx = harness.ctx.clone();
-    let (shot_at, chart_at, blocked_at, width, dark) = super::view::kept(&ctx, id, |laid, origin| {
+    let (shot_at, chart_at, torn_at, blocked_at, width, dark) = super::view::kept(&ctx, id, |laid, origin| {
         let center = |item: &Item| item.rect.translate(origin.to_vec2()).center();
         let pictures: Vec<_> = laid.items.iter().filter(|item| matches!(item.kind, ItemKind::Picture(_))).collect();
-        assert_eq!(pictures.len(), 2, "the part and the picture written into the message");
+        assert_eq!(pictures.len(), 3, "the part, the picture written into the message, and the one whose pixels are cut off");
         let ItemKind::Picture(first) = &pictures[0].kind else { panic!("the first shown picture") };
         let ItemKind::Picture(second) = &pictures[1].kind else { panic!("the second shown picture") };
-        assert_eq!((first.src.as_deref(), second.src.as_deref()), (Some("cid:shot@example"), Some("data:0")));
+        let ItemKind::Picture(third) = &pictures[2].kind else { panic!("the torn picture") };
+        assert_eq!(
+            (first.src.as_deref(), second.src.as_deref(), third.src.as_deref()),
+            (Some("cid:shot@example"), Some("data:0"), Some("cid:torn@example"))
+        );
         let blocked = laid.items.iter().find(|item| matches!(&item.kind, ItemKind::Placeholder(p) if p.src.contains("blocked.png"))).unwrap();
         assert!(laid.items.iter().all(|item| !matches!(&item.kind, ItemKind::Placeholder(p) if p.src.contains("o.gif"))));
         let (width, dark) = laid.media();
-        (center(pictures[0]), center(pictures[1]), center(blocked), width, dark)
+        (center(pictures[0]), center(pictures[1]), center(pictures[2]), center(blocked), width, dark)
     })
     .unwrap();
+    // The width and theme the pane recorded, not the layout's own answer fed back to itself.
+    let (recorded, _) = harness.state().session.read_as(id, mailcraft_engine::ReadIn::Pane).unwrap();
+    assert_eq!((width, dark), (recorded.width(), recorded.dark()));
+    assert!(width > 0);
 
     let (save, copy) = ("Save Picture As…", "Copy Picture");
     let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
@@ -4913,6 +4923,10 @@ fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
     assert_eq!(mailcraft_engine::cmd::base64_decode(got["data"].as_str().unwrap()).unwrap(), chart);
 
     menu_click(&mut harness, blocked_at);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
+    // Laid out from its header, then drawn as a stand-in once the pixels will not decode.
+    harness.run_steps(6);
+    menu_click(&mut harness, torn_at);
     assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
     let why = harness
         .state_mut()

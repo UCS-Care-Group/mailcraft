@@ -848,7 +848,11 @@ pub fn paint(
             state.set_menu_link(link.clone());
             let at = response.interact_pointer_pos().or(pointer);
             let message = state.message();
-            state.set_menu_picture(at.and_then(|pos| select::menu_picture(laid, origin, pos, message)));
+            state.set_menu_picture(at.and_then(|pos| {
+                select::menu_picture(laid, origin, pos, message, |data| {
+                    pictures.as_ref().is_some_and(|store| store.lock().unwrap_or_else(|e| e.into_inner()).undecodable(data))
+                })
+            }));
         }
         let on_link = state.menu_link();
         let on_picture = state.menu_picture();

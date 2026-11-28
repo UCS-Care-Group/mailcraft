@@ -3998,8 +3998,9 @@ msgstr "复制链接地址"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "复制图片"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14171,8 +14172,9 @@ msgstr "邮件文件另存为"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "图片另存为…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -16995,8 +16997,9 @@ msgstr "刚刚已完成该粘贴，因此未再次粘贴"
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "无法复制该图片"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

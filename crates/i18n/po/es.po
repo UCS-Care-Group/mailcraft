@@ -3998,8 +3998,9 @@ msgstr "Copiar dirección del vínculo"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Copiar imagen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14179,8 +14180,9 @@ msgstr "Guardar archivo de mensaje como"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Guardar imagen como…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -17003,8 +17005,9 @@ msgstr "Ese pegado se acaba de hacer, así que no se ha vuelto a pegar nada"
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Esa imagen no se puede copiar"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

@@ -152,6 +152,18 @@ fn a_picture_on_the_web_is_saved_only_from_bytes_already_kept() {
     assert!(why.contains("not a picture"), "{why}");
     let why = refuse(&mut session, json!({"id": id, "src": "https://img.example/page.png", "cached": "%%%"}));
     assert!(why.contains("base64"), "{why}");
+    // A header that names a size, with the pixels after it cut off.
+    let torn = header_only(jpeg(8, 8));
+    let (mut session, id) = hold(r#"<img src="cid:torn@example">"#, vec![part("torn.jpg", "torn@example", torn)]);
+    let why = refuse(&mut session, json!({"id": id, "src": "cid:torn@example"}));
+    assert!(why.contains("not a picture"), "{why}");
+}
+
+/// The picture's header, through the start of its scan, with the pixels cut away.
+fn header_only(mut bytes: Vec<u8>) -> Vec<u8> {
+    let at = bytes.windows(2).position(|pair| pair == [0xFF, 0xDA]).unwrap_or(0);
+    bytes.truncate(at.saturating_add(8).min(bytes.len().saturating_sub(1)).max(1));
+    bytes
 }
 
 #[test]

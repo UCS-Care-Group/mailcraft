@@ -190,7 +190,19 @@ fn kind_of(data: &[u8]) -> Option<&'static str> {
         reader.limits(limits);
         let (w, h) = reader.into_dimensions().ok()?;
         let pixels = u64::from(w).saturating_mul(u64::from(h));
-        (w >= 1 && h >= 1 && w <= MAX_PICTURE_SIDE && h <= MAX_PICTURE_SIDE && pixels <= MAX_PICTURE_PIXELS).then_some(ext)
+        if !(w >= 1 && h >= 1 && w <= MAX_PICTURE_SIDE && h <= MAX_PICTURE_SIDE && pixels <= MAX_PICTURE_PIXELS) {
+            return None;
+        }
+        // The header can name a size while the pixels are broken. Decode them, under the same
+        // caps, and keep the original bytes when they come out.
+        let mut again = image::ImageReader::new(Cursor::new(data)).with_guessed_format().ok()?;
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(MAX_PICTURE_SIDE);
+        limits.max_image_height = Some(MAX_PICTURE_SIDE);
+        limits.max_alloc = Some(MAX_DECODE_BYTES);
+        again.limits(limits);
+        again.decode().ok()?;
+        Some(ext)
     }));
     found.ok().flatten()
 }

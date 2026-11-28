@@ -131,6 +131,9 @@ impl RichClipboard for Board {
     }
 
     fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
+        // Wayland in the Flatpak has neither data-control nor X11. The window's Wayland
+        // clipboard can store text only, so a picture still goes through `arboard` and that
+        // write fails there. The same gap as copying HTML (#1217).
         let (width, height, pixels) = pixels(bytes)?;
         let image = arboard::ImageData { width, height, bytes: std::borrow::Cow::Owned(pixels) };
         let r = self.with(|b| b.set_image(image));
@@ -179,7 +182,7 @@ fn fragment(html: &str) -> &str {
 /// The picture's pixels, RGBA, for the system clipboard. A side longer than the clipboard takes
 /// is scaled down; the file a Save writes stays the original bytes.
 fn pixels(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), String> {
-    if bytes.is_empty() || bytes.len() > 24 * 1024 * 1024 {
+    if bytes.is_empty() || bytes.len() > mailcraft_ui_egui::reading::images::MAX_PICTURE_BYTES {
         return Err("that is not a picture that can be shown".into());
     }
     let rgba = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| rgba_of(bytes)))

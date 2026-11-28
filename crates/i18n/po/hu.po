@@ -3997,8 +3997,9 @@ msgstr "Linkcím másolása"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Kép másolása"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14168,8 +14169,9 @@ msgstr "Üzenetfájl mentése"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Kép mentése másként…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -16996,8 +16998,9 @@ msgstr "Ez a beillesztés épp most történt meg, ezért semmi sem lett újra b
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Ezt a képet nem lehet másolni"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

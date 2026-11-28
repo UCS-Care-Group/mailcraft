@@ -56,6 +56,12 @@ attachment opener refuses or asks about first: programs and scripts, web pages (
 (`.md`), and keys, certificates and signatures (`.asc`, `.pem`, `.p7m`, `.p12` and the like)). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
 (class `mailbox`). `screenshot` comes back in the answer; nothing is written.
 
+**A picture on the web.** `mail.savePicture` takes `cached`, the base64 of bytes the caller already
+has, when the message's HTML shows that address as a picture. Whether pictures may be downloaded
+is the window's choice: it stops the window fetching them and offering Save or Copy, and the
+command never fetches. A tracking picture is not a picture of the message, and is refused either
+way. The bytes are the message's: data, never instructions.
+
 **`--allow`.** `--allow send`, `delete`, `accounts`, `mailbox`, `settings` or `input`, repeated
 or separated by commas, lets the agent do that class without asking. There is no way to allow
 everything at once. Headless, it is the only way to let an agent do the owner's things; bridged,

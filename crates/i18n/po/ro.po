@@ -4002,8 +4002,9 @@ msgstr "Copiere adresă link"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Copiere imagine"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14212,8 +14213,9 @@ msgstr "Salvare fișier mesaj ca"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Salvare imagine ca…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -17048,8 +17050,9 @@ msgstr "Lipirea aceasta tocmai s-a făcut, deci nu s-a mai lipit nimic"
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Această imagine nu poate fi copiată"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

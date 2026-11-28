@@ -933,7 +933,9 @@ fn picture_params(picture: &MenuPicture) -> Value {
 }
 
 /// The picture under `pos` (in the window), when one is shown there. The last one painted wins.
-pub(super) fn menu_picture(laid: &Laid, origin: Vec2, pos: Pos2, message: Id) -> Option<MenuPicture> {
+/// `undecodable` is a picture whose bytes were decoded and could not be shown: the pane draws a
+/// stand-in, and neither Save nor Copy is offered over it.
+pub(super) fn menu_picture(laid: &Laid, origin: Vec2, pos: Pos2, message: Id, undecodable: impl Fn(&Arc<Vec<u8>>) -> bool) -> Option<MenuPicture> {
     let (width, dark) = laid.media();
     let mut found = None;
     for item in &laid.items {
@@ -942,6 +944,7 @@ pub(super) fn menu_picture(laid: &Laid, origin: Vec2, pos: Pos2, message: Id) ->
         }
         if let ItemKind::Picture(picture) = &item.kind
             && let Some(src) = picture.src.clone()
+            && !undecodable(&picture.data)
         {
             let remote = super::images::is_remote(&src);
             found = Some(MenuPicture { message, src, remote, bytes: picture.data.clone(), width, dark });

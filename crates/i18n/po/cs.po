@@ -3994,8 +3994,9 @@ msgstr "Kopírovat adresu odkazu"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Kopírovat obrázek"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14194,8 +14195,9 @@ msgstr "Uložit soubor zprávy jako"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Uložit obrázek jako…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -17026,8 +17028,9 @@ msgstr "Toto vložení se právě provedlo, takže se nic znovu nevložilo"
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Tento obrázek nelze zkopírovat"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

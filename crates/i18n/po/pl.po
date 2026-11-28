@@ -4004,8 +4004,9 @@ msgstr "Kopiuj adres linku"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "Kopiuj obraz"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14216,8 +14217,9 @@ msgstr "Zapisz plik wiadomości jako"
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "Zapisz obraz jako…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -17052,8 +17054,9 @@ msgstr "To wklejenie zostało właśnie wykonane, więc nic nie wklejono ponowni
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "Tego obrazu nie można skopiować"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

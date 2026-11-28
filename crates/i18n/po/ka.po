@@ -3987,8 +3987,9 @@ msgstr "ბმულის მისამართის კოპირებ�
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Picture"
-msgstr ""
+msgstr "სურათის კოპირება"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -14120,8 +14121,9 @@ msgstr "წერილის ფაილის შენახვა როგ
 
 #. command label
 #: crates/engine/src/cmd/save_picture.rs
+#, fuzzy
 msgid "Save Picture As…"
-msgstr ""
+msgstr "სურათის შენახვა როგორც…"
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -16934,8 +16936,9 @@ msgstr "ეს ჩასმა ახლახან შესრულდა, �
 
 #. interface
 #: crates/ui-egui/src/reading/select.rs
+#, fuzzy
 msgid "That picture can't be copied"
-msgstr ""
+msgstr "ამ სურათის კოპირება შეუძლებელია"
 
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs

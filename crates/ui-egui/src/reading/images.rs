@@ -326,6 +326,12 @@ impl Pictures {
         Some(entry)
     }
 
+    /// Whether these bytes were decoded and could not be shown. A picture not decoded yet, or
+    /// one left as a stand-in because the texture cache is full, is not: only a decode that failed.
+    pub fn undecodable(&self, data: &Arc<Vec<u8>>) -> bool {
+        self.entries.iter().any(|e| (Arc::ptr_eq(&e.data, data) || (e.data.len() == data.len() && *e.data == **data)) && e.failed)
+    }
+
     /// The size in pixels of an attachment that is a picture; `None` when it cannot be shown.
     pub fn size(&mut self, data: &Arc<Vec<u8>>, frame: u64) -> Option<[u32; 2]> {
         let size = self.entry(data, frame).and_then(|e| e.size);
