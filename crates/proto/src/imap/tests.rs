@@ -1066,6 +1066,40 @@ fn namespace_reads_personal_prefix_and_delimiter() {
     assert_eq!(s.sent(), "");
 }
 
+/// Dovecot's answer with other users' and public mailboxes: every group is read, extensions
+/// and odd values passed over, and a group written as nothing a list is empty.
+#[test]
+fn namespaces_reads_every_group() {
+    let answer = "* NAMESPACE ((\"\" \"/\")) ((\"shared/\" \"/\" \"X-PARAM\" (\"a\"))) ((\"Public/\" \"/\") (\"Other.\" NIL))\r\nA0001 OK done\r\n";
+    let mut s = Script::new(answer);
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    let ns = imap.namespaces().unwrap();
+    let one = |prefix: &str, delimiter| Namespace { prefix: prefix.into(), delimiter };
+    assert_eq!(ns.personal, [one("", Some('/'))]);
+    assert_eq!(ns.other_users, [one("shared/", Some('/'))]);
+    assert_eq!(ns.shared, [one("Public/", Some('/')), one("Other.", None)]);
+
+    // Groups cut short, or garbage in them: what can be read is, and nothing panics.
+    for (answer, other) in [
+        ("* NAMESPACE NIL\r\nA0001 OK done\r\n", 0),
+        ("* NAMESPACE ((\"\" \"/\")) (\"x\" ()) NIL\r\nA0001 OK done\r\n", 0),
+        ("* NAMESPACE NIL ((\"shared/\" \"/\") 7 ((1))) NIL\r\nA0001 OK done\r\n", 1),
+    ] {
+        let mut s = Script::new(answer);
+        let mut imap = Imap::resume(&mut s);
+        imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+        assert_eq!(imap.namespaces().unwrap().other_users.len(), other, "{answer}");
+    }
+
+    // Many namespaces: no more than are kept.
+    let many: String = (0..100).map(|n| format!("(\"u{n}/\" \"/\")")).collect();
+    let mut s = Script::new(format!("* NAMESPACE NIL ({many}) NIL\r\nA0001 OK done\r\n"));
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IMAP4REV1".into(), "NAMESPACE".into()]);
+    assert_eq!(imap.namespaces().unwrap().other_users.len(), MAX_NAMESPACES);
+}
+
 /// #1147: a token sign-in is followed by the `ID` command where the server offers it, as for a
 /// password (Coremail refuses every mailbox until a client has said which it is).
 #[test]
@@ -1097,4 +1131,37 @@ fn a_token_sign_in_after_starttls_asks_what_the_server_can_do_before_id() {
     imap.authenticate_xoauth2("ada@example.org", TOKEN).unwrap();
     assert_eq!(s.sent(), format!("A0001 AUTHENTICATE XOAUTH2\r\n{}\r\nA0002 CAPABILITY\r\n", bearer()));
     assert!(s.finished());
+}
+
+/// A mailbox named twice with different flags is one, where it first came, that can be opened
+/// when either naming says so (#1863: Dovecot names another's Inbox twice); named closed both
+/// times, it stays closed.
+#[test]
+fn a_mailbox_named_twice_has_the_flags_of_both() {
+    let mut server = String::new();
+    server += "* LIST (\\Noselect \\HasNoChildren) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\Noselect) \"/\" shared\r\n";
+    server += "* LIST (\\HasChildren \\Sent) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\NonExistent \\hasnochildren) \"/\" shared/erin/INBOX\r\n";
+    server += "* LIST (\\Noselect \\HasChildren) \"/\" shared\r\n";
+    server += "A0001 OK done\r\n";
+    let mut s = Script::new(server);
+    let list = Imap::resume(&mut s).list().unwrap();
+    assert_eq!(
+        list,
+        [
+            mailbox("shared/erin/INBOX", "shared/erin/INBOX", Some('/'), &["\\HasChildren", "\\Sent"]),
+            mailbox("shared", "shared", Some('/'), &["\\Noselect", "\\HasChildren"]),
+        ]
+    );
+    // Never more than MAX_FLAGS, whatever is added.
+    let mut flags: Vec<String> = (0..MAX_FLAGS).map(|n| format!("$f{n}")).collect();
+    merge_flags(&mut flags, vec!["$more".into(), "\\Noselect".into()]);
+    assert_eq!(flags.len(), MAX_FLAGS);
+    // At the cap, `\HasChildren` of the second naming still takes the place of `\HasNoChildren`.
+    let mut full: Vec<String> = (1..MAX_FLAGS).map(|n| format!("$f{n}")).collect();
+    full.insert(0, "\\HasNoChildren".into());
+    merge_flags(&mut full, vec!["\\haschildren".into()]);
+    assert_eq!(full.len(), MAX_FLAGS);
+    assert!(full.iter().any(|f| f == "\\haschildren") && !full.iter().any(|f| f.eq_ignore_ascii_case("\\HasNoChildren")), "{full:?}");
 }

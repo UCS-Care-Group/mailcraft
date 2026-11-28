@@ -4201,6 +4201,12 @@ msgid "Could not open Google sign-in"
 msgstr "Nu s-a putut deschide conectarea Google"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't ask the server which folders are other people's"
+msgstr "Serverul nu a putut fi întrebat care dosare sunt ale altor persoane"
+
+#. why a mail server couldn't be used
 #: crates/net/src/push.rs
 #, fuzzy
 msgid "Couldn't bring \"{name}\" up to date"

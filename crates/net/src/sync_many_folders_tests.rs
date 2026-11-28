@@ -103,9 +103,9 @@ fn the_tree_of_ten_thousand_folders_is_found_at_once() {
     let mut names = vec!["INBOX".to_string(), "inbox/Late".to_string()];
     names.extend((0..MAX_FOLDERS).map(|n| if n % 2 == 0 { format!("Top{n}") } else { format!("Top{}/Child", n - 1) }));
     let mailboxes: Vec<Mailbox> = names.iter().map(|n| proto_mailbox(n)).collect();
-    let plan = planned(&mailboxes, &[], false);
+    let plan = planned(&mailboxes, &[], false, &Others::default());
     let started = Instant::now();
-    let listed = listed(&plan);
+    let listed = listed(&plan, &Others::default());
     let took = started.elapsed();
     assert_eq!(listed.len(), MAX_FOLDERS);
     let parents = parents(&listed);
@@ -123,8 +123,8 @@ fn the_tree_of_ten_thousand_folders_is_found_at_once() {
 #[test]
 fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     let mailboxes = [proto_mailbox("A"), proto_mailbox(" A "), proto_mailbox("A/b"), proto_mailbox("Inbox"), proto_mailbox("INBOX/c")];
-    let plan = planned(&mailboxes, &[], false);
-    let small = listed(&plan);
+    let plan = planned(&mailboxes, &[], false, &Others::default());
+    let small = listed(&plan, &Others::default());
     let got: Vec<(&str, &str, &str)> = small.iter().map(|f| (f.remote.as_str(), f.parent.as_str(), f.name.as_str())).collect();
     assert_eq!(got, [("INBOX", "", "Inbox"), ("A", "", "A"), (" A ", "", "A"), ("A/b", "A", "b"), ("INBOX/c", "INBOX", "c")]);
 
@@ -133,8 +133,8 @@ fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     names.insert(0, "Late/child".into());
     names.push("Late".into());
     let mailboxes: Vec<Mailbox> = names.iter().map(|n| proto_mailbox(n)).collect();
-    let plan = planned(&mailboxes, &[], false);
-    let tree = listed(&plan);
+    let plan = planned(&mailboxes, &[], false, &Others::default());
+    let tree = listed(&plan, &Others::default());
     assert_eq!(tree.len(), MAX_FOLDERS);
     let child = tree.iter().find(|f| f.remote == "Late/child").map(|f| (f.parent.as_str(), f.name.as_str()));
     assert_eq!(child, Some(("", "Late/child")));

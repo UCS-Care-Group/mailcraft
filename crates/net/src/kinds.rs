@@ -5,7 +5,61 @@
 use std::collections::HashMap;
 
 use mailcraft_model::FolderKind;
-use mailcraft_proto::imap::Mailbox;
+use mailcraft_proto::imap::{Mailbox, Namespaces};
+
+/// Where the server keeps mailboxes that are not the account's own (RFC 2342): other users'
+/// mailboxes shared with it (Dovecot's `shared/alice/INBOX`) and mailboxes everyone shares
+/// (`Public/`). Such a mailbox is read like any other folder, in its own subtree, but is never
+/// this account's Inbox, Sent Items, Deleted Items or any other standard folder, whatever it is
+/// called or flagged.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Others {
+    /// Each namespace's prefix as the server spells it, with its hierarchy delimiter.
+    prefixes: Vec<(String, Option<char>)>,
+}
+
+impl Others {
+    /// The namespaces of others in a NAMESPACE answer. One with an empty prefix would take in
+    /// every mailbox, and one with the prefix of a personal namespace is the account's own:
+    /// neither is told apart.
+    pub(crate) fn of(namespaces: &Namespaces) -> Others {
+        let prefixes = namespaces
+            .other_users
+            .iter()
+            .chain(&namespaces.shared)
+            .filter(|ns| !ns.prefix.is_empty() && !namespaces.personal.iter().any(|own| own.prefix == ns.prefix))
+            .map(|ns| (ns.prefix.clone(), ns.delimiter))
+            .collect();
+        Others { prefixes }
+    }
+
+    /// Whether `mailbox` is in another's namespace, or is the top of one (`shared` for `shared/`).
+    /// The account's own `INBOX` never is (RFC 3501).
+    pub(crate) fn has(&self, mailbox: &Mailbox) -> bool {
+        let raw = mailbox.raw.as_str();
+        !is_inbox(mailbox) && self.prefixes.iter().any(|(prefix, delimiter)| within(raw, prefix, *delimiter))
+    }
+}
+
+/// Whether the mailbox named `raw` is in the namespace of `prefix`, or is its top. RFC 2342
+/// doesn't make a prefix end with its delimiter, so a name is in it only at a part's edge:
+/// under `shared` (or `shared/`) with `/` are `shared` and `shared/bob/x`, never `shared-notes`
+/// or `shared2/x`. A namespace with no delimiter (NIL) is flat: it has no parts to tell an edge
+/// by, only the prefix, so every name that begins with the prefix is in it. That errs on the
+/// safe side: an account's own mailbox taken for another's only loses a standard job, while
+/// another's taken for the account's own could be filled with its sent mail or emptied as its
+/// Deleted Items.
+fn within(raw: &str, prefix: &str, delimiter: Option<char>) -> bool {
+    let Some(d) = delimiter else {
+        return raw.starts_with(prefix);
+    };
+    match prefix.strip_suffix(d) {
+        // `shared/`: everything under it, and `shared` itself.
+        Some(top) => raw.starts_with(prefix) || (!top.is_empty() && raw == top),
+        // `shared`: itself, and everything under `shared/`.
+        None => raw == prefix || raw.strip_prefix(prefix).is_some_and(|rest| rest.starts_with(d)),
+    }
+}
 
 /// Whether the mailbox can be opened at all.
 pub(crate) fn selectable(mailbox: &Mailbox) -> bool {
@@ -66,11 +120,17 @@ pub(crate) fn remote_name(mailbox: &Mailbox) -> String {
 /// already `tied` to (so a folder doesn't change its job because the server grew another
 /// candidate), else the one the server flags, else the first with a well-known name.
 pub(crate) fn plan<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)]) -> Vec<(&'a Mailbox, FolderKind)> {
+    plan_for(mailboxes, tied, &Others::default())
+}
+
+/// [`plan`], where the mailboxes of `others` are each an ordinary folder, never a standard one.
+pub(crate) fn plan_for<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], others: &Others) -> Vec<(&'a Mailbox, FolderKind)> {
     let mut plan: Vec<(&Mailbox, FolderKind)> = mailboxes.iter().filter(|m| selectable(m) && !is_view(m)).map(|m| (m, FolderKind::Custom)).collect();
     let mut taken: Vec<FolderKind> = vec![FolderKind::Custom, FolderKind::Outbox];
     let mut give = |guess: &dyn Fn(&Mailbox) -> Option<FolderKind>| {
         for (mailbox, kind) in &mut plan {
             if *kind == FolderKind::Custom
+                && !others.has(mailbox)
                 && let Some(found) = guess(mailbox)
                 && !taken.contains(&found)
             {

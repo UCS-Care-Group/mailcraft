@@ -27,6 +27,7 @@ use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
 
+use crate::kinds::Others;
 use crate::push::push;
 use crate::send::{Envelope, dated, deliver, open_smtp_with, relay_hint};
 use crate::transport::{self, Patience, Service, Stream};
@@ -36,6 +37,8 @@ use mailcraft_i18n::{Arg, Text, said};
 /// Most mailboxes read in one run (#991): as many as a listing of a Microsoft account's folders
 /// holds.
 const MAX_FOLDERS: usize = mailcraft_model::sync::MAX_LISTED_FOLDERS;
+/// Most folders made above one of others' folders to hold it ([`hold`]).
+const MAX_HOLDER_LEVELS: usize = 16;
 /// Most message bytes downloaded in one run whose answer is kept whole ([`sync`]); the rest
 /// comes with the next one.
 const MAX_RUN_BYTES: usize = 256 * 1024 * 1024;
@@ -584,8 +587,8 @@ fn turn(kind: FolderKind) -> u8 {
 /// server's order within that). An Exchange mailbox's folders for other things than mail are
 /// left out, unless a folder here follows one already (`tied`): what the owner has been shown
 /// doesn't stop being looked after.
-fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft: bool) -> Vec<(&'a Mailbox, FolderKind)> {
-    let mut plan = kinds::plan(mailboxes, tied);
+fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft: bool, others: &Others) -> Vec<(&'a Mailbox, FolderKind)> {
+    let mut plan = kinds::plan_for(mailboxes, tied, others);
     if is_exchange(mailboxes, microsoft) {
         let followed: HashSet<&str> = tied.iter().map(|(remote, _)| *remote).collect();
         plan.retain(|(mailbox, _)| {
@@ -606,40 +609,137 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
 /// Each folder's parent is found by its name in an index made in one pass over the folders read
 /// (#991), the first of a name being the one: searching them all for each folder would be a
 /// hundred million comparisons at 10,000 folders.
-fn listed(plan: &[(&Mailbox, FolderKind)]) -> Vec<mailcraft_model::sync::ListedFolder> {
+///
+/// A folder of `others` (another user's, or one everyone shares) keeps the server's tree even
+/// where the folders above it can't be opened, or aren't listed at all (Dovecot's `shared` and
+/// `shared/alice` above `shared/alice/INBOX`): those come too, before it, as folders that only
+/// hold others, so that another's `INBOX` is not one more `INBOX` at the top of the account.
+/// Those folders find the folder above them by the server's exact path, spaces and all, so that
+/// `shared/u/Team /x` lies in `shared/u/Team ` and never in a listed `shared/u/Team` beside it.
+fn listed(plan: &[(&Mailbox, FolderKind)], others: &Others) -> Vec<mailcraft_model::sync::ListedFolder> {
     let read = plan.get(..plan.len().min(MAX_FOLDERS)).unwrap_or_default();
-    // Where each name first comes, and where the first Inbox under any spelling does.
+    // Where each name first comes, trimmed and as the server spells it, and where the first
+    // Inbox under any spelling does.
     let mut by_name: HashMap<&str, usize> = HashMap::with_capacity(read.len());
+    let mut by_path: HashMap<&str, usize> = HashMap::with_capacity(read.len());
     let mut first_inbox = None;
     for (at, (mailbox, _)) in read.iter().enumerate() {
         let name = mailbox.name.trim();
         by_name.entry(name).or_insert(at);
+        by_path.entry(mailbox.name.as_str()).or_insert(at);
         if first_inbox.is_none() && name.eq_ignore_ascii_case("inbox") {
             first_inbox = Some(at);
         }
     }
     let mut out = Vec::with_capacity(read.len());
+    // The folders made to hold others' folders, by path.
+    let mut holders: HashSet<String> = HashSet::new();
     for (mailbox, kind) in read {
         let remote = kinds::remote_name(mailbox);
         if remote.is_empty() {
             continue;
         }
         let name = mailbox.name.trim();
-        let (above, leaf) = mailbox.delimiter.and_then(|d| name.rsplit_once(d)).map_or(("", name), |(above, leaf)| (above.trim(), leaf.trim()));
+        // The path above is the server's own, spaces and all: it is what a folder made to hold
+        // this one is called on the server. Another's folder looks it up as it is; the
+        // account's own looks it up trimmed, as the names in `by_name` are.
+        let (path, leaf) = mailbox.delimiter.and_then(|d| mailbox.name.rsplit_once(d)).unwrap_or(("", name));
+        let above = path.trim();
+        let theirs = others.has(mailbox);
         // The folder it lies in, when that is one of those read too (the Inbox under any
         // spelling: the first so spelt comes no later than one named exactly as `above`).
         let at = if above.is_empty() {
             None
         } else if above.eq_ignore_ascii_case("inbox") {
             first_inbox
+        } else if theirs {
+            by_path.get(path).copied()
         } else {
             by_name.get(above).copied()
         };
-        let parent = at.and_then(|at| read.get(at)).map(|(other, _)| kinds::remote_name(other)).unwrap_or_default();
-        let name = if leaf.is_empty() || (parent.is_empty() && !above.is_empty()) { name } else { leaf };
+        let mut parent = at.and_then(|at| read.get(at)).map(|(other, _)| kinds::remote_name(other)).unwrap_or_default();
+        if parent.is_empty()
+            && !above.is_empty()
+            && let Some(delimiter) = mailbox.delimiter
+            && theirs
+        {
+            // The holders count against the folders a listing may have, so that none read is
+            // left out for them: past that, the folder is at the top under its whole path.
+            let room = MAX_FOLDERS.saturating_sub(read.len()).saturating_sub(holders.len());
+            if hold(path, delimiter, room, read, &by_path, &mut holders, &mut out) {
+                parent = path.to_string();
+            }
+        }
+        let name = if parent.is_empty() && !above.is_empty() { name } else { part_shown(leaf, name) };
         out.push(mailcraft_model::sync::ListedFolder { remote, kind: *kind, parent, name: name.to_string() });
     }
     out
+}
+
+/// The folders above one of others' folders, from `path` up, that are not read themselves: each
+/// one that isn't in `out` yet goes there, highest first, as an ordinary folder named by the last
+/// part of its path. No more than [`MAX_HOLDER_LEVELS`] of them: of a path deeper than that, the
+/// highest made is at the top of the account. None at all when more would be needed than `room`;
+/// returns whether `path` holds now.
+///
+/// Paths are the server's, untrimmed, so that each folder made is the one its folders name as
+/// theirs (`shared/u/Team ` above `shared/u/Team /x`); only the name shown is trimmed. A folder
+/// read is found by its exact path in `by_path`, so a listed `shared/u/Team` beside it is not
+/// taken for it.
+fn hold(
+    path: &str,
+    delimiter: char,
+    room: usize,
+    read: &[(&Mailbox, FolderKind)],
+    by_path: &HashMap<&str, usize>,
+    holders: &mut HashSet<String>,
+    out: &mut Vec<mailcraft_model::sync::ListedFolder>,
+) -> bool {
+    let mut above = Vec::new();
+    let mut at = path;
+    // The folder the highest one made lies in: one read, one made before, or none.
+    let mut top = String::new();
+    while !at.is_empty() {
+        if let Some(listed) = by_path.get(at) {
+            top = read.get(*listed).map(|(mailbox, _)| kinds::remote_name(mailbox)).unwrap_or_default();
+            break;
+        }
+        if holders.contains(at) {
+            top = at.to_string();
+            break;
+        }
+        if above.len() >= MAX_HOLDER_LEVELS {
+            break;
+        }
+        let (up, leaf) = at.rsplit_once(delimiter).unwrap_or(("", at));
+        above.push((at, leaf));
+        at = up;
+    }
+    if above.len() > room {
+        return false;
+    }
+    let mut parent = top;
+    for (path, leaf) in above.into_iter().rev() {
+        holders.insert(path.to_string());
+        out.push(mailcraft_model::sync::ListedFolder {
+            remote: path.to_string(),
+            kind: FolderKind::Custom,
+            parent: std::mem::replace(&mut parent, path.to_string()),
+            name: part_shown(leaf, path).to_string(),
+        });
+    }
+    true
+}
+
+/// The name a folder is shown by in its parent: the last part of its path trimmed; a part
+/// that is only spaces as it is (a name made of nothing would be no name at all); and the whole
+/// path when the part is empty (`a/` with `/`).
+fn part_shown<'a>(leaf: &'a str, path: &'a str) -> &'a str {
+    match leaf.trim() {
+        "" if leaf.is_empty() => path,
+        "" => leaf,
+        trimmed => trimmed,
+    }
 }
 
 /// What is done on the incoming server: copies of what was `sent` are filed, the changes made
@@ -680,21 +780,36 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         Err(()) => return None,
     };
     let (mailboxes, dropped) = match imap.list_counted() {
-        Ok(list) => list,
+        // A mailbox listed twice is one already ([`Imap::list_counted`]).
+        Ok(listed) => listed,
         Err(e) => {
             let alive = run.failed(said!("Couldn't read the list of folders"), &e.into());
             run.out.unfiled.extend(owed);
             return alive.then_some(imap);
         }
     };
+    // Which of them are others' (RFC 2342): another user's Inbox is not this account's.
+    let others = match imap.namespaces() {
+        Ok(namespaces) => Others::of(&namespaces),
+        // As a server without NAMESPACE: every folder listed is taken for the account's own.
+        Err(ProtoError::Rejected(_)) => {
+            log::debug!("NAMESPACE refused: without the server's namespaces, every folder listed is taken as the account's own, as before");
+            Others::default()
+        }
+        Err(e) => {
+            let alive = run.failed(said!("Couldn't ask the server which folders are other people's"), &e.into());
+            run.out.unfiled.extend(owed);
+            return alive.then_some(imap);
+        }
+    };
     // Folders that already follow a server mailbox keep their job.
     let tied: Vec<(&str, FolderKind)> = request.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.kind)).collect();
-    let plan = planned(&mailboxes, &tied, host.microsoft);
+    let plan = planned(&mailboxes, &tied, host.microsoft, &others);
     if let Some(said) = left_out(&plan, dropped > 0) {
         run.out.problem(said);
     }
     // The whole tree first: the folders are there to see before their mail is.
-    run.out.listed = listed(&plan);
+    run.out.listed = listed(&plan, &others);
     if !run.out.listed.is_empty() {
         let found = if run.out.listed.len() == 1 { 1 } else { plan.len().min(MAX_FOLDERS) };
         run.hand_over_in(&imap, SyncStep::new(SyncStage::Listed, "", 0, found));
@@ -1683,6 +1798,10 @@ mod bad_message_tests;
 mod inbox_first_tests;
 
 #[cfg(test)]
+#[path = "sync_shared_namespace_tests.rs"]
+mod shared_namespace_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1859,22 +1978,25 @@ mod tests {
             "Tasks",
         ]);
         let mail = "INBOX (inbox), Sent Items (sent), Drafts (drafts), Archive (archive), Deleted Items (deleted), Junk Email (junk)";
-        assert_eq!(names(planned(&exchange, &[], false)), format!("{mail}, Receipts (custom)"));
-        assert_eq!(names(planned(&exchange, &[], true)), format!("{mail}, Receipts (custom)"));
+        assert_eq!(names(planned(&exchange, &[], false, &Others::default())), format!("{mail}, Receipts (custom)"));
+        assert_eq!(names(planned(&exchange, &[], true, &Others::default())), format!("{mail}, Receipts (custom)"));
         // A folder here that follows one of the others already keeps being read.
         let tied = [("Notes", FolderKind::Custom), ("INBOX", FolderKind::Inbox), ("Gone", FolderKind::Custom)];
-        assert_eq!(names(planned(&exchange, &tied, false)), format!("{mail}, Notes (custom), Receipts (custom)"));
+        assert_eq!(names(planned(&exchange, &tied, false, &Others::default())), format!("{mail}, Notes (custom), Receipts (custom)"));
         // On another kind of server every folder is one of mail, whatever it is called. Nor is
         // the same listing an English Exchange mailbox's when it comes from a server of Microsoft's.
         let other = listed(&["Notes", "Junk", "INBOX", "Trash", "Sent", "Tasks", "Sent Items"]);
         let all = "INBOX (inbox), Sent (sent), Trash (deleted), Junk (junk), Notes (custom), Tasks (custom), Sent Items (custom)";
-        assert_eq!((names(planned(&other, &[], false)), names(planned(&other, &[], true))), (all.to_string(), all.to_string()));
+        assert_eq!(
+            (names(planned(&other, &[], false, &Others::default())), names(planned(&other, &[], true, &Others::default()))),
+            (all.to_string(), all.to_string())
+        );
         // A mailbox at Outlook.com that was never opened in Outlook: its "Notes" and "Outbox" are
         // Exchange's own, which only the server's name tells.
         let plain = listed(&["Archive", "Deleted Items", "Drafts", "INBOX", "Junk Email", "Notes", "Outbox", "Sent Items"]);
-        assert_eq!(names(planned(&plain, &[], true)), mail);
-        assert_eq!(names(planned(&plain, &[], false)), format!("{mail}, Notes (custom), Outbox (custom)"));
-        assert!(planned(&[], &[], true).is_empty());
+        assert_eq!(names(planned(&plain, &[], true, &Others::default())), mail);
+        assert_eq!(names(planned(&plain, &[], false, &Others::default())), format!("{mail}, Notes (custom), Outbox (custom)"));
+        assert!(planned(&[], &[], true, &Others::default()).is_empty());
     }
 
     #[test]
@@ -1929,7 +2051,7 @@ mod tests {
         ) {
             let mailboxes = listed(&names.iter().map(String::as_str).collect::<Vec<_>>());
             let tied: Vec<(&str, FolderKind)> = tied.iter().map(|name| (name.as_str(), FolderKind::Custom)).collect();
-            let plan = planned(&mailboxes, &tied, microsoft);
+            let plan = planned(&mailboxes, &tied, microsoft, &Others::default());
             proptest::prop_assert!(plan.len() <= mailboxes.len());
             // In turn, and nothing that is no mail unless a folder here follows it.
             proptest::prop_assert!(plan.windows(2).all(|pair| turn(pair[0].1) <= turn(pair[1].1)));

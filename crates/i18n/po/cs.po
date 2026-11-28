@@ -4193,6 +4193,12 @@ msgid "Could not open Google sign-in"
 msgstr "Přihlášení přes Google nešlo otevřít"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Couldn't ask the server which folders are other people's"
+msgstr "Nepodařilo se zjistit od serveru, které složky patří jiným lidem"
+
+#. why a mail server couldn't be used
 #: crates/net/src/push.rs
 #, fuzzy
 msgid "Couldn't bring \"{name}\" up to date"

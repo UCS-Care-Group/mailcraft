@@ -369,6 +369,9 @@ pub(crate) struct ImapWorld {
     pub(crate) subscribed: Vec<String>,
     /// Personal IMAP namespace `(prefix, delimiter)` to advertise via `NAMESPACE`.
     pub(crate) namespace: Option<(String, String)>,
+    /// What follows the personal namespace in the `NAMESPACE` answer: the other users' and the
+    /// shared namespaces as they stand (`(("shared/" "/")) NIL`); empty for `NIL NIL`.
+    pub(crate) namespace_others: String,
     /// Every line received.
     pub(crate) log: Vec<String>,
     pub(crate) connections: usize,
@@ -622,7 +625,8 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
             "NAMESPACE" => {
                 if let Some((prefix, delimiter)) = &world.namespace {
-                    reply.extend(format!("* NAMESPACE ((\"{prefix}\" \"{delimiter}\")) NIL NIL\r\n{tag} OK done\r\n").bytes());
+                    let others = if world.namespace_others.is_empty() { "NIL NIL" } else { world.namespace_others.as_str() };
+                    reply.extend(format!("* NAMESPACE ((\"{prefix}\" \"{delimiter}\")) {others}\r\n{tag} OK done\r\n").bytes());
                 } else {
                     reply.extend(format!("{tag} BAD not offered\r\n").bytes());
                 }
